@@ -1,10 +1,6 @@
-SET(TARGET "main")
+CMAKE_MINIMUM_REQUIRED(VERSION 2.8.12)
 
-SET(TARGET_SRC allen_cahn_two_components_2.cc)
-
-CMAKE_MINIMUM_REQUIRED(VERSION 2.8.8)
-
-FIND_PACKAGE(deal.II 8.0 QUIET
+FIND_PACKAGE(deal.II 9.0.0 QUIET
   HINTS ${deal.II_DIR} ${DEAL_II_DIR} ../ ../../ $ENV{DEAL_II_DIR}
   )
 IF(NOT ${deal.II_FOUND})
@@ -15,8 +11,50 @@ IF(NOT ${deal.II_FOUND})
     )
 ENDIF()
 
+IF(NOT DEAL_II_WITH_P4EST) # keep in one line
+  MESSAGE(FATAL_ERROR "
+Error! The deal.II library found at ${DEAL_II_PATH} was not configured with
+    DEAL_II_WITH_P4EST = ON
+It was set to OFF in your installation but is required for this program."
+    )
+ENDIF()
+
 DEAL_II_INITIALIZE_CACHED_VARIABLES()
-PROJECT(${TARGET})
-DEAL_II_INVOKE_AUTOPILOT()
 
+SET( TARGET_SRC dummy.cc)
 
+PROJECT(ceed)
+
+ADD_LIBRARY(ceed  ${TARGET_SRC})
+
+# Define custom targets to easily switch the build type:
+ADD_CUSTOM_TARGET(debug
+  COMMAND ${CMAKE_COMMAND} -DCMAKE_BUILD_TYPE=Debug ${CMAKE_SOURCE_DIR}
+  COMMENT "Switch CMAKE_BUILD_TYPE to Debug\nPlease call 'make' to build the debug project"
+  )
+
+ADD_CUSTOM_TARGET(release
+  COMMAND ${CMAKE_COMMAND} -DCMAKE_BUILD_TYPE=Release ${CMAKE_SOURCE_DIR}
+  COMMENT "Switch CMAKE_BUILD_TYPE to Release\nPlease call 'make' to build the release project"
+  )
+
+DEAL_II_INITIALIZE_CACHED_VARIABLES()
+
+DEAL_II_SETUP_TARGET(ceed)
+
+FILE(GLOB SOURCE_FILES "*.cc")
+
+FOREACH ( source_file ${SOURCE_FILES} )
+
+  GET_FILENAME_COMPONENT(file_name ${source_file} NAME)
+
+  string(COMPARE EQUAL "${file_name}" "dummy.cc" _cmp)
+
+  IF(NOT _cmp)
+    STRING( REPLACE ".cc" "" exec ${file_name} )
+    ADD_EXECUTABLE( ${exec} ${source_file})
+    DEAL_II_SETUP_TARGET(${exec})
+    TARGET_LINK_LIBRARIES(${exec} "ceed")
+  ENDIF()
+
+ENDFOREACH ( source_file ${SOURCE_FILES} )
