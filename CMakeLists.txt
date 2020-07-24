@@ -1,6 +1,6 @@
 SET(TARGET "main")
 
-SET(TARGET_SRC allen_cahn_two_components_1.cc)
+SET(TARGET_SRC allen_cahn_two_components_2.cc)
 
 CMAKE_MINIMUM_REQUIRED(VERSION 2.8.8)
 

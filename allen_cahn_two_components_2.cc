@@ -48,16 +48,22 @@ private:
   const double rad_1 = 20.0;
   const double rad_2 = 15.0;
 
+  const unsigned int phase;
+
 public:
-  InitialValues()
-    : Function<dim>(2)
+  InitialValues(const unsigned int phase)
+    : Function<dim>(1)
+    , phase(phase)
   {}
 
   virtual double
   value(const dealii::Point<dim> &p,
         const unsigned int        component = 0) const override
   {
-    if (component == 0)
+    AssertDimension(component, 0);
+    (void)component;
+
+    if (phase == 0)
       return 0.5 * (1.0 - std::tanh(2 * (p_1.distance(p) - rad_1)));
     else
       return 0.5 * (1.0 - std::tanh(2 * (p_2.distance(p) - rad_2)));
@@ -77,8 +83,10 @@ class MassMatrix
 public:
   using VectorType = LinearAlgebra::distributed::Vector<Number>;
 
-  MassMatrix(const MatrixFree<dim, Number, VectorizedArrayType> &matrix_free)
+  MassMatrix(const MatrixFree<dim, Number, VectorizedArrayType> &matrix_free,
+             const unsigned int                                  dof_index)
     : matrix_free(matrix_free)
+    , dof_index(dof_index)
   {}
 
   void
@@ -90,7 +98,7 @@ public:
                  n_components,
                  Number,
                  VectorizedArrayType>
-      phi(matrix_free);
+      phi(matrix_free, dof_index);
 
     matrix_free.template cell_loop<VectorType, VectorType>(
       [&](const auto &, auto &dst, const auto &src, auto &range) {
@@ -116,6 +124,7 @@ public:
 
 private:
   const MatrixFree<dim, Number, VectorizedArrayType> &matrix_free;
+  const unsigned int                                  dof_index;
 };
 
 
@@ -153,9 +162,13 @@ public:
     GridGenerator::subdivided_hyper_cube(tria, n_subdivisions, 0, size);
     tria.refine_global(n_refinements);
 
-    FESystem<dim>   fe(FE_Q<dim>{fe_degree}, 2);
-    DoFHandler<dim> dof_handler(tria);
-    dof_handler.distribute_dofs(fe);
+    FE_Q<dim>       fe_1(fe_degree);
+    DoFHandler<dim> dof_handler_1(tria);
+    dof_handler_1.distribute_dofs(fe_1);
+
+    FE_Q<dim>       fe_2(fe_degree);
+    DoFHandler<dim> dof_handler_2(tria);
+    dof_handler_2.distribute_dofs(fe_2);
 
     MappingQ<dim> mapping(1);
 
@@ -168,19 +181,31 @@ public:
     additional_data.mapping_update_flags = update_values | update_gradients;
 
     MatrixFree<dim, Number, VectorizedArrayType> matrix_free;
-    matrix_free.reinit(mapping, dof_handler, constraint, quad, additional_data);
+    matrix_free.reinit(
+      mapping,
+      std::vector<const DoFHandler<dim> *>{&dof_handler_1, &dof_handler_2},
+      std::vector<const AffineConstraints<Number> *>{&constraint, &constraint},
+      std::vector<Quadrature<1>>{quad},
+      additional_data);
 
-    VectorType src, dst;
+    VectorType src_1, dst_1, src_2, dst_2;
 
-    matrix_free.initialize_dof_vector(src);
-    matrix_free.initialize_dof_vector(dst);
+    matrix_free.initialize_dof_vector(src_1, 0);
+    matrix_free.initialize_dof_vector(dst_1, 0);
+    matrix_free.initialize_dof_vector(src_2, 1);
+    matrix_free.initialize_dof_vector(dst_2, 1);
 
-    VectorTools::interpolate(mapping, dof_handler, InitialValues<dim>(), src);
+    VectorTools::interpolate(mapping,
+                             dof_handler_1,
+                             InitialValues<dim>(0),
+                             src_1);
+    VectorTools::interpolate(mapping,
+                             dof_handler_2,
+                             InitialValues<dim>(1),
+                             src_2);
 
     const auto df_dphi = [&](const auto &phi) {
       return phi * phi * phi * 2.0 - phi * 2.0;
-      // PRISMS free energy
-      // return 4.0 * phi * (phi - 1.0) * (phi - 0.5);
     };
 
     const auto output_result = [&](const double t) {
@@ -189,74 +214,107 @@ public:
 
       DataOut<dim> data_out;
       data_out.set_flags(flags);
-      data_out.attach_dof_handler(dof_handler);
-      data_out.add_data_vector(src, "solution");
+      data_out.add_data_vector(dof_handler_1, src_1, "solution_0");
+      data_out.add_data_vector(dof_handler_2, src_2, "solution_1");
       data_out.build_patches(mapping, fe_degree);
-
-      static unsigned int counter = 0;
-
 
       std::cout << "outputing at " << t << std::endl;
 
+      static unsigned int counter = 0;
       std::ofstream output("solution." + std::to_string(counter++) + ".vtk");
       data_out.write_vtk(output);
     };
 
-    FEEvaluation<dim, fe_degree, n_points_1D, 2, Number, VectorizedArrayType>
-      phi(matrix_free);
+    FEEvaluation<dim, fe_degree, n_points_1D, 1, Number, VectorizedArrayType>
+      phi_1(matrix_free, 0);
+    FEEvaluation<dim, fe_degree, n_points_1D, 1, Number, VectorizedArrayType>
+      phi_2(matrix_free, 1);
 
 
     output_result(0.0);
+
+    VectorType dummy_1, dummy_2; // replace by block vector?
+    matrix_free.initialize_dof_vector(dummy_1);
+    matrix_free.initialize_dof_vector(dummy_2);
+
 
     // time loop
     unsigned int counter = 0;
     for (double t = 0; counter++ < n_time_steps; t += dt)
       {
+        dst_1 = 0;
+        dst_2 = 0;
+
         // compute right-hand side vector
         matrix_free.template cell_loop<VectorType, VectorType>(
           [&](const auto &, auto &dst, const auto &src, auto cells) {
+            (void)dst;
+            (void)src;
+
             for (unsigned int cell = cells.first; cell < cells.second; ++cell)
               {
-                phi.reinit(cell);
-                phi.gather_evaluate(src, true, true, false);
-                for (unsigned int q = 0; q < phi.n_q_points; ++q)
+                phi_1.reinit(cell);
+                phi_1.gather_evaluate(src_1, true, true, false);
+
+                phi_2.reinit(cell);
+                phi_2.gather_evaluate(src_2, true, true, false);
+
+                for (unsigned int q = 0; q < phi_1.n_q_points; ++q)
                   {
-                    const auto value    = phi.get_value(q);
-                    const auto gradient = phi.get_gradient(q);
+                    phi_1.submit_gradient(-dt * M * kappa *
+                                            phi_1.get_gradient(q),
+                                          q);
+                    phi_2.submit_gradient(-dt * M * kappa *
+                                            phi_2.get_gradient(q),
+                                          q);
 
-                    Tensor<1, 2, VectorizedArrayType> value_result;
-                    value_result[0] = value[0] - dt * M * df_dphi(value[0]);
-                    value_result[1] = value[1] - dt * M * df_dphi(value[1]);
-
-                    Tensor<1, 2, Tensor<1, dim, VectorizedArrayType>>
-                      gradient_result;
-                    gradient_result[0] = -dt * M * kappa * gradient[0];
-                    gradient_result[1] = -dt * M * kappa * gradient[1];
-
-                    phi.submit_value(value_result, q);
-                    phi.submit_gradient(gradient_result, q);
+                    const auto val_1 = phi_1.get_value(q);
+                    phi_1.submit_value(val_1 - dt * M * df_dphi(val_1), q);
+                    const auto val_2 = phi_2.get_value(q);
+                    phi_2.submit_value(val_2 - dt * M * df_dphi(val_2), q);
                   }
-                phi.integrate_scatter(true, true, dst);
+
+                phi_1.integrate_scatter(true, true, dst_1);
+                phi_2.integrate_scatter(true, true, dst_2);
               }
           },
-          dst,
-          src,
-          true);
+          dummy_1,
+          dummy_2,
+          false);
 
         // invert mass matrix
-        ReductionControl     reduction_control;
-        SolverCG<VectorType> solver(reduction_control);
-        solver.solve(MassMatrix<dim,
-                                fe_degree,
-                                n_points_1D,
-                                2,
-                                Number,
-                                VectorizedArrayType>(matrix_free),
-                     src,
-                     dst,
-                     PreconditionIdentity());
-        std::cout << "it " << counter << ": " << reduction_control.last_step()
-                  << std::endl;
+        {
+          ReductionControl     reduction_control;
+          SolverCG<VectorType> solver(reduction_control);
+          solver.solve(MassMatrix<dim,
+                                  fe_degree,
+                                  n_points_1D,
+                                  1,
+                                  Number,
+                                  VectorizedArrayType>(matrix_free, 0),
+                       src_1,
+                       dst_1,
+                       PreconditionIdentity());
+          std::cout << "it-1 " << counter << ": "
+                    << reduction_control.last_step() << std::endl;
+        }
+
+
+        {
+          ReductionControl     reduction_control;
+          SolverCG<VectorType> solver(reduction_control);
+          solver.solve(MassMatrix<dim,
+                                  fe_degree,
+                                  n_points_1D,
+                                  1,
+                                  Number,
+                                  VectorizedArrayType>(matrix_free, 1),
+                       src_2,
+                       dst_2,
+                       PreconditionIdentity());
+          std::cout << "it-2 " << counter << ": "
+                    << reduction_control.last_step() << std::endl;
+        }
 
         if (counter % n_time_steps_output == 0)
           output_result(t);
