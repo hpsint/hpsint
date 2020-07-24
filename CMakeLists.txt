@@ -1,6 +1,6 @@
 SET(TARGET "main")
 
-SET(TARGET_SRC main.cc)
+SET(TARGET_SRC cahn_hilliard.cc)
 
 CMAKE_MINIMUM_REQUIRED(VERSION 2.8.8)
 
