@@ -43,25 +43,24 @@ template <int dim>
 class InitialValues : public dealii::Function<dim>
 {
 private:
-  Point<dim>   point{50.0, 50.0};
-  const double rad = 20.0;
+  Point<dim>   p_1{25.0, 50.0};
+  Point<dim>   p_2{75.0, 50.0};
+  const double rad_1 = 20.0;
+  const double rad_2 = 15.0;
 
 public:
   InitialValues()
-    : Function<dim>(1)
+    : Function<dim>(2)
   {}
 
   virtual double
   value(const dealii::Point<dim> &p,
         const unsigned int        component = 0) const override
   {
-    (void)component;
-    //
-    //    double ret_val =
-    //    if ret_val = 1;
-
-    double dist = point.distance(p);
-    return 0.5 * (1.0 - std::tanh(2 * (dist - rad)));
+    if (component == 0)
+      return 0.5 * (1.0 - std::tanh(2 * (p_1.distance(p) - rad_1)));
+    else
+      return 0.5 * (1.0 - std::tanh(2 * (p_2.distance(p) - rad_2)));
   }
 };
 
@@ -154,7 +153,7 @@ public:
     GridGenerator::subdivided_hyper_cube(tria, n_subdivisions, 0, size);
     tria.refine_global(n_refinements);
 
-    FE_Q<dim>       fe(fe_degree);
+    FESystem<dim>   fe(FE_Q<dim>{fe_degree}, 2);
     DoFHandler<dim> dof_handler(tria);
     dof_handler.distribute_dofs(fe);
 
@@ -203,7 +202,7 @@ public:
       data_out.write_vtk(output);
     };
 
-    FEEvaluation<dim, fe_degree, n_points_1D, 1, Number, VectorizedArrayType>
+    FEEvaluation<dim, fe_degree, n_points_1D, 2, Number, VectorizedArrayType>
       phi(matrix_free);
 
 
@@ -222,11 +221,20 @@ public:
                 phi.gather_evaluate(src, true, true, false);
                 for (unsigned int q = 0; q < phi.n_q_points; ++q)
                   {
-                    phi.submit_gradient(-dt * M * kappa * phi.get_gradient(q),
-                                        q);
+                    const auto value    = phi.get_value(q);
+                    const auto gradient = phi.get_gradient(q);
 
-                    const auto val = phi.get_value(q);
-                    phi.submit_value(val - dt * M * df_dphi(val), q);
+                    Tensor<1, 2, VectorizedArrayType> value_result;
+                    value_result[0] = value[0] - dt * M * df_dphi(value[0]);
+                    value_result[1] = value[1] - dt * M * df_dphi(value[1]);
+
+                    Tensor<1, 2, Tensor<1, dim, VectorizedArrayType>>
+                      gradient_result;
+                    gradient_result[0] = -dt * M * kappa * gradient[0];
+                    gradient_result[1] = -dt * M * kappa * gradient[1];
+
+                    phi.submit_value(value_result, q);
+                    phi.submit_gradient(gradient_result, q);
                   }
                 phi.integrate_scatter(true, true, dst);
               }
@@ -241,7 +249,7 @@ public:
         solver.solve(MassMatrix<dim,
                                 fe_degree,
                                 n_points_1D,
-                                1,
+                                2,
                                 Number,
                                 VectorizedArrayType>(matrix_free),
                      src,
