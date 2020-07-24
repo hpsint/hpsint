@@ -48,20 +48,57 @@ private:
 
 public:
   InitialValues()
-    : Function<dim>(1)
+    : Function<dim>(2)
   {}
 
   virtual double
   value(const dealii::Point<dim> &p,
         const unsigned int        component = 0) const override
   {
-    (void)component;
-    //
-    //    double ret_val =
-    //    if ret_val = 1;
+    if (component == 0)
+      {
+        double center[12][3] = {{0.1, 0.3, 0},
+                                {0.8, 0.7, 0},
+                                {0.5, 0.2, 0},
+                                {0.4, 0.4, 0},
+                                {0.3, 0.9, 0},
+                                {0.8, 0.1, 0},
+                                {0.9, 0.5, 0},
+                                {0.0, 0.1, 0},
+                                {0.1, 0.6, 0},
+                                {0.5, 0.6, 0},
+                                {1, 1, 0},
+                                {0.7, 0.95, 0}};
+        double rad[12]       = {12, 14, 19, 16, 11, 12, 17, 15, 20, 10, 11, 14};
+        double dist;
+        double scalar_IC = 0;
+        for (unsigned int i = 0; i < 12; i++)
+          {
+            dist = 0.0;
+            for (unsigned int dir = 0; dir < dim; dir++)
+              {
+                dist += (p[dir] - center[i][dir] * 100 /*TODO*/) *
+                        (p[dir] - center[i][dir] * 100 /*TODO*/);
+              }
+            dist = std::sqrt(dist);
 
-    double dist = point.distance(p);
-    return 0.5 * (1.0 - std::tanh(2 * (dist - rad)));
+            scalar_IC += 0.5 * (1.0 - std::tanh((dist - rad[i]) / 1.5));
+          }
+        if (scalar_IC > 1.0)
+          scalar_IC = 1.0;
+
+        return scalar_IC;
+      }
+    else
+      {
+        return 0.0;
+      }
+
+    // if(component==1)
+    //  return 0.0;
+    //
+    // double dist = point.distance(p);
+    // return 0.5 * (1.0 - std::tanh(2 * (dist - rad)));
   }
 };
 
@@ -138,29 +175,29 @@ public:
     const double size = 100.0;
 
     // mesh
-    const unsigned int n_refinements  = 7;
+    const unsigned int n_refinements  = 6;
     const unsigned int n_subdivisions = 1;
 
     // time discretization
-    const unsigned int n_time_steps        = 1000;
-    const unsigned int n_time_steps_output = 20;
-    const double       dt                  = 0.01;
+    const unsigned int n_time_steps        = 100000;
+    const unsigned int n_time_steps_output = 1000;
+    const double       dt                  = 0.001;
 
     //  model constants
     const double M     = 1.0;
-    const double kappa = 0.5;
+    const double kappa = 1.5;
 
     parallel::distributed::Triangulation<dim> tria(MPI_COMM_WORLD);
     GridGenerator::subdivided_hyper_cube(tria, n_subdivisions, 0, size);
     tria.refine_global(n_refinements);
 
-    FE_Q<dim>       fe(fe_degree);
+    FESystem<dim>   fe(FE_Q<dim>{fe_degree}, 2);
     DoFHandler<dim> dof_handler(tria);
     dof_handler.distribute_dofs(fe);
 
     MappingQ<dim> mapping(1);
 
-    QGauss<1> quad(n_points_1D);
+    QGaussLobatto<1> quad(n_points_1D);
 
     AffineConstraints<Number> constraint;
 
@@ -178,10 +215,8 @@ public:
 
     VectorTools::interpolate(mapping, dof_handler, InitialValues<dim>(), src);
 
-    const auto df_dphi = [&](const auto &phi) {
-      return phi * phi * phi * 2.0 - phi * 2.0;
-      // PRISMS free energy
-      // return 4.0 * phi * (phi - 1.0) * (phi - 0.5);
+    const auto df_dc = [&](const auto &c) {
+      return 4.0 * c * (c - 1.0) * (c - 0.5);
     };
 
     const auto output_result = [&](const double t) {
@@ -203,7 +238,7 @@ public:
       data_out.write_vtk(output);
     };
 
-    FEEvaluation<dim, fe_degree, n_points_1D, 1, Number, VectorizedArrayType>
+    FEEvaluation<dim, fe_degree, n_points_1D, 2, Number, VectorizedArrayType>
       phi(matrix_free);
 
 
@@ -222,11 +257,20 @@ public:
                 phi.gather_evaluate(src, true, true, false);
                 for (unsigned int q = 0; q < phi.n_q_points; ++q)
                   {
-                    phi.submit_gradient(-dt * M * kappa * phi.get_gradient(q),
-                                        q);
+                    const auto value    = phi.get_value(q);
+                    const auto gradient = phi.get_gradient(q);
 
-                    const auto val = phi.get_value(q);
-                    phi.submit_value(val - dt * M * df_dphi(val), q);
+                    Tensor<1, 2, VectorizedArrayType> value_result;
+                    value_result[0] = value[0];
+                    value_result[1] = df_dc(value[0]);
+
+                    Tensor<1, 2, Tensor<1, dim, VectorizedArrayType>>
+                      gradient_result;
+                    gradient_result[0] = -dt * M * gradient[1];
+                    gradient_result[1] = kappa * gradient[0];
+
+                    phi.submit_value(value_result, q);
+                    phi.submit_gradient(gradient_result, q);
                   }
                 phi.integrate_scatter(true, true, dst);
               }
@@ -241,7 +285,7 @@ public:
         solver.solve(MassMatrix<dim,
                                 fe_degree,
                                 n_points_1D,
-                                1,
+                                2,
                                 Number,
                                 VectorizedArrayType>(matrix_free),
                      src,
@@ -263,6 +307,6 @@ int
 main(int argc, char **argv)
 {
   Utilities::MPI::MPI_InitFinalize mpi_init(argc, argv, 1);
-  Test<2, 1>                       runner;
+  Test<2, 2>                       runner;
   runner.run();
 }
