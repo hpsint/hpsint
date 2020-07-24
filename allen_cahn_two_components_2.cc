@@ -27,6 +27,7 @@
 
 #include <deal.II/grid/grid_generator.h>
 
+#include <deal.II/lac/la_parallel_block_vector.h>
 #include <deal.II/lac/precondition.h>
 #include <deal.II/lac/solver_cg.h>
 #include <deal.II/lac/solver_control.h>
@@ -137,7 +138,7 @@ template <int dim,
 class Test
 {
 public:
-  using VectorType = LinearAlgebra::distributed::Vector<Number>;
+  using VectorType = LinearAlgebra::distributed::BlockVector<Number>;
 
   void
   run()
@@ -188,21 +189,21 @@ public:
       std::vector<Quadrature<1>>{quad},
       additional_data);
 
-    VectorType src_1, dst_1, src_2, dst_2;
+    VectorType src(2), dst(2);
 
-    matrix_free.initialize_dof_vector(src_1, 0);
-    matrix_free.initialize_dof_vector(dst_1, 0);
-    matrix_free.initialize_dof_vector(src_2, 1);
-    matrix_free.initialize_dof_vector(dst_2, 1);
+    matrix_free.initialize_dof_vector(src.block(0), 0);
+    matrix_free.initialize_dof_vector(dst.block(0), 0);
+    matrix_free.initialize_dof_vector(src.block(1), 1);
+    matrix_free.initialize_dof_vector(dst.block(1), 1);
 
     VectorTools::interpolate(mapping,
                              dof_handler_1,
                              InitialValues<dim>(0),
-                             src_1);
+                             src.block(0));
     VectorTools::interpolate(mapping,
                              dof_handler_2,
                              InitialValues<dim>(1),
-                             src_2);
+                             src.block(1));
 
     const auto df_dphi = [&](const auto &phi) {
       return phi * phi * phi * 2.0 - phi * 2.0;
@@ -214,8 +215,8 @@ public:
 
       DataOut<dim> data_out;
       data_out.set_flags(flags);
-      data_out.add_data_vector(dof_handler_1, src_1, "solution_0");
-      data_out.add_data_vector(dof_handler_2, src_2, "solution_1");
+      data_out.add_data_vector(dof_handler_1, src.block(0), "solution_0");
+      data_out.add_data_vector(dof_handler_2, src.block(1), "solution_1");
       data_out.build_patches(mapping, fe_degree);
 
       std::cout << "outputing at " << t << std::endl;
@@ -233,18 +234,11 @@ public:
 
     output_result(0.0);
 
-    VectorType dummy_1, dummy_2; // replace by block vector?
-    matrix_free.initialize_dof_vector(dummy_1);
-    matrix_free.initialize_dof_vector(dummy_2);
-
 
     // time loop
     unsigned int counter = 0;
     for (double t = 0; counter++ < n_time_steps; t += dt)
       {
-        dst_1 = 0;
-        dst_2 = 0;
-
         // compute right-hand side vector
         matrix_free.template cell_loop<VectorType, VectorType>(
           [&](const auto &, auto &dst, const auto &src, auto cells) {
@@ -254,10 +248,10 @@ public:
             for (unsigned int cell = cells.first; cell < cells.second; ++cell)
               {
                 phi_1.reinit(cell);
-                phi_1.gather_evaluate(src_1, true, true, false);
+                phi_1.gather_evaluate(src.block(0), true, true, false);
 
                 phi_2.reinit(cell);
-                phi_2.gather_evaluate(src_2, true, true, false);
+                phi_2.gather_evaluate(src.block(1), true, true, false);
 
                 for (unsigned int q = 0; q < phi_1.n_q_points; ++q)
                   {
@@ -274,26 +268,27 @@ public:
                     phi_2.submit_value(val_2 - dt * M * df_dphi(val_2), q);
                   }
 
-                phi_1.integrate_scatter(true, true, dst_1);
-                phi_2.integrate_scatter(true, true, dst_2);
+                phi_1.integrate_scatter(true, true, dst.block(0));
+                phi_2.integrate_scatter(true, true, dst.block(1));
               }
           },
-          dummy_1,
-          dummy_2,
-          false);
+          dst,
+          src,
+          true);
 
         // invert mass matrix
         {
-          ReductionControl     reduction_control;
-          SolverCG<VectorType> solver(reduction_control);
+          ReductionControl reduction_control;
+          SolverCG<LinearAlgebra::distributed::Vector<Number>> solver(
+            reduction_control);
           solver.solve(MassMatrix<dim,
                                   fe_degree,
                                   n_points_1D,
                                   1,
                                   Number,
                                   VectorizedArrayType>(matrix_free, 0),
-                       src_1,
-                       dst_1,
+                       src.block(0),
+                       dst.block(0),
                        PreconditionIdentity());
           std::cout << "it-1 " << counter << ": "
                     << reduction_control.last_step() << std::endl;
@@ -301,16 +296,17 @@ public:
 
 
         {
-          ReductionControl     reduction_control;
-          SolverCG<VectorType> solver(reduction_control);
+          ReductionControl reduction_control;
+          SolverCG<LinearAlgebra::distributed::Vector<Number>> solver(
+            reduction_control);
           solver.solve(MassMatrix<dim,
                                   fe_degree,
                                   n_points_1D,
                                   1,
                                   Number,
                                   VectorizedArrayType>(matrix_free, 1),
-                       src_2,
-                       dst_2,
+                       src.block(1),
+                       dst.block(1),
                        PreconditionIdentity());
           std::cout << "it-2 " << counter << ": "
                     << reduction_control.last_step() << std::endl;
