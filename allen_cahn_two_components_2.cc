@@ -14,6 +14,8 @@
 // ---------------------------------------------------------------------
 
 
+// Allen-Cahn equation with two phase (using FESystem).
+
 #include <deal.II/base/mpi.h>
 #include <deal.II/base/quadrature_lib.h>
 

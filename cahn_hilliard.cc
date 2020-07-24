@@ -14,6 +14,8 @@
 // ---------------------------------------------------------------------
 
 
+// Cahn-Hilliard equation with one phase.
+
 #include <deal.II/base/mpi.h>
 #include <deal.II/base/quadrature_lib.h>
 

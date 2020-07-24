@@ -13,6 +13,8 @@
 //
 // ---------------------------------------------------------------------
 
+// Allen-Cahn equation with one phase.
+
 
 #include <deal.II/base/mpi.h>
 #include <deal.II/base/quadrature_lib.h>
@@ -56,10 +58,6 @@ public:
         const unsigned int        component = 0) const override
   {
     (void)component;
-    //
-    //    double ret_val =
-    //    if ret_val = 1;
-
     double dist = point.distance(p);
     return 0.5 * (1.0 - std::tanh(2 * (dist - rad)));
   }
@@ -180,8 +178,6 @@ public:
 
     const auto df_dphi = [&](const auto &phi) {
       return phi * phi * phi * 2.0 - phi * 2.0;
-      // PRISMS free energy
-      // return 4.0 * phi * (phi - 1.0) * (phi - 0.5);
     };
 
     const auto output_result = [&](const double t) {
