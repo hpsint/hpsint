@@ -16,6 +16,7 @@
 // Allen-Cahn equation with one phase.
 
 
+#include <deal.II/base/conditional_ostream.h>
 #include <deal.II/base/mpi.h>
 #include <deal.II/base/quadrature_lib.h>
 
@@ -40,6 +41,8 @@
 #include <deal.II/numerics/vector_tools.h>
 
 #include "include/newton.h"
+
+//#define IDENTITY
 
 using namespace dealii;
 
@@ -77,6 +80,9 @@ class MassMatrix
 {
 public:
   using VectorType = LinearAlgebra::distributed::Vector<Number>;
+
+  using value_type  = Number;
+  using vector_type = VectorType;
 
   MassMatrix(const MatrixFree<dim, Number, VectorizedArrayType> &matrix_free)
     : matrix_free(matrix_free)
@@ -297,13 +303,37 @@ private:
 
 
 template <typename Operator>
+class InverseMassMatrix
+{
+public:
+  using VectorType = typename Operator::vector_type;
+
+  InverseMassMatrix(const Operator &op)
+    : op(op)
+  {}
+
+  void
+  vmult(VectorType &dst, const VectorType &src) const
+  {
+    // invert mass matrix
+    ReductionControl     reduction_control;
+    SolverCG<VectorType> solver(reduction_control);
+    solver.solve(op, dst, src, PreconditionIdentity());
+  }
+
+  const Operator &op;
+};
+
+
+template <typename Operator, typename Preconditioner>
 class SolverCGWrapper
 {
 public:
   using VectorType = typename Operator::vector_type;
 
-  SolverCGWrapper(const Operator &op)
+  SolverCGWrapper(const Operator &op, const Preconditioner &preconditioner)
     : op(op)
+    , preconditioner(preconditioner)
   {}
 
   unsigned int
@@ -313,12 +343,13 @@ public:
 
     ReductionControl     reduction_control;
     SolverCG<VectorType> solver(reduction_control);
-    solver.solve(op, dst, src, PreconditionIdentity());
+    solver.solve(op, dst, src, preconditioner);
 
     return reduction_control.last_step();
   }
 
-  const Operator &op;
+  const Operator &      op;
+  const Preconditioner &preconditioner;
 };
 
 
@@ -335,6 +366,10 @@ public:
   void
   run()
   {
+    ConditionalOStream pcout(std::cout,
+                             Utilities::MPI::this_mpi_process(MPI_COMM_WORLD) ==
+                               0);
+
     // geometry
     const double size = 100.0;
 
@@ -389,15 +424,16 @@ public:
       data_out.set_flags(flags);
       data_out.attach_dof_handler(dof_handler);
       data_out.add_data_vector(solution, "solution");
+
+      solution.update_ghost_values();
       data_out.build_patches(mapping, fe_degree);
 
       static unsigned int counter = 0;
 
+      pcout << "outputing at " << t << std::endl;
 
-      std::cout << "outputing at " << t << std::endl;
-
-      std::ofstream output("solution." + std::to_string(counter++) + ".vtk");
-      data_out.write_vtk(output);
+      std::string output = "solution." + std::to_string(counter++) + ".vtu";
+      data_out.write_vtu_in_parallel(output, MPI_COMM_WORLD);
     };
 
     FEEvaluation<dim, fe_degree, n_points_1D, 1, Number, VectorizedArrayType>
@@ -407,16 +443,32 @@ public:
     output_result(0.0);
 
 
-    using Operator     = AllenCahnImplicit<dim,
+    using Operator = AllenCahnImplicit<dim,
                                        fe_degree,
                                        n_points_1D,
                                        1,
                                        Number,
                                        VectorizedArrayType>;
-    using LinearSolver = SolverCGWrapper<Operator>;
 
-    Operator     nonlinear_operator(matrix_free, dt, M, kappa);
-    LinearSolver linear_solver(nonlinear_operator);
+#ifdef IDENTITY
+    using Preconditioner = PreconditionIdentity;
+#else
+    using PreconditionerOperator =
+      MassMatrix<dim, fe_degree, n_points_1D, 1, Number, VectorizedArrayType>;
+    using Preconditioner = InverseMassMatrix<PreconditionerOperator>;
+#endif
+    using LinearSolver = SolverCGWrapper<Operator, Preconditioner>;
+
+    Operator nonlinear_operator(matrix_free, dt, M, kappa);
+
+#ifdef IDENTITY
+    Preconditioner preconditioner;
+#else
+    PreconditionerOperator precondition_operator(matrix_free);
+    Preconditioner         preconditioner(precondition_operator);
+#endif
+
+    LinearSolver linear_solver(nonlinear_operator, preconditioner);
 
     NewtonSolver<VectorType, Operator, LinearSolver> newton_solver(
       nonlinear_operator, linear_solver);
@@ -428,9 +480,9 @@ public:
         nonlinear_operator.set_previous_solution(solution);
         const auto statistics = newton_solver.solve(solution);
 
-        std::cout << "Solved in " << statistics.newton_iterations
-                  << " Newton iterations and " << statistics.linear_iterations
-                  << " linear iterations" << std::endl;
+        pcout << "Solved in " << statistics.newton_iterations
+              << " Newton iterations and " << statistics.linear_iterations
+              << " linear iterations" << std::endl;
 
         if (counter % n_time_steps_output == 0)
           output_result(t);
