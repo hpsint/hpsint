@@ -27,7 +27,9 @@ Run the `cahn_hilliard` application:
 
 We solve the following problem:
 
-<img src="https://render.githubusercontent.com/render/math?math=\left(w,  \eta^{n %2B 1}\right) = \left(w,  \eta^{n} - \Delta t M f_{,\eta}^{n}  \right)  %2B \left(\nabla w,  (-\Delta t M \kappa) \cdot \nabla \eta^{n}\right)">
+<p align="center">
+<img src="https://render.githubusercontent.com/render/math?math=\left(w,  \eta^{n %2B 1}\right) = \left(w,  \eta^{n} - \Delta t M f_{,\eta}^{n}  \right)  %2B \left(\nabla w,  (-\Delta t M \kappa) \cdot \nabla \eta^{n}\right)" width="600">
+</p>
 
 with
 
@@ -64,7 +66,9 @@ for (auto cell = range.first; cell < range.second; ++cell)
 
 We solve the following problem:
 
-<img src="https://render.githubusercontent.com/render/math?math=\left(w,  \eta^{n %2B 1}   %2B  \Delta t M f_{,\eta}^{n %2B 1}\right) %2B \left(\nabla w,  (\Delta t M \kappa) \cdot \nabla \eta^{n %2B 1}\right) = \left(w,  \eta^{n} \right)  ">
+<p align="center">
+<img src="https://render.githubusercontent.com/render/math?math=\left(w,  \eta^{n %2B 1}   %2B  \Delta t M f_{,\eta}^{n %2B 1}\right) %2B \left(\nabla w,  (\Delta t M \kappa) \cdot \nabla \eta^{n %2B 1}\right) = \left(w,  \eta^{n} \right)  "  width="600">
+</p>
 
 ### Allen-Cahn equation (2 components - FESystems)
 
