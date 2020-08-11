@@ -39,6 +39,8 @@
 #include <deal.II/numerics/data_out.h>
 #include <deal.II/numerics/vector_tools.h>
 
+#include "include/newton.h"
+
 using namespace dealii;
 
 template <int dim>
