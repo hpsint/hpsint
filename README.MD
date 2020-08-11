@@ -28,7 +28,7 @@ Run the `cahn_hilliard` application:
 We solve the following problem:
 
 <p align="center">
-<img src="https://render.githubusercontent.com/render/math?math=\left(w,  \eta^{n %2B 1}\right) = \left(w,  \eta^{n} - \Delta t M f_{,\eta}^{n}  \right)  %2B \left(\nabla w,  (-\Delta t M \kappa) \cdot \nabla \eta^{n}\right)" width="600">
+<img src="https://render.githubusercontent.com/render/math?math=\left(w,  \eta^{n %2B 1}\right) = \left(w,  \eta^{n} - \Delta t M f_{,\eta}^{n}  \right)  %2B \left(\nabla w,  (-\Delta t M \kappa) \cdot \nabla \eta^{n}\right)" width="580">
 </p>
 
 with
@@ -62,7 +62,7 @@ for (auto cell = range.first; cell < range.second; ++cell)
   }
 ```
 
-### Allen-Cahn equation (backwards Euler)
+### Allen-Cahn equation (backwards Euler, parallel)
 
 We solve the following problem:
 
@@ -123,7 +123,21 @@ for (unsigned int cell = cells.first; cell < cells.second; ++cell)
   }
 ```
 
-### Cahn-Hilliard equation
+### Cahn-Hilliard equation (explicit, FESystems)
+
+We solve the following system of equations:
+
+<p align="center">
+<img src="https://render.githubusercontent.com/render/math?math=\left(w,  \mu^{n %2B 1}\right) = \left(w,  f_{,c}^n  \right)  %2B \left(\nabla w,  \kappa \nabla c^{n}\right)" width="360">
+</p>
+
+and
+
+<p align="center">
+<img src="https://render.githubusercontent.com/render/math?math=\left(w,  c^{n %2B 1}\right) = \left(w,  c^n  \right)  %2B \left(\nabla w,  (-\Delta M) \cdot \nabla \mu^{n}\right)" width="440">
+</p>
+
+with matrix-free cell integral of the **right-hand side**:
 
 ```cpp
 for (unsigned int cell = cells.first; cell < cells.second; ++cell)
