@@ -131,15 +131,18 @@ class AllenCahnImplicit
 public:
   using VectorType = LinearAlgebra::distributed::Vector<Number>;
 
+  using value_type  = Number;
+  using vector_type = VectorType;
+
   AllenCahnImplicit(
     const MatrixFree<dim, Number, VectorizedArrayType> &matrix_free,
-    VectorType &                                        old_solution,
     const double                                        dt,
-    const double                                        M)
+    const double                                        M,
+    const double                                        kappa)
     : matrix_free(matrix_free)
-    , old_solution(old_solution)
     , dt(dt)
     , M(M)
+    , kappa(kappa)
   {}
 
   void
@@ -166,8 +169,6 @@ public:
       return phi * phi * 6.0 - 2.0;
     };
 
-    const double kappa = 0.0;
-
     matrix_free.template cell_loop<VectorType, VectorType>(
       [&](const auto &, auto &dst, const auto &src, auto &range) {
         for (auto cell = range.first; cell < range.second; ++cell)
@@ -186,11 +187,11 @@ public:
             for (unsigned int q = 0; q < phi.n_q_points; ++q)
               {
                 const auto val = phi_lin.get_value(q);
-                phi.submit_value((1 + dt * M * d2f_dphi2(val)) *
+                phi.submit_value((1.0 + dt * M * d2f_dphi2(val)) *
                                    phi.get_value(q),
                                  q);
 
-                phi.submit_gradient(-dt * M * kappa * phi.get_gradient(q), q);
+                phi.submit_gradient(+dt * M * kappa * phi.get_gradient(q), q);
               }
             phi.integrate_scatter(/*evaluate values = */ true,
                                   /*evaluate gradients = */ true,
@@ -203,7 +204,7 @@ public:
   }
 
   void
-  compute_residual(VectorType &dst, const VectorType &src) const
+  evaluate_nonlinear_residual(VectorType &dst, const VectorType &src) const
   {
     FEEvaluation<dim,
                  degree,
@@ -225,8 +226,6 @@ public:
     const auto df_dphi = [&](const auto &phi) {
       return phi * phi * phi * 2.0 - phi * 2.0;
     };
-
-    const double kappa = 0.0;
 
     matrix_free.template cell_loop<VectorType, VectorType>(
       [&](const auto &, auto &dst, const auto &src, auto &range) {
@@ -250,11 +249,12 @@ public:
                 // get old value
                 const auto old_val = phi_old.get_value(q);
                 // value terms - is that really correct???
-                phi.submit_value((1 + dt * M * df_dphi(val) - old_val) *
-                                   phi.get_value(q),
+                phi.submit_value((1.0 + dt * M * df_dphi(val)) *
+                                     phi.get_value(q) -
+                                   old_val,
                                  q);
                 // gradient terms
-                phi.submit_gradient(-dt * M * kappa * phi.get_gradient(q), q);
+                phi.submit_gradient(+dt * M * kappa * phi.get_gradient(q), q);
               }
             phi.integrate_scatter(/*evaluate values = */ true,
                                   /*evaluate gradients = */ true,
@@ -272,19 +272,59 @@ public:
     matrix_free.initialize_dof_vector(dst);
   }
 
-  // old phi
-  VectorType old_solution;
+  void
+  set_solution_linearization(const VectorType &src) const
+  {
+    this->solution_linearization = src;
+  }
+
+  void
+  set_previous_solution(const VectorType &src) const
+  {
+    this->old_solution = src;
+  }
 
 private:
+  const MatrixFree<dim, Number, VectorizedArrayType> &matrix_free;
   const double                                        dt;
   const double                                        M;
-  const MatrixFree<dim, Number, VectorizedArrayType> &matrix_free;
+  const double                                        kappa;
+
+  mutable VectorType old_solution;
+  mutable VectorType solution_linearization;
+};
+
+
+
+template <typename Operator>
+class SolverCGWrapper
+{
+public:
+  using VectorType = typename Operator::vector_type;
+
+  SolverCGWrapper(const Operator &op)
+    : op(op)
+  {}
+
+  unsigned int
+  solve(VectorType &dst, const VectorType &src, const bool do_update)
+  {
+    (void)do_update; // no preconditioner is used
+
+    ReductionControl     reduction_control;
+    SolverCG<VectorType> solver(reduction_control);
+    solver.solve(op, dst, src, PreconditionIdentity());
+
+    return reduction_control.last_step();
+  }
+
+  const Operator &op;
 };
 
 
 template <int dim,
           int fe_degree,
-          int n_points_1D              = fe_degree + 1,
+          int n_points_1D              = fe_degree + 3,
           typename Number              = double,
           typename VectorizedArrayType = VectorizedArray<Number>>
 class Test
@@ -332,16 +372,14 @@ public:
     MatrixFree<dim, Number, VectorizedArrayType> matrix_free;
     matrix_free.reinit(mapping, dof_handler, constraint, quad, additional_data);
 
-    VectorType src, dst;
+    VectorType solution;
 
-    matrix_free.initialize_dof_vector(src);
-    matrix_free.initialize_dof_vector(dst);
+    matrix_free.initialize_dof_vector(solution);
 
-    VectorTools::interpolate(mapping, dof_handler, InitialValues<dim>(), src);
-
-    const auto df_dphi = [&](const auto &phi) {
-      return phi * phi * phi * 2.0 - phi * 2.0;
-    };
+    VectorTools::interpolate(mapping,
+                             dof_handler,
+                             InitialValues<dim>(),
+                             solution);
 
     const auto output_result = [&](const double t) {
       DataOutBase::VtkFlags flags;
@@ -350,7 +388,7 @@ public:
       DataOut<dim> data_out;
       data_out.set_flags(flags);
       data_out.attach_dof_handler(dof_handler);
-      data_out.add_data_vector(src, "solution");
+      data_out.add_data_vector(solution, "solution");
       data_out.build_patches(mapping, fe_degree);
 
       static unsigned int counter = 0;
@@ -368,46 +406,31 @@ public:
 
     output_result(0.0);
 
+
+    using Operator     = AllenCahnImplicit<dim,
+                                       fe_degree,
+                                       n_points_1D,
+                                       1,
+                                       Number,
+                                       VectorizedArrayType>;
+    using LinearSolver = SolverCGWrapper<Operator>;
+
+    Operator     nonlinear_operator(matrix_free, dt, M, kappa);
+    LinearSolver linear_solver(nonlinear_operator);
+
+    NewtonSolver<VectorType, Operator, LinearSolver> newton_solver(
+      nonlinear_operator, linear_solver);
+
     // time loop
     unsigned int counter = 0;
     for (double t = 0; counter++ < n_time_steps; t += dt)
       {
-        // compute right-hand side vector
-        matrix_free.template cell_loop<VectorType, VectorType>(
-          [&](const auto &, auto &dst, const auto &src, auto cells) {
-            for (unsigned int cell = cells.first; cell < cells.second; ++cell)
-              {
-                phi.reinit(cell);
-                phi.gather_evaluate(src, true, true, false);
-                for (unsigned int q = 0; q < phi.n_q_points; ++q)
-                  {
-                    phi.submit_gradient(-dt * M * kappa * phi.get_gradient(q),
-                                        q);
+        nonlinear_operator.set_previous_solution(solution);
+        const auto statistics = newton_solver.solve(solution);
 
-                    const auto val = phi.get_value(q);
-                    phi.submit_value(val - dt * M * df_dphi(val), q);
-                  }
-                phi.integrate_scatter(true, true, dst);
-              }
-          },
-          dst,
-          src,
-          true);
-
-        // invert mass matrix
-        ReductionControl     reduction_control;
-        SolverCG<VectorType> solver(reduction_control);
-        solver.solve(MassMatrix<dim,
-                                fe_degree,
-                                n_points_1D,
-                                1,
-                                Number,
-                                VectorizedArrayType>(matrix_free),
-                     src,
-                     dst,
-                     PreconditionIdentity());
-        std::cout << "it " << counter << ": " << reduction_control.last_step()
-                  << std::endl;
+        std::cout << "Solved in " << statistics.newton_iterations
+                  << " Newton iterations and " << statistics.linear_iterations
+                  << " linear iterations" << std::endl;
 
         if (counter % n_time_steps_output == 0)
           output_result(t);
