@@ -164,6 +164,8 @@ public:
       return phi * phi * 6.0 - 2.0;
     };
 
+    const double kappa = 0.0;
+
     matrix_free.template cell_loop<VectorType, VectorType>(
       [&](const auto &, auto &dst, const auto &src, auto &range) {
         for (auto cell = range.first; cell < range.second; ++cell)
@@ -221,6 +223,8 @@ public:
     const auto df_dphi = [&](const auto &phi) {
       return phi * phi * phi * 2.0 - phi * 2.0;
     };
+
+    const double kappa = 0.0;
 
     matrix_free.template cell_loop<VectorType, VectorType>(
       [&](const auto &, auto &dst, const auto &src, auto &range) {
