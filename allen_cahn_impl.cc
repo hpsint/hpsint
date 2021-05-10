@@ -81,7 +81,7 @@ template <int dim,
 class MassMatrix
 {
 public:
-  using VectorType = Vector<Number>;
+  using VectorType = LinearAlgebra::distributed::Vector<Number>;
 
   using value_type  = Number;
   using vector_type = VectorType;
@@ -137,7 +137,7 @@ template <int dim,
 class AllenCahnImplicit
 {
 public:
-  using VectorType = Vector<Number>;
+  using VectorType = LinearAlgebra::distributed::Vector<Number>;
 
   using value_type  = Number;
   using vector_type = VectorType;
@@ -363,7 +363,7 @@ template <int dim,
 class Test
 {
 public:
-  using VectorType = Vector<Number>;
+  using VectorType = LinearAlgebra::distributed::Vector<Number>;
 
   void
   run()
