@@ -512,9 +512,14 @@ public:
           nonlinear_operator.initialize_dof_vector(x);
         };
 
+        unsigned int n_eval_nonlinear = 0;
+        unsigned int n_eval_residual  = 0;
+        unsigned int n_eval_linear    = 0;
+
         // ... evaluate residual
         nonlinear_solver.residual = [&](const VectorType &evaluation_point,
                                         VectorType &      residual) {
+          ++n_eval_residual;
           nonlinear_operator.evaluate_nonlinear_residual(residual,
                                                          evaluation_point);
           return 0;
@@ -531,7 +536,8 @@ public:
         nonlinear_solver.solve_with_jacobian =
           [&](const VectorType &rhs, VectorType &dst, const double tolerance) {
             (void)tolerance /*TODO*/;
-            linear_solver.solve(dst, rhs, true /*TODO*/);
+            ++n_eval_nonlinear;
+            n_eval_linear += linear_solver.solve(dst, rhs, true /*TODO*/);
             return 0;
           };
 
@@ -539,6 +545,12 @@ public:
 
         // solve!
         nonlinear_solver.solve(solution);
+
+        if (pcout.is_active())
+          printf("%3d %3d %3d\n",
+                 n_eval_nonlinear,
+                 n_eval_linear,
+                 n_eval_residual);
 #endif
 
         if (counter % n_time_steps_output == 0)
