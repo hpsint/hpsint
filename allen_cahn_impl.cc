@@ -537,7 +537,12 @@ public:
           [&](const VectorType &rhs, VectorType &dst, const double tolerance) {
             (void)tolerance /*TODO*/;
             ++n_eval_nonlinear;
-            n_eval_linear += linear_solver.solve(dst, rhs, true /*TODO*/);
+
+            ReductionControl     reduction_control;
+            SolverCG<VectorType> solver(reduction_control);
+            solver.solve(nonlinear_operator, dst, rhs, preconditioner);
+
+            n_eval_linear += reduction_control.last_step();
             return 0;
           };
 
