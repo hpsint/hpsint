@@ -535,10 +535,9 @@ public:
         // ... solve linear system of equations
         nonlinear_solver.solve_with_jacobian =
           [&](const VectorType &rhs, VectorType &dst, const double tolerance) {
-            (void)tolerance /*TODO*/;
             ++n_eval_nonlinear;
 
-            ReductionControl     reduction_control;
+            ReductionControl     reduction_control(1000, 1e-10, tolerance);
             SolverCG<VectorType> solver(reduction_control);
             solver.solve(nonlinear_operator, dst, rhs, preconditioner);
 
