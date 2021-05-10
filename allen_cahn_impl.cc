@@ -44,7 +44,7 @@
 
 #include "include/newton.h"
 
-//#define IDENTITY
+#define IDENTITY
 
 using namespace dealii;
 
@@ -398,7 +398,7 @@ public:
 
     MappingQ<dim> mapping(1);
 
-    QGauss<1> quad(n_points_1D);
+    QGauss<dim> quad(n_points_1D);
 
     AffineConstraints<Number> constraint;
 
@@ -430,6 +430,21 @@ public:
       solution.update_ghost_values();
       data_out.build_patches(mapping, fe_degree);
 
+      Vector<double> difference(tria.n_active_cells());
+
+      VectorTools::integrate_difference(mapping,
+                                        dof_handler,
+                                        solution,
+                                        Functions::ZeroFunction<dim>(),
+                                        difference,
+                                        quad,
+                                        VectorTools::NormType::L2_norm);
+
+      pcout << VectorTools::compute_global_error(tria,
+                                                 difference,
+                                                 VectorTools::NormType::L2_norm)
+            << std::endl;
+
       static unsigned int counter = 0;
 
       pcout << "outputing at " << t << std::endl;
@@ -437,10 +452,6 @@ public:
       std::string output = "solution." + std::to_string(counter++) + ".vtu";
       data_out.write_vtu_in_parallel(output, MPI_COMM_WORLD);
     };
-
-    FEEvaluation<dim, fe_degree, n_points_1D, 1, Number, VectorizedArrayType>
-      phi(matrix_free);
-
 
     output_result(0.0);
 
