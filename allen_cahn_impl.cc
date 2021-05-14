@@ -40,9 +40,11 @@
 #include <deal.II/numerics/data_out.h>
 #include <deal.II/numerics/vector_tools.h>
 
+#include <deal.II/sundials/kinsol.h>
+
 #include "include/newton.h"
 
-//#define IDENTITY
+#define IDENTITY
 
 using namespace dealii;
 
@@ -396,7 +398,7 @@ public:
 
     MappingQ<dim> mapping(1);
 
-    QGauss<1> quad(n_points_1D);
+    QGauss<dim> quad(n_points_1D);
 
     AffineConstraints<Number> constraint;
 
@@ -428,6 +430,21 @@ public:
       solution.update_ghost_values();
       data_out.build_patches(mapping, fe_degree);
 
+      Vector<double> difference(tria.n_active_cells());
+
+      VectorTools::integrate_difference(mapping,
+                                        dof_handler,
+                                        solution,
+                                        Functions::ZeroFunction<dim>(),
+                                        difference,
+                                        quad,
+                                        VectorTools::NormType::L2_norm);
+
+      pcout << VectorTools::compute_global_error(tria,
+                                                 difference,
+                                                 VectorTools::NormType::L2_norm)
+            << std::endl;
+
       static unsigned int counter = 0;
 
       pcout << "outputing at " << t << std::endl;
@@ -435,10 +452,6 @@ public:
       std::string output = "solution." + std::to_string(counter++) + ".vtu";
       data_out.write_vtu_in_parallel(output, MPI_COMM_WORLD);
     };
-
-    FEEvaluation<dim, fe_degree, n_points_1D, 1, Number, VectorizedArrayType>
-      phi(matrix_free);
-
 
     output_result(0.0);
 
@@ -470,19 +483,79 @@ public:
 
     LinearSolver linear_solver(nonlinear_operator, preconditioner);
 
+#if false
     NewtonSolver<VectorType, Operator, LinearSolver> newton_solver(
       nonlinear_operator, linear_solver);
+#endif
 
     // time loop
     unsigned int counter = 0;
     for (double t = 0; counter++ < n_time_steps; t += dt)
       {
         nonlinear_operator.set_previous_solution(solution);
+#if false
         const auto statistics = newton_solver.solve(solution);
 
         pcout << "Solved in " << statistics.newton_iterations
               << " Newton iterations and " << statistics.linear_iterations
               << " linear iterations" << std::endl;
+
+#else
+        typename SUNDIALS::KINSOL<VectorType>::AdditionalData additional_data;
+        additional_data.function_tolerance = 1e-8 /*TODO*/;
+
+        // create non-liner solver and attach functions for ...
+        SUNDIALS::KINSOL<VectorType> nonlinear_solver(additional_data);
+
+        // ... initialize vector
+        nonlinear_solver.reinit_vector = [&](VectorType &x) {
+          nonlinear_operator.initialize_dof_vector(x);
+        };
+
+        unsigned int n_eval_nonlinear = 0;
+        unsigned int n_eval_residual  = 0;
+        unsigned int n_eval_linear    = 0;
+
+        // ... evaluate residual
+        nonlinear_solver.residual = [&](const VectorType &evaluation_point,
+                                        VectorType &      residual) {
+          ++n_eval_residual;
+          nonlinear_operator.evaluate_nonlinear_residual(residual,
+                                                         evaluation_point);
+          return 0;
+        };
+
+        // ... setup Jacobian (MatrixFree) simply set linearization point
+        nonlinear_solver.setup_jacobian =
+          [&](const VectorType &current_u, const VectorType & /*current_f*/) {
+            nonlinear_operator.set_solution_linearization(current_u);
+            return 0;
+          };
+
+        // ... solve linear system of equations
+        nonlinear_solver.solve_with_jacobian =
+          [&](const VectorType &rhs, VectorType &dst, const double tolerance) {
+            ++n_eval_nonlinear;
+
+            ReductionControl     reduction_control(1000, 1e-10, tolerance);
+            SolverCG<VectorType> solver(reduction_control);
+            solver.solve(nonlinear_operator, dst, rhs, preconditioner);
+
+            n_eval_linear += reduction_control.last_step();
+            return 0;
+          };
+
+        // ... update preconditioner (TODO)
+
+        // solve!
+        nonlinear_solver.solve(solution);
+
+        if (pcout.is_active())
+          printf("%3d %3d %3d\n",
+                 n_eval_nonlinear,
+                 n_eval_linear,
+                 n_eval_residual);
+#endif
 
         if (counter % n_time_steps_output == 0)
           output_result(t);
