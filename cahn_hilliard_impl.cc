@@ -15,7 +15,6 @@
 
 // Allen-Cahn equation with one phase.
 
-
 #include <deal.II/base/conditional_ostream.h>
 #include <deal.II/base/mpi.h>
 #include <deal.II/base/quadrature_lib.h>
@@ -33,6 +32,7 @@
 #include <deal.II/lac/precondition.h>
 #include <deal.II/lac/solver_cg.h>
 #include <deal.II/lac/solver_control.h>
+#include <deal.II/lac/solver_gmres.h>
 
 #include <deal.II/matrix_free/fe_evaluation.h>
 #include <deal.II/matrix_free/matrix_free.h>
@@ -44,7 +44,7 @@
 
 #include "include/newton.h"
 
-#define IDENTITY
+//#define IDENTITY
 #define NEWTON
 
 using namespace dealii;
@@ -58,20 +58,59 @@ private:
 
 public:
   InitialValues()
-    : Function<dim>(1)
+    : Function<dim>(2)
   {}
 
   virtual double
   value(const dealii::Point<dim> &p,
         const unsigned int        component = 0) const override
   {
-    (void)component;
-    double dist = point.distance(p);
-    return 0.5 * (1.0 - std::tanh(2 * (dist - rad)));
+    if (component == 0)
+      {
+        double center[12][3] = {{0.1, 0.3, 0},
+                                {0.8, 0.7, 0},
+                                {0.5, 0.2, 0},
+                                {0.4, 0.4, 0},
+                                {0.3, 0.9, 0},
+                                {0.8, 0.1, 0},
+                                {0.9, 0.5, 0},
+                                {0.0, 0.1, 0},
+                                {0.1, 0.6, 0},
+                                {0.5, 0.6, 0},
+                                {1, 1, 0},
+                                {0.7, 0.95, 0}};
+        double rad[12]       = {12, 14, 19, 16, 11, 12, 17, 15, 20, 10, 11, 14};
+        double dist;
+        double scalar_IC = 0;
+        for (unsigned int i = 0; i < 12; i++)
+          {
+            dist = 0.0;
+            for (unsigned int dir = 0; dir < dim; dir++)
+              {
+                dist += (p[dir] - center[i][dir] * 100 /*TODO*/) *
+                        (p[dir] - center[i][dir] * 100 /*TODO*/);
+              }
+            dist = std::sqrt(dist);
+
+            scalar_IC += 0.5 * (1.0 - std::tanh((dist - rad[i]) / 1.5));
+          }
+        if (scalar_IC > 1.0)
+          scalar_IC = 1.0;
+
+        return scalar_IC;
+      }
+    else
+      {
+        return 0.0;
+      }
+
+    // if(component==1)
+    //  return 0.0;
+    //
+    // double dist = point.distance(p);
+    // return 0.5 * (1.0 - std::tanh(2 * (dist - rad)));
   }
 };
-
-
 
 template <int dim,
           int degree,
@@ -109,7 +148,12 @@ public:
             phi.reinit(cell);
             phi.gather_evaluate(src, true, false, false);
             for (unsigned int q = 0; q < phi.n_q_points; ++q)
-              phi.submit_value(phi.get_value(q), q);
+              {
+                Tensor<1, n_components, VectorizedArrayType> value_result;
+                value_result[0] = phi.get_value(q)[0];
+                value_result[1] = phi.get_value(q)[1];
+                phi.submit_value(value_result, q);
+              }
             phi.integrate_scatter(true, false, dst);
           }
       },
@@ -128,7 +172,6 @@ private:
   const MatrixFree<dim, Number, VectorizedArrayType> &matrix_free;
 };
 
-
 template <int dim,
           int degree,
           int n_points_1D,
@@ -145,11 +188,9 @@ public:
 
   AllenCahnImplicit(
     const MatrixFree<dim, Number, VectorizedArrayType> &matrix_free,
-    const double                                        dt,
     const double                                        M,
     const double                                        kappa)
     : matrix_free(matrix_free)
-    , dt(dt)
     , M(M)
     , kappa(kappa)
   {}
@@ -165,17 +206,10 @@ public:
                  VectorizedArrayType>
       phi(matrix_free);
 
-    FEEvaluation<dim,
-                 degree,
-                 n_points_1D,
-                 n_components,
-                 Number,
-                 VectorizedArrayType>
-      phi_lin(matrix_free);
-
     // second derivative of potential with respect to phi
-    const auto d2f_dphi2 = [&](const auto &phi) {
-      return phi * phi * 6.0 - 2.0;
+    const auto d2f_dc2 = [&](const auto &c) {
+      return 4.0 * c * (c - 1.0) + 4.0 * c * (c - 0.5) +
+             4.0 * (c - 1.0) * (c - 0.5);
     };
 
     matrix_free.template cell_loop<VectorType, VectorType>(
@@ -183,24 +217,26 @@ public:
         for (auto cell = range.first; cell < range.second; ++cell)
           {
             phi.reinit(cell);
-            phi_lin.reinit(cell);
-
             phi.gather_evaluate(src,
                                 /*evaluate values = */ true,
                                 /*evaluate gradients = */ true,
                                 false);
 
-            phi_lin.read_dof_values_plain(src);
-            phi_lin.evaluate(true, false, false);
-
             for (unsigned int q = 0; q < phi.n_q_points; ++q)
               {
-                const auto val = phi_lin.get_value(q);
-                phi.submit_value((1.0 + dt * M * d2f_dphi2(val)) *
-                                   phi.get_value(q),
-                                 q);
+                Tensor<1, 2, VectorizedArrayType> value_result;
+                value_result[0] = phi.get_value(q)[0] / dt;
+                value_result[1] =
+                  -phi.get_value(q)[1] +
+                  d2f_dc2(nonlinear_values(cell, q)[0]) * phi.get_value(q)[0];
 
-                phi.submit_gradient(+dt * M * kappa * phi.get_gradient(q), q);
+                Tensor<1, 2, Tensor<1, dim, VectorizedArrayType>>
+                  gradient_result;
+                gradient_result[0] = M * phi.get_gradient(q)[1];
+                gradient_result[1] = kappa * phi.get_gradient(q)[0];
+
+                phi.submit_value(value_result, q);
+                phi.submit_gradient(gradient_result, q);
               }
             phi.integrate_scatter(/*evaluate values = */ true,
                                   /*evaluate gradients = */ true,
@@ -232,8 +268,8 @@ public:
       phi(matrix_free);
 
     // first derivative of potential with respect to phi
-    const auto df_dphi = [&](const auto &phi) {
-      return phi * phi * phi * 2.0 - phi * 2.0;
+    const auto df_dc = [&](const auto &c) {
+      return 4.0 * c * (c - 1.0) * (c - 0.5);
     };
 
     matrix_free.template cell_loop<VectorType, VectorType>(
@@ -254,16 +290,22 @@ public:
 
             for (unsigned int q = 0; q < phi.n_q_points; ++q)
               {
-                const auto val = phi.get_value(q);
+                const auto val  = phi.get_value(q);
+                const auto grad = phi.get_gradient(q);
                 // get old value
                 const auto old_val = phi_old.get_value(q);
-                // value terms - is that really correct???
-                phi.submit_value((1.0 + dt * M * df_dphi(val)) *
-                                     phi.get_value(q) -
-                                   old_val,
-                                 q);
-                // gradient terms
-                phi.submit_gradient(+dt * M * kappa * phi.get_gradient(q), q);
+
+                Tensor<1, 2, VectorizedArrayType> value_result;
+                value_result[0] = (val[0] - old_val[0]) / dt;
+                value_result[1] = -val[1] + df_dc(val[0]);
+
+                Tensor<1, 2, Tensor<1, dim, VectorizedArrayType>>
+                  gradient_result;
+                gradient_result[0] = M * grad[1];
+                gradient_result[1] = kappa * grad[0];
+
+                phi.submit_value(value_result, q);
+                phi.submit_gradient(gradient_result, q);
               }
             phi.integrate_scatter(/*evaluate values = */ true,
                                   /*evaluate gradients = */ true,
@@ -284,13 +326,7 @@ public:
   void
   set_solution_linearization(const VectorType &src) const
   {
-    this->solution_linearization = src;
-  }
-
-  void
-  evaluate_newton_step(const VectorType &newton_step)
-  {
-    (void)newton_step;
+    (void)src;
   }
 
   void
@@ -299,17 +335,56 @@ public:
     this->old_solution = src;
   }
 
+  const VectorType &
+  get_previous_solution() const
+  {
+    return this->old_solution;
+  }
+
+  void
+  evaluate_newton_step(const VectorType &newton_step)
+  {
+    const unsigned int n_cells = matrix_free.n_cell_batches();
+
+    FEEvaluation<dim,
+                 degree,
+                 n_points_1D,
+                 n_components,
+                 Number,
+                 VectorizedArrayType>
+      phi(matrix_free);
+
+    nonlinear_values.reinit(n_cells, phi.n_q_points);
+
+    for (unsigned int cell = 0; cell < n_cells; ++cell)
+      {
+        phi.reinit(cell);
+        phi.read_dof_values_plain(newton_step);
+        phi.evaluate(EvaluationFlags::values);
+
+        for (unsigned int q = 0; q < phi.n_q_points; ++q)
+          {
+            nonlinear_values(cell, q) = phi.get_value(q);
+          }
+      }
+  }
+
+  void
+  set_timestep(double dt_new)
+  {
+    this->dt = dt_new;
+  }
+
 private:
   const MatrixFree<dim, Number, VectorizedArrayType> &matrix_free;
-  const double                                        dt;
   const double                                        M;
   const double                                        kappa;
+  double                                              dt;
 
   mutable VectorType old_solution;
-  mutable VectorType solution_linearization;
+
+  Table<2, dealii::Tensor<1, 2, VectorizedArrayType>> nonlinear_values;
 };
-
-
 
 template <typename Operator>
 class InverseMassMatrix
@@ -333,6 +408,33 @@ public:
   const Operator &op;
 };
 
+template <typename Operator, typename Preconditioner>
+class SolverGMRESWrapper
+{
+public:
+  using VectorType = typename Operator::vector_type;
+
+  SolverGMRESWrapper(const Operator &op, const Preconditioner &preconditioner)
+    : op(op)
+    , preconditioner(preconditioner)
+  {}
+
+  unsigned int
+  solve(VectorType &dst, const VectorType &src, const bool do_update)
+  {
+    (void)do_update; // no preconditioner is used
+
+    unsigned int            max_iter = 100;
+    ReductionControl        reduction_control(max_iter);
+    SolverGMRES<VectorType> solver(reduction_control);
+    solver.solve(op, dst, src, preconditioner);
+
+    return reduction_control.last_step();
+  }
+
+  const Operator &      op;
+  const Preconditioner &preconditioner;
+};
 
 template <typename Operator, typename Preconditioner>
 class SolverCGWrapper
@@ -350,7 +452,8 @@ public:
   {
     (void)do_update; // no preconditioner is used
 
-    ReductionControl     reduction_control;
+    unsigned int         max_iter = 100;
+    ReductionControl     reduction_control(max_iter);
     SolverCG<VectorType> solver(reduction_control);
     solver.solve(op, dst, src, preconditioner);
 
@@ -360,7 +463,6 @@ public:
   const Operator &      op;
   const Preconditioner &preconditioner;
 };
-
 
 template <int dim,
           int fe_degree,
@@ -383,23 +485,30 @@ public:
     const double size = 100.0;
 
     // mesh
-    const unsigned int n_refinements  = 7;
+    const unsigned int n_refinements  = 6;
     const unsigned int n_subdivisions = 1;
 
     // time discretization
-    const unsigned int n_time_steps        = 1000;
-    const unsigned int n_time_steps_output = 20;
-    const double       dt                  = 0.01;
+    const double t_end                = 100;
+    double       dt                   = 0.01;
+    const double dt_max               = 1e2 * dt;
+    const double dt_min               = 1e-2 * dt;
+    const double dt_increment         = 1.2;
+    const double output_time_interval = 1.0;
+
+    // desirable number of newton iterations
+    const unsigned int desirable_newton_iterations = 5;
+    const unsigned int desirable_linear_iterations = 60;
 
     //  model constants
     const double M     = 1.0;
-    const double kappa = 0.5;
+    const double kappa = 1.5;
 
     parallel::distributed::Triangulation<dim> tria(MPI_COMM_WORLD);
     GridGenerator::subdivided_hyper_cube(tria, n_subdivisions, 0, size);
     tria.refine_global(n_refinements);
 
-    FE_Q<dim>       fe(fe_degree);
+    FESystem<dim>   fe(FE_Q<dim>{fe_degree}, 2);
     DoFHandler<dim> dof_handler(tria);
     dof_handler.distribute_dofs(fe);
 
@@ -432,41 +541,27 @@ public:
       DataOut<dim> data_out;
       data_out.set_flags(flags);
       data_out.attach_dof_handler(dof_handler);
-      data_out.add_data_vector(solution, "solution");
+      std::vector<std::string> names{"c", "mu"};
+      data_out.add_data_vector(solution, names);
 
       solution.update_ghost_values();
       data_out.build_patches(mapping, fe_degree);
 
-      Vector<double> difference(tria.n_active_cells());
-
-      VectorTools::integrate_difference(mapping,
-                                        dof_handler,
-                                        solution,
-                                        Functions::ZeroFunction<dim>(),
-                                        difference,
-                                        quad,
-                                        VectorTools::NormType::L2_norm);
-
-      pcout << VectorTools::compute_global_error(tria,
-                                                 difference,
-                                                 VectorTools::NormType::L2_norm)
-            << std::endl;
-
       static unsigned int counter = 0;
 
-      pcout << "outputing at " << t << std::endl;
+      std::cout << "Outputing at t = " << t << std::endl;
 
       std::string output = "solution." + std::to_string(counter++) + ".vtu";
       data_out.write_vtu_in_parallel(output, MPI_COMM_WORLD);
     };
 
-    output_result(0.0);
-
+    double time_last_output = 0;
+    output_result(time_last_output);
 
     using Operator = AllenCahnImplicit<dim,
                                        fe_degree,
                                        n_points_1D,
-                                       1,
+                                       2,
                                        Number,
                                        VectorizedArrayType>;
 
@@ -474,12 +569,13 @@ public:
     using Preconditioner = PreconditionIdentity;
 #else
     using PreconditionerOperator =
-      MassMatrix<dim, fe_degree, n_points_1D, 1, Number, VectorizedArrayType>;
+      MassMatrix<dim, fe_degree, n_points_1D, 2, Number, VectorizedArrayType>;
     using Preconditioner = InverseMassMatrix<PreconditionerOperator>;
 #endif
-    using LinearSolver = SolverCGWrapper<Operator, Preconditioner>;
+    // using LinearSolver = SolverCGWrapper<Operator, Preconditioner>;
+    using LinearSolver = SolverGMRESWrapper<Operator, Preconditioner>;
 
-    Operator nonlinear_operator(matrix_free, dt, M, kappa);
+    Operator nonlinear_operator(matrix_free, M, kappa);
 
 #ifdef IDENTITY
     Preconditioner preconditioner;
@@ -496,16 +592,63 @@ public:
 #endif
 
     // time loop
-    unsigned int counter = 0;
-    for (double t = 0; counter++ < n_time_steps; t += dt)
+    for (double t = 0; t <= t_end;)
+      // for (double t = 0; counter++ < n_time_steps; t += dt)
       {
+        nonlinear_operator.set_timestep(dt);
         nonlinear_operator.set_previous_solution(solution);
-#ifdef NEWTON
-        const auto statistics = newton_solver.solve(solution);
+        nonlinear_operator.evaluate_newton_step(solution);
 
-        pcout << "Solved in " << statistics.newton_iterations
-              << " Newton iterations and " << statistics.linear_iterations
-              << " linear iterations" << std::endl;
+        bool has_converged = false;
+
+#ifdef NEWTON
+
+        try
+          {
+            const auto statistics = newton_solver.solve(solution);
+
+            has_converged = true;
+
+            pcout << "t = " << t << ", dt = " << dt << ":"
+                  << " solved in " << statistics.newton_iterations
+                  << " Newton iterations and " << statistics.linear_iterations
+                  << " linear iterations" << std::endl;
+
+            if (std::abs(t - t_end) > 1e-9)
+              {
+                if (statistics.newton_iterations <
+                      desirable_newton_iterations &&
+                    statistics.linear_iterations < desirable_linear_iterations)
+                  {
+                    dt *= dt_increment;
+                    pcout << "Increasing timestep, dt = " << dt << std::endl;
+
+                    if (dt > dt_max)
+                      {
+                        dt = dt_max;
+                      }
+                  }
+
+                if (t + dt > t_end)
+                  {
+                    dt = t_end - t;
+                  }
+              }
+
+            t += dt;
+          }
+        catch (...)
+          {
+            dt *= 0.5;
+            pcout << "Solver diverged, reducing timestep, dt = " << dt
+                  << std::endl;
+
+            solution = nonlinear_operator.get_previous_solution();
+
+            AssertThrow(dt > dt_min,
+                        ExcMessage(
+                          "Minimum timestep size exceeded, solution failed!"));
+          }
 
 #else
         typename SUNDIALS::KINSOL<VectorType>::AdditionalData additional_data;
@@ -527,6 +670,7 @@ public:
         nonlinear_solver.residual = [&](const VectorType &evaluation_point,
                                         VectorType &      residual) {
           ++n_eval_residual;
+          nonlinear_operator.set_timestep(dt);
           nonlinear_operator.evaluate_nonlinear_residual(residual,
                                                          evaluation_point);
           return 0;
@@ -535,7 +679,8 @@ public:
         // ... setup Jacobian (MatrixFree) simply set linearization point
         nonlinear_solver.setup_jacobian =
           [&](const VectorType &current_u, const VectorType & /*current_f*/) {
-            nonlinear_operator.set_solution_linearization(current_u);
+            nonlinear_operator.set_timestep(dt);
+            nonlinear_operator.evaluate_newton_step(current_u);
             return 0;
           };
 
@@ -556,27 +701,32 @@ public:
 
         // solve!
         nonlinear_solver.solve(solution);
+        has_converged = true;
 
         if (pcout.is_active())
-          printf("%3d %3d %3d\n",
-                 n_eval_nonlinear,
-                 n_eval_linear,
-                 n_eval_residual);
+          printf(
+            "n_eval_nonlinear = %3d, n_eval_linear = %3d, n_eval_residual = "
+            "%3d\n",
+            n_eval_nonlinear,
+            n_eval_linear,
+            n_eval_residual);
 #endif
 
-        if (counter % n_time_steps_output == 0)
-          output_result(t);
+        if (has_converged && t > output_time_interval + time_last_output)
+          {
+            time_last_output = t;
+            output_result(time_last_output);
+          }
       }
   }
 
 private:
 };
 
-
 int
 main(int argc, char **argv)
 {
   Utilities::MPI::MPI_InitFinalize mpi_init(argc, argv, 1);
-  Test<2, 1>                       runner;
+  Test<2, 1, 2>                    runner;
   runner.run();
 }

@@ -15,7 +15,6 @@
 
 // Allen-Cahn equation with one phase.
 
-
 #include <deal.II/base/conditional_ostream.h>
 #include <deal.II/base/mpi.h>
 #include <deal.II/base/quadrature_lib.h>
@@ -58,7 +57,7 @@ private:
 
 public:
   InitialValues()
-    : Function<dim>(1)
+    : Function<dim>(2)
   {}
 
   virtual double
@@ -67,11 +66,9 @@ public:
   {
     (void)component;
     double dist = point.distance(p);
-    return 0.5 * (1.0 - std::tanh(2 * (dist - rad)));
+    return 0.5 * (1.0 - std::tanh(2 * (dist - rad / (component + 1))));
   }
 };
-
-
 
 template <int dim,
           int degree,
@@ -128,7 +125,6 @@ private:
   const MatrixFree<dim, Number, VectorizedArrayType> &matrix_free;
 };
 
-
 template <int dim,
           int degree,
           int n_points_1D,
@@ -165,14 +161,6 @@ public:
                  VectorizedArrayType>
       phi(matrix_free);
 
-    FEEvaluation<dim,
-                 degree,
-                 n_points_1D,
-                 n_components,
-                 Number,
-                 VectorizedArrayType>
-      phi_lin(matrix_free);
-
     // second derivative of potential with respect to phi
     const auto d2f_dphi2 = [&](const auto &phi) {
       return phi * phi * 6.0 - 2.0;
@@ -183,24 +171,29 @@ public:
         for (auto cell = range.first; cell < range.second; ++cell)
           {
             phi.reinit(cell);
-            phi_lin.reinit(cell);
 
             phi.gather_evaluate(src,
                                 /*evaluate values = */ true,
                                 /*evaluate gradients = */ true,
                                 false);
 
-            phi_lin.read_dof_values_plain(src);
-            phi_lin.evaluate(true, false, false);
-
             for (unsigned int q = 0; q < phi.n_q_points; ++q)
               {
-                const auto val = phi_lin.get_value(q);
-                phi.submit_value((1.0 + dt * M * d2f_dphi2(val)) *
-                                   phi.get_value(q),
-                                 q);
+                Tensor<1, 2, VectorizedArrayType> value_result;
+                value_result[0] =
+                  (1.0 + dt * M * d2f_dphi2(nonlinear_values(cell, q)[0])) *
+                  phi.get_value(q)[0];
+                value_result[1] =
+                  (1.0 + dt * M * d2f_dphi2(nonlinear_values(cell, q)[1])) *
+                  phi.get_value(q)[1];
 
-                phi.submit_gradient(+dt * M * kappa * phi.get_gradient(q), q);
+                Tensor<1, 2, Tensor<1, dim, VectorizedArrayType>>
+                  gradient_result;
+                gradient_result[0] = +dt * M * kappa * phi.get_gradient(q)[0];
+                gradient_result[1] = +dt * M * kappa * phi.get_gradient(q)[1];
+
+                phi.submit_value(value_result, q);
+                phi.submit_gradient(gradient_result, q);
               }
             phi.integrate_scatter(/*evaluate values = */ true,
                                   /*evaluate gradients = */ true,
@@ -257,13 +250,20 @@ public:
                 const auto val = phi.get_value(q);
                 // get old value
                 const auto old_val = phi_old.get_value(q);
-                // value terms - is that really correct???
-                phi.submit_value((1.0 + dt * M * df_dphi(val)) *
-                                     phi.get_value(q) -
-                                   old_val,
-                                 q);
-                // gradient terms
-                phi.submit_gradient(+dt * M * kappa * phi.get_gradient(q), q);
+
+                Tensor<1, 2, VectorizedArrayType> value_result;
+                value_result[0] =
+                  val[0] - old_val[0] + dt * M * df_dphi(val[0]);
+                value_result[1] =
+                  val[1] - old_val[1] + dt * M * df_dphi(val[1]);
+
+                Tensor<1, 2, Tensor<1, dim, VectorizedArrayType>>
+                  gradient_result;
+                gradient_result[0] = +dt * M * kappa * phi.get_gradient(q)[0];
+                gradient_result[1] = +dt * M * kappa * phi.get_gradient(q)[1];
+
+                phi.submit_value(value_result, q);
+                phi.submit_gradient(gradient_result, q);
               }
             phi.integrate_scatter(/*evaluate values = */ true,
                                   /*evaluate gradients = */ true,
@@ -288,15 +288,37 @@ public:
   }
 
   void
-  evaluate_newton_step(const VectorType &newton_step)
-  {
-    (void)newton_step;
-  }
-
-  void
   set_previous_solution(const VectorType &src) const
   {
     this->old_solution = src;
+  }
+
+  void
+  evaluate_newton_step(const VectorType &newton_step)
+  {
+    const unsigned int n_cells = matrix_free.n_cell_batches();
+
+    FEEvaluation<dim,
+                 degree,
+                 n_points_1D,
+                 n_components,
+                 Number,
+                 VectorizedArrayType>
+      phi(matrix_free);
+
+    nonlinear_values.reinit(n_cells, phi.n_q_points);
+
+    for (unsigned int cell = 0; cell < n_cells; ++cell)
+      {
+        phi.reinit(cell);
+        phi.read_dof_values_plain(newton_step);
+        phi.evaluate(EvaluationFlags::values);
+
+        for (unsigned int q = 0; q < phi.n_q_points; ++q)
+          {
+            nonlinear_values(cell, q) = phi.get_value(q);
+          }
+      }
   }
 
 private:
@@ -307,9 +329,9 @@ private:
 
   mutable VectorType old_solution;
   mutable VectorType solution_linearization;
+
+  Table<2, dealii::Tensor<1, 2, VectorizedArrayType>> nonlinear_values;
 };
-
-
 
 template <typename Operator>
 class InverseMassMatrix
@@ -332,7 +354,6 @@ public:
 
   const Operator &op;
 };
-
 
 template <typename Operator, typename Preconditioner>
 class SolverCGWrapper
@@ -360,7 +381,6 @@ public:
   const Operator &      op;
   const Preconditioner &preconditioner;
 };
-
 
 template <int dim,
           int fe_degree,
@@ -399,7 +419,7 @@ public:
     GridGenerator::subdivided_hyper_cube(tria, n_subdivisions, 0, size);
     tria.refine_global(n_refinements);
 
-    FE_Q<dim>       fe(fe_degree);
+    FESystem<dim>   fe(FE_Q<dim>{fe_degree}, 2);
     DoFHandler<dim> dof_handler(tria);
     dof_handler.distribute_dofs(fe);
 
@@ -432,25 +452,11 @@ public:
       DataOut<dim> data_out;
       data_out.set_flags(flags);
       data_out.attach_dof_handler(dof_handler);
-      data_out.add_data_vector(solution, "solution");
+      std::vector<std::string> names{"sol1", "sol2"};
+      data_out.add_data_vector(solution, names);
 
       solution.update_ghost_values();
       data_out.build_patches(mapping, fe_degree);
-
-      Vector<double> difference(tria.n_active_cells());
-
-      VectorTools::integrate_difference(mapping,
-                                        dof_handler,
-                                        solution,
-                                        Functions::ZeroFunction<dim>(),
-                                        difference,
-                                        quad,
-                                        VectorTools::NormType::L2_norm);
-
-      pcout << VectorTools::compute_global_error(tria,
-                                                 difference,
-                                                 VectorTools::NormType::L2_norm)
-            << std::endl;
 
       static unsigned int counter = 0;
 
@@ -462,11 +468,10 @@ public:
 
     output_result(0.0);
 
-
     using Operator = AllenCahnImplicit<dim,
                                        fe_degree,
                                        n_points_1D,
-                                       1,
+                                       2,
                                        Number,
                                        VectorizedArrayType>;
 
@@ -500,6 +505,7 @@ public:
     for (double t = 0; counter++ < n_time_steps; t += dt)
       {
         nonlinear_operator.set_previous_solution(solution);
+        nonlinear_operator.evaluate_newton_step(solution);
 #ifdef NEWTON
         const auto statistics = newton_solver.solve(solution);
 
@@ -571,7 +577,6 @@ public:
 
 private:
 };
-
 
 int
 main(int argc, char **argv)
