@@ -670,7 +670,7 @@ public:
       {
         phi.reinit(cell);
         phi.read_dof_values_plain(newton_step);
-        phi.evaluate(EvaluationFlags::values);
+        phi.evaluate(EvaluationFlags::values | EvaluationFlags::gradients);
 
         for (unsigned int q = 0; q < phi.n_q_points; ++q)
           {
