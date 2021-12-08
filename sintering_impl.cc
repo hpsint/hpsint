@@ -138,6 +138,8 @@ namespace LinearSolvers
     solve(VectorType &dst, const VectorType &src, const bool do_update) = 0;
   };
 
+
+
   template <typename Operator, typename Preconditioner>
   class SolverGMRESWrapper
     : public LinearSolverBase<typename Operator::value_type>
@@ -703,8 +705,6 @@ namespace Sintering
 
 
   template <int dim,
-            int degree,
-            int n_points_1D,
             int n_components,
             typename Number,
             typename VectorizedArrayType>
@@ -716,12 +716,8 @@ namespace Sintering
     using value_type  = Number;
     using vector_type = VectorType;
 
-    using FECellIntegrator = FEEvaluation<dim,
-                                          degree,
-                                          n_points_1D,
-                                          n_components,
-                                          Number,
-                                          VectorizedArrayType>;
+    using FECellIntegrator =
+      FEEvaluation<dim, -1, 0, n_components, Number, VectorizedArrayType>;
 
     Operator(const MatrixFree<dim, Number, VectorizedArrayType> &matrix_free,
              const AffineConstraints<Number> &                   constraints,
@@ -1041,8 +1037,6 @@ namespace Sintering
 
 
   template <int dim,
-            int fe_degree,
-            int n_points_1D,
             typename Number              = double,
             typename VectorizedArrayType = VectorizedArray<Number>>
   class Problem
@@ -1053,12 +1047,8 @@ namespace Sintering
     // components number
     static constexpr unsigned int number_of_components = 4;
 
-    using NonLinearOperator = Operator<dim,
-                                       fe_degree,
-                                       n_points_1D,
-                                       number_of_components,
-                                       Number,
-                                       VectorizedArrayType>;
+    using NonLinearOperator =
+      Operator<dim, number_of_components, Number, VectorizedArrayType>;
 
     // geometry
     static constexpr double diameter        = 15.0;
@@ -1114,7 +1104,7 @@ namespace Sintering
 
     InitialValues<dim> initial_solution;
 
-    Problem()
+    Problem(const unsigned int fe_degree, const unsigned int n_points_1D)
       : pcout(std::cout, Utilities::MPI::this_mpi_process(MPI_COMM_WORLD) == 0)
       , tria(MPI_COMM_WORLD)
       , fe(FE_Q<dim>{fe_degree}, number_of_components)
@@ -1328,7 +1318,7 @@ namespace Sintering
       data_out.add_data_vector(solution, names);
 
       solution.update_ghost_values();
-      data_out.build_patches(mapping, fe_degree);
+      data_out.build_patches(mapping, this->fe.tensor_degree());
 
       static unsigned int counter = 0;
 
@@ -1347,6 +1337,6 @@ main(int argc, char **argv)
 {
   Utilities::MPI::MPI_InitFinalize mpi_init(argc, argv, 1);
 
-  Sintering::Problem<2, 1, 2> runner;
+  Sintering::Problem<2> runner(1, 2);
   runner.run();
 }
