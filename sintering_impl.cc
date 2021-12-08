@@ -36,6 +36,7 @@
 
 #include <deal.II/matrix_free/fe_evaluation.h>
 #include <deal.II/matrix_free/matrix_free.h>
+#include <deal.II/matrix_free/tools.h>
 
 #include <deal.II/numerics/data_out.h>
 #include <deal.II/numerics/vector_tools.h>
@@ -581,24 +582,24 @@ public:
   {
     this->dt = dt_new;
   }
+  
+  void compute_inverse_diagonal(VectorType &diagonal) const
+  {
+    MatrixFreeTools::compute_diagonal(matrix_free,
+                                      diagonal,
+                                      &Operator::do_vmult_cell,
+                                      this);
+    for (auto &i : diagonal)
+      i = (std::abs(i) > 1.0e-10) ? (1.0 / i) : 1.0;
+  }
+
 
 private:
-  void do_vmult_range(
-    const MatrixFree<dim, Number, VectorizedArrayType> &              matrix_free,
-    VectorType &                                 dst,
-    const VectorType &                           src,
-    const std::pair<unsigned int, unsigned int> &range) const
-  {
-        FECellIntegrator phi(matrix_free);
-          
-        for (auto cell = range.first; cell < range.second; ++cell)
-          {
-            phi.reinit(cell);
-            phi.gather_evaluate(src,
-                                EvaluationFlags::EvaluationFlags::values|
-                                EvaluationFlags::EvaluationFlags::gradients);
-
-            for (unsigned int q = 0; q < phi.n_q_points; ++q)
+    void do_vmult_kernel(FECellIntegrator & phi) const
+    {
+        const unsigned int cell = phi.get_current_cell_index ();
+        
+for (unsigned int q = 0; q < phi.n_q_points; ++q)
               {
                 auto &c    = nonlinear_values(cell, q)[0];
                 auto &eta1 = nonlinear_values(cell, q)[2];
@@ -647,6 +648,36 @@ private:
                 phi.submit_value(value_result, q);
                 phi.submit_gradient(gradient_result, q);
               }
+    }
+    
+  void do_vmult_cell(FECellIntegrator &phi) const
+  {
+    phi.evaluate(EvaluationFlags::EvaluationFlags::values|
+                        EvaluationFlags::EvaluationFlags::gradients);
+
+    do_vmult_kernel(phi);
+
+    phi.integrate(EvaluationFlags::EvaluationFlags::values|
+                          EvaluationFlags::EvaluationFlags::gradients);
+  }
+    
+  void do_vmult_range(
+    const MatrixFree<dim, Number, VectorizedArrayType> &              matrix_free,
+    VectorType &                                 dst,
+    const VectorType &                           src,
+    const std::pair<unsigned int, unsigned int> &range) const
+  {
+        FECellIntegrator phi(matrix_free);
+          
+        for (auto cell = range.first; cell < range.second; ++cell)
+          {
+            phi.reinit(cell);
+            phi.gather_evaluate(src,
+                                EvaluationFlags::EvaluationFlags::values|
+                                EvaluationFlags::EvaluationFlags::gradients);
+
+            do_vmult_kernel(phi);
+            
             phi.integrate_scatter(EvaluationFlags::EvaluationFlags::values|
                                   EvaluationFlags::EvaluationFlags::gradients,
                                   dst);
