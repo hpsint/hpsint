@@ -49,49 +49,51 @@
 using namespace dealii;
 
 
-
-template <typename Number>
-class PreconditionerBase
+namespace Preconditioners
 {
-public:
-  using VectorType = LinearAlgebra::distributed::Vector<Number>;
-
-  virtual void
-  vmult(VectorType &dst, const VectorType &src) const = 0;
-
-  virtual void
-  do_update() = 0;
-};
-
-
-
-template <typename Operator>
-class InverseDiagonalMatrix
-  : public PreconditionerBase<typename Operator::value_type>
-{
-public:
-  using VectorType = typename Operator::VectorType;
-
-  InverseDiagonalMatrix(const Operator &op)
-    : op(op)
-  {}
-
-  void
-  vmult(VectorType &dst, const VectorType &src) const override
+  template <typename Number>
+  class PreconditionerBase
   {
-    diagonal_matrix.vmult(dst, src);
-  }
+  public:
+    using VectorType = LinearAlgebra::distributed::Vector<Number>;
 
-  void
-  do_update() override
+    virtual void
+    vmult(VectorType &dst, const VectorType &src) const = 0;
+
+    virtual void
+    do_update() = 0;
+  };
+
+
+
+  template <typename Operator>
+  class InverseDiagonalMatrix
+    : public PreconditionerBase<typename Operator::value_type>
   {
-    op.compute_inverse_diagonal(diagonal_matrix.get_vector());
-  }
+  public:
+    using VectorType = typename Operator::VectorType;
 
-private:
-  const Operator &           op;
-  DiagonalMatrix<VectorType> diagonal_matrix;
-};
+    InverseDiagonalMatrix(const Operator &op)
+      : op(op)
+    {}
+
+    void
+    vmult(VectorType &dst, const VectorType &src) const override
+    {
+      diagonal_matrix.vmult(dst, src);
+    }
+
+    void
+    do_update() override
+    {
+      op.compute_inverse_diagonal(diagonal_matrix.get_vector());
+    }
+
+  private:
+    const Operator &           op;
+    DiagonalMatrix<VectorType> diagonal_matrix;
+  };
+} // namespace Preconditioners
 
 
 
@@ -783,10 +785,6 @@ namespace Sintering
                                        Number,
                                        VectorizedArrayType>;
 
-    using Preconditioner = PreconditionerBase<Number>;
-
-    using LinearSolver = SolverGMRESWrapper<NonLinearOperator, Preconditioner>;
-
     // geometry
     static constexpr double diameter        = 15.0;
     static constexpr double interface_width = 2.0;
@@ -884,19 +882,26 @@ namespace Sintering
         matrix_free, A, B, Mvol, Mvap, Msurf, Mgb, L, kappa_c, kappa_p);
 
       // ... preconditioner
-      std::unique_ptr<PreconditionerBase<Number>> preconditioner;
+      std::unique_ptr<Preconditioners::PreconditionerBase<Number>>
+        preconditioner;
 
       if (true)
-        preconditioner =
-          std::make_unique<InverseDiagonalMatrix<NonLinearOperator>>(
-            nonlinear_operator);
+        preconditioner = std::make_unique<
+          Preconditioners::InverseDiagonalMatrix<NonLinearOperator>>(
+          nonlinear_operator);
 
       // ... linear solver
-      LinearSolver linear_solver(nonlinear_operator, *preconditioner);
+      SolverGMRESWrapper<NonLinearOperator,
+                         Preconditioners::PreconditionerBase<Number>>
+        linear_solver(nonlinear_operator, *preconditioner);
 
       // ... non-linear Newton solver
-      NewtonSolver<VectorType, NonLinearOperator, LinearSolver> newton_solver(
-        nonlinear_operator, linear_solver);
+      NewtonSolver<
+        VectorType,
+        NonLinearOperator,
+        SolverGMRESWrapper<NonLinearOperator,
+                           Preconditioners::PreconditionerBase<Number>>>
+        newton_solver(nonlinear_operator, linear_solver);
 
       // set initial condition
       VectorType solution;
