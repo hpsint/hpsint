@@ -458,6 +458,13 @@ public:
 
   using value_type  = Number;
   using vector_type = VectorType;
+  
+  using FECellIntegrator = FEEvaluation<dim,
+                     degree,
+                     n_points_1D,
+                     n_components,
+                     Number,
+                     VectorizedArrayType>;
 
   Sintering(const MatrixFree<dim, Number, VectorizedArrayType> &matrix_free,
             const double                                        A,
@@ -482,13 +489,7 @@ public:
   {
     matrix_free.template cell_loop<VectorType, VectorType>(
       [&](const auto &, auto &dst, const auto &src, auto &range) {
-        FEEvaluation<dim,
-                     degree,
-                     n_points_1D,
-                     n_components,
-                     Number,
-                     VectorizedArrayType>
-          phi(matrix_free);
+        FECellIntegrator phi(matrix_free);
           
         for (auto cell = range.first; cell < range.second; ++cell)
           {
@@ -561,21 +562,8 @@ public:
   {
     matrix_free.template cell_loop<VectorType, VectorType>(
       [&](const auto &, auto &dst, const auto &src, auto &range) {
-        FEEvaluation<dim,
-                     degree,
-                     n_points_1D,
-                     n_components,
-                     Number,
-                     VectorizedArrayType>
-          phi_old(matrix_free);
-
-        FEEvaluation<dim,
-                     degree,
-                     n_points_1D,
-                     n_components,
-                     Number,
-                     VectorizedArrayType>
-          phi(matrix_free);
+        FECellIntegrator phi_old(matrix_free);
+        FECellIntegrator phi(matrix_free);
           
         for (auto cell = range.first; cell < range.second; ++cell)
           {
@@ -646,7 +634,7 @@ public:
   void
   set_solution_linearization(const VectorType &src) const
   {
-    (void)src;
+    (void)src; // TODO: linearization point is not used!?
   }
 
   void
@@ -666,13 +654,7 @@ public:
   {
     const unsigned int n_cells = matrix_free.n_cell_batches();
 
-    FEEvaluation<dim,
-                 degree,
-                 n_points_1D,
-                 n_components,
-                 Number,
-                 VectorizedArrayType>
-      phi(matrix_free);
+    FECellIntegrator phi(matrix_free);
 
     nonlinear_values.reinit(n_cells, phi.n_q_points);
     nonlinear_mu.reinit(n_cells, phi.n_q_points);
@@ -733,34 +715,6 @@ public:
     unsigned int            max_iter = 100;
     ReductionControl        reduction_control(max_iter);
     SolverGMRES<VectorType> solver(reduction_control);
-    solver.solve(op, dst, src, preconditioner);
-
-    return reduction_control.last_step();
-  }
-
-  const Operator &      op;
-  const Preconditioner &preconditioner;
-};
-
-template <typename Operator, typename Preconditioner>
-class SolverCGWrapper
-{
-public:
-  using VectorType = typename Operator::vector_type;
-
-  SolverCGWrapper(const Operator &op, const Preconditioner &preconditioner)
-    : op(op)
-    , preconditioner(preconditioner)
-  {}
-
-  unsigned int
-  solve(VectorType &dst, const VectorType &src, const bool do_update)
-  {
-    (void)do_update; // no preconditioner is used
-
-    unsigned int         max_iter = 200;
-    ReductionControl     reduction_control(max_iter);
-    SolverCG<VectorType> solver(reduction_control);
     solver.solve(op, dst, src, preconditioner);
 
     return reduction_control.last_step();
