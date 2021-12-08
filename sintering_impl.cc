@@ -467,23 +467,22 @@ public:
   void
   vmult(VectorType &dst, const VectorType &src) const
   {
-    FEEvaluation<dim,
-                 degree,
-                 n_points_1D,
-                 n_components,
-                 Number,
-                 VectorizedArrayType>
-      phi(matrix_free);
-
     matrix_free.template cell_loop<VectorType, VectorType>(
       [&](const auto &, auto &dst, const auto &src, auto &range) {
+        FEEvaluation<dim,
+                     degree,
+                     n_points_1D,
+                     n_components,
+                     Number,
+                     VectorizedArrayType>
+          phi(matrix_free);
+          
         for (auto cell = range.first; cell < range.second; ++cell)
           {
             phi.reinit(cell);
             phi.gather_evaluate(src,
-                                /*evaluate values = */ true,
-                                /*evaluate gradients = */ true,
-                                false);
+                                EvaluationFlags::EvaluationFlags::values|
+                                EvaluationFlags::EvaluationFlags::gradients);
 
             for (unsigned int q = 0; q < phi.n_q_points; ++q)
               {
@@ -534,8 +533,8 @@ public:
                 phi.submit_value(value_result, q);
                 phi.submit_gradient(gradient_result, q);
               }
-            phi.integrate_scatter(/*evaluate values = */ true,
-                                  /*evaluate gradients = */ true,
+            phi.integrate_scatter(EvaluationFlags::EvaluationFlags::values|
+                                  EvaluationFlags::EvaluationFlags::gradients,
                                   dst);
           }
       },
@@ -547,37 +546,36 @@ public:
   void
   evaluate_nonlinear_residual(VectorType &dst, const VectorType &src) const
   {
-    FEEvaluation<dim,
-                 degree,
-                 n_points_1D,
-                 n_components,
-                 Number,
-                 VectorizedArrayType>
-      phi_old(matrix_free);
-
-    FEEvaluation<dim,
-                 degree,
-                 n_points_1D,
-                 n_components,
-                 Number,
-                 VectorizedArrayType>
-      phi(matrix_free);
-
     matrix_free.template cell_loop<VectorType, VectorType>(
       [&](const auto &, auto &dst, const auto &src, auto &range) {
+        FEEvaluation<dim,
+                     degree,
+                     n_points_1D,
+                     n_components,
+                     Number,
+                     VectorizedArrayType>
+          phi_old(matrix_free);
+
+        FEEvaluation<dim,
+                     degree,
+                     n_points_1D,
+                     n_components,
+                     Number,
+                     VectorizedArrayType>
+          phi(matrix_free);
+          
         for (auto cell = range.first; cell < range.second; ++cell)
           {
             phi_old.reinit(cell);
             phi.reinit(cell);
 
             phi.gather_evaluate(src,
-                                /*evaluate values = */ true,
-                                /*evaluate gradients = */ true,
-                                false);
+                                EvaluationFlags::EvaluationFlags::values|
+                                EvaluationFlags::EvaluationFlags::gradients);
 
             // get values from old solution
             phi_old.read_dof_values_plain(old_solution);
-            phi_old.evaluate(true, false, false);
+            phi_old.evaluate(EvaluationFlags::EvaluationFlags::values);
 
             for (unsigned int q = 0; q < phi.n_q_points; ++q)
               {
@@ -616,8 +614,8 @@ public:
                 phi.submit_value(value_result, q);
                 phi.submit_gradient(gradient_result, q);
               }
-            phi.integrate_scatter(/*evaluate values = */ true,
-                                  /*evaluate gradients = */ true,
+            phi.integrate_scatter(EvaluationFlags::EvaluationFlags::values|
+                                  EvaluationFlags::EvaluationFlags::gradients,
                                   dst);
           }
       },
@@ -792,48 +790,6 @@ public:
   using VectorType = LinearAlgebra::distributed::Vector<Number>;
 
   void
-  createMesh(parallel::distributed::Triangulation<dim> &tria,
-             double                                     domain_width,
-             double                                     domain_height,
-             double                                     interface_width,
-             unsigned int elements_per_interface = 4)
-  {
-    unsigned int initial_ny = 10;
-    unsigned int initial_nx = int(domain_width / domain_height * initial_ny);
-
-    unsigned int n_refinements = int(std::round(std::log2(
-      elements_per_interface / interface_width * domain_height / initial_ny)));
-    // DEBUG
-    // n_refinements = 2;
-
-    std::vector<unsigned int> subdivisions(dim);
-    subdivisions[0] = initial_nx;
-    subdivisions[1] = initial_ny;
-    if (dim == 3)
-      {
-        subdivisions[2] = initial_ny;
-      }
-
-    const dealii::Point<dim> bottom_left;
-    const dealii::Point<dim> top_right =
-      (dim == 2 ?
-         dealii::Point<dim>(domain_width, domain_height) :
-         dealii::Point<dim>(domain_width, domain_height, domain_height));
-
-    dealii::GridGenerator::subdivided_hyper_rectangle(tria,
-                                                      subdivisions,
-                                                      bottom_left,
-                                                      top_right);
-
-    // GridGenerator::hyper_cube(triangulation, 0, 1);
-
-    if (n_refinements > 0)
-      {
-        tria.refine_global(n_refinements);
-      }
-  }
-
-  void
   run()
   {
     ConditionalOStream pcout(std::cout,
@@ -878,7 +834,7 @@ public:
     double domain_width  = 2 * diameter + boundary_factor * diameter;
     double domain_height = 1 * diameter + boundary_factor * diameter;
     parallel::distributed::Triangulation<dim> tria(MPI_COMM_WORLD);
-    createMesh(tria,
+    create_mesh(tria,
                domain_width,
                domain_height,
                interface_width,
@@ -979,22 +935,17 @@ public:
 
     LinearSolver linear_solver(nonlinear_operator, preconditioner);
 
-#ifdef NEWTON
     NewtonSolver<VectorType, Operator, LinearSolver> newton_solver(
       nonlinear_operator, linear_solver);
-#endif
 
     // time loop
     for (double t = 0; t <= t_end;)
-      // for (double t = 0; counter++ < n_time_steps; t += dt)
       {
         nonlinear_operator.set_timestep(dt);
         nonlinear_operator.set_previous_solution(solution);
         nonlinear_operator.evaluate_newton_step(solution);
 
         bool has_converged = false;
-
-#ifdef NEWTON
 
         try
           {
@@ -1043,74 +994,47 @@ public:
                           "Minimum timestep size exceeded, solution failed!"));
           }
 
-#else
-        typename SUNDIALS::KINSOL<VectorType>::AdditionalData additional_data;
-        additional_data.function_tolerance = 1e-8 /*TODO*/;
-
-        // create non-liner solver and attach functions for ...
-        SUNDIALS::KINSOL<VectorType> nonlinear_solver(additional_data);
-
-        // ... initialize vector
-        nonlinear_solver.reinit_vector = [&](VectorType &x) {
-          nonlinear_operator.initialize_dof_vector(x);
-        };
-
-        unsigned int n_eval_nonlinear = 0;
-        unsigned int n_eval_residual  = 0;
-        unsigned int n_eval_linear    = 0;
-
-        // ... evaluate residual
-        nonlinear_solver.residual = [&](const VectorType &evaluation_point,
-                                        VectorType &      residual) {
-          ++n_eval_residual;
-          nonlinear_operator.set_timestep(dt);
-          nonlinear_operator.evaluate_nonlinear_residual(residual,
-                                                         evaluation_point);
-          return 0;
-        };
-
-        // ... setup Jacobian (MatrixFree) simply set linearization point
-        nonlinear_solver.setup_jacobian =
-          [&](const VectorType &current_u, const VectorType & /*current_f*/) {
-            nonlinear_operator.set_timestep(dt);
-            nonlinear_operator.evaluate_newton_step(current_u);
-            return 0;
-          };
-
-        // ... solve linear system of equations
-        nonlinear_solver.solve_with_jacobian =
-          [&](const VectorType &rhs, VectorType &dst, const double tolerance) {
-            ++n_eval_nonlinear;
-
-            ReductionControl     reduction_control(1000, 1e-10, tolerance);
-            SolverCG<VectorType> solver(reduction_control);
-            solver.solve(nonlinear_operator, dst, rhs, preconditioner);
-
-            n_eval_linear += reduction_control.last_step();
-            return 0;
-          };
-
-        // ... update preconditioner (TODO)
-
-        // solve!
-        nonlinear_solver.solve(solution);
-        has_converged = true;
-
-        if (pcout.is_active())
-          printf(
-            "n_eval_nonlinear = %3d, n_eval_linear = %3d, n_eval_residual = "
-            "%3d\n",
-            n_eval_nonlinear,
-            n_eval_linear,
-            n_eval_residual);
-#endif
-
         if (has_converged && t > output_time_interval + time_last_output)
           {
             time_last_output = t;
             output_result(time_last_output);
           }
       }
+  }
+
+private:
+  void
+  create_mesh(parallel::distributed::Triangulation<dim> &tria,
+             const double                                     domain_width,
+             const double                                     domain_height,
+             const double                                     interface_width,
+             const unsigned int elements_per_interface = 4)
+  {
+    const unsigned int initial_ny = 10;
+    const unsigned int initial_nx = int(domain_width / domain_height * initial_ny);
+
+    const unsigned int n_refinements = int(std::round(std::log2(
+      elements_per_interface / interface_width * domain_height / initial_ny)));
+
+    std::vector<unsigned int> subdivisions(dim);
+    subdivisions[0] = initial_nx;
+    subdivisions[1] = initial_ny;
+    if (dim == 3)
+        subdivisions[2] = initial_ny;
+
+    const dealii::Point<dim> bottom_left;
+    const dealii::Point<dim> top_right =
+      (dim == 2 ?
+         dealii::Point<dim>(domain_width, domain_height) :
+         dealii::Point<dim>(domain_width, domain_height, domain_height));
+
+    dealii::GridGenerator::subdivided_hyper_rectangle(tria,
+                                                      subdivisions,
+                                                      bottom_left,
+                                                      top_right);
+
+    if (n_refinements > 0)
+        tria.refine_global(n_refinements);
   }
 };
 
