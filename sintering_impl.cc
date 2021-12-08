@@ -106,13 +106,25 @@ private:
 
 
 
+template <typename Number>
+class PreconditionerBase
+{
+public:
+  using VectorType = LinearAlgebra::distributed::Vector<Number>;
+  
+  virtual void
+  vmult(VectorType &dst, const VectorType &src) const = 0;
+};
+
+
+
 template <int dim,
           int fe_degree,
           int n_points_1D,
           int n_components,
           typename Number,
           typename VectorizedArrayType>
-class InverseMassMatrix
+class InverseMassMatrix : public PreconditionerBase<Number>
 {
 public:
   using VectorType = LinearAlgebra::distributed::Vector<Number>;
@@ -122,7 +134,7 @@ public:
   {}
 
   void
-  vmult(VectorType &dst, const VectorType &src) const
+  vmult(VectorType &dst, const VectorType &src) const override
   {
     // invert mass matrix
     ReductionControl     reduction_control;
@@ -816,12 +828,7 @@ public:
                                Number,
                                VectorizedArrayType>;
 
-    using Preconditioner         = InverseMassMatrix<dim,
-                                              fe_degree,
-                                              n_points_1D,
-                                              number_of_components,
-                                              Number,
-                                              VectorizedArrayType>;
+    using Preconditioner         = PreconditionerBase<Number>;
     
     using LinearSolver = SolverGMRESWrapper<NonLinearOperator, Preconditioner>;
 
@@ -904,6 +911,7 @@ public:
   void
   run()
   {
+    // setup MatrixFree ...
     typename MatrixFree<dim, Number, VectorizedArrayType>::AdditionalData
       additional_data;
     additional_data.mapping_update_flags = update_values | update_gradients;
@@ -911,17 +919,26 @@ public:
     MatrixFree<dim, Number, VectorizedArrayType> matrix_free;
     matrix_free.reinit(mapping, dof_handler, constraint, quad, additional_data);
 
+    // ... non-linear operator
     NonLinearOperator nonlinear_operator(
       matrix_free, A, B, Mvol, Mvap, Msurf, Mgb, L, kappa_c, kappa_p);
+    
+    // ... preconditioner
+    std::unique_ptr<PreconditionerBase<Number>> preconditioner;
 
-    Preconditioner         preconditioner(matrix_free);
+    preconditioner = std::make_unique<InverseMassMatrix<dim,
+                                              fe_degree,
+                                              n_points_1D,
+                                              number_of_components,
+                                              Number,
+                                              VectorizedArrayType>>(matrix_free);
 
-    LinearSolver linear_solver(nonlinear_operator, preconditioner);
+    // ... linear solver
+    LinearSolver linear_solver(nonlinear_operator, *preconditioner);
 
+    // ... non-linear Newton solver
     NewtonSolver<VectorType, NonLinearOperator, LinearSolver> newton_solver(
       nonlinear_operator, linear_solver);
-    
-    
 
     // set initial condition
     VectorType solution;
