@@ -487,8 +487,66 @@ public:
   void
   vmult(VectorType &dst, const VectorType &src) const
   {
-    matrix_free.template cell_loop<VectorType, VectorType>(
-      [&](const auto &, auto &dst, const auto &src, auto &range) {
+    matrix_free.cell_loop(&Sintering::do_vmult_range, this,dst, src, true);
+  }
+
+  void
+  evaluate_nonlinear_residual(VectorType &dst, const VectorType &src) const
+  {
+    matrix_free.cell_loop(&Sintering::do_evaluate_nonlinear_residual, this,dst, src, true);
+  }
+
+  void
+  initialize_dof_vector(VectorType &dst) const
+  {
+    matrix_free.initialize_dof_vector(dst);
+  }
+
+  void
+  set_solution_linearization(const VectorType &src) const
+  {
+    (void)src; // TODO: linearization point is not used!?
+  }
+
+  void
+  set_previous_solution(const VectorType &src) const
+  {
+    this->old_solution = src;
+  }
+
+  const VectorType &
+  get_previous_solution() const
+  {
+    return this->old_solution;
+  }
+
+  void
+  evaluate_newton_step(const VectorType &newton_step)
+  {
+    const unsigned n_cells = matrix_free.n_cell_batches();
+    const unsigned n_quadrature_points = matrix_free.get_quadrature().size();
+      
+    nonlinear_values.reinit(n_cells, n_quadrature_points);
+    nonlinear_mu.reinit(n_cells, n_quadrature_points);
+    
+    int dummy = 0;
+    
+    matrix_free.cell_loop(&Sintering::do_evaluate_newton_step, this,dummy, newton_step);
+  }
+
+  void
+  set_timestep(double dt_new)
+  {
+    this->dt = dt_new;
+  }
+
+private:
+  void do_vmult_range(
+    const MatrixFree<dim, Number, VectorizedArrayType> &              matrix_free,
+    VectorType &                                 dst,
+    const VectorType &                           src,
+    const std::pair<unsigned int, unsigned int> &range) const
+  {
         FECellIntegrator phi(matrix_free);
           
         for (auto cell = range.first; cell < range.second; ++cell)
@@ -551,17 +609,14 @@ public:
                                   EvaluationFlags::EvaluationFlags::gradients,
                                   dst);
           }
-      },
-      dst,
-      src,
-      true);
   }
-
-  void
-  evaluate_nonlinear_residual(VectorType &dst, const VectorType &src) const
-  {
-    matrix_free.template cell_loop<VectorType, VectorType>(
-      [&](const auto &, auto &dst, const auto &src, auto &range) {
+  
+  void do_evaluate_nonlinear_residual(
+    const MatrixFree<dim, Number, VectorizedArrayType> &              matrix_free,
+    VectorType &                                 dst,
+    const VectorType &                           src,
+    const std::pair<unsigned int, unsigned int> &range) const
+ {
         FECellIntegrator phi_old(matrix_free);
         FECellIntegrator phi(matrix_free);
           
@@ -619,50 +674,20 @@ public:
                                   EvaluationFlags::EvaluationFlags::gradients,
                                   dst);
           }
-      },
-      dst,
-      src,
-      true);
-  }
-
-  void
-  initialize_dof_vector(VectorType &dst) const
-  {
-    matrix_free.initialize_dof_vector(dst);
-  }
-
-  void
-  set_solution_linearization(const VectorType &src) const
-  {
-    (void)src; // TODO: linearization point is not used!?
-  }
-
-  void
-  set_previous_solution(const VectorType &src) const
-  {
-    this->old_solution = src;
-  }
-
-  const VectorType &
-  get_previous_solution() const
-  {
-    return this->old_solution;
-  }
-
-  void
-  evaluate_newton_step(const VectorType &newton_step)
-  {
-    const unsigned int n_cells = matrix_free.n_cell_batches();
-
-    FECellIntegrator phi(matrix_free);
-
-    nonlinear_values.reinit(n_cells, phi.n_q_points);
-    nonlinear_mu.reinit(n_cells, phi.n_q_points);
-
-    for (unsigned int cell = 0; cell < n_cells; ++cell)
-      {
+      }
+  
+  void do_evaluate_newton_step(
+    const MatrixFree<dim, Number, VectorizedArrayType> &              matrix_free,
+    int &                                 ,
+    const VectorType &                           src,
+    const std::pair<unsigned int, unsigned int> &range)
+ {
+        FECellIntegrator phi(matrix_free);
+          
+        for (auto cell = range.first; cell < range.second; ++cell)
+          {
         phi.reinit(cell);
-        phi.read_dof_values_plain(newton_step);
+        phi.read_dof_values_plain(src);
         phi.evaluate(EvaluationFlags::values | EvaluationFlags::gradients);
 
         for (unsigned int q = 0; q < phi.n_q_points; ++q)
@@ -670,16 +695,10 @@ public:
             nonlinear_values(cell, q) = phi.get_value(q);
             nonlinear_mu(cell, q)     = phi.get_gradient(q)[1];
           }
+          }
       }
-  }
-
-  void
-  set_timestep(double dt_new)
-  {
-    this->dt = dt_new;
-  }
-
-private:
+    
+    
   const MatrixFree<dim, Number, VectorizedArrayType> &matrix_free;
   const FreeEnergy                                    free_energy;
   const Mobility                                      mobility;
