@@ -22,6 +22,7 @@
 #include <deal.II/distributed/tria.h>
 
 #include <deal.II/dofs/dof_handler.h>
+#include <deal.II/dofs/dof_tools.h>
 
 #include <deal.II/fe/fe_q.h>
 #include <deal.II/fe/fe_system.h>
@@ -34,6 +35,8 @@
 #include <deal.II/lac/solver_cg.h>
 #include <deal.II/lac/solver_control.h>
 #include <deal.II/lac/solver_gmres.h>
+#include <deal.II/lac/trilinos_precondition.h>
+#include <deal.II/lac/trilinos_sparse_matrix.h>
 
 #include <deal.II/matrix_free/fe_evaluation.h>
 #include <deal.II/matrix_free/matrix_free.h>
@@ -88,6 +91,37 @@ namespace Preconditioners
   private:
     const Operator &           op;
     DiagonalMatrix<VectorType> diagonal_matrix;
+  };
+
+
+
+  template <typename Operator>
+  class AMG : public PreconditionerBase<typename Operator::value_type>
+  {
+  public:
+    using VectorType = typename Operator::VectorType;
+
+    AMG(const Operator &op)
+      : op(op)
+    {}
+
+    void
+    vmult(VectorType &dst, const VectorType &src) const override
+    {
+      precondition_amg.vmult(dst, src);
+    }
+
+    void
+    do_update() override
+    {
+      precondition_amg.initialize(op.get_system_matrix());
+    }
+
+  private:
+    const Operator &op;
+
+    TrilinosWrappers::PreconditionAMG::AdditionalData amg_data;
+    TrilinosWrappers::PreconditionAMG                 precondition_amg;
   };
 } // namespace Preconditioners
 
@@ -690,6 +724,7 @@ namespace Sintering
                                           VectorizedArrayType>;
 
     Operator(const MatrixFree<dim, Number, VectorizedArrayType> &matrix_free,
+             const AffineConstraints<Number> &                   constraints,
              const double                                        A,
              const double                                        B,
              const double                                        Mvol,
@@ -700,6 +735,7 @@ namespace Sintering
              const double                                        kappa_c,
              const double                                        kappa_p)
       : matrix_free(matrix_free)
+      , constraints(constraints)
       , free_energy(A, B)
       , mobility(Mvol, Mvap, Msurf, Mgb)
       , L(L)
@@ -776,6 +812,30 @@ namespace Sintering
                                         this);
       for (auto &i : diagonal)
         i = (std::abs(i) > 1.0e-10) ? (1.0 / i) : 1.0;
+    }
+
+    const TrilinosWrappers::SparseMatrix &
+    get_system_matrix() const
+    {
+      system_matrix.clear();
+
+      const auto &dof_handler = this->matrix_free.get_dof_handler();
+
+      TrilinosWrappers::SparsityPattern dsp(
+        dof_handler.locally_owned_dofs(),
+        dof_handler.get_triangulation().get_communicator());
+      DoFTools::make_sparsity_pattern(dof_handler, dsp, constraints);
+      dsp.compress();
+
+      system_matrix.reinit(dsp);
+
+      MatrixFreeTools::compute_matrix(matrix_free,
+                                      constraints,
+                                      system_matrix,
+                                      &Operator::do_vmult_cell,
+                                      this);
+
+      return system_matrix;
     }
 
 
@@ -959,11 +1019,13 @@ namespace Sintering
 
 
     const MatrixFree<dim, Number, VectorizedArrayType> &matrix_free;
-    const FreeEnergy                                    free_energy;
-    const Mobility                                      mobility;
-    const double                                        L;
-    const double                                        kappa_c;
-    const double                                        kappa_p;
+    const AffineConstraints<Number> &                   constraints;
+
+    const FreeEnergy free_energy;
+    const Mobility   mobility;
+    const double     L;
+    const double     kappa_c;
+    const double     kappa_p;
 
     double dt;
 
@@ -972,6 +1034,8 @@ namespace Sintering
     Table<2, dealii::Tensor<1, n_components, VectorizedArrayType>>
                                                           nonlinear_values;
     Table<2, dealii::Tensor<1, dim, VectorizedArrayType>> nonlinear_mu;
+
+    mutable TrilinosWrappers::SparseMatrix system_matrix;
   };
 
 
@@ -1089,8 +1153,17 @@ namespace Sintering
         mapping, dof_handler, constraint, quad, additional_data);
 
       // ... non-linear operator
-      NonLinearOperator nonlinear_operator(
-        matrix_free, A, B, Mvol, Mvap, Msurf, Mgb, L, kappa_c, kappa_p);
+      NonLinearOperator nonlinear_operator(matrix_free,
+                                           constraint,
+                                           A,
+                                           B,
+                                           Mvol,
+                                           Mvap,
+                                           Msurf,
+                                           Mgb,
+                                           L,
+                                           kappa_c,
+                                           kappa_p);
 
       // ... preconditioner
       std::unique_ptr<Preconditioners::PreconditionerBase<Number>>
@@ -1100,6 +1173,10 @@ namespace Sintering
         preconditioner = std::make_unique<
           Preconditioners::InverseDiagonalMatrix<NonLinearOperator>>(
           nonlinear_operator);
+      else
+        preconditioner =
+          std::make_unique<Preconditioners::AMG<NonLinearOperator>>(
+            nonlinear_operator);
 
       // ... linear solver
       std::unique_ptr<LinearSolvers::LinearSolverBase<Number>> linear_solver;
