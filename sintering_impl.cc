@@ -158,7 +158,8 @@ public:
 };
 
 
-
+namespace Sintering
+{
 template <int dim>
 class InitialValues : public dealii::Function<dim>
 {
@@ -484,13 +485,15 @@ public:
   }
 };
 
+
+
 template <int dim,
           int degree,
           int n_points_1D,
           int n_components,
           typename Number,
           typename VectorizedArrayType>
-class Sintering
+class Operator
 {
 public:
   using VectorType = LinearAlgebra::distributed::Vector<Number>;
@@ -505,7 +508,7 @@ public:
                      Number,
                      VectorizedArrayType>;
 
-  Sintering(const MatrixFree<dim, Number, VectorizedArrayType> &matrix_free,
+  Operator(const MatrixFree<dim, Number, VectorizedArrayType> &matrix_free,
             const double                                        A,
             const double                                        B,
             const double                                        Mvol,
@@ -526,13 +529,13 @@ public:
   void
   vmult(VectorType &dst, const VectorType &src) const
   {
-    matrix_free.cell_loop(&Sintering::do_vmult_range, this,dst, src, true);
+    matrix_free.cell_loop(&Operator::do_vmult_range, this,dst, src, true);
   }
 
   void
   evaluate_nonlinear_residual(VectorType &dst, const VectorType &src) const
   {
-    matrix_free.cell_loop(&Sintering::do_evaluate_nonlinear_residual, this,dst, src, true);
+    matrix_free.cell_loop(&Operator::do_evaluate_nonlinear_residual, this,dst, src, true);
   }
 
   void
@@ -570,7 +573,7 @@ public:
     
     int dummy = 0;
     
-    matrix_free.cell_loop(&Sintering::do_evaluate_newton_step, this,dummy, newton_step);
+    matrix_free.cell_loop(&Operator::do_evaluate_newton_step, this,dummy, newton_step);
   }
 
   void
@@ -761,7 +764,7 @@ template <int dim,
           int n_points_1D              ,
           typename Number              = double,
           typename VectorizedArrayType = VectorizedArray<Number>>
-class SinteringTest
+class Problem
 {
 public:
   using VectorType = LinearAlgebra::distributed::Vector<Number>;
@@ -769,7 +772,7 @@ public:
     // components number
     static constexpr unsigned int number_of_components = 4;
     
-    using Operator = Sintering<dim,
+    using NonLinearOperator = Operator<dim,
                                fe_degree,
                                n_points_1D,
                                number_of_components,
@@ -785,7 +788,7 @@ public:
     
     using Preconditioner         = InverseMassMatrix<PreconditionerOperator>;
     
-    using LinearSolver = SolverGMRESWrapper<Operator, Preconditioner>;
+    using LinearSolver = SolverGMRESWrapper<NonLinearOperator, Preconditioner>;
 
     // geometry
     static constexpr double diameter        = 15.0;
@@ -839,7 +842,7 @@ public:
     
     InitialValues<dim> initial_solution;
     
-    SinteringTest() : pcout(std::cout,
+    Problem() : pcout(std::cout,
                              Utilities::MPI::this_mpi_process(MPI_COMM_WORLD) ==
                                0), tria(MPI_COMM_WORLD), fe(FE_Q<dim>{fe_degree}, number_of_components), 
                                mapping(1), quad(n_points_1D), dof_handler(tria),
@@ -873,7 +876,7 @@ public:
     MatrixFree<dim, Number, VectorizedArrayType> matrix_free;
     matrix_free.reinit(mapping, dof_handler, constraint, quad, additional_data);
 
-    Operator nonlinear_operator(
+    NonLinearOperator nonlinear_operator(
       matrix_free, A, B, Mvol, Mvap, Msurf, Mgb, L, kappa_c, kappa_p);
 
     PreconditionerOperator precondition_operator(matrix_free);
@@ -881,7 +884,7 @@ public:
 
     LinearSolver linear_solver(nonlinear_operator, preconditioner);
 
-    NewtonSolver<VectorType, Operator, LinearSolver> newton_solver(
+    NewtonSolver<VectorType, NonLinearOperator, LinearSolver> newton_solver(
       nonlinear_operator, linear_solver);
     
 
@@ -1015,6 +1018,7 @@ private:
       data_out.write_vtu_in_parallel(output, MPI_COMM_WORLD);
     };
 };
+}
 
 
 
@@ -1022,6 +1026,7 @@ int
 main(int argc, char **argv)
 {
   Utilities::MPI::MPI_InitFinalize mpi_init(argc, argv, 1);
-  SinteringTest<2, 1, 2>                    runner;
+  
+  Sintering::Problem<2, 1, 2>                    runner;
   runner.run();
 }
