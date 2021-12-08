@@ -44,9 +44,6 @@
 
 #include "include/newton.h"
 
-//#define IDENTITY
-#define NEWTON
-
 using namespace dealii;
 
 template <int dim>
@@ -184,20 +181,20 @@ public:
   void
   vmult(VectorType &dst, const VectorType &src) const
   {
-    FEEvaluation<dim,
-                 degree,
-                 n_points_1D,
-                 n_components,
-                 Number,
-                 VectorizedArrayType>
-      phi(matrix_free);
-
     matrix_free.template cell_loop<VectorType, VectorType>(
       [&](const auto &, auto &dst, const auto &src, auto &range) {
+        FEEvaluation<dim,
+                     degree,
+                     n_points_1D,
+                     n_components,
+                     Number,
+                     VectorizedArrayType>
+          phi(matrix_free);
+        
         for (auto cell = range.first; cell < range.second; ++cell)
           {
             phi.reinit(cell);
-            phi.gather_evaluate(src, true, false, false);
+            phi.gather_evaluate(src, EvaluationFlags::EvaluationFlags::values);
             for (unsigned int q = 0; q < phi.n_q_points; ++q)
               {
                 Tensor<1, n_components, VectorizedArrayType> value_result;
@@ -207,7 +204,7 @@ public:
                   }
                 phi.submit_value(value_result, q);
               }
-            phi.integrate_scatter(true, false, dst);
+            phi.integrate_scatter(EvaluationFlags::EvaluationFlags::values, dst);
           }
       },
       dst,
@@ -215,14 +212,30 @@ public:
       true);
   }
 
-  void
-  initialize_dof_vector(VectorType &dst) const
-  {
-    matrix_free.initialize_dof_vector(dst);
-  }
-
 private:
   const MatrixFree<dim, Number, VectorizedArrayType> &matrix_free;
+};
+
+template <typename Operator>
+class InverseMassMatrix
+{
+public:
+  using VectorType = typename Operator::vector_type;
+
+  InverseMassMatrix(const Operator &op)
+    : op(op)
+  {}
+
+  void
+  vmult(VectorType &dst, const VectorType &src) const
+  {
+    // invert mass matrix
+    ReductionControl     reduction_control;
+    SolverCG<VectorType> solver(reduction_control);
+    solver.solve(op, dst, src, PreconditionIdentity());
+  }
+
+  const Operator &op;
 };
 
 class Mobility
@@ -701,28 +714,6 @@ private:
   Table<2, dealii::Tensor<1, dim, VectorizedArrayType>> nonlinear_mu;
 };
 
-template <typename Operator>
-class InverseMassMatrix
-{
-public:
-  using VectorType = typename Operator::vector_type;
-
-  InverseMassMatrix(const Operator &op)
-    : op(op)
-  {}
-
-  void
-  vmult(VectorType &dst, const VectorType &src) const
-  {
-    // invert mass matrix
-    ReductionControl     reduction_control;
-    SolverCG<VectorType> solver(reduction_control);
-    solver.solve(op, dst, src, PreconditionIdentity());
-  }
-
-  const Operator &op;
-};
-
 template <typename Operator, typename Preconditioner>
 class SolverGMRESWrapper
 {
@@ -781,75 +772,87 @@ public:
 
 template <int dim,
           int fe_degree,
-          int n_points_1D              = fe_degree + 3,
+          int n_points_1D              ,
           typename Number              = double,
           typename VectorizedArrayType = VectorizedArray<Number>>
-class Test
+class SinteringTest
 {
 public:
   using VectorType = LinearAlgebra::distributed::Vector<Number>;
 
+    // geometry
+    static constexpr double diameter        = 15.0;
+    static constexpr double interface_width = 2.0;
+    static constexpr double boundary_factor = 1.0;
+
+    // mesh
+    static constexpr unsigned int elements_per_interface = 4;
+
+    // time discretization
+    static constexpr double t_end                = 100;
+    static constexpr double       dt_deseride                   = 0.001;
+    static constexpr  double dt_max               = 1e2 * dt_deseride;
+    static constexpr  double dt_min               = 1e-2 * dt_deseride;
+    static constexpr  double dt_increment         = 1.2;
+    static constexpr  double output_time_interval = 0.1;
+
+    // desirable number of newton iterations
+    static constexpr  unsigned int desirable_newton_iterations = 5;
+    static constexpr  unsigned int desirable_linear_iterations = 100;
+
+    //  model parameters
+    static constexpr  double A       = 16;
+    static constexpr  double B       = 1;
+    static constexpr  double Mvol    = 1e-2;
+    static constexpr  double Mvap    = 1e-10;
+    static constexpr  double Msurf   = 4;
+    static constexpr  double Mgb     = 0.4;
+    static constexpr  double L       = 1;
+    static constexpr  double kappa_c = 1;
+    static constexpr  double kappa_p = 0.5;
+
+    // components number
+    static constexpr unsigned int number_of_components = 4;
+
+    // Create mesh
+    static constexpr double domain_width  = 2 * diameter + boundary_factor * diameter;
+    static constexpr double domain_height = 1 * diameter + boundary_factor * diameter;
+
+    static constexpr double x01             = domain_width / 2. - diameter / 2.;
+    static constexpr double x02             = domain_width / 2. + diameter / 2.;
+    static constexpr double y0              = domain_height / 2.;
+    static constexpr double r0              = diameter / 2.;
+    static constexpr bool   is_accumulative = false;
+    
+    ConditionalOStream pcout;
+    parallel::distributed::Triangulation<dim> tria;
+    FESystem<dim>   fe;
+    MappingQ<dim> mapping;
+    QGauss<dim> quad;
+    DoFHandler<dim> dof_handler;
+    AffineConstraints<Number> constraint; // TODO: currently no constraints are
+                                          // applied
+    
+    SinteringTest() : pcout(std::cout,
+                             Utilities::MPI::this_mpi_process(MPI_COMM_WORLD) ==
+                               0), tria(MPI_COMM_WORLD), fe(FE_Q<dim>{fe_degree}, number_of_components), 
+                               mapping(1), quad(n_points_1D), dof_handler(tria)
+    {
+        // create mesh
+        create_mesh(tria,
+                   domain_width,
+                   domain_height,
+                   interface_width,
+                   elements_per_interface);
+
+        // distribute dofs
+        dof_handler.distribute_dofs(fe);
+        
+    }
+    
   void
   run()
   {
-    ConditionalOStream pcout(std::cout,
-                             Utilities::MPI::this_mpi_process(MPI_COMM_WORLD) ==
-                               0);
-
-    // geometry
-    const double diameter        = 15.0;
-    const double interface_width = 2.0;
-    const double boundary_factor = 1.0;
-
-    // mesh
-    const unsigned int elements_per_interface = 4;
-
-    // time discretization
-    const double t_end                = 100;
-    double       dt                   = 0.001;
-    const double dt_max               = 1e2 * dt;
-    const double dt_min               = 1e-2 * dt;
-    const double dt_increment         = 1.2;
-    const double output_time_interval = 0.1;
-
-    // desirable number of newton iterations
-    const unsigned int desirable_newton_iterations = 5;
-    const unsigned int desirable_linear_iterations = 100;
-
-    //  model parameters
-    const double A       = 16;
-    const double B       = 1;
-    const double Mvol    = 1e-2;
-    const double Mvap    = 1e-10;
-    const double Msurf   = 4;
-    const double Mgb     = 0.4;
-    const double L       = 1;
-    const double kappa_c = 1;
-    const double kappa_p = 0.5;
-
-    // components number
-    constexpr unsigned int number_of_components = 4;
-
-    // Create mesh
-    double domain_width  = 2 * diameter + boundary_factor * diameter;
-    double domain_height = 1 * diameter + boundary_factor * diameter;
-    parallel::distributed::Triangulation<dim> tria(MPI_COMM_WORLD);
-    create_mesh(tria,
-               domain_width,
-               domain_height,
-               interface_width,
-               elements_per_interface);
-
-    FESystem<dim>   fe(FE_Q<dim>{fe_degree}, number_of_components);
-    DoFHandler<dim> dof_handler(tria);
-    dof_handler.distribute_dofs(fe);
-
-    MappingQ<dim> mapping(1);
-
-    QGauss<dim> quad(n_points_1D);
-
-    AffineConstraints<Number> constraint;
-
     typename MatrixFree<dim, Number, VectorizedArrayType>::AdditionalData
       additional_data;
     additional_data.mapping_update_flags = update_values | update_gradients;
@@ -857,16 +860,40 @@ public:
     MatrixFree<dim, Number, VectorizedArrayType> matrix_free;
     matrix_free.reinit(mapping, dof_handler, constraint, quad, additional_data);
 
+    using Operator = Sintering<dim,
+                               fe_degree,
+                               n_points_1D,
+                               number_of_components,
+                               Number,
+                               VectorizedArrayType>;
+
+    using PreconditionerOperator = MassMatrix<dim,
+                                              fe_degree,
+                                              n_points_1D,
+                                              number_of_components,
+                                              Number,
+                                              VectorizedArrayType>;
+    
+    using Preconditioner         = InverseMassMatrix<PreconditionerOperator>;
+    
+    using LinearSolver = SolverGMRESWrapper<Operator, Preconditioner>;
+
+    Operator nonlinear_operator(
+      matrix_free, A, B, Mvol, Mvap, Msurf, Mgb, L, kappa_c, kappa_p);
+
+    PreconditionerOperator precondition_operator(matrix_free);
+    Preconditioner         preconditioner(precondition_operator);
+
+    LinearSolver linear_solver(nonlinear_operator, preconditioner);
+
+    NewtonSolver<VectorType, Operator, LinearSolver> newton_solver(
+      nonlinear_operator, linear_solver);
+    
+
     VectorType solution;
 
-    matrix_free.initialize_dof_vector(solution);
+    nonlinear_operator.initialize_dof_vector(solution);
 
-    // Initial values
-    double x01             = domain_width / 2. - diameter / 2.;
-    double x02             = domain_width / 2. + diameter / 2.;
-    double y0              = domain_height / 2.;
-    double r0              = diameter / 2.;
-    bool   is_accumulative = false;
     VectorTools::interpolate(mapping,
                              dof_handler,
                              InitialValues<dim>(x01,
@@ -878,65 +905,10 @@ public:
                                                 is_accumulative),
                              solution);
 
-    const auto output_result = [&](const double t) {
-      DataOutBase::VtkFlags flags;
-      flags.write_higher_order_cells = true;
-
-      DataOut<dim> data_out;
-      data_out.set_flags(flags);
-      data_out.attach_dof_handler(dof_handler);
-      std::vector<std::string> names{"c", "mu", "eta1", "eta2"};
-      data_out.add_data_vector(solution, names);
-
-      solution.update_ghost_values();
-      data_out.build_patches(mapping, fe_degree);
-
-      static unsigned int counter = 0;
-
-      std::cout << "Outputing at t = " << t << std::endl;
-
-      std::string output = "solution." + std::to_string(counter++) + ".vtu";
-      data_out.write_vtu_in_parallel(output, MPI_COMM_WORLD);
-    };
-
     double time_last_output = 0;
-    output_result(time_last_output);
-
-    using Operator = Sintering<dim,
-                               fe_degree,
-                               n_points_1D,
-                               number_of_components,
-                               Number,
-                               VectorizedArrayType>;
-
-#ifdef IDENTITY
-    using Preconditioner = PreconditionIdentity;
-#else
-    using PreconditionerOperator = MassMatrix<dim,
-                                              fe_degree,
-                                              n_points_1D,
-                                              number_of_components,
-                                              Number,
-                                              VectorizedArrayType>;
-    using Preconditioner         = InverseMassMatrix<PreconditionerOperator>;
-#endif
-    // using LinearSolver = SolverCGWrapper<Operator, Preconditioner>;
-    using LinearSolver = SolverGMRESWrapper<Operator, Preconditioner>;
-
-    Operator nonlinear_operator(
-      matrix_free, A, B, Mvol, Mvap, Msurf, Mgb, L, kappa_c, kappa_p);
-
-#ifdef IDENTITY
-    Preconditioner preconditioner;
-#else
-    PreconditionerOperator precondition_operator(matrix_free);
-    Preconditioner         preconditioner(precondition_operator);
-#endif
-
-    LinearSolver linear_solver(nonlinear_operator, preconditioner);
-
-    NewtonSolver<VectorType, Operator, LinearSolver> newton_solver(
-      nonlinear_operator, linear_solver);
+    output_result(solution, time_last_output);
+    
+    double dt = dt_deseride;
 
     // time loop
     for (double t = 0; t <= t_end;)
@@ -997,7 +969,7 @@ public:
         if (has_converged && t > output_time_interval + time_last_output)
           {
             time_last_output = t;
-            output_result(time_last_output);
+            output_result(solution, time_last_output);
           }
       }
   }
@@ -1036,12 +1008,33 @@ private:
     if (n_refinements > 0)
         tria.refine_global(n_refinements);
   }
+  
+    void output_result (const VectorType & solution, const double t) {
+      DataOutBase::VtkFlags flags;
+      flags.write_higher_order_cells = true;
+
+      DataOut<dim> data_out;
+      data_out.set_flags(flags);
+      data_out.attach_dof_handler(dof_handler);
+      std::vector<std::string> names{"c", "mu", "eta1", "eta2"};
+      data_out.add_data_vector(solution, names);
+
+      solution.update_ghost_values();
+      data_out.build_patches(mapping, fe_degree);
+
+      static unsigned int counter = 0;
+
+      pcout << "Outputing at t = " << t << std::endl;
+
+      std::string output = "solution." + std::to_string(counter++) + ".vtu";
+      data_out.write_vtu_in_parallel(output, MPI_COMM_WORLD);
+    };
 };
 
 int
 main(int argc, char **argv)
 {
   Utilities::MPI::MPI_InitFinalize mpi_init(argc, argv, 1);
-  Test<2, 1, 2>                    runner;
+  SinteringTest<2, 1, 2>                    runner;
   runner.run();
 }
