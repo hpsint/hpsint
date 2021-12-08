@@ -29,6 +29,7 @@
 
 #include <deal.II/grid/grid_generator.h>
 
+#include <deal.II/lac/diagonal_matrix.h>
 #include <deal.II/lac/precondition.h>
 #include <deal.II/lac/solver_cg.h>
 #include <deal.II/lac/solver_control.h>
@@ -114,6 +115,9 @@ public:
   
   virtual void
   vmult(VectorType &dst, const VectorType &src) const = 0;
+  
+  virtual void
+  do_update() = 0;
 };
 
 
@@ -141,9 +145,44 @@ public:
     SolverCG<VectorType> solver(reduction_control);
     solver.solve(op, dst, src, PreconditionIdentity());
   }
+  
+  virtual void
+  do_update() override
+    {
+        // nothing to do
+    }
 
   private:
   MassMatrix<dim, fe_degree, n_points_1D, n_components, Number, VectorizedArrayType> op;
+};
+
+
+
+template <typename Operator>
+class InverseDiagonalMatrix : public PreconditionerBase<typename Operator::value_type>
+{
+public:
+  using VectorType = typename Operator::VectorType;
+
+  InverseDiagonalMatrix(const Operator &op)
+    : op(op)
+  {}
+
+  void
+  vmult(VectorType &dst, const VectorType &src) const override
+  {
+      diagonal_matrix.vmult(dst, src);
+  }
+  
+  void
+  do_update() override
+    {
+      op.compute_inverse_diagonal(diagonal_matrix.get_vector());
+    }
+
+  private:
+    const Operator & op;
+    DiagonalMatrix<VectorType> diagonal_matrix;
 };
 
 
@@ -154,7 +193,7 @@ class SolverGMRESWrapper
 public:
   using VectorType = typename Operator::vector_type;
 
-  SolverGMRESWrapper(const Operator &op, const Preconditioner &preconditioner)
+  SolverGMRESWrapper(const Operator &op, Preconditioner &preconditioner)
     : op(op)
     , preconditioner(preconditioner)
   {}
@@ -162,7 +201,8 @@ public:
   unsigned int
   solve(VectorType &dst, const VectorType &src, const bool do_update)
   {
-    (void)do_update; // no preconditioner is used
+    if(do_update)
+        preconditioner.do_update();
 
     unsigned int            max_iter = 100;
     ReductionControl        reduction_control(max_iter);
@@ -173,7 +213,7 @@ public:
   }
 
   const Operator &      op;
-  const Preconditioner &preconditioner;
+  Preconditioner &preconditioner;
 };
 
 
@@ -926,12 +966,15 @@ public:
     // ... preconditioner
     std::unique_ptr<PreconditionerBase<Number>> preconditioner;
 
-    preconditioner = std::make_unique<InverseMassMatrix<dim,
+    if(false)
+      preconditioner = std::make_unique<InverseMassMatrix<dim,
                                               fe_degree,
                                               n_points_1D,
                                               number_of_components,
                                               Number,
                                               VectorizedArrayType>>(matrix_free);
+    else
+      preconditioner = std::make_unique<InverseDiagonalMatrix<NonLinearOperator>>(nonlinear_operator);
 
     // ... linear solver
     LinearSolver linear_solver(nonlinear_operator, *preconditioner);
@@ -956,6 +999,8 @@ public:
         nonlinear_operator.set_timestep(dt);
         nonlinear_operator.set_previous_solution(solution);
         nonlinear_operator.evaluate_newton_step(solution);
+        
+        preconditioner->do_update();
 
         bool has_converged = false;
 
