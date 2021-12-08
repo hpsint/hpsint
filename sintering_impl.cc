@@ -780,6 +780,27 @@ class SinteringTest
 public:
   using VectorType = LinearAlgebra::distributed::Vector<Number>;
 
+    // components number
+    static constexpr unsigned int number_of_components = 4;
+    
+    using Operator = Sintering<dim,
+                               fe_degree,
+                               n_points_1D,
+                               number_of_components,
+                               Number,
+                               VectorizedArrayType>;
+
+    using PreconditionerOperator = MassMatrix<dim,
+                                              fe_degree,
+                                              n_points_1D,
+                                              number_of_components,
+                                              Number,
+                                              VectorizedArrayType>;
+    
+    using Preconditioner         = InverseMassMatrix<PreconditionerOperator>;
+    
+    using LinearSolver = SolverGMRESWrapper<Operator, Preconditioner>;
+
     // geometry
     static constexpr double diameter        = 15.0;
     static constexpr double interface_width = 2.0;
@@ -811,9 +832,6 @@ public:
     static constexpr  double kappa_c = 1;
     static constexpr  double kappa_p = 0.5;
 
-    // components number
-    static constexpr unsigned int number_of_components = 4;
-
     // Create mesh
     static constexpr double domain_width  = 2 * diameter + boundary_factor * diameter;
     static constexpr double domain_height = 1 * diameter + boundary_factor * diameter;
@@ -833,10 +851,19 @@ public:
     AffineConstraints<Number> constraint; // TODO: currently no constraints are
                                           // applied
     
+    InitialValues<dim> initial_solution;
+    
     SinteringTest() : pcout(std::cout,
                              Utilities::MPI::this_mpi_process(MPI_COMM_WORLD) ==
                                0), tria(MPI_COMM_WORLD), fe(FE_Q<dim>{fe_degree}, number_of_components), 
-                               mapping(1), quad(n_points_1D), dof_handler(tria)
+                               mapping(1), quad(n_points_1D), dof_handler(tria),
+                               initial_solution(x01,
+                                                x02,
+                                                y0,
+                                                r0,
+                                                interface_width,
+                                                number_of_components,
+                                                is_accumulative)
     {
         // create mesh
         create_mesh(tria,
@@ -860,24 +887,6 @@ public:
     MatrixFree<dim, Number, VectorizedArrayType> matrix_free;
     matrix_free.reinit(mapping, dof_handler, constraint, quad, additional_data);
 
-    using Operator = Sintering<dim,
-                               fe_degree,
-                               n_points_1D,
-                               number_of_components,
-                               Number,
-                               VectorizedArrayType>;
-
-    using PreconditionerOperator = MassMatrix<dim,
-                                              fe_degree,
-                                              n_points_1D,
-                                              number_of_components,
-                                              Number,
-                                              VectorizedArrayType>;
-    
-    using Preconditioner         = InverseMassMatrix<PreconditionerOperator>;
-    
-    using LinearSolver = SolverGMRESWrapper<Operator, Preconditioner>;
-
     Operator nonlinear_operator(
       matrix_free, A, B, Mvol, Mvap, Msurf, Mgb, L, kappa_c, kappa_p);
 
@@ -890,28 +899,18 @@ public:
       nonlinear_operator, linear_solver);
     
 
+    // set initial condition
     VectorType solution;
 
     nonlinear_operator.initialize_dof_vector(solution);
 
-    VectorTools::interpolate(mapping,
-                             dof_handler,
-                             InitialValues<dim>(x01,
-                                                x02,
-                                                y0,
-                                                r0,
-                                                interface_width,
-                                                number_of_components,
-                                                is_accumulative),
-                             solution);
+    VectorTools::interpolate(mapping, dof_handler, initial_solution, solution);
 
     double time_last_output = 0;
     output_result(solution, time_last_output);
     
-    double dt = dt_deseride;
-
-    // time loop
-    for (double t = 0; t <= t_end;)
+    // run time loop
+    for (double t = 0, dt = dt_deseride; t <= t_end;)
       {
         nonlinear_operator.set_timestep(dt);
         nonlinear_operator.set_previous_solution(solution);
