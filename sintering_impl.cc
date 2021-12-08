@@ -49,63 +49,6 @@
 using namespace dealii;
 
 
-template <int dim,
-          int fe_degree,
-          int n_points_1D,
-          int n_components,
-          typename Number,
-          typename VectorizedArrayType>
-class MassMatrix
-{
-public:
-  using VectorType = LinearAlgebra::distributed::Vector<Number>;
-
-  using value_type  = Number;
-  using vector_type = VectorType;
-
-  MassMatrix(const MatrixFree<dim, Number, VectorizedArrayType> &matrix_free)
-    : matrix_free(matrix_free)
-  {}
-
-  void
-  vmult(VectorType &dst, const VectorType &src) const
-  {
-    matrix_free.template cell_loop<VectorType, VectorType>(
-      [&](const auto &, auto &dst, const auto &src, auto &range) {
-        FEEvaluation<dim,
-                     fe_degree,
-                     n_points_1D,
-                     n_components,
-                     Number,
-                     VectorizedArrayType>
-          phi(matrix_free);
-        
-        for (auto cell = range.first; cell < range.second; ++cell)
-          {
-            phi.reinit(cell);
-            phi.gather_evaluate(src, EvaluationFlags::EvaluationFlags::values);
-            for (unsigned int q = 0; q < phi.n_q_points; ++q)
-              {
-                Tensor<1, n_components, VectorizedArrayType> value_result;
-                for (unsigned int i = 0; i < n_components; i++)
-                  {
-                    value_result[i] = phi.get_value(q)[i];
-                  }
-                phi.submit_value(value_result, q);
-              }
-            phi.integrate_scatter(EvaluationFlags::EvaluationFlags::values, dst);
-          }
-      },
-      dst,
-      src,
-      true);
-  }
-
-private:
-  const MatrixFree<dim, Number, VectorizedArrayType> &matrix_free;
-};
-
-
 
 template <typename Number>
 class PreconditionerBase
@@ -118,42 +61,6 @@ public:
   
   virtual void
   do_update() = 0;
-};
-
-
-
-template <int dim,
-          int fe_degree,
-          int n_points_1D,
-          int n_components,
-          typename Number,
-          typename VectorizedArrayType>
-class InverseMassMatrix : public PreconditionerBase<Number>
-{
-public:
-  using VectorType = LinearAlgebra::distributed::Vector<Number>;
-
-  InverseMassMatrix(const MatrixFree<dim, Number, VectorizedArrayType> &matrix_free)
-    : op(matrix_free)
-  {}
-
-  void
-  vmult(VectorType &dst, const VectorType &src) const override
-  {
-    // invert mass matrix
-    ReductionControl     reduction_control;
-    SolverCG<VectorType> solver(reduction_control);
-    solver.solve(op, dst, src, PreconditionIdentity());
-  }
-  
-  virtual void
-  do_update() override
-    {
-        // nothing to do
-    }
-
-  private:
-  MassMatrix<dim, fe_degree, n_points_1D, n_components, Number, VectorizedArrayType> op;
 };
 
 
@@ -215,6 +122,7 @@ public:
   const Operator &      op;
   Preconditioner &preconditioner;
 };
+
 
 
 namespace Sintering
@@ -966,14 +874,7 @@ public:
     // ... preconditioner
     std::unique_ptr<PreconditionerBase<Number>> preconditioner;
 
-    if(false)
-      preconditioner = std::make_unique<InverseMassMatrix<dim,
-                                              fe_degree,
-                                              n_points_1D,
-                                              number_of_components,
-                                              Number,
-                                              VectorizedArrayType>>(matrix_free);
-    else
+    if(true)
       preconditioner = std::make_unique<InverseDiagonalMatrix<NonLinearOperator>>(nonlinear_operator);
 
     // ... linear solver
