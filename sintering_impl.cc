@@ -42,8 +42,6 @@
 #include <deal.II/numerics/data_out.h>
 #include <deal.II/numerics/vector_tools.h>
 
-#include <deal.II/sundials/kinsol.h>
-
 #include "include/newton.h"
 
 using namespace dealii;
@@ -96,35 +94,48 @@ namespace Preconditioners
 } // namespace Preconditioners
 
 
-
-template <typename Operator, typename Preconditioner>
-class SolverGMRESWrapper
+namespace LinearSolvers
 {
-public:
-  using VectorType = typename Operator::vector_type;
-
-  SolverGMRESWrapper(const Operator &op, Preconditioner &preconditioner)
-    : op(op)
-    , preconditioner(preconditioner)
-  {}
-
-  unsigned int
-  solve(VectorType &dst, const VectorType &src, const bool do_update)
+  template <typename Number>
+  class LinearSolversBase
   {
-    if (do_update)
-      preconditioner.do_update();
+  public:
+    using VectorType = LinearAlgebra::distributed::Vector<Number>;
 
-    unsigned int            max_iter = 100;
-    ReductionControl        reduction_control(max_iter);
-    SolverGMRES<VectorType> solver(reduction_control);
-    solver.solve(op, dst, src, preconditioner);
+    virtual unsigned int
+    solve(VectorType &dst, const VectorType &src, const bool do_update) = 0;
+  };
 
-    return reduction_control.last_step();
-  }
+  template <typename Operator, typename Preconditioner>
+  class SolverGMRESWrapper
+    : public LinearSolversBase<typename Operator::value_type>
+  {
+  public:
+    using VectorType = typename Operator::vector_type;
 
-  const Operator &op;
-  Preconditioner &preconditioner;
-};
+    SolverGMRESWrapper(const Operator &op, Preconditioner &preconditioner)
+      : op(op)
+      , preconditioner(preconditioner)
+    {}
+
+    unsigned int
+    solve(VectorType &dst, const VectorType &src, const bool do_update) override
+    {
+      if (do_update)
+        preconditioner.do_update();
+
+      unsigned int            max_iter = 100;
+      ReductionControl        reduction_control(max_iter);
+      SolverGMRES<VectorType> solver(reduction_control);
+      solver.solve(op, dst, src, preconditioner);
+
+      return reduction_control.last_step();
+    }
+
+    const Operator &op;
+    Preconditioner &preconditioner;
+  };
+} // namespace LinearSolvers
 
 
 
@@ -891,17 +902,19 @@ namespace Sintering
           nonlinear_operator);
 
       // ... linear solver
-      SolverGMRESWrapper<NonLinearOperator,
-                         Preconditioners::PreconditionerBase<Number>>
-        linear_solver(nonlinear_operator, *preconditioner);
+      std::unique_ptr<LinearSolvers::LinearSolversBase<Number>> linear_solver;
+
+      if (true)
+        linear_solver = std::make_unique<LinearSolvers::SolverGMRESWrapper<
+          NonLinearOperator,
+          Preconditioners::PreconditionerBase<Number>>>(nonlinear_operator,
+                                                        *preconditioner);
 
       // ... non-linear Newton solver
-      NewtonSolver<
-        VectorType,
-        NonLinearOperator,
-        SolverGMRESWrapper<NonLinearOperator,
-                           Preconditioners::PreconditionerBase<Number>>>
-        newton_solver(nonlinear_operator, linear_solver);
+      NewtonSolver<VectorType,
+                   NonLinearOperator,
+                   LinearSolvers::LinearSolversBase<Number>>
+        newton_solver(nonlinear_operator, *linear_solver);
 
       // set initial condition
       VectorType solution;
