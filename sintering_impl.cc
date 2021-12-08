@@ -49,7 +49,7 @@ using namespace dealii;
 
 
 template <int dim,
-          int degree,
+          int fe_degree,
           int n_points_1D,
           int n_components,
           typename Number,
@@ -72,7 +72,7 @@ public:
     matrix_free.template cell_loop<VectorType, VectorType>(
       [&](const auto &, auto &dst, const auto &src, auto &range) {
         FEEvaluation<dim,
-                     degree,
+                     fe_degree,
                      n_points_1D,
                      n_components,
                      Number,
@@ -106,14 +106,19 @@ private:
 
 
 
-template <typename Operator>
+template <int dim,
+          int fe_degree,
+          int n_points_1D,
+          int n_components,
+          typename Number,
+          typename VectorizedArrayType>
 class InverseMassMatrix
 {
 public:
-  using VectorType = typename Operator::vector_type;
+  using VectorType = LinearAlgebra::distributed::Vector<Number>;
 
-  InverseMassMatrix(const Operator &op)
-    : op(op)
+  InverseMassMatrix(const MatrixFree<dim, Number, VectorizedArrayType> &matrix_free)
+    : op(matrix_free)
   {}
 
   void
@@ -125,7 +130,8 @@ public:
     solver.solve(op, dst, src, PreconditionIdentity());
   }
 
-  const Operator &op;
+  private:
+  MassMatrix<dim, fe_degree, n_points_1D, n_components, Number, VectorizedArrayType> op;
 };
 
 
@@ -810,14 +816,12 @@ public:
                                Number,
                                VectorizedArrayType>;
 
-    using PreconditionerOperator = MassMatrix<dim,
+    using Preconditioner         = InverseMassMatrix<dim,
                                               fe_degree,
                                               n_points_1D,
                                               number_of_components,
                                               Number,
                                               VectorizedArrayType>;
-    
-    using Preconditioner         = InverseMassMatrix<PreconditionerOperator>;
     
     using LinearSolver = SolverGMRESWrapper<NonLinearOperator, Preconditioner>;
 
@@ -910,13 +914,13 @@ public:
     NonLinearOperator nonlinear_operator(
       matrix_free, A, B, Mvol, Mvap, Msurf, Mgb, L, kappa_c, kappa_p);
 
-    PreconditionerOperator precondition_operator(matrix_free);
-    Preconditioner         preconditioner(precondition_operator);
+    Preconditioner         preconditioner(matrix_free);
 
     LinearSolver linear_solver(nonlinear_operator, preconditioner);
 
     NewtonSolver<VectorType, NonLinearOperator, LinearSolver> newton_solver(
       nonlinear_operator, linear_solver);
+    
     
 
     // set initial condition
