@@ -46,6 +46,119 @@
 
 using namespace dealii;
 
+
+template <int dim,
+          int degree,
+          int n_points_1D,
+          int n_components,
+          typename Number,
+          typename VectorizedArrayType>
+class MassMatrix
+{
+public:
+  using VectorType = LinearAlgebra::distributed::Vector<Number>;
+
+  using value_type  = Number;
+  using vector_type = VectorType;
+
+  MassMatrix(const MatrixFree<dim, Number, VectorizedArrayType> &matrix_free)
+    : matrix_free(matrix_free)
+  {}
+
+  void
+  vmult(VectorType &dst, const VectorType &src) const
+  {
+    matrix_free.template cell_loop<VectorType, VectorType>(
+      [&](const auto &, auto &dst, const auto &src, auto &range) {
+        FEEvaluation<dim,
+                     degree,
+                     n_points_1D,
+                     n_components,
+                     Number,
+                     VectorizedArrayType>
+          phi(matrix_free);
+        
+        for (auto cell = range.first; cell < range.second; ++cell)
+          {
+            phi.reinit(cell);
+            phi.gather_evaluate(src, EvaluationFlags::EvaluationFlags::values);
+            for (unsigned int q = 0; q < phi.n_q_points; ++q)
+              {
+                Tensor<1, n_components, VectorizedArrayType> value_result;
+                for (unsigned int i = 0; i < n_components; i++)
+                  {
+                    value_result[i] = phi.get_value(q)[i];
+                  }
+                phi.submit_value(value_result, q);
+              }
+            phi.integrate_scatter(EvaluationFlags::EvaluationFlags::values, dst);
+          }
+      },
+      dst,
+      src,
+      true);
+  }
+
+private:
+  const MatrixFree<dim, Number, VectorizedArrayType> &matrix_free;
+};
+
+
+
+template <typename Operator>
+class InverseMassMatrix
+{
+public:
+  using VectorType = typename Operator::vector_type;
+
+  InverseMassMatrix(const Operator &op)
+    : op(op)
+  {}
+
+  void
+  vmult(VectorType &dst, const VectorType &src) const
+  {
+    // invert mass matrix
+    ReductionControl     reduction_control;
+    SolverCG<VectorType> solver(reduction_control);
+    solver.solve(op, dst, src, PreconditionIdentity());
+  }
+
+  const Operator &op;
+};
+
+
+
+template <typename Operator, typename Preconditioner>
+class SolverGMRESWrapper
+{
+public:
+  using VectorType = typename Operator::vector_type;
+
+  SolverGMRESWrapper(const Operator &op, const Preconditioner &preconditioner)
+    : op(op)
+    , preconditioner(preconditioner)
+  {}
+
+  unsigned int
+  solve(VectorType &dst, const VectorType &src, const bool do_update)
+  {
+    (void)do_update; // no preconditioner is used
+
+    unsigned int            max_iter = 100;
+    ReductionControl        reduction_control(max_iter);
+    SolverGMRES<VectorType> solver(reduction_control);
+    solver.solve(op, dst, src, preconditioner);
+
+    return reduction_control.last_step();
+  }
+
+  const Operator &      op;
+  const Preconditioner &preconditioner;
+};
+
+
+
 template <int dim>
 class InitialValues : public dealii::Function<dim>
 {
@@ -160,83 +273,7 @@ private:
   }
 };
 
-template <int dim,
-          int degree,
-          int n_points_1D,
-          int n_components,
-          typename Number,
-          typename VectorizedArrayType>
-class MassMatrix
-{
-public:
-  using VectorType = LinearAlgebra::distributed::Vector<Number>;
 
-  using value_type  = Number;
-  using vector_type = VectorType;
-
-  MassMatrix(const MatrixFree<dim, Number, VectorizedArrayType> &matrix_free)
-    : matrix_free(matrix_free)
-  {}
-
-  void
-  vmult(VectorType &dst, const VectorType &src) const
-  {
-    matrix_free.template cell_loop<VectorType, VectorType>(
-      [&](const auto &, auto &dst, const auto &src, auto &range) {
-        FEEvaluation<dim,
-                     degree,
-                     n_points_1D,
-                     n_components,
-                     Number,
-                     VectorizedArrayType>
-          phi(matrix_free);
-        
-        for (auto cell = range.first; cell < range.second; ++cell)
-          {
-            phi.reinit(cell);
-            phi.gather_evaluate(src, EvaluationFlags::EvaluationFlags::values);
-            for (unsigned int q = 0; q < phi.n_q_points; ++q)
-              {
-                Tensor<1, n_components, VectorizedArrayType> value_result;
-                for (unsigned int i = 0; i < n_components; i++)
-                  {
-                    value_result[i] = phi.get_value(q)[i];
-                  }
-                phi.submit_value(value_result, q);
-              }
-            phi.integrate_scatter(EvaluationFlags::EvaluationFlags::values, dst);
-          }
-      },
-      dst,
-      src,
-      true);
-  }
-
-private:
-  const MatrixFree<dim, Number, VectorizedArrayType> &matrix_free;
-};
-
-template <typename Operator>
-class InverseMassMatrix
-{
-public:
-  using VectorType = typename Operator::vector_type;
-
-  InverseMassMatrix(const Operator &op)
-    : op(op)
-  {}
-
-  void
-  vmult(VectorType &dst, const VectorType &src) const
-  {
-    // invert mass matrix
-    ReductionControl     reduction_control;
-    SolverCG<VectorType> solver(reduction_control);
-    solver.solve(op, dst, src, PreconditionIdentity());
-  }
-
-  const Operator &op;
-};
 
 class Mobility
 {
@@ -323,6 +360,8 @@ public:
     return MetajSum;
   }
 };
+
+
 
 class FreeEnergy
 {
@@ -715,33 +754,7 @@ private:
   Table<2, dealii::Tensor<1, dim, VectorizedArrayType>> nonlinear_mu;
 };
 
-template <typename Operator, typename Preconditioner>
-class SolverGMRESWrapper
-{
-public:
-  using VectorType = typename Operator::vector_type;
 
-  SolverGMRESWrapper(const Operator &op, const Preconditioner &preconditioner)
-    : op(op)
-    , preconditioner(preconditioner)
-  {}
-
-  unsigned int
-  solve(VectorType &dst, const VectorType &src, const bool do_update)
-  {
-    (void)do_update; // no preconditioner is used
-
-    unsigned int            max_iter = 100;
-    ReductionControl        reduction_control(max_iter);
-    SolverGMRES<VectorType> solver(reduction_control);
-    solver.solve(op, dst, src, preconditioner);
-
-    return reduction_control.last_step();
-  }
-
-  const Operator &      op;
-  const Preconditioner &preconditioner;
-};
 
 template <int dim,
           int fe_degree,
@@ -1002,6 +1015,8 @@ private:
       data_out.write_vtu_in_parallel(output, MPI_COMM_WORLD);
     };
 };
+
+
 
 int
 main(int argc, char **argv)
