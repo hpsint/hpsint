@@ -120,14 +120,50 @@ namespace Preconditioners
     void
     do_update() override
     {
-      precondition_amg.initialize(op.get_system_matrix());
+      precondition_amg.initialize(op.get_system_matrix(), additional_data);
     }
 
   private:
     const Operator &op;
 
-    TrilinosWrappers::PreconditionAMG::AdditionalData amg_data;
+    TrilinosWrappers::PreconditionAMG::AdditionalData additional_data;
     TrilinosWrappers::PreconditionAMG                 precondition_amg;
+  };
+
+
+
+  template <typename Operator>
+  class ILU : public PreconditionerBase<typename Operator::value_type>
+  {
+  public:
+    using VectorType = typename Operator::VectorType;
+
+    ILU(const Operator &op)
+      : op(op)
+    {
+      additional_data.ilu_fill = 0;
+      additional_data.ilu_atol = 0.0;
+      additional_data.ilu_rtol = 1.0;
+      additional_data.overlap  = 0;
+    }
+
+    void
+    vmult(VectorType &dst, const VectorType &src) const override
+    {
+      precondition_ilu.vmult(dst, src);
+    }
+
+    void
+    do_update() override
+    {
+      precondition_ilu.initialize(op.get_system_matrix(), additional_data);
+    }
+
+  private:
+    const Operator &op;
+
+    TrilinosWrappers::PreconditionILU::AdditionalData additional_data;
+    TrilinosWrappers::PreconditionILU                 precondition_ilu;
   };
 
 
@@ -1364,13 +1400,17 @@ namespace Sintering
       MGLevelObject<MGTwoLevelTransfer<dim, VectorType>>           transfers;
       std::unique_ptr<MGTransferGlobalCoarsening<dim, VectorType>> transfer;
 
-      if (true)
+      if (false)
         preconditioner = std::make_unique<
           Preconditioners::InverseDiagonalMatrix<NonLinearOperator>>(
           nonlinear_operator);
       else if (false)
         preconditioner =
           std::make_unique<Preconditioners::AMG<NonLinearOperator>>(
+            nonlinear_operator);
+      else if (true)
+        preconditioner =
+          std::make_unique<Preconditioners::ILU<NonLinearOperator>>(
             nonlinear_operator);
       else if (false)
         {
