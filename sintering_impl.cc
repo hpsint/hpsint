@@ -159,8 +159,8 @@ namespace Preconditioners
       const MGLevelObject<std::shared_ptr<const DoFHandler<dim>>>
         &mg_dof_handlers,
       const MGLevelObject<std::shared_ptr<const AffineConstraints<double>>>
-        &mg_constraints,
-      const MGLevelObject<std::shared_ptr<const LevelMatrixType>> &mg_operators)
+        &                                                    mg_constraints,
+      const MGLevelObject<std::shared_ptr<LevelMatrixType>> &mg_operators)
       : dof_handler(dof_handler)
       , mg_dof_handlers(mg_dof_handlers)
       , mg_constraints(mg_constraints)
@@ -266,8 +266,8 @@ namespace Preconditioners
 
     const MGLevelObject<std::shared_ptr<const DoFHandler<dim>>> mg_dof_handlers;
     const MGLevelObject<std::shared_ptr<const AffineConstraints<double>>>
-                                                                mg_constraints;
-    const MGLevelObject<std::shared_ptr<const LevelMatrixType>> mg_operators;
+                                                          mg_constraints;
+    const MGLevelObject<std::shared_ptr<LevelMatrixType>> mg_operators;
 
     const unsigned int min_level;
     const unsigned int max_level;
@@ -1357,8 +1357,12 @@ namespace Sintering
 
       MGLevelObject<std::shared_ptr<const DoFHandler<dim>>> mg_dof_handlers;
       MGLevelObject<std::shared_ptr<const AffineConstraints<double>>>
-                                                              mg_constraints;
-      MGLevelObject<std::shared_ptr<const NonLinearOperator>> mg_operators;
+                                                        mg_constraints;
+      MGLevelObject<std::shared_ptr<NonLinearOperator>> mg_operators;
+      MGLevelObject<VectorType>                         mg_solutions;
+
+      MGLevelObject<MGTwoLevelTransfer<dim, VectorType>>           transfers;
+      std::unique_ptr<MGTransferGlobalCoarsening<dim, VectorType>> transfer;
 
       if (false)
         preconditioner = std::make_unique<
@@ -1381,6 +1385,8 @@ namespace Sintering
           mg_constraints.resize(min_level, max_level);
           mg_operators.resize(min_level, max_level);
           mg_matrixfrees.resize(min_level, max_level);
+          mg_solutions.resize(min_level, max_level);
+          transfers.resize(min_level, max_level);
 
           for (unsigned int l = min_level; l <= max_level; ++l)
             {
@@ -1420,6 +1426,16 @@ namespace Sintering
               mg_dof_handlers[l] = dof_handler;
               mg_constraints[l]  = constraints;
             }
+
+          for (auto l = min_level; l < max_level; ++l)
+            transfers[l + 1].reinit(*mg_dof_handlers[l + 1],
+                                    *mg_dof_handlers[l]);
+
+          transfer =
+            std::make_unique<MGTransferGlobalCoarsening<dim, VectorType>>(
+              transfers, [&](const auto l, auto &vector) {
+                mg_matrixfrees[l].initialize_dof_vector(vector);
+              });
 
           preconditioner = std::make_unique<
             Preconditioners::
@@ -1466,6 +1482,20 @@ namespace Sintering
           nonlinear_operator.set_timestep(dt);
           nonlinear_operator.set_previous_solution(solution);
           nonlinear_operator.evaluate_newton_step(solution);
+
+          if (transfer)
+            {
+              transfer->interpolate_to_mg(mg_solutions, solution);
+
+              for (unsigned int l = mg_operators.min_level();
+                   l <= mg_operators.max_level();
+                   ++l)
+                {
+                  mg_operators[l]->set_timestep(dt);
+                  mg_operators[l]->set_previous_solution(mg_solutions[l]);
+                  mg_operators[l]->evaluate_newton_step(mg_solutions[l]);
+                }
+            }
 
           preconditioner->do_update();
 
