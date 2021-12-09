@@ -1364,7 +1364,7 @@ namespace Sintering
       MGLevelObject<MGTwoLevelTransfer<dim, VectorType>>           transfers;
       std::unique_ptr<MGTransferGlobalCoarsening<dim, VectorType>> transfer;
 
-      if (false)
+      if (true)
         preconditioner = std::make_unique<
           Preconditioners::InverseDiagonalMatrix<NonLinearOperator>>(
           nonlinear_operator);
@@ -1372,7 +1372,7 @@ namespace Sintering
         preconditioner =
           std::make_unique<Preconditioners::AMG<NonLinearOperator>>(
             nonlinear_operator);
-      else if (true)
+      else if (false)
         {
           mg_triangulations = MGTransferGlobalCoarseningTools::
             create_geometric_coarsening_sequence(tria);
