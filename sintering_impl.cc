@@ -53,7 +53,6 @@
 
 using namespace dealii;
 
-
 namespace Preconditioners
 {
   template <typename Number>
@@ -700,7 +699,8 @@ namespace Sintering
 
 
 
-  class Mobility
+  template <int dim, typename VectorizedArrayType>
+  class MobilityScalar
   {
   protected:
     double Mvol;
@@ -709,25 +709,31 @@ namespace Sintering
     double Mgb;
 
   public:
-    Mobility(const double Mvol,
-             const double Mvap,
-             const double Msurf,
-             const double Mgb)
+    MobilityScalar(const double Mvol,
+                   const double Mvap,
+                   const double Msurf,
+                   const double Mgb)
       : Mvol(Mvol)
       , Mvap(Mvap)
       , Msurf(Msurf)
       , Mgb(Mgb)
     {}
 
-    auto
-    M(const auto &c, const std::vector<auto> &etas) const
+    VectorizedArrayType
+    M(const VectorizedArrayType &                             c,
+      const std::vector<VectorizedArrayType> &                etas,
+      const Tensor<1, dim, VectorizedArrayType> &             c_grad,
+      const std::vector<Tensor<1, dim, VectorizedArrayType>> &etas_grad) const
     {
-      auto cl = c;
+      (void)c_grad;
+      (void)etas_grad;
+
+      VectorizedArrayType cl = c;
       std::for_each(cl.begin(), cl.end(), [](auto &val) {
         val = val > 1.0 ? 1.0 : (val < 0.0 ? 0.0 : val);
       });
 
-      std::remove_const_t<std::remove_reference_t<decltype(c)>> etaijSum = 0.0;
+      VectorizedArrayType etaijSum = 0.0;
       for (const auto &etai : etas)
         {
           for (const auto &etaj : etas)
@@ -739,39 +745,65 @@ namespace Sintering
             }
         }
 
-      auto phi = cl * cl * cl * (10.0 - 15.0 * cl + 6.0 * cl * cl);
+      VectorizedArrayType phi =
+        cl * cl * cl * (10.0 - 15.0 * cl + 6.0 * cl * cl);
       std::for_each(phi.begin(), phi.end(), [](auto &val) {
         val = val > 1.0 ? 1.0 : (val < 0.0 ? 0.0 : val);
       });
 
-      auto M = Mvol * phi + Mvap * (1.0 - phi) + Msurf * cl * (1.0 - cl) +
-               Mgb * etaijSum;
+      VectorizedArrayType M = Mvol * phi + Mvap * (1.0 - phi) +
+                              Msurf * cl * (1.0 - cl) + Mgb * etaijSum;
 
       return M;
     }
 
-    auto
-    dM_dc(const auto &c, const std::vector<auto> &etas) const
+    VectorizedArrayType
+    dM_dc(
+      const VectorizedArrayType &                             c,
+      const std::vector<VectorizedArrayType> &                etas,
+      const Tensor<1, dim, VectorizedArrayType> &             c_grad,
+      const std::vector<Tensor<1, dim, VectorizedArrayType>> &etas_grad) const
     {
       (void)etas;
+      (void)c_grad;
+      (void)etas_grad;
 
-      auto cl = c;
+      VectorizedArrayType cl = c;
       std::for_each(cl.begin(), cl.end(), [](auto &val) {
         val = val > 1.0 ? 1.0 : (val < 0.0 ? 0.0 : val);
       });
 
-      auto dphidc = 30.0 * cl * cl * (1.0 - 2.0 * cl + cl * cl);
-      auto dMdc   = Mvol * dphidc - Mvap * dphidc + Msurf * (1.0 - 2.0 * cl);
+      VectorizedArrayType dphidc = 30.0 * cl * cl * (1.0 - 2.0 * cl + cl * cl);
+      VectorizedArrayType dMdc =
+        Mvol * dphidc - Mvap * dphidc + Msurf * (1.0 - 2.0 * cl);
 
       return dMdc;
     }
 
-    auto
-    dM_detai(const auto &             c,
-             const std::vector<auto> &etas,
-             unsigned int             index_i) const
+    Tensor<2, dim, VectorizedArrayType>
+    dM_dgrad_c(const VectorizedArrayType &                c,
+               const Tensor<1, dim, VectorizedArrayType> &c_grad,
+               const Tensor<1, dim, VectorizedArrayType> &mu_grad) const
     {
-      std::remove_const_t<std::remove_reference_t<decltype(c)>> etajSum = 0;
+      (void)c;
+      (void)c_grad;
+      (void)mu_grad;
+
+      return Tensor<2, dim, VectorizedArrayType>();
+    }
+
+    VectorizedArrayType
+    dM_detai(const VectorizedArrayType &                             c,
+             const std::vector<VectorizedArrayType> &                etas,
+             const Tensor<1, dim, VectorizedArrayType> &             c_grad,
+             const std::vector<Tensor<1, dim, VectorizedArrayType>> &etas_grad,
+             unsigned int index_i) const
+    {
+      (void)c;
+      (void)c_grad;
+      (void)etas_grad;
+
+      VectorizedArrayType etajSum = 0;
       for (unsigned int j = 0; j < etas.size(); j++)
         {
           if (j != index_i)
@@ -786,6 +818,227 @@ namespace Sintering
     }
   };
 
+
+
+  template <int dim, typename VectorizedArrayType>
+  class MobilityTensorial
+  {
+  protected:
+    double Mvol;
+    double Mvap;
+    double Msurf;
+    double Mgb;
+
+  public:
+    MobilityTensorial(const double Mvol,
+                      const double Mvap,
+                      const double Msurf,
+                      const double Mgb)
+      : Mvol(Mvol)
+      , Mvap(Mvap)
+      , Msurf(Msurf)
+      , Mgb(Mgb)
+    {}
+
+    Tensor<2, dim, VectorizedArrayType>
+    M(const VectorizedArrayType &                             c,
+      const std::vector<VectorizedArrayType> &                etas,
+      const Tensor<1, dim, VectorizedArrayType> &             c_grad,
+      const std::vector<Tensor<1, dim, VectorizedArrayType>> &etas_grad) const
+    {
+      VectorizedArrayType cl = c;
+      std::for_each(cl.begin(), cl.end(), [](auto &val) {
+        val = val > 1.0 ? 1.0 : (val < 0.0 ? 0.0 : val);
+      });
+
+      VectorizedArrayType phi =
+        cl * cl * cl * (10.0 - 15.0 * cl + 6.0 * cl * cl);
+      std::for_each(phi.begin(), phi.end(), [](auto &val) {
+        val = val > 1.0 ? 1.0 : (val < 0.0 ? 0.0 : val);
+      });
+
+      // Volumetric and vaporization parts, the same as for isotropic
+      Tensor<2, dim, VectorizedArrayType> M =
+        unitMatrix(Mvol * phi + Mvap * (1.0 - phi));
+
+      // Surface anisotropic part
+      VectorizedArrayType fsurf =
+        Msurf * std::pow(cl, 2.) * std::pow(1. - cl, 2.);
+      Tensor<1, dim, VectorizedArrayType> nc = unitVector(c_grad);
+      M += projectorMatrix(nc, fsurf);
+
+      // GB diffusion part
+      for (unsigned int i = 0; i < etas.size(); i++)
+        {
+          for (unsigned int j = 0; j < etas.size(); j++)
+            {
+              if (i != j)
+                {
+                  VectorizedArrayType fgb = Mgb * etas[i] * etas[j];
+                  Tensor<1, dim, VectorizedArrayType> etaGradDiff =
+                    etas_grad[i] - etas_grad[j];
+                  Tensor<1, dim, VectorizedArrayType> neta =
+                    unitVector(etaGradDiff);
+                  M += projectorMatrix(neta, fgb);
+                }
+            }
+        }
+
+      return M;
+    }
+
+    Tensor<2, dim, VectorizedArrayType>
+    dM_dc(
+      const VectorizedArrayType &                             c,
+      const std::vector<VectorizedArrayType> &                etas,
+      const Tensor<1, dim, VectorizedArrayType> &             c_grad,
+      const std::vector<Tensor<1, dim, VectorizedArrayType>> &etas_grad) const
+    {
+      (void)etas;
+      (void)etas_grad;
+
+      VectorizedArrayType cl = c;
+      std::for_each(cl.begin(), cl.end(), [](auto &val) {
+        val = val > 1.0 ? 1.0 : (val < 0.0 ? 0.0 : val);
+      });
+
+      VectorizedArrayType dphidc = 30.0 * cl * cl * (1.0 - 2.0 * cl + cl * cl);
+
+      // Volumetric and vaporization parts, the same as for isotropic
+      Tensor<2, dim, VectorizedArrayType> dMdc =
+        unitMatrix((Mvol - Mvap) * dphidc);
+
+      // Surface part
+      VectorizedArrayType fsurf =
+        Msurf * std::pow(cl, 2.) * std::pow(1. - cl, 2.);
+      VectorizedArrayType dfsurf = Msurf * 2. * cl * (1. - cl) * (1. - 2. * cl);
+      for (unsigned int i = 0; i < fsurf.size(); i++)
+        {
+          if (fsurf[i] < 1e-6)
+            {
+              dfsurf[i] = 0.;
+            }
+        }
+      Tensor<1, dim, VectorizedArrayType> nc = unitVector(c_grad);
+      dMdc += projectorMatrix(nc, dfsurf);
+
+      return dMdc;
+    }
+
+    Tensor<2, dim, VectorizedArrayType>
+    dM_dgrad_c(const VectorizedArrayType &                c,
+               const Tensor<1, dim, VectorizedArrayType> &c_grad,
+               const Tensor<1, dim, VectorizedArrayType> &mu_grad) const
+    {
+      VectorizedArrayType cl = c;
+      std::for_each(cl.begin(), cl.end(), [](auto &val) {
+        val = val > 1.0 ? 1.0 : (val < 0.0 ? 0.0 : val);
+      });
+
+      VectorizedArrayType fsurf =
+        Msurf * std::pow(cl, 2.) * std::pow(1. - cl, 2.);
+      VectorizedArrayType nrm = c_grad.norm();
+
+      for (unsigned int i = 0; i < nrm.size(); i++)
+        {
+          if (nrm[i] < 1e-4 || fsurf[i] < 1e-6)
+            {
+              fsurf[i] = 0.;
+            }
+          if (nrm[i] < 1e-10)
+            {
+              nrm[i] = 1.;
+            }
+        }
+
+      Tensor<1, dim, VectorizedArrayType> nc = unitVector(c_grad);
+      Tensor<2, dim, VectorizedArrayType> M  = projectorMatrix(nc, 1. / nrm);
+
+      Tensor<2, dim, VectorizedArrayType> T =
+        unitMatrix(mu_grad * nc) + outer_product(nc, mu_grad);
+      T *= -fsurf;
+
+      return T * M;
+    }
+
+    Tensor<2, dim, VectorizedArrayType>
+    dM_detai(const VectorizedArrayType &                             c,
+             const std::vector<VectorizedArrayType> &                etas,
+             const Tensor<1, dim, VectorizedArrayType> &             c_grad,
+             const std::vector<Tensor<1, dim, VectorizedArrayType>> &etas_grad,
+             unsigned int index_i) const
+    {
+      (void)c;
+      (void)c_grad;
+
+      dealii::Tensor<2, dim, VectorizedArrayType> M;
+
+      for (unsigned int j = 0; j < etas.size(); j++)
+        {
+          if (j != index_i)
+            {
+              VectorizedArrayType                 fgb = 2. * Mgb * etas[j];
+              Tensor<1, dim, VectorizedArrayType> etaGradDiff =
+                etas_grad[index_i] - etas_grad[j];
+              Tensor<1, dim, VectorizedArrayType> neta =
+                unitVector(etaGradDiff);
+              M += projectorMatrix(neta, fgb);
+            }
+        }
+
+      return M;
+    }
+
+  private:
+    Tensor<2, dim, VectorizedArrayType>
+    unitMatrix(const VectorizedArrayType &fac = 1.) const
+    {
+      Tensor<2, dim, VectorizedArrayType> I;
+
+      for (unsigned int d = 0; d < dim; d++)
+        {
+          I[d][d] = fac;
+        }
+
+      return I;
+    }
+
+    Tensor<1, dim, VectorizedArrayType>
+    unitVector(const Tensor<1, dim, VectorizedArrayType> &vec) const
+    {
+      VectorizedArrayType nrm = vec.norm();
+      VectorizedArrayType filter;
+
+      Tensor<1, dim, VectorizedArrayType> n = vec;
+
+      for (unsigned int i = 0; i < nrm.size(); i++)
+        {
+          if (nrm[i] > 1e-4)
+            {
+              filter[i] = 1.;
+            }
+          else
+            {
+              nrm[i] = 1.;
+            }
+        }
+
+      n /= nrm;
+      n *= filter;
+
+      return n;
+    }
+
+    Tensor<2, dim, VectorizedArrayType>
+    projectorMatrix(const Tensor<1, dim, VectorizedArrayType> vec,
+                    const VectorizedArrayType &               fac = 1.) const
+    {
+      auto tensor = unitMatrix() - dealii::outer_product(vec, vec);
+      tensor *= fac;
+
+      return tensor;
+    }
+  };
 
 
   class FreeEnergy
@@ -1011,7 +1264,7 @@ namespace Sintering
       const unsigned n_quadrature_points = matrix_free.get_quadrature().size();
 
       nonlinear_values.reinit(n_cells, n_quadrature_points);
-      nonlinear_mu.reinit(n_cells, n_quadrature_points);
+      nonlinear_gradients.reinit(n_cells, n_quadrature_points);
 
       int dummy = 0;
 
@@ -1077,7 +1330,12 @@ namespace Sintering
 
           std::vector etas{eta1, eta2};
 
-          auto &mu_grad = nonlinear_mu(cell, q);
+          auto &c_grad    = nonlinear_gradients(cell, q)[0];
+          auto &mu_grad   = nonlinear_gradients(cell, q)[1];
+          auto &eta1_grad = nonlinear_gradients(cell, q)[2];
+          auto &eta2_grad = nonlinear_gradients(cell, q)[3];
+
+          std::vector etas_grad{eta1_grad, eta2_grad};
 
           Tensor<1, n_components, VectorizedArrayType> value_result;
 
@@ -1103,10 +1361,14 @@ namespace Sintering
             gradient_result;
 
           gradient_result[0] =
-            mobility.M(c, etas) * phi.get_gradient(q)[1] +
-            mobility.dM_dc(c, etas) * mu_grad * phi.get_value(q)[0] +
-            mobility.dM_detai(c, etas, 0) * mu_grad * phi.get_value(q)[2] +
-            mobility.dM_detai(c, etas, 1) * mu_grad * phi.get_value(q)[3];
+            mobility.M(c, etas, c_grad, etas_grad) * phi.get_gradient(q)[1] +
+            mobility.dM_dc(c, etas, c_grad, etas_grad) * mu_grad *
+              phi.get_value(q)[0] +
+            mobility.dM_dgrad_c(c, c_grad, mu_grad) * phi.get_gradient(q)[0] +
+            mobility.dM_detai(c, etas, c_grad, etas_grad, 0) * mu_grad *
+              phi.get_value(q)[2] +
+            mobility.dM_detai(c, etas, c_grad, etas_grad, 1) * mu_grad *
+              phi.get_value(q)[3];
           gradient_result[1] = kappa_c * phi.get_gradient(q)[0];
           gradient_result[2] = L * kappa_p * phi.get_gradient(q)[2];
           gradient_result[3] = L * kappa_p * phi.get_gradient(q)[3];
@@ -1192,6 +1454,12 @@ namespace Sintering
               auto &eta1_old = val_old[2];
               auto &eta2_old = val_old[3];
 
+              auto &c_grad    = grad[0];
+              auto &eta1_grad = grad[2];
+              auto &eta2_grad = grad[3];
+
+              std::vector etas_grad{eta1_grad, eta2_grad};
+
               Tensor<1, n_components, VectorizedArrayType> value_result;
 
               value_result[0] = (c - c_old) / dt;
@@ -1204,7 +1472,8 @@ namespace Sintering
               Tensor<1, n_components, Tensor<1, dim, VectorizedArrayType>>
                 gradient_result;
 
-              gradient_result[0] = mobility.M(c, etas) * grad[1];
+              gradient_result[0] =
+                mobility.M(c, etas, c_grad, etas_grad) * grad[1];
               gradient_result[1] = kappa_c * grad[0];
               gradient_result[2] = L * kappa_p * grad[2];
               gradient_result[3] = L * kappa_p * grad[3];
@@ -1235,8 +1504,8 @@ namespace Sintering
 
           for (unsigned int q = 0; q < phi.n_q_points; ++q)
             {
-              nonlinear_values(cell, q) = phi.get_value(q);
-              nonlinear_mu(cell, q)     = phi.get_gradient(q)[1];
+              nonlinear_values(cell, q)    = phi.get_value(q);
+              nonlinear_gradients(cell, q) = phi.get_gradient(q);
             }
         }
     }
@@ -1246,18 +1515,26 @@ namespace Sintering
     const AffineConstraints<Number> &                   constraints;
 
     const FreeEnergy free_energy;
-    const Mobility   mobility;
-    const double     L;
-    const double     kappa_c;
-    const double     kappa_p;
+
+    // Choose MobilityScalar or MobilityTensorial here:
+    // const MobilityScalar<dim, VectorizedArrayType> mobility;
+    const MobilityTensorial<dim, VectorizedArrayType> mobility;
+
+    const double L;
+    const double kappa_c;
+    const double kappa_p;
 
     double dt;
 
     mutable VectorType old_solution;
 
     Table<2, dealii::Tensor<1, n_components, VectorizedArrayType>>
-                                                          nonlinear_values;
-    Table<2, dealii::Tensor<1, dim, VectorizedArrayType>> nonlinear_mu;
+      nonlinear_values;
+    Table<2,
+          dealii::Tensor<1,
+                         n_components,
+                         dealii::Tensor<1, dim, VectorizedArrayType>>>
+      nonlinear_gradients;
 
     mutable TrilinosWrappers::SparseMatrix system_matrix;
   };
