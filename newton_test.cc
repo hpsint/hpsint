@@ -38,6 +38,12 @@ public:
   }
 
   void
+  evaluate_newton_step(const VectorType &newton_step)
+  {
+    (void)newton_step;
+  }
+
+  void
   evaluate_nonlinear_residual(const VectorType &src,
                               const VectorType &dst) const
   {

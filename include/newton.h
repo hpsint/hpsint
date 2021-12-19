@@ -3,6 +3,8 @@
 
 using namespace dealii;
 
+//#define DEBUG_NORM
+
 struct NewtonSolverData
 {
   NewtonSolverData(const unsigned int max_iter = 100,
@@ -80,10 +82,17 @@ public:
     // Accumulated linear iterations
     NewtonSolverStatistics statistics;
 
+#ifdef DEBUG_NORM
+    std::cout << "NORM: " << std::flush;
+#endif
+
     while (norm_r > this->solver_data.abs_tol &&
            norm_r / norm_r_0 > solver_data.rel_tol &&
            statistics.newton_iterations < solver_data.max_iter)
       {
+#ifdef DEBUG_NORM
+        std::cout << norm_r << " " << std::flush;
+#endif
         // reset increment
         increment = 0.0;
 
@@ -93,6 +102,7 @@ public:
 
         // solve linear problem
         nonlinear_operator.set_solution_linearization(dst);
+        nonlinear_operator.evaluate_newton_step(dst);
         bool const do_update = update_preconditioner_linear_solver &&
                                (statistics.newton_iterations %
                                   update_preconditioner_every_newton_iter ==
@@ -143,6 +153,10 @@ public:
         // increment iteration counter
         ++statistics.newton_iterations;
       }
+
+#ifdef DEBUG_NORM
+    std::cout << std::endl;
+#endif
 
     AssertThrow(
       norm_r <= this->solver_data.abs_tol ||

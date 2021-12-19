@@ -2,6 +2,7 @@
 
 ## Authors (in alphabetic order)
 
+- Vladimir Ivannikov
 - Peter Munch
 - Daniel Paukner 
 
