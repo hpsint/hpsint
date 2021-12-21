@@ -1543,6 +1543,7 @@ namespace Sintering
 
   template <int dim,
             int n_components,
+            int n_components_,
             typename Number,
             typename VectorizedArrayType>
   class OperatorCahnHillard : public Subscriptor
@@ -1559,17 +1560,28 @@ namespace Sintering
     OperatorCahnHillard(
       const MatrixFree<dim, Number, VectorizedArrayType> &matrix_free,
       const AffineConstraints<Number> &                   constraints,
-      const double                                        A,
-      const double                                        B,
-      const double                                        Mvol,
-      const double                                        Mvap,
-      const double                                        Msurf,
-      const double                                        Mgb,
-      const double                                        L,
-      const double                                        kappa_c,
-      const double                                        kappa_p)
+      const double &                                      dt,
+      const Table<2, dealii::Tensor<1, n_components_, VectorizedArrayType>>
+        &nonlinear_values,
+      const Table<2,
+                  dealii::Tensor<1,
+                                 n_components_,
+                                 dealii::Tensor<1, dim, VectorizedArrayType>>>
+        &          nonlinear_gradients,
+      const double A,
+      const double B,
+      const double Mvol,
+      const double Mvap,
+      const double Msurf,
+      const double Mgb,
+      const double L,
+      const double kappa_c,
+      const double kappa_p)
       : matrix_free(matrix_free)
       , constraints(constraints)
+      , dt(dt)
+      , nonlinear_values(nonlinear_values)
+      , nonlinear_gradients(nonlinear_gradients)
       , dof_index(0)
       , free_energy(A, B)
       , mobility(Mvol, Mvap, Msurf, Mgb)
@@ -1731,6 +1743,18 @@ namespace Sintering
     const MatrixFree<dim, Number, VectorizedArrayType> &matrix_free;
     const AffineConstraints<Number> &                   constraints;
 
+    const double &dt;
+
+    const Table<2, dealii::Tensor<1, n_components_, VectorizedArrayType>>
+      &nonlinear_values;
+    const Table<2,
+                dealii::Tensor<1,
+                               n_components_,
+                               dealii::Tensor<1, dim, VectorizedArrayType>>>
+      &nonlinear_gradients;
+
+    mutable TrilinosWrappers::SparseMatrix system_matrix;
+
     const unsigned int dof_index;
 
     const FreeEnergy free_energy;
@@ -1742,18 +1766,6 @@ namespace Sintering
     const double L;
     const double kappa_c;
     const double kappa_p;
-
-    double dt;
-
-    Table<2, dealii::Tensor<1, n_components, VectorizedArrayType>>
-      nonlinear_values;
-    Table<2,
-          dealii::Tensor<1,
-                         n_components,
-                         dealii::Tensor<1, dim, VectorizedArrayType>>>
-      nonlinear_gradients;
-
-    mutable TrilinosWrappers::SparseMatrix system_matrix;
   };
 
 
@@ -1865,6 +1877,9 @@ namespace Sintering
       : matrix_free(matrix_free)
       , operator_0(matrix_free,
                    constraints,
+                   dt,
+                   nonlinear_values,
+                   nonlinear_gradients,
                    A,
                    B,
                    Mvol,
@@ -1876,8 +1891,19 @@ namespace Sintering
                    kappa_p)
       , operator_1(matrix_free, constraints)
     {
-      preconditioner_0 = std::make_unique<Preconditioners::ILU<
-        OperatorCahnHillard<dim, 2, Number, VectorizedArrayType>>>(operator_0);
+      matrix_free.initialize_dof_vector(dst_0, 1);
+      matrix_free.initialize_dof_vector(src_0, 1);
+
+      matrix_free.initialize_dof_vector(dst_1, 2);
+      matrix_free.initialize_dof_vector(src_1, 2);
+
+      preconditioner_0 = std::make_unique<
+        Preconditioners::ILU<OperatorCahnHillard<dim,
+                                                 2,
+                                                 n_components,
+                                                 Number,
+                                                 VectorizedArrayType>>>(
+        operator_0);
       preconditioner_1 = std::make_unique<Preconditioners::ILU<
         OperatorAllenCahn<dim, n_components - 2, Number, VectorizedArrayType>>>(
         operator_1);
@@ -1958,6 +1984,7 @@ namespace Sintering
     void
     split_up(const VectorType &vec, VectorType &vec_0, VectorType &vec_1) const
     {
+      AssertThrow(false, ExcNotImplemented());
       (void)vec;
       (void)vec_0;
       (void)vec_1;
@@ -1968,6 +1995,7 @@ namespace Sintering
           const VectorType &vec_1,
           VectorType &      vec) const
     {
+      AssertThrow(false, ExcNotImplemented());
       (void)vec;
       (void)vec_0;
       (void)vec_1;
@@ -1975,7 +2003,8 @@ namespace Sintering
 
     const MatrixFree<dim, Number, VectorizedArrayType> &matrix_free;
 
-    OperatorCahnHillard<dim, 2, Number, VectorizedArrayType> operator_0;
+    OperatorCahnHillard<dim, 2, n_components, Number, VectorizedArrayType>
+      operator_0;
     OperatorAllenCahn<dim, n_components - 2, Number, VectorizedArrayType>
       operator_1;
 
