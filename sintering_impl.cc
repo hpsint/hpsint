@@ -2152,6 +2152,8 @@ namespace Sintering
     void
     split_up(const VectorType &vec, VectorType &vec_0, VectorType &vec_1) const
     {
+      vec.update_ghost_values();
+
       for (const auto &cell_all :
            matrix_free.get_dof_handler(0).active_cell_iterators())
         if (cell_all->is_locally_owned())
@@ -2174,17 +2176,15 @@ namespace Sintering
                 {
                   const auto p = cell.get_fe().system_to_component_index(i);
 
-                  if (p.first >= 2)
-                    continue;
-
-                  local_component[cell_all->get_fe().component_to_system_index(
-                    p.first, p.second)] = local[i];
+                  local_component[i] =
+                    local[cell_all->get_fe().component_to_system_index(
+                      p.first, p.second)];
                 }
 
               cell.set_dof_values(local_component, vec_0);
             }
 
-            // write CAllen-Cahn components
+            // write Allen-Cahn components
             {
               DoFCellAccessor<dim, dim, false> cell(
                 &matrix_free.get_dof_handler(0).get_triangulation(),
@@ -2198,16 +2198,16 @@ namespace Sintering
                 {
                   const auto p = cell.get_fe().system_to_component_index(i);
 
-                  if (p.first < 2)
-                    continue;
-
-                  local_component[cell_all->get_fe().component_to_system_index(
-                    p.first - 2, p.second)] = local[i];
+                  local_component[i] =
+                    local[cell_all->get_fe().component_to_system_index(
+                      p.first + 2, p.second)];
                 }
 
               cell.set_dof_values(local_component, vec_1);
             }
           }
+
+      vec.zero_out_ghost_values();
     }
 
     void
@@ -2215,10 +2215,61 @@ namespace Sintering
           const VectorType &vec_1,
           VectorType &      vec) const
     {
-      AssertThrow(false, ExcNotImplemented());
-      (void)vec;
-      (void)vec_0;
-      (void)vec_1;
+      vec_0.update_ghost_values();
+      vec_1.update_ghost_values();
+
+      for (const auto &cell_all :
+           matrix_free.get_dof_handler(0).active_cell_iterators())
+        if (cell_all->is_locally_owned())
+          {
+            Vector<double> local(cell_all->get_fe().n_dofs_per_cell());
+
+            // read Cahn-Hillard components
+            {
+              DoFCellAccessor<dim, dim, false> cell(
+                &matrix_free.get_dof_handler(0).get_triangulation(),
+                cell_all->level(),
+                cell_all->index(),
+                &matrix_free.get_dof_handler(1));
+
+              Vector<double> local_component(cell.get_fe().n_dofs_per_cell());
+              cell.get_dof_values(vec_0, local_component);
+
+              for (unsigned int i = 0; i < cell.get_fe().n_dofs_per_cell(); ++i)
+                {
+                  const auto p = cell.get_fe().system_to_component_index(i);
+
+                  local[cell_all->get_fe().component_to_system_index(
+                    p.first, p.second)] = local_component[i];
+                }
+            }
+
+            // read Allen-Cahn components
+            {
+              DoFCellAccessor<dim, dim, false> cell(
+                &matrix_free.get_dof_handler(0).get_triangulation(),
+                cell_all->level(),
+                cell_all->index(),
+                &matrix_free.get_dof_handler(2));
+
+              Vector<double> local_component(cell.get_fe().n_dofs_per_cell());
+              cell.get_dof_values(vec_1, local_component);
+
+              for (unsigned int i = 0; i < cell.get_fe().n_dofs_per_cell(); ++i)
+                {
+                  const auto p = cell.get_fe().system_to_component_index(i);
+
+                  local[cell_all->get_fe().component_to_system_index(
+                    p.first + 2, p.second)] = local_component[i];
+                }
+            }
+
+            // read all dof_values
+            cell_all->set_dof_values(local, vec);
+          }
+
+      vec_0.zero_out_ghost_values();
+      vec_1.zero_out_ghost_values();
     }
 
     const MatrixFree<dim, Number, VectorizedArrayType> &matrix_free;
