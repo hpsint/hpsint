@@ -1280,6 +1280,29 @@ namespace Sintering
       this->dt = dt_new;
     }
 
+    const double &
+    get_timestep() const
+    {
+      return this->dt;
+    }
+
+    const Table<2, dealii::Tensor<1, n_components, VectorizedArrayType>> &
+    get_nonlinear_values() const
+    {
+      return nonlinear_values;
+    }
+
+
+    const Table<2,
+                dealii::Tensor<1,
+                               n_components,
+                               dealii::Tensor<1, dim, VectorizedArrayType>>> &
+    get_nonlinear_gradients() const
+    {
+      return nonlinear_gradients;
+    }
+
+
     void
     compute_inverse_diagonal(VectorType &diagonal) const
     {
@@ -2014,6 +2037,7 @@ namespace Sintering
       FEEvaluation<dim, -1, 0, n_components, Number, VectorizedArrayType>;
 
     BlockPreconditioner(
+      const Operator<dim, n_components, Number, VectorizedArrayType> &op,
       const MatrixFree<dim, Number, VectorizedArrayType> &matrix_free,
       const AffineConstraints<Number> &                   constraints,
       const double                                        A,
@@ -2026,6 +2050,9 @@ namespace Sintering
       const double                                        kappa_c,
       const double                                        kappa_p)
       : matrix_free(matrix_free)
+      , dt(op.get_timestep())
+      , nonlinear_values(op.get_nonlinear_values())
+      , nonlinear_gradients(op.get_nonlinear_gradients())
       , operator_0(matrix_free,
                    constraints,
                    dt,
@@ -2093,63 +2120,7 @@ namespace Sintering
       preconditioner_1->do_update();
     }
 
-    void
-    do_update(double dt_new, const VectorType &src)
-    {
-      set_timestep(dt_new);
-      evaluate_newton_step(src);
-
-      preconditioner_0->do_update();
-      preconditioner_1->do_update();
-    }
-
   private:
-    void
-    evaluate_newton_step(const VectorType &newton_step)
-    {
-      const unsigned n_cells             = matrix_free.n_cell_batches();
-      const unsigned n_quadrature_points = matrix_free.get_quadrature().size();
-
-      nonlinear_values.reinit(n_cells, n_quadrature_points);
-      nonlinear_gradients.reinit(n_cells, n_quadrature_points);
-
-      int dummy = 0;
-
-      matrix_free.cell_loop(&BlockPreconditioner::do_evaluate_newton_step,
-                            this,
-                            dummy,
-                            newton_step);
-    }
-
-    void
-    do_evaluate_newton_step(
-      const MatrixFree<dim, Number, VectorizedArrayType> &matrix_free,
-      int &,
-      const VectorType &                           src,
-      const std::pair<unsigned int, unsigned int> &range)
-    {
-      FECellIntegrator phi(matrix_free);
-
-      for (auto cell = range.first; cell < range.second; ++cell)
-        {
-          phi.reinit(cell);
-          phi.read_dof_values_plain(src);
-          phi.evaluate(EvaluationFlags::values | EvaluationFlags::gradients);
-
-          for (unsigned int q = 0; q < phi.n_q_points; ++q)
-            {
-              nonlinear_values(cell, q)    = phi.get_value(q);
-              nonlinear_gradients(cell, q) = phi.get_gradient(q);
-            }
-        }
-    }
-
-    void
-    set_timestep(double dt_new)
-    {
-      this->dt = dt_new;
-    }
-
     void
     split_up(const VectorType &vec, VectorType &vec_0, VectorType &vec_1) const
     {
@@ -2279,6 +2250,16 @@ namespace Sintering
 
     const MatrixFree<dim, Number, VectorizedArrayType> &matrix_free;
 
+    const double &dt;
+
+    const Table<2, dealii::Tensor<1, n_components, VectorizedArrayType>>
+      &nonlinear_values;
+    const Table<2,
+                dealii::Tensor<1,
+                               n_components,
+                               dealii::Tensor<1, dim, VectorizedArrayType>>>
+      &nonlinear_gradients;
+
     OperatorCahnHillard<dim, 2, n_components, Number, VectorizedArrayType>
       operator_0;
     OperatorAllenCahn<dim,
@@ -2293,16 +2274,6 @@ namespace Sintering
 
     std::unique_ptr<Preconditioners::PreconditionerBase<Number>>
       preconditioner_0, preconditioner_1;
-
-    double dt;
-
-    Table<2, dealii::Tensor<1, n_components, VectorizedArrayType>>
-      nonlinear_values;
-    Table<2,
-          dealii::Tensor<1,
-                         n_components,
-                         dealii::Tensor<1, dim, VectorizedArrayType>>>
-      nonlinear_gradients;
   };
 
 
@@ -2546,6 +2517,7 @@ namespace Sintering
                                                  number_of_components,
                                                  Number,
                                                  VectorizedArrayType>>(
+              nonlinear_operator,
               matrix_free,
               constraint,
               A,
@@ -2617,15 +2589,7 @@ namespace Sintering
                 }
             }
 
-          if (const auto precon =
-                dynamic_cast<BlockPreconditioner<dim,
-                                                 number_of_components,
-                                                 Number,
-                                                 VectorizedArrayType> *>(
-                  preconditioner.get()))
-            precon->do_update(dt, solution);
-          else
-            preconditioner->do_update();
+          preconditioner->do_update();
 
           bool has_converged = false;
 
