@@ -2152,10 +2152,62 @@ namespace Sintering
     void
     split_up(const VectorType &vec, VectorType &vec_0, VectorType &vec_1) const
     {
-      AssertThrow(false, ExcNotImplemented());
-      (void)vec;
-      (void)vec_0;
-      (void)vec_1;
+      for (const auto &cell_all :
+           matrix_free.get_dof_handler(0).active_cell_iterators())
+        if (cell_all->is_locally_owned())
+          {
+            // read all dof_values
+            Vector<double> local(cell_all->get_fe().n_dofs_per_cell());
+            cell_all->get_dof_values(vec, local);
+
+            // write Cahn-Hillard components
+            {
+              DoFCellAccessor<dim, dim, false> cell(
+                &matrix_free.get_dof_handler(0).get_triangulation(),
+                cell_all->level(),
+                cell_all->index(),
+                &matrix_free.get_dof_handler(1));
+
+              Vector<double> local_component(cell.get_fe().n_dofs_per_cell());
+
+              for (unsigned int i = 0; i < cell.get_fe().n_dofs_per_cell(); ++i)
+                {
+                  const auto p = cell.get_fe().system_to_component_index(i);
+
+                  if (p.first >= 2)
+                    continue;
+
+                  local_component[cell_all->get_fe().component_to_system_index(
+                    p.first, p.second)] = local[i];
+                }
+
+              cell.set_dof_values(local_component, vec_0);
+            }
+
+            // write CAllen-Cahn components
+            {
+              DoFCellAccessor<dim, dim, false> cell(
+                &matrix_free.get_dof_handler(0).get_triangulation(),
+                cell_all->level(),
+                cell_all->index(),
+                &matrix_free.get_dof_handler(2));
+
+              Vector<double> local_component(cell.get_fe().n_dofs_per_cell());
+
+              for (unsigned int i = 0; i < cell.get_fe().n_dofs_per_cell(); ++i)
+                {
+                  const auto p = cell.get_fe().system_to_component_index(i);
+
+                  if (p.first < 2)
+                    continue;
+
+                  local_component[cell_all->get_fe().component_to_system_index(
+                    p.first - 2, p.second)] = local[i];
+                }
+
+              cell.set_dof_values(local_component, vec_1);
+            }
+          }
     }
 
     void
