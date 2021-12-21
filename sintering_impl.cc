@@ -1517,8 +1517,8 @@ namespace Sintering
     const FreeEnergy free_energy;
 
     // Choose MobilityScalar or MobilityTensorial here:
-    // const MobilityScalar<dim, VectorizedArrayType> mobility;
-    const MobilityTensorial<dim, VectorizedArrayType> mobility;
+    const MobilityScalar<dim, VectorizedArrayType> mobility;
+    // const MobilityTensorial<dim, VectorizedArrayType> mobility;
 
     const double L;
     const double kappa_c;
@@ -1760,8 +1760,8 @@ namespace Sintering
     const FreeEnergy free_energy;
 
     // Choose MobilityScalar or MobilityTensorial here:
-    // const MobilityScalar<dim, VectorizedArrayType> mobility;
-    const MobilityTensorial<dim, VectorizedArrayType> mobility;
+    const MobilityScalar<dim, VectorizedArrayType> mobility;
+    // const MobilityTensorial<dim, VectorizedArrayType> mobility;
 
     const double L;
     const double kappa_c;
@@ -1987,8 +1987,8 @@ namespace Sintering
     const FreeEnergy free_energy;
 
     // Choose MobilityScalar or MobilityTensorial here:
-    // const MobilityScalar<dim, VectorizedArrayType> mobility;
-    const MobilityTensorial<dim, VectorizedArrayType> mobility;
+    const MobilityScalar<dim, VectorizedArrayType> mobility;
+    // const MobilityTensorial<dim, VectorizedArrayType> mobility;
 
     const double L;
     const double kappa_c;
@@ -2175,11 +2175,11 @@ namespace Sintering
 
               for (unsigned int i = 0; i < cell.get_fe().n_dofs_per_cell(); ++i)
                 {
-                  const auto p = cell.get_fe().system_to_component_index(i);
+                  const auto [c, j] =
+                    cell.get_fe().system_to_component_index(i);
 
                   local_component[i] =
-                    local[cell_all->get_fe().component_to_system_index(
-                      p.first, p.second)];
+                    local[cell_all->get_fe().component_to_system_index(c, j)];
                 }
 
               cell.set_dof_values(local_component, vec_0);
@@ -2197,11 +2197,12 @@ namespace Sintering
 
               for (unsigned int i = 0; i < cell.get_fe().n_dofs_per_cell(); ++i)
                 {
-                  const auto p = cell.get_fe().system_to_component_index(i);
+                  const auto [c, j] =
+                    cell.get_fe().system_to_component_index(i);
 
                   local_component[i] =
-                    local[cell_all->get_fe().component_to_system_index(
-                      p.first + 2, p.second)];
+                    local[cell_all->get_fe().component_to_system_index(c + 2,
+                                                                       j)];
                 }
 
               cell.set_dof_values(local_component, vec_1);
@@ -2238,10 +2239,11 @@ namespace Sintering
 
               for (unsigned int i = 0; i < cell.get_fe().n_dofs_per_cell(); ++i)
                 {
-                  const auto p = cell.get_fe().system_to_component_index(i);
+                  const auto [c, j] =
+                    cell.get_fe().system_to_component_index(i);
 
-                  local[cell_all->get_fe().component_to_system_index(
-                    p.first, p.second)] = local_component[i];
+                  local[cell_all->get_fe().component_to_system_index(c, j)] =
+                    local_component[i];
                 }
             }
 
@@ -2258,10 +2260,12 @@ namespace Sintering
 
               for (unsigned int i = 0; i < cell.get_fe().n_dofs_per_cell(); ++i)
                 {
-                  const auto p = cell.get_fe().system_to_component_index(i);
+                  const auto [c, j] =
+                    cell.get_fe().system_to_component_index(i);
 
-                  local[cell_all->get_fe().component_to_system_index(
-                    p.first + 2, p.second)] = local_component[i];
+                  local[cell_all->get_fe().component_to_system_index(c + 2,
+                                                                     j)] =
+                    local_component[i];
                 }
             }
 
