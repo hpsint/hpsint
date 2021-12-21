@@ -1542,6 +1542,30 @@ namespace Sintering
 
 
   template <int dim,
+            int n_components,
+            typename Number,
+            typename VectorizedArrayType>
+  class BlockPreconditioner : public Preconditioners::PreconditionerBase<Number>
+  {
+  public:
+    using VectorType =
+      typename Preconditioners::PreconditionerBase<Number>::VectorType;
+
+    void
+    vmult(VectorType &dst, const VectorType &src) const override
+    {
+      (void)dst;
+      (void)src;
+    }
+
+    void
+    do_update() override
+    {}
+  };
+
+
+
+  template <int dim,
             typename Number              = double,
             typename VectorizedArrayType = VectorizedArray<Number>>
   class Problem
@@ -1758,6 +1782,18 @@ namespace Sintering
             Preconditioners::
               PreconditionerGMG<dim, NonLinearOperator, VectorType>>(
             this->dof_handler, mg_dof_handlers, mg_constraints, mg_operators);
+        }
+      else if (false)
+        {
+          preconditioner =
+            std::make_unique<BlockPreconditioner<dim,
+                                                 number_of_components,
+                                                 Number,
+                                                 VectorizedArrayType>>();
+        }
+      else
+        {
+          AssertThrow(false, ExcNotImplemented());
         }
 
       // ... linear solver
