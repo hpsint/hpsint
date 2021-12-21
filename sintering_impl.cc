@@ -1864,10 +1864,9 @@ namespace Sintering
       , operator_1(matrix_free, constraints)
     {
       preconditioner_0 = std::make_unique<Preconditioners::ILU<
-        OperatorCahnHillard<dim, n_components, Number, VectorizedArrayType>>>(
-        operator_0);
+        OperatorCahnHillard<dim, 2, Number, VectorizedArrayType>>>(operator_0);
       preconditioner_1 = std::make_unique<Preconditioners::ILU<
-        OperatorAllenCahn<dim, n_components, Number, VectorizedArrayType>>>(
+        OperatorAllenCahn<dim, n_components - 2, Number, VectorizedArrayType>>>(
         operator_1);
     }
 
@@ -1903,9 +1902,8 @@ namespace Sintering
       (void)vec_1;
     }
 
-    OperatorCahnHillard<dim, n_components, Number, VectorizedArrayType>
-      operator_0;
-    OperatorAllenCahn<dim, n_components, Number, VectorizedArrayType>
+    OperatorCahnHillard<dim, 2, Number, VectorizedArrayType> operator_0;
+    OperatorAllenCahn<dim, n_components - 2, Number, VectorizedArrayType>
       operator_1;
 
     mutable VectorType dst_0, dst_1;
