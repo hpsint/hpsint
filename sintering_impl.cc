@@ -2089,7 +2089,8 @@ namespace Sintering
     void
     do_update() override
     {
-      AssertThrow(false, ExcNotImplemented());
+      preconditioner_0->do_update();
+      preconditioner_1->do_update();
     }
 
     void
