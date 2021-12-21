@@ -1551,16 +1551,202 @@ namespace Sintering
     using VectorType =
       typename Preconditioners::PreconditionerBase<Number>::VectorType;
 
+  private:
+    class OperatorCahnHillard : public Subscriptor
+    {
+    public:
+      using VectorType = LinearAlgebra::distributed::Vector<Number>;
+
+      using value_type  = Number;
+      using vector_type = VectorType;
+
+      using FECellIntegrator =
+        FEEvaluation<dim, -1, 0, n_components, Number, VectorizedArrayType>;
+
+      OperatorCahnHillard(
+        const MatrixFree<dim, Number, VectorizedArrayType> &matrix_free,
+        const AffineConstraints<Number> &                   constraints)
+        : matrix_free(matrix_free)
+        , constraints(constraints)
+      {}
+
+      types::global_dof_index
+      m() const
+      {
+        return matrix_free.get_dof_handler().n_dofs();
+      }
+
+      Number
+      el(unsigned int, unsigned int) const
+      {
+        Assert(false, ExcNotImplemented());
+        return 0.0;
+      }
+
+      void
+      Tvmult(VectorType &dst, const VectorType &src) const
+      {
+        AssertThrow(false, ExcNotImplemented());
+
+        this->vmult(dst, src);
+      }
+
+      void
+      vmult(VectorType &dst, const VectorType &src) const
+      {
+        (void)src;
+        (void)dst;
+      }
+
+      void
+      initialize_dof_vector(VectorType &dst) const
+      {
+        matrix_free.initialize_dof_vector(dst);
+      }
+
+      void
+      compute_inverse_diagonal(VectorType &diagonal) const
+      {
+        (void)diagonal;
+      }
+
+      const TrilinosWrappers::SparseMatrix &
+      get_system_matrix() const
+      {
+        return system_matrix;
+      }
+
+
+      const MatrixFree<dim, Number, VectorizedArrayType> &matrix_free;
+      const AffineConstraints<Number> &                   constraints;
+
+      mutable TrilinosWrappers::SparseMatrix system_matrix;
+    };
+
+    class OperatorAllenCahn : public Subscriptor
+    {
+    public:
+      using VectorType = LinearAlgebra::distributed::Vector<Number>;
+
+      using value_type  = Number;
+      using vector_type = VectorType;
+
+      using FECellIntegrator =
+        FEEvaluation<dim, -1, 0, n_components, Number, VectorizedArrayType>;
+
+      OperatorAllenCahn(
+        const MatrixFree<dim, Number, VectorizedArrayType> &matrix_free,
+        const AffineConstraints<Number> &                   constraints)
+        : matrix_free(matrix_free)
+        , constraints(constraints)
+      {}
+
+      types::global_dof_index
+      m() const
+      {
+        return matrix_free.get_dof_handler().n_dofs();
+      }
+
+      Number
+      el(unsigned int, unsigned int) const
+      {
+        Assert(false, ExcNotImplemented());
+        return 0.0;
+      }
+
+      void
+      Tvmult(VectorType &dst, const VectorType &src) const
+      {
+        AssertThrow(false, ExcNotImplemented());
+
+        this->vmult(dst, src);
+      }
+
+      void
+      vmult(VectorType &dst, const VectorType &src) const
+      {
+        (void)src;
+        (void)dst;
+      }
+
+      void
+      initialize_dof_vector(VectorType &dst) const
+      {
+        matrix_free.initialize_dof_vector(dst);
+      }
+
+      void
+      compute_inverse_diagonal(VectorType &diagonal) const
+      {
+        (void)diagonal;
+      }
+
+      const TrilinosWrappers::SparseMatrix &
+      get_system_matrix() const
+      {
+        return system_matrix;
+      }
+
+
+      const MatrixFree<dim, Number, VectorizedArrayType> &matrix_free;
+      const AffineConstraints<Number> &                   constraints;
+
+      mutable TrilinosWrappers::SparseMatrix system_matrix;
+    };
+
+  public:
+    BlockPreconditioner(
+      const MatrixFree<dim, Number, VectorizedArrayType> &matrix_free,
+      const AffineConstraints<Number> &                   constraints)
+      : operator_0(matrix_free, constraints)
+      , operator_1(matrix_free, constraints)
+    {
+      preconditioner_0 =
+        std::make_unique<Preconditioners::ILU<OperatorCahnHillard>>(operator_0);
+      preconditioner_1 =
+        std::make_unique<Preconditioners::ILU<OperatorAllenCahn>>(operator_1);
+    }
+
     void
     vmult(VectorType &dst, const VectorType &src) const override
     {
-      (void)dst;
-      (void)src;
+      split_up(src, src_0, src_1);
+      preconditioner_0->vmult(dst_0, src_0);
+      preconditioner_1->vmult(dst_1, src_1);
+      merge(dst_0, dst_1, dst);
     }
 
     void
     do_update() override
     {}
+
+  private:
+    void
+    split_up(const VectorType &vec, VectorType &vec_0, VectorType &vec_1) const
+    {
+      (void)vec;
+      (void)vec_0;
+      (void)vec_1;
+    }
+
+    void
+    merge(const VectorType &vec_0,
+          const VectorType &vec_1,
+          VectorType &      vec) const
+    {
+      (void)vec;
+      (void)vec_0;
+      (void)vec_1;
+    }
+
+    OperatorCahnHillard operator_0;
+    OperatorAllenCahn   operator_1;
+
+    mutable VectorType dst_0, dst_1;
+    mutable VectorType src_0, src_1;
+
+    std::unique_ptr<Preconditioners::PreconditionerBase<Number>>
+      preconditioner_0, preconditioner_1;
   };
 
 
@@ -1789,7 +1975,8 @@ namespace Sintering
             std::make_unique<BlockPreconditioner<dim,
                                                  number_of_components,
                                                  Number,
-                                                 VectorizedArrayType>>();
+                                                 VectorizedArrayType>>(
+              matrix_free, constraint);
         }
       else
         {
