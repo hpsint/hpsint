@@ -1582,7 +1582,7 @@ namespace Sintering
       , dt(dt)
       , nonlinear_values(nonlinear_values)
       , nonlinear_gradients(nonlinear_gradients)
-      , dof_index(0)
+      , dof_index(1)
       , free_energy(A, B)
       , mobility(Mvol, Mvap, Msurf, Mgb)
       , L(L)
@@ -1771,6 +1771,7 @@ namespace Sintering
 
   template <int dim,
             int n_components,
+            int n_components_,
             typename Number,
             typename VectorizedArrayType>
   class OperatorAllenCahn : public Subscriptor
@@ -1786,15 +1787,41 @@ namespace Sintering
 
     OperatorAllenCahn(
       const MatrixFree<dim, Number, VectorizedArrayType> &matrix_free,
-      const AffineConstraints<Number> &                   constraints)
+      const AffineConstraints<Number> &                   constraints,
+      const double &                                      dt,
+      const Table<2, dealii::Tensor<1, n_components_, VectorizedArrayType>>
+        &nonlinear_values,
+      const Table<2,
+                  dealii::Tensor<1,
+                                 n_components_,
+                                 dealii::Tensor<1, dim, VectorizedArrayType>>>
+        &          nonlinear_gradients,
+      const double A,
+      const double B,
+      const double Mvol,
+      const double Mvap,
+      const double Msurf,
+      const double Mgb,
+      const double L,
+      const double kappa_c,
+      const double kappa_p)
       : matrix_free(matrix_free)
       , constraints(constraints)
+      , dt(dt)
+      , nonlinear_values(nonlinear_values)
+      , nonlinear_gradients(nonlinear_gradients)
+      , dof_index(2)
+      , free_energy(A, B)
+      , mobility(Mvol, Mvap, Msurf, Mgb)
+      , L(L)
+      , kappa_c(kappa_c)
+      , kappa_p(kappa_p)
     {}
 
     types::global_dof_index
     m() const
     {
-      return matrix_free.get_dof_handler().n_dofs();
+      return matrix_free.get_dof_handler(dof_index).n_dofs();
     }
 
     Number
@@ -1815,33 +1842,158 @@ namespace Sintering
     void
     vmult(VectorType &dst, const VectorType &src) const
     {
-      (void)src;
-      (void)dst;
+      matrix_free.cell_loop(
+        &OperatorAllenCahn::do_vmult_range, this, dst, src, true);
     }
 
     void
     initialize_dof_vector(VectorType &dst) const
     {
-      matrix_free.initialize_dof_vector(dst);
+      matrix_free.initialize_dof_vector(dst, dof_index);
     }
 
     void
     compute_inverse_diagonal(VectorType &diagonal) const
     {
-      (void)diagonal;
+      MatrixFreeTools::compute_diagonal(matrix_free,
+                                        diagonal,
+                                        &OperatorAllenCahn::do_vmult_cell,
+                                        this,
+                                        dof_index);
+      for (auto &i : diagonal)
+        i = (std::abs(i) > 1.0e-10) ? (1.0 / i) : 1.0;
     }
 
     const TrilinosWrappers::SparseMatrix &
     get_system_matrix() const
     {
+      system_matrix.clear();
+
+      const auto &dof_handler = this->matrix_free.get_dof_handler();
+
+      TrilinosWrappers::SparsityPattern dsp(
+        dof_handler.locally_owned_dofs(),
+        dof_handler.get_triangulation().get_communicator());
+      DoFTools::make_sparsity_pattern(dof_handler, dsp, constraints);
+      dsp.compress();
+
+      system_matrix.reinit(dsp);
+
+      MatrixFreeTools::compute_matrix(matrix_free,
+                                      constraints,
+                                      system_matrix,
+                                      &OperatorAllenCahn::do_vmult_cell,
+                                      this,
+                                      dof_index);
+
       return system_matrix;
     }
 
+  private:
+    void
+    do_vmult_kernel(FECellIntegrator &phi) const
+    {
+      const unsigned int cell = phi.get_current_cell_index();
+
+      for (unsigned int q = 0; q < phi.n_q_points; ++q)
+        {
+          auto &c    = nonlinear_values(cell, q)[0];
+          auto &eta1 = nonlinear_values(cell, q)[2];
+          auto &eta2 = nonlinear_values(cell, q)[3];
+
+          std::vector etas{eta1, eta2};
+
+          auto &c_grad    = nonlinear_gradients(cell, q)[0];
+          auto &mu_grad   = nonlinear_gradients(cell, q)[1];
+          auto &eta1_grad = nonlinear_gradients(cell, q)[2];
+          auto &eta2_grad = nonlinear_gradients(cell, q)[3];
+
+          std::vector etas_grad{eta1_grad, eta2_grad};
+
+          Tensor<1, n_components, VectorizedArrayType> value_result;
+
+          value_result[0] = phi.get_value(q)[0] / dt;
+          value_result[1] = -phi.get_value(q)[1] +
+                            free_energy.d2f_dc2(c, etas) * phi.get_value(q)[0];
+
+          Tensor<1, n_components, Tensor<1, dim, VectorizedArrayType>>
+            gradient_result;
+
+          gradient_result[0] =
+            mobility.M(c, etas, c_grad, etas_grad) * phi.get_gradient(q)[1] +
+            mobility.dM_dc(c, etas, c_grad, etas_grad) * mu_grad *
+              phi.get_value(q)[0] +
+            mobility.dM_dgrad_c(c, c_grad, mu_grad) * phi.get_gradient(q)[0] +
+            mobility.dM_detai(c, etas, c_grad, etas_grad, 0) * mu_grad;
+          gradient_result[1] = kappa_c * phi.get_gradient(q)[0];
+
+          phi.submit_value(value_result, q);
+          phi.submit_gradient(gradient_result, q);
+        }
+    }
+
+    void
+    do_vmult_cell(FECellIntegrator &phi) const
+    {
+      phi.evaluate(EvaluationFlags::EvaluationFlags::values |
+                   EvaluationFlags::EvaluationFlags::gradients);
+
+      do_vmult_kernel(phi);
+
+      phi.integrate(EvaluationFlags::EvaluationFlags::values |
+                    EvaluationFlags::EvaluationFlags::gradients);
+    }
+
+    void
+    do_vmult_range(
+      const MatrixFree<dim, Number, VectorizedArrayType> &matrix_free,
+      VectorType &                                        dst,
+      const VectorType &                                  src,
+      const std::pair<unsigned int, unsigned int> &       range) const
+    {
+      FECellIntegrator phi(matrix_free, dof_index);
+
+      for (auto cell = range.first; cell < range.second; ++cell)
+        {
+          phi.reinit(cell);
+          phi.gather_evaluate(src,
+                              EvaluationFlags::EvaluationFlags::values |
+                                EvaluationFlags::EvaluationFlags::gradients);
+
+          do_vmult_kernel(phi);
+
+          phi.integrate_scatter(EvaluationFlags::EvaluationFlags::values |
+                                  EvaluationFlags::EvaluationFlags::gradients,
+                                dst);
+        }
+    }
 
     const MatrixFree<dim, Number, VectorizedArrayType> &matrix_free;
     const AffineConstraints<Number> &                   constraints;
 
+    const double &dt;
+
+    const Table<2, dealii::Tensor<1, n_components_, VectorizedArrayType>>
+      &nonlinear_values;
+    const Table<2,
+                dealii::Tensor<1,
+                               n_components_,
+                               dealii::Tensor<1, dim, VectorizedArrayType>>>
+      &nonlinear_gradients;
+
     mutable TrilinosWrappers::SparseMatrix system_matrix;
+
+    const unsigned int dof_index;
+
+    const FreeEnergy free_energy;
+
+    // Choose MobilityScalar or MobilityTensorial here:
+    // const MobilityScalar<dim, VectorizedArrayType> mobility;
+    const MobilityTensorial<dim, VectorizedArrayType> mobility;
+
+    const double L;
+    const double kappa_c;
+    const double kappa_p;
   };
 
 
@@ -1889,7 +2041,20 @@ namespace Sintering
                    L,
                    kappa_c,
                    kappa_p)
-      , operator_1(matrix_free, constraints)
+      , operator_1(matrix_free,
+                   constraints,
+                   dt,
+                   nonlinear_values,
+                   nonlinear_gradients,
+                   A,
+                   B,
+                   Mvol,
+                   Mvap,
+                   Msurf,
+                   Mgb,
+                   L,
+                   kappa_c,
+                   kappa_p)
     {
       matrix_free.initialize_dof_vector(dst_0, 1);
       matrix_free.initialize_dof_vector(src_0, 1);
@@ -1904,8 +2069,12 @@ namespace Sintering
                                                  Number,
                                                  VectorizedArrayType>>>(
         operator_0);
-      preconditioner_1 = std::make_unique<Preconditioners::ILU<
-        OperatorAllenCahn<dim, n_components - 2, Number, VectorizedArrayType>>>(
+      preconditioner_1 = std::make_unique<
+        Preconditioners::ILU<OperatorAllenCahn<dim,
+                                               n_components - 2,
+                                               n_components,
+                                               Number,
+                                               VectorizedArrayType>>>(
         operator_1);
     }
 
@@ -2005,7 +2174,11 @@ namespace Sintering
 
     OperatorCahnHillard<dim, 2, n_components, Number, VectorizedArrayType>
       operator_0;
-    OperatorAllenCahn<dim, n_components - 2, Number, VectorizedArrayType>
+    OperatorAllenCahn<dim,
+                      n_components - 2,
+                      n_components,
+                      Number,
+                      VectorizedArrayType>
       operator_1;
 
     mutable VectorType dst_0, dst_1;
