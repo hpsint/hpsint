@@ -1641,7 +1641,7 @@ namespace Sintering
     {
       system_matrix.clear();
 
-      const auto &dof_handler = this->matrix_free.get_dof_handler();
+      const auto &dof_handler = this->matrix_free.get_dof_handler(dof_index);
 
       TrilinosWrappers::SparsityPattern dsp(
         dof_handler.locally_owned_dofs(),
@@ -1869,7 +1869,7 @@ namespace Sintering
     {
       system_matrix.clear();
 
-      const auto &dof_handler = this->matrix_free.get_dof_handler();
+      const auto &dof_handler = this->matrix_free.get_dof_handler(dof_index);
 
       TrilinosWrappers::SparsityPattern dsp(
         dof_handler.locally_owned_dofs(),
