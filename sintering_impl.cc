@@ -2365,6 +2365,8 @@ namespace Sintering
     MappingQ<dim>                             mapping;
     QGauss<dim>                               quad;
     DoFHandler<dim>                           dof_handler;
+    DoFHandler<dim>                           dof_handler_ch;
+    DoFHandler<dim>                           dof_handler_ac;
     AffineConstraints<Number> constraint; // TODO: currently no constraints are
                                           // applied
 
@@ -2377,6 +2379,8 @@ namespace Sintering
       , mapping(1)
       , quad(n_points_1D)
       , dof_handler(tria)
+      , dof_handler_ch(tria)
+      , dof_handler_ac(tria)
       , initial_solution(x01,
                          x02,
                          y0,
@@ -2394,6 +2398,9 @@ namespace Sintering
 
       // distribute dofs
       dof_handler.distribute_dofs(fe);
+      dof_handler_ch.distribute_dofs(FESystem<dim>(FE_Q<dim>{fe_degree}, 2));
+      dof_handler_ac.distribute_dofs(
+        FESystem<dim>(FE_Q<dim>{fe_degree}, number_of_components - 2));
     }
 
     void
@@ -2405,8 +2412,15 @@ namespace Sintering
       additional_data.mapping_update_flags = update_values | update_gradients;
 
       MatrixFree<dim, Number, VectorizedArrayType> matrix_free;
+
+      const std::vector<const DoFHandler<dim> *> dof_handlers{&dof_handler,
+                                                              &dof_handler_ch,
+                                                              &dof_handler_ac};
+      const std::vector<const AffineConstraints<double> *> constraints{
+        &constraint, &constraint, &constraint};
+
       matrix_free.reinit(
-        mapping, dof_handler, constraint, quad, additional_data);
+        mapping, dof_handlers, constraints, quad, additional_data);
 
       // ... non-linear operator
       NonLinearOperator nonlinear_operator(matrix_free,
@@ -2446,7 +2460,7 @@ namespace Sintering
         preconditioner =
           std::make_unique<Preconditioners::AMG<NonLinearOperator>>(
             nonlinear_operator);
-      else if (true)
+      else if (false)
         preconditioner =
           std::make_unique<Preconditioners::ILU<NonLinearOperator>>(
             nonlinear_operator);
@@ -2520,7 +2534,7 @@ namespace Sintering
               PreconditionerGMG<dim, NonLinearOperator, VectorType>>(
             this->dof_handler, mg_dof_handlers, mg_constraints, mg_operators);
         }
-      else if (false)
+      else if (true)
         {
           preconditioner =
             std::make_unique<BlockPreconditioner<dim,
