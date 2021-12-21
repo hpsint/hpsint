@@ -1903,8 +1903,6 @@ namespace Sintering
 
           std::vector etas{eta1, eta2};
 
-          auto &c_grad    = nonlinear_gradients(cell, q)[0];
-          auto &mu_grad   = nonlinear_gradients(cell, q)[1];
           auto &eta1_grad = nonlinear_gradients(cell, q)[2];
           auto &eta2_grad = nonlinear_gradients(cell, q)[3];
 
@@ -1912,20 +1910,21 @@ namespace Sintering
 
           Tensor<1, n_components, VectorizedArrayType> value_result;
 
-          value_result[0] = phi.get_value(q)[0] / dt;
-          value_result[1] = -phi.get_value(q)[1] +
-                            free_energy.d2f_dc2(c, etas) * phi.get_value(q)[0];
+          value_result[0] =
+            phi.get_value(q)[0] / dt +
+            L * free_energy.d2f_detai2(c, etas, 0) * phi.get_value(q)[0] +
+            L * free_energy.d2f_detaidetaj(c, etas, 0, 1) * phi.get_value(q)[1];
+          value_result[1] =
+            phi.get_value(q)[1] / dt +
+            L * free_energy.d2f_detaidetaj(c, etas, 1, 0) *
+              phi.get_value(q)[0] +
+            L * free_energy.d2f_detai2(c, etas, 1) * phi.get_value(q)[1];
 
           Tensor<1, n_components, Tensor<1, dim, VectorizedArrayType>>
             gradient_result;
 
-          gradient_result[0] =
-            mobility.M(c, etas, c_grad, etas_grad) * phi.get_gradient(q)[1] +
-            mobility.dM_dc(c, etas, c_grad, etas_grad) * mu_grad *
-              phi.get_value(q)[0] +
-            mobility.dM_dgrad_c(c, c_grad, mu_grad) * phi.get_gradient(q)[0] +
-            mobility.dM_detai(c, etas, c_grad, etas_grad, 0) * mu_grad;
-          gradient_result[1] = kappa_c * phi.get_gradient(q)[0];
+          gradient_result[0] = L * kappa_p * phi.get_gradient(q)[0];
+          gradient_result[1] = L * kappa_p * phi.get_gradient(q)[1];
 
           phi.submit_value(value_result, q);
           phi.submit_gradient(gradient_result, q);
