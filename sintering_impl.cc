@@ -2253,6 +2253,7 @@ namespace Sintering
       , dt(op.get_timestep())
       , nonlinear_values(op.get_nonlinear_values())
       , nonlinear_gradients(op.get_nonlinear_gradients())
+      , op(op)
       , operator_0(matrix_free,
                    constraints,
                    dt,
@@ -2288,6 +2289,9 @@ namespace Sintering
       matrix_free.initialize_dof_vector(dst_1, 2);
       matrix_free.initialize_dof_vector(src_1, 2);
 
+      preconditioner = std::make_unique<Preconditioners::ILU<
+        Operator<dim, n_components, Number, VectorizedArrayType>>>(op);
+
       preconditioner_0 = std::make_unique<
         Preconditioners::ILU<OperatorCahnHillard<dim,
                                                  2,
@@ -2307,15 +2311,24 @@ namespace Sintering
     void
     vmult(VectorType &dst, const VectorType &src) const override
     {
-      VectorTools::split_up(this->matrix_free, src, src_0, src_1);
-      preconditioner_0->vmult(dst_0, src_0);
-      preconditioner_1->vmult(dst_1, src_1);
-      VectorTools::merge(this->matrix_free, dst_0, dst_1, dst);
+      if (false)
+        {
+          VectorTools::split_up(this->matrix_free, src, src_0, src_1);
+          preconditioner_0->vmult(dst_0, src_0);
+          preconditioner_1->vmult(dst_1, src_1);
+          VectorTools::merge(this->matrix_free, dst_0, dst_1, dst);
+        }
+      else
+        {
+          preconditioner->vmult(dst, src);
+        }
     }
 
     void
     do_update() override
     {
+      preconditioner->do_update();
+
       preconditioner_0->do_update();
       preconditioner_1->do_update();
     }
@@ -2333,6 +2346,9 @@ namespace Sintering
                                dealii::Tensor<1, dim, VectorizedArrayType>>>
       &nonlinear_gradients;
 
+
+    const Operator<dim, n_components, Number, VectorizedArrayType> &op;
+
     OperatorCahnHillard<dim, 2, n_components, Number, VectorizedArrayType>
       operator_0;
     OperatorAllenCahn<dim,
@@ -2345,7 +2361,7 @@ namespace Sintering
     mutable VectorType dst_0, dst_1;
     mutable VectorType src_0, src_1;
 
-    std::unique_ptr<Preconditioners::PreconditionerBase<Number>>
+    std::unique_ptr<Preconditioners::PreconditionerBase<Number>> preconditioner,
       preconditioner_0, preconditioner_1;
   };
 
@@ -2452,6 +2468,51 @@ namespace Sintering
         FESystem<dim>(FE_Q<dim>{fe_degree}, number_of_components - 2));
     }
 
+
+    class DummyFunction : public Function<dim>
+    {
+    public:
+      DummyFunction(const unsigned int n_components)
+        : Function<dim>(n_components)
+      {}
+
+      virtual double
+      value(const Point<dim> &p, const unsigned int component = 0) const
+      {
+        return p[component % dim] * (component + 1);
+      }
+    };
+
+
+    void
+    test(const MatrixFree<dim, Number, VectorizedArrayType> &matrix_free)
+    {
+      VectorType vec_0, vec_1, vec_2, vec_3;
+
+      matrix_free.initialize_dof_vector(vec_0, 0);
+      matrix_free.initialize_dof_vector(vec_1, 1);
+      matrix_free.initialize_dof_vector(vec_2, 2);
+      matrix_free.initialize_dof_vector(vec_3, 0);
+
+      VectorTools::interpolate(matrix_free.get_dof_handler(0),
+                               DummyFunction(number_of_components),
+                               vec_0);
+
+      VectorTools::split_up(matrix_free, vec_0, vec_1, vec_2);
+      VectorTools::merge(matrix_free, vec_1, vec_2, vec_3);
+
+      DataOut<dim> data_out;
+      data_out.add_data_vector(matrix_free.get_dof_handler(0), vec_0, "vec_0");
+      data_out.add_data_vector(matrix_free.get_dof_handler(1), vec_1, "vec_1");
+      data_out.add_data_vector(matrix_free.get_dof_handler(2), vec_2, "vec_2");
+      data_out.add_data_vector(matrix_free.get_dof_handler(0), vec_3, "vec_3");
+
+      data_out.build_patches();
+
+      data_out.write_vtu_with_pvtu_record(
+        "./", "test", 0, MPI_COMM_WORLD, 1, 0);
+    }
+
     void
     run()
     {
@@ -2470,6 +2531,8 @@ namespace Sintering
 
       matrix_free.reinit(
         mapping, dof_handlers, constraints, quad, additional_data);
+
+      test(matrix_free);
 
       // ... non-linear operator
       NonLinearOperator nonlinear_operator(matrix_free,
@@ -2509,7 +2572,7 @@ namespace Sintering
         preconditioner =
           std::make_unique<Preconditioners::AMG<NonLinearOperator>>(
             nonlinear_operator);
-      else if (true)
+      else if (false)
         preconditioner =
           std::make_unique<Preconditioners::ILU<NonLinearOperator>>(
             nonlinear_operator);
