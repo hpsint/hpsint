@@ -236,8 +236,6 @@ namespace Preconditioners
     do_update() override
     {
       op.compute_inverse_diagonal(diagonal_matrix.get_vector());
-
-      std::cout << diagonal_matrix.get_vector().l2_norm() << std::endl;
     }
 
   private:
@@ -2291,13 +2289,23 @@ namespace Sintering
                                                  Number,
                                                  VectorizedArrayType>>>(
         operator_0);
-      preconditioner_1 = std::make_unique<
-        Preconditioners::ILU<OperatorAllenCahn<dim,
-                                               n_components - 2,
-                                               n_components,
-                                               Number,
-                                               VectorizedArrayType>>>(
-        operator_1);
+
+      if (false)
+        preconditioner_1 = std::make_unique<
+          Preconditioners::ILU<OperatorAllenCahn<dim,
+                                                 n_components - 2,
+                                                 n_components,
+                                                 Number,
+                                                 VectorizedArrayType>>>(
+          operator_1);
+      else
+        preconditioner_1 =
+          std::make_unique<Preconditioners::InverseDiagonalMatrix<
+            OperatorAllenCahn<dim,
+                              n_components - 2,
+                              n_components,
+                              Number,
+                              VectorizedArrayType>>>(operator_1);
     }
 
     void
@@ -2362,10 +2370,10 @@ namespace Sintering
     // time discretization
     static constexpr double t_end                = 100;
     static constexpr double dt_deseride          = 0.001;
-    static constexpr double dt_max               = 1e2 * dt_deseride;
+    static constexpr double dt_max               = 1e3 * dt_deseride;
     static constexpr double dt_min               = 1e-2 * dt_deseride;
     static constexpr double dt_increment         = 1.2;
-    static constexpr double output_time_interval = 0.1;
+    static constexpr double output_time_interval = 100.0;
 
     // desirable number of newton iterations
     static constexpr unsigned int desirable_newton_iterations = 5;
@@ -2439,49 +2447,6 @@ namespace Sintering
     }
 
 
-    class DummyFunction : public Function<dim>
-    {
-    public:
-      DummyFunction(const unsigned int n_components)
-        : Function<dim>(n_components)
-      {}
-
-      virtual double
-      value(const Point<dim> &p, const unsigned int component = 0) const
-      {
-        return p[component % dim] * (component + 1);
-      }
-    };
-
-
-    void
-    test(const MatrixFree<dim, Number, VectorizedArrayType> &matrix_free)
-    {
-      VectorType vec_0, vec_1, vec_2, vec_3;
-
-      matrix_free.initialize_dof_vector(vec_0, 0);
-      matrix_free.initialize_dof_vector(vec_1, 1);
-      matrix_free.initialize_dof_vector(vec_2, 2);
-      matrix_free.initialize_dof_vector(vec_3, 0);
-
-      VectorTools::interpolate(matrix_free.get_dof_handler(0),
-                               DummyFunction(number_of_components),
-                               vec_0);
-
-      VectorTools::split_up(matrix_free, vec_0, vec_1, vec_2);
-      VectorTools::merge(matrix_free, vec_1, vec_2, vec_3);
-
-      DataOut<dim> data_out;
-      data_out.add_data_vector(matrix_free.get_dof_handler(0), vec_0, "vec_0");
-      data_out.add_data_vector(matrix_free.get_dof_handler(1), vec_1, "vec_1");
-      data_out.add_data_vector(matrix_free.get_dof_handler(2), vec_2, "vec_2");
-      data_out.add_data_vector(matrix_free.get_dof_handler(0), vec_3, "vec_3");
-
-      data_out.build_patches();
-
-      data_out.write_vtu_with_pvtu_record(
-        "./", "test", 0, MPI_COMM_WORLD, 1, 0);
-    }
 
     void
     run()
@@ -2501,8 +2466,6 @@ namespace Sintering
 
       matrix_free.reinit(
         mapping, dof_handlers, constraints, quad, additional_data);
-
-      test(matrix_free);
 
       // ... non-linear operator
       NonLinearOperator nonlinear_operator(matrix_free,
