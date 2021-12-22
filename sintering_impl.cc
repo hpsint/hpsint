@@ -1918,8 +1918,7 @@ namespace Sintering
             mobility.M(c, etas, c_grad, etas_grad) * phi.get_gradient(q)[1] +
             mobility.dM_dc(c, etas, c_grad, etas_grad) * mu_grad *
               phi.get_value(q)[0] +
-            mobility.dM_dgrad_c(c, c_grad, mu_grad) * phi.get_gradient(q)[0] +
-            mobility.dM_detai(c, etas, c_grad, etas_grad, 0) * mu_grad;
+            mobility.dM_dgrad_c(c, c_grad, mu_grad) * phi.get_gradient(q)[0];
           gradient_result[1] = kappa_c * phi.get_gradient(q)[0];
 
           phi.submit_value(value_result, q);
@@ -2250,15 +2249,12 @@ namespace Sintering
       const double                                        kappa_c,
       const double                                        kappa_p)
       : matrix_free(matrix_free)
-      , dt(op.get_timestep())
-      , nonlinear_values(op.get_nonlinear_values())
-      , nonlinear_gradients(op.get_nonlinear_gradients())
       , op(op)
       , operator_0(matrix_free,
                    constraints,
-                   dt,
-                   nonlinear_values,
-                   nonlinear_gradients,
+                   op.get_timestep(),
+                   op.get_nonlinear_values(),
+                   op.get_nonlinear_gradients(),
                    A,
                    B,
                    Mvol,
@@ -2270,9 +2266,9 @@ namespace Sintering
                    kappa_p)
       , operator_1(matrix_free,
                    constraints,
-                   dt,
-                   nonlinear_values,
-                   nonlinear_gradients,
+                   op.get_timestep(),
+                   op.get_nonlinear_values(),
+                   op.get_nonlinear_gradients(),
                    A,
                    B,
                    Mvol,
@@ -2311,7 +2307,7 @@ namespace Sintering
     void
     vmult(VectorType &dst, const VectorType &src) const override
     {
-      if (false)
+      if (true)
         {
           VectorTools::split_up(this->matrix_free, src, src_0, src_1);
           preconditioner_0->vmult(dst_0, src_0);
@@ -2320,7 +2316,11 @@ namespace Sintering
         }
       else
         {
-          preconditioner->vmult(dst, src);
+          VectorTools::split_up(this->matrix_free, src, src_0, src_1);
+          src_1     = 0.0;
+          auto temp = src;
+          VectorTools::merge(this->matrix_free, src_0, src_1, temp);
+          preconditioner->vmult(dst, temp);
         }
     }
 
@@ -2335,17 +2335,6 @@ namespace Sintering
 
   private:
     const MatrixFree<dim, Number, VectorizedArrayType> &matrix_free;
-
-    const double &dt;
-
-    const Table<2, dealii::Tensor<1, n_components, VectorizedArrayType>>
-      &nonlinear_values;
-    const Table<2,
-                dealii::Tensor<1,
-                               n_components,
-                               dealii::Tensor<1, dim, VectorizedArrayType>>>
-      &nonlinear_gradients;
-
 
     const Operator<dim, n_components, Number, VectorizedArrayType> &op;
 
