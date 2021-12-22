@@ -2249,7 +2249,6 @@ namespace Sintering
       const double                                        kappa_c,
       const double                                        kappa_p)
       : matrix_free(matrix_free)
-      , op(op)
       , operator_0(matrix_free,
                    constraints,
                    op.get_timestep(),
@@ -2285,9 +2284,6 @@ namespace Sintering
       matrix_free.initialize_dof_vector(dst_1, 2);
       matrix_free.initialize_dof_vector(src_1, 2);
 
-      preconditioner = std::make_unique<Preconditioners::ILU<
-        Operator<dim, n_components, Number, VectorizedArrayType>>>(op);
-
       preconditioner_0 = std::make_unique<
         Preconditioners::ILU<OperatorCahnHillard<dim,
                                                  2,
@@ -2307,36 +2303,21 @@ namespace Sintering
     void
     vmult(VectorType &dst, const VectorType &src) const override
     {
-      if (true)
-        {
-          VectorTools::split_up(this->matrix_free, src, src_0, src_1);
-          preconditioner_0->vmult(dst_0, src_0);
-          preconditioner_1->vmult(dst_1, src_1);
-          VectorTools::merge(this->matrix_free, dst_0, dst_1, dst);
-        }
-      else
-        {
-          VectorTools::split_up(this->matrix_free, src, src_0, src_1);
-          src_1     = 0.0;
-          auto temp = src;
-          VectorTools::merge(this->matrix_free, src_0, src_1, temp);
-          preconditioner->vmult(dst, temp);
-        }
+      VectorTools::split_up(this->matrix_free, src, src_0, src_1);
+      preconditioner_0->vmult(dst_0, src_0);
+      preconditioner_1->vmult(dst_1, src_1);
+      VectorTools::merge(this->matrix_free, dst_0, dst_1, dst);
     }
 
     void
     do_update() override
     {
-      preconditioner->do_update();
-
       preconditioner_0->do_update();
       preconditioner_1->do_update();
     }
 
   private:
     const MatrixFree<dim, Number, VectorizedArrayType> &matrix_free;
-
-    const Operator<dim, n_components, Number, VectorizedArrayType> &op;
 
     OperatorCahnHillard<dim, 2, n_components, Number, VectorizedArrayType>
       operator_0;
@@ -2350,7 +2331,7 @@ namespace Sintering
     mutable VectorType dst_0, dst_1;
     mutable VectorType src_0, src_1;
 
-    std::unique_ptr<Preconditioners::PreconditionerBase<Number>> preconditioner,
+    std::unique_ptr<Preconditioners::PreconditionerBase<Number>>
       preconditioner_0, preconditioner_1;
   };
 
