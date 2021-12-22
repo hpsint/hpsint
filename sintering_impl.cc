@@ -18,6 +18,7 @@
 #include <deal.II/base/conditional_ostream.h>
 #include <deal.II/base/mpi.h>
 #include <deal.II/base/quadrature_lib.h>
+#include <deal.II/base/timer.h>
 
 #include <deal.II/distributed/tria.h>
 
@@ -67,6 +68,18 @@ namespace dealii
              VectorType &                                        vec_0,
              VectorType &                                        vec_1)
     {
+      for (unsigned int i = 0, i0 = 0, i1 = 0;
+           i < vec.get_partitioner()->locally_owned_size();)
+        {
+          for (unsigned int j = 0; j < 2; ++j)
+            vec_0.local_element(i0++) = vec.local_element(i++);
+
+          for (unsigned int j = 0; j < 2; ++j)
+            vec_1.local_element(i1++) = vec.local_element(i++);
+        }
+
+      return;
+
       vec.update_ghost_values();
 
       for (const auto &cell_all :
@@ -136,6 +149,18 @@ namespace dealii
           const VectorType &                                  vec_1,
           VectorType &                                        vec)
     {
+      for (unsigned int i = 0, i0 = 0, i1 = 0;
+           i < vec.get_partitioner()->locally_owned_size();)
+        {
+          for (unsigned int j = 0; j < 2; ++j)
+            vec.local_element(i++) = vec_0.local_element(i0++);
+
+          for (unsigned int j = 0; j < 2; ++j)
+            vec.local_element(i++) = vec_1.local_element(i1++);
+        }
+
+      return;
+
       vec_0.update_ghost_values();
       vec_1.update_ghost_values();
 
@@ -205,6 +230,8 @@ namespace Preconditioners
   {
   public:
     using VectorType = LinearAlgebra::distributed::Vector<Number>;
+
+    virtual ~PreconditionerBase() = default;
 
     virtual void
     vmult(VectorType &dst, const VectorType &src) const = 0;
@@ -2275,6 +2302,8 @@ namespace Sintering
                    L,
                    kappa_c,
                    kappa_p)
+      , pcout(std::cout, Utilities::MPI::this_mpi_process(MPI_COMM_WORLD) == 0)
+      , timer(pcout, TimerOutput::never, TimerOutput::wall_times)
     {
       matrix_free.initialize_dof_vector(dst_0, 1);
       matrix_free.initialize_dof_vector(src_0, 1);
@@ -2308,13 +2337,33 @@ namespace Sintering
                               VectorizedArrayType>>>(operator_1);
     }
 
+    ~BlockPreconditioner()
+    {
+      timer.print_wall_time_statistics(MPI_COMM_WORLD);
+    }
+
     void
     vmult(VectorType &dst, const VectorType &src) const override
     {
-      VectorTools::split_up(this->matrix_free, src, src_0, src_1);
-      preconditioner_0->vmult(dst_0, src_0);
-      preconditioner_1->vmult(dst_1, src_1);
-      VectorTools::merge(this->matrix_free, dst_0, dst_1, dst);
+      {
+        TimerOutput::Scope scope(timer, "vmult::split_up");
+        VectorTools::split_up(this->matrix_free, src, src_0, src_1);
+      }
+
+      {
+        TimerOutput::Scope scope(timer, "vmult::precon_0");
+        preconditioner_0->vmult(dst_0, src_0);
+      }
+
+      {
+        TimerOutput::Scope scope(timer, "vmult::precon_1");
+        preconditioner_1->vmult(dst_1, src_1);
+      }
+
+      {
+        TimerOutput::Scope scope(timer, "vmult::merge");
+        VectorTools::merge(this->matrix_free, dst_0, dst_1, dst);
+      }
     }
 
     void
@@ -2341,6 +2390,9 @@ namespace Sintering
 
     std::unique_ptr<Preconditioners::PreconditionerBase<Number>>
       preconditioner_0, preconditioner_1;
+
+    ConditionalOStream  pcout;
+    mutable TimerOutput timer;
   };
 
 
