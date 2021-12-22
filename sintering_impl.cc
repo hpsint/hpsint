@@ -53,6 +53,151 @@
 
 using namespace dealii;
 
+namespace dealii
+{
+  namespace VectorTools
+  {
+    template <int dim,
+              typename Number,
+              typename VectorizedArrayType,
+              typename VectorType>
+    void
+    split_up(const MatrixFree<dim, Number, VectorizedArrayType> &matrix_free,
+             const VectorType &                                  vec,
+             VectorType &                                        vec_0,
+             VectorType &                                        vec_1)
+    {
+      vec.update_ghost_values();
+
+      for (const auto &cell_all :
+           matrix_free.get_dof_handler(0).active_cell_iterators())
+        if (cell_all->is_locally_owned())
+          {
+            // read all dof_values
+            Vector<double> local(cell_all->get_fe().n_dofs_per_cell());
+            cell_all->get_dof_values(vec, local);
+
+            // write Cahn-Hillard components
+            {
+              DoFCellAccessor<dim, dim, false> cell(
+                &matrix_free.get_dof_handler(0).get_triangulation(),
+                cell_all->level(),
+                cell_all->index(),
+                &matrix_free.get_dof_handler(1));
+
+              Vector<double> local_component(cell.get_fe().n_dofs_per_cell());
+
+              for (unsigned int i = 0; i < cell.get_fe().n_dofs_per_cell(); ++i)
+                {
+                  const auto [c, j] =
+                    cell.get_fe().system_to_component_index(i);
+
+                  local_component[i] =
+                    local[cell_all->get_fe().component_to_system_index(c, j)];
+                }
+
+              cell.set_dof_values(local_component, vec_0);
+            }
+
+            // write Allen-Cahn components
+            {
+              DoFCellAccessor<dim, dim, false> cell(
+                &matrix_free.get_dof_handler(0).get_triangulation(),
+                cell_all->level(),
+                cell_all->index(),
+                &matrix_free.get_dof_handler(2));
+
+              Vector<double> local_component(cell.get_fe().n_dofs_per_cell());
+
+              for (unsigned int i = 0; i < cell.get_fe().n_dofs_per_cell(); ++i)
+                {
+                  const auto [c, j] =
+                    cell.get_fe().system_to_component_index(i);
+
+                  local_component[i] =
+                    local[cell_all->get_fe().component_to_system_index(c + 2,
+                                                                       j)];
+                }
+
+              cell.set_dof_values(local_component, vec_1);
+            }
+          }
+
+      vec.zero_out_ghost_values();
+    }
+
+    template <int dim,
+              typename Number,
+              typename VectorizedArrayType,
+              typename VectorType>
+    void
+    merge(const MatrixFree<dim, Number, VectorizedArrayType> &matrix_free,
+          const VectorType &                                  vec_0,
+          const VectorType &                                  vec_1,
+          VectorType &                                        vec)
+    {
+      vec_0.update_ghost_values();
+      vec_1.update_ghost_values();
+
+      for (const auto &cell_all :
+           matrix_free.get_dof_handler(0).active_cell_iterators())
+        if (cell_all->is_locally_owned())
+          {
+            Vector<double> local(cell_all->get_fe().n_dofs_per_cell());
+
+            // read Cahn-Hillard components
+            {
+              DoFCellAccessor<dim, dim, false> cell(
+                &matrix_free.get_dof_handler(0).get_triangulation(),
+                cell_all->level(),
+                cell_all->index(),
+                &matrix_free.get_dof_handler(1));
+
+              Vector<double> local_component(cell.get_fe().n_dofs_per_cell());
+              cell.get_dof_values(vec_0, local_component);
+
+              for (unsigned int i = 0; i < cell.get_fe().n_dofs_per_cell(); ++i)
+                {
+                  const auto [c, j] =
+                    cell.get_fe().system_to_component_index(i);
+
+                  local[cell_all->get_fe().component_to_system_index(c, j)] =
+                    local_component[i];
+                }
+            }
+
+            // read Allen-Cahn components
+            {
+              DoFCellAccessor<dim, dim, false> cell(
+                &matrix_free.get_dof_handler(0).get_triangulation(),
+                cell_all->level(),
+                cell_all->index(),
+                &matrix_free.get_dof_handler(2));
+
+              Vector<double> local_component(cell.get_fe().n_dofs_per_cell());
+              cell.get_dof_values(vec_1, local_component);
+
+              for (unsigned int i = 0; i < cell.get_fe().n_dofs_per_cell(); ++i)
+                {
+                  const auto [c, j] =
+                    cell.get_fe().system_to_component_index(i);
+
+                  local[cell_all->get_fe().component_to_system_index(c + 2,
+                                                                     j)] =
+                    local_component[i];
+                }
+            }
+
+            // read all dof_values
+            cell_all->set_dof_values(local, vec);
+          }
+
+      vec_0.zero_out_ghost_values();
+      vec_1.zero_out_ghost_values();
+    }
+  } // namespace VectorTools
+} // namespace dealii
+
 namespace Preconditioners
 {
   template <typename Number>
@@ -91,6 +236,8 @@ namespace Preconditioners
     do_update() override
     {
       op.compute_inverse_diagonal(diagonal_matrix.get_vector());
+
+      std::cout << diagonal_matrix.get_vector().l2_norm() << std::endl;
     }
 
   private:
@@ -1401,13 +1548,66 @@ namespace Sintering
         }
     }
 
+
+    void
+    do_vmult_kernel_(FECellIntegrator &phi) const
+    {
+      const unsigned int cell = phi.get_current_cell_index();
+
+      for (unsigned int q = 0; q < phi.n_q_points; ++q)
+        {
+          auto &c    = nonlinear_values(cell, q)[0];
+          auto &eta1 = nonlinear_values(cell, q)[2];
+          auto &eta2 = nonlinear_values(cell, q)[3];
+
+          std::vector etas{eta1, eta2};
+
+          auto &c_grad    = nonlinear_gradients(cell, q)[0];
+          auto &mu_grad   = nonlinear_gradients(cell, q)[1];
+          auto &eta1_grad = nonlinear_gradients(cell, q)[2];
+          auto &eta2_grad = nonlinear_gradients(cell, q)[3];
+
+          std::vector etas_grad{eta1_grad, eta2_grad};
+
+          Tensor<1, n_components, VectorizedArrayType> value_result;
+
+          value_result[0] = phi.get_value(q)[0] / dt;
+          value_result[1] = -phi.get_value(q)[1] +
+                            free_energy.d2f_dc2(c, etas) * phi.get_value(q)[0];
+          value_result[2] =
+            phi.get_value(q)[2] / dt +
+            L * free_energy.d2f_detai2(c, etas, 0) * phi.get_value(q)[2] +
+            L * free_energy.d2f_detaidetaj(c, etas, 0, 1) * phi.get_value(q)[3];
+          value_result[3] =
+            phi.get_value(q)[3] / dt +
+            L * free_energy.d2f_detaidetaj(c, etas, 1, 0) *
+              phi.get_value(q)[2] +
+            L * free_energy.d2f_detai2(c, etas, 1) * phi.get_value(q)[3];
+
+          Tensor<1, n_components, Tensor<1, dim, VectorizedArrayType>>
+            gradient_result;
+
+          gradient_result[0] =
+            mobility.M(c, etas, c_grad, etas_grad) * phi.get_gradient(q)[1] +
+            mobility.dM_dc(c, etas, c_grad, etas_grad) * mu_grad *
+              phi.get_value(q)[0] +
+            mobility.dM_dgrad_c(c, c_grad, mu_grad) * phi.get_gradient(q)[0];
+          gradient_result[1] = kappa_c * phi.get_gradient(q)[0];
+          gradient_result[2] = L * kappa_p * phi.get_gradient(q)[2];
+          gradient_result[3] = L * kappa_p * phi.get_gradient(q)[3];
+
+          phi.submit_value(value_result, q);
+          phi.submit_gradient(gradient_result, q);
+        }
+    }
+
     void
     do_vmult_cell(FECellIntegrator &phi) const
     {
       phi.evaluate(EvaluationFlags::EvaluationFlags::values |
                    EvaluationFlags::EvaluationFlags::gradients);
 
-      do_vmult_kernel(phi);
+      do_vmult_kernel_(phi);
 
       phi.integrate(EvaluationFlags::EvaluationFlags::values |
                     EvaluationFlags::EvaluationFlags::gradients);
@@ -2107,10 +2307,10 @@ namespace Sintering
     void
     vmult(VectorType &dst, const VectorType &src) const override
     {
-      split_up(src, src_0, src_1);
+      VectorTools::split_up(this->matrix_free, src, src_0, src_1);
       preconditioner_0->vmult(dst_0, src_0);
       preconditioner_1->vmult(dst_1, src_1);
-      merge(dst_0, dst_1, dst);
+      VectorTools::merge(this->matrix_free, dst_0, dst_1, dst);
     }
 
     void
@@ -2121,133 +2321,6 @@ namespace Sintering
     }
 
   private:
-    void
-    split_up(const VectorType &vec, VectorType &vec_0, VectorType &vec_1) const
-    {
-      vec.update_ghost_values();
-
-      for (const auto &cell_all :
-           matrix_free.get_dof_handler(0).active_cell_iterators())
-        if (cell_all->is_locally_owned())
-          {
-            // read all dof_values
-            Vector<double> local(cell_all->get_fe().n_dofs_per_cell());
-            cell_all->get_dof_values(vec, local);
-
-            // write Cahn-Hillard components
-            {
-              DoFCellAccessor<dim, dim, false> cell(
-                &matrix_free.get_dof_handler(0).get_triangulation(),
-                cell_all->level(),
-                cell_all->index(),
-                &matrix_free.get_dof_handler(1));
-
-              Vector<double> local_component(cell.get_fe().n_dofs_per_cell());
-
-              for (unsigned int i = 0; i < cell.get_fe().n_dofs_per_cell(); ++i)
-                {
-                  const auto [c, j] =
-                    cell.get_fe().system_to_component_index(i);
-
-                  local_component[i] =
-                    local[cell_all->get_fe().component_to_system_index(c, j)];
-                }
-
-              cell.set_dof_values(local_component, vec_0);
-            }
-
-            // write Allen-Cahn components
-            {
-              DoFCellAccessor<dim, dim, false> cell(
-                &matrix_free.get_dof_handler(0).get_triangulation(),
-                cell_all->level(),
-                cell_all->index(),
-                &matrix_free.get_dof_handler(2));
-
-              Vector<double> local_component(cell.get_fe().n_dofs_per_cell());
-
-              for (unsigned int i = 0; i < cell.get_fe().n_dofs_per_cell(); ++i)
-                {
-                  const auto [c, j] =
-                    cell.get_fe().system_to_component_index(i);
-
-                  local_component[i] =
-                    local[cell_all->get_fe().component_to_system_index(c + 2,
-                                                                       j)];
-                }
-
-              cell.set_dof_values(local_component, vec_1);
-            }
-          }
-
-      vec.zero_out_ghost_values();
-    }
-
-    void
-    merge(const VectorType &vec_0,
-          const VectorType &vec_1,
-          VectorType &      vec) const
-    {
-      vec_0.update_ghost_values();
-      vec_1.update_ghost_values();
-
-      for (const auto &cell_all :
-           matrix_free.get_dof_handler(0).active_cell_iterators())
-        if (cell_all->is_locally_owned())
-          {
-            Vector<double> local(cell_all->get_fe().n_dofs_per_cell());
-
-            // read Cahn-Hillard components
-            {
-              DoFCellAccessor<dim, dim, false> cell(
-                &matrix_free.get_dof_handler(0).get_triangulation(),
-                cell_all->level(),
-                cell_all->index(),
-                &matrix_free.get_dof_handler(1));
-
-              Vector<double> local_component(cell.get_fe().n_dofs_per_cell());
-              cell.get_dof_values(vec_0, local_component);
-
-              for (unsigned int i = 0; i < cell.get_fe().n_dofs_per_cell(); ++i)
-                {
-                  const auto [c, j] =
-                    cell.get_fe().system_to_component_index(i);
-
-                  local[cell_all->get_fe().component_to_system_index(c, j)] =
-                    local_component[i];
-                }
-            }
-
-            // read Allen-Cahn components
-            {
-              DoFCellAccessor<dim, dim, false> cell(
-                &matrix_free.get_dof_handler(0).get_triangulation(),
-                cell_all->level(),
-                cell_all->index(),
-                &matrix_free.get_dof_handler(2));
-
-              Vector<double> local_component(cell.get_fe().n_dofs_per_cell());
-              cell.get_dof_values(vec_1, local_component);
-
-              for (unsigned int i = 0; i < cell.get_fe().n_dofs_per_cell(); ++i)
-                {
-                  const auto [c, j] =
-                    cell.get_fe().system_to_component_index(i);
-
-                  local[cell_all->get_fe().component_to_system_index(c + 2,
-                                                                     j)] =
-                    local_component[i];
-                }
-            }
-
-            // read all dof_values
-            cell_all->set_dof_values(local, vec);
-          }
-
-      vec_0.zero_out_ghost_values();
-      vec_1.zero_out_ghost_values();
-    }
-
     const MatrixFree<dim, Number, VectorizedArrayType> &matrix_free;
 
     const double &dt;
@@ -2436,7 +2509,7 @@ namespace Sintering
         preconditioner =
           std::make_unique<Preconditioners::AMG<NonLinearOperator>>(
             nonlinear_operator);
-      else if (false)
+      else if (true)
         preconditioner =
           std::make_unique<Preconditioners::ILU<NonLinearOperator>>(
             nonlinear_operator);
