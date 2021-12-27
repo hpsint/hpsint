@@ -272,6 +272,144 @@ namespace Preconditioners
 
 
 
+  template <typename Operator, int dim>
+  class InverseBlockDiagonalMatrix
+    : public PreconditionerBase<typename Operator::value_type>
+  {
+  public:
+    using VectorType = typename Operator::VectorType;
+    using Number     = typename VectorType::value_type;
+
+    InverseBlockDiagonalMatrix(const Operator &op)
+      : op(op)
+    {
+      AssertThrow(Utilities::MPI::n_mpi_processes(
+                    op.get_dof_handler().get_communicator()) == 1,
+                  ExcNotImplemented());
+    }
+
+    void
+    vmult(VectorType &dst, const VectorType &src) const override
+    {
+      dst = 0.0;
+
+      const unsigned int dofs_per_cell =
+        op.get_dof_handler().get_fe().n_dofs_per_cell();
+
+      Vector<double> vector_src(dofs_per_cell);
+      Vector<double> vector_dst(dofs_per_cell);
+      Vector<double> vector_weights(dofs_per_cell);
+
+      for (const auto &cell : op.get_dof_handler().active_cell_iterators())
+        {
+          // gather and ...
+          cell->get_dof_values(src, vector_src);
+          cell->get_dof_values(weights, vector_weights);
+
+          // weight
+          for (unsigned int i = 0; i < dofs_per_cell; ++i)
+            vector_src[i] *= vector_weights[i];
+
+          // apply inverse element stiffness matrix
+          blocks[cell->active_cell_index()].vmult(vector_dst, vector_src);
+
+          // weight and ...
+          for (unsigned int i = 0; i < dofs_per_cell; ++i)
+            vector_dst[i] *= vector_weights[i];
+
+          // scatter
+          cell->distribute_local_to_global(vector_dst, dst);
+        }
+    }
+
+    void
+    do_update() override
+    {
+      const unsigned int dofs_per_cell =
+        op.get_dof_handler().get_fe().n_dofs_per_cell();
+
+      blocks.resize(op.get_dof_handler().get_triangulation().n_active_cells(),
+                    FullMatrix<typename VectorType::value_type>(dofs_per_cell,
+                                                                dofs_per_cell));
+
+      compute_block_diagonal_matrix(op.get_dof_handler(),
+                                    op.get_system_matrix(),
+                                    blocks);
+      const auto temp = compute_weights(op.get_dof_handler());
+
+      op.initialize_dof_vector(weights);
+
+      for (unsigned i = 0; i < weights.size(); ++i)
+        weights[i] = temp[i];
+    }
+
+
+  private:
+    static void
+    compute_block_diagonal_matrix(
+      const DoFHandler<dim> &                                   dof_handler_0,
+      const TrilinosWrappers::SparseMatrix &                    system_matrix_0,
+      std::vector<FullMatrix<typename VectorType::value_type>> &blocks)
+    {
+      const unsigned int dofs_per_cell =
+        dof_handler_0.get_fe().n_dofs_per_cell();
+
+      std::vector<types::global_dof_index> local_dof_indices(dofs_per_cell);
+
+      for (const auto &cell : dof_handler_0.active_cell_iterators())
+        {
+          if (cell->is_locally_owned() == false)
+            continue;
+
+          cell->get_dof_indices(local_dof_indices);
+
+          auto &cell_matrix = blocks[cell->active_cell_index()];
+
+          for (unsigned int i = 0; i < dofs_per_cell; ++i)
+            for (unsigned int j = 0; j < dofs_per_cell; ++j)
+              cell_matrix(i, j) =
+                system_matrix_0(local_dof_indices[i], local_dof_indices[j]);
+
+          cell_matrix.gauss_jordan();
+        }
+    }
+
+    static Vector<Number>
+    compute_weights(const DoFHandler<dim> &dof_handler_0)
+    {
+      const unsigned int dofs_per_cell =
+        dof_handler_0.get_fe().n_dofs_per_cell();
+
+      Vector<double>                       weights(dof_handler_0.n_dofs());
+      std::vector<types::global_dof_index> local_dof_indices(dofs_per_cell);
+
+      for (const auto &cell : dof_handler_0.active_cell_iterators())
+        {
+          if (cell->is_locally_owned() == false)
+            continue;
+
+          cell->get_dof_indices(local_dof_indices);
+
+          for (unsigned int i = 0; i < dofs_per_cell; ++i)
+            weights[local_dof_indices[i]] += 1;
+        }
+
+      weights.compress(VectorOperation::values::add);
+
+      for (unsigned int i = 0; i < weights.locally_owned_size(); ++i)
+        weights[i] = (weights[i] == 0.0) ? 0.0 : std::sqrt(1.0 / weights[i]);
+
+      return weights;
+    }
+
+    const Operator &op;
+
+    std::vector<FullMatrix<typename VectorType::value_type>> blocks;
+    VectorType                                               weights;
+  };
+
+
+
   template <typename Operator>
   class AMG : public PreconditionerBase<typename Operator::value_type>
   {
@@ -1370,6 +1508,12 @@ namespace Sintering
       , kappa_c(kappa_c)
       , kappa_p(kappa_p)
     {}
+
+    const DoFHandler<dim> &
+    get_dof_handler() const
+    {
+      return matrix_free.get_dof_handler();
+    }
 
     types::global_dof_index
     m() const
@@ -2552,6 +2696,10 @@ namespace Sintering
       if (false)
         preconditioner = std::make_unique<
           Preconditioners::InverseDiagonalMatrix<NonLinearOperator>>(
+          nonlinear_operator);
+      else if (false)
+        preconditioner = std::make_unique<
+          Preconditioners::InverseBlockDiagonalMatrix<NonLinearOperator, dim>>(
           nonlinear_operator);
       else if (false)
         preconditioner =
