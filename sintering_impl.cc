@@ -3016,6 +3016,16 @@ namespace Sintering
 
 
 
+  struct Parameters
+  {
+    unsigned int fe_degree   = 1;
+    unsigned int n_points_1D = 2;
+
+    std::string outer_preconditioner = "BlockPreconditioner2";
+  };
+
+
+
   template <int dim,
             typename Number              = double,
             typename VectorizedArrayType = VectorizedArray<Number>>
@@ -3073,6 +3083,7 @@ namespace Sintering
     static constexpr double r0              = diameter / 2.;
     static constexpr bool   is_accumulative = false;
 
+    const Parameters                          params;
     ConditionalOStream                        pcout;
     parallel::distributed::Triangulation<dim> tria;
     FESystem<dim>                             fe;
@@ -3087,12 +3098,13 @@ namespace Sintering
 
     InitialValues<dim> initial_solution;
 
-    Problem(const unsigned int fe_degree, const unsigned int n_points_1D)
-      : pcout(std::cout, Utilities::MPI::this_mpi_process(MPI_COMM_WORLD) == 0)
+    Problem(const Parameters &params)
+      : params(params)
+      , pcout(std::cout, Utilities::MPI::this_mpi_process(MPI_COMM_WORLD) == 0)
       , tria(MPI_COMM_WORLD)
-      , fe(FE_Q<dim>{fe_degree}, number_of_components)
+      , fe(FE_Q<dim>{params.fe_degree}, number_of_components)
       , mapping(1)
-      , quad(n_points_1D)
+      , quad(params.n_points_1D)
       , dof_handler(tria)
       , dof_handler_ch(tria)
       , dof_handler_ac(tria)
@@ -3114,10 +3126,11 @@ namespace Sintering
 
       // distribute dofs
       dof_handler.distribute_dofs(fe);
-      dof_handler_ch.distribute_dofs(FESystem<dim>(FE_Q<dim>{fe_degree}, 2));
+      dof_handler_ch.distribute_dofs(
+        FESystem<dim>(FE_Q<dim>{params.fe_degree}, 2));
       dof_handler_ac.distribute_dofs(
-        FESystem<dim>(FE_Q<dim>{fe_degree}, number_of_components - 2));
-      dof_handler_scalar.distribute_dofs(FE_Q<dim>{fe_degree});
+        FESystem<dim>(FE_Q<dim>{params.fe_degree}, number_of_components - 2));
+      dof_handler_scalar.distribute_dofs(FE_Q<dim>{params.fe_degree});
     }
 
 
@@ -3165,23 +3178,23 @@ namespace Sintering
       MGLevelObject<MGTwoLevelTransfer<dim, VectorType>>           transfers;
       std::unique_ptr<MGTransferGlobalCoarsening<dim, VectorType>> transfer;
 
-      if (false)
+      if (params.outer_preconditioner == "InverseDiagonalMatrix")
         preconditioner = std::make_unique<
           Preconditioners::InverseDiagonalMatrix<NonLinearOperator>>(
           nonlinear_operator);
-      else if (false)
+      else if (params.outer_preconditioner == "InverseBlockDiagonalMatrix")
         preconditioner = std::make_unique<
           Preconditioners::InverseBlockDiagonalMatrix<NonLinearOperator, dim>>(
           nonlinear_operator);
-      else if (false)
+      else if (params.outer_preconditioner == "AMG")
         preconditioner =
           std::make_unique<Preconditioners::AMG<NonLinearOperator>>(
             nonlinear_operator);
-      else if (false)
+      else if (params.outer_preconditioner == "ILU")
         preconditioner =
           std::make_unique<Preconditioners::ILU<NonLinearOperator>>(
             nonlinear_operator);
-      else if (false)
+      else if (params.outer_preconditioner == "GMG")
         {
           mg_triangulations = MGTransferGlobalCoarseningTools::
             create_geometric_coarsening_sequence(tria);
@@ -3243,7 +3256,7 @@ namespace Sintering
               PreconditionerGMG<dim, NonLinearOperator, VectorType>>(
             this->dof_handler, mg_dof_handlers, mg_constraints, mg_operators);
         }
-      else if (true)
+      else if (params.outer_preconditioner == "BlockPreconditioner2")
         {
           preconditioner =
             std::make_unique<BlockPreconditioner2<dim,
@@ -3252,7 +3265,7 @@ namespace Sintering
                                                   VectorizedArrayType>>(
               nonlinear_operator, matrix_free, constraint);
         }
-      else if (true)
+      else if (params.outer_preconditioner == "BlockPreconditioner3")
         {
           preconditioner =
             std::make_unique<BlockPreconditioner3<dim,
@@ -3473,6 +3486,8 @@ main(int argc, char **argv)
 {
   Utilities::MPI::MPI_InitFinalize mpi_init(argc, argv, 1);
 
-  Sintering::Problem<2> runner(1, 2);
+  Sintering::Parameters params;
+
+  Sintering::Problem<2> runner(params);
   runner.run();
 }
