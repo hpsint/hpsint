@@ -3178,23 +3178,7 @@ namespace Sintering
       MGLevelObject<MGTwoLevelTransfer<dim, VectorType>>           transfers;
       std::unique_ptr<MGTransferGlobalCoarsening<dim, VectorType>> transfer;
 
-      if (params.outer_preconditioner == "InverseDiagonalMatrix")
-        preconditioner = std::make_unique<
-          Preconditioners::InverseDiagonalMatrix<NonLinearOperator>>(
-          nonlinear_operator);
-      else if (params.outer_preconditioner == "InverseBlockDiagonalMatrix")
-        preconditioner = std::make_unique<
-          Preconditioners::InverseBlockDiagonalMatrix<NonLinearOperator, dim>>(
-          nonlinear_operator);
-      else if (params.outer_preconditioner == "AMG")
-        preconditioner =
-          std::make_unique<Preconditioners::AMG<NonLinearOperator>>(
-            nonlinear_operator);
-      else if (params.outer_preconditioner == "ILU")
-        preconditioner =
-          std::make_unique<Preconditioners::ILU<NonLinearOperator>>(
-            nonlinear_operator);
-      else if (params.outer_preconditioner == "GMG")
+      if (params.outer_preconditioner == "GMG")
         {
           mg_triangulations = MGTransferGlobalCoarseningTools::
             create_geometric_coarsening_sequence(tria);
@@ -3257,23 +3241,35 @@ namespace Sintering
             this->dof_handler, mg_dof_handlers, mg_constraints, mg_operators);
         }
       else if (params.outer_preconditioner == "BlockPreconditioner2")
-        {
-          preconditioner =
-            std::make_unique<BlockPreconditioner2<dim,
-                                                  number_of_components,
-                                                  Number,
-                                                  VectorizedArrayType>>(
-              nonlinear_operator, matrix_free, constraint);
-        }
+        preconditioner =
+          std::make_unique<BlockPreconditioner2<dim,
+                                                number_of_components,
+                                                Number,
+                                                VectorizedArrayType>>(
+            nonlinear_operator, matrix_free, constraint);
       else if (params.outer_preconditioner == "BlockPreconditioner3")
-        {
-          preconditioner =
-            std::make_unique<BlockPreconditioner3<dim,
-                                                  number_of_components,
-                                                  Number,
-                                                  VectorizedArrayType>>(
-              nonlinear_operator, matrix_free, constraint);
-        }
+        preconditioner =
+          std::make_unique<BlockPreconditioner3<dim,
+                                                number_of_components,
+                                                Number,
+                                                VectorizedArrayType>>(
+            nonlinear_operator, matrix_free, constraint);
+      else if (params.outer_preconditioner == "InverseDiagonalMatrix")
+        preconditioner = std::make_unique<
+          Preconditioners::InverseDiagonalMatrix<NonLinearOperator>>(
+          nonlinear_operator);
+      else if (params.outer_preconditioner == "InverseBlockDiagonalMatrix")
+        preconditioner = std::make_unique<
+          Preconditioners::InverseBlockDiagonalMatrix<NonLinearOperator, dim>>(
+          nonlinear_operator);
+      else if (params.outer_preconditioner == "AMG")
+        preconditioner =
+          std::make_unique<Preconditioners::AMG<NonLinearOperator>>(
+            nonlinear_operator);
+      else if (params.outer_preconditioner == "ILU")
+        preconditioner =
+          std::make_unique<Preconditioners::ILU<NonLinearOperator>>(
+            nonlinear_operator);
       else
         {
           AssertThrow(false, ExcNotImplemented());
