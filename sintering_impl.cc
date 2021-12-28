@@ -962,6 +962,12 @@ namespace NonLinearSolvers
 
 
 
+  DeclExceptionMsg(
+    ExcNewtonDidNotConverge,
+    "Damped Newton iteration did not converge. Maximum number of iterations exceed!");
+
+
+
   template <typename Number>
   class NonLinearSolverBase
   {
@@ -1117,8 +1123,7 @@ namespace NonLinearSolvers
                  n_iter_tmp < N_ITER_TMP_MAX);
 
           AssertThrow(norm_r_tmp < (1.0 - tau * omega) * norm_r,
-                      ExcMessage("Damped Newton iteration did not converge. "
-                                 "Maximum number of iterations exceeded!"));
+                      ExcNewtonDidNotConverge());
 
           // update solution and residual
           dst    = tmp;
@@ -3354,12 +3359,8 @@ namespace Sintering
 
               t += dt;
             }
-          catch (const std::exception &e)
+          catch (const NonLinearSolvers::ExcNewtonDidNotConverge &)
             {
-#ifdef DEBUG
-              pcout << e.what();
-#endif
-
               dt *= 0.5;
               pcout << "Solver diverged, reducing timestep, dt = " << dt
                     << std::endl;
