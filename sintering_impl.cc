@@ -2179,12 +2179,9 @@ namespace Sintering
     void
     do_vmult_kernel(FECellIntegrator &phi) const
     {
-      AssertThrow(false, ExcNotImplemented());
-
       const unsigned int cell = phi.get_current_cell_index();
 
       const auto &mobility            = this->op.get_data().mobility;
-      const auto &dt                  = this->op.get_dt();
       const auto &nonlinear_values    = this->op.get_nonlinear_values();
       const auto &nonlinear_gradients = this->op.get_nonlinear_gradients();
 
@@ -2197,17 +2194,14 @@ namespace Sintering
           std::vector etas{eta1, eta2};
 
           auto &c_grad    = nonlinear_gradients(cell, q)[0];
-          auto &mu_grad   = nonlinear_gradients(cell, q)[1];
           auto &eta1_grad = nonlinear_gradients(cell, q)[2];
           auto &eta2_grad = nonlinear_gradients(cell, q)[3];
 
           std::vector etas_grad{eta1_grad, eta2_grad};
 
-          phi.submit_value(phi.get_value(q) / dt, q);
-          phi.submit_gradient(mobility.dM_dc(c, etas, c_grad, etas_grad) *
-                                  mu_grad * phi.get_value(q) +
-                                mobility.dM_dgrad_c(c, c_grad, mu_grad) *
-                                  phi.get_gradient(q),
+          phi.submit_value(0, q); // TODO
+          phi.submit_gradient(mobility.M(c, etas, c_grad, etas_grad) *
+                                phi.get_gradient(q),
                               q);
         }
     }
@@ -2249,9 +2243,7 @@ namespace Sintering
       const unsigned int cell = phi.get_current_cell_index();
 
       const auto &free_energy         = this->op.get_data().free_energy;
-      const auto &mobility            = this->op.get_data().mobility;
       const auto &kappa_c             = this->op.get_data().kappa_c;
-      const auto &dt                  = this->op.get_dt();
       const auto &nonlinear_values    = this->op.get_nonlinear_values();
       const auto &nonlinear_gradients = this->op.get_nonlinear_gradients();
 
@@ -2263,8 +2255,6 @@ namespace Sintering
 
           std::vector etas{eta1, eta2};
 
-          auto &c_grad    = nonlinear_gradients(cell, q)[0];
-          auto &mu_grad   = nonlinear_gradients(cell, q)[1];
           auto &eta1_grad = nonlinear_gradients(cell, q)[2];
           auto &eta2_grad = nonlinear_gradients(cell, q)[3];
 
@@ -2606,7 +2596,7 @@ namespace Sintering
             preconditioner_1->vmult(dst_1, src_1);
           }
         }
-      else if (true)
+      else if (false)
         {
           // Block Gauss Seidel: L+D
           VectorType tmp;
@@ -2642,7 +2632,35 @@ namespace Sintering
       else if (true)
         {
           // Block Gauss Seidel: R+D
-          AssertThrow(false, ExcNotImplemented());
+          VectorType tmp;
+          tmp.reinit(src_0);
+
+          if (false)
+            {
+              preconditioner_1->vmult(dst_1, src_1);
+            }
+          else
+            {
+              ReductionControl reduction_control;
+
+              SolverGMRES<VectorType> solver(reduction_control);
+              solver.solve(operator_1, dst_1, src_1, *preconditioner_1);
+            }
+
+          block_ch_b.vmult(tmp, dst_1);
+          src_0 -= tmp;
+
+          if (false)
+            {
+              preconditioner_0->vmult(dst_0, src_0);
+            }
+          else
+            {
+              ReductionControl reduction_control;
+
+              SolverGMRES<VectorType> solver(reduction_control);
+              solver.solve(operator_0, dst_0, src_0, *preconditioner_0);
+            }
         }
       else if (true)
         {
