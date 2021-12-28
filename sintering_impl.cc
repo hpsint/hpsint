@@ -902,6 +902,26 @@ namespace Preconditioners
       preconditioner;
   };
 
+
+
+  template <typename T>
+  std::unique_ptr<PreconditionerBase<typename T::value_type>>
+  create(const T &op, const std::string &label)
+  {
+    if (label == "InverseDiagonalMatrix")
+      return std::make_unique<InverseDiagonalMatrix<T>>(op);
+    else if (label == "InverseBlockDiagonalMatrix")
+      return std::make_unique<InverseBlockDiagonalMatrix<T, T::dimension>>(op);
+    else if (label == "AMG")
+      return std::make_unique<AMG<T>>(op);
+    else if (label == "ILU")
+      return std::make_unique<ILU<T>>(op);
+
+    AssertThrow(false, ExcNotImplemented());
+
+    return {};
+  }
+
 } // namespace Preconditioners
 
 
@@ -1937,6 +1957,8 @@ namespace Sintering
 
     using value_type  = Number;
     using vector_type = VectorType;
+
+    static const int dimension = dim;
 
     using FECellIntegrator =
       FEEvaluation<dim, -1, 0, n_components, Number, VectorizedArrayType>;
@@ -3254,26 +3276,9 @@ namespace Sintering
                                                 Number,
                                                 VectorizedArrayType>>(
             nonlinear_operator, matrix_free, constraint);
-      else if (params.outer_preconditioner == "InverseDiagonalMatrix")
-        preconditioner = std::make_unique<
-          Preconditioners::InverseDiagonalMatrix<NonLinearOperator>>(
-          nonlinear_operator);
-      else if (params.outer_preconditioner == "InverseBlockDiagonalMatrix")
-        preconditioner = std::make_unique<
-          Preconditioners::InverseBlockDiagonalMatrix<NonLinearOperator, dim>>(
-          nonlinear_operator);
-      else if (params.outer_preconditioner == "AMG")
-        preconditioner =
-          std::make_unique<Preconditioners::AMG<NonLinearOperator>>(
-            nonlinear_operator);
-      else if (params.outer_preconditioner == "ILU")
-        preconditioner =
-          std::make_unique<Preconditioners::ILU<NonLinearOperator>>(
-            nonlinear_operator);
       else
-        {
-          AssertThrow(false, ExcNotImplemented());
-        }
+        preconditioner = Preconditioners::create(nonlinear_operator,
+                                                 params.outer_preconditioner);
 
       // ... linear solver
       std::unique_ptr<LinearSolvers::LinearSolverBase<Number>> linear_solver;
