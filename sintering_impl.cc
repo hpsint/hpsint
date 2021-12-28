@@ -2871,7 +2871,8 @@ namespace Sintering
               }
             else
               {
-                ReductionControl reduction_control(1000, 1e-10, 1e-6);
+                ReductionControl reduction_control(
+                  1000, 1e-20, data.block_0_relative_tolerance);
 
                 SolverGMRES<VectorType> solver(reduction_control);
                 solver.solve(operator_0, dst_0, src_0, *preconditioner_0);
@@ -2887,7 +2888,8 @@ namespace Sintering
               }
             else
               {
-                ReductionControl reduction_control(1000, 1e-10, 1e-6);
+                ReductionControl reduction_control(
+                  1000, 1e-20, data.block_1_relative_tolerance);
 
                 SolverGMRES<VectorType> solver(reduction_control);
                 solver.solve(operator_1, dst_1, src_1, *preconditioner_1);
@@ -2906,7 +2908,8 @@ namespace Sintering
             }
           else
             {
-              ReductionControl reduction_control(100, 1e-20, 1e-12);
+              ReductionControl reduction_control(
+                100, 1e-20, data.block_0_relative_tolerance);
 
               SolverGMRES<VectorType> solver(reduction_control);
               solver.solve(operator_0, dst_0, src_0, *preconditioner_0);
@@ -2921,7 +2924,8 @@ namespace Sintering
             }
           else
             {
-              ReductionControl reduction_control(100, 1e-20, 1e-12);
+              ReductionControl reduction_control(
+                100, 1e-20, data.block_1_relative_tolerance);
 
               SolverGMRES<VectorType> solver(reduction_control);
               solver.solve(operator_1, dst_1, src_1, *preconditioner_1);
@@ -2939,7 +2943,8 @@ namespace Sintering
             }
           else
             {
-              ReductionControl reduction_control(100, 1e-20, 1e-12);
+              ReductionControl reduction_control(
+                100, 1e-20, data.block_1_relative_tolerance);
 
               SolverGMRES<VectorType> solver(reduction_control);
               solver.solve(operator_1, dst_1, src_1, *preconditioner_1);
@@ -2954,7 +2959,8 @@ namespace Sintering
             }
           else
             {
-              ReductionControl reduction_control(100, 1e-20, 1e-12);
+              ReductionControl reduction_control(
+                100, 1e-20, data.block_0_relative_tolerance);
 
               SolverGMRES<VectorType> solver(reduction_control);
               solver.solve(operator_0, dst_0, src_0, *preconditioner_0);
