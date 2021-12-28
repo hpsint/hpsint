@@ -58,15 +58,28 @@ namespace dealii
 {
   namespace VectorTools
   {
-    template <int dim,
-              typename Number,
-              typename VectorizedArrayType,
-              typename VectorType>
+    template <typename VectorType>
+    bool
+    check_identity(VectorType &vec_0, VectorType &vec_1)
+    {
+      if (vec_0.get_partitioner()->locally_owned_size() !=
+          vec_1.get_partitioner()->locally_owned_size())
+        return false;
+
+      for (unsigned int i = 0;
+           i < vec_0.get_partitioner()->locally_owned_size();
+           ++i)
+        if (vec_0.local_element(i) != vec_1.local_element(i))
+          return false;
+
+      return true;
+    }
+
+
+
+    template <typename VectorType>
     void
-    split_up(const MatrixFree<dim, Number, VectorizedArrayType> &matrix_free,
-             const VectorType &                                  vec,
-             VectorType &                                        vec_0,
-             VectorType &                                        vec_1)
+    split_up_fast(const VectorType &vec, VectorType &vec_0, VectorType &vec_1)
     {
       for (unsigned int i = 0, i0 = 0, i1 = 0;
            i < vec.get_partitioner()->locally_owned_size();)
@@ -77,9 +90,18 @@ namespace dealii
           for (unsigned int j = 0; j < 2; ++j)
             vec_1.local_element(i1++) = vec.local_element(i++);
         }
+    }
 
-      return;
-
+    template <int dim,
+              typename Number,
+              typename VectorizedArrayType,
+              typename VectorType>
+    void
+    split_up(const MatrixFree<dim, Number, VectorizedArrayType> &matrix_free,
+             const VectorType &                                  vec,
+             VectorType &                                        vec_0,
+             VectorType &                                        vec_1)
+    {
       vec.update_ghost_values();
 
       for (const auto &cell_all :
@@ -167,15 +189,11 @@ namespace dealii
 
 
 
-    template <int dim,
-              typename Number,
-              typename VectorizedArrayType,
-              typename VectorType>
+    template <typename VectorType>
     void
-    merge(const MatrixFree<dim, Number, VectorizedArrayType> &matrix_free,
-          const VectorType &                                  vec_0,
-          const VectorType &                                  vec_1,
-          VectorType &                                        vec)
+    merge_fast(const VectorType &vec_0,
+               const VectorType &vec_1,
+               VectorType &      vec)
     {
       for (unsigned int i = 0, i0 = 0, i1 = 0;
            i < vec.get_partitioner()->locally_owned_size();)
@@ -186,9 +204,20 @@ namespace dealii
           for (unsigned int j = 0; j < 2; ++j)
             vec.local_element(i++) = vec_1.local_element(i1++);
         }
+    }
 
-      return;
 
+
+    template <int dim,
+              typename Number,
+              typename VectorizedArrayType,
+              typename VectorType>
+    void
+    merge(const MatrixFree<dim, Number, VectorizedArrayType> &matrix_free,
+          const VectorType &                                  vec_0,
+          const VectorType &                                  vec_1,
+          VectorType &                                        vec)
+    {
       vec_0.update_ghost_values();
       vec_1.update_ghost_values();
 
@@ -2458,7 +2487,20 @@ namespace Sintering
     {
       {
         TimerOutput::Scope scope(timer, "vmult::split_up");
-        VectorTools::split_up(this->matrix_free, src, src_0, src_1);
+        VectorTools::split_up_fast(src, src_0, src_1);
+
+#ifdef DEBUG
+        VectorType temp_0, temp_1;
+        temp_0.reinit(src_0);
+        temp_1.reinit(src_1);
+
+        VectorTools::split_up(this->matrix_free, src, temp_0, temp_1);
+
+        AssertThrow(VectorTools::check_identity(src_0, temp_0),
+                    ExcInternalError());
+        AssertThrow(VectorTools::check_identity(src_1, temp_1),
+                    ExcInternalError());
+#endif
       }
 
       {
@@ -2473,7 +2515,16 @@ namespace Sintering
 
       {
         TimerOutput::Scope scope(timer, "vmult::merge");
-        VectorTools::merge(this->matrix_free, dst_0, dst_1, dst);
+        VectorTools::merge_fast(dst_0, dst_1, dst);
+
+#ifdef DEBUG
+        VectorType temp;
+        temp.reinit(dst);
+
+        VectorTools::merge(this->matrix_free, dst_0, dst_1, temp);
+
+        AssertThrow(VectorTools::check_identity(dst, temp), ExcInternalError());
+#endif
       }
     }
 
@@ -2949,7 +3000,7 @@ namespace Sintering
               PreconditionerGMG<dim, NonLinearOperator, VectorType>>(
             this->dof_handler, mg_dof_handlers, mg_constraints, mg_operators);
         }
-      else if (false)
+      else if (true)
         {
           preconditioner =
             std::make_unique<BlockPreconditioner2<dim,
