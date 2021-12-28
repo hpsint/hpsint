@@ -58,15 +58,28 @@ namespace dealii
 {
   namespace VectorTools
   {
-    template <int dim,
-              typename Number,
-              typename VectorizedArrayType,
-              typename VectorType>
+    template <typename VectorType>
+    bool
+    check_identity(VectorType &vec_0, VectorType &vec_1)
+    {
+      if (vec_0.get_partitioner()->locally_owned_size() !=
+          vec_1.get_partitioner()->locally_owned_size())
+        return false;
+
+      for (unsigned int i = 0;
+           i < vec_0.get_partitioner()->locally_owned_size();
+           ++i)
+        if (vec_0.local_element(i) != vec_1.local_element(i))
+          return false;
+
+      return true;
+    }
+
+
+
+    template <typename VectorType>
     void
-    split_up(const MatrixFree<dim, Number, VectorizedArrayType> &matrix_free,
-             const VectorType &                                  vec,
-             VectorType &                                        vec_0,
-             VectorType &                                        vec_1)
+    split_up_fast(const VectorType &vec, VectorType &vec_0, VectorType &vec_1)
     {
       for (unsigned int i = 0, i0 = 0, i1 = 0;
            i < vec.get_partitioner()->locally_owned_size();)
@@ -77,9 +90,20 @@ namespace dealii
           for (unsigned int j = 0; j < 2; ++j)
             vec_1.local_element(i1++) = vec.local_element(i++);
         }
+    }
 
-      return;
 
+
+    template <int dim,
+              typename Number,
+              typename VectorizedArrayType,
+              typename VectorType>
+    void
+    split_up(const MatrixFree<dim, Number, VectorizedArrayType> &matrix_free,
+             const VectorType &                                  vec,
+             VectorType &                                        vec_0,
+             VectorType &                                        vec_1)
+    {
       vec.update_ghost_values();
 
       for (const auto &cell_all :
@@ -139,15 +163,127 @@ namespace dealii
       vec.zero_out_ghost_values();
     }
 
+
+
+    template <typename VectorType>
+    void
+    split_up_fast(const VectorType &vec,
+                  VectorType &      vec_0,
+                  VectorType &      vec_1,
+                  VectorType &      vec_2)
+    {
+      for (unsigned int i = 0, i0 = 0, i1 = 0, i2 = 0;
+           i < vec.get_partitioner()->locally_owned_size();)
+        {
+          vec_0.local_element(i0++) = vec.local_element(i++);
+          vec_1.local_element(i1++) = vec.local_element(i++);
+
+          for (unsigned int j = 0; j < 2; ++j)
+            vec_2.local_element(i2++) = vec.local_element(i++);
+        }
+    }
+
+
+
     template <int dim,
               typename Number,
               typename VectorizedArrayType,
               typename VectorType>
     void
-    merge(const MatrixFree<dim, Number, VectorizedArrayType> &matrix_free,
-          const VectorType &                                  vec_0,
-          const VectorType &                                  vec_1,
-          VectorType &                                        vec)
+    split_up(const MatrixFree<dim, Number, VectorizedArrayType> &matrix_free,
+             const VectorType &                                  vec,
+             VectorType &                                        vec_0,
+             VectorType &                                        vec_1,
+             VectorType &                                        vec_2)
+    {
+      vec.update_ghost_values();
+
+      for (const auto &cell_all :
+           matrix_free.get_dof_handler(0).active_cell_iterators())
+        if (cell_all->is_locally_owned())
+          {
+            // read all dof_values
+            Vector<double> local(cell_all->get_fe().n_dofs_per_cell());
+            cell_all->get_dof_values(vec, local);
+
+            // write Cahn-Hillard components
+            {
+              DoFCellAccessor<dim, dim, false> cell(
+                &matrix_free.get_dof_handler(0).get_triangulation(),
+                cell_all->level(),
+                cell_all->index(),
+                &matrix_free.get_dof_handler(3 /*TODO*/));
+
+              Vector<double> local_component(cell.get_fe().n_dofs_per_cell());
+
+              for (unsigned int i = 0; i < cell.get_fe().n_dofs_per_cell(); ++i)
+                {
+                  const auto [c, j] =
+                    cell.get_fe().system_to_component_index(i);
+
+                  local_component[i] =
+                    local[cell_all->get_fe().component_to_system_index(c, j)];
+                }
+
+              cell.set_dof_values(local_component, vec_0);
+            }
+
+            {
+              DoFCellAccessor<dim, dim, false> cell(
+                &matrix_free.get_dof_handler(0).get_triangulation(),
+                cell_all->level(),
+                cell_all->index(),
+                &matrix_free.get_dof_handler(3 /*TODO*/));
+
+              Vector<double> local_component(cell.get_fe().n_dofs_per_cell());
+
+              for (unsigned int i = 0; i < cell.get_fe().n_dofs_per_cell(); ++i)
+                {
+                  const auto [c, j] =
+                    cell.get_fe().system_to_component_index(i);
+
+                  local_component[i] =
+                    local[cell_all->get_fe().component_to_system_index(c + 1,
+                                                                       j)];
+                }
+
+              cell.set_dof_values(local_component, vec_1);
+            }
+
+            // write Allen-Cahn components
+            {
+              DoFCellAccessor<dim, dim, false> cell(
+                &matrix_free.get_dof_handler(0).get_triangulation(),
+                cell_all->level(),
+                cell_all->index(),
+                &matrix_free.get_dof_handler(2));
+
+              Vector<double> local_component(cell.get_fe().n_dofs_per_cell());
+
+              for (unsigned int i = 0; i < cell.get_fe().n_dofs_per_cell(); ++i)
+                {
+                  const auto [c, j] =
+                    cell.get_fe().system_to_component_index(i);
+
+                  local_component[i] =
+                    local[cell_all->get_fe().component_to_system_index(c + 2,
+                                                                       j)];
+                }
+
+              cell.set_dof_values(local_component, vec_2);
+            }
+          }
+
+      vec.zero_out_ghost_values();
+    }
+
+
+
+    template <typename VectorType>
+    void
+    merge_fast(const VectorType &vec_0,
+               const VectorType &vec_1,
+               VectorType &      vec)
     {
       for (unsigned int i = 0, i0 = 0, i1 = 0;
            i < vec.get_partitioner()->locally_owned_size();)
@@ -158,9 +294,20 @@ namespace dealii
           for (unsigned int j = 0; j < 2; ++j)
             vec.local_element(i++) = vec_1.local_element(i1++);
         }
+    }
 
-      return;
 
+
+    template <int dim,
+              typename Number,
+              typename VectorizedArrayType,
+              typename VectorType>
+    void
+    merge(const MatrixFree<dim, Number, VectorizedArrayType> &matrix_free,
+          const VectorType &                                  vec_0,
+          const VectorType &                                  vec_1,
+          VectorType &                                        vec)
+    {
       vec_0.update_ghost_values();
       vec_1.update_ghost_values();
 
@@ -219,6 +366,122 @@ namespace dealii
 
       vec_0.zero_out_ghost_values();
       vec_1.zero_out_ghost_values();
+    }
+
+
+
+    template <typename VectorType>
+    void
+    merge_fast(const VectorType &vec_0,
+               const VectorType &vec_1,
+               const VectorType &vec_2,
+               VectorType &      vec)
+    {
+      for (unsigned int i = 0, i0 = 0, i1 = 0, i2 = 0;
+           i < vec.get_partitioner()->locally_owned_size();)
+        {
+          vec.local_element(i++) = vec_0.local_element(i0++);
+          vec.local_element(i++) = vec_1.local_element(i1++);
+
+          for (unsigned int j = 0; j < 2; ++j)
+            vec.local_element(i++) = vec_2.local_element(i2++);
+        }
+    }
+
+
+
+    template <int dim,
+              typename Number,
+              typename VectorizedArrayType,
+              typename VectorType>
+    void
+    merge(const MatrixFree<dim, Number, VectorizedArrayType> &matrix_free,
+          const VectorType &                                  vec_0,
+          const VectorType &                                  vec_1,
+          const VectorType &                                  vec_2,
+          VectorType &                                        vec)
+    {
+      vec_0.update_ghost_values();
+      vec_1.update_ghost_values();
+      vec_2.update_ghost_values();
+
+      for (const auto &cell_all :
+           matrix_free.get_dof_handler(0).active_cell_iterators())
+        if (cell_all->is_locally_owned())
+          {
+            Vector<double> local(cell_all->get_fe().n_dofs_per_cell());
+
+            // read Cahn-Hillard components
+            {
+              DoFCellAccessor<dim, dim, false> cell(
+                &matrix_free.get_dof_handler(0).get_triangulation(),
+                cell_all->level(),
+                cell_all->index(),
+                &matrix_free.get_dof_handler(3 /*TODO*/));
+
+              Vector<double> local_component(cell.get_fe().n_dofs_per_cell());
+              cell.get_dof_values(vec_0, local_component);
+
+              for (unsigned int i = 0; i < cell.get_fe().n_dofs_per_cell(); ++i)
+                {
+                  const auto [c, j] =
+                    cell.get_fe().system_to_component_index(i);
+
+                  local[cell_all->get_fe().component_to_system_index(c, j)] =
+                    local_component[i];
+                }
+            }
+
+            {
+              DoFCellAccessor<dim, dim, false> cell(
+                &matrix_free.get_dof_handler(0).get_triangulation(),
+                cell_all->level(),
+                cell_all->index(),
+                &matrix_free.get_dof_handler(3 /*TODO*/));
+
+              Vector<double> local_component(cell.get_fe().n_dofs_per_cell());
+              cell.get_dof_values(vec_1, local_component);
+
+              for (unsigned int i = 0; i < cell.get_fe().n_dofs_per_cell(); ++i)
+                {
+                  const auto [c, j] =
+                    cell.get_fe().system_to_component_index(i);
+
+                  local[cell_all->get_fe().component_to_system_index(c + 1,
+                                                                     j)] =
+                    local_component[i];
+                }
+            }
+
+            // read Allen-Cahn components
+            {
+              DoFCellAccessor<dim, dim, false> cell(
+                &matrix_free.get_dof_handler(0).get_triangulation(),
+                cell_all->level(),
+                cell_all->index(),
+                &matrix_free.get_dof_handler(2));
+
+              Vector<double> local_component(cell.get_fe().n_dofs_per_cell());
+              cell.get_dof_values(vec_2, local_component);
+
+              for (unsigned int i = 0; i < cell.get_fe().n_dofs_per_cell(); ++i)
+                {
+                  const auto [c, j] =
+                    cell.get_fe().system_to_component_index(i);
+
+                  local[cell_all->get_fe().component_to_system_index(c + 2,
+                                                                     j)] =
+                    local_component[i];
+                }
+            }
+
+            // read all dof_values
+            cell_all->set_dof_values(local, vec);
+          }
+
+      vec_0.zero_out_ghost_values();
+      vec_1.zero_out_ghost_values();
+      vec_2.zero_out_ghost_values();
     }
   } // namespace VectorTools
 } // namespace dealii
@@ -699,6 +962,12 @@ namespace NonLinearSolvers
 
 
 
+  DeclExceptionMsg(
+    ExcNewtonDidNotConverge,
+    "Damped Newton iteration did not converge. Maximum number of iterations exceed!");
+
+
+
   template <typename Number>
   class NonLinearSolverBase
   {
@@ -854,8 +1123,7 @@ namespace NonLinearSolvers
                  n_iter_tmp < N_ITER_TMP_MAX);
 
           AssertThrow(norm_r_tmp < (1.0 - tau * omega) * norm_r,
-                      ExcMessage("Damped Newton iteration did not converge. "
-                                 "Maximum number of iterations exceeded!"));
+                      ExcNewtonDidNotConverge());
 
           // update solution and residual
           dst    = tmp;
@@ -2037,6 +2305,243 @@ namespace Sintering
             int n_components_,
             typename Number,
             typename VectorizedArrayType>
+  class OperatorCahnHillardA
+    : public OperatorBase<dim, n_components, Number, VectorizedArrayType>
+  {
+  public:
+    using FECellIntegrator =
+      FEEvaluation<dim, -1, 0, n_components, Number, VectorizedArrayType>;
+
+    OperatorCahnHillardA(
+      const MatrixFree<dim, Number, VectorizedArrayType> &matrix_free,
+      const AffineConstraints<Number> &                   constraints,
+      const SinteringOperator<dim, n_components_, Number, VectorizedArrayType>
+        &op)
+      : OperatorBase<dim, n_components, Number, VectorizedArrayType>(
+          matrix_free,
+          constraints,
+          3 /*TODO*/)
+      , op(op)
+    {}
+
+  protected:
+    void
+    do_vmult_kernel(FECellIntegrator &phi) const
+    {
+      const unsigned int cell = phi.get_current_cell_index();
+
+      const auto &mobility            = this->op.get_data().mobility;
+      const auto &dt                  = this->op.get_dt();
+      const auto &nonlinear_values    = this->op.get_nonlinear_values();
+      const auto &nonlinear_gradients = this->op.get_nonlinear_gradients();
+
+      for (unsigned int q = 0; q < phi.n_q_points; ++q)
+        {
+          auto &c    = nonlinear_values(cell, q)[0];
+          auto &eta1 = nonlinear_values(cell, q)[2];
+          auto &eta2 = nonlinear_values(cell, q)[3];
+
+          std::vector etas{eta1, eta2};
+
+          auto &c_grad    = nonlinear_gradients(cell, q)[0];
+          auto &mu_grad   = nonlinear_gradients(cell, q)[1];
+          auto &eta1_grad = nonlinear_gradients(cell, q)[2];
+          auto &eta2_grad = nonlinear_gradients(cell, q)[3];
+
+          std::vector etas_grad{eta1_grad, eta2_grad};
+
+          const auto value    = phi.get_value(q);
+          const auto gradient = phi.get_gradient(q);
+
+          phi.submit_value(value / dt, q);
+          phi.submit_gradient(mobility.dM_dc(c, etas, c_grad, etas_grad) *
+                                  mu_grad * value +
+                                mobility.dM_dgrad_c(c, c_grad, mu_grad) *
+                                  gradient,
+                              q);
+        }
+    }
+
+    const SinteringOperator<dim, n_components_, Number, VectorizedArrayType>
+      &op;
+  };
+
+
+
+  template <int dim,
+            int n_components,
+            int n_components_,
+            typename Number,
+            typename VectorizedArrayType>
+  class OperatorCahnHillardB
+    : public OperatorBase<dim, n_components, Number, VectorizedArrayType>
+  {
+  public:
+    using FECellIntegrator =
+      FEEvaluation<dim, -1, 0, n_components, Number, VectorizedArrayType>;
+
+    OperatorCahnHillardB(
+      const MatrixFree<dim, Number, VectorizedArrayType> &matrix_free,
+      const AffineConstraints<Number> &                   constraints,
+      const SinteringOperator<dim, n_components_, Number, VectorizedArrayType>
+        &op)
+      : OperatorBase<dim, n_components, Number, VectorizedArrayType>(
+          matrix_free,
+          constraints,
+          3 /*TODO*/)
+      , op(op)
+    {}
+
+  protected:
+    void
+    do_vmult_kernel(FECellIntegrator &phi) const
+    {
+      const unsigned int cell = phi.get_current_cell_index();
+
+      const auto &mobility            = this->op.get_data().mobility;
+      const auto &nonlinear_values    = this->op.get_nonlinear_values();
+      const auto &nonlinear_gradients = this->op.get_nonlinear_gradients();
+
+      for (unsigned int q = 0; q < phi.n_q_points; ++q)
+        {
+          auto &c    = nonlinear_values(cell, q)[0];
+          auto &eta1 = nonlinear_values(cell, q)[2];
+          auto &eta2 = nonlinear_values(cell, q)[3];
+
+          std::vector etas{eta1, eta2};
+
+          auto &c_grad    = nonlinear_gradients(cell, q)[0];
+          auto &eta1_grad = nonlinear_gradients(cell, q)[2];
+          auto &eta2_grad = nonlinear_gradients(cell, q)[3];
+
+          std::vector etas_grad{eta1_grad, eta2_grad};
+
+          const auto value    = phi.get_value(q);
+          const auto gradient = phi.get_gradient(q);
+
+          phi.submit_value(value * 0.0, q); // TODO
+          phi.submit_gradient(mobility.M(c, etas, c_grad, etas_grad) * gradient,
+                              q);
+        }
+    }
+
+    const SinteringOperator<dim, n_components_, Number, VectorizedArrayType>
+      &op;
+  };
+
+
+
+  template <int dim,
+            int n_components,
+            int n_components_,
+            typename Number,
+            typename VectorizedArrayType>
+  class OperatorCahnHillardC
+    : public OperatorBase<dim, n_components, Number, VectorizedArrayType>
+  {
+  public:
+    using FECellIntegrator =
+      FEEvaluation<dim, -1, 0, n_components, Number, VectorizedArrayType>;
+
+    OperatorCahnHillardC(
+      const MatrixFree<dim, Number, VectorizedArrayType> &matrix_free,
+      const AffineConstraints<Number> &                   constraints,
+      const SinteringOperator<dim, n_components_, Number, VectorizedArrayType>
+        &op)
+      : OperatorBase<dim, n_components, Number, VectorizedArrayType>(
+          matrix_free,
+          constraints,
+          3 /*TODO*/)
+      , op(op)
+    {}
+
+  protected:
+    void
+    do_vmult_kernel(FECellIntegrator &phi) const
+    {
+      const unsigned int cell = phi.get_current_cell_index();
+
+      const auto &free_energy         = this->op.get_data().free_energy;
+      const auto &kappa_c             = this->op.get_data().kappa_c;
+      const auto &nonlinear_values    = this->op.get_nonlinear_values();
+      const auto &nonlinear_gradients = this->op.get_nonlinear_gradients();
+
+      for (unsigned int q = 0; q < phi.n_q_points; ++q)
+        {
+          auto &c    = nonlinear_values(cell, q)[0];
+          auto &eta1 = nonlinear_values(cell, q)[2];
+          auto &eta2 = nonlinear_values(cell, q)[3];
+
+          std::vector etas{eta1, eta2};
+
+          auto &eta1_grad = nonlinear_gradients(cell, q)[2];
+          auto &eta2_grad = nonlinear_gradients(cell, q)[3];
+
+          std::vector etas_grad{eta1_grad, eta2_grad};
+
+          const auto value    = phi.get_value(q);
+          const auto gradient = phi.get_gradient(q);
+
+          phi.submit_value(free_energy.d2f_dc2(c, etas) * value, q);
+          phi.submit_gradient(kappa_c * gradient, q);
+        }
+    }
+
+    const SinteringOperator<dim, n_components_, Number, VectorizedArrayType>
+      &op;
+  };
+
+
+
+  template <int dim,
+            int n_components,
+            int n_components_,
+            typename Number,
+            typename VectorizedArrayType>
+  class OperatorCahnHillardD
+    : public OperatorBase<dim, n_components, Number, VectorizedArrayType>
+  {
+  public:
+    using FECellIntegrator =
+      FEEvaluation<dim, -1, 0, n_components, Number, VectorizedArrayType>;
+
+    OperatorCahnHillardD(
+      const MatrixFree<dim, Number, VectorizedArrayType> &matrix_free,
+      const AffineConstraints<Number> &                   constraints,
+      const SinteringOperator<dim, n_components_, Number, VectorizedArrayType>
+        &op)
+      : OperatorBase<dim, n_components, Number, VectorizedArrayType>(
+          matrix_free,
+          constraints,
+          3 /*TODO*/)
+      , op(op)
+    {}
+
+  protected:
+    void
+    do_vmult_kernel(FECellIntegrator &phi) const
+    {
+      for (unsigned int q = 0; q < phi.n_q_points; ++q)
+        {
+          const auto value    = phi.get_value(q);
+          const auto gradient = phi.get_gradient(q);
+
+          phi.submit_value(-value, q);
+          phi.submit_gradient(gradient * 0.0, q); // TODO
+        }
+    }
+
+    const SinteringOperator<dim, n_components_, Number, VectorizedArrayType>
+      &op;
+  };
+
+
+
+  template <int dim,
+            int n_components,
+            int n_components_,
+            typename Number,
+            typename VectorizedArrayType>
   class OperatorAllenCahn
     : public OperatorBase<dim, n_components, Number, VectorizedArrayType>
   {
@@ -2115,7 +2620,8 @@ namespace Sintering
             int n_components,
             typename Number,
             typename VectorizedArrayType>
-  class BlockPreconditioner : public Preconditioners::PreconditionerBase<Number>
+  class BlockPreconditioner2
+    : public Preconditioners::PreconditionerBase<Number>
   {
   public:
     using VectorType =
@@ -2124,7 +2630,7 @@ namespace Sintering
     using value_type  = Number;
     using vector_type = VectorType;
 
-    BlockPreconditioner(
+    BlockPreconditioner2(
       const SinteringOperator<dim, n_components, Number, VectorizedArrayType>
         &                                                 op,
       const MatrixFree<dim, Number, VectorizedArrayType> &matrix_free,
@@ -2167,7 +2673,7 @@ namespace Sintering
                               VectorizedArrayType>>>(operator_1);
     }
 
-    ~BlockPreconditioner()
+    ~BlockPreconditioner2()
     {
       timer.print_wall_time_statistics(MPI_COMM_WORLD);
     }
@@ -2177,7 +2683,20 @@ namespace Sintering
     {
       {
         TimerOutput::Scope scope(timer, "vmult::split_up");
-        VectorTools::split_up(this->matrix_free, src, src_0, src_1);
+        VectorTools::split_up_fast(src, src_0, src_1);
+
+#ifdef DEBUG
+        VectorType temp_0, temp_1;
+        temp_0.reinit(src_0);
+        temp_1.reinit(src_1);
+
+        VectorTools::split_up(this->matrix_free, src, temp_0, temp_1);
+
+        AssertThrow(VectorTools::check_identity(src_0, temp_0),
+                    ExcInternalError());
+        AssertThrow(VectorTools::check_identity(src_1, temp_1),
+                    ExcInternalError());
+#endif
       }
 
       {
@@ -2192,7 +2711,16 @@ namespace Sintering
 
       {
         TimerOutput::Scope scope(timer, "vmult::merge");
-        VectorTools::merge(this->matrix_free, dst_0, dst_1, dst);
+        VectorTools::merge_fast(dst_0, dst_1, dst);
+
+#ifdef DEBUG
+        VectorType temp;
+        temp.reinit(dst);
+
+        VectorTools::merge(this->matrix_free, dst_0, dst_1, temp);
+
+        AssertThrow(VectorTools::check_identity(dst, temp), ExcInternalError());
+#endif
       }
     }
 
@@ -2220,6 +2748,267 @@ namespace Sintering
 
     std::unique_ptr<Preconditioners::PreconditionerBase<Number>>
       preconditioner_0, preconditioner_1;
+
+    ConditionalOStream  pcout;
+    mutable TimerOutput timer;
+  };
+
+
+
+  template <int dim,
+            int n_components,
+            typename Number,
+            typename VectorizedArrayType>
+  class BlockPreconditioner3
+    : public Preconditioners::PreconditionerBase<Number>
+  {
+  public:
+    using VectorType =
+      typename Preconditioners::PreconditionerBase<Number>::VectorType;
+
+    using value_type  = Number;
+    using vector_type = VectorType;
+
+    BlockPreconditioner3(
+      const SinteringOperator<dim, n_components, Number, VectorizedArrayType>
+        &                                                 op,
+      const MatrixFree<dim, Number, VectorizedArrayType> &matrix_free,
+      const AffineConstraints<Number> &                   constraints)
+      : matrix_free(matrix_free)
+      , operator_0(matrix_free, constraints, op)
+      , block_ch_b(matrix_free, constraints, op)
+      , block_ch_c(matrix_free, constraints, op)
+      , operator_1(matrix_free, constraints, op)
+      , operator_2(matrix_free, constraints, op)
+      , pcout(std::cout, Utilities::MPI::this_mpi_process(MPI_COMM_WORLD) == 0)
+      , timer(pcout, TimerOutput::never, TimerOutput::wall_times)
+    {
+      matrix_free.initialize_dof_vector(dst_0, 3 /*TODO*/);
+      matrix_free.initialize_dof_vector(src_0, 3 /*TODO*/);
+
+      matrix_free.initialize_dof_vector(dst_1, 3 /*TODO*/);
+      matrix_free.initialize_dof_vector(src_1, 3 /*TODO*/);
+
+      matrix_free.initialize_dof_vector(dst_2, 2);
+      matrix_free.initialize_dof_vector(src_2, 2);
+
+      preconditioner_0 = std::make_unique<
+        Preconditioners::ILU<OperatorCahnHillardA<dim,
+                                                  1,
+                                                  n_components,
+                                                  Number,
+                                                  VectorizedArrayType>>>(
+        operator_0);
+
+      preconditioner_1 = std::make_unique<
+        Preconditioners::ILU<OperatorCahnHillardD<dim,
+                                                  1,
+                                                  n_components,
+                                                  Number,
+                                                  VectorizedArrayType>>>(
+        operator_1);
+
+      preconditioner_2 =
+        std::make_unique<Preconditioners::InverseDiagonalMatrix<
+          OperatorAllenCahn<dim,
+                            n_components - 2,
+                            n_components,
+                            Number,
+                            VectorizedArrayType>>>(operator_2);
+    }
+
+    ~BlockPreconditioner3()
+    {
+      timer.print_wall_time_statistics(MPI_COMM_WORLD);
+    }
+
+    void
+    vmult(VectorType &dst, const VectorType &src) const override
+    {
+      {
+        TimerOutput::Scope scope(timer, "vmult::split_up");
+        VectorTools::split_up_fast(src, src_0, src_1, src_2);
+
+#ifdef DEBUG
+        VectorType temp_0, temp_1, temp_2;
+        temp_0.reinit(src_0);
+        temp_1.reinit(src_1);
+        temp_2.reinit(src_2);
+
+        VectorTools::split_up(this->matrix_free, src, temp_0, temp_1, temp_2);
+
+        AssertThrow(VectorTools::check_identity(src_0, temp_0),
+                    ExcInternalError());
+        AssertThrow(VectorTools::check_identity(src_1, temp_1),
+                    ExcInternalError());
+        AssertThrow(VectorTools::check_identity(src_2, temp_2),
+                    ExcInternalError());
+#endif
+      }
+
+      if (false)
+        {
+          // Block Jacobi
+          {
+            TimerOutput::Scope scope(timer, "vmult::precon_0");
+
+            if (true)
+              {
+                preconditioner_0->vmult(dst_0, src_0);
+              }
+            else
+              {
+                ReductionControl reduction_control(1000, 1e-10, 1e-6);
+
+                SolverGMRES<VectorType> solver(reduction_control);
+                solver.solve(operator_0, dst_0, src_0, *preconditioner_0);
+              }
+          }
+
+          {
+            TimerOutput::Scope scope(timer, "vmult::precon_1");
+
+            if (true)
+              {
+                preconditioner_1->vmult(dst_1, src_1);
+              }
+            else
+              {
+                ReductionControl reduction_control(1000, 1e-10, 1e-6);
+
+                SolverGMRES<VectorType> solver(reduction_control);
+                solver.solve(operator_1, dst_1, src_1, *preconditioner_1);
+              }
+          }
+        }
+      else if (true)
+        {
+          // Block Gauss Seidel: L+D
+          VectorType tmp;
+          tmp.reinit(src_0);
+
+          if (false)
+            {
+              preconditioner_0->vmult(dst_0, src_0);
+            }
+          else
+            {
+              ReductionControl reduction_control(100, 1e-20, 1e-12);
+
+              SolverGMRES<VectorType> solver(reduction_control);
+              solver.solve(operator_0, dst_0, src_0, *preconditioner_0);
+            }
+
+          block_ch_c.vmult(tmp, dst_0);
+          src_1 -= tmp;
+
+          if (false)
+            {
+              preconditioner_1->vmult(dst_1, src_1);
+            }
+          else
+            {
+              ReductionControl reduction_control(100, 1e-20, 1e-12);
+
+              SolverGMRES<VectorType> solver(reduction_control);
+              solver.solve(operator_1, dst_1, src_1, *preconditioner_1);
+            }
+        }
+      else if (false)
+        {
+          // Block Gauss Seidel: R+D
+          VectorType tmp;
+          tmp.reinit(src_0);
+
+          if (false)
+            {
+              preconditioner_1->vmult(dst_1, src_1);
+            }
+          else
+            {
+              ReductionControl reduction_control(100, 1e-20, 1e-12);
+
+              SolverGMRES<VectorType> solver(reduction_control);
+              solver.solve(operator_1, dst_1, src_1, *preconditioner_1);
+            }
+
+          block_ch_b.vmult(tmp, dst_1);
+          src_0 -= tmp;
+
+          if (false)
+            {
+              preconditioner_0->vmult(dst_0, src_0);
+            }
+          else
+            {
+              ReductionControl reduction_control(100, 1e-20, 1e-12);
+
+              SolverGMRES<VectorType> solver(reduction_control);
+              solver.solve(operator_0, dst_0, src_0, *preconditioner_0);
+            }
+        }
+      else if (true)
+        {
+          // Block Gauss Seidel: symmetric
+          AssertThrow(false, ExcNotImplemented());
+        }
+      else
+        {
+          AssertThrow(false, ExcNotImplemented());
+        }
+
+      {
+        TimerOutput::Scope scope(timer, "vmult::precon_2");
+        preconditioner_2->vmult(dst_2, src_2);
+      }
+
+      {
+        TimerOutput::Scope scope(timer, "vmult::merge");
+        VectorTools::merge_fast(dst_0, dst_1, dst_2, dst);
+
+#ifdef DEBUG
+        VectorType temp;
+        temp.reinit(dst);
+
+        VectorTools::merge(this->matrix_free, dst_0, dst_1, dst_2, temp);
+
+        AssertThrow(VectorTools::check_identity(dst, temp), ExcInternalError());
+#endif
+      }
+    }
+
+    void
+    do_update() override
+    {
+      preconditioner_0->do_update();
+      preconditioner_1->do_update();
+      preconditioner_2->do_update();
+    }
+
+  private:
+    const MatrixFree<dim, Number, VectorizedArrayType> &matrix_free;
+
+    OperatorCahnHillardA<dim, 1, n_components, Number, VectorizedArrayType>
+      operator_0;
+    OperatorCahnHillardB<dim, 1, n_components, Number, VectorizedArrayType>
+      block_ch_b;
+    OperatorCahnHillardC<dim, 1, n_components, Number, VectorizedArrayType>
+      block_ch_c;
+    OperatorCahnHillardD<dim, 1, n_components, Number, VectorizedArrayType>
+      operator_1;
+
+    OperatorAllenCahn<dim,
+                      n_components - 2,
+                      n_components,
+                      Number,
+                      VectorizedArrayType>
+      operator_2;
+
+    mutable VectorType dst_0, dst_1, dst_2;
+    mutable VectorType src_0, src_1, src_2;
+
+    std::unique_ptr<Preconditioners::PreconditionerBase<Number>>
+      preconditioner_0, preconditioner_1, preconditioner_2;
 
     ConditionalOStream  pcout;
     mutable TimerOutput timer;
@@ -2292,6 +3081,7 @@ namespace Sintering
     DoFHandler<dim>                           dof_handler;
     DoFHandler<dim>                           dof_handler_ch;
     DoFHandler<dim>                           dof_handler_ac;
+    DoFHandler<dim>                           dof_handler_scalar;
     AffineConstraints<Number> constraint; // TODO: currently no constraints are
                                           // applied
 
@@ -2306,6 +3096,7 @@ namespace Sintering
       , dof_handler(tria)
       , dof_handler_ch(tria)
       , dof_handler_ac(tria)
+      , dof_handler_scalar(tria)
       , initial_solution(x01,
                          x02,
                          y0,
@@ -2326,6 +3117,7 @@ namespace Sintering
       dof_handler_ch.distribute_dofs(FESystem<dim>(FE_Q<dim>{fe_degree}, 2));
       dof_handler_ac.distribute_dofs(
         FESystem<dim>(FE_Q<dim>{fe_degree}, number_of_components - 2));
+      dof_handler_scalar.distribute_dofs(FE_Q<dim>{fe_degree});
     }
 
 
@@ -2340,11 +3132,10 @@ namespace Sintering
 
       MatrixFree<dim, Number, VectorizedArrayType> matrix_free;
 
-      const std::vector<const DoFHandler<dim> *> dof_handlers{&dof_handler,
-                                                              &dof_handler_ch,
-                                                              &dof_handler_ac};
+      const std::vector<const DoFHandler<dim> *> dof_handlers{
+        &dof_handler, &dof_handler_ch, &dof_handler_ac, &dof_handler_scalar};
       const std::vector<const AffineConstraints<double> *> constraints{
-        &constraint, &constraint, &constraint};
+        &constraint, &constraint, &constraint, &constraint};
 
       matrix_free.reinit(
         mapping, dof_handlers, constraints, quad, additional_data);
@@ -2455,10 +3246,19 @@ namespace Sintering
       else if (true)
         {
           preconditioner =
-            std::make_unique<BlockPreconditioner<dim,
-                                                 number_of_components,
-                                                 Number,
-                                                 VectorizedArrayType>>(
+            std::make_unique<BlockPreconditioner2<dim,
+                                                  number_of_components,
+                                                  Number,
+                                                  VectorizedArrayType>>(
+              nonlinear_operator, matrix_free, constraint);
+        }
+      else if (true)
+        {
+          preconditioner =
+            std::make_unique<BlockPreconditioner3<dim,
+                                                  number_of_components,
+                                                  Number,
+                                                  VectorizedArrayType>>(
               nonlinear_operator, matrix_free, constraint);
         }
       else
@@ -2559,7 +3359,7 @@ namespace Sintering
 
               t += dt;
             }
-          catch (...)
+          catch (const NonLinearSolvers::ExcNewtonDidNotConverge &)
             {
               dt *= 0.5;
               pcout << "Solver diverged, reducing timestep, dt = " << dt
