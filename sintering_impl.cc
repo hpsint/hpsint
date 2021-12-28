@@ -2647,13 +2647,13 @@ namespace Sintering
       matrix_free.initialize_dof_vector(dst_1, 2);
       matrix_free.initialize_dof_vector(src_1, 2);
 
-      preconditioner_0 =
-        std::make_unique<Preconditioners::InverseDiagonalMatrix<
-          OperatorCahnHillard<dim,
-                              2,
-                              n_components,
-                              Number,
-                              VectorizedArrayType>>>(operator_0);
+      preconditioner_0 = std::make_unique<
+        Preconditioners::ILU<OperatorCahnHillard<dim,
+                                                 2,
+                                                 n_components,
+                                                 Number,
+                                                 VectorizedArrayType>>>(
+        operator_0);
 
       if (false)
         preconditioner_1 = std::make_unique<
@@ -3243,7 +3243,7 @@ namespace Sintering
               PreconditionerGMG<dim, NonLinearOperator, VectorType>>(
             this->dof_handler, mg_dof_handlers, mg_constraints, mg_operators);
         }
-      else if (false)
+      else if (true)
         {
           preconditioner =
             std::make_unique<BlockPreconditioner2<dim,
