@@ -17,6 +17,7 @@
 
 #include <deal.II/base/conditional_ostream.h>
 #include <deal.II/base/mpi.h>
+#include <deal.II/base/parameter_handler.h>
 #include <deal.II/base/quadrature_lib.h>
 #include <deal.II/base/timer.h>
 
@@ -3042,6 +3043,93 @@ namespace Sintering
 
     BlockPreconditioner2Data block_preconditioner_2_data;
     BlockPreconditioner3Data block_preconditioner_3_data;
+
+    void
+    parse(const std::string file_name)
+    {
+      dealii::ParameterHandler prm;
+      add_parameters(prm);
+
+      std::ifstream file;
+      file.open(file_name);
+      prm.parse_input_from_json(file, true);
+    }
+
+    void
+    print()
+    {
+      dealii::ParameterHandler prm;
+      add_parameters(prm);
+
+      ConditionalOStream pcout(
+        std::cout, Utilities::MPI::this_mpi_process(MPI_COMM_WORLD) == 0);
+
+      if (pcout.is_active())
+        prm.print_parameters(
+          pcout.get_stream(),
+          ParameterHandler::OutputStyle::Description |
+            ParameterHandler::OutputStyle::KeepDeclarationOrder);
+    }
+
+  private:
+    void
+    add_parameters(ParameterHandler &prm)
+    {
+      const std::string preconditioner_types =
+        "AMG|InverseBlockDiagonalMatrix|InverseDiagonalMatrix|ILU";
+
+      prm.add_parameter("FEDegree",
+                        fe_degree,
+                        "Degree of the shape the finite element.");
+      prm.add_parameter("NPoints1D",
+                        n_points_1D,
+                        "Number of quadrature points.");
+      prm.add_parameter("OuterPreconditioner",
+                        outer_preconditioner,
+                        "Preconditioner to be used for the outer system.",
+                        Patterns::Selection(
+                          preconditioner_types +
+                          "|BlockPreconditioner2|BlockPreconditioner3"));
+
+      prm.enter_subsection("BlockPreconditioner2");
+      prm.add_parameter("Block0Preconditioner",
+                        block_preconditioner_2_data.block_0_preconditioner,
+                        "Preconditioner to be used for the first block.",
+                        Patterns::Selection(preconditioner_types));
+      prm.add_parameter("Block1Preconditioner",
+                        block_preconditioner_2_data.block_1_preconditioner,
+                        "Preconditioner to be used for the second block.",
+                        Patterns::Selection(preconditioner_types));
+      prm.leave_subsection();
+
+      prm.enter_subsection("BlockPreconditioner3");
+      prm.add_parameter("Type",
+                        block_preconditioner_3_data.type,
+                        "Type of block preconditioner of CH system.",
+                        Patterns::Selection("D|LD|RD|SYMM"));
+      prm.add_parameter("Block0Preconditioner",
+                        block_preconditioner_3_data.block_0_preconditioner,
+                        "Preconditioner to be used for the first block.",
+                        Patterns::Selection(preconditioner_types));
+      prm.add_parameter("Block0RelativeTolerance",
+                        block_preconditioner_3_data.block_0_relative_tolerance,
+                        "Relative tolerance of the first block.");
+      prm.add_parameter("Block1Preconditioner",
+                        block_preconditioner_3_data.block_1_preconditioner,
+                        "Preconditioner to be used for the second block.",
+                        Patterns::Selection(preconditioner_types));
+      prm.add_parameter("Block1RelativeTolerance",
+                        block_preconditioner_3_data.block_1_relative_tolerance,
+                        "Relative tolerance of the second block.");
+      prm.add_parameter("Block2Preconditioner",
+                        block_preconditioner_3_data.block_2_preconditioner,
+                        "Preconditioner to be used for the thrird block.",
+                        Patterns::Selection(preconditioner_types));
+      prm.add_parameter("Block2RelativeTolerance",
+                        block_preconditioner_3_data.block_2_relative_tolerance,
+                        "Relative tolerance of the third block.");
+      prm.leave_subsection();
+    }
   };
 
 
@@ -3492,6 +3580,19 @@ main(int argc, char **argv)
   Utilities::MPI::MPI_InitFinalize mpi_init(argc, argv, 1);
 
   Sintering::Parameters params;
+
+  if (argc == 2)
+    {
+      if (std::string(argv[1]) == "--help")
+        {
+          params.print();
+          return 0;
+        }
+      else
+        {
+          params.parse(std::string(argv[1]));
+        }
+    }
 
   Sintering::Problem<2> runner(params);
   runner.run();
