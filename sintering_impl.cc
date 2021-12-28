@@ -1627,7 +1627,7 @@ namespace Sintering
             int n_components,
             typename Number,
             typename VectorizedArrayType>
-  class Operator
+  class SinteringOperator
     : public OperatorBase<dim, n_components, Number, VectorizedArrayType>
   {
   public:
@@ -1639,7 +1639,7 @@ namespace Sintering
     using FECellIntegrator =
       FEEvaluation<dim, -1, 0, n_components, Number, VectorizedArrayType>;
 
-    Operator(const MatrixFree<dim, Number, VectorizedArrayType> &matrix_free,
+    SinteringOperator(const MatrixFree<dim, Number, VectorizedArrayType> &matrix_free,
              const AffineConstraints<Number> &                   constraints,
              const double                                        A,
              const double                                        B,
@@ -1665,7 +1665,7 @@ namespace Sintering
     evaluate_nonlinear_residual(VectorType &dst, const VectorType &src) const
     {
       this->matrix_free.cell_loop(
-        &Operator::do_evaluate_nonlinear_residual, this, dst, src, true);
+        &SinteringOperator::do_evaluate_nonlinear_residual, this, dst, src, true);
     }
 
     void
@@ -1698,7 +1698,7 @@ namespace Sintering
 
       int dummy = 0;
 
-      this->matrix_free.cell_loop(&Operator::do_evaluate_newton_step,
+      this->matrix_free.cell_loop(&SinteringOperator::do_evaluate_newton_step,
                                   this,
                                   dummy,
                                   newton_step);
@@ -2164,7 +2164,7 @@ namespace Sintering
       FEEvaluation<dim, -1, 0, n_components, Number, VectorizedArrayType>;
 
     BlockPreconditioner(
-      const Operator<dim, n_components, Number, VectorizedArrayType> &op,
+      const SinteringOperator<dim, n_components, Number, VectorizedArrayType> &op,
       const MatrixFree<dim, Number, VectorizedArrayType> &matrix_free,
       const AffineConstraints<Number> &                   constraints,
       const double                                        A,
@@ -2312,7 +2312,7 @@ namespace Sintering
     static constexpr unsigned int number_of_components = 4;
 
     using NonLinearOperator =
-      Operator<dim, number_of_components, Number, VectorizedArrayType>;
+      SinteringOperator<dim, number_of_components, Number, VectorizedArrayType>;
 
     // geometry
     static constexpr double diameter        = 15.0;
