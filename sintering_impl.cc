@@ -2345,11 +2345,14 @@ namespace Sintering
 
           std::vector etas_grad{eta1_grad, eta2_grad};
 
-          phi.submit_value(phi.get_value(q) / dt, q);
+          const auto value    = phi.get_value(q);
+          const auto gradient = phi.get_gradient(q);
+
+          phi.submit_value(value / dt, q);
           phi.submit_gradient(mobility.dM_dc(c, etas, c_grad, etas_grad) *
-                                  mu_grad * phi.get_value(q) +
+                                  mu_grad * value +
                                 mobility.dM_dgrad_c(c, c_grad, mu_grad) *
-                                  phi.get_gradient(q),
+                                  gradient,
                               q);
         }
     }
@@ -2408,9 +2411,11 @@ namespace Sintering
 
           std::vector etas_grad{eta1_grad, eta2_grad};
 
-          phi.submit_value(0, q); // TODO
-          phi.submit_gradient(mobility.M(c, etas, c_grad, etas_grad) *
-                                phi.get_gradient(q),
+          const auto value    = phi.get_value(q);
+          const auto gradient = phi.get_gradient(q);
+
+          phi.submit_value(value * 0.0, q); // TODO
+          phi.submit_gradient(mobility.M(c, etas, c_grad, etas_grad) * gradient,
                               q);
         }
     }
@@ -2469,8 +2474,11 @@ namespace Sintering
 
           std::vector etas_grad{eta1_grad, eta2_grad};
 
-          phi.submit_value(free_energy.d2f_dc2(c, etas) * phi.get_value(q), q);
-          phi.submit_gradient(kappa_c * phi.get_gradient(q), q);
+          const auto value    = phi.get_value(q);
+          const auto gradient = phi.get_gradient(q);
+
+          phi.submit_value(free_energy.d2f_dc2(c, etas) * value, q);
+          phi.submit_gradient(kappa_c * gradient, q);
         }
     }
 
@@ -2510,8 +2518,11 @@ namespace Sintering
     {
       for (unsigned int q = 0; q < phi.n_q_points; ++q)
         {
-          phi.submit_value(-phi.get_value(q), q);
-          phi.submit_gradient(phi.get_gradient(q) * 0.0, q); // TODO
+          const auto value    = phi.get_value(q);
+          const auto gradient = phi.get_gradient(q);
+
+          phi.submit_value(-value, q);
+          phi.submit_gradient(gradient * 0.0, q); // TODO
         }
     }
 
@@ -2631,13 +2642,13 @@ namespace Sintering
       matrix_free.initialize_dof_vector(dst_1, 2);
       matrix_free.initialize_dof_vector(src_1, 2);
 
-      preconditioner_0 = std::make_unique<
-        Preconditioners::ILU<OperatorCahnHillard<dim,
-                                                 2,
-                                                 n_components,
-                                                 Number,
-                                                 VectorizedArrayType>>>(
-        operator_0);
+      preconditioner_0 =
+        std::make_unique<Preconditioners::InverseDiagonalMatrix<
+          OperatorCahnHillard<dim,
+                              2,
+                              n_components,
+                              Number,
+                              VectorizedArrayType>>>(operator_0);
 
       if (false)
         preconditioner_1 = std::make_unique<
