@@ -2855,7 +2855,7 @@ namespace Sintering
             }
           else
             {
-              ReductionControl reduction_control;
+              ReductionControl reduction_control(100, 1e-20, 1e-12);
 
               SolverGMRES<VectorType> solver(reduction_control);
               solver.solve(operator_0, dst_0, src_0, *preconditioner_0);
@@ -2870,7 +2870,7 @@ namespace Sintering
             }
           else
             {
-              ReductionControl reduction_control;
+              ReductionControl reduction_control(100, 1e-20, 1e-12);
 
               SolverGMRES<VectorType> solver(reduction_control);
               solver.solve(operator_1, dst_1, src_1, *preconditioner_1);
@@ -2888,7 +2888,7 @@ namespace Sintering
             }
           else
             {
-              ReductionControl reduction_control;
+              ReductionControl reduction_control(100, 1e-20, 1e-12);
 
               SolverGMRES<VectorType> solver(reduction_control);
               solver.solve(operator_1, dst_1, src_1, *preconditioner_1);
@@ -2903,7 +2903,7 @@ namespace Sintering
             }
           else
             {
-              ReductionControl reduction_control;
+              ReductionControl reduction_control(100, 1e-20, 1e-12);
 
               SolverGMRES<VectorType> solver(reduction_control);
               solver.solve(operator_0, dst_0, src_0, *preconditioner_0);
@@ -3321,8 +3321,12 @@ namespace Sintering
 
               t += dt;
             }
-          catch (...)
+          catch (const std::exception &e)
             {
+#ifdef DEBUG
+              pcout << e.what();
+#endif
+
               dt *= 0.5;
               pcout << "Solver diverged, reducing timestep, dt = " << dt
                     << std::endl;
