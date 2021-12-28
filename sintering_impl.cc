@@ -2784,13 +2784,13 @@ namespace Sintering
                                                   VectorizedArrayType>>>(
         operator_0);
 
-      preconditioner_1 = std::make_unique<
-        Preconditioners::ILU<OperatorCahnHillardD<dim,
-                                                  1,
-                                                  n_components,
-                                                  Number,
-                                                  VectorizedArrayType>>>(
-        operator_1);
+      preconditioner_1 =
+        std::make_unique<Preconditioners::InverseDiagonalMatrix<
+          OperatorCahnHillardD<dim,
+                               1,
+                               n_components,
+                               Number,
+                               VectorizedArrayType>>>(operator_1);
 
       preconditioner_2 =
         std::make_unique<Preconditioners::InverseDiagonalMatrix<
