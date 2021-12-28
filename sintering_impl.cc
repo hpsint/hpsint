@@ -2156,6 +2156,136 @@ namespace Sintering
             int n_components_,
             typename Number,
             typename VectorizedArrayType>
+  class OperatorCahnHillardB
+    : public OperatorBase<dim, n_components, Number, VectorizedArrayType>
+  {
+  public:
+    using FECellIntegrator =
+      FEEvaluation<dim, -1, 0, n_components, Number, VectorizedArrayType>;
+
+    OperatorCahnHillardB(
+      const MatrixFree<dim, Number, VectorizedArrayType> &matrix_free,
+      const AffineConstraints<Number> &                   constraints,
+      const SinteringOperator<dim, n_components_, Number, VectorizedArrayType>
+        &op)
+      : OperatorBase<dim, n_components, Number, VectorizedArrayType>(
+          matrix_free,
+          constraints,
+          3 /*TODO*/)
+      , op(op)
+    {}
+
+  protected:
+    void
+    do_vmult_kernel(FECellIntegrator &phi) const
+    {
+      AssertThrow(false, ExcNotImplemented());
+
+      const unsigned int cell = phi.get_current_cell_index();
+
+      const auto &mobility            = this->op.get_data().mobility;
+      const auto &dt                  = this->op.get_dt();
+      const auto &nonlinear_values    = this->op.get_nonlinear_values();
+      const auto &nonlinear_gradients = this->op.get_nonlinear_gradients();
+
+      for (unsigned int q = 0; q < phi.n_q_points; ++q)
+        {
+          auto &c    = nonlinear_values(cell, q)[0];
+          auto &eta1 = nonlinear_values(cell, q)[2];
+          auto &eta2 = nonlinear_values(cell, q)[3];
+
+          std::vector etas{eta1, eta2};
+
+          auto &c_grad    = nonlinear_gradients(cell, q)[0];
+          auto &mu_grad   = nonlinear_gradients(cell, q)[1];
+          auto &eta1_grad = nonlinear_gradients(cell, q)[2];
+          auto &eta2_grad = nonlinear_gradients(cell, q)[3];
+
+          std::vector etas_grad{eta1_grad, eta2_grad};
+
+          phi.submit_value(phi.get_value(q) / dt, q);
+          phi.submit_gradient(mobility.dM_dc(c, etas, c_grad, etas_grad) *
+                                  mu_grad * phi.get_value(q) +
+                                mobility.dM_dgrad_c(c, c_grad, mu_grad) *
+                                  phi.get_gradient(q),
+                              q);
+        }
+    }
+
+    const SinteringOperator<dim, n_components_, Number, VectorizedArrayType>
+      &op;
+  };
+
+
+
+  template <int dim,
+            int n_components,
+            int n_components_,
+            typename Number,
+            typename VectorizedArrayType>
+  class OperatorCahnHillardC
+    : public OperatorBase<dim, n_components, Number, VectorizedArrayType>
+  {
+  public:
+    using FECellIntegrator =
+      FEEvaluation<dim, -1, 0, n_components, Number, VectorizedArrayType>;
+
+    OperatorCahnHillardC(
+      const MatrixFree<dim, Number, VectorizedArrayType> &matrix_free,
+      const AffineConstraints<Number> &                   constraints,
+      const SinteringOperator<dim, n_components_, Number, VectorizedArrayType>
+        &op)
+      : OperatorBase<dim, n_components, Number, VectorizedArrayType>(
+          matrix_free,
+          constraints,
+          3 /*TODO*/)
+      , op(op)
+    {}
+
+  protected:
+    void
+    do_vmult_kernel(FECellIntegrator &phi) const
+    {
+      const unsigned int cell = phi.get_current_cell_index();
+
+      const auto &free_energy         = this->op.get_data().free_energy;
+      const auto &mobility            = this->op.get_data().mobility;
+      const auto &kappa_c             = this->op.get_data().kappa_c;
+      const auto &dt                  = this->op.get_dt();
+      const auto &nonlinear_values    = this->op.get_nonlinear_values();
+      const auto &nonlinear_gradients = this->op.get_nonlinear_gradients();
+
+      for (unsigned int q = 0; q < phi.n_q_points; ++q)
+        {
+          auto &c    = nonlinear_values(cell, q)[0];
+          auto &eta1 = nonlinear_values(cell, q)[2];
+          auto &eta2 = nonlinear_values(cell, q)[3];
+
+          std::vector etas{eta1, eta2};
+
+          auto &c_grad    = nonlinear_gradients(cell, q)[0];
+          auto &mu_grad   = nonlinear_gradients(cell, q)[1];
+          auto &eta1_grad = nonlinear_gradients(cell, q)[2];
+          auto &eta2_grad = nonlinear_gradients(cell, q)[3];
+
+          std::vector etas_grad{eta1_grad, eta2_grad};
+
+          phi.submit_value(free_energy.d2f_dc2(c, etas) * phi.get_value(q), q);
+          phi.submit_gradient(kappa_c * phi.get_gradient(q), q);
+        }
+    }
+
+    const SinteringOperator<dim, n_components_, Number, VectorizedArrayType>
+      &op;
+  };
+
+
+
+  template <int dim,
+            int n_components,
+            int n_components_,
+            typename Number,
+            typename VectorizedArrayType>
   class OperatorCahnHillardD
     : public OperatorBase<dim, n_components, Number, VectorizedArrayType>
   {
@@ -2409,6 +2539,8 @@ namespace Sintering
       const AffineConstraints<Number> &                   constraints)
       : matrix_free(matrix_free)
       , operator_0(matrix_free, constraints, op)
+      , block_ch_b(matrix_free, constraints, op)
+      , block_ch_c(matrix_free, constraints, op)
       , operator_1(matrix_free, constraints, op)
       , operator_2(matrix_free, constraints, op)
       , pcout(std::cout, Utilities::MPI::this_mpi_process(MPI_COMM_WORLD) == 0)
@@ -2461,7 +2593,7 @@ namespace Sintering
         VectorTools::split_up(this->matrix_free, src, src_0, src_1, src_2);
       }
 
-      if (true)
+      if (false)
         {
           // Block Jacobi
           {
@@ -2473,6 +2605,49 @@ namespace Sintering
             TimerOutput::Scope scope(timer, "vmult::precon_1");
             preconditioner_1->vmult(dst_1, src_1);
           }
+        }
+      else if (true)
+        {
+          // Block Gauss Seidel: L+D
+          VectorType tmp;
+          tmp.reinit(src_0);
+
+          if (false)
+            {
+              preconditioner_0->vmult(dst_0, src_0);
+            }
+          else
+            {
+              ReductionControl reduction_control;
+
+              SolverGMRES<VectorType> solver(reduction_control);
+              solver.solve(operator_0, dst_0, src_0, *preconditioner_0);
+            }
+
+          block_ch_c.vmult(tmp, dst_0);
+          src_1 -= tmp;
+
+          if (false)
+            {
+              preconditioner_1->vmult(dst_1, src_1);
+            }
+          else
+            {
+              ReductionControl reduction_control;
+
+              SolverGMRES<VectorType> solver(reduction_control);
+              solver.solve(operator_1, dst_1, src_1, *preconditioner_1);
+            }
+        }
+      else if (true)
+        {
+          // Block Gauss Seidel: R+D
+          AssertThrow(false, ExcNotImplemented());
+        }
+      else if (true)
+        {
+          // Block Gauss Seidel: symmetric
+          AssertThrow(false, ExcNotImplemented());
         }
       else
         {
@@ -2503,6 +2678,10 @@ namespace Sintering
 
     OperatorCahnHillardA<dim, 1, n_components, Number, VectorizedArrayType>
       operator_0;
+    OperatorCahnHillardB<dim, 1, n_components, Number, VectorizedArrayType>
+      block_ch_b;
+    OperatorCahnHillardC<dim, 1, n_components, Number, VectorizedArrayType>
+      block_ch_c;
     OperatorCahnHillardD<dim, 1, n_components, Number, VectorizedArrayType>
       operator_1;
 
