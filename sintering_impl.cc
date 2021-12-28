@@ -3299,6 +3299,11 @@ namespace Sintering
       double time_last_output = 0;
       output_result(solution, time_last_output);
 
+      unsigned int n_timestep              = 0;
+      unsigned int n_linear_iterations     = 0;
+      unsigned int n_non_linear_iterations = 0;
+      double       max_reached_dt          = 0.0;
+
       // run time loop
       for (double t = 0, dt = dt_deseride; t <= t_end;)
         {
@@ -3334,6 +3339,11 @@ namespace Sintering
                     << " solved in " << statistics.newton_iterations
                     << " Newton iterations and " << statistics.linear_iterations
                     << " linear iterations" << std::endl;
+
+              n_timestep += 1;
+              n_linear_iterations += statistics.linear_iterations;
+              n_non_linear_iterations += statistics.newton_iterations;
+              max_reached_dt = std::max(max_reached_dt, dt);
 
               if (std::abs(t - t_end) > 1e-9)
                 {
@@ -3378,6 +3388,20 @@ namespace Sintering
               output_result(solution, time_last_output);
             }
         }
+
+      pcout << std::endl;
+      pcout << "Final statistics:" << std::endl;
+      pcout << "  - n timesteps:               " << n_timestep << std::endl;
+      pcout << "  - n non-linear iterations:   " << n_non_linear_iterations
+            << std::endl;
+      pcout << "  - n linear iterations:       " << n_linear_iterations
+            << std::endl;
+      pcout << "  - avg non-linear iterations: "
+            << n_non_linear_iterations / n_timestep << std::endl;
+      pcout << "  - avg linear iterations:     "
+            << n_linear_iterations / n_non_linear_iterations << std::endl;
+      pcout << "  - max dt:                    " << max_reached_dt << std::endl;
+      pcout << std::endl;
     }
 
   private:
