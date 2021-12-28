@@ -1737,8 +1737,14 @@ namespace Sintering
       this->dt = dt_new;
     }
 
+    const SinteringOperatorData<dim, VectorizedArrayType> &
+    get_data() const
+    {
+      return data;
+    }
+
     const double &
-    get_timestep() const
+    get_dt() const
     {
       return this->dt;
     }
@@ -1956,46 +1962,19 @@ namespace Sintering
     : public OperatorBase<dim, n_components, Number, VectorizedArrayType>
   {
   public:
-    using VectorType = LinearAlgebra::distributed::Vector<Number>;
-
-    using value_type  = Number;
-    using vector_type = VectorType;
-
     using FECellIntegrator =
       FEEvaluation<dim, -1, 0, n_components, Number, VectorizedArrayType>;
 
     OperatorCahnHillard(
       const MatrixFree<dim, Number, VectorizedArrayType> &matrix_free,
       const AffineConstraints<Number> &                   constraints,
-      const double &                                      dt,
-      const Table<2, dealii::Tensor<1, n_components_, VectorizedArrayType>>
-        &nonlinear_values,
-      const Table<2,
-                  dealii::Tensor<1,
-                                 n_components_,
-                                 dealii::Tensor<1, dim, VectorizedArrayType>>>
-        &          nonlinear_gradients,
-      const double A,
-      const double B,
-      const double Mvol,
-      const double Mvap,
-      const double Msurf,
-      const double Mgb,
-      const double L,
-      const double kappa_c,
-      const double kappa_p)
+      const SinteringOperator<dim, n_components_, Number, VectorizedArrayType>
+        &op)
       : OperatorBase<dim, n_components, Number, VectorizedArrayType>(
           matrix_free,
           constraints,
           1)
-      , dt(dt)
-      , nonlinear_values(nonlinear_values)
-      , nonlinear_gradients(nonlinear_gradients)
-      , free_energy(A, B)
-      , mobility(Mvol, Mvap, Msurf, Mgb)
-      , L(L)
-      , kappa_c(kappa_c)
-      , kappa_p(kappa_p)
+      , op(op)
     {}
 
   protected:
@@ -2003,6 +1982,13 @@ namespace Sintering
     do_vmult_kernel(FECellIntegrator &phi) const
     {
       const unsigned int cell = phi.get_current_cell_index();
+
+      const auto &free_energy         = this->op.get_data().free_energy;
+      const auto &mobility            = this->op.get_data().mobility;
+      const auto &kappa_c             = this->op.get_data().kappa_c;
+      const auto &dt                  = this->op.get_dt();
+      const auto &nonlinear_values    = this->op.get_nonlinear_values();
+      const auto &nonlinear_gradients = this->op.get_nonlinear_gradients();
 
       for (unsigned int q = 0; q < phi.n_q_points; ++q)
         {
@@ -2040,26 +2026,10 @@ namespace Sintering
         }
     }
 
-    const double &dt;
-
-    const Table<2, dealii::Tensor<1, n_components_, VectorizedArrayType>>
-      &nonlinear_values;
-    const Table<2,
-                dealii::Tensor<1,
-                               n_components_,
-                               dealii::Tensor<1, dim, VectorizedArrayType>>>
-      &nonlinear_gradients;
-
-    const FreeEnergy free_energy;
-
-    // Choose MobilityScalar or MobilityTensorial here:
-    const MobilityScalar<dim, VectorizedArrayType> mobility;
-    // const MobilityTensorial<dim, VectorizedArrayType> mobility;
-
-    const double L;
-    const double kappa_c;
-    const double kappa_p;
+    const SinteringOperator<dim, n_components_, Number, VectorizedArrayType>
+      &op;
   };
+
 
 
   template <int dim,
@@ -2071,46 +2041,19 @@ namespace Sintering
     : public OperatorBase<dim, n_components, Number, VectorizedArrayType>
   {
   public:
-    using VectorType = LinearAlgebra::distributed::Vector<Number>;
-
-    using value_type  = Number;
-    using vector_type = VectorType;
-
     using FECellIntegrator =
       FEEvaluation<dim, -1, 0, n_components, Number, VectorizedArrayType>;
 
     OperatorAllenCahn(
       const MatrixFree<dim, Number, VectorizedArrayType> &matrix_free,
       const AffineConstraints<Number> &                   constraints,
-      const double &                                      dt,
-      const Table<2, dealii::Tensor<1, n_components_, VectorizedArrayType>>
-        &nonlinear_values,
-      const Table<2,
-                  dealii::Tensor<1,
-                                 n_components_,
-                                 dealii::Tensor<1, dim, VectorizedArrayType>>>
-        &          nonlinear_gradients,
-      const double A,
-      const double B,
-      const double Mvol,
-      const double Mvap,
-      const double Msurf,
-      const double Mgb,
-      const double L,
-      const double kappa_c,
-      const double kappa_p)
+      const SinteringOperator<dim, n_components_, Number, VectorizedArrayType>
+        &op)
       : OperatorBase<dim, n_components, Number, VectorizedArrayType>(
           matrix_free,
           constraints,
           2)
-      , dt(dt)
-      , nonlinear_values(nonlinear_values)
-      , nonlinear_gradients(nonlinear_gradients)
-      , free_energy(A, B)
-      , mobility(Mvol, Mvap, Msurf, Mgb)
-      , L(L)
-      , kappa_c(kappa_c)
-      , kappa_p(kappa_p)
+      , op(op)
     {}
 
   private:
@@ -2118,6 +2061,13 @@ namespace Sintering
     do_vmult_kernel(FECellIntegrator &phi) const final
     {
       const unsigned int cell = phi.get_current_cell_index();
+
+      const auto &free_energy         = this->op.get_data().free_energy;
+      const auto &L                   = this->op.get_data().L;
+      const auto &kappa_p             = this->op.get_data().kappa_p;
+      const auto &dt                  = this->op.get_dt();
+      const auto &nonlinear_values    = this->op.get_nonlinear_values();
+      const auto &nonlinear_gradients = this->op.get_nonlinear_gradients();
 
       for (unsigned int q = 0; q < phi.n_q_points; ++q)
         {
@@ -2155,25 +2105,8 @@ namespace Sintering
         }
     }
 
-    const double &dt;
-
-    const Table<2, dealii::Tensor<1, n_components_, VectorizedArrayType>>
-      &nonlinear_values;
-    const Table<2,
-                dealii::Tensor<1,
-                               n_components_,
-                               dealii::Tensor<1, dim, VectorizedArrayType>>>
-      &nonlinear_gradients;
-
-    const FreeEnergy free_energy;
-
-    // Choose MobilityScalar or MobilityTensorial here:
-    const MobilityScalar<dim, VectorizedArrayType> mobility;
-    // const MobilityTensorial<dim, VectorizedArrayType> mobility;
-
-    const double L;
-    const double kappa_c;
-    const double kappa_p;
+    const SinteringOperator<dim, n_components_, Number, VectorizedArrayType>
+      &op;
   };
 
 
@@ -2191,52 +2124,14 @@ namespace Sintering
     using value_type  = Number;
     using vector_type = VectorType;
 
-    using FECellIntegrator =
-      FEEvaluation<dim, -1, 0, n_components, Number, VectorizedArrayType>;
-
     BlockPreconditioner(
       const SinteringOperator<dim, n_components, Number, VectorizedArrayType>
         &                                                 op,
       const MatrixFree<dim, Number, VectorizedArrayType> &matrix_free,
-      const AffineConstraints<Number> &                   constraints,
-      const double                                        A,
-      const double                                        B,
-      const double                                        Mvol,
-      const double                                        Mvap,
-      const double                                        Msurf,
-      const double                                        Mgb,
-      const double                                        L,
-      const double                                        kappa_c,
-      const double                                        kappa_p)
+      const AffineConstraints<Number> &                   constraints)
       : matrix_free(matrix_free)
-      , operator_0(matrix_free,
-                   constraints,
-                   op.get_timestep(),
-                   op.get_nonlinear_values(),
-                   op.get_nonlinear_gradients(),
-                   A,
-                   B,
-                   Mvol,
-                   Mvap,
-                   Msurf,
-                   Mgb,
-                   L,
-                   kappa_c,
-                   kappa_p)
-      , operator_1(matrix_free,
-                   constraints,
-                   op.get_timestep(),
-                   op.get_nonlinear_values(),
-                   op.get_nonlinear_gradients(),
-                   A,
-                   B,
-                   Mvol,
-                   Mvap,
-                   Msurf,
-                   Mgb,
-                   L,
-                   kappa_c,
-                   kappa_p)
+      , operator_0(matrix_free, constraints, op)
+      , operator_1(matrix_free, constraints, op)
       , pcout(std::cout, Utilities::MPI::this_mpi_process(MPI_COMM_WORLD) == 0)
       , timer(pcout, TimerOutput::never, TimerOutput::wall_times)
     {
@@ -2564,18 +2459,7 @@ namespace Sintering
                                                  number_of_components,
                                                  Number,
                                                  VectorizedArrayType>>(
-              nonlinear_operator,
-              matrix_free,
-              constraint,
-              A,
-              B,
-              Mvol,
-              Mvap,
-              Msurf,
-              Mgb,
-              L,
-              kappa_c,
-              kappa_p);
+              nonlinear_operator, matrix_free, constraint);
         }
       else
         {
