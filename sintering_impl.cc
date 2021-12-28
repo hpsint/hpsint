@@ -92,6 +92,8 @@ namespace dealii
         }
     }
 
+
+
     template <int dim,
               typename Number,
               typename VectorizedArrayType,
@@ -163,6 +165,26 @@ namespace dealii
 
 
 
+    template <typename VectorType>
+    void
+    split_up_fast(const VectorType &vec,
+                  VectorType &      vec_0,
+                  VectorType &      vec_1,
+                  VectorType &      vec_2)
+    {
+      for (unsigned int i = 0, i0 = 0, i1 = 0, i2 = 0;
+           i < vec.get_partitioner()->locally_owned_size();)
+        {
+          vec_0.local_element(i0++) = vec.local_element(i++);
+          vec_1.local_element(i1++) = vec.local_element(i++);
+
+          for (unsigned int j = 0; j < 2; ++j)
+            vec_2.local_element(i2++) = vec.local_element(i++);
+        }
+    }
+
+
+
     template <int dim,
               typename Number,
               typename VectorizedArrayType,
@@ -174,17 +196,85 @@ namespace dealii
              VectorType &                                        vec_1,
              VectorType &                                        vec_2)
     {
-      (void)matrix_free;
+      vec.update_ghost_values();
 
-      for (unsigned int i = 0, i0 = 0, i1 = 0, i2 = 0;
-           i < vec.get_partitioner()->locally_owned_size();)
-        {
-          vec_0.local_element(i0++) = vec.local_element(i++);
-          vec_1.local_element(i1++) = vec.local_element(i++);
+      for (const auto &cell_all :
+           matrix_free.get_dof_handler(0).active_cell_iterators())
+        if (cell_all->is_locally_owned())
+          {
+            // read all dof_values
+            Vector<double> local(cell_all->get_fe().n_dofs_per_cell());
+            cell_all->get_dof_values(vec, local);
 
-          for (unsigned int j = 0; j < 2; ++j)
-            vec_2.local_element(i2++) = vec.local_element(i++);
-        }
+            // write Cahn-Hillard components
+            {
+              DoFCellAccessor<dim, dim, false> cell(
+                &matrix_free.get_dof_handler(0).get_triangulation(),
+                cell_all->level(),
+                cell_all->index(),
+                &matrix_free.get_dof_handler(3 /*TODO*/));
+
+              Vector<double> local_component(cell.get_fe().n_dofs_per_cell());
+
+              for (unsigned int i = 0; i < cell.get_fe().n_dofs_per_cell(); ++i)
+                {
+                  const auto [c, j] =
+                    cell.get_fe().system_to_component_index(i);
+
+                  local_component[i] =
+                    local[cell_all->get_fe().component_to_system_index(c, j)];
+                }
+
+              cell.set_dof_values(local_component, vec_0);
+            }
+
+            {
+              DoFCellAccessor<dim, dim, false> cell(
+                &matrix_free.get_dof_handler(0).get_triangulation(),
+                cell_all->level(),
+                cell_all->index(),
+                &matrix_free.get_dof_handler(3 /*TODO*/));
+
+              Vector<double> local_component(cell.get_fe().n_dofs_per_cell());
+
+              for (unsigned int i = 0; i < cell.get_fe().n_dofs_per_cell(); ++i)
+                {
+                  const auto [c, j] =
+                    cell.get_fe().system_to_component_index(i);
+
+                  local_component[i] =
+                    local[cell_all->get_fe().component_to_system_index(c + 1,
+                                                                       j)];
+                }
+
+              cell.set_dof_values(local_component, vec_1);
+            }
+
+            // write Allen-Cahn components
+            {
+              DoFCellAccessor<dim, dim, false> cell(
+                &matrix_free.get_dof_handler(0).get_triangulation(),
+                cell_all->level(),
+                cell_all->index(),
+                &matrix_free.get_dof_handler(2));
+
+              Vector<double> local_component(cell.get_fe().n_dofs_per_cell());
+
+              for (unsigned int i = 0; i < cell.get_fe().n_dofs_per_cell(); ++i)
+                {
+                  const auto [c, j] =
+                    cell.get_fe().system_to_component_index(i);
+
+                  local_component[i] =
+                    local[cell_all->get_fe().component_to_system_index(c + 2,
+                                                                       j)];
+                }
+
+              cell.set_dof_values(local_component, vec_2);
+            }
+          }
+
+      vec.zero_out_ghost_values();
     }
 
 
@@ -280,6 +370,26 @@ namespace dealii
 
 
 
+    template <typename VectorType>
+    void
+    merge_fast(const VectorType &vec_0,
+               const VectorType &vec_1,
+               const VectorType &vec_2,
+               VectorType &      vec)
+    {
+      for (unsigned int i = 0, i0 = 0, i1 = 0, i2 = 0;
+           i < vec.get_partitioner()->locally_owned_size();)
+        {
+          vec.local_element(i++) = vec_0.local_element(i0++);
+          vec.local_element(i++) = vec_1.local_element(i1++);
+
+          for (unsigned int j = 0; j < 2; ++j)
+            vec.local_element(i++) = vec_2.local_element(i2++);
+        }
+    }
+
+
+
     template <int dim,
               typename Number,
               typename VectorizedArrayType,
@@ -291,17 +401,87 @@ namespace dealii
           const VectorType &                                  vec_2,
           VectorType &                                        vec)
     {
-      (void)matrix_free;
+      vec_0.update_ghost_values();
+      vec_1.update_ghost_values();
+      vec_2.update_ghost_values();
 
-      for (unsigned int i = 0, i0 = 0, i1 = 0, i2 = 0;
-           i < vec.get_partitioner()->locally_owned_size();)
-        {
-          vec.local_element(i++) = vec_0.local_element(i0++);
-          vec.local_element(i++) = vec_1.local_element(i1++);
+      for (const auto &cell_all :
+           matrix_free.get_dof_handler(0).active_cell_iterators())
+        if (cell_all->is_locally_owned())
+          {
+            Vector<double> local(cell_all->get_fe().n_dofs_per_cell());
 
-          for (unsigned int j = 0; j < 2; ++j)
-            vec.local_element(i++) = vec_2.local_element(i2++);
-        }
+            // read Cahn-Hillard components
+            {
+              DoFCellAccessor<dim, dim, false> cell(
+                &matrix_free.get_dof_handler(0).get_triangulation(),
+                cell_all->level(),
+                cell_all->index(),
+                &matrix_free.get_dof_handler(3 /*TODO*/));
+
+              Vector<double> local_component(cell.get_fe().n_dofs_per_cell());
+              cell.get_dof_values(vec_0, local_component);
+
+              for (unsigned int i = 0; i < cell.get_fe().n_dofs_per_cell(); ++i)
+                {
+                  const auto [c, j] =
+                    cell.get_fe().system_to_component_index(i);
+
+                  local[cell_all->get_fe().component_to_system_index(c, j)] =
+                    local_component[i];
+                }
+            }
+
+            {
+              DoFCellAccessor<dim, dim, false> cell(
+                &matrix_free.get_dof_handler(0).get_triangulation(),
+                cell_all->level(),
+                cell_all->index(),
+                &matrix_free.get_dof_handler(3 /*TODO*/));
+
+              Vector<double> local_component(cell.get_fe().n_dofs_per_cell());
+              cell.get_dof_values(vec_1, local_component);
+
+              for (unsigned int i = 0; i < cell.get_fe().n_dofs_per_cell(); ++i)
+                {
+                  const auto [c, j] =
+                    cell.get_fe().system_to_component_index(i);
+
+                  local[cell_all->get_fe().component_to_system_index(c + 1,
+                                                                     j)] =
+                    local_component[i];
+                }
+            }
+
+            // read Allen-Cahn components
+            {
+              DoFCellAccessor<dim, dim, false> cell(
+                &matrix_free.get_dof_handler(0).get_triangulation(),
+                cell_all->level(),
+                cell_all->index(),
+                &matrix_free.get_dof_handler(2));
+
+              Vector<double> local_component(cell.get_fe().n_dofs_per_cell());
+              cell.get_dof_values(vec_2, local_component);
+
+              for (unsigned int i = 0; i < cell.get_fe().n_dofs_per_cell(); ++i)
+                {
+                  const auto [c, j] =
+                    cell.get_fe().system_to_component_index(i);
+
+                  local[cell_all->get_fe().component_to_system_index(c + 2,
+                                                                     j)] =
+                    local_component[i];
+                }
+            }
+
+            // read all dof_values
+            cell_all->set_dof_values(local, vec);
+          }
+
+      vec_0.zero_out_ghost_values();
+      vec_1.zero_out_ghost_values();
+      vec_2.zero_out_ghost_values();
     }
   } // namespace VectorTools
 } // namespace dealii
@@ -2631,7 +2811,23 @@ namespace Sintering
     {
       {
         TimerOutput::Scope scope(timer, "vmult::split_up");
-        VectorTools::split_up(this->matrix_free, src, src_0, src_1, src_2);
+        VectorTools::split_up_fast(src, src_0, src_1, src_2);
+
+#ifdef DEBUG
+        VectorType temp_0, temp_1, temp_2;
+        temp_0.reinit(src_0);
+        temp_1.reinit(src_1);
+        temp_2.reinit(src_2);
+
+        VectorTools::split_up(this->matrix_free, src, temp_0, temp_1, temp_2);
+
+        AssertThrow(VectorTools::check_identity(src_0, temp_0),
+                    ExcInternalError());
+        AssertThrow(VectorTools::check_identity(src_1, temp_1),
+                    ExcInternalError());
+        AssertThrow(VectorTools::check_identity(src_2, temp_2),
+                    ExcInternalError());
+#endif
       }
 
       if (false)
@@ -2730,7 +2926,16 @@ namespace Sintering
 
       {
         TimerOutput::Scope scope(timer, "vmult::merge");
-        VectorTools::merge(this->matrix_free, dst_0, dst_1, dst_2, dst);
+        VectorTools::merge_fast(dst_0, dst_1, dst_2, dst);
+
+#ifdef DEBUG
+        VectorType temp;
+        temp.reinit(dst);
+
+        VectorTools::merge(this->matrix_free, dst_0, dst_1, dst_2, temp);
+
+        AssertThrow(VectorTools::check_identity(dst, temp), ExcInternalError());
+#endif
       }
     }
 
@@ -3000,7 +3205,7 @@ namespace Sintering
               PreconditionerGMG<dim, NonLinearOperator, VectorType>>(
             this->dof_handler, mg_dof_handlers, mg_constraints, mg_operators);
         }
-      else if (true)
+      else if (false)
         {
           preconditioner =
             std::make_unique<BlockPreconditioner2<dim,
