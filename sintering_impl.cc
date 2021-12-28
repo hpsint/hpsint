@@ -1774,6 +1774,8 @@ namespace Sintering
     using value_type  = Number;
     using vector_type = VectorType;
 
+    static const int dimension = dim;
+
     using FECellIntegrator =
       FEEvaluation<dim, -1, 0, n_components, Number, VectorizedArrayType>;
 
@@ -1957,8 +1959,6 @@ namespace Sintering
 
     using value_type  = Number;
     using vector_type = VectorType;
-
-    static const int dimension = dim;
 
     using FECellIntegrator =
       FEEvaluation<dim, -1, 0, n_components, Number, VectorizedArrayType>;
@@ -2638,6 +2638,14 @@ namespace Sintering
 
 
 
+  struct BlockPreconditioner2Data
+  {
+    std::string block_0_preconditioner = "ILU";
+    std::string block_1_preconditioner = "InverseDiagonalMatrix";
+  };
+
+
+
   template <int dim,
             int n_components,
             typename Number,
@@ -2656,12 +2664,14 @@ namespace Sintering
       const SinteringOperator<dim, n_components, Number, VectorizedArrayType>
         &                                                 op,
       const MatrixFree<dim, Number, VectorizedArrayType> &matrix_free,
-      const AffineConstraints<Number> &                   constraints)
+      const AffineConstraints<Number> &                   constraints,
+      const BlockPreconditioner2Data &                    data = {})
       : matrix_free(matrix_free)
       , operator_0(matrix_free, constraints, op)
       , operator_1(matrix_free, constraints, op)
       , pcout(std::cout, Utilities::MPI::this_mpi_process(MPI_COMM_WORLD) == 0)
       , timer(pcout, TimerOutput::never, TimerOutput::wall_times)
+      , data(data)
     {
       matrix_free.initialize_dof_vector(dst_0, 1);
       matrix_free.initialize_dof_vector(src_0, 1);
@@ -2669,30 +2679,10 @@ namespace Sintering
       matrix_free.initialize_dof_vector(dst_1, 2);
       matrix_free.initialize_dof_vector(src_1, 2);
 
-      preconditioner_0 = std::make_unique<
-        Preconditioners::ILU<OperatorCahnHillard<dim,
-                                                 2,
-                                                 n_components,
-                                                 Number,
-                                                 VectorizedArrayType>>>(
-        operator_0);
-
-      if (false)
-        preconditioner_1 = std::make_unique<
-          Preconditioners::ILU<OperatorAllenCahn<dim,
-                                                 n_components - 2,
-                                                 n_components,
-                                                 Number,
-                                                 VectorizedArrayType>>>(
-          operator_1);
-      else
-        preconditioner_1 =
-          std::make_unique<Preconditioners::InverseDiagonalMatrix<
-            OperatorAllenCahn<dim,
-                              n_components - 2,
-                              n_components,
-                              Number,
-                              VectorizedArrayType>>>(operator_1);
+      preconditioner_0 =
+        Preconditioners::create(operator_0, data.block_0_preconditioner);
+      preconditioner_1 =
+        Preconditioners::create(operator_1, data.block_1_preconditioner);
     }
 
     ~BlockPreconditioner2()
@@ -2773,6 +2763,21 @@ namespace Sintering
 
     ConditionalOStream  pcout;
     mutable TimerOutput timer;
+
+    const BlockPreconditioner2Data data;
+  };
+
+
+
+  struct BlockPreconditioner3Data
+  {
+    std::string type                       = "LD";
+    std::string block_0_preconditioner     = "ILU";
+    double      block_0_relative_tolerance = 0.0;
+    std::string block_1_preconditioner     = "ILU";
+    double      block_1_relative_tolerance = 0.0;
+    std::string block_2_preconditioner     = "InverseDiagonalMatrix";
+    double      block_2_relative_tolerance = 0.0;
   };
 
 
@@ -2795,15 +2800,17 @@ namespace Sintering
       const SinteringOperator<dim, n_components, Number, VectorizedArrayType>
         &                                                 op,
       const MatrixFree<dim, Number, VectorizedArrayType> &matrix_free,
-      const AffineConstraints<Number> &                   constraints)
+      const AffineConstraints<Number> &                   constraints,
+      const BlockPreconditioner3Data &                    data = {})
       : matrix_free(matrix_free)
       , operator_0(matrix_free, constraints, op)
       , block_ch_b(matrix_free, constraints, op)
       , block_ch_c(matrix_free, constraints, op)
       , operator_1(matrix_free, constraints, op)
       , operator_2(matrix_free, constraints, op)
-      , pcout(std::cout, Utilities::MPI::this_mpi_process(MPI_COMM_WORLD) == 0)
+      , pcout(std::cout, Utilities::MPI::this_mpi_process(MPI_COMM_WORLD) == 1)
       , timer(pcout, TimerOutput::never, TimerOutput::wall_times)
+      , data(data)
     {
       matrix_free.initialize_dof_vector(dst_0, 3 /*TODO*/);
       matrix_free.initialize_dof_vector(src_0, 3 /*TODO*/);
@@ -2814,29 +2821,12 @@ namespace Sintering
       matrix_free.initialize_dof_vector(dst_2, 2);
       matrix_free.initialize_dof_vector(src_2, 2);
 
-      preconditioner_0 = std::make_unique<
-        Preconditioners::ILU<OperatorCahnHillardA<dim,
-                                                  1,
-                                                  n_components,
-                                                  Number,
-                                                  VectorizedArrayType>>>(
-        operator_0);
-
-      preconditioner_1 = std::make_unique<
-        Preconditioners::ILU<OperatorCahnHillardD<dim,
-                                                  1,
-                                                  n_components,
-                                                  Number,
-                                                  VectorizedArrayType>>>(
-        operator_1);
-
+      preconditioner_0 =
+        Preconditioners::create(operator_0, data.block_0_preconditioner);
+      preconditioner_1 =
+        Preconditioners::create(operator_1, data.block_1_preconditioner);
       preconditioner_2 =
-        std::make_unique<Preconditioners::InverseDiagonalMatrix<
-          OperatorAllenCahn<dim,
-                            n_components - 2,
-                            n_components,
-                            Number,
-                            VectorizedArrayType>>>(operator_2);
+        Preconditioners::create(operator_2, data.block_2_preconditioner);
     }
 
     ~BlockPreconditioner3()
@@ -2868,13 +2858,13 @@ namespace Sintering
 #endif
       }
 
-      if (false)
+      if (data.type == "D")
         {
           // Block Jacobi
           {
             TimerOutput::Scope scope(timer, "vmult::precon_0");
 
-            if (true)
+            if (data.block_0_relative_tolerance == 0.0)
               {
                 preconditioner_0->vmult(dst_0, src_0);
               }
@@ -2890,7 +2880,7 @@ namespace Sintering
           {
             TimerOutput::Scope scope(timer, "vmult::precon_1");
 
-            if (true)
+            if (data.block_1_relative_tolerance == 0.0)
               {
                 preconditioner_1->vmult(dst_1, src_1);
               }
@@ -2903,13 +2893,13 @@ namespace Sintering
               }
           }
         }
-      else if (true)
+      else if (data.type == "LD")
         {
           // Block Gauss Seidel: L+D
           VectorType tmp;
           tmp.reinit(src_0);
 
-          if (false)
+          if (data.block_0_relative_tolerance == 0.0)
             {
               preconditioner_0->vmult(dst_0, src_0);
             }
@@ -2924,7 +2914,7 @@ namespace Sintering
           block_ch_c.vmult(tmp, dst_0);
           src_1 -= tmp;
 
-          if (false)
+          if (data.block_1_relative_tolerance == 0.0)
             {
               preconditioner_1->vmult(dst_1, src_1);
             }
@@ -2936,13 +2926,13 @@ namespace Sintering
               solver.solve(operator_1, dst_1, src_1, *preconditioner_1);
             }
         }
-      else if (false)
+      else if (data.type == "RD")
         {
           // Block Gauss Seidel: R+D
           VectorType tmp;
           tmp.reinit(src_0);
 
-          if (false)
+          if (data.block_1_relative_tolerance == 0.0)
             {
               preconditioner_1->vmult(dst_1, src_1);
             }
@@ -2957,7 +2947,7 @@ namespace Sintering
           block_ch_b.vmult(tmp, dst_1);
           src_0 -= tmp;
 
-          if (false)
+          if (data.block_0_relative_tolerance == 0.0)
             {
               preconditioner_0->vmult(dst_0, src_0);
             }
@@ -2969,7 +2959,7 @@ namespace Sintering
               solver.solve(operator_0, dst_0, src_0, *preconditioner_0);
             }
         }
-      else if (true)
+      else if (data.type == "SYMM")
         {
           // Block Gauss Seidel: symmetric
           AssertThrow(false, ExcNotImplemented());
@@ -2980,6 +2970,9 @@ namespace Sintering
         }
 
       {
+        AssertThrow(data.block_2_relative_tolerance == 0.0,
+                    ExcNotImplemented());
+
         TimerOutput::Scope scope(timer, "vmult::precon_2");
         preconditioner_2->vmult(dst_2, src_2);
       }
@@ -3034,6 +3027,8 @@ namespace Sintering
 
     ConditionalOStream  pcout;
     mutable TimerOutput timer;
+
+    BlockPreconditioner3Data data;
   };
 
 
@@ -3044,6 +3039,9 @@ namespace Sintering
     unsigned int n_points_1D = 2;
 
     std::string outer_preconditioner = "BlockPreconditioner2";
+
+    BlockPreconditioner2Data block_preconditioner_2_data;
+    BlockPreconditioner3Data block_preconditioner_3_data;
   };
 
 
@@ -3268,14 +3266,20 @@ namespace Sintering
                                                 number_of_components,
                                                 Number,
                                                 VectorizedArrayType>>(
-            nonlinear_operator, matrix_free, constraint);
+            nonlinear_operator,
+            matrix_free,
+            constraint,
+            params.block_preconditioner_2_data);
       else if (params.outer_preconditioner == "BlockPreconditioner3")
         preconditioner =
           std::make_unique<BlockPreconditioner3<dim,
                                                 number_of_components,
                                                 Number,
                                                 VectorizedArrayType>>(
-            nonlinear_operator, matrix_free, constraint);
+            nonlinear_operator,
+            matrix_free,
+            constraint,
+            params.block_preconditioner_3_data);
       else
         preconditioner = Preconditioners::create(nonlinear_operator,
                                                  params.outer_preconditioner);
