@@ -2037,6 +2037,138 @@ namespace Sintering
             int n_components_,
             typename Number,
             typename VectorizedArrayType>
+  class OperatorCahnHillardA
+    : public OperatorBase<dim, n_components, Number, VectorizedArrayType>
+  {
+  public:
+    using FECellIntegrator =
+      FEEvaluation<dim, -1, 0, n_components, Number, VectorizedArrayType>;
+
+    OperatorCahnHillardA(
+      const MatrixFree<dim, Number, VectorizedArrayType> &matrix_free,
+      const AffineConstraints<Number> &                   constraints,
+      const SinteringOperator<dim, n_components_, Number, VectorizedArrayType>
+        &op)
+      : OperatorBase<dim, n_components, Number, VectorizedArrayType>(
+          matrix_free,
+          constraints,
+          1)
+      , op(op)
+    {}
+
+  protected:
+    void
+    do_vmult_kernel(FECellIntegrator &phi) const
+    {
+      const unsigned int cell = phi.get_current_cell_index();
+
+      const auto &mobility            = this->op.get_data().mobility;
+      const auto &dt                  = this->op.get_dt();
+      const auto &nonlinear_values    = this->op.get_nonlinear_values();
+      const auto &nonlinear_gradients = this->op.get_nonlinear_gradients();
+
+      for (unsigned int q = 0; q < phi.n_q_points; ++q)
+        {
+          auto &c    = nonlinear_values(cell, q)[0];
+          auto &eta1 = nonlinear_values(cell, q)[2];
+          auto &eta2 = nonlinear_values(cell, q)[3];
+
+          std::vector etas{eta1, eta2};
+
+          auto &c_grad    = nonlinear_gradients(cell, q)[0];
+          auto &mu_grad   = nonlinear_gradients(cell, q)[1];
+          auto &eta1_grad = nonlinear_gradients(cell, q)[2];
+          auto &eta2_grad = nonlinear_gradients(cell, q)[3];
+
+          std::vector etas_grad{eta1_grad, eta2_grad};
+
+          phi.submit_value(phi.get_value(q) / dt, q);
+          phi.submit_gradient(mobility.dM_dc(c, etas, c_grad, etas_grad) *
+                                  mu_grad * phi.get_value(q) +
+                                mobility.dM_dgrad_c(c, c_grad, mu_grad) *
+                                  phi.get_gradient(q),
+                              q);
+        }
+    }
+
+    const SinteringOperator<dim, n_components_, Number, VectorizedArrayType>
+      &op;
+  };
+
+
+
+  template <int dim,
+            int n_components,
+            int n_components_,
+            typename Number,
+            typename VectorizedArrayType>
+  class OperatorCahnHillardD
+    : public OperatorBase<dim, n_components, Number, VectorizedArrayType>
+  {
+  public:
+    using FECellIntegrator =
+      FEEvaluation<dim, -1, 0, n_components, Number, VectorizedArrayType>;
+
+    OperatorCahnHillardD(
+      const MatrixFree<dim, Number, VectorizedArrayType> &matrix_free,
+      const AffineConstraints<Number> &                   constraints,
+      const SinteringOperator<dim, n_components_, Number, VectorizedArrayType>
+        &op)
+      : OperatorBase<dim, n_components, Number, VectorizedArrayType>(
+          matrix_free,
+          constraints,
+          1)
+      , op(op)
+    {}
+
+  protected:
+    void
+    do_vmult_kernel(FECellIntegrator &phi) const
+    {
+      const unsigned int cell = phi.get_current_cell_index();
+
+      const auto &free_energy         = this->op.get_data().free_energy;
+      const auto &mobility            = this->op.get_data().mobility;
+      const auto &kappa_c             = this->op.get_data().kappa_c;
+      const auto &dt                  = this->op.get_dt();
+      const auto &nonlinear_values    = this->op.get_nonlinear_values();
+      const auto &nonlinear_gradients = this->op.get_nonlinear_gradients();
+
+      for (unsigned int q = 0; q < phi.n_q_points; ++q)
+        {
+          auto &c    = nonlinear_values(cell, q)[0];
+          auto &eta1 = nonlinear_values(cell, q)[2];
+          auto &eta2 = nonlinear_values(cell, q)[3];
+
+          std::vector etas{eta1, eta2};
+
+          auto &c_grad    = nonlinear_gradients(cell, q)[0];
+          auto &mu_grad   = nonlinear_gradients(cell, q)[1];
+          auto &eta1_grad = nonlinear_gradients(cell, q)[2];
+          auto &eta2_grad = nonlinear_gradients(cell, q)[3];
+
+          std::vector etas_grad{eta1_grad, eta2_grad};
+
+          phi.submit_value(phi.get_value(q) / dt, q);
+          phi.submit_gradient(mobility.dM_dc(c, etas, c_grad, etas_grad) *
+                                  mu_grad * phi.get_value(q) +
+                                mobility.dM_dgrad_c(c, c_grad, mu_grad) *
+                                  phi.get_gradient(q),
+                              q);
+        }
+    }
+
+    const SinteringOperator<dim, n_components_, Number, VectorizedArrayType>
+      &op;
+  };
+
+
+
+  template <int dim,
+            int n_components,
+            int n_components_,
+            typename Number,
+            typename VectorizedArrayType>
   class OperatorAllenCahn
     : public OperatorBase<dim, n_components, Number, VectorizedArrayType>
   {
@@ -2250,6 +2382,7 @@ namespace Sintering
       : matrix_free(matrix_free)
       , operator_0(matrix_free, constraints, op)
       , operator_1(matrix_free, constraints, op)
+      , operator_2(matrix_free, constraints, op)
       , pcout(std::cout, Utilities::MPI::this_mpi_process(MPI_COMM_WORLD) == 0)
       , timer(pcout, TimerOutput::never, TimerOutput::wall_times)
     {
@@ -2260,29 +2393,28 @@ namespace Sintering
       matrix_free.initialize_dof_vector(src_1, 2);
 
       preconditioner_0 = std::make_unique<
-        Preconditioners::ILU<OperatorCahnHillard<dim,
-                                                 2,
-                                                 n_components,
-                                                 Number,
-                                                 VectorizedArrayType>>>(
+        Preconditioners::ILU<OperatorCahnHillardA<dim,
+                                                  1,
+                                                  n_components,
+                                                  Number,
+                                                  VectorizedArrayType>>>(
         operator_0);
 
-      if (false)
-        preconditioner_1 = std::make_unique<
-          Preconditioners::ILU<OperatorAllenCahn<dim,
-                                                 n_components - 2,
-                                                 n_components,
-                                                 Number,
-                                                 VectorizedArrayType>>>(
-          operator_1);
-      else
-        preconditioner_1 =
-          std::make_unique<Preconditioners::InverseDiagonalMatrix<
-            OperatorAllenCahn<dim,
-                              n_components - 2,
-                              n_components,
-                              Number,
-                              VectorizedArrayType>>>(operator_1);
+      preconditioner_1 = std::make_unique<
+        Preconditioners::ILU<OperatorCahnHillardD<dim,
+                                                  1,
+                                                  n_components,
+                                                  Number,
+                                                  VectorizedArrayType>>>(
+        operator_1);
+
+      preconditioner_2 =
+        std::make_unique<Preconditioners::InverseDiagonalMatrix<
+          OperatorAllenCahn<dim,
+                            n_components - 2,
+                            n_components,
+                            Number,
+                            VectorizedArrayType>>>(operator_2);
     }
 
     ~BlockPreconditioner3()
@@ -2309,6 +2441,11 @@ namespace Sintering
       }
 
       {
+        TimerOutput::Scope scope(timer, "vmult::precon_2");
+        preconditioner_2->vmult(dst_2, src_2);
+      }
+
+      {
         TimerOutput::Scope scope(timer, "vmult::merge");
         VectorTools::merge(this->matrix_free, dst_0, dst_1, dst);
       }
@@ -2324,20 +2461,23 @@ namespace Sintering
   private:
     const MatrixFree<dim, Number, VectorizedArrayType> &matrix_free;
 
-    OperatorCahnHillard<dim, 2, n_components, Number, VectorizedArrayType>
+    OperatorCahnHillardA<dim, 1, n_components, Number, VectorizedArrayType>
       operator_0;
+    OperatorCahnHillardD<dim, 1, n_components, Number, VectorizedArrayType>
+      operator_1;
+
     OperatorAllenCahn<dim,
                       n_components - 2,
                       n_components,
                       Number,
                       VectorizedArrayType>
-      operator_1;
+      operator_2;
 
-    mutable VectorType dst_0, dst_1;
-    mutable VectorType src_0, src_1;
+    mutable VectorType dst_0, dst_1, dst_2;
+    mutable VectorType src_0, src_1, src_2;
 
     std::unique_ptr<Preconditioners::PreconditionerBase<Number>>
-      preconditioner_0, preconditioner_1;
+      preconditioner_0, preconditioner_1, preconditioner_2;
 
     ConditionalOStream  pcout;
     mutable TimerOutput timer;
