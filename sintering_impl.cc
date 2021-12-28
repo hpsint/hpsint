@@ -2776,13 +2776,13 @@ namespace Sintering
       matrix_free.initialize_dof_vector(dst_2, 2);
       matrix_free.initialize_dof_vector(src_2, 2);
 
-      preconditioner_0 = std::make_unique<
-        Preconditioners::ILU<OperatorCahnHillardA<dim,
-                                                  1,
-                                                  n_components,
-                                                  Number,
-                                                  VectorizedArrayType>>>(
-        operator_0);
+      preconditioner_0 =
+        std::make_unique<Preconditioners::InverseDiagonalMatrix<
+          OperatorCahnHillardA<dim,
+                               1,
+                               n_components,
+                               Number,
+                               VectorizedArrayType>>>(operator_0);
 
       preconditioner_1 =
         std::make_unique<Preconditioners::InverseDiagonalMatrix<
@@ -2830,17 +2830,39 @@ namespace Sintering
 #endif
       }
 
-      if (false)
+      if (true)
         {
           // Block Jacobi
           {
             TimerOutput::Scope scope(timer, "vmult::precon_0");
-            preconditioner_0->vmult(dst_0, src_0);
+
+            if (true)
+              {
+                preconditioner_0->vmult(dst_0, src_0);
+              }
+            else
+              {
+                ReductionControl reduction_control(100, 1e-20, 1e-12);
+
+                SolverGMRES<VectorType> solver(reduction_control);
+                solver.solve(operator_0, dst_0, src_0, *preconditioner_0);
+              }
           }
 
           {
             TimerOutput::Scope scope(timer, "vmult::precon_1");
-            preconditioner_1->vmult(dst_1, src_1);
+
+            if (true)
+              {
+                preconditioner_1->vmult(dst_1, src_1);
+              }
+            else
+              {
+                ReductionControl reduction_control(100, 1e-20, 1e-12);
+
+                SolverGMRES<VectorType> solver(reduction_control);
+                solver.solve(operator_1, dst_1, src_1, *preconditioner_1);
+              }
           }
         }
       else if (false)
@@ -2876,7 +2898,7 @@ namespace Sintering
               solver.solve(operator_1, dst_1, src_1, *preconditioner_1);
             }
         }
-      else if (true)
+      else if (false)
         {
           // Block Gauss Seidel: R+D
           VectorType tmp;
