@@ -2115,7 +2115,8 @@ namespace Sintering
             int n_components,
             typename Number,
             typename VectorizedArrayType>
-  class BlockPreconditioner : public Preconditioners::PreconditionerBase<Number>
+  class BlockPreconditioner2
+    : public Preconditioners::PreconditionerBase<Number>
   {
   public:
     using VectorType =
@@ -2124,7 +2125,7 @@ namespace Sintering
     using value_type  = Number;
     using vector_type = VectorType;
 
-    BlockPreconditioner(
+    BlockPreconditioner2(
       const SinteringOperator<dim, n_components, Number, VectorizedArrayType>
         &                                                 op,
       const MatrixFree<dim, Number, VectorizedArrayType> &matrix_free,
@@ -2167,7 +2168,124 @@ namespace Sintering
                               VectorizedArrayType>>>(operator_1);
     }
 
-    ~BlockPreconditioner()
+    ~BlockPreconditioner2()
+    {
+      timer.print_wall_time_statistics(MPI_COMM_WORLD);
+    }
+
+    void
+    vmult(VectorType &dst, const VectorType &src) const override
+    {
+      {
+        TimerOutput::Scope scope(timer, "vmult::split_up");
+        VectorTools::split_up(this->matrix_free, src, src_0, src_1);
+      }
+
+      {
+        TimerOutput::Scope scope(timer, "vmult::precon_0");
+        preconditioner_0->vmult(dst_0, src_0);
+      }
+
+      {
+        TimerOutput::Scope scope(timer, "vmult::precon_1");
+        preconditioner_1->vmult(dst_1, src_1);
+      }
+
+      {
+        TimerOutput::Scope scope(timer, "vmult::merge");
+        VectorTools::merge(this->matrix_free, dst_0, dst_1, dst);
+      }
+    }
+
+    void
+    do_update() override
+    {
+      preconditioner_0->do_update();
+      preconditioner_1->do_update();
+    }
+
+  private:
+    const MatrixFree<dim, Number, VectorizedArrayType> &matrix_free;
+
+    OperatorCahnHillard<dim, 2, n_components, Number, VectorizedArrayType>
+      operator_0;
+    OperatorAllenCahn<dim,
+                      n_components - 2,
+                      n_components,
+                      Number,
+                      VectorizedArrayType>
+      operator_1;
+
+    mutable VectorType dst_0, dst_1;
+    mutable VectorType src_0, src_1;
+
+    std::unique_ptr<Preconditioners::PreconditionerBase<Number>>
+      preconditioner_0, preconditioner_1;
+
+    ConditionalOStream  pcout;
+    mutable TimerOutput timer;
+  };
+
+
+
+  template <int dim,
+            int n_components,
+            typename Number,
+            typename VectorizedArrayType>
+  class BlockPreconditioner3
+    : public Preconditioners::PreconditionerBase<Number>
+  {
+  public:
+    using VectorType =
+      typename Preconditioners::PreconditionerBase<Number>::VectorType;
+
+    using value_type  = Number;
+    using vector_type = VectorType;
+
+    BlockPreconditioner3(
+      const SinteringOperator<dim, n_components, Number, VectorizedArrayType>
+        &                                                 op,
+      const MatrixFree<dim, Number, VectorizedArrayType> &matrix_free,
+      const AffineConstraints<Number> &                   constraints)
+      : matrix_free(matrix_free)
+      , operator_0(matrix_free, constraints, op)
+      , operator_1(matrix_free, constraints, op)
+      , pcout(std::cout, Utilities::MPI::this_mpi_process(MPI_COMM_WORLD) == 0)
+      , timer(pcout, TimerOutput::never, TimerOutput::wall_times)
+    {
+      matrix_free.initialize_dof_vector(dst_0, 1);
+      matrix_free.initialize_dof_vector(src_0, 1);
+
+      matrix_free.initialize_dof_vector(dst_1, 2);
+      matrix_free.initialize_dof_vector(src_1, 2);
+
+      preconditioner_0 = std::make_unique<
+        Preconditioners::ILU<OperatorCahnHillard<dim,
+                                                 2,
+                                                 n_components,
+                                                 Number,
+                                                 VectorizedArrayType>>>(
+        operator_0);
+
+      if (false)
+        preconditioner_1 = std::make_unique<
+          Preconditioners::ILU<OperatorAllenCahn<dim,
+                                                 n_components - 2,
+                                                 n_components,
+                                                 Number,
+                                                 VectorizedArrayType>>>(
+          operator_1);
+      else
+        preconditioner_1 =
+          std::make_unique<Preconditioners::InverseDiagonalMatrix<
+            OperatorAllenCahn<dim,
+                              n_components - 2,
+                              n_components,
+                              Number,
+                              VectorizedArrayType>>>(operator_1);
+    }
+
+    ~BlockPreconditioner3()
     {
       timer.print_wall_time_statistics(MPI_COMM_WORLD);
     }
@@ -2455,10 +2573,19 @@ namespace Sintering
       else if (true)
         {
           preconditioner =
-            std::make_unique<BlockPreconditioner<dim,
-                                                 number_of_components,
-                                                 Number,
-                                                 VectorizedArrayType>>(
+            std::make_unique<BlockPreconditioner2<dim,
+                                                  number_of_components,
+                                                  Number,
+                                                  VectorizedArrayType>>(
+              nonlinear_operator, matrix_free, constraint);
+        }
+      else if (true)
+        {
+          preconditioner =
+            std::make_unique<BlockPreconditioner3<dim,
+                                                  number_of_components,
+                                                  Number,
+                                                  VectorizedArrayType>>(
               nonlinear_operator, matrix_free, constraint);
         }
       else
