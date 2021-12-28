@@ -139,6 +139,34 @@ namespace dealii
       vec.zero_out_ghost_values();
     }
 
+
+
+    template <int dim,
+              typename Number,
+              typename VectorizedArrayType,
+              typename VectorType>
+    void
+    split_up(const MatrixFree<dim, Number, VectorizedArrayType> &matrix_free,
+             const VectorType &                                  vec,
+             VectorType &                                        vec_0,
+             VectorType &                                        vec_1,
+             VectorType &                                        vec_2)
+    {
+      (void)matrix_free;
+
+      for (unsigned int i = 0, i0 = 0, i1 = 0, i2 = 0;
+           i < vec.get_partitioner()->locally_owned_size();)
+        {
+          vec_0.local_element(i0++) = vec.local_element(i++);
+          vec_1.local_element(i1++) = vec.local_element(i++);
+
+          for (unsigned int j = 0; j < 2; ++j)
+            vec_2.local_element(i2++) = vec.local_element(i++);
+        }
+    }
+
+
+
     template <int dim,
               typename Number,
               typename VectorizedArrayType,
@@ -219,6 +247,32 @@ namespace dealii
 
       vec_0.zero_out_ghost_values();
       vec_1.zero_out_ghost_values();
+    }
+
+
+
+    template <int dim,
+              typename Number,
+              typename VectorizedArrayType,
+              typename VectorType>
+    void
+    merge(const MatrixFree<dim, Number, VectorizedArrayType> &matrix_free,
+          const VectorType &                                  vec_0,
+          const VectorType &                                  vec_1,
+          const VectorType &                                  vec_2,
+          VectorType &                                        vec)
+    {
+      (void)matrix_free;
+
+      for (unsigned int i = 0, i0 = 0, i1 = 0, i2 = 0;
+           i < vec.get_partitioner()->locally_owned_size();)
+        {
+          vec.local_element(i++) = vec_0.local_element(i0++);
+          vec.local_element(i++) = vec_1.local_element(i1++);
+
+          for (unsigned int j = 0; j < 2; ++j)
+            vec.local_element(i++) = vec_2.local_element(i2++);
+        }
     }
   } // namespace VectorTools
 } // namespace dealii
@@ -2052,7 +2106,7 @@ namespace Sintering
       : OperatorBase<dim, n_components, Number, VectorizedArrayType>(
           matrix_free,
           constraints,
-          1)
+          3 /*TODO*/)
       , op(op)
     {}
 
@@ -2117,7 +2171,7 @@ namespace Sintering
       : OperatorBase<dim, n_components, Number, VectorizedArrayType>(
           matrix_free,
           constraints,
-          1)
+          3 /*TODO*/)
       , op(op)
     {}
 
@@ -2125,36 +2179,10 @@ namespace Sintering
     void
     do_vmult_kernel(FECellIntegrator &phi) const
     {
-      const unsigned int cell = phi.get_current_cell_index();
-
-      const auto &free_energy         = this->op.get_data().free_energy;
-      const auto &mobility            = this->op.get_data().mobility;
-      const auto &kappa_c             = this->op.get_data().kappa_c;
-      const auto &dt                  = this->op.get_dt();
-      const auto &nonlinear_values    = this->op.get_nonlinear_values();
-      const auto &nonlinear_gradients = this->op.get_nonlinear_gradients();
-
       for (unsigned int q = 0; q < phi.n_q_points; ++q)
         {
-          auto &c    = nonlinear_values(cell, q)[0];
-          auto &eta1 = nonlinear_values(cell, q)[2];
-          auto &eta2 = nonlinear_values(cell, q)[3];
-
-          std::vector etas{eta1, eta2};
-
-          auto &c_grad    = nonlinear_gradients(cell, q)[0];
-          auto &mu_grad   = nonlinear_gradients(cell, q)[1];
-          auto &eta1_grad = nonlinear_gradients(cell, q)[2];
-          auto &eta2_grad = nonlinear_gradients(cell, q)[3];
-
-          std::vector etas_grad{eta1_grad, eta2_grad};
-
-          phi.submit_value(phi.get_value(q) / dt, q);
-          phi.submit_gradient(mobility.dM_dc(c, etas, c_grad, etas_grad) *
-                                  mu_grad * phi.get_value(q) +
-                                mobility.dM_dgrad_c(c, c_grad, mu_grad) *
-                                  phi.get_gradient(q),
-                              q);
+          phi.submit_value(-phi.get_value(q), q);
+          phi.submit_gradient(phi.get_gradient(q) * 0.0, q); // TODO
         }
     }
 
@@ -2386,11 +2414,14 @@ namespace Sintering
       , pcout(std::cout, Utilities::MPI::this_mpi_process(MPI_COMM_WORLD) == 0)
       , timer(pcout, TimerOutput::never, TimerOutput::wall_times)
     {
-      matrix_free.initialize_dof_vector(dst_0, 1);
-      matrix_free.initialize_dof_vector(src_0, 1);
+      matrix_free.initialize_dof_vector(dst_0, 3 /*TODO*/);
+      matrix_free.initialize_dof_vector(src_0, 3 /*TODO*/);
 
-      matrix_free.initialize_dof_vector(dst_1, 2);
-      matrix_free.initialize_dof_vector(src_1, 2);
+      matrix_free.initialize_dof_vector(dst_1, 3 /*TODO*/);
+      matrix_free.initialize_dof_vector(src_1, 3 /*TODO*/);
+
+      matrix_free.initialize_dof_vector(dst_2, 2);
+      matrix_free.initialize_dof_vector(src_2, 2);
 
       preconditioner_0 = std::make_unique<
         Preconditioners::ILU<OperatorCahnHillardA<dim,
@@ -2427,18 +2458,26 @@ namespace Sintering
     {
       {
         TimerOutput::Scope scope(timer, "vmult::split_up");
-        VectorTools::split_up(this->matrix_free, src, src_0, src_1);
+        VectorTools::split_up(this->matrix_free, src, src_0, src_1, src_2);
       }
 
-      {
-        TimerOutput::Scope scope(timer, "vmult::precon_0");
-        preconditioner_0->vmult(dst_0, src_0);
-      }
+      if (true)
+        {
+          // Block Jacobi
+          {
+            TimerOutput::Scope scope(timer, "vmult::precon_0");
+            preconditioner_0->vmult(dst_0, src_0);
+          }
 
-      {
-        TimerOutput::Scope scope(timer, "vmult::precon_1");
-        preconditioner_1->vmult(dst_1, src_1);
-      }
+          {
+            TimerOutput::Scope scope(timer, "vmult::precon_1");
+            preconditioner_1->vmult(dst_1, src_1);
+          }
+        }
+      else
+        {
+          AssertThrow(false, ExcNotImplemented());
+        }
 
       {
         TimerOutput::Scope scope(timer, "vmult::precon_2");
@@ -2447,7 +2486,7 @@ namespace Sintering
 
       {
         TimerOutput::Scope scope(timer, "vmult::merge");
-        VectorTools::merge(this->matrix_free, dst_0, dst_1, dst);
+        VectorTools::merge(this->matrix_free, dst_0, dst_1, dst_2, dst);
       }
     }
 
@@ -2456,6 +2495,7 @@ namespace Sintering
     {
       preconditioner_0->do_update();
       preconditioner_1->do_update();
+      preconditioner_2->do_update();
     }
 
   private:
@@ -2550,6 +2590,7 @@ namespace Sintering
     DoFHandler<dim>                           dof_handler;
     DoFHandler<dim>                           dof_handler_ch;
     DoFHandler<dim>                           dof_handler_ac;
+    DoFHandler<dim>                           dof_handler_scalar;
     AffineConstraints<Number> constraint; // TODO: currently no constraints are
                                           // applied
 
@@ -2564,6 +2605,7 @@ namespace Sintering
       , dof_handler(tria)
       , dof_handler_ch(tria)
       , dof_handler_ac(tria)
+      , dof_handler_scalar(tria)
       , initial_solution(x01,
                          x02,
                          y0,
@@ -2584,6 +2626,7 @@ namespace Sintering
       dof_handler_ch.distribute_dofs(FESystem<dim>(FE_Q<dim>{fe_degree}, 2));
       dof_handler_ac.distribute_dofs(
         FESystem<dim>(FE_Q<dim>{fe_degree}, number_of_components - 2));
+      dof_handler_scalar.distribute_dofs(FE_Q<dim>{fe_degree});
     }
 
 
@@ -2598,11 +2641,10 @@ namespace Sintering
 
       MatrixFree<dim, Number, VectorizedArrayType> matrix_free;
 
-      const std::vector<const DoFHandler<dim> *> dof_handlers{&dof_handler,
-                                                              &dof_handler_ch,
-                                                              &dof_handler_ac};
+      const std::vector<const DoFHandler<dim> *> dof_handlers{
+        &dof_handler, &dof_handler_ch, &dof_handler_ac, &dof_handler_scalar};
       const std::vector<const AffineConstraints<double> *> constraints{
-        &constraint, &constraint, &constraint};
+        &constraint, &constraint, &constraint, &constraint};
 
       matrix_free.reinit(
         mapping, dof_handlers, constraints, quad, additional_data);
@@ -2710,7 +2752,7 @@ namespace Sintering
               PreconditionerGMG<dim, NonLinearOperator, VectorType>>(
             this->dof_handler, mg_dof_handlers, mg_constraints, mg_operators);
         }
-      else if (true)
+      else if (false)
         {
           preconditioner =
             std::make_unique<BlockPreconditioner2<dim,
