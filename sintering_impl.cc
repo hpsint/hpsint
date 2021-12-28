@@ -2787,21 +2787,21 @@ namespace Sintering
       matrix_free.initialize_dof_vector(dst_2, 2);
       matrix_free.initialize_dof_vector(src_2, 2);
 
-      preconditioner_0 =
-        std::make_unique<Preconditioners::InverseDiagonalMatrix<
-          OperatorCahnHillardA<dim,
-                               1,
-                               n_components,
-                               Number,
-                               VectorizedArrayType>>>(operator_0);
+      preconditioner_0 = std::make_unique<
+        Preconditioners::ILU<OperatorCahnHillardA<dim,
+                                                  1,
+                                                  n_components,
+                                                  Number,
+                                                  VectorizedArrayType>>>(
+        operator_0);
 
-      preconditioner_1 =
-        std::make_unique<Preconditioners::InverseDiagonalMatrix<
-          OperatorCahnHillardD<dim,
-                               1,
-                               n_components,
-                               Number,
-                               VectorizedArrayType>>>(operator_1);
+      preconditioner_1 = std::make_unique<
+        Preconditioners::ILU<OperatorCahnHillardD<dim,
+                                                  1,
+                                                  n_components,
+                                                  Number,
+                                                  VectorizedArrayType>>>(
+        operator_1);
 
       preconditioner_2 =
         std::make_unique<Preconditioners::InverseDiagonalMatrix<
@@ -2841,7 +2841,7 @@ namespace Sintering
 #endif
       }
 
-      if (true)
+      if (false)
         {
           // Block Jacobi
           {
@@ -2853,7 +2853,7 @@ namespace Sintering
               }
             else
               {
-                ReductionControl reduction_control(100, 1e-20, 1e-12);
+                ReductionControl reduction_control(1000, 1e-10, 1e-6);
 
                 SolverGMRES<VectorType> solver(reduction_control);
                 solver.solve(operator_0, dst_0, src_0, *preconditioner_0);
@@ -2869,14 +2869,14 @@ namespace Sintering
               }
             else
               {
-                ReductionControl reduction_control(100, 1e-20, 1e-12);
+                ReductionControl reduction_control(1000, 1e-10, 1e-6);
 
                 SolverGMRES<VectorType> solver(reduction_control);
                 solver.solve(operator_1, dst_1, src_1, *preconditioner_1);
               }
           }
         }
-      else if (false)
+      else if (true)
         {
           // Block Gauss Seidel: L+D
           VectorType tmp;
