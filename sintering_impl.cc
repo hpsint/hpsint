@@ -1010,18 +1010,12 @@ namespace NonLinearSolvers
 
 
 
-  template <typename VectorType,
-            typename NonlinearOperator,
-            typename SolverLinearizedProblem>
+  template <typename VectorType>
   class NewtonSolver
   {
   public:
-    NewtonSolver(NonlinearOperator &      nonlinear_operator_in,
-                 SolverLinearizedProblem &linear_solver_in,
-                 const NewtonSolverData & solver_data_in = NewtonSolverData())
+    NewtonSolver(const NewtonSolverData &solver_data_in = NewtonSolverData())
       : solver_data(solver_data_in)
-      , nonlinear_operator(nonlinear_operator_in)
-      , linear_solver(linear_solver_in)
     {}
 
     NonLinearSolverStatistics
@@ -1105,21 +1099,16 @@ namespace NonLinearSolvers
           ++statistics.newton_iterations;
         }
 
-      AssertThrow(
-        norm_r <= this->solver_data.abs_tol ||
-          norm_r / norm_r_0 <= solver_data.rel_tol,
-        ExcMessage(
-          "Newton solver failed to solve nonlinear problem to given tolerance. "
-          "Maximum number of iterations exceeded!"));
+      AssertThrow(norm_r <= this->solver_data.abs_tol ||
+                    norm_r / norm_r_0 <= solver_data.rel_tol,
+                  ExcNewtonDidNotConverge());
 
       return statistics;
     }
 
 
   private:
-    const NewtonSolverData   solver_data;
-    NonlinearOperator &      nonlinear_operator;
-    SolverLinearizedProblem &linear_solver;
+    const NewtonSolverData solver_data;
 
   public:
     std::function<void(VectorType &)>                     reinit_vector  = {};
@@ -3334,11 +3323,8 @@ namespace Sintering
                                                         *preconditioner);
 
       // ... non-linear Newton solver
-      auto non_linear_solver = std::make_unique<NonLinearSolvers::NewtonSolver<
-        VectorType,
-        NonLinearOperator,
-        LinearSolvers::LinearSolverBase<Number>>>(nonlinear_operator,
-                                                  *linear_solver);
+      auto non_linear_solver =
+        std::make_unique<NonLinearSolvers::NewtonSolver<VectorType>>();
 
       non_linear_solver->reinit_vector = [&](auto &vector) {
         nonlinear_operator.initialize_dof_vector(vector);
