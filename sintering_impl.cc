@@ -935,7 +935,7 @@ namespace LinearSolvers
     using VectorType = LinearAlgebra::distributed::Vector<Number>;
 
     virtual unsigned int
-    solve(VectorType &dst, const VectorType &src, const bool do_update) = 0;
+    solve(VectorType &dst, const VectorType &src) = 0;
   };
 
 
@@ -953,11 +953,8 @@ namespace LinearSolvers
     {}
 
     unsigned int
-    solve(VectorType &dst, const VectorType &src, const bool do_update) override
+    solve(VectorType &dst, const VectorType &src) override
     {
-      if (do_update)
-        preconditioner.do_update();
-
       unsigned int            max_iter = 100;
       ReductionControl        reduction_control(max_iter);
       SolverGMRES<VectorType> solver(reduction_control);
@@ -1056,16 +1053,16 @@ namespace NonLinearSolvers
           vec_residual *= -1.0;
 
           // solve linear problem
-          nonlinear_operator.evaluate_newton_step(dst); // setup_jacobian()
           bool const do_update =
             solver_data.update_preconditioner_linear_solver &&
             (statistics.newton_iterations %
                solver_data.update_preconditioner_every_newton_iter ==
              0);
+
+          setup_jacobian(dst, do_update);
+
           statistics.linear_iterations +=
-            linear_solver.solve(increment,
-                                vec_residual,
-                                do_update); // solve_with_jacobian()
+            solve_with_jacobian(vec_residual, increment);
 
           // damped Newton scheme
           const double tau =
@@ -1125,8 +1122,11 @@ namespace NonLinearSolvers
     SolverLinearizedProblem &linear_solver;
 
   public:
-    std::function<void(VectorType &)>                     reinit_vector = {};
-    std::function<void(const VectorType &, VectorType &)> residual      = {};
+    std::function<void(VectorType &)>                     reinit_vector  = {};
+    std::function<void(const VectorType &, VectorType &)> residual       = {};
+    std::function<void(const VectorType &, const bool)>   setup_jacobian = {};
+    std::function<unsigned int(const VectorType &, VectorType &)>
+      solve_with_jacobian = {};
   };
 } // namespace NonLinearSolvers
 
@@ -3346,6 +3346,18 @@ namespace Sintering
 
       non_linear_solver->residual = [&](const auto &src, auto &dst) {
         nonlinear_operator.evaluate_nonlinear_residual(dst, src);
+      };
+
+      non_linear_solver->setup_jacobian =
+        [&](const auto &current_u, const bool do_update_preconditioner) {
+          nonlinear_operator.evaluate_newton_step(current_u);
+
+          if (do_update_preconditioner)
+            preconditioner->do_update();
+        };
+
+      non_linear_solver->solve_with_jacobian = [&](const auto &src, auto &dst) {
+        return linear_solver->solve(dst, src);
       };
 
 
