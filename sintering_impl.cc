@@ -989,18 +989,6 @@ namespace NonLinearSolvers
 
 
 
-  template <typename Number>
-  class NonLinearSolverBase
-  {
-  public:
-    using VectorType = LinearAlgebra::distributed::Vector<Number>;
-
-    virtual NonLinearSolverStatistics
-    solve(VectorType &dst) = 0;
-  };
-
-
-
   struct NewtonSolverData
   {
     NewtonSolverData(const unsigned int max_iter                    = 100,
@@ -1029,7 +1017,6 @@ namespace NonLinearSolvers
             typename NonlinearOperator,
             typename SolverLinearizedProblem>
   class NewtonSolver
-    : public NonLinearSolverBase<typename NonlinearOperator::value_type>
   {
   public:
     NewtonSolver(NonlinearOperator &      nonlinear_operator_in,
@@ -1041,17 +1028,17 @@ namespace NonLinearSolvers
     {}
 
     NonLinearSolverStatistics
-    solve(VectorType &dst)
+    solve(VectorType &dst) const
     {
-      VectorType residual, increment, tmp;
-      nonlinear_operator.initialize_dof_vector(residual);
-      nonlinear_operator.initialize_dof_vector(increment);
-      nonlinear_operator.initialize_dof_vector(tmp);
+      VectorType vec_residual, increment, tmp;
+      reinit_vector(vec_residual);
+      reinit_vector(increment);
+      reinit_vector(tmp);
 
       // evaluate residual using the given estimate of the solution
-      nonlinear_operator.evaluate_nonlinear_residual(residual, dst);
+      residual(dst, vec_residual);
 
-      double norm_r   = residual.l2_norm();
+      double norm_r   = vec_residual.l2_norm();
       double norm_r_0 = norm_r;
 
       // Accumulated linear iterations
@@ -1065,18 +1052,20 @@ namespace NonLinearSolvers
           increment = 0.0;
 
           // multiply by -1.0 since the linearized problem is "LinearMatrix *
-          // increment = - residual"
-          residual *= -1.0;
+          // increment = - vec_residual"
+          vec_residual *= -1.0;
 
           // solve linear problem
-          nonlinear_operator.evaluate_newton_step(dst);
+          nonlinear_operator.evaluate_newton_step(dst); // setup_jacobian()
           bool const do_update =
             solver_data.update_preconditioner_linear_solver &&
             (statistics.newton_iterations %
                solver_data.update_preconditioner_every_newton_iter ==
              0);
           statistics.linear_iterations +=
-            linear_solver.solve(increment, residual, do_update);
+            linear_solver.solve(increment,
+                                vec_residual,
+                                do_update); // solve_with_jacobian()
 
           // damped Newton scheme
           const double tau =
@@ -1094,10 +1083,10 @@ namespace NonLinearSolvers
               tmp.add(omega, increment);
 
               // evaluate residual using the temporary solution
-              nonlinear_operator.evaluate_nonlinear_residual(residual, tmp);
+              residual(tmp, vec_residual);
 
               // calculate norm of residual (for temporary solution)
-              norm_r_tmp = residual.l2_norm();
+              norm_r_tmp = vec_residual.l2_norm();
 
               // reduce step length
               omega = omega / 2.0;
@@ -1134,6 +1123,10 @@ namespace NonLinearSolvers
     const NewtonSolverData   solver_data;
     NonlinearOperator &      nonlinear_operator;
     SolverLinearizedProblem &linear_solver;
+
+  public:
+    std::function<void(VectorType &)>                     reinit_vector = {};
+    std::function<void(const VectorType &, VectorType &)> residual      = {};
   };
 } // namespace NonLinearSolvers
 
@@ -3341,15 +3334,20 @@ namespace Sintering
                                                         *preconditioner);
 
       // ... non-linear Newton solver
-      std::unique_ptr<NonLinearSolvers::NonLinearSolverBase<Number>>
-        non_linear_solver;
+      auto non_linear_solver = std::make_unique<NonLinearSolvers::NewtonSolver<
+        VectorType,
+        NonLinearOperator,
+        LinearSolvers::LinearSolverBase<Number>>>(nonlinear_operator,
+                                                  *linear_solver);
 
-      if (true)
-        non_linear_solver = std::make_unique<NonLinearSolvers::NewtonSolver<
-          VectorType,
-          NonLinearOperator,
-          LinearSolvers::LinearSolverBase<Number>>>(nonlinear_operator,
-                                                    *linear_solver);
+      non_linear_solver->reinit_vector = [&](auto &vector) {
+        nonlinear_operator.initialize_dof_vector(vector);
+      };
+
+      non_linear_solver->residual = [&](const auto &src, auto &dst) {
+        nonlinear_operator.evaluate_nonlinear_residual(dst, src);
+      };
+
 
       // set initial condition
       VectorType solution;
