@@ -1069,7 +1069,6 @@ namespace NonLinearSolvers
           residual *= -1.0;
 
           // solve linear problem
-          nonlinear_operator.set_solution_linearization(dst);
           nonlinear_operator.evaluate_newton_step(dst);
           bool const do_update =
             solver_data.update_preconditioner_linear_solver &&
@@ -1944,12 +1943,6 @@ namespace Sintering
         dst,
         src,
         true);
-    }
-
-    void
-    set_solution_linearization(const VectorType &src) const
-    {
-      (void)src; // TODO: linearization point is not used!?
     }
 
     void
