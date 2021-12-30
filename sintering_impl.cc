@@ -3370,7 +3370,6 @@ namespace Sintering
         {
           nonlinear_operator.set_timestep(dt);
           nonlinear_operator.set_previous_solution(solution);
-          nonlinear_operator.evaluate_newton_step(solution);
 
           if (transfer)
             {
@@ -3382,11 +3381,8 @@ namespace Sintering
                 {
                   mg_operators[l]->set_timestep(dt);
                   mg_operators[l]->set_previous_solution(mg_solutions[l]);
-                  mg_operators[l]->evaluate_newton_step(mg_solutions[l]);
                 }
             }
-
-          preconditioner->do_update();
 
           bool has_converged = false;
 
