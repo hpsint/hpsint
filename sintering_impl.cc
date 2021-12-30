@@ -996,36 +996,31 @@ namespace NonLinearSolvers
     using VectorType = LinearAlgebra::distributed::Vector<Number>;
 
     virtual NonLinearSolverStatistics
-    solve(
-      VectorType &       dst,
-      bool const         update_preconditioner_linear_solver     = true,
-      unsigned int const update_preconditioner_every_newton_iter = true) = 0;
-
-
-
-    virtual NonLinearSolverStatistics
-    solve(
-      VectorType &       dst,
-      VectorType const & rhs,
-      bool const         update_preconditioner_linear_solver     = true,
-      unsigned int const update_preconditioner_every_newton_iter = true) = 0;
+    solve(VectorType &dst) = 0;
   };
 
 
 
   struct NewtonSolverData
   {
-    NewtonSolverData(const unsigned int max_iter = 100,
-                     const double       abs_tol  = 1.e-20,
-                     const double       rel_tol  = 1.e-5)
+    NewtonSolverData(const unsigned int max_iter                    = 100,
+                     const double       abs_tol                     = 1.e-20,
+                     const double       rel_tol                     = 1.e-5,
+                     const bool update_preconditioner_linear_solver = true,
+                     const bool update_preconditioner_every_newton_iter = true)
       : max_iter(max_iter)
       , abs_tol(abs_tol)
       , rel_tol(rel_tol)
+      , update_preconditioner_linear_solver(update_preconditioner_linear_solver)
+      , update_preconditioner_every_newton_iter(
+          update_preconditioner_every_newton_iter)
     {}
 
     const unsigned int max_iter;
     const double       abs_tol;
     const double       rel_tol;
+    const bool         update_preconditioner_linear_solver;
+    const unsigned int update_preconditioner_every_newton_iter;
   };
 
 
@@ -1043,39 +1038,18 @@ namespace NonLinearSolvers
       : solver_data(solver_data_in)
       , nonlinear_operator(nonlinear_operator_in)
       , linear_solver(linear_solver_in)
+    {}
+
+    NonLinearSolverStatistics
+    solve(VectorType &dst)
     {
+      VectorType residual, increment, tmp;
       nonlinear_operator.initialize_dof_vector(residual);
       nonlinear_operator.initialize_dof_vector(increment);
       nonlinear_operator.initialize_dof_vector(tmp);
-    }
-
-    NonLinearSolverStatistics
-    solve(VectorType &       dst,
-          bool const         update_preconditioner_linear_solver     = true,
-          unsigned int const update_preconditioner_every_newton_iter = true)
-    {
-      VectorType rhs;
-      return this->solve(dst,
-                         rhs,
-                         update_preconditioner_linear_solver,
-                         update_preconditioner_every_newton_iter);
-    }
-
-
-
-    NonLinearSolverStatistics
-    solve(VectorType &       dst,
-          VectorType const & rhs,
-          bool const         update_preconditioner_linear_solver     = true,
-          unsigned int const update_preconditioner_every_newton_iter = true)
-    {
-      const bool constant_rhs = rhs.size() > 0;
 
       // evaluate residual using the given estimate of the solution
       nonlinear_operator.evaluate_nonlinear_residual(residual, dst);
-
-      if (constant_rhs)
-        residual -= rhs;
 
       double norm_r   = residual.l2_norm();
       double norm_r_0 = norm_r;
@@ -1083,17 +1057,10 @@ namespace NonLinearSolvers
       // Accumulated linear iterations
       NonLinearSolverStatistics statistics;
 
-#ifdef DEBUG_NORM
-      std::cout << "NORM: " << std::flush;
-#endif
-
       while (norm_r > this->solver_data.abs_tol &&
              norm_r / norm_r_0 > solver_data.rel_tol &&
              statistics.newton_iterations < solver_data.max_iter)
         {
-#ifdef DEBUG_NORM
-          std::cout << norm_r << " " << std::flush;
-#endif
           // reset increment
           increment = 0.0;
 
@@ -1104,20 +1071,22 @@ namespace NonLinearSolvers
           // solve linear problem
           nonlinear_operator.set_solution_linearization(dst);
           nonlinear_operator.evaluate_newton_step(dst);
-          bool const do_update = update_preconditioner_linear_solver &&
-                                 (statistics.newton_iterations %
-                                    update_preconditioner_every_newton_iter ==
-                                  0);
+          bool const do_update =
+            solver_data.update_preconditioner_linear_solver &&
+            (statistics.newton_iterations %
+               solver_data.update_preconditioner_every_newton_iter ==
+             0);
           statistics.linear_iterations +=
             linear_solver.solve(increment, residual, do_update);
 
           // damped Newton scheme
-          double omega = 1.0; // damping factor
-          double tau   = 0.1; // another parameter (has to be smaller than 1)
+          const double tau =
+            0.1; // another parameter (has to be smaller than 1)
+          const unsigned int N_ITER_TMP_MAX =
+            100;                   // iteration counts for damping scheme
+          double omega      = 1.0; // damping factor
           double norm_r_tmp = 1.0; // norm of residual using temporary solution
-          unsigned int n_iter_tmp = 0,
-                       N_ITER_TMP_MAX =
-                         100; // iteration counts for damping scheme
+          unsigned int n_iter_tmp = 0;
 
           do
             {
@@ -1125,11 +1094,8 @@ namespace NonLinearSolvers
               tmp = dst;
               tmp.add(omega, increment);
 
-
               // evaluate residual using the temporary solution
               nonlinear_operator.evaluate_nonlinear_residual(residual, tmp);
-              if (constant_rhs)
-                residual -= rhs;
 
               // calculate norm of residual (for temporary solution)
               norm_r_tmp = residual.l2_norm();
@@ -1154,10 +1120,6 @@ namespace NonLinearSolvers
           ++statistics.newton_iterations;
         }
 
-#ifdef DEBUG_NORM
-      std::cout << std::endl;
-#endif
-
       AssertThrow(
         norm_r <= this->solver_data.abs_tol ||
           norm_r / norm_r_0 <= solver_data.rel_tol,
@@ -1170,11 +1132,9 @@ namespace NonLinearSolvers
 
 
   private:
-    NewtonSolverData         solver_data;
+    const NewtonSolverData   solver_data;
     NonlinearOperator &      nonlinear_operator;
     SolverLinearizedProblem &linear_solver;
-
-    VectorType residual, increment, tmp;
   };
 } // namespace NonLinearSolvers
 
