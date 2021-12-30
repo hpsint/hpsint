@@ -935,7 +935,7 @@ namespace LinearSolvers
     using VectorType = LinearAlgebra::distributed::Vector<Number>;
 
     virtual unsigned int
-    solve(VectorType &dst, const VectorType &src, const bool do_update) = 0;
+    solve(VectorType &dst, const VectorType &src) = 0;
   };
 
 
@@ -953,11 +953,8 @@ namespace LinearSolvers
     {}
 
     unsigned int
-    solve(VectorType &dst, const VectorType &src, const bool do_update) override
+    solve(VectorType &dst, const VectorType &src) override
     {
-      if (do_update)
-        preconditioner.do_update();
-
       unsigned int            max_iter = 100;
       ReductionControl        reduction_control(max_iter);
       SolverGMRES<VectorType> solver(reduction_control);
@@ -989,135 +986,86 @@ namespace NonLinearSolvers
 
 
 
-  template <typename Number>
-  class NonLinearSolverBase
-  {
-  public:
-    using VectorType = LinearAlgebra::distributed::Vector<Number>;
-
-    virtual NonLinearSolverStatistics
-    solve(
-      VectorType &       dst,
-      bool const         update_preconditioner_linear_solver     = true,
-      unsigned int const update_preconditioner_every_newton_iter = true) = 0;
-
-
-
-    virtual NonLinearSolverStatistics
-    solve(
-      VectorType &       dst,
-      VectorType const & rhs,
-      bool const         update_preconditioner_linear_solver     = true,
-      unsigned int const update_preconditioner_every_newton_iter = true) = 0;
-  };
-
-
-
   struct NewtonSolverData
   {
-    NewtonSolverData(const unsigned int max_iter = 100,
-                     const double       abs_tol  = 1.e-20,
-                     const double       rel_tol  = 1.e-5)
+    NewtonSolverData(const unsigned int max_iter                    = 100,
+                     const double       abs_tol                     = 1.e-20,
+                     const double       rel_tol                     = 1.e-5,
+                     const bool update_preconditioner_linear_solver = true,
+                     const bool update_preconditioner_every_newton_iter = true)
       : max_iter(max_iter)
       , abs_tol(abs_tol)
       , rel_tol(rel_tol)
+      , update_preconditioner_linear_solver(update_preconditioner_linear_solver)
+      , update_preconditioner_every_newton_iter(
+          update_preconditioner_every_newton_iter)
     {}
 
     const unsigned int max_iter;
     const double       abs_tol;
     const double       rel_tol;
+    const bool         update_preconditioner_linear_solver;
+    const unsigned int update_preconditioner_every_newton_iter;
   };
 
 
 
-  template <typename VectorType,
-            typename NonlinearOperator,
-            typename SolverLinearizedProblem>
+  template <typename VectorType>
   class NewtonSolver
-    : public NonLinearSolverBase<typename NonlinearOperator::value_type>
   {
   public:
-    NewtonSolver(NonlinearOperator &      nonlinear_operator_in,
-                 SolverLinearizedProblem &linear_solver_in,
-                 const NewtonSolverData & solver_data_in = NewtonSolverData())
+    NewtonSolver(const NewtonSolverData &solver_data_in = NewtonSolverData())
       : solver_data(solver_data_in)
-      , nonlinear_operator(nonlinear_operator_in)
-      , linear_solver(linear_solver_in)
-    {
-      nonlinear_operator.initialize_dof_vector(residual);
-      nonlinear_operator.initialize_dof_vector(increment);
-      nonlinear_operator.initialize_dof_vector(tmp);
-    }
+    {}
 
     NonLinearSolverStatistics
-    solve(VectorType &       dst,
-          bool const         update_preconditioner_linear_solver     = true,
-          unsigned int const update_preconditioner_every_newton_iter = true)
+    solve(VectorType &dst) const
     {
-      VectorType rhs;
-      return this->solve(dst,
-                         rhs,
-                         update_preconditioner_linear_solver,
-                         update_preconditioner_every_newton_iter);
-    }
-
-
-
-    NonLinearSolverStatistics
-    solve(VectorType &       dst,
-          VectorType const & rhs,
-          bool const         update_preconditioner_linear_solver     = true,
-          unsigned int const update_preconditioner_every_newton_iter = true)
-    {
-      const bool constant_rhs = rhs.size() > 0;
+      VectorType vec_residual, increment, tmp;
+      reinit_vector(vec_residual);
+      reinit_vector(increment);
+      reinit_vector(tmp);
 
       // evaluate residual using the given estimate of the solution
-      nonlinear_operator.evaluate_nonlinear_residual(residual, dst);
+      residual(dst, vec_residual);
 
-      if (constant_rhs)
-        residual -= rhs;
-
-      double norm_r   = residual.l2_norm();
+      double norm_r   = vec_residual.l2_norm();
       double norm_r_0 = norm_r;
 
       // Accumulated linear iterations
       NonLinearSolverStatistics statistics;
 
-#ifdef DEBUG_NORM
-      std::cout << "NORM: " << std::flush;
-#endif
-
       while (norm_r > this->solver_data.abs_tol &&
              norm_r / norm_r_0 > solver_data.rel_tol &&
              statistics.newton_iterations < solver_data.max_iter)
         {
-#ifdef DEBUG_NORM
-          std::cout << norm_r << " " << std::flush;
-#endif
           // reset increment
           increment = 0.0;
 
           // multiply by -1.0 since the linearized problem is "LinearMatrix *
-          // increment = - residual"
-          residual *= -1.0;
+          // increment = - vec_residual"
+          vec_residual *= -1.0;
 
           // solve linear problem
-          nonlinear_operator.set_solution_linearization(dst);
-          nonlinear_operator.evaluate_newton_step(dst);
-          bool const do_update = update_preconditioner_linear_solver &&
-                                 (statistics.newton_iterations %
-                                    update_preconditioner_every_newton_iter ==
-                                  0);
+          bool const do_update =
+            solver_data.update_preconditioner_linear_solver &&
+            (statistics.newton_iterations %
+               solver_data.update_preconditioner_every_newton_iter ==
+             0);
+
+          setup_jacobian(dst, do_update);
+
           statistics.linear_iterations +=
-            linear_solver.solve(increment, residual, do_update);
+            solve_with_jacobian(vec_residual, increment);
 
           // damped Newton scheme
-          double omega = 1.0; // damping factor
-          double tau   = 0.1; // another parameter (has to be smaller than 1)
+          const double tau =
+            0.1; // another parameter (has to be smaller than 1)
+          const unsigned int N_ITER_TMP_MAX =
+            100;                   // iteration counts for damping scheme
+          double omega      = 1.0; // damping factor
           double norm_r_tmp = 1.0; // norm of residual using temporary solution
-          unsigned int n_iter_tmp = 0,
-                       N_ITER_TMP_MAX =
-                         100; // iteration counts for damping scheme
+          unsigned int n_iter_tmp = 0;
 
           do
             {
@@ -1125,14 +1073,11 @@ namespace NonLinearSolvers
               tmp = dst;
               tmp.add(omega, increment);
 
-
               // evaluate residual using the temporary solution
-              nonlinear_operator.evaluate_nonlinear_residual(residual, tmp);
-              if (constant_rhs)
-                residual -= rhs;
+              residual(tmp, vec_residual);
 
               // calculate norm of residual (for temporary solution)
-              norm_r_tmp = residual.l2_norm();
+              norm_r_tmp = vec_residual.l2_norm();
 
               // reduce step length
               omega = omega / 2.0;
@@ -1154,27 +1099,23 @@ namespace NonLinearSolvers
           ++statistics.newton_iterations;
         }
 
-#ifdef DEBUG_NORM
-      std::cout << std::endl;
-#endif
-
-      AssertThrow(
-        norm_r <= this->solver_data.abs_tol ||
-          norm_r / norm_r_0 <= solver_data.rel_tol,
-        ExcMessage(
-          "Newton solver failed to solve nonlinear problem to given tolerance. "
-          "Maximum number of iterations exceeded!"));
+      AssertThrow(norm_r <= this->solver_data.abs_tol ||
+                    norm_r / norm_r_0 <= solver_data.rel_tol,
+                  ExcNewtonDidNotConverge());
 
       return statistics;
     }
 
 
   private:
-    NewtonSolverData         solver_data;
-    NonlinearOperator &      nonlinear_operator;
-    SolverLinearizedProblem &linear_solver;
+    const NewtonSolverData solver_data;
 
-    VectorType residual, increment, tmp;
+  public:
+    std::function<void(VectorType &)>                     reinit_vector  = {};
+    std::function<void(const VectorType &, VectorType &)> residual       = {};
+    std::function<void(const VectorType &, const bool)>   setup_jacobian = {};
+    std::function<unsigned int(const VectorType &, VectorType &)>
+      solve_with_jacobian = {};
   };
 } // namespace NonLinearSolvers
 
@@ -1984,12 +1925,6 @@ namespace Sintering
         dst,
         src,
         true);
-    }
-
-    void
-    set_solution_linearization(const VectorType &src) const
-    {
-      (void)src; // TODO: linearization point is not used!?
     }
 
     void
@@ -3388,15 +3323,29 @@ namespace Sintering
                                                         *preconditioner);
 
       // ... non-linear Newton solver
-      std::unique_ptr<NonLinearSolvers::NonLinearSolverBase<Number>>
-        non_linear_solver;
+      auto non_linear_solver =
+        std::make_unique<NonLinearSolvers::NewtonSolver<VectorType>>();
 
-      if (true)
-        non_linear_solver = std::make_unique<NonLinearSolvers::NewtonSolver<
-          VectorType,
-          NonLinearOperator,
-          LinearSolvers::LinearSolverBase<Number>>>(nonlinear_operator,
-                                                    *linear_solver);
+      non_linear_solver->reinit_vector = [&](auto &vector) {
+        nonlinear_operator.initialize_dof_vector(vector);
+      };
+
+      non_linear_solver->residual = [&](const auto &src, auto &dst) {
+        nonlinear_operator.evaluate_nonlinear_residual(dst, src);
+      };
+
+      non_linear_solver->setup_jacobian =
+        [&](const auto &current_u, const bool do_update_preconditioner) {
+          nonlinear_operator.evaluate_newton_step(current_u);
+
+          if (do_update_preconditioner)
+            preconditioner->do_update();
+        };
+
+      non_linear_solver->solve_with_jacobian = [&](const auto &src, auto &dst) {
+        return linear_solver->solve(dst, src);
+      };
+
 
       // set initial condition
       VectorType solution;
@@ -3421,7 +3370,6 @@ namespace Sintering
         {
           nonlinear_operator.set_timestep(dt);
           nonlinear_operator.set_previous_solution(solution);
-          nonlinear_operator.evaluate_newton_step(solution);
 
           if (transfer)
             {
@@ -3433,11 +3381,8 @@ namespace Sintering
                 {
                   mg_operators[l]->set_timestep(dt);
                   mg_operators[l]->set_previous_solution(mg_solutions[l]);
-                  mg_operators[l]->evaluate_newton_step(mg_solutions[l]);
                 }
             }
-
-          preconditioner->do_update();
 
           bool has_converged = false;
 
