@@ -934,6 +934,8 @@ namespace LinearSolvers
   public:
     using VectorType = LinearAlgebra::distributed::Vector<Number>;
 
+    virtual ~LinearSolverBase() = default;
+
     virtual unsigned int
     solve(VectorType &dst, const VectorType &src) = 0;
   };
@@ -950,11 +952,20 @@ namespace LinearSolvers
     SolverGMRESWrapper(const Operator &op, Preconditioner &preconditioner)
       : op(op)
       , preconditioner(preconditioner)
+      , pcout(std::cout, Utilities::MPI::this_mpi_process(MPI_COMM_WORLD) == 0)
+      , timer(pcout, TimerOutput::never, TimerOutput::wall_times)
     {}
+
+    ~SolverGMRESWrapper()
+    {
+      timer.print_wall_time_statistics(MPI_COMM_WORLD);
+    }
 
     unsigned int
     solve(VectorType &dst, const VectorType &src) override
     {
+      TimerOutput::Scope scope(timer, "gmres::solve");
+
       unsigned int            max_iter = 100;
       ReductionControl        reduction_control(max_iter);
       SolverGMRES<VectorType> solver(reduction_control);
@@ -965,6 +976,9 @@ namespace LinearSolvers
 
     const Operator &op;
     Preconditioner &preconditioner;
+
+    ConditionalOStream  pcout;
+    mutable TimerOutput timer;
   };
 } // namespace LinearSolvers
 
@@ -988,24 +1002,26 @@ namespace NonLinearSolvers
 
   struct NewtonSolverData
   {
-    NewtonSolverData(const unsigned int max_iter                    = 100,
-                     const double       abs_tol                     = 1.e-20,
-                     const double       rel_tol                     = 1.e-5,
-                     const bool update_preconditioner_linear_solver = true,
-                     const bool update_preconditioner_every_newton_iter = true)
+    NewtonSolverData(const unsigned int max_iter              = 100,
+                     const double       abs_tol               = 1.e-20,
+                     const double       rel_tol               = 1.e-5,
+                     const bool         do_update             = true,
+                     const unsigned int threshold_newton_iter = 10,
+                     const unsigned int threshold_linear_iter = 20)
       : max_iter(max_iter)
       , abs_tol(abs_tol)
       , rel_tol(rel_tol)
-      , update_preconditioner_linear_solver(update_preconditioner_linear_solver)
-      , update_preconditioner_every_newton_iter(
-          update_preconditioner_every_newton_iter)
+      , do_update(do_update)
+      , threshold_newton_iter(threshold_newton_iter)
+      , threshold_linear_iter(threshold_linear_iter)
     {}
 
     const unsigned int max_iter;
     const double       abs_tol;
     const double       rel_tol;
-    const bool         update_preconditioner_linear_solver;
-    const unsigned int update_preconditioner_every_newton_iter;
+    const bool         do_update;
+    const unsigned int threshold_newton_iter;
+    const unsigned int threshold_linear_iter;
   };
 
 
@@ -1035,6 +1051,8 @@ namespace NonLinearSolvers
       // Accumulated linear iterations
       NonLinearSolverStatistics statistics;
 
+      unsigned int linear_iterations_last = 0;
+
       while (norm_r > this->solver_data.abs_tol &&
              norm_r / norm_r_0 > solver_data.rel_tol &&
              statistics.newton_iterations < solver_data.max_iter)
@@ -1047,16 +1065,16 @@ namespace NonLinearSolvers
           vec_residual *= -1.0;
 
           // solve linear problem
-          bool const do_update =
-            solver_data.update_preconditioner_linear_solver &&
-            (statistics.newton_iterations %
-               solver_data.update_preconditioner_every_newton_iter ==
-             0);
+          bool const threshold_exceeded =
+            (statistics.newton_iterations % solver_data.threshold_newton_iter ==
+             0) ||
+            (linear_iterations_last > solver_data.threshold_linear_iter);
 
-          setup_jacobian(dst, do_update);
+          setup_jacobian(dst, solver_data.do_update && threshold_exceeded);
 
-          statistics.linear_iterations +=
-            solve_with_jacobian(vec_residual, increment);
+          linear_iterations_last = solve_with_jacobian(vec_residual, increment);
+
+          statistics.linear_iterations += linear_iterations_last;
 
           // damped Newton scheme
           const double tau =
@@ -1730,6 +1748,8 @@ namespace Sintering
       , dof_index(dof_index)
     {}
 
+    virtual ~OperatorBase() = default;
+
     const DoFHandler<dim> &
     get_dof_handler() const
     {
@@ -1914,11 +1934,20 @@ namespace Sintering
           constraints,
           0)
       , data(data)
+      , pcout(std::cout, Utilities::MPI::this_mpi_process(MPI_COMM_WORLD) == 0)
+      , timer(pcout, TimerOutput::never, TimerOutput::wall_times)
     {}
+
+    ~SinteringOperator()
+    {
+      timer.print_wall_time_statistics(MPI_COMM_WORLD);
+    }
 
     void
     evaluate_nonlinear_residual(VectorType &dst, const VectorType &src) const
     {
+      TimerOutput::Scope scope(timer, "sintering_op::nonlinear_residual");
+
       this->matrix_free.cell_loop(
         &SinteringOperator::do_evaluate_nonlinear_residual,
         this,
@@ -1942,6 +1971,8 @@ namespace Sintering
     void
     evaluate_newton_step(const VectorType &newton_step)
     {
+      TimerOutput::Scope scope(timer, "sintering_op::newton_step");
+
       const unsigned n_cells = this->matrix_free.n_cell_batches();
       const unsigned n_quadrature_points =
         this->matrix_free.get_quadrature().size();
@@ -2175,6 +2206,9 @@ namespace Sintering
                          n_components,
                          dealii::Tensor<1, dim, VectorizedArrayType>>>
       nonlinear_gradients;
+
+    ConditionalOStream  pcout;
+    mutable TimerOutput timer;
   };
 
 
@@ -2525,12 +2559,11 @@ namespace Sintering
     {
       const unsigned int cell = phi.get_current_cell_index();
 
-      const auto &free_energy         = this->op.get_data().free_energy;
-      const auto &L                   = this->op.get_data().L;
-      const auto &kappa_p             = this->op.get_data().kappa_p;
-      const auto &dt                  = this->op.get_dt();
-      const auto &nonlinear_values    = this->op.get_nonlinear_values();
-      const auto &nonlinear_gradients = this->op.get_nonlinear_gradients();
+      const auto &free_energy      = this->op.get_data().free_energy;
+      const auto &L                = this->op.get_data().L;
+      const auto &kappa_p          = this->op.get_data().kappa_p;
+      const auto &dt               = this->op.get_dt();
+      const auto &nonlinear_values = this->op.get_nonlinear_values();
 
       for (unsigned int q = 0; q < phi.n_q_points; ++q)
         {
@@ -2539,11 +2572,6 @@ namespace Sintering
           auto &eta2 = nonlinear_values(cell, q)[3];
 
           std::vector etas{eta1, eta2};
-
-          auto &eta1_grad = nonlinear_gradients(cell, q)[2];
-          auto &eta2_grad = nonlinear_gradients(cell, q)[3];
-
-          std::vector etas_grad{eta1_grad, eta2_grad};
 
           Tensor<1, n_components, VectorizedArrayType> value_result;
 
@@ -2629,8 +2657,10 @@ namespace Sintering
     void
     vmult(VectorType &dst, const VectorType &src) const override
     {
+      TimerOutput::Scope scope(timer, "precon::vmult");
+
       {
-        TimerOutput::Scope scope(timer, "vmult::split_up");
+        TimerOutput::Scope scope(timer, "precon::vmult::split_up");
         VectorTools::split_up_fast(src, src_0, src_1);
 
 #ifdef DEBUG
@@ -2647,18 +2677,28 @@ namespace Sintering
 #endif
       }
 
-      {
-        TimerOutput::Scope scope(timer, "vmult::precon_0");
-        preconditioner_0->vmult(dst_0, src_0);
-      }
+      if (true)
+        {
+          TimerOutput::Scope scope(timer, "precon::vmult::precon_0");
+          preconditioner_0->vmult(dst_0, src_0);
+        }
+      else
+        {
+          TimerOutput::Scope scope(timer, "precon::vmult::precon_0");
+
+          ReductionControl reduction_control(100, 1e-20, 1e-8);
+
+          SolverGMRES<VectorType> solver(reduction_control);
+          solver.solve(operator_0, dst_0, src_0, *preconditioner_0);
+        }
 
       {
-        TimerOutput::Scope scope(timer, "vmult::precon_1");
+        TimerOutput::Scope scope(timer, "precon::vmult::precon_1");
         preconditioner_1->vmult(dst_1, src_1);
       }
 
       {
-        TimerOutput::Scope scope(timer, "vmult::merge");
+        TimerOutput::Scope scope(timer, "precon::vmult::merge");
         VectorTools::merge_fast(dst_0, dst_1, dst);
 
 #ifdef DEBUG
@@ -2675,8 +2715,15 @@ namespace Sintering
     void
     do_update() override
     {
-      preconditioner_0->do_update();
-      preconditioner_1->do_update();
+      TimerOutput::Scope scope(timer, "precon::update");
+      {
+        TimerOutput::Scope scope(timer, "precon::update::precon_0");
+        preconditioner_0->do_update();
+      }
+      {
+        TimerOutput::Scope scope(timer, "precon::update::precon_1");
+        preconditioner_1->do_update();
+      }
     }
 
   private:
@@ -3454,9 +3501,12 @@ namespace Sintering
       pcout << "  - n linear iterations:       " << n_linear_iterations
             << std::endl;
       pcout << "  - avg non-linear iterations: "
-            << n_non_linear_iterations / n_timestep << std::endl;
+            << static_cast<double>(n_non_linear_iterations) / n_timestep
+            << std::endl;
       pcout << "  - avg linear iterations:     "
-            << n_linear_iterations / n_non_linear_iterations << std::endl;
+            << static_cast<double>(n_linear_iterations) /
+                 n_non_linear_iterations
+            << std::endl;
       pcout << "  - max dt:                    " << max_reached_dt << std::endl;
       pcout << std::endl;
     }
