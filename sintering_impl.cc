@@ -1278,7 +1278,7 @@ namespace Sintering
     {}
 
     template <std::size_t n>
-    VectorizedArrayType
+    DEAL_II_ALWAYS_INLINE VectorizedArrayType
     M(const VectorizedArrayType &                               c,
       const std::array<VectorizedArrayType, n> &                etas,
       const Tensor<1, dim, VectorizedArrayType> &               c_grad,
@@ -1317,7 +1317,7 @@ namespace Sintering
     }
 
     template <std::size_t n>
-    VectorizedArrayType
+    DEAL_II_ALWAYS_INLINE VectorizedArrayType
     dM_dc(
       const VectorizedArrayType &                               c,
       const std::array<VectorizedArrayType, n> &                etas,
@@ -1340,10 +1340,10 @@ namespace Sintering
       return dMdc;
     }
 
-    Tensor<2, dim, VectorizedArrayType>
-    dM_dgrad_c(const VectorizedArrayType &                c,
-               const Tensor<1, dim, VectorizedArrayType> &c_grad,
-               const Tensor<1, dim, VectorizedArrayType> &mu_grad) const
+    DEAL_II_ALWAYS_INLINE Tensor<2, dim, VectorizedArrayType>
+                          dM_dgrad_c(const VectorizedArrayType &                c,
+                                     const Tensor<1, dim, VectorizedArrayType> &c_grad,
+                                     const Tensor<1, dim, VectorizedArrayType> &mu_grad) const
     {
       (void)c;
       (void)c_grad;
@@ -1353,7 +1353,7 @@ namespace Sintering
     }
 
     template <std::size_t n>
-    VectorizedArrayType
+    DEAL_II_ALWAYS_INLINE VectorizedArrayType
     dM_detai(
       const VectorizedArrayType &                               c,
       const std::array<VectorizedArrayType, n> &                etas,
@@ -1403,11 +1403,11 @@ namespace Sintering
     {}
 
     template <std::size_t n>
-    Tensor<2, dim, VectorizedArrayType>
-    M(const VectorizedArrayType &                               c,
-      const std::array<VectorizedArrayType, n> &                etas,
-      const Tensor<1, dim, VectorizedArrayType> &               c_grad,
-      const std::array<Tensor<1, dim, VectorizedArrayType>, n> &etas_grad) const
+    DEAL_II_ALWAYS_INLINE Tensor<2, dim, VectorizedArrayType>
+                          M(const VectorizedArrayType &                               c,
+                            const std::array<VectorizedArrayType, n> &                etas,
+                            const Tensor<1, dim, VectorizedArrayType> &               c_grad,
+                            const std::array<Tensor<1, dim, VectorizedArrayType>, n> &etas_grad) const
     {
       VectorizedArrayType cl = c;
       std::for_each(cl.begin(), cl.end(), [](auto &val) {
@@ -1450,12 +1450,12 @@ namespace Sintering
     }
 
     template <std::size_t n>
-    Tensor<2, dim, VectorizedArrayType>
-    dM_dc(
-      const VectorizedArrayType &                               c,
-      const std::array<VectorizedArrayType, n> &                etas,
-      const Tensor<1, dim, VectorizedArrayType> &               c_grad,
-      const std::array<Tensor<1, dim, VectorizedArrayType>, n> &etas_grad) const
+    DEAL_II_ALWAYS_INLINE Tensor<2, dim, VectorizedArrayType>
+                          dM_dc(
+                            const VectorizedArrayType &                               c,
+                            const std::array<VectorizedArrayType, n> &                etas,
+                            const Tensor<1, dim, VectorizedArrayType> &               c_grad,
+                            const std::array<Tensor<1, dim, VectorizedArrayType>, n> &etas_grad) const
     {
       (void)etas;
       (void)etas_grad;
@@ -1487,10 +1487,10 @@ namespace Sintering
       return dMdc;
     }
 
-    Tensor<2, dim, VectorizedArrayType>
-    dM_dgrad_c(const VectorizedArrayType &                c,
-               const Tensor<1, dim, VectorizedArrayType> &c_grad,
-               const Tensor<1, dim, VectorizedArrayType> &mu_grad) const
+    DEAL_II_ALWAYS_INLINE Tensor<2, dim, VectorizedArrayType>
+                          dM_dgrad_c(const VectorizedArrayType &                c,
+                                     const Tensor<1, dim, VectorizedArrayType> &c_grad,
+                                     const Tensor<1, dim, VectorizedArrayType> &mu_grad) const
     {
       VectorizedArrayType cl = c;
       std::for_each(cl.begin(), cl.end(), [](auto &val) {
@@ -1523,13 +1523,13 @@ namespace Sintering
     }
 
     template <std::size_t n>
-    Tensor<2, dim, VectorizedArrayType>
-    dM_detai(
-      const VectorizedArrayType &                               c,
-      const std::array<VectorizedArrayType, n> &                etas,
-      const Tensor<1, dim, VectorizedArrayType> &               c_grad,
-      const std::array<Tensor<1, dim, VectorizedArrayType>, n> &etas_grad,
-      unsigned int                                              index_i) const
+    DEAL_II_ALWAYS_INLINE Tensor<2, dim, VectorizedArrayType>
+                          dM_detai(
+                            const VectorizedArrayType &                               c,
+                            const std::array<VectorizedArrayType, n> &                etas,
+                            const Tensor<1, dim, VectorizedArrayType> &               c_grad,
+                            const std::array<Tensor<1, dim, VectorizedArrayType>, n> &etas_grad,
+                            unsigned int                                              index_i) const
     {
       (void)c;
       (void)c_grad;
@@ -1553,8 +1553,8 @@ namespace Sintering
     }
 
   private:
-    Tensor<2, dim, VectorizedArrayType>
-    unitMatrix(const VectorizedArrayType &fac = 1.) const
+    DEAL_II_ALWAYS_INLINE Tensor<2, dim, VectorizedArrayType>
+                          unitMatrix(const VectorizedArrayType &fac = 1.) const
     {
       Tensor<2, dim, VectorizedArrayType> I;
 
@@ -1566,7 +1566,7 @@ namespace Sintering
       return I;
     }
 
-    Tensor<1, dim, VectorizedArrayType>
+    DEAL_II_ALWAYS_INLINE Tensor<1, dim, VectorizedArrayType>
     unitVector(const Tensor<1, dim, VectorizedArrayType> &vec) const
     {
       VectorizedArrayType nrm = vec.norm();
@@ -1592,7 +1592,7 @@ namespace Sintering
       return n;
     }
 
-    Tensor<2, dim, VectorizedArrayType>
+    DEAL_II_ALWAYS_INLINE Tensor<2, dim, VectorizedArrayType>
     projectorMatrix(const Tensor<1, dim, VectorizedArrayType> vec,
                     const VectorizedArrayType &               fac = 1.) const
     {
@@ -1608,7 +1608,7 @@ namespace Sintering
   {
   public:
     template <typename T>
-    static T
+    DEAL_II_ALWAYS_INLINE static T
     power_sum(const std::array<T, n> &etas)
     {
       T initial = 0.0;
@@ -1627,7 +1627,7 @@ namespace Sintering
   {
   public:
     template <typename T>
-    static T
+    DEAL_II_ALWAYS_INLINE static T
     power_sum(const std::array<T, 2> &etas)
     {
       return etas[0] * etas[0] + etas[1] * etas[1];
@@ -1639,7 +1639,7 @@ namespace Sintering
   {
   public:
     template <typename T>
-    static T
+    DEAL_II_ALWAYS_INLINE static T
     power_sum(const std::array<T, 2> &etas)
     {
       return etas[0] * etas[0] * etas[0] + etas[1] * etas[1] * etas[1];
@@ -1660,7 +1660,7 @@ namespace Sintering
     {}
 
     template <std::size_t n>
-    auto
+    DEAL_II_ALWAYS_INLINE VectorizedArrayType
     f(const VectorizedArrayType &               c,
       const std::array<VectorizedArrayType, n> &etas) const
     {
@@ -1674,7 +1674,7 @@ namespace Sintering
     }
 
     template <std::size_t n>
-    auto
+    DEAL_II_ALWAYS_INLINE VectorizedArrayType
     df_dc(const VectorizedArrayType &               c,
           const std::array<VectorizedArrayType, n> &etas) const
     {
@@ -1687,7 +1687,7 @@ namespace Sintering
     }
 
     template <std::size_t n>
-    auto
+    DEAL_II_ALWAYS_INLINE VectorizedArrayType
     df_detai(const VectorizedArrayType &               c,
              const std::array<VectorizedArrayType, n> &etas,
              unsigned int                              index_i) const
@@ -1701,7 +1701,7 @@ namespace Sintering
     }
 
     template <std::size_t n>
-    VectorizedArrayType
+    DEAL_II_ALWAYS_INLINE VectorizedArrayType
     d2f_dc2(const VectorizedArrayType &               c,
             const std::array<VectorizedArrayType, n> &etas) const
     {
@@ -1712,7 +1712,7 @@ namespace Sintering
     }
 
     template <std::size_t n>
-    VectorizedArrayType
+    DEAL_II_ALWAYS_INLINE VectorizedArrayType
     d2f_dcdetai(const VectorizedArrayType &               c,
                 const std::array<VectorizedArrayType, n> &etas,
                 unsigned int                              index_i) const
@@ -1725,7 +1725,7 @@ namespace Sintering
     }
 
     template <std::size_t n>
-    VectorizedArrayType
+    DEAL_II_ALWAYS_INLINE VectorizedArrayType
     d2f_detai2(const VectorizedArrayType &               c,
                const std::array<VectorizedArrayType, n> &etas,
                unsigned int                              index_i) const
@@ -1739,7 +1739,7 @@ namespace Sintering
     }
 
     template <std::size_t n>
-    VectorizedArrayType
+    DEAL_II_ALWAYS_INLINE VectorizedArrayType
     d2f_detaidetaj(const VectorizedArrayType &               c,
                    const std::array<VectorizedArrayType, n> &etas,
                    unsigned int                              index_i,
