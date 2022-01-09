@@ -15,6 +15,8 @@
 
 // Sintering of 2 particles
 
+//#define WITH_TIMING
+
 #include <deal.II/base/conditional_ostream.h>
 #include <deal.II/base/mpi.h>
 #include <deal.II/base/parameter_handler.h>
@@ -486,6 +488,30 @@ namespace dealii
     }
   } // namespace VectorTools
 } // namespace dealii
+
+
+
+class MyScope
+{
+public:
+  MyScope(dealii::TimerOutput &timer_, const std::string &section_name)
+#ifdef WITH_TIMING
+    : scope(timer_, section_name)
+#endif
+  {
+    (void)timer_;
+    (void)section_name;
+  }
+
+  ~MyScope() = default;
+
+private:
+#ifdef WITH_TIMING
+  TimerOutput::Scope scope;
+#endif
+};
+
+
 
 namespace Preconditioners
 {
@@ -964,7 +990,7 @@ namespace LinearSolvers
     unsigned int
     solve(VectorType &dst, const VectorType &src) override
     {
-      TimerOutput::Scope scope(timer, "gmres::solve");
+      MyScope scope(timer, "gmres::solve");
 
       unsigned int            max_iter = 100;
       ReductionControl        reduction_control(max_iter);
@@ -1819,7 +1845,7 @@ namespace Sintering
     void
     vmult(VectorType &dst, const VectorType &src) const
     {
-      TimerOutput::Scope scope(this->timer, label + "::vmult");
+      MyScope scope(this->timer, label + "::vmult");
 
       matrix_free.cell_loop(
         &OperatorBase::do_vmult_range, this, dst, src, true);
@@ -1836,7 +1862,7 @@ namespace Sintering
     void
     compute_inverse_diagonal(VectorType &diagonal) const
     {
-      TimerOutput::Scope scope(this->timer, label + "::diagonal");
+      MyScope scope(this->timer, label + "::diagonal");
 
       MatrixFreeTools::compute_diagonal(
         matrix_free, diagonal, &OperatorBase::do_vmult_cell, this, dof_index);
@@ -1852,7 +1878,7 @@ namespace Sintering
 
       if (system_matrix_is_empty)
         {
-          TimerOutput::Scope scope(this->timer, label + "::matrix::sp");
+          MyScope scope(this->timer, label + "::matrix::sp");
 
           system_matrix.clear();
 
@@ -1869,7 +1895,7 @@ namespace Sintering
         }
 
       {
-        TimerOutput::Scope scope(this->timer, label + "::matrix::compute");
+        MyScope scope(this->timer, label + "::matrix::compute");
 
         if (system_matrix_is_empty == false)
           system_matrix = 0.0; // clear existing content
@@ -2006,7 +2032,7 @@ namespace Sintering
     void
     evaluate_nonlinear_residual(VectorType &dst, const VectorType &src) const
     {
-      TimerOutput::Scope scope(this->timer, "sintering_op::nonlinear_residual");
+      MyScope scope(this->timer, "sintering_op::nonlinear_residual");
 
       this->matrix_free.cell_loop(
         &SinteringOperator::do_evaluate_nonlinear_residual,
@@ -2031,7 +2057,7 @@ namespace Sintering
     void
     evaluate_newton_step(const VectorType &newton_step)
     {
-      TimerOutput::Scope scope(this->timer, "sintering_op::newton_step");
+      MyScope scope(this->timer, "sintering_op::newton_step");
 
       const unsigned n_cells = this->matrix_free.n_cell_batches();
       const unsigned n_quadrature_points =
@@ -2714,8 +2740,7 @@ namespace Sintering
     get_diagonals(VectorType &vec_mass, VectorType &vec_laplace) const
     {
       {
-        TimerOutput::Scope scope(this->timer,
-                                 "helmholtz_op::get_diagonal::mass");
+        MyScope scope(this->timer, "helmholtz_op::get_diagonal::mass");
         this->initialize_dof_vector(vec_mass);
         MatrixFreeTools::compute_diagonal(
           this->matrix_free,
@@ -2726,8 +2751,7 @@ namespace Sintering
       }
 
       {
-        TimerOutput::Scope scope(this->timer,
-                                 "helmholtz_op::get_diagonal::laplace");
+        MyScope scope(this->timer, "helmholtz_op::get_diagonal::laplace");
         this->initialize_dof_vector(vec_laplace);
         MatrixFreeTools::compute_diagonal(
           this->matrix_free,
@@ -2806,7 +2830,7 @@ namespace Sintering
     void
     vmult(VectorType &dst, const VectorType &src) const override
     {
-      TimerOutput::Scope scope(this->timer, "helmholtz_precon::vmult");
+      MyScope scope(this->timer, "helmholtz_precon::vmult");
 
       double *__restrict__ dst_ptr  = dst.get_values();
       double *__restrict__ src_ptr  = src.get_values();
@@ -2825,7 +2849,7 @@ namespace Sintering
     void
     do_update() override
     {
-      TimerOutput::Scope scope(this->timer, "helmholtz_precon::do_update");
+      MyScope scope(this->timer, "helmholtz_precon::do_update");
 
       const double new_dt = op.get_dt();
 
@@ -2930,10 +2954,10 @@ namespace Sintering
     void
     vmult(VectorType &dst, const VectorType &src) const override
     {
-      TimerOutput::Scope scope(timer, "precon::vmult");
+      MyScope scope(timer, "precon::vmult");
 
       {
-        TimerOutput::Scope scope(timer, "precon::vmult::split_up");
+        MyScope scope(timer, "precon::vmult::split_up");
         VectorTools::split_up_fast(src, src_0, src_1);
 
 #ifdef DEBUG
@@ -2952,12 +2976,12 @@ namespace Sintering
 
       if (true)
         {
-          TimerOutput::Scope scope(timer, "precon::vmult::precon_0");
+          MyScope scope(timer, "precon::vmult::precon_0");
           preconditioner_0->vmult(dst_0, src_0);
         }
       else
         {
-          TimerOutput::Scope scope(timer, "precon::vmult::precon_0");
+          MyScope scope(timer, "precon::vmult::precon_0");
 
           ReductionControl reduction_control(100, 1e-20, 1e-8);
 
@@ -2966,12 +2990,12 @@ namespace Sintering
         }
 
       {
-        TimerOutput::Scope scope(timer, "precon::vmult::precon_1");
+        MyScope scope(timer, "precon::vmult::precon_1");
         preconditioner_1->vmult(dst_1, src_1);
       }
 
       {
-        TimerOutput::Scope scope(timer, "precon::vmult::merge");
+        MyScope scope(timer, "precon::vmult::merge");
         VectorTools::merge_fast(dst_0, dst_1, dst);
 
 #ifdef DEBUG
@@ -2988,13 +3012,13 @@ namespace Sintering
     void
     do_update() override
     {
-      TimerOutput::Scope scope(timer, "precon::update");
+      MyScope scope(timer, "precon::update");
       {
-        TimerOutput::Scope scope(timer, "precon::update::precon_0");
+        MyScope scope(timer, "precon::update::precon_0");
         preconditioner_0->do_update();
       }
       {
-        TimerOutput::Scope scope(timer, "precon::update::precon_1");
+        MyScope scope(timer, "precon::update::precon_1");
         preconditioner_1->do_update();
       }
     }
@@ -3096,7 +3120,7 @@ namespace Sintering
     vmult(VectorType &dst, const VectorType &src) const override
     {
       {
-        TimerOutput::Scope scope(timer, "vmult::split_up");
+        MyScope scope(timer, "vmult::split_up");
         VectorTools::split_up_fast(src, src_0, src_1, src_2);
 
 #ifdef DEBUG
@@ -3120,7 +3144,7 @@ namespace Sintering
         {
           // Block Jacobi
           {
-            TimerOutput::Scope scope(timer, "vmult::precon_0");
+            MyScope scope(timer, "vmult::precon_0");
 
             if (data.block_0_relative_tolerance == 0.0)
               {
@@ -3137,7 +3161,7 @@ namespace Sintering
           }
 
           {
-            TimerOutput::Scope scope(timer, "vmult::precon_1");
+            MyScope scope(timer, "vmult::precon_1");
 
             if (data.block_1_relative_tolerance == 0.0)
               {
@@ -3237,12 +3261,12 @@ namespace Sintering
         AssertThrow(data.block_2_relative_tolerance == 0.0,
                     ExcNotImplemented());
 
-        TimerOutput::Scope scope(timer, "vmult::precon_2");
+        MyScope scope(timer, "vmult::precon_2");
         preconditioner_2->vmult(dst_2, src_2);
       }
 
       {
-        TimerOutput::Scope scope(timer, "vmult::merge");
+        MyScope scope(timer, "vmult::merge");
         VectorTools::merge_fast(dst_0, dst_1, dst_2, dst);
 
 #ifdef DEBUG
@@ -3651,13 +3675,13 @@ namespace Sintering
         std::make_unique<NonLinearSolvers::NewtonSolver<VectorType>>();
 
       non_linear_solver->reinit_vector = [&](auto &vector) {
-        TimerOutput::Scope scope(timer, "time_loop::newton::reinit_vector");
+        MyScope scope(timer, "time_loop::newton::reinit_vector");
 
         nonlinear_operator.initialize_dof_vector(vector);
       };
 
       non_linear_solver->residual = [&](const auto &src, auto &dst) {
-        TimerOutput::Scope scope(timer, "time_loop::newton::residual");
+        MyScope scope(timer, "time_loop::newton::residual");
 
         nonlinear_operator.evaluate_nonlinear_residual(dst, src);
       };
@@ -3666,22 +3690,19 @@ namespace Sintering
         [&](const auto &current_u, const bool do_update_preconditioner) {
           if (true)
             {
-              TimerOutput::Scope scope(timer,
-                                       "time_loop::newton::setup_jacobian");
+              MyScope scope(timer, "time_loop::newton::setup_jacobian");
               nonlinear_operator.evaluate_newton_step(current_u);
             }
 
           if (do_update_preconditioner)
             {
-              TimerOutput::Scope scope(
-                timer, "time_loop::newton::setup_preconditioner");
+              MyScope scope(timer, "time_loop::newton::setup_preconditioner");
               preconditioner->do_update();
             }
         };
 
       non_linear_solver->solve_with_jacobian = [&](const auto &src, auto &dst) {
-        TimerOutput::Scope scope(timer,
-                                 "time_loop::newton::solve_with_jacobian");
+        MyScope scope(timer, "time_loop::newton::solve_with_jacobian");
 
         return linear_solver->solve(dst, src);
       };
@@ -3730,7 +3751,7 @@ namespace Sintering
 
             try
               {
-                TimerOutput::Scope scope(timer, "time_loop::newton");
+                MyScope scope(timer, "time_loop::newton");
 
                 const auto statistics = non_linear_solver->solve(solution);
 
