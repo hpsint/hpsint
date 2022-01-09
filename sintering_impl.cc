@@ -2689,6 +2689,9 @@ namespace Sintering
     using FECellIntegrator =
       FEEvaluation<dim, -1, 0, 1, Number, VectorizedArrayType>;
 
+    using VectorType =
+      typename OperatorBase<dim, 1, Number, VectorizedArrayType>::VectorType;
+
     OperatorAllenCahnHelmholtz(
       const MatrixFree<dim, Number, VectorizedArrayType> &matrix_free,
       const AffineConstraints<Number> &                   constraints,
@@ -2701,7 +2704,65 @@ namespace Sintering
       , op(op)
     {}
 
+    double
+    get_dt() const
+    {
+      return op.get_dt();
+    }
+
+    void
+    get_diagonals(VectorType &vec_mass, VectorType &vec_laplace) const
+    {
+      {
+        TimerOutput::Scope scope(this->timer,
+                                 "helmholtz_op::get_diagonal::mass");
+        this->initialize_dof_vector(vec_mass);
+        MatrixFreeTools::compute_diagonal(
+          this->matrix_free,
+          vec_mass,
+          &OperatorAllenCahnHelmholtz::do_vmult_cell_mass,
+          this,
+          this->dof_index);
+      }
+
+      {
+        TimerOutput::Scope scope(this->timer,
+                                 "helmholtz_op::get_diagonal::laplace");
+        this->initialize_dof_vector(vec_laplace);
+        MatrixFreeTools::compute_diagonal(
+          this->matrix_free,
+          vec_laplace,
+          &OperatorAllenCahnHelmholtz::do_vmult_cell_laplace,
+          this,
+          this->dof_index);
+      }
+    }
+
   private:
+    void
+    do_vmult_cell_mass(FECellIntegrator &phi) const
+    {
+      phi.evaluate(EvaluationFlags::EvaluationFlags::values);
+
+      for (unsigned int q = 0; q < phi.n_q_points; ++q)
+        phi.submit_value(phi.get_value(q), q);
+
+      phi.integrate(EvaluationFlags::EvaluationFlags::values);
+    }
+    void
+    do_vmult_cell_laplace(FECellIntegrator &phi) const
+    {
+      const auto &L       = this->op.get_data().L;
+      const auto &kappa_p = this->op.get_data().kappa_p;
+
+      phi.evaluate(EvaluationFlags::EvaluationFlags::gradients);
+
+      for (unsigned int q = 0; q < phi.n_q_points; ++q)
+        phi.submit_gradient(L * kappa_p * phi.get_gradient(q), q);
+
+      phi.integrate(EvaluationFlags::EvaluationFlags::gradients);
+    }
+
     void
     do_vmult_kernel(FECellIntegrator &) const final
     {
@@ -2728,26 +2789,78 @@ namespace Sintering
                                                 VectorizedArrayType>;
     using VectorType = typename Operator::VectorType;
 
+    static const unsigned int n_components = n_components_ - 2;
+
     InverseDiagonalMatrixAllenCahnHelmholtz(const Operator &op)
       : op(op)
+      , pcout(std::cout, Utilities::MPI::this_mpi_process(MPI_COMM_WORLD) == 0)
+      , timer(pcout, TimerOutput::never, TimerOutput::wall_times)
+      , dt(0.0)
     {}
+
+    ~InverseDiagonalMatrixAllenCahnHelmholtz()
+    {
+      timer.print_wall_time_statistics(MPI_COMM_WORLD);
+    }
 
     void
     vmult(VectorType &dst, const VectorType &src) const override
     {
-      AssertThrow(false, ExcNotImplemented());
-      (void)dst;
-      (void)src;
+      TimerOutput::Scope scope(this->timer, "helmholtz_precon::vmult");
+
+      double *__restrict__ dst_ptr  = dst.get_values();
+      double *__restrict__ src_ptr  = src.get_values();
+      double *__restrict__ diag_ptr = diag.get_values();
+
+      AssertDimension(n_components, 2);
+
+      DEAL_II_OPENMP_SIMD_PRAGMA
+      for (unsigned int i = 0; i < diag.locally_owned_size(); ++i)
+        {
+          dst_ptr[i * 2 + 0] = diag_ptr[i] * src_ptr[i * 2 + 0];
+          dst_ptr[i * 2 + 1] = diag_ptr[i] * src_ptr[i * 2 + 1];
+        }
     }
 
     void
     do_update() override
     {
-      AssertThrow(false, ExcNotImplemented());
+      TimerOutput::Scope scope(this->timer, "helmholtz_precon::do_update");
+
+      const double new_dt = op.get_dt();
+
+      if (diag.size() == 0)
+        {
+          op.initialize_dof_vector(diag);
+          op.get_diagonals(vec_mass, vec_laplace);
+        }
+
+      if (this->dt != new_dt)
+        {
+          this->dt = new_dt;
+
+          const double dt_inv = 1.0 / this->dt;
+
+          for (unsigned int i = 0; i < diag.locally_owned_size(); ++i)
+            {
+              const double val = dt_inv * vec_mass.local_element(i) +
+                                 vec_laplace.local_element(i);
+
+              diag.local_element(i) =
+                (std::abs(val) > 1.0e-10) ? (1.0 / val) : 1.0;
+            }
+        }
     }
 
   private:
     const Operator &op;
+
+    ConditionalOStream  pcout;
+    mutable TimerOutput timer;
+
+    double dt = 0.0;
+
+    VectorType diag, vec_mass, vec_laplace;
   };
 
 
@@ -2797,7 +2910,7 @@ namespace Sintering
       preconditioner_0 =
         Preconditioners::create(operator_0, data.block_0_preconditioner);
 
-      if (false)
+      if (false /*TODO*/)
         preconditioner_1 =
           Preconditioners::create(operator_1, data.block_1_preconditioner);
       else
