@@ -1603,6 +1603,48 @@ namespace Sintering
     }
   };
 
+  template <unsigned int n, std::size_t p>
+  class PowerHelper
+  {
+  public:
+    template <typename T>
+    static T
+    power_sum(const std::array<T, n> &etas)
+    {
+      T initial = 0.0;
+
+      return std::accumulate(etas.begin(),
+                             etas.end(),
+                             initial,
+                             [](auto a, auto b) {
+                               return std::move(a) + std::pow(b, n);
+                             });
+    }
+  };
+
+  template <>
+  class PowerHelper<2, 2>
+  {
+  public:
+    template <typename T>
+    static T
+    power_sum(const std::array<T, 2> &etas)
+    {
+      return etas[0] * etas[0] + etas[1] * etas[1];
+    }
+  };
+
+  template <>
+  class PowerHelper<2, 3>
+  {
+  public:
+    template <typename T>
+    static T
+    power_sum(const std::array<T, 2> &etas)
+    {
+      return etas[0] * etas[0] * etas[0] + etas[1] * etas[1] * etas[1];
+    }
+  };
 
   template <typename VectorizedArrayType>
   class FreeEnergy
@@ -1622,16 +1664,8 @@ namespace Sintering
     f(const VectorizedArrayType &               c,
       const std::array<VectorizedArrayType, n> &etas) const
     {
-      VectorizedArrayType initial = 0.0;
-
-      const auto etaPower2Sum =
-        std::accumulate(etas.begin(), etas.end(), initial, [](auto a, auto b) {
-          return std::move(a) + b * b;
-        });
-      const auto etaPower3Sum =
-        std::accumulate(etas.begin(), etas.end(), initial, [](auto a, auto b) {
-          return std::move(a) + b * b * b;
-        });
+      const auto etaPower2Sum = PowerHelper<n, 2>::power_sum(etas);
+      const auto etaPower3Sum = PowerHelper<n, 3>::power_sum(etas);
 
       return A * (c * c) * ((-c + 1.0) * (-c + 1.0)) +
              B * ((c * c) + (-6.0 * c + 6.0) * etaPower2Sum -
@@ -1644,16 +1678,8 @@ namespace Sintering
     df_dc(const VectorizedArrayType &               c,
           const std::array<VectorizedArrayType, n> &etas) const
     {
-      VectorizedArrayType initial = 0.0;
-
-      const auto etaPower2Sum =
-        std::accumulate(etas.begin(), etas.end(), initial, [](auto a, auto b) {
-          return std::move(a) + b * b;
-        });
-      const auto etaPower3Sum =
-        std::accumulate(etas.begin(), etas.end(), initial, [](auto a, auto b) {
-          return std::move(a) + b * b * b;
-        });
+      const auto etaPower2Sum = PowerHelper<n, 2>::power_sum(etas);
+      const auto etaPower3Sum = PowerHelper<n, 3>::power_sum(etas);
 
       return A * (c * c) * (2.0 * c - 2.0) +
              2.0 * A * c * ((-c + 1.0) * (-c + 1.0)) +
@@ -1666,12 +1692,7 @@ namespace Sintering
              const std::array<VectorizedArrayType, n> &etas,
              unsigned int                              index_i) const
     {
-      VectorizedArrayType initial = 0.0;
-
-      const auto etaPower2Sum =
-        std::accumulate(etas.begin(), etas.end(), initial, [](auto a, auto b) {
-          return std::move(a) + b * b;
-        });
+      const auto etaPower2Sum = PowerHelper<n, 2>::power_sum(etas);
 
       const auto &etai = etas[index_i];
 
@@ -1680,7 +1701,7 @@ namespace Sintering
     }
 
     template <std::size_t n>
-    auto
+    VectorizedArrayType
     d2f_dc2(const VectorizedArrayType &               c,
             const std::array<VectorizedArrayType, n> &etas) const
     {
@@ -1691,7 +1712,7 @@ namespace Sintering
     }
 
     template <std::size_t n>
-    auto
+    VectorizedArrayType
     d2f_dcdetai(const VectorizedArrayType &               c,
                 const std::array<VectorizedArrayType, n> &etas,
                 unsigned int                              index_i) const
@@ -1704,16 +1725,12 @@ namespace Sintering
     }
 
     template <std::size_t n>
-    auto
+    VectorizedArrayType
     d2f_detai2(const VectorizedArrayType &               c,
                const std::array<VectorizedArrayType, n> &etas,
                unsigned int                              index_i) const
     {
-      VectorizedArrayType initial = 0.0;
-      const auto          etaPower2Sum =
-        std::accumulate(etas.begin(), etas.end(), initial, [](auto a, auto b) {
-          return std::move(a) + b * b;
-        });
+      const auto etaPower2Sum = PowerHelper<n, 2>::power_sum(etas);
 
       const auto &etai = etas[index_i];
 
@@ -1722,7 +1739,7 @@ namespace Sintering
     }
 
     template <std::size_t n>
-    auto
+    VectorizedArrayType
     d2f_detaidetaj(const VectorizedArrayType &               c,
                    const std::array<VectorizedArrayType, n> &etas,
                    unsigned int                              index_i,
