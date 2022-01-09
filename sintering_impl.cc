@@ -2678,6 +2678,80 @@ namespace Sintering
 
 
 
+  template <int dim,
+            int n_components_,
+            typename Number,
+            typename VectorizedArrayType>
+  class OperatorAllenCahnHelmholtz
+    : public OperatorBase<dim, 1, Number, VectorizedArrayType>
+  {
+  public:
+    using FECellIntegrator =
+      FEEvaluation<dim, -1, 0, 1, Number, VectorizedArrayType>;
+
+    OperatorAllenCahnHelmholtz(
+      const MatrixFree<dim, Number, VectorizedArrayType> &matrix_free,
+      const AffineConstraints<Number> &                   constraints,
+      const SinteringOperator<dim, n_components_, Number, VectorizedArrayType>
+        &op)
+      : OperatorBase<dim, 1, Number, VectorizedArrayType>(matrix_free,
+                                                          constraints,
+                                                          3,
+                                                          "helmholtz_op")
+      , op(op)
+    {}
+
+  private:
+    void
+    do_vmult_kernel(FECellIntegrator &) const final
+    {
+      AssertThrow(false, ExcNotImplemented());
+    }
+
+    const SinteringOperator<dim, n_components_, Number, VectorizedArrayType>
+      &op;
+  };
+
+
+
+  template <int dim,
+            int n_components_,
+            typename Number,
+            typename VectorizedArrayType>
+  class InverseDiagonalMatrixAllenCahnHelmholtz
+    : public Preconditioners::PreconditionerBase<Number>
+  {
+  public:
+    using Operator   = OperatorAllenCahnHelmholtz<dim,
+                                                n_components_,
+                                                Number,
+                                                VectorizedArrayType>;
+    using VectorType = typename Operator::VectorType;
+
+    InverseDiagonalMatrixAllenCahnHelmholtz(const Operator &op)
+      : op(op)
+    {}
+
+    void
+    vmult(VectorType &dst, const VectorType &src) const override
+    {
+      AssertThrow(false, ExcNotImplemented());
+      (void)dst;
+      (void)src;
+    }
+
+    void
+    do_update() override
+    {
+      AssertThrow(false, ExcNotImplemented());
+    }
+
+  private:
+    const Operator &op;
+  };
+
+
+
   struct BlockPreconditioner2Data
   {
     std::string block_0_preconditioner = "ILU";
@@ -2709,6 +2783,7 @@ namespace Sintering
       : matrix_free(matrix_free)
       , operator_0(matrix_free, constraints, op)
       , operator_1(matrix_free, constraints, op)
+      , operator_1_helmholtz(matrix_free, constraints, op)
       , pcout(std::cout, Utilities::MPI::this_mpi_process(MPI_COMM_WORLD) == 0)
       , timer(pcout, TimerOutput::never, TimerOutput::wall_times)
       , data(data)
@@ -2721,8 +2796,17 @@ namespace Sintering
 
       preconditioner_0 =
         Preconditioners::create(operator_0, data.block_0_preconditioner);
-      preconditioner_1 =
-        Preconditioners::create(operator_1, data.block_1_preconditioner);
+
+      if (false)
+        preconditioner_1 =
+          Preconditioners::create(operator_1, data.block_1_preconditioner);
+      else
+        preconditioner_1 = std::make_unique<
+          InverseDiagonalMatrixAllenCahnHelmholtz<dim,
+                                                  n_components,
+                                                  Number,
+                                                  VectorizedArrayType>>(
+          operator_1_helmholtz);
     }
 
     ~BlockPreconditioner2()
@@ -2813,6 +2897,8 @@ namespace Sintering
                       Number,
                       VectorizedArrayType>
       operator_1;
+    OperatorAllenCahnHelmholtz<dim, n_components, Number, VectorizedArrayType>
+      operator_1_helmholtz;
 
     mutable VectorType dst_0, dst_1;
     mutable VectorType src_0, src_1;
