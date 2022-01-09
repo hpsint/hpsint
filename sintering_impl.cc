@@ -15,6 +15,8 @@
 
 // Sintering of 2 particles
 
+//#define WITH_TIMING
+
 #include <deal.II/base/conditional_ostream.h>
 #include <deal.II/base/mpi.h>
 #include <deal.II/base/parameter_handler.h>
@@ -487,6 +489,30 @@ namespace dealii
   } // namespace VectorTools
 } // namespace dealii
 
+
+
+class MyScope
+{
+public:
+  MyScope(dealii::TimerOutput &timer_, const std::string &section_name)
+#ifdef WITH_TIMING
+    : scope(timer_, section_name)
+#endif
+  {
+    (void)timer_;
+    (void)section_name;
+  }
+
+  ~MyScope() = default;
+
+private:
+#ifdef WITH_TIMING
+  TimerOutput::Scope scope;
+#endif
+};
+
+
+
 namespace Preconditioners
 {
   template <typename Number>
@@ -934,6 +960,8 @@ namespace LinearSolvers
   public:
     using VectorType = LinearAlgebra::distributed::Vector<Number>;
 
+    virtual ~LinearSolverBase() = default;
+
     virtual unsigned int
     solve(VectorType &dst, const VectorType &src) = 0;
   };
@@ -950,11 +978,20 @@ namespace LinearSolvers
     SolverGMRESWrapper(const Operator &op, Preconditioner &preconditioner)
       : op(op)
       , preconditioner(preconditioner)
+      , pcout(std::cout, Utilities::MPI::this_mpi_process(MPI_COMM_WORLD) == 0)
+      , timer(pcout, TimerOutput::never, TimerOutput::wall_times)
     {}
+
+    ~SolverGMRESWrapper()
+    {
+      timer.print_wall_time_statistics(MPI_COMM_WORLD);
+    }
 
     unsigned int
     solve(VectorType &dst, const VectorType &src) override
     {
+      MyScope scope(timer, "gmres::solve");
+
       unsigned int            max_iter = 100;
       ReductionControl        reduction_control(max_iter);
       SolverGMRES<VectorType> solver(reduction_control);
@@ -965,6 +1002,9 @@ namespace LinearSolvers
 
     const Operator &op;
     Preconditioner &preconditioner;
+
+    ConditionalOStream  pcout;
+    mutable TimerOutput timer;
   };
 } // namespace LinearSolvers
 
@@ -988,24 +1028,26 @@ namespace NonLinearSolvers
 
   struct NewtonSolverData
   {
-    NewtonSolverData(const unsigned int max_iter                    = 100,
-                     const double       abs_tol                     = 1.e-20,
-                     const double       rel_tol                     = 1.e-5,
-                     const bool update_preconditioner_linear_solver = true,
-                     const bool update_preconditioner_every_newton_iter = true)
+    NewtonSolverData(const unsigned int max_iter              = 100,
+                     const double       abs_tol               = 1.e-20,
+                     const double       rel_tol               = 1.e-5,
+                     const bool         do_update             = true,
+                     const unsigned int threshold_newton_iter = 10,
+                     const unsigned int threshold_linear_iter = 20)
       : max_iter(max_iter)
       , abs_tol(abs_tol)
       , rel_tol(rel_tol)
-      , update_preconditioner_linear_solver(update_preconditioner_linear_solver)
-      , update_preconditioner_every_newton_iter(
-          update_preconditioner_every_newton_iter)
+      , do_update(do_update)
+      , threshold_newton_iter(threshold_newton_iter)
+      , threshold_linear_iter(threshold_linear_iter)
     {}
 
     const unsigned int max_iter;
     const double       abs_tol;
     const double       rel_tol;
-    const bool         update_preconditioner_linear_solver;
-    const unsigned int update_preconditioner_every_newton_iter;
+    const bool         do_update;
+    const unsigned int threshold_newton_iter;
+    const unsigned int threshold_linear_iter;
   };
 
 
@@ -1035,6 +1077,8 @@ namespace NonLinearSolvers
       // Accumulated linear iterations
       NonLinearSolverStatistics statistics;
 
+      unsigned int linear_iterations_last = 0;
+
       while (norm_r > this->solver_data.abs_tol &&
              norm_r / norm_r_0 > solver_data.rel_tol &&
              statistics.newton_iterations < solver_data.max_iter)
@@ -1047,16 +1091,16 @@ namespace NonLinearSolvers
           vec_residual *= -1.0;
 
           // solve linear problem
-          bool const do_update =
-            solver_data.update_preconditioner_linear_solver &&
-            (statistics.newton_iterations %
-               solver_data.update_preconditioner_every_newton_iter ==
-             0);
+          bool const threshold_exceeded =
+            (statistics.newton_iterations % solver_data.threshold_newton_iter ==
+             0) ||
+            (linear_iterations_last > solver_data.threshold_linear_iter);
 
-          setup_jacobian(dst, do_update);
+          setup_jacobian(dst, solver_data.do_update && threshold_exceeded);
 
-          statistics.linear_iterations +=
-            solve_with_jacobian(vec_residual, increment);
+          linear_iterations_last = solve_with_jacobian(vec_residual, increment);
+
+          statistics.linear_iterations += linear_iterations_last;
 
           // damped Newton scheme
           const double tau =
@@ -1259,11 +1303,12 @@ namespace Sintering
       , Mgb(Mgb)
     {}
 
-    VectorizedArrayType
-    M(const VectorizedArrayType &                             c,
-      const std::vector<VectorizedArrayType> &                etas,
-      const Tensor<1, dim, VectorizedArrayType> &             c_grad,
-      const std::vector<Tensor<1, dim, VectorizedArrayType>> &etas_grad) const
+    template <std::size_t n>
+    DEAL_II_ALWAYS_INLINE VectorizedArrayType
+    M(const VectorizedArrayType &                               c,
+      const std::array<VectorizedArrayType, n> &                etas,
+      const Tensor<1, dim, VectorizedArrayType> &               c_grad,
+      const std::array<Tensor<1, dim, VectorizedArrayType>, n> &etas_grad) const
     {
       (void)c_grad;
       (void)etas_grad;
@@ -1297,12 +1342,13 @@ namespace Sintering
       return M;
     }
 
-    VectorizedArrayType
+    template <std::size_t n>
+    DEAL_II_ALWAYS_INLINE VectorizedArrayType
     dM_dc(
-      const VectorizedArrayType &                             c,
-      const std::vector<VectorizedArrayType> &                etas,
-      const Tensor<1, dim, VectorizedArrayType> &             c_grad,
-      const std::vector<Tensor<1, dim, VectorizedArrayType>> &etas_grad) const
+      const VectorizedArrayType &                               c,
+      const std::array<VectorizedArrayType, n> &                etas,
+      const Tensor<1, dim, VectorizedArrayType> &               c_grad,
+      const std::array<Tensor<1, dim, VectorizedArrayType>, n> &etas_grad) const
     {
       (void)etas;
       (void)c_grad;
@@ -1320,10 +1366,10 @@ namespace Sintering
       return dMdc;
     }
 
-    Tensor<2, dim, VectorizedArrayType>
-    dM_dgrad_c(const VectorizedArrayType &                c,
-               const Tensor<1, dim, VectorizedArrayType> &c_grad,
-               const Tensor<1, dim, VectorizedArrayType> &mu_grad) const
+    DEAL_II_ALWAYS_INLINE Tensor<2, dim, VectorizedArrayType>
+                          dM_dgrad_c(const VectorizedArrayType &                c,
+                                     const Tensor<1, dim, VectorizedArrayType> &c_grad,
+                                     const Tensor<1, dim, VectorizedArrayType> &mu_grad) const
     {
       (void)c;
       (void)c_grad;
@@ -1332,12 +1378,14 @@ namespace Sintering
       return Tensor<2, dim, VectorizedArrayType>();
     }
 
-    VectorizedArrayType
-    dM_detai(const VectorizedArrayType &                             c,
-             const std::vector<VectorizedArrayType> &                etas,
-             const Tensor<1, dim, VectorizedArrayType> &             c_grad,
-             const std::vector<Tensor<1, dim, VectorizedArrayType>> &etas_grad,
-             unsigned int index_i) const
+    template <std::size_t n>
+    DEAL_II_ALWAYS_INLINE VectorizedArrayType
+    dM_detai(
+      const VectorizedArrayType &                               c,
+      const std::array<VectorizedArrayType, n> &                etas,
+      const Tensor<1, dim, VectorizedArrayType> &               c_grad,
+      const std::array<Tensor<1, dim, VectorizedArrayType>, n> &etas_grad,
+      unsigned int                                              index_i) const
     {
       (void)c;
       (void)c_grad;
@@ -1380,11 +1428,12 @@ namespace Sintering
       , Mgb(Mgb)
     {}
 
-    Tensor<2, dim, VectorizedArrayType>
-    M(const VectorizedArrayType &                             c,
-      const std::vector<VectorizedArrayType> &                etas,
-      const Tensor<1, dim, VectorizedArrayType> &             c_grad,
-      const std::vector<Tensor<1, dim, VectorizedArrayType>> &etas_grad) const
+    template <std::size_t n>
+    DEAL_II_ALWAYS_INLINE Tensor<2, dim, VectorizedArrayType>
+                          M(const VectorizedArrayType &                               c,
+                            const std::array<VectorizedArrayType, n> &                etas,
+                            const Tensor<1, dim, VectorizedArrayType> &               c_grad,
+                            const std::array<Tensor<1, dim, VectorizedArrayType>, n> &etas_grad) const
     {
       VectorizedArrayType cl = c;
       std::for_each(cl.begin(), cl.end(), [](auto &val) {
@@ -1402,8 +1451,7 @@ namespace Sintering
         unitMatrix(Mvol * phi + Mvap * (1.0 - phi));
 
       // Surface anisotropic part
-      VectorizedArrayType fsurf =
-        Msurf * std::pow(cl, 2.) * std::pow(1. - cl, 2.);
+      VectorizedArrayType fsurf = Msurf * (cl * cl) * ((1. - cl) * (1. - cl));
       Tensor<1, dim, VectorizedArrayType> nc = unitVector(c_grad);
       M += projectorMatrix(nc, fsurf);
 
@@ -1427,12 +1475,13 @@ namespace Sintering
       return M;
     }
 
-    Tensor<2, dim, VectorizedArrayType>
-    dM_dc(
-      const VectorizedArrayType &                             c,
-      const std::vector<VectorizedArrayType> &                etas,
-      const Tensor<1, dim, VectorizedArrayType> &             c_grad,
-      const std::vector<Tensor<1, dim, VectorizedArrayType>> &etas_grad) const
+    template <std::size_t n>
+    DEAL_II_ALWAYS_INLINE Tensor<2, dim, VectorizedArrayType>
+                          dM_dc(
+                            const VectorizedArrayType &                               c,
+                            const std::array<VectorizedArrayType, n> &                etas,
+                            const Tensor<1, dim, VectorizedArrayType> &               c_grad,
+                            const std::array<Tensor<1, dim, VectorizedArrayType>, n> &etas_grad) const
     {
       (void)etas;
       (void)etas_grad;
@@ -1449,8 +1498,7 @@ namespace Sintering
         unitMatrix((Mvol - Mvap) * dphidc);
 
       // Surface part
-      VectorizedArrayType fsurf =
-        Msurf * std::pow(cl, 2.) * std::pow(1. - cl, 2.);
+      VectorizedArrayType fsurf  = Msurf * (cl * cl) * ((1. - cl) * (1. - cl));
       VectorizedArrayType dfsurf = Msurf * 2. * cl * (1. - cl) * (1. - 2. * cl);
       for (unsigned int i = 0; i < fsurf.size(); i++)
         {
@@ -1465,19 +1513,18 @@ namespace Sintering
       return dMdc;
     }
 
-    Tensor<2, dim, VectorizedArrayType>
-    dM_dgrad_c(const VectorizedArrayType &                c,
-               const Tensor<1, dim, VectorizedArrayType> &c_grad,
-               const Tensor<1, dim, VectorizedArrayType> &mu_grad) const
+    DEAL_II_ALWAYS_INLINE Tensor<2, dim, VectorizedArrayType>
+                          dM_dgrad_c(const VectorizedArrayType &                c,
+                                     const Tensor<1, dim, VectorizedArrayType> &c_grad,
+                                     const Tensor<1, dim, VectorizedArrayType> &mu_grad) const
     {
       VectorizedArrayType cl = c;
       std::for_each(cl.begin(), cl.end(), [](auto &val) {
         val = val > 1.0 ? 1.0 : (val < 0.0 ? 0.0 : val);
       });
 
-      VectorizedArrayType fsurf =
-        Msurf * std::pow(cl, 2.) * std::pow(1. - cl, 2.);
-      VectorizedArrayType nrm = c_grad.norm();
+      VectorizedArrayType fsurf = Msurf * (cl * cl) * ((1. - cl) * (1. - cl));
+      VectorizedArrayType nrm   = c_grad.norm();
 
       for (unsigned int i = 0; i < nrm.size(); i++)
         {
@@ -1501,12 +1548,14 @@ namespace Sintering
       return T * M;
     }
 
-    Tensor<2, dim, VectorizedArrayType>
-    dM_detai(const VectorizedArrayType &                             c,
-             const std::vector<VectorizedArrayType> &                etas,
-             const Tensor<1, dim, VectorizedArrayType> &             c_grad,
-             const std::vector<Tensor<1, dim, VectorizedArrayType>> &etas_grad,
-             unsigned int index_i) const
+    template <std::size_t n>
+    DEAL_II_ALWAYS_INLINE Tensor<2, dim, VectorizedArrayType>
+                          dM_detai(
+                            const VectorizedArrayType &                               c,
+                            const std::array<VectorizedArrayType, n> &                etas,
+                            const Tensor<1, dim, VectorizedArrayType> &               c_grad,
+                            const std::array<Tensor<1, dim, VectorizedArrayType>, n> &etas_grad,
+                            unsigned int                                              index_i) const
     {
       (void)c;
       (void)c_grad;
@@ -1530,8 +1579,8 @@ namespace Sintering
     }
 
   private:
-    Tensor<2, dim, VectorizedArrayType>
-    unitMatrix(const VectorizedArrayType &fac = 1.) const
+    DEAL_II_ALWAYS_INLINE Tensor<2, dim, VectorizedArrayType>
+                          unitMatrix(const VectorizedArrayType &fac = 1.) const
     {
       Tensor<2, dim, VectorizedArrayType> I;
 
@@ -1543,7 +1592,7 @@ namespace Sintering
       return I;
     }
 
-    Tensor<1, dim, VectorizedArrayType>
+    DEAL_II_ALWAYS_INLINE Tensor<1, dim, VectorizedArrayType>
     unitVector(const Tensor<1, dim, VectorizedArrayType> &vec) const
     {
       VectorizedArrayType nrm = vec.norm();
@@ -1569,7 +1618,7 @@ namespace Sintering
       return n;
     }
 
-    Tensor<2, dim, VectorizedArrayType>
+    DEAL_II_ALWAYS_INLINE Tensor<2, dim, VectorizedArrayType>
     projectorMatrix(const Tensor<1, dim, VectorizedArrayType> vec,
                     const VectorizedArrayType &               fac = 1.) const
     {
@@ -1580,7 +1629,50 @@ namespace Sintering
     }
   };
 
+  template <unsigned int n, std::size_t p>
+  class PowerHelper
+  {
+  public:
+    template <typename T>
+    DEAL_II_ALWAYS_INLINE static T
+    power_sum(const std::array<T, n> &etas)
+    {
+      T initial = 0.0;
 
+      return std::accumulate(etas.begin(),
+                             etas.end(),
+                             initial,
+                             [](auto a, auto b) {
+                               return std::move(a) + std::pow(b, n);
+                             });
+    }
+  };
+
+  template <>
+  class PowerHelper<2, 2>
+  {
+  public:
+    template <typename T>
+    DEAL_II_ALWAYS_INLINE static T
+    power_sum(const std::array<T, 2> &etas)
+    {
+      return etas[0] * etas[0] + etas[1] * etas[1];
+    }
+  };
+
+  template <>
+  class PowerHelper<2, 3>
+  {
+  public:
+    template <typename T>
+    DEAL_II_ALWAYS_INLINE static T
+    power_sum(const std::array<T, 2> &etas)
+    {
+      return etas[0] * etas[0] * etas[0] + etas[1] * etas[1] * etas[1];
+    }
+  };
+
+  template <typename VectorizedArrayType>
   class FreeEnergy
   {
   private:
@@ -1593,110 +1685,96 @@ namespace Sintering
       , B(B)
     {}
 
-    auto
-    f(const auto &c, const std::vector<auto> &etas) const
+    template <std::size_t n>
+    DEAL_II_ALWAYS_INLINE VectorizedArrayType
+    f(const VectorizedArrayType &               c,
+      const std::array<VectorizedArrayType, n> &etas) const
     {
-      std::remove_const_t<std::remove_reference_t<decltype(c)>> initial = 0.0;
+      const auto etaPower2Sum = PowerHelper<n, 2>::power_sum(etas);
+      const auto etaPower3Sum = PowerHelper<n, 3>::power_sum(etas);
 
-      auto etaPower2Sum =
-        std::accumulate(etas.begin(), etas.end(), initial, [](auto a, auto b) {
-          return std::move(a) + b * b;
-        });
-      auto etaPower3Sum =
-        std::accumulate(etas.begin(), etas.end(), initial, [](auto a, auto b) {
-          return std::move(a) + b * b * b;
-        });
-
-      return A * std::pow(c, 2.0) * std::pow(-c + 1.0, 2.0) +
-             B * (std::pow(c, 2.0) + (-6.0 * c + 6.0) * etaPower2Sum -
+      return A * (c * c) * ((-c + 1.0) * (-c + 1.0)) +
+             B * ((c * c) + (-6.0 * c + 6.0) * etaPower2Sum -
                   (-4.0 * c + 8.0) * etaPower3Sum +
-                  3.0 * std::pow(etaPower2Sum, 2.0));
+                  3.0 * (etaPower2Sum * etaPower2Sum));
     }
 
-    auto
-    df_dc(const auto &c, const std::vector<auto> &etas) const
+    template <std::size_t n>
+    DEAL_II_ALWAYS_INLINE VectorizedArrayType
+    df_dc(const VectorizedArrayType &               c,
+          const std::array<VectorizedArrayType, n> &etas) const
     {
-      std::remove_const_t<std::remove_reference_t<decltype(c)>> initial = 0.0;
+      const auto etaPower2Sum = PowerHelper<n, 2>::power_sum(etas);
+      const auto etaPower3Sum = PowerHelper<n, 3>::power_sum(etas);
 
-      auto etaPower2Sum =
-        std::accumulate(etas.begin(), etas.end(), initial, [](auto a, auto b) {
-          return std::move(a) + b * b;
-        });
-      auto etaPower3Sum =
-        std::accumulate(etas.begin(), etas.end(), initial, [](auto a, auto b) {
-          return std::move(a) + b * b * b;
-        });
-
-      return A * std::pow(c, 2.0) * (2.0 * c - 2.0) +
-             2.0 * A * c * std::pow(-c + 1.0, 2.0) +
+      return A * (c * c) * (2.0 * c - 2.0) +
+             2.0 * A * c * ((-c + 1.0) * (-c + 1.0)) +
              B * (2.0 * c - 6.0 * etaPower2Sum + 4.0 * etaPower3Sum);
     }
 
-    auto
-    df_detai(const auto &             c,
-             const std::vector<auto> &etas,
-             unsigned int             index_i) const
+    template <std::size_t n>
+    DEAL_II_ALWAYS_INLINE VectorizedArrayType
+    df_detai(const VectorizedArrayType &               c,
+             const std::array<VectorizedArrayType, n> &etas,
+             unsigned int                              index_i) const
     {
-      std::remove_const_t<std::remove_reference_t<decltype(c)>> initial = 0.0;
+      const auto etaPower2Sum = PowerHelper<n, 2>::power_sum(etas);
 
-      auto etaPower2Sum =
-        std::accumulate(etas.begin(), etas.end(), initial, [](auto a, auto b) {
-          return std::move(a) + b * b;
-        });
+      const auto &etai = etas[index_i];
 
-      auto &etai = etas[index_i];
-
-      return B * (3.0 * std::pow(etai, 2.0) * (4.0 * c - 8.0) +
+      return B * (3.0 * (etai * etai) * (4.0 * c - 8.0) +
                   2.0 * etai * (-6.0 * c + 6.0) + 12.0 * etai * (etaPower2Sum));
     }
 
-    auto
-    d2f_dc2(const auto &c, const std::vector<auto> &etas) const
+    template <std::size_t n>
+    DEAL_II_ALWAYS_INLINE VectorizedArrayType
+    d2f_dc2(const VectorizedArrayType &               c,
+            const std::array<VectorizedArrayType, n> &etas) const
     {
       (void)etas;
 
-      return 2.0 * A * std::pow(c, 2.0) + 4.0 * A * c * (2.0 * c - 2.0) +
-             2.0 * A * std::pow(-c + 1.0, 2.0) + 2.0 * B;
+      return 2.0 * A * (c * c) + 4.0 * A * c * (2.0 * c - 2.0) +
+             2.0 * A * ((-c + 1.0) * (-c + 1.0)) + 2.0 * B;
     }
 
-    auto
-    d2f_dcdetai(const auto &             c,
-                const std::vector<auto> &etas,
-                unsigned int             index_i) const
+    template <std::size_t n>
+    DEAL_II_ALWAYS_INLINE VectorizedArrayType
+    d2f_dcdetai(const VectorizedArrayType &               c,
+                const std::array<VectorizedArrayType, n> &etas,
+                unsigned int                              index_i) const
     {
       (void)c;
 
-      auto &etai = etas[index_i];
+      const auto &etai = etas[index_i];
 
-      return B * (12.0 * std::pow(etai, 2.0) - 12.0 * etai);
+      return B * (12.0 * (etai * etai) - 12.0 * etai);
     }
 
-    auto
-    d2f_detai2(const auto &             c,
-               const std::vector<auto> &etas,
-               unsigned int             index_i) const
+    template <std::size_t n>
+    DEAL_II_ALWAYS_INLINE VectorizedArrayType
+    d2f_detai2(const VectorizedArrayType &               c,
+               const std::array<VectorizedArrayType, n> &etas,
+               unsigned int                              index_i) const
     {
-      std::remove_const_t<std::remove_reference_t<decltype(c)>> initial = 0.0;
-      auto                                                      etaPower2Sum =
-        std::accumulate(etas.begin(), etas.end(), initial, [](auto a, auto b) {
-          return std::move(a) + b * b;
-        });
+      const auto etaPower2Sum = PowerHelper<n, 2>::power_sum(etas);
 
-      auto &etai = etas[index_i];
+      const auto &etai = etas[index_i];
 
       return B * (12.0 - 12.0 * c + 2.0 * etai * (12.0 * c - 24.0) +
-                  24.0 * std::pow(etai, 2.0) + 12.0 * etaPower2Sum);
+                  24.0 * (etai * etai) + 12.0 * etaPower2Sum);
     }
 
-    auto
-    d2f_detaidetaj(const auto &             c,
-                   const std::vector<auto> &etas,
-                   unsigned int             index_i,
-                   unsigned int             index_j) const
+    template <std::size_t n>
+    DEAL_II_ALWAYS_INLINE VectorizedArrayType
+    d2f_detaidetaj(const VectorizedArrayType &               c,
+                   const std::array<VectorizedArrayType, n> &etas,
+                   unsigned int                              index_i,
+                   unsigned int                              index_j) const
     {
       (void)c;
-      auto &etai = etas[index_i];
-      auto &etaj = etas[index_j];
+
+      const auto &etai = etas[index_i];
+      const auto &etaj = etas[index_j];
 
       return 24.0 * B * etai * etaj;
     }
@@ -1724,11 +1802,20 @@ namespace Sintering
     OperatorBase(
       const MatrixFree<dim, Number, VectorizedArrayType> &matrix_free,
       const AffineConstraints<Number> &                   constraints,
-      const unsigned int                                  dof_index)
+      const unsigned int                                  dof_index,
+      const std::string                                   label = "")
       : matrix_free(matrix_free)
       , constraints(constraints)
       , dof_index(dof_index)
+      , label(label)
+      , pcout(std::cout, Utilities::MPI::this_mpi_process(MPI_COMM_WORLD) == 0)
+      , timer(pcout, TimerOutput::never, TimerOutput::wall_times)
     {}
+
+    virtual ~OperatorBase()
+    {
+      timer.print_wall_time_statistics(MPI_COMM_WORLD);
+    }
 
     const DoFHandler<dim> &
     get_dof_handler() const
@@ -1756,6 +1843,15 @@ namespace Sintering
     }
 
     void
+    vmult(VectorType &dst, const VectorType &src) const
+    {
+      MyScope scope(this->timer, label + "::vmult");
+
+      matrix_free.cell_loop(
+        &OperatorBase::do_vmult_range, this, dst, src, true);
+    }
+
+    void
     Tvmult(VectorType &dst, const VectorType &src) const
     {
       AssertThrow(false, ExcNotImplemented());
@@ -1764,15 +1860,10 @@ namespace Sintering
     }
 
     void
-    vmult(VectorType &dst, const VectorType &src) const
-    {
-      matrix_free.cell_loop(
-        &OperatorBase::do_vmult_range, this, dst, src, true);
-    }
-
-    void
     compute_inverse_diagonal(VectorType &diagonal) const
     {
+      MyScope scope(this->timer, label + "::diagonal");
+
       MatrixFreeTools::compute_diagonal(
         matrix_free, diagonal, &OperatorBase::do_vmult_cell, this, dof_index);
       for (auto &i : diagonal)
@@ -1782,24 +1873,40 @@ namespace Sintering
     const TrilinosWrappers::SparseMatrix &
     get_system_matrix() const
     {
-      system_matrix.clear();
+      const bool system_matrix_is_empty =
+        system_matrix.m() == 0 || system_matrix.n() == 0;
 
-      const auto &dof_handler = this->matrix_free.get_dof_handler(dof_index);
+      if (system_matrix_is_empty)
+        {
+          MyScope scope(this->timer, label + "::matrix::sp");
 
-      TrilinosWrappers::SparsityPattern dsp(
-        dof_handler.locally_owned_dofs(),
-        dof_handler.get_triangulation().get_communicator());
-      DoFTools::make_sparsity_pattern(dof_handler, dsp, constraints);
-      dsp.compress();
+          system_matrix.clear();
 
-      system_matrix.reinit(dsp);
+          const auto &dof_handler =
+            this->matrix_free.get_dof_handler(dof_index);
 
-      MatrixFreeTools::compute_matrix(matrix_free,
-                                      constraints,
-                                      system_matrix,
-                                      &OperatorBase::do_vmult_cell,
-                                      this,
-                                      dof_index);
+          TrilinosWrappers::SparsityPattern dsp(
+            dof_handler.locally_owned_dofs(),
+            dof_handler.get_triangulation().get_communicator());
+          DoFTools::make_sparsity_pattern(dof_handler, dsp, constraints);
+          dsp.compress();
+
+          system_matrix.reinit(dsp);
+        }
+
+      {
+        MyScope scope(this->timer, label + "::matrix::compute");
+
+        if (system_matrix_is_empty == false)
+          system_matrix = 0.0; // clear existing content
+
+        MatrixFreeTools::compute_matrix(matrix_free,
+                                        constraints,
+                                        system_matrix,
+                                        &OperatorBase::do_vmult_cell,
+                                        this,
+                                        dof_index);
+      }
 
       return system_matrix;
     }
@@ -1849,8 +1956,12 @@ namespace Sintering
     const AffineConstraints<Number> &                   constraints;
 
     const unsigned int dof_index;
+    const std::string  label;
 
     mutable TrilinosWrappers::SparseMatrix system_matrix;
+
+    ConditionalOStream  pcout;
+    mutable TimerOutput timer;
   };
 
 
@@ -1876,7 +1987,7 @@ namespace Sintering
       , kappa_p(kappa_p)
     {}
 
-    const FreeEnergy free_energy;
+    const FreeEnergy<VectorizedArrayType> free_energy;
 
     // Choose MobilityScalar or MobilityTensorial here:
     const MobilityScalar<dim, VectorizedArrayType> mobility;
@@ -1912,13 +2023,17 @@ namespace Sintering
       : OperatorBase<dim, n_components, Number, VectorizedArrayType>(
           matrix_free,
           constraints,
-          0)
+          0,
+          "sintering_op")
       , data(data)
+      , phi_lin(this->matrix_free, this->dof_index)
     {}
 
     void
     evaluate_nonlinear_residual(VectorType &dst, const VectorType &src) const
     {
+      MyScope scope(this->timer, "sintering_op::nonlinear_residual");
+
       this->matrix_free.cell_loop(
         &SinteringOperator::do_evaluate_nonlinear_residual,
         this,
@@ -1942,6 +2057,8 @@ namespace Sintering
     void
     evaluate_newton_step(const VectorType &newton_step)
     {
+      MyScope scope(this->timer, "sintering_op::newton_step");
+
       const unsigned n_cells = this->matrix_free.n_cell_batches();
       const unsigned n_quadrature_points =
         this->matrix_free.get_quadrature().size();
@@ -1955,6 +2072,9 @@ namespace Sintering
                                   this,
                                   dummy,
                                   newton_step);
+
+      this->newton_step = newton_step;
+      this->newton_step.update_ghost_values();
     }
 
     void
@@ -2003,37 +2123,55 @@ namespace Sintering
       const auto &mobility    = this->data.mobility;
       const auto &kappa_c     = this->data.kappa_c;
       const auto &kappa_p     = this->data.kappa_p;
+      const auto  dt_inv      = 1.0 / dt;
+
+#if true
+      phi_lin.reinit(cell);
+      phi_lin.read_dof_values_plain(this->newton_step);
+      phi_lin.evaluate(EvaluationFlags::values | EvaluationFlags::gradients);
+#endif
 
       for (unsigned int q = 0; q < phi.n_q_points; ++q)
         {
-          auto &c    = nonlinear_values(cell, q)[0];
-          auto &eta1 = nonlinear_values(cell, q)[2];
-          auto &eta2 = nonlinear_values(cell, q)[3];
+#if true
+          const auto c    = phi_lin.get_value(q)[0];
+          const auto eta1 = phi_lin.get_value(q)[2];
+          const auto eta2 = phi_lin.get_value(q)[3];
 
-          std::vector etas{eta1, eta2};
+          const auto c_grad    = phi_lin.get_gradient(q)[0];
+          const auto mu_grad   = phi_lin.get_gradient(q)[1];
+          const auto eta1_grad = phi_lin.get_gradient(q)[2];
+          const auto eta2_grad = phi_lin.get_gradient(q)[3];
+#else
+          const auto &c    = nonlinear_values(cell, q)[0];
+          const auto &eta1 = nonlinear_values(cell, q)[2];
+          const auto &eta2 = nonlinear_values(cell, q)[3];
 
-          auto &c_grad    = nonlinear_gradients(cell, q)[0];
-          auto &mu_grad   = nonlinear_gradients(cell, q)[1];
-          auto &eta1_grad = nonlinear_gradients(cell, q)[2];
-          auto &eta2_grad = nonlinear_gradients(cell, q)[3];
+          const auto &c_grad    = nonlinear_gradients(cell, q)[0];
+          const auto &mu_grad   = nonlinear_gradients(cell, q)[1];
+          const auto &eta1_grad = nonlinear_gradients(cell, q)[2];
+          const auto &eta2_grad = nonlinear_gradients(cell, q)[3];
+#endif
 
-          std::vector etas_grad{eta1_grad, eta2_grad};
+          const std::array<VectorizedArrayType, 2> etas{{eta1, eta2}};
+          const std::array<Tensor<1, dim, VectorizedArrayType>, 2> etas_grad{
+            {eta1_grad, eta2_grad}};
 
           Tensor<1, n_components, VectorizedArrayType> value_result;
 
-          value_result[0] = phi.get_value(q)[0] / dt;
+          value_result[0] = phi.get_value(q)[0] * dt_inv;
           value_result[1] =
             -phi.get_value(q)[1] +
             free_energy.d2f_dc2(c, etas) * phi.get_value(q)[0] +
             free_energy.d2f_dcdetai(c, etas, 0) * phi.get_value(q)[2] +
             free_energy.d2f_dcdetai(c, etas, 1) * phi.get_value(q)[3];
           value_result[2] =
-            phi.get_value(q)[2] / dt +
+            phi.get_value(q)[2] * dt_inv +
             L * free_energy.d2f_dcdetai(c, etas, 0) * phi.get_value(q)[0] +
             L * free_energy.d2f_detai2(c, etas, 0) * phi.get_value(q)[2] +
             L * free_energy.d2f_detaidetaj(c, etas, 0, 1) * phi.get_value(q)[3];
           value_result[3] =
-            phi.get_value(q)[3] / dt +
+            phi.get_value(q)[3] * dt_inv +
             L * free_energy.d2f_dcdetai(c, etas, 1) * phi.get_value(q)[0] +
             L * free_energy.d2f_detaidetaj(c, etas, 1, 0) *
               phi.get_value(q)[2] +
@@ -2100,8 +2238,6 @@ namespace Sintering
               auto &eta1 = val[2];
               auto &eta2 = val[3];
 
-              std::vector etas{eta1, eta2};
-
               auto &c_old    = val_old[0];
               auto &eta1_old = val_old[2];
               auto &eta2_old = val_old[3];
@@ -2110,7 +2246,9 @@ namespace Sintering
               auto &eta1_grad = grad[2];
               auto &eta2_grad = grad[3];
 
-              std::vector etas_grad{eta1_grad, eta2_grad};
+              const std::array<VectorizedArrayType, 2> etas{{eta1, eta2}};
+              const std::array<Tensor<1, dim, VectorizedArrayType>, 2>
+                etas_grad{{eta1_grad, eta2_grad}};
 
               Tensor<1, n_components, VectorizedArrayType> value_result;
 
@@ -2166,7 +2304,9 @@ namespace Sintering
 
     double dt;
 
-    mutable VectorType old_solution;
+    mutable VectorType old_solution, newton_step;
+
+    mutable FECellIntegrator phi_lin;
 
     Table<2, dealii::Tensor<1, n_components, VectorizedArrayType>>
       nonlinear_values;
@@ -2199,7 +2339,8 @@ namespace Sintering
       : OperatorBase<dim, n_components, Number, VectorizedArrayType>(
           matrix_free,
           constraints,
-          1)
+          1,
+          "cahn_hillard_op")
       , op(op)
     {}
 
@@ -2222,14 +2363,14 @@ namespace Sintering
           auto &eta1 = nonlinear_values(cell, q)[2];
           auto &eta2 = nonlinear_values(cell, q)[3];
 
-          std::vector etas{eta1, eta2};
-
           auto &c_grad    = nonlinear_gradients(cell, q)[0];
           auto &mu_grad   = nonlinear_gradients(cell, q)[1];
           auto &eta1_grad = nonlinear_gradients(cell, q)[2];
           auto &eta2_grad = nonlinear_gradients(cell, q)[3];
 
-          std::vector etas_grad{eta1_grad, eta2_grad};
+          const std::array<VectorizedArrayType, 2> etas{{eta1, eta2}};
+          const std::array<Tensor<1, dim, VectorizedArrayType>, 2> etas_grad{
+            {eta1_grad, eta2_grad}};
 
           Tensor<1, n_components, VectorizedArrayType> value_result;
 
@@ -2299,14 +2440,14 @@ namespace Sintering
           auto &eta1 = nonlinear_values(cell, q)[2];
           auto &eta2 = nonlinear_values(cell, q)[3];
 
-          std::vector etas{eta1, eta2};
-
           auto &c_grad    = nonlinear_gradients(cell, q)[0];
           auto &mu_grad   = nonlinear_gradients(cell, q)[1];
           auto &eta1_grad = nonlinear_gradients(cell, q)[2];
           auto &eta2_grad = nonlinear_gradients(cell, q)[3];
 
-          std::vector etas_grad{eta1_grad, eta2_grad};
+          const std::array<VectorizedArrayType, 2> etas{{eta1, eta2}};
+          const std::array<Tensor<1, dim, VectorizedArrayType>, 2> etas_grad{
+            {eta1_grad, eta2_grad}};
 
           const auto value    = phi.get_value(q);
           const auto gradient = phi.get_gradient(q);
@@ -2366,13 +2507,13 @@ namespace Sintering
           auto &eta1 = nonlinear_values(cell, q)[2];
           auto &eta2 = nonlinear_values(cell, q)[3];
 
-          std::vector etas{eta1, eta2};
-
           auto &c_grad    = nonlinear_gradients(cell, q)[0];
           auto &eta1_grad = nonlinear_gradients(cell, q)[2];
           auto &eta2_grad = nonlinear_gradients(cell, q)[3];
 
-          std::vector etas_grad{eta1_grad, eta2_grad};
+          const std::array<VectorizedArrayType, 2> etas{{eta1, eta2}};
+          const std::array<Tensor<1, dim, VectorizedArrayType>, 2> etas_grad{
+            {eta1_grad, eta2_grad}};
 
           const auto value    = phi.get_value(q);
           const auto gradient = phi.get_gradient(q);
@@ -2419,10 +2560,9 @@ namespace Sintering
     {
       const unsigned int cell = phi.get_current_cell_index();
 
-      const auto &free_energy         = this->op.get_data().free_energy;
-      const auto &kappa_c             = this->op.get_data().kappa_c;
-      const auto &nonlinear_values    = this->op.get_nonlinear_values();
-      const auto &nonlinear_gradients = this->op.get_nonlinear_gradients();
+      const auto &free_energy      = this->op.get_data().free_energy;
+      const auto &kappa_c          = this->op.get_data().kappa_c;
+      const auto &nonlinear_values = this->op.get_nonlinear_values();
 
       for (unsigned int q = 0; q < phi.n_q_points; ++q)
         {
@@ -2430,12 +2570,7 @@ namespace Sintering
           auto &eta1 = nonlinear_values(cell, q)[2];
           auto &eta2 = nonlinear_values(cell, q)[3];
 
-          std::vector etas{eta1, eta2};
-
-          auto &eta1_grad = nonlinear_gradients(cell, q)[2];
-          auto &eta2_grad = nonlinear_gradients(cell, q)[3];
-
-          std::vector etas_grad{eta1_grad, eta2_grad};
+          const std::array<VectorizedArrayType, 2> etas{{eta1, eta2}};
 
           const auto value    = phi.get_value(q);
           const auto gradient = phi.get_gradient(q);
@@ -2515,7 +2650,8 @@ namespace Sintering
       : OperatorBase<dim, n_components, Number, VectorizedArrayType>(
           matrix_free,
           constraints,
-          2)
+          2,
+          "allen_cahn_op")
       , op(op)
     {}
 
@@ -2525,12 +2661,11 @@ namespace Sintering
     {
       const unsigned int cell = phi.get_current_cell_index();
 
-      const auto &free_energy         = this->op.get_data().free_energy;
-      const auto &L                   = this->op.get_data().L;
-      const auto &kappa_p             = this->op.get_data().kappa_p;
-      const auto &dt                  = this->op.get_dt();
-      const auto &nonlinear_values    = this->op.get_nonlinear_values();
-      const auto &nonlinear_gradients = this->op.get_nonlinear_gradients();
+      const auto &free_energy      = this->op.get_data().free_energy;
+      const auto &L                = this->op.get_data().L;
+      const auto &kappa_p          = this->op.get_data().kappa_p;
+      const auto &dt               = this->op.get_dt();
+      const auto &nonlinear_values = this->op.get_nonlinear_values();
 
       for (unsigned int q = 0; q < phi.n_q_points; ++q)
         {
@@ -2538,12 +2673,7 @@ namespace Sintering
           auto &eta1 = nonlinear_values(cell, q)[2];
           auto &eta2 = nonlinear_values(cell, q)[3];
 
-          std::vector etas{eta1, eta2};
-
-          auto &eta1_grad = nonlinear_gradients(cell, q)[2];
-          auto &eta2_grad = nonlinear_gradients(cell, q)[3];
-
-          std::vector etas_grad{eta1_grad, eta2_grad};
+          const std::array<VectorizedArrayType, 2> etas{{eta1, eta2}};
 
           Tensor<1, n_components, VectorizedArrayType> value_result;
 
@@ -2570,6 +2700,191 @@ namespace Sintering
 
     const SinteringOperator<dim, n_components_, Number, VectorizedArrayType>
       &op;
+  };
+
+
+
+  template <int dim,
+            int n_components_,
+            typename Number,
+            typename VectorizedArrayType>
+  class OperatorAllenCahnHelmholtz
+    : public OperatorBase<dim, 1, Number, VectorizedArrayType>
+  {
+  public:
+    using FECellIntegrator =
+      FEEvaluation<dim, -1, 0, 1, Number, VectorizedArrayType>;
+
+    using VectorType =
+      typename OperatorBase<dim, 1, Number, VectorizedArrayType>::VectorType;
+
+    OperatorAllenCahnHelmholtz(
+      const MatrixFree<dim, Number, VectorizedArrayType> &matrix_free,
+      const AffineConstraints<Number> &                   constraints,
+      const SinteringOperator<dim, n_components_, Number, VectorizedArrayType>
+        &op)
+      : OperatorBase<dim, 1, Number, VectorizedArrayType>(matrix_free,
+                                                          constraints,
+                                                          3,
+                                                          "helmholtz_op")
+      , op(op)
+    {}
+
+    double
+    get_dt() const
+    {
+      return op.get_dt();
+    }
+
+    void
+    get_diagonals(VectorType &vec_mass, VectorType &vec_laplace) const
+    {
+      {
+        MyScope scope(this->timer, "helmholtz_op::get_diagonal::mass");
+        this->initialize_dof_vector(vec_mass);
+        MatrixFreeTools::compute_diagonal(
+          this->matrix_free,
+          vec_mass,
+          &OperatorAllenCahnHelmholtz::do_vmult_cell_mass,
+          this,
+          this->dof_index);
+      }
+
+      {
+        MyScope scope(this->timer, "helmholtz_op::get_diagonal::laplace");
+        this->initialize_dof_vector(vec_laplace);
+        MatrixFreeTools::compute_diagonal(
+          this->matrix_free,
+          vec_laplace,
+          &OperatorAllenCahnHelmholtz::do_vmult_cell_laplace,
+          this,
+          this->dof_index);
+      }
+    }
+
+  private:
+    void
+    do_vmult_cell_mass(FECellIntegrator &phi) const
+    {
+      phi.evaluate(EvaluationFlags::EvaluationFlags::values);
+
+      for (unsigned int q = 0; q < phi.n_q_points; ++q)
+        phi.submit_value(phi.get_value(q), q);
+
+      phi.integrate(EvaluationFlags::EvaluationFlags::values);
+    }
+    void
+    do_vmult_cell_laplace(FECellIntegrator &phi) const
+    {
+      const auto &L       = this->op.get_data().L;
+      const auto &kappa_p = this->op.get_data().kappa_p;
+
+      phi.evaluate(EvaluationFlags::EvaluationFlags::gradients);
+
+      for (unsigned int q = 0; q < phi.n_q_points; ++q)
+        phi.submit_gradient(L * kappa_p * phi.get_gradient(q), q);
+
+      phi.integrate(EvaluationFlags::EvaluationFlags::gradients);
+    }
+
+    void
+    do_vmult_kernel(FECellIntegrator &) const final
+    {
+      AssertThrow(false, ExcNotImplemented());
+    }
+
+    const SinteringOperator<dim, n_components_, Number, VectorizedArrayType>
+      &op;
+  };
+
+
+
+  template <int dim,
+            int n_components_,
+            typename Number,
+            typename VectorizedArrayType>
+  class InverseDiagonalMatrixAllenCahnHelmholtz
+    : public Preconditioners::PreconditionerBase<Number>
+  {
+  public:
+    using Operator   = OperatorAllenCahnHelmholtz<dim,
+                                                n_components_,
+                                                Number,
+                                                VectorizedArrayType>;
+    using VectorType = typename Operator::VectorType;
+
+    static const unsigned int n_components = n_components_ - 2;
+
+    InverseDiagonalMatrixAllenCahnHelmholtz(const Operator &op)
+      : op(op)
+      , pcout(std::cout, Utilities::MPI::this_mpi_process(MPI_COMM_WORLD) == 0)
+      , timer(pcout, TimerOutput::never, TimerOutput::wall_times)
+      , dt(0.0)
+    {}
+
+    ~InverseDiagonalMatrixAllenCahnHelmholtz()
+    {
+      timer.print_wall_time_statistics(MPI_COMM_WORLD);
+    }
+
+    void
+    vmult(VectorType &dst, const VectorType &src) const override
+    {
+      MyScope scope(this->timer, "helmholtz_precon::vmult");
+
+      double *__restrict__ dst_ptr  = dst.get_values();
+      double *__restrict__ src_ptr  = src.get_values();
+      double *__restrict__ diag_ptr = diag.get_values();
+
+      AssertDimension(n_components, 2);
+
+      DEAL_II_OPENMP_SIMD_PRAGMA
+      for (unsigned int i = 0; i < diag.locally_owned_size(); ++i)
+        {
+          dst_ptr[i * 2 + 0] = diag_ptr[i] * src_ptr[i * 2 + 0];
+          dst_ptr[i * 2 + 1] = diag_ptr[i] * src_ptr[i * 2 + 1];
+        }
+    }
+
+    void
+    do_update() override
+    {
+      MyScope scope(this->timer, "helmholtz_precon::do_update");
+
+      const double new_dt = op.get_dt();
+
+      if (diag.size() == 0)
+        {
+          op.initialize_dof_vector(diag);
+          op.get_diagonals(vec_mass, vec_laplace);
+        }
+
+      if (this->dt != new_dt)
+        {
+          this->dt = new_dt;
+
+          const double dt_inv = 1.0 / this->dt;
+
+          for (unsigned int i = 0; i < diag.locally_owned_size(); ++i)
+            {
+              const double val = dt_inv * vec_mass.local_element(i) +
+                                 vec_laplace.local_element(i);
+
+              diag.local_element(i) =
+                (std::abs(val) > 1.0e-10) ? (1.0 / val) : 1.0;
+            }
+        }
+    }
+
+  private:
+    const Operator &op;
+
+    ConditionalOStream  pcout;
+    mutable TimerOutput timer;
+
+    double dt = 0.0;
+
+    VectorType diag, vec_mass, vec_laplace;
   };
 
 
@@ -2605,6 +2920,7 @@ namespace Sintering
       : matrix_free(matrix_free)
       , operator_0(matrix_free, constraints, op)
       , operator_1(matrix_free, constraints, op)
+      , operator_1_helmholtz(matrix_free, constraints, op)
       , pcout(std::cout, Utilities::MPI::this_mpi_process(MPI_COMM_WORLD) == 0)
       , timer(pcout, TimerOutput::never, TimerOutput::wall_times)
       , data(data)
@@ -2617,8 +2933,17 @@ namespace Sintering
 
       preconditioner_0 =
         Preconditioners::create(operator_0, data.block_0_preconditioner);
-      preconditioner_1 =
-        Preconditioners::create(operator_1, data.block_1_preconditioner);
+
+      if (false /*TODO*/)
+        preconditioner_1 =
+          Preconditioners::create(operator_1, data.block_1_preconditioner);
+      else
+        preconditioner_1 = std::make_unique<
+          InverseDiagonalMatrixAllenCahnHelmholtz<dim,
+                                                  n_components,
+                                                  Number,
+                                                  VectorizedArrayType>>(
+          operator_1_helmholtz);
     }
 
     ~BlockPreconditioner2()
@@ -2629,8 +2954,10 @@ namespace Sintering
     void
     vmult(VectorType &dst, const VectorType &src) const override
     {
+      MyScope scope(timer, "precon::vmult");
+
       {
-        TimerOutput::Scope scope(timer, "vmult::split_up");
+        MyScope scope(timer, "precon::vmult::split_up");
         VectorTools::split_up_fast(src, src_0, src_1);
 
 #ifdef DEBUG
@@ -2647,18 +2974,28 @@ namespace Sintering
 #endif
       }
 
-      {
-        TimerOutput::Scope scope(timer, "vmult::precon_0");
-        preconditioner_0->vmult(dst_0, src_0);
-      }
+      if (true)
+        {
+          MyScope scope(timer, "precon::vmult::precon_0");
+          preconditioner_0->vmult(dst_0, src_0);
+        }
+      else
+        {
+          MyScope scope(timer, "precon::vmult::precon_0");
+
+          ReductionControl reduction_control(100, 1e-20, 1e-8);
+
+          SolverGMRES<VectorType> solver(reduction_control);
+          solver.solve(operator_0, dst_0, src_0, *preconditioner_0);
+        }
 
       {
-        TimerOutput::Scope scope(timer, "vmult::precon_1");
+        MyScope scope(timer, "precon::vmult::precon_1");
         preconditioner_1->vmult(dst_1, src_1);
       }
 
       {
-        TimerOutput::Scope scope(timer, "vmult::merge");
+        MyScope scope(timer, "precon::vmult::merge");
         VectorTools::merge_fast(dst_0, dst_1, dst);
 
 #ifdef DEBUG
@@ -2675,8 +3012,15 @@ namespace Sintering
     void
     do_update() override
     {
-      preconditioner_0->do_update();
-      preconditioner_1->do_update();
+      MyScope scope(timer, "precon::update");
+      {
+        MyScope scope(timer, "precon::update::precon_0");
+        preconditioner_0->do_update();
+      }
+      {
+        MyScope scope(timer, "precon::update::precon_1");
+        preconditioner_1->do_update();
+      }
     }
 
   private:
@@ -2690,6 +3034,8 @@ namespace Sintering
                       Number,
                       VectorizedArrayType>
       operator_1;
+    OperatorAllenCahnHelmholtz<dim, n_components, Number, VectorizedArrayType>
+      operator_1_helmholtz;
 
     mutable VectorType dst_0, dst_1;
     mutable VectorType src_0, src_1;
@@ -2774,7 +3120,7 @@ namespace Sintering
     vmult(VectorType &dst, const VectorType &src) const override
     {
       {
-        TimerOutput::Scope scope(timer, "vmult::split_up");
+        MyScope scope(timer, "vmult::split_up");
         VectorTools::split_up_fast(src, src_0, src_1, src_2);
 
 #ifdef DEBUG
@@ -2798,7 +3144,7 @@ namespace Sintering
         {
           // Block Jacobi
           {
-            TimerOutput::Scope scope(timer, "vmult::precon_0");
+            MyScope scope(timer, "vmult::precon_0");
 
             if (data.block_0_relative_tolerance == 0.0)
               {
@@ -2815,7 +3161,7 @@ namespace Sintering
           }
 
           {
-            TimerOutput::Scope scope(timer, "vmult::precon_1");
+            MyScope scope(timer, "vmult::precon_1");
 
             if (data.block_1_relative_tolerance == 0.0)
               {
@@ -2915,12 +3261,12 @@ namespace Sintering
         AssertThrow(data.block_2_relative_tolerance == 0.0,
                     ExcNotImplemented());
 
-        TimerOutput::Scope scope(timer, "vmult::precon_2");
+        MyScope scope(timer, "vmult::precon_2");
         preconditioner_2->vmult(dst_2, src_2);
       }
 
       {
-        TimerOutput::Scope scope(timer, "vmult::merge");
+        MyScope scope(timer, "vmult::merge");
         VectorTools::merge_fast(dst_0, dst_1, dst_2, dst);
 
 #ifdef DEBUG
@@ -3322,27 +3668,42 @@ namespace Sintering
           Preconditioners::PreconditionerBase<Number>>>(nonlinear_operator,
                                                         *preconditioner);
 
+      TimerOutput timer(pcout, TimerOutput::never, TimerOutput::wall_times);
+
       // ... non-linear Newton solver
       auto non_linear_solver =
         std::make_unique<NonLinearSolvers::NewtonSolver<VectorType>>();
 
       non_linear_solver->reinit_vector = [&](auto &vector) {
+        MyScope scope(timer, "time_loop::newton::reinit_vector");
+
         nonlinear_operator.initialize_dof_vector(vector);
       };
 
       non_linear_solver->residual = [&](const auto &src, auto &dst) {
+        MyScope scope(timer, "time_loop::newton::residual");
+
         nonlinear_operator.evaluate_nonlinear_residual(dst, src);
       };
 
       non_linear_solver->setup_jacobian =
         [&](const auto &current_u, const bool do_update_preconditioner) {
-          nonlinear_operator.evaluate_newton_step(current_u);
+          if (true)
+            {
+              MyScope scope(timer, "time_loop::newton::setup_jacobian");
+              nonlinear_operator.evaluate_newton_step(current_u);
+            }
 
           if (do_update_preconditioner)
-            preconditioner->do_update();
+            {
+              MyScope scope(timer, "time_loop::newton::setup_preconditioner");
+              preconditioner->do_update();
+            }
         };
 
       non_linear_solver->solve_with_jacobian = [&](const auto &src, auto &dst) {
+        MyScope scope(timer, "time_loop::newton::solve_with_jacobian");
+
         return linear_solver->solve(dst, src);
       };
 
@@ -3366,85 +3727,93 @@ namespace Sintering
       double       max_reached_dt          = 0.0;
 
       // run time loop
-      for (double t = 0, dt = dt_deseride; t <= t_end;)
-        {
-          nonlinear_operator.set_timestep(dt);
-          nonlinear_operator.set_previous_solution(solution);
+      {
+        TimerOutput::Scope scope(timer, "time_loop");
+        for (double t = 0, dt = dt_deseride; t <= t_end;)
+          {
+            nonlinear_operator.set_timestep(dt);
+            nonlinear_operator.set_previous_solution(solution);
 
-          if (transfer)
-            {
-              transfer->interpolate_to_mg(mg_solutions, solution);
+            if (transfer)
+              {
+                transfer->interpolate_to_mg(mg_solutions, solution);
 
-              for (unsigned int l = mg_operators.min_level();
-                   l <= mg_operators.max_level();
-                   ++l)
-                {
-                  mg_operators[l]->set_timestep(dt);
-                  mg_operators[l]->set_previous_solution(mg_solutions[l]);
-                }
-            }
+                for (unsigned int l = mg_operators.min_level();
+                     l <= mg_operators.max_level();
+                     ++l)
+                  {
+                    mg_operators[l]->set_timestep(dt);
+                    mg_operators[l]->set_previous_solution(mg_solutions[l]);
+                  }
+              }
 
-          bool has_converged = false;
+            bool has_converged = false;
 
-          try
-            {
-              const auto statistics = non_linear_solver->solve(solution);
+            try
+              {
+                MyScope scope(timer, "time_loop::newton");
 
-              has_converged = true;
+                const auto statistics = non_linear_solver->solve(solution);
 
-              pcout << "t = " << t << ", dt = " << dt << ":"
-                    << " solved in " << statistics.newton_iterations
-                    << " Newton iterations and " << statistics.linear_iterations
-                    << " linear iterations" << std::endl;
+                has_converged = true;
 
-              n_timestep += 1;
-              n_linear_iterations += statistics.linear_iterations;
-              n_non_linear_iterations += statistics.newton_iterations;
-              max_reached_dt = std::max(max_reached_dt, dt);
+                pcout << "t = " << t << ", dt = " << dt << ":"
+                      << " solved in " << statistics.newton_iterations
+                      << " Newton iterations and "
+                      << statistics.linear_iterations << " linear iterations"
+                      << std::endl;
 
-              if (std::abs(t - t_end) > 1e-9)
-                {
-                  if (statistics.newton_iterations <
-                        desirable_newton_iterations &&
-                      statistics.linear_iterations <
-                        desirable_linear_iterations)
-                    {
-                      dt *= dt_increment;
-                      pcout << "Increasing timestep, dt = " << dt << std::endl;
+                n_timestep += 1;
+                n_linear_iterations += statistics.linear_iterations;
+                n_non_linear_iterations += statistics.newton_iterations;
+                max_reached_dt = std::max(max_reached_dt, dt);
 
-                      if (dt > dt_max)
-                        {
-                          dt = dt_max;
-                        }
-                    }
+                if (std::abs(t - t_end) > 1e-9)
+                  {
+                    if (statistics.newton_iterations <
+                          desirable_newton_iterations &&
+                        statistics.linear_iterations <
+                          desirable_linear_iterations)
+                      {
+                        dt *= dt_increment;
+                        pcout << "Increasing timestep, dt = " << dt
+                              << std::endl;
 
-                  if (t + dt > t_end)
-                    {
-                      dt = t_end - t;
-                    }
-                }
+                        if (dt > dt_max)
+                          {
+                            dt = dt_max;
+                          }
+                      }
 
-              t += dt;
-            }
-          catch (const NonLinearSolvers::ExcNewtonDidNotConverge &)
-            {
-              dt *= 0.5;
-              pcout << "Solver diverged, reducing timestep, dt = " << dt
-                    << std::endl;
+                    if (t + dt > t_end)
+                      {
+                        dt = t_end - t;
+                      }
+                  }
 
-              solution = nonlinear_operator.get_previous_solution();
+                t += dt;
+              }
+            catch (const NonLinearSolvers::ExcNewtonDidNotConverge &)
+              {
+                dt *= 0.5;
+                pcout << "Solver diverged, reducing timestep, dt = " << dt
+                      << std::endl;
 
-              AssertThrow(
-                dt > dt_min,
-                ExcMessage("Minimum timestep size exceeded, solution failed!"));
-            }
+                solution = nonlinear_operator.get_previous_solution();
 
-          if (has_converged && t > output_time_interval + time_last_output)
-            {
-              time_last_output = t;
-              output_result(solution, time_last_output);
-            }
-        }
+                AssertThrow(
+                  dt > dt_min,
+                  ExcMessage(
+                    "Minimum timestep size exceeded, solution failed!"));
+              }
+
+            if (has_converged && t > output_time_interval + time_last_output)
+              {
+                time_last_output = t;
+                output_result(solution, time_last_output);
+              }
+          }
+      }
 
       pcout << std::endl;
       pcout << "Final statistics:" << std::endl;
@@ -3454,11 +3823,16 @@ namespace Sintering
       pcout << "  - n linear iterations:       " << n_linear_iterations
             << std::endl;
       pcout << "  - avg non-linear iterations: "
-            << n_non_linear_iterations / n_timestep << std::endl;
+            << static_cast<double>(n_non_linear_iterations) / n_timestep
+            << std::endl;
       pcout << "  - avg linear iterations:     "
-            << n_linear_iterations / n_non_linear_iterations << std::endl;
+            << static_cast<double>(n_linear_iterations) /
+                 n_non_linear_iterations
+            << std::endl;
       pcout << "  - max dt:                    " << max_reached_dt << std::endl;
       pcout << std::endl;
+
+      timer.print_wall_time_statistics(MPI_COMM_WORLD);
     }
 
   private:
