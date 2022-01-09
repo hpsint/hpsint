@@ -1742,10 +1742,12 @@ namespace Sintering
     OperatorBase(
       const MatrixFree<dim, Number, VectorizedArrayType> &matrix_free,
       const AffineConstraints<Number> &                   constraints,
-      const unsigned int                                  dof_index)
+      const unsigned int                                  dof_index,
+      const std::string                                   label = "")
       : matrix_free(matrix_free)
       , constraints(constraints)
       , dof_index(dof_index)
+      , label(label)
       , pcout(std::cout, Utilities::MPI::this_mpi_process(MPI_COMM_WORLD) == 0)
       , timer(pcout, TimerOutput::never, TimerOutput::wall_times)
     {}
@@ -1783,7 +1785,7 @@ namespace Sintering
     void
     vmult(VectorType &dst, const VectorType &src) const
     {
-      TimerOutput::Scope scope(this->timer, "sintering_op::vmult");
+      TimerOutput::Scope scope(this->timer, label + "::vmult");
 
       matrix_free.cell_loop(
         &OperatorBase::do_vmult_range, this, dst, src, true);
@@ -1800,7 +1802,7 @@ namespace Sintering
     void
     compute_inverse_diagonal(VectorType &diagonal) const
     {
-      TimerOutput::Scope scope(this->timer, "sintering_op::diagonal");
+      TimerOutput::Scope scope(this->timer, label + "::diagonal");
 
       MatrixFreeTools::compute_diagonal(
         matrix_free, diagonal, &OperatorBase::do_vmult_cell, this, dof_index);
@@ -1816,7 +1818,7 @@ namespace Sintering
 
       if (system_matrix_is_empty)
         {
-          TimerOutput::Scope scope(this->timer, "sintering_op::matrix::sp");
+          TimerOutput::Scope scope(this->timer, label + "::matrix::sp");
 
           system_matrix.clear();
 
@@ -1833,7 +1835,7 @@ namespace Sintering
         }
 
       {
-        TimerOutput::Scope scope(this->timer, "sintering_op::matrix::compute");
+        TimerOutput::Scope scope(this->timer, label + "::matrix::compute");
 
         if (system_matrix_is_empty == false)
           system_matrix = 0.0; // clear existing content
@@ -1894,6 +1896,7 @@ namespace Sintering
     const AffineConstraints<Number> &                   constraints;
 
     const unsigned int dof_index;
+    const std::string  label;
 
     mutable TrilinosWrappers::SparseMatrix system_matrix;
 
@@ -1960,7 +1963,8 @@ namespace Sintering
       : OperatorBase<dim, n_components, Number, VectorizedArrayType>(
           matrix_free,
           constraints,
-          0)
+          0,
+          "sintering_op")
       , data(data)
     {}
 
@@ -2251,7 +2255,8 @@ namespace Sintering
       : OperatorBase<dim, n_components, Number, VectorizedArrayType>(
           matrix_free,
           constraints,
-          1)
+          1,
+          "cahn_hillard_op")
       , op(op)
     {}
 
@@ -2567,7 +2572,8 @@ namespace Sintering
       : OperatorBase<dim, n_components, Number, VectorizedArrayType>(
           matrix_free,
           constraints,
-          2)
+          2,
+          "allen_cahn_op")
       , op(op)
     {}
 
