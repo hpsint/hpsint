@@ -1746,9 +1746,14 @@ namespace Sintering
       : matrix_free(matrix_free)
       , constraints(constraints)
       , dof_index(dof_index)
+      , pcout(std::cout, Utilities::MPI::this_mpi_process(MPI_COMM_WORLD) == 0)
+      , timer(pcout, TimerOutput::never, TimerOutput::wall_times)
     {}
 
-    virtual ~OperatorBase() = default;
+    virtual ~OperatorBase()
+    {
+      timer.print_wall_time_statistics(MPI_COMM_WORLD);
+    }
 
     const DoFHandler<dim> &
     get_dof_handler() const
@@ -1776,6 +1781,15 @@ namespace Sintering
     }
 
     void
+    vmult(VectorType &dst, const VectorType &src) const
+    {
+      TimerOutput::Scope scope(this->timer, "sintering_op::vmult");
+
+      matrix_free.cell_loop(
+        &OperatorBase::do_vmult_range, this, dst, src, true);
+    }
+
+    void
     Tvmult(VectorType &dst, const VectorType &src) const
     {
       AssertThrow(false, ExcNotImplemented());
@@ -1784,15 +1798,10 @@ namespace Sintering
     }
 
     void
-    vmult(VectorType &dst, const VectorType &src) const
-    {
-      matrix_free.cell_loop(
-        &OperatorBase::do_vmult_range, this, dst, src, true);
-    }
-
-    void
     compute_inverse_diagonal(VectorType &diagonal) const
     {
+      TimerOutput::Scope scope(this->timer, "sintering_op::diagonal");
+
       MatrixFreeTools::compute_diagonal(
         matrix_free, diagonal, &OperatorBase::do_vmult_cell, this, dof_index);
       for (auto &i : diagonal)
@@ -1802,24 +1811,40 @@ namespace Sintering
     const TrilinosWrappers::SparseMatrix &
     get_system_matrix() const
     {
-      system_matrix.clear();
+      const bool system_matrix_is_empty =
+        system_matrix.m() == 0 || system_matrix.n() == 0;
 
-      const auto &dof_handler = this->matrix_free.get_dof_handler(dof_index);
+      if (system_matrix_is_empty)
+        {
+          TimerOutput::Scope scope(this->timer, "sintering_op::matrix::sp");
 
-      TrilinosWrappers::SparsityPattern dsp(
-        dof_handler.locally_owned_dofs(),
-        dof_handler.get_triangulation().get_communicator());
-      DoFTools::make_sparsity_pattern(dof_handler, dsp, constraints);
-      dsp.compress();
+          system_matrix.clear();
 
-      system_matrix.reinit(dsp);
+          const auto &dof_handler =
+            this->matrix_free.get_dof_handler(dof_index);
 
-      MatrixFreeTools::compute_matrix(matrix_free,
-                                      constraints,
-                                      system_matrix,
-                                      &OperatorBase::do_vmult_cell,
-                                      this,
-                                      dof_index);
+          TrilinosWrappers::SparsityPattern dsp(
+            dof_handler.locally_owned_dofs(),
+            dof_handler.get_triangulation().get_communicator());
+          DoFTools::make_sparsity_pattern(dof_handler, dsp, constraints);
+          dsp.compress();
+
+          system_matrix.reinit(dsp);
+        }
+
+      {
+        TimerOutput::Scope scope(this->timer, "sintering_op::matrix::compute");
+
+        if (system_matrix_is_empty == false)
+          system_matrix = 0.0; // clear existing content
+
+        MatrixFreeTools::compute_matrix(matrix_free,
+                                        constraints,
+                                        system_matrix,
+                                        &OperatorBase::do_vmult_cell,
+                                        this,
+                                        dof_index);
+      }
 
       return system_matrix;
     }
@@ -1871,6 +1896,9 @@ namespace Sintering
     const unsigned int dof_index;
 
     mutable TrilinosWrappers::SparseMatrix system_matrix;
+
+    ConditionalOStream  pcout;
+    mutable TimerOutput timer;
   };
 
 
@@ -1934,19 +1962,12 @@ namespace Sintering
           constraints,
           0)
       , data(data)
-      , pcout(std::cout, Utilities::MPI::this_mpi_process(MPI_COMM_WORLD) == 0)
-      , timer(pcout, TimerOutput::never, TimerOutput::wall_times)
     {}
-
-    ~SinteringOperator()
-    {
-      timer.print_wall_time_statistics(MPI_COMM_WORLD);
-    }
 
     void
     evaluate_nonlinear_residual(VectorType &dst, const VectorType &src) const
     {
-      TimerOutput::Scope scope(timer, "sintering_op::nonlinear_residual");
+      TimerOutput::Scope scope(this->timer, "sintering_op::nonlinear_residual");
 
       this->matrix_free.cell_loop(
         &SinteringOperator::do_evaluate_nonlinear_residual,
@@ -1971,7 +1992,7 @@ namespace Sintering
     void
     evaluate_newton_step(const VectorType &newton_step)
     {
-      TimerOutput::Scope scope(timer, "sintering_op::newton_step");
+      TimerOutput::Scope scope(this->timer, "sintering_op::newton_step");
 
       const unsigned n_cells = this->matrix_free.n_cell_batches();
       const unsigned n_quadrature_points =
@@ -2206,9 +2227,6 @@ namespace Sintering
                          n_components,
                          dealii::Tensor<1, dim, VectorizedArrayType>>>
       nonlinear_gradients;
-
-    ConditionalOStream  pcout;
-    mutable TimerOutput timer;
   };
 
 
