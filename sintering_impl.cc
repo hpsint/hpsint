@@ -1963,6 +1963,7 @@ namespace Sintering
           0,
           "sintering_op")
       , data(data)
+      , phi_lin(this->matrix_free, this->dof_index)
     {}
 
     void
@@ -1982,6 +1983,8 @@ namespace Sintering
     set_previous_solution(const VectorType &src) const
     {
       this->old_solution = src;
+
+      this->old_solution.update_ghost_values();
     }
 
     const VectorType &
@@ -2008,6 +2011,9 @@ namespace Sintering
                                   this,
                                   dummy,
                                   newton_step);
+
+      this->newton_step = newton_step;
+      this->newton_step.update_ghost_values();
     }
 
     void
@@ -2057,20 +2063,36 @@ namespace Sintering
       const auto &kappa_c     = this->data.kappa_c;
       const auto &kappa_p     = this->data.kappa_p;
 
+#if true
+      phi_lin.reinit(cell);
+      phi_lin.read_dof_values_plain(this->newton_step);
+      phi_lin.evaluate(EvaluationFlags::values | EvaluationFlags::gradients);
+#endif
+
       for (unsigned int q = 0; q < phi.n_q_points; ++q)
         {
-          auto &c    = nonlinear_values(cell, q)[0];
-          auto &eta1 = nonlinear_values(cell, q)[2];
-          auto &eta2 = nonlinear_values(cell, q)[3];
+#if true
+          const auto c    = phi_lin.get_value(q)[0];
+          const auto eta1 = phi_lin.get_value(q)[2];
+          const auto eta2 = phi_lin.get_value(q)[3];
 
-          std::vector etas{eta1, eta2};
+          const auto c_grad    = phi_lin.get_gradient(q)[0];
+          const auto mu_grad   = phi_lin.get_gradient(q)[1];
+          const auto eta1_grad = phi_lin.get_gradient(q)[2];
+          const auto eta2_grad = phi_lin.get_gradient(q)[3];
+#else
+          const auto &c    = nonlinear_values(cell, q)[0];
+          const auto &eta1 = nonlinear_values(cell, q)[2];
+          const auto &eta2 = nonlinear_values(cell, q)[3];
 
-          auto &c_grad    = nonlinear_gradients(cell, q)[0];
-          auto &mu_grad   = nonlinear_gradients(cell, q)[1];
-          auto &eta1_grad = nonlinear_gradients(cell, q)[2];
-          auto &eta2_grad = nonlinear_gradients(cell, q)[3];
+          const auto &c_grad    = nonlinear_gradients(cell, q)[0];
+          const auto &mu_grad   = nonlinear_gradients(cell, q)[1];
+          const auto &eta1_grad = nonlinear_gradients(cell, q)[2];
+          const auto &eta2_grad = nonlinear_gradients(cell, q)[3];
+#endif
 
-          std::vector etas_grad{eta1_grad, eta2_grad};
+          const std::vector etas{eta1, eta2};
+          const std::vector etas_grad{eta1_grad, eta2_grad};
 
           Tensor<1, n_components, VectorizedArrayType> value_result;
 
@@ -2219,7 +2241,9 @@ namespace Sintering
 
     double dt;
 
-    mutable VectorType old_solution;
+    mutable VectorType old_solution, newton_step;
+
+    mutable FECellIntegrator phi_lin;
 
     Table<2, dealii::Tensor<1, n_components, VectorizedArrayType>>
       nonlinear_values;
