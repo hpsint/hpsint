@@ -1420,8 +1420,7 @@ namespace Sintering
         unitMatrix(Mvol * phi + Mvap * (1.0 - phi));
 
       // Surface anisotropic part
-      VectorizedArrayType fsurf =
-        Msurf * std::pow(cl, 2.) * std::pow(1. - cl, 2.);
+      VectorizedArrayType fsurf = Msurf * (cl * cl) * ((1. - cl) * (1. - cl));
       Tensor<1, dim, VectorizedArrayType> nc = unitVector(c_grad);
       M += projectorMatrix(nc, fsurf);
 
@@ -1467,8 +1466,7 @@ namespace Sintering
         unitMatrix((Mvol - Mvap) * dphidc);
 
       // Surface part
-      VectorizedArrayType fsurf =
-        Msurf * std::pow(cl, 2.) * std::pow(1. - cl, 2.);
+      VectorizedArrayType fsurf  = Msurf * (cl * cl) * ((1. - cl) * (1. - cl));
       VectorizedArrayType dfsurf = Msurf * 2. * cl * (1. - cl) * (1. - 2. * cl);
       for (unsigned int i = 0; i < fsurf.size(); i++)
         {
@@ -1493,9 +1491,8 @@ namespace Sintering
         val = val > 1.0 ? 1.0 : (val < 0.0 ? 0.0 : val);
       });
 
-      VectorizedArrayType fsurf =
-        Msurf * std::pow(cl, 2.) * std::pow(1. - cl, 2.);
-      VectorizedArrayType nrm = c_grad.norm();
+      VectorizedArrayType fsurf = Msurf * (cl * cl) * ((1. - cl) * (1. - cl));
+      VectorizedArrayType nrm   = c_grad.norm();
 
       for (unsigned int i = 0; i < nrm.size(); i++)
         {
@@ -1625,10 +1622,10 @@ namespace Sintering
           return std::move(a) + b * b * b;
         });
 
-      return A * std::pow(c, 2.0) * std::pow(-c + 1.0, 2.0) +
-             B * (std::pow(c, 2.0) + (-6.0 * c + 6.0) * etaPower2Sum -
+      return A * (c * c) * ((-c + 1.0) * (-c + 1.0)) +
+             B * ((c * c) + (-6.0 * c + 6.0) * etaPower2Sum -
                   (-4.0 * c + 8.0) * etaPower3Sum +
-                  3.0 * std::pow(etaPower2Sum, 2.0));
+                  3.0 * (etaPower2Sum * etaPower2Sum));
     }
 
     auto
@@ -1645,8 +1642,8 @@ namespace Sintering
           return std::move(a) + b * b * b;
         });
 
-      return A * std::pow(c, 2.0) * (2.0 * c - 2.0) +
-             2.0 * A * c * std::pow(-c + 1.0, 2.0) +
+      return A * (c * c) * (2.0 * c - 2.0) +
+             2.0 * A * c * ((-c + 1.0) * (-c + 1.0)) +
              B * (2.0 * c - 6.0 * etaPower2Sum + 4.0 * etaPower3Sum);
     }
 
@@ -1664,7 +1661,7 @@ namespace Sintering
 
       auto &etai = etas[index_i];
 
-      return B * (3.0 * std::pow(etai, 2.0) * (4.0 * c - 8.0) +
+      return B * (3.0 * (etai * etai) * (4.0 * c - 8.0) +
                   2.0 * etai * (-6.0 * c + 6.0) + 12.0 * etai * (etaPower2Sum));
     }
 
@@ -1673,8 +1670,8 @@ namespace Sintering
     {
       (void)etas;
 
-      return 2.0 * A * std::pow(c, 2.0) + 4.0 * A * c * (2.0 * c - 2.0) +
-             2.0 * A * std::pow(-c + 1.0, 2.0) + 2.0 * B;
+      return 2.0 * A * (c * c) + 4.0 * A * c * (2.0 * c - 2.0) +
+             2.0 * A * ((-c + 1.0) * (-c + 1.0)) + 2.0 * B;
     }
 
     auto
@@ -1686,7 +1683,7 @@ namespace Sintering
 
       auto &etai = etas[index_i];
 
-      return B * (12.0 * std::pow(etai, 2.0) - 12.0 * etai);
+      return B * (12.0 * (etai * etai) - 12.0 * etai);
     }
 
     auto
@@ -1703,7 +1700,7 @@ namespace Sintering
       auto &etai = etas[index_i];
 
       return B * (12.0 - 12.0 * c + 2.0 * etai * (12.0 * c - 24.0) +
-                  24.0 * std::pow(etai, 2.0) + 12.0 * etaPower2Sum);
+                  24.0 * (etai * etai) + 12.0 * etaPower2Sum);
     }
 
     auto
