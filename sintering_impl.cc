@@ -2062,6 +2062,7 @@ namespace Sintering
       const auto &mobility    = this->data.mobility;
       const auto &kappa_c     = this->data.kappa_c;
       const auto &kappa_p     = this->data.kappa_p;
+      const auto  dt_inv      = 1.0 / dt;
 
 #if true
       phi_lin.reinit(cell);
@@ -2096,19 +2097,19 @@ namespace Sintering
 
           Tensor<1, n_components, VectorizedArrayType> value_result;
 
-          value_result[0] = phi.get_value(q)[0] / dt;
+          value_result[0] = phi.get_value(q)[0] * dt_inv;
           value_result[1] =
             -phi.get_value(q)[1] +
             free_energy.d2f_dc2(c, etas) * phi.get_value(q)[0] +
             free_energy.d2f_dcdetai(c, etas, 0) * phi.get_value(q)[2] +
             free_energy.d2f_dcdetai(c, etas, 1) * phi.get_value(q)[3];
           value_result[2] =
-            phi.get_value(q)[2] / dt +
+            phi.get_value(q)[2] * dt_inv +
             L * free_energy.d2f_dcdetai(c, etas, 0) * phi.get_value(q)[0] +
             L * free_energy.d2f_detai2(c, etas, 0) * phi.get_value(q)[2] +
             L * free_energy.d2f_detaidetaj(c, etas, 0, 1) * phi.get_value(q)[3];
           value_result[3] =
-            phi.get_value(q)[3] / dt +
+            phi.get_value(q)[3] * dt_inv +
             L * free_energy.d2f_dcdetai(c, etas, 1) * phi.get_value(q)[0] +
             L * free_energy.d2f_detaidetaj(c, etas, 1, 0) *
               phi.get_value(q)[2] +
