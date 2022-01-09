@@ -3445,27 +3445,45 @@ namespace Sintering
           Preconditioners::PreconditionerBase<Number>>>(nonlinear_operator,
                                                         *preconditioner);
 
+      TimerOutput timer(pcout, TimerOutput::never, TimerOutput::wall_times);
+
       // ... non-linear Newton solver
       auto non_linear_solver =
         std::make_unique<NonLinearSolvers::NewtonSolver<VectorType>>();
 
       non_linear_solver->reinit_vector = [&](auto &vector) {
+        TimerOutput::Scope scope(timer, "time_loop::newton::reinit_vector");
+
         nonlinear_operator.initialize_dof_vector(vector);
       };
 
       non_linear_solver->residual = [&](const auto &src, auto &dst) {
+        TimerOutput::Scope scope(timer, "time_loop::newton::residual");
+
         nonlinear_operator.evaluate_nonlinear_residual(dst, src);
       };
 
       non_linear_solver->setup_jacobian =
         [&](const auto &current_u, const bool do_update_preconditioner) {
-          nonlinear_operator.evaluate_newton_step(current_u);
+          if (true)
+            {
+              TimerOutput::Scope scope(timer,
+                                       "time_loop::newton::setup_jacobian");
+              nonlinear_operator.evaluate_newton_step(current_u);
+            }
 
           if (do_update_preconditioner)
-            preconditioner->do_update();
+            {
+              TimerOutput::Scope scope(
+                timer, "time_loop::newton::setup_preconditioner");
+              preconditioner->do_update();
+            }
         };
 
       non_linear_solver->solve_with_jacobian = [&](const auto &src, auto &dst) {
+        TimerOutput::Scope scope(timer,
+                                 "time_loop::newton::solve_with_jacobian");
+
         return linear_solver->solve(dst, src);
       };
 
@@ -3489,85 +3507,93 @@ namespace Sintering
       double       max_reached_dt          = 0.0;
 
       // run time loop
-      for (double t = 0, dt = dt_deseride; t <= t_end;)
-        {
-          nonlinear_operator.set_timestep(dt);
-          nonlinear_operator.set_previous_solution(solution);
+      {
+        TimerOutput::Scope scope(timer, "time_loop");
+        for (double t = 0, dt = dt_deseride; t <= t_end;)
+          {
+            nonlinear_operator.set_timestep(dt);
+            nonlinear_operator.set_previous_solution(solution);
 
-          if (transfer)
-            {
-              transfer->interpolate_to_mg(mg_solutions, solution);
+            if (transfer)
+              {
+                transfer->interpolate_to_mg(mg_solutions, solution);
 
-              for (unsigned int l = mg_operators.min_level();
-                   l <= mg_operators.max_level();
-                   ++l)
-                {
-                  mg_operators[l]->set_timestep(dt);
-                  mg_operators[l]->set_previous_solution(mg_solutions[l]);
-                }
-            }
+                for (unsigned int l = mg_operators.min_level();
+                     l <= mg_operators.max_level();
+                     ++l)
+                  {
+                    mg_operators[l]->set_timestep(dt);
+                    mg_operators[l]->set_previous_solution(mg_solutions[l]);
+                  }
+              }
 
-          bool has_converged = false;
+            bool has_converged = false;
 
-          try
-            {
-              const auto statistics = non_linear_solver->solve(solution);
+            try
+              {
+                TimerOutput::Scope scope(timer, "time_loop::newton");
 
-              has_converged = true;
+                const auto statistics = non_linear_solver->solve(solution);
 
-              pcout << "t = " << t << ", dt = " << dt << ":"
-                    << " solved in " << statistics.newton_iterations
-                    << " Newton iterations and " << statistics.linear_iterations
-                    << " linear iterations" << std::endl;
+                has_converged = true;
 
-              n_timestep += 1;
-              n_linear_iterations += statistics.linear_iterations;
-              n_non_linear_iterations += statistics.newton_iterations;
-              max_reached_dt = std::max(max_reached_dt, dt);
+                pcout << "t = " << t << ", dt = " << dt << ":"
+                      << " solved in " << statistics.newton_iterations
+                      << " Newton iterations and "
+                      << statistics.linear_iterations << " linear iterations"
+                      << std::endl;
 
-              if (std::abs(t - t_end) > 1e-9)
-                {
-                  if (statistics.newton_iterations <
-                        desirable_newton_iterations &&
-                      statistics.linear_iterations <
-                        desirable_linear_iterations)
-                    {
-                      dt *= dt_increment;
-                      pcout << "Increasing timestep, dt = " << dt << std::endl;
+                n_timestep += 1;
+                n_linear_iterations += statistics.linear_iterations;
+                n_non_linear_iterations += statistics.newton_iterations;
+                max_reached_dt = std::max(max_reached_dt, dt);
 
-                      if (dt > dt_max)
-                        {
-                          dt = dt_max;
-                        }
-                    }
+                if (std::abs(t - t_end) > 1e-9)
+                  {
+                    if (statistics.newton_iterations <
+                          desirable_newton_iterations &&
+                        statistics.linear_iterations <
+                          desirable_linear_iterations)
+                      {
+                        dt *= dt_increment;
+                        pcout << "Increasing timestep, dt = " << dt
+                              << std::endl;
 
-                  if (t + dt > t_end)
-                    {
-                      dt = t_end - t;
-                    }
-                }
+                        if (dt > dt_max)
+                          {
+                            dt = dt_max;
+                          }
+                      }
 
-              t += dt;
-            }
-          catch (const NonLinearSolvers::ExcNewtonDidNotConverge &)
-            {
-              dt *= 0.5;
-              pcout << "Solver diverged, reducing timestep, dt = " << dt
-                    << std::endl;
+                    if (t + dt > t_end)
+                      {
+                        dt = t_end - t;
+                      }
+                  }
 
-              solution = nonlinear_operator.get_previous_solution();
+                t += dt;
+              }
+            catch (const NonLinearSolvers::ExcNewtonDidNotConverge &)
+              {
+                dt *= 0.5;
+                pcout << "Solver diverged, reducing timestep, dt = " << dt
+                      << std::endl;
 
-              AssertThrow(
-                dt > dt_min,
-                ExcMessage("Minimum timestep size exceeded, solution failed!"));
-            }
+                solution = nonlinear_operator.get_previous_solution();
 
-          if (has_converged && t > output_time_interval + time_last_output)
-            {
-              time_last_output = t;
-              output_result(solution, time_last_output);
-            }
-        }
+                AssertThrow(
+                  dt > dt_min,
+                  ExcMessage(
+                    "Minimum timestep size exceeded, solution failed!"));
+              }
+
+            if (has_converged && t > output_time_interval + time_last_output)
+              {
+                time_last_output = t;
+                output_result(solution, time_last_output);
+              }
+          }
+      }
 
       pcout << std::endl;
       pcout << "Final statistics:" << std::endl;
@@ -3585,6 +3611,8 @@ namespace Sintering
             << std::endl;
       pcout << "  - max dt:                    " << max_reached_dt << std::endl;
       pcout << std::endl;
+
+      timer.print_wall_time_statistics(MPI_COMM_WORLD);
     }
 
   private:
