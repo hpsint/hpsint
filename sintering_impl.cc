@@ -1596,6 +1596,7 @@ namespace Sintering
   };
 
 
+  template <typename VectorizedArrayType>
   class FreeEnergy
   {
   private:
@@ -1609,15 +1610,16 @@ namespace Sintering
     {}
 
     auto
-    f(const auto &c, const std::vector<auto> &etas) const
+    f(const VectorizedArrayType &             c,
+      const std::vector<VectorizedArrayType> &etas) const
     {
-      std::remove_const_t<std::remove_reference_t<decltype(c)>> initial = 0.0;
+      VectorizedArrayType initial = 0.0;
 
-      auto etaPower2Sum =
+      const auto etaPower2Sum =
         std::accumulate(etas.begin(), etas.end(), initial, [](auto a, auto b) {
           return std::move(a) + b * b;
         });
-      auto etaPower3Sum =
+      const auto etaPower3Sum =
         std::accumulate(etas.begin(), etas.end(), initial, [](auto a, auto b) {
           return std::move(a) + b * b * b;
         });
@@ -1629,15 +1631,16 @@ namespace Sintering
     }
 
     auto
-    df_dc(const auto &c, const std::vector<auto> &etas) const
+    df_dc(const VectorizedArrayType &             c,
+          const std::vector<VectorizedArrayType> &etas) const
     {
-      std::remove_const_t<std::remove_reference_t<decltype(c)>> initial = 0.0;
+      VectorizedArrayType initial = 0.0;
 
-      auto etaPower2Sum =
+      const auto etaPower2Sum =
         std::accumulate(etas.begin(), etas.end(), initial, [](auto a, auto b) {
           return std::move(a) + b * b;
         });
-      auto etaPower3Sum =
+      const auto etaPower3Sum =
         std::accumulate(etas.begin(), etas.end(), initial, [](auto a, auto b) {
           return std::move(a) + b * b * b;
         });
@@ -1648,25 +1651,26 @@ namespace Sintering
     }
 
     auto
-    df_detai(const auto &             c,
-             const std::vector<auto> &etas,
-             unsigned int             index_i) const
+    df_detai(const VectorizedArrayType &             c,
+             const std::vector<VectorizedArrayType> &etas,
+             unsigned int                            index_i) const
     {
-      std::remove_const_t<std::remove_reference_t<decltype(c)>> initial = 0.0;
+      VectorizedArrayType initial = 0.0;
 
-      auto etaPower2Sum =
+      const auto etaPower2Sum =
         std::accumulate(etas.begin(), etas.end(), initial, [](auto a, auto b) {
           return std::move(a) + b * b;
         });
 
-      auto &etai = etas[index_i];
+      const auto &etai = etas[index_i];
 
       return B * (3.0 * (etai * etai) * (4.0 * c - 8.0) +
                   2.0 * etai * (-6.0 * c + 6.0) + 12.0 * etai * (etaPower2Sum));
     }
 
     auto
-    d2f_dc2(const auto &c, const std::vector<auto> &etas) const
+    d2f_dc2(const VectorizedArrayType &             c,
+            const std::vector<VectorizedArrayType> &etas) const
     {
       (void)etas;
 
@@ -1675,43 +1679,44 @@ namespace Sintering
     }
 
     auto
-    d2f_dcdetai(const auto &             c,
-                const std::vector<auto> &etas,
-                unsigned int             index_i) const
+    d2f_dcdetai(const VectorizedArrayType &             c,
+                const std::vector<VectorizedArrayType> &etas,
+                unsigned int                            index_i) const
     {
       (void)c;
 
-      auto &etai = etas[index_i];
+      const auto &etai = etas[index_i];
 
       return B * (12.0 * (etai * etai) - 12.0 * etai);
     }
 
     auto
-    d2f_detai2(const auto &             c,
-               const std::vector<auto> &etas,
-               unsigned int             index_i) const
+    d2f_detai2(const VectorizedArrayType &             c,
+               const std::vector<VectorizedArrayType> &etas,
+               unsigned int                            index_i) const
     {
-      std::remove_const_t<std::remove_reference_t<decltype(c)>> initial = 0.0;
-      auto                                                      etaPower2Sum =
+      VectorizedArrayType initial = 0.0;
+      const auto          etaPower2Sum =
         std::accumulate(etas.begin(), etas.end(), initial, [](auto a, auto b) {
           return std::move(a) + b * b;
         });
 
-      auto &etai = etas[index_i];
+      const auto &etai = etas[index_i];
 
       return B * (12.0 - 12.0 * c + 2.0 * etai * (12.0 * c - 24.0) +
                   24.0 * (etai * etai) + 12.0 * etaPower2Sum);
     }
 
     auto
-    d2f_detaidetaj(const auto &             c,
-                   const std::vector<auto> &etas,
-                   unsigned int             index_i,
-                   unsigned int             index_j) const
+    d2f_detaidetaj(const VectorizedArrayType &             c,
+                   const std::vector<VectorizedArrayType> &etas,
+                   unsigned int                            index_i,
+                   unsigned int                            index_j) const
     {
       (void)c;
-      auto &etai = etas[index_i];
-      auto &etaj = etas[index_j];
+
+      const auto &etai = etas[index_i];
+      const auto &etaj = etas[index_j];
 
       return 24.0 * B * etai * etaj;
     }
@@ -1924,7 +1929,7 @@ namespace Sintering
       , kappa_p(kappa_p)
     {}
 
-    const FreeEnergy free_energy;
+    const FreeEnergy<VectorizedArrayType> free_energy;
 
     // Choose MobilityScalar or MobilityTensorial here:
     const MobilityScalar<dim, VectorizedArrayType> mobility;
@@ -1983,8 +1988,6 @@ namespace Sintering
     set_previous_solution(const VectorType &src) const
     {
       this->old_solution = src;
-
-      this->old_solution.update_ghost_values();
     }
 
     const VectorType &
