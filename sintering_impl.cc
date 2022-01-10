@@ -944,7 +944,8 @@ namespace Preconditioners
     else if (label == "ILU")
       return std::make_unique<ILU<T>>(op);
 
-    AssertThrow(false, ExcNotImplemented());
+    AssertThrow(false,
+                ExcMessage("Preconditioner << " + label + " >> not known!"));
 
     return {};
   }
@@ -3631,7 +3632,7 @@ namespace Sintering
     unsigned int fe_degree   = 1;
     unsigned int n_points_1D = 2;
 
-    std::string outer_preconditioner = "BlockPreconditioner3CG";
+    std::string outer_preconditioner = "BlockPreconditioner3CH";
 
     BlockPreconditioner2Data   block_preconditioner_2_data;
     BlockPreconditioner3Data   block_preconditioner_3_data;
@@ -3677,12 +3678,13 @@ namespace Sintering
       prm.add_parameter("NPoints1D",
                         n_points_1D,
                         "Number of quadrature points.");
-      prm.add_parameter("OuterPreconditioner",
-                        outer_preconditioner,
-                        "Preconditioner to be used for the outer system.",
-                        Patterns::Selection(
-                          preconditioner_types +
-                          "|BlockPreconditioner2|BlockPreconditioner3"));
+      prm.add_parameter(
+        "OuterPreconditioner",
+        outer_preconditioner,
+        "Preconditioner to be used for the outer system.",
+        Patterns::Selection(
+          preconditioner_types +
+          "|BlockPreconditioner2|BlockPreconditioner3|BlockPreconditioner3CH"));
 
       prm.enter_subsection("BlockPreconditioner2");
       prm.add_parameter("Block0Preconditioner",
