@@ -3356,7 +3356,10 @@ namespace Sintering
     do_vmult_kernel(FECellIntegrator &phi) const final
     {
       for (unsigned int q = 0; q < phi.n_q_points; ++q)
-        phi.submit_value(phi.get_value(q), q);
+        {
+          phi.submit_value(phi.get_value(q), q);
+          phi.submit_gradient({}, q);
+        }
     }
   };
 
@@ -3471,10 +3474,11 @@ namespace Sintering
 
           const auto value    = phi.get_value(q);
           const auto gradient = phi.get_gradient(q);
+          const auto epsilon =
+            std::sqrt(dt) * mobility.M(c, etas, c_grad, etas_grad);
 
           phi.submit_value(value, q);
-          phi.submit_gradient(
-            sqrt_delta * mobility.M(c, etas, c_grad, etas_grad) * gradient, q);
+          phi.submit_gradient(sqrt_delta * epsilon * gradient, q);
         }
     }
 
@@ -3507,13 +3511,12 @@ namespace Sintering
             {eta1_grad, eta2_grad}};
 
           const auto gradient = phi.get_gradient(q);
+          const auto epsilon =
+            std::sqrt(dt) * (use_mobility ?
+                               mobility.M(c, etas, c_grad, etas_grad) :
+                               VectorizedArrayType(1.0));
 
-          phi.submit_gradient(sqrt_delta *
-                                (use_mobility ?
-                                   mobility.M(c, etas, c_grad, etas_grad) :
-                                   VectorizedArrayType(1.0)) *
-                                gradient,
-                              q);
+          phi.submit_gradient(sqrt_delta * epsilon * gradient, q);
         }
 
       phi.integrate(EvaluationFlags::EvaluationFlags::gradients);
@@ -3623,8 +3626,8 @@ namespace Sintering
 
         // b_0
         for (unsigned int i = 0; i < src_0.locally_owned_size(); ++i)
-          b_0.local_element(i) = sqrt_delta * dt / epsilon.local_element(i) *
-                                   src_0.local_element(i) +
+          b_0.local_element(i) = sqrt_delta / epsilon.local_element(i) *
+                                   (dt * src_0.local_element(i)) +
                                  src_1.local_element(i);
 
         // g
@@ -3633,8 +3636,8 @@ namespace Sintering
         // b_1
         mass_matrix.vmult(b_1, g);
         for (unsigned int i = 0; i < src_0.locally_owned_size(); ++i)
-          b_1.local_element(i) -=
-            sqrt_delta * dt / epsilon.local_element(i) * src_0.local_element(i);
+          b_1.local_element(i) -= sqrt_delta / epsilon.local_element(i) *
+                                  (dt * src_0.local_element(i));
 
         // x_0 tilde
         preconditioner_0->vmult(dst_1, b_1);
