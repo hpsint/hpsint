@@ -3393,6 +3393,20 @@ namespace Sintering
       return op.get_dt();
     }
 
+    double
+    get_sqrt_delta() const
+    {
+      return std::sqrt(this->op.get_data().kappa_c);
+    }
+
+    const VectorType &
+    get_epsilon() const
+    {
+      AssertThrow(false, ExcNotImplemented());
+
+      return epsilon;
+    }
+
   private:
     void
     do_vmult_kernel(FECellIntegrator &phi) const final
@@ -3403,9 +3417,7 @@ namespace Sintering
       const auto &nonlinear_values    = this->op.get_nonlinear_values();
       const auto &nonlinear_gradients = this->op.get_nonlinear_gradients();
 
-      const auto &kappa_c = this->op.get_data().kappa_c;
-
-      const auto sqrt_delta = std::sqrt(kappa_c);
+      const auto sqrt_delta = this->get_sqrt_delta();
 
       for (unsigned int q = 0; q < phi.n_q_points; ++q)
         {
@@ -3432,19 +3444,16 @@ namespace Sintering
 
     const SinteringOperator<dim, n_components_, Number, VectorizedArrayType>
       &op;
+
+    mutable VectorType epsilon;
   };
 
 
 
   struct BlockPreconditioner3CHData
   {
-    std::string type                       = "LD";
-    std::string block_0_preconditioner     = "ILU";
-    double      block_0_relative_tolerance = 0.0;
-    std::string block_1_preconditioner     = "ILU";
-    double      block_1_relative_tolerance = 0.0;
-    std::string block_2_preconditioner     = "InverseDiagonalMatrix";
-    double      block_2_relative_tolerance = 0.0;
+    std::string block_0_preconditioner = "AMG";
+    std::string block_2_preconditioner = "InverseDiagonalMatrix";
   };
 
 
@@ -3529,10 +3538,9 @@ namespace Sintering
         b_1.reinit(src_0);      //
         g.reinit(src_0);        //
 
-        VectorType epsilon;            // TODO: get from operator
-        epsilon.reinit(src_0);         //
-        const double sqrt_delta = 0.0; //
-        const double dt         = 0.0; //
+        const auto &epsilon    = operator_0.get_epsilon();
+        const auto  sqrt_delta = operator_0.get_sqrt_delta();
+        const auto  dt         = operator_0.get_dt();
 
         // b_0
         for (unsigned int i = 0; i < src_0.locally_owned_size(); ++i)
@@ -3563,9 +3571,6 @@ namespace Sintering
       }
 
       {
-        AssertThrow(data.block_2_relative_tolerance == 0.0,
-                    ExcNotImplemented());
-
         MyScope scope(timer, "vmult::precon_2");
         preconditioner_2->vmult(dst_2, src_2);
       }
@@ -3626,7 +3631,7 @@ namespace Sintering
     unsigned int fe_degree   = 1;
     unsigned int n_points_1D = 2;
 
-    std::string outer_preconditioner = "BlockPreconditioner2";
+    std::string outer_preconditioner = "BlockPreconditioner3CG";
 
     BlockPreconditioner2Data   block_preconditioner_2_data;
     BlockPreconditioner3Data   block_preconditioner_3_data;
@@ -3719,7 +3724,14 @@ namespace Sintering
       prm.leave_subsection();
 
       prm.enter_subsection("BlockPreconditioner3CH");
-      // TODO
+      prm.add_parameter("Block0Preconditioner",
+                        block_preconditioner_3_ch_data.block_0_preconditioner,
+                        "Preconditioner to be used for the first block.",
+                        Patterns::Selection(preconditioner_types));
+      prm.add_parameter("Block2Preconditioner",
+                        block_preconditioner_3_ch_data.block_2_preconditioner,
+                        "Preconditioner to be used for the second block.",
+                        Patterns::Selection(preconditioner_types));
       prm.leave_subsection();
     }
   };
