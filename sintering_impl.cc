@@ -3346,7 +3346,7 @@ namespace Sintering
       : OperatorBase<dim, n_components, Number, VectorizedArrayType>(
           matrix_free,
           constraints,
-          2,
+          3,
           "mass_matrix_op")
     {}
 
@@ -3357,6 +3357,81 @@ namespace Sintering
       for (unsigned int q = 0; q < phi.n_q_points; ++q)
         phi.submit_value(phi.get_value(q), q);
     }
+  };
+
+
+
+  template <int dim,
+            int n_components_,
+            typename Number,
+            typename VectorizedArrayType>
+  class OperatorCahnHillardHelmholtz
+    : public OperatorBase<dim, 1, Number, VectorizedArrayType>
+  {
+  public:
+    using FECellIntegrator =
+      FEEvaluation<dim, -1, 0, 1, Number, VectorizedArrayType>;
+
+    using VectorType =
+      typename OperatorBase<dim, 1, Number, VectorizedArrayType>::VectorType;
+
+    OperatorCahnHillardHelmholtz(
+      const MatrixFree<dim, Number, VectorizedArrayType> &matrix_free,
+      const AffineConstraints<Number> &                   constraints,
+      const SinteringOperator<dim, n_components_, Number, VectorizedArrayType>
+        &op)
+      : OperatorBase<dim, 1, Number, VectorizedArrayType>(matrix_free,
+                                                          constraints,
+                                                          3,
+                                                          "ch_helmholtz_op")
+      , op(op)
+    {}
+
+    double
+    get_dt() const
+    {
+      return op.get_dt();
+    }
+
+  private:
+    void
+    do_vmult_kernel(FECellIntegrator &phi) const final
+    {
+      const unsigned int cell = phi.get_current_cell_index();
+
+      const auto &mobility            = this->op.get_data().mobility;
+      const auto &nonlinear_values    = this->op.get_nonlinear_values();
+      const auto &nonlinear_gradients = this->op.get_nonlinear_gradients();
+
+      const auto &kappa_c = this->op.get_data().kappa_c;
+
+      const auto sqrt_delta = std::sqrt(kappa_c);
+
+      for (unsigned int q = 0; q < phi.n_q_points; ++q)
+        {
+          const auto &c    = nonlinear_values(cell, q)[0];
+          const auto &eta1 = nonlinear_values(cell, q)[2];
+          const auto &eta2 = nonlinear_values(cell, q)[3];
+
+          const auto &c_grad    = nonlinear_gradients(cell, q)[0];
+          const auto &eta1_grad = nonlinear_gradients(cell, q)[2];
+          const auto &eta2_grad = nonlinear_gradients(cell, q)[3];
+
+          const std::array<VectorizedArrayType, 2> etas{{eta1, eta2}};
+          const std::array<Tensor<1, dim, VectorizedArrayType>, 2> etas_grad{
+            {eta1_grad, eta2_grad}};
+
+          const auto value    = phi.get_value(q);
+          const auto gradient = phi.get_gradient(q);
+
+          phi.submit_value(value, q);
+          phi.submit_gradient(
+            sqrt_delta * mobility.M(c, etas, c_grad, etas_grad) * gradient, q);
+        }
+    }
+
+    const SinteringOperator<dim, n_components_, Number, VectorizedArrayType>
+      &op;
   };
 
 
@@ -3520,7 +3595,7 @@ namespace Sintering
   private:
     const MatrixFree<dim, Number, VectorizedArrayType> &matrix_free;
 
-    OperatorCahnHillardA<dim, 1, n_components, Number, VectorizedArrayType>
+    OperatorCahnHillardHelmholtz<dim, n_components, Number, VectorizedArrayType>
       operator_0;
 
     MassMatrix<dim, 1, Number, VectorizedArrayType> mass_matrix;
