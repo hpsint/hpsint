@@ -15,7 +15,7 @@
 
 // Sintering of 2 particles
 
-//#define WITH_TIMING
+#define WITH_TIMING
 
 #include <deal.II/base/conditional_ostream.h>
 #include <deal.II/base/mpi.h>
@@ -3849,6 +3849,39 @@ namespace Sintering
       pcout << std::endl;
 
       timer.print_wall_time_statistics(MPI_COMM_WORLD);
+
+      {
+        nonlinear_operator.set_timestep(dt_deseride);
+        nonlinear_operator.set_previous_solution(solution);
+        nonlinear_operator.evaluate_newton_step(solution);
+
+        VectorType dst, src;
+
+        nonlinear_operator.initialize_dof_vector(dst);
+        nonlinear_operator.initialize_dof_vector(src);
+
+        const unsigned int n_repetitions = 1000;
+
+        TimerOutput timer(pcout, TimerOutput::never, TimerOutput::wall_times);
+
+        {
+          TimerOutput::Scope scope(timer, "vmult_matrixfree");
+
+          for (unsigned int i = 0; i < n_repetitions; ++i)
+            nonlinear_operator.vmult(dst, src);
+        }
+
+        {
+          const auto &matrix = nonlinear_operator.get_system_matrix();
+
+          TimerOutput::Scope scope(timer, "vmult_matrixbased");
+
+          for (unsigned int i = 0; i < n_repetitions; ++i)
+            matrix.vmult(dst, src);
+        }
+
+        timer.print_wall_time_statistics(MPI_COMM_WORLD);
+      }
     }
 
   private:
@@ -3857,7 +3890,7 @@ namespace Sintering
                 const double                               domain_width,
                 const double                               domain_height,
                 const double                               interface_width,
-                const unsigned int elements_per_interface = 4)
+                const unsigned int elements_per_interface)
     {
       const unsigned int initial_ny = 10;
       const unsigned int initial_nx =
