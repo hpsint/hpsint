@@ -3366,9 +3366,6 @@ namespace Sintering
       const BlockPreconditioner3CHData &                  data = {})
       : matrix_free(matrix_free)
       , operator_0(matrix_free, constraints, op)
-      , block_ch_b(matrix_free, constraints, op)
-      , block_ch_c(matrix_free, constraints, op)
-      , operator_1(matrix_free, constraints, op)
       , operator_2(matrix_free, constraints, op)
       , pcout(std::cout, Utilities::MPI::this_mpi_process(MPI_COMM_WORLD) == 1)
       , timer(pcout, TimerOutput::never, TimerOutput::wall_times)
@@ -3385,8 +3382,6 @@ namespace Sintering
 
       preconditioner_0 =
         Preconditioners::create(operator_0, data.block_0_preconditioner);
-      preconditioner_1 =
-        Preconditioners::create(operator_1, data.block_1_preconditioner);
       preconditioner_2 =
         Preconditioners::create(operator_2, data.block_2_preconditioner);
     }
@@ -3422,122 +3417,9 @@ namespace Sintering
 #endif
       }
 
-      if (data.type == "D")
-        {
-          // Block Jacobi
-          {
-            MyScope scope(timer, "vmult::precon_0");
-
-            if (data.block_0_relative_tolerance == 0.0)
-              {
-                preconditioner_0->vmult(dst_0, src_0);
-              }
-            else
-              {
-                ReductionControl reduction_control(
-                  1000, 1e-20, data.block_0_relative_tolerance);
-
-                SolverGMRES<VectorType> solver(reduction_control);
-                solver.solve(operator_0, dst_0, src_0, *preconditioner_0);
-              }
-          }
-
-          {
-            MyScope scope(timer, "vmult::precon_1");
-
-            if (data.block_1_relative_tolerance == 0.0)
-              {
-                preconditioner_1->vmult(dst_1, src_1);
-              }
-            else
-              {
-                ReductionControl reduction_control(
-                  1000, 1e-20, data.block_1_relative_tolerance);
-
-                SolverGMRES<VectorType> solver(reduction_control);
-                solver.solve(operator_1, dst_1, src_1, *preconditioner_1);
-              }
-          }
-        }
-      else if (data.type == "LD")
-        {
-          // Block Gauss Seidel: L+D
-          VectorType tmp;
-          tmp.reinit(src_0);
-
-          if (data.block_0_relative_tolerance == 0.0)
-            {
-              preconditioner_0->vmult(dst_0, src_0);
-            }
-          else
-            {
-              ReductionControl reduction_control(
-                100, 1e-20, data.block_0_relative_tolerance);
-
-              SolverGMRES<VectorType> solver(reduction_control);
-              solver.solve(operator_0, dst_0, src_0, *preconditioner_0);
-            }
-
-          block_ch_c.vmult(tmp, dst_0);
-          src_1 -= tmp;
-
-          if (data.block_1_relative_tolerance == 0.0)
-            {
-              preconditioner_1->vmult(dst_1, src_1);
-            }
-          else
-            {
-              ReductionControl reduction_control(
-                100, 1e-20, data.block_1_relative_tolerance);
-
-              SolverGMRES<VectorType> solver(reduction_control);
-              solver.solve(operator_1, dst_1, src_1, *preconditioner_1);
-            }
-        }
-      else if (data.type == "RD")
-        {
-          // Block Gauss Seidel: R+D
-          VectorType tmp;
-          tmp.reinit(src_0);
-
-          if (data.block_1_relative_tolerance == 0.0)
-            {
-              preconditioner_1->vmult(dst_1, src_1);
-            }
-          else
-            {
-              ReductionControl reduction_control(
-                100, 1e-20, data.block_1_relative_tolerance);
-
-              SolverGMRES<VectorType> solver(reduction_control);
-              solver.solve(operator_1, dst_1, src_1, *preconditioner_1);
-            }
-
-          block_ch_b.vmult(tmp, dst_1);
-          src_0 -= tmp;
-
-          if (data.block_0_relative_tolerance == 0.0)
-            {
-              preconditioner_0->vmult(dst_0, src_0);
-            }
-          else
-            {
-              ReductionControl reduction_control(
-                100, 1e-20, data.block_0_relative_tolerance);
-
-              SolverGMRES<VectorType> solver(reduction_control);
-              solver.solve(operator_0, dst_0, src_0, *preconditioner_0);
-            }
-        }
-      else if (data.type == "SYMM")
-        {
-          // Block Gauss Seidel: symmetric
-          AssertThrow(false, ExcNotImplemented());
-        }
-      else
-        {
-          AssertThrow(false, ExcNotImplemented());
-        }
+      {
+        AssertThrow(false, ExcNotImplemented());
+      }
 
       {
         AssertThrow(data.block_2_relative_tolerance == 0.0,
@@ -3566,7 +3448,6 @@ namespace Sintering
     do_update() override
     {
       preconditioner_0->do_update();
-      preconditioner_1->do_update();
       preconditioner_2->do_update();
     }
 
@@ -3575,12 +3456,6 @@ namespace Sintering
 
     OperatorCahnHillardA<dim, 1, n_components, Number, VectorizedArrayType>
       operator_0;
-    OperatorCahnHillardB<dim, 1, n_components, Number, VectorizedArrayType>
-      block_ch_b;
-    OperatorCahnHillardC<dim, 1, n_components, Number, VectorizedArrayType>
-      block_ch_c;
-    OperatorCahnHillardD<dim, 1, n_components, Number, VectorizedArrayType>
-      operator_1;
 
     OperatorAllenCahn<dim,
                       n_components - 2,
@@ -3593,7 +3468,7 @@ namespace Sintering
     mutable VectorType src_0, src_1, src_2;
 
     std::unique_ptr<Preconditioners::PreconditionerBase<Number>>
-      preconditioner_0, preconditioner_1, preconditioner_2;
+      preconditioner_0, preconditioner_2;
 
     ConditionalOStream  pcout;
     mutable TimerOutput timer;
