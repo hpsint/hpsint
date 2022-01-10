@@ -3330,6 +3330,36 @@ namespace Sintering
   };
 
 
+  template <int dim,
+            int n_components,
+            typename Number,
+            typename VectorizedArrayType>
+  class MassMatrix
+    : public OperatorBase<dim, n_components, Number, VectorizedArrayType>
+  {
+  public:
+    using FECellIntegrator =
+      FEEvaluation<dim, -1, 0, n_components, Number, VectorizedArrayType>;
+
+    MassMatrix(const MatrixFree<dim, Number, VectorizedArrayType> &matrix_free,
+               const AffineConstraints<Number> &                   constraints)
+      : OperatorBase<dim, n_components, Number, VectorizedArrayType>(
+          matrix_free,
+          constraints,
+          2,
+          "mass_matrix_op")
+    {}
+
+  private:
+    void
+    do_vmult_kernel(FECellIntegrator &phi) const final
+    {
+      for (unsigned int q = 0; q < phi.n_q_points; ++q)
+        phi.submit_value(phi.get_value(q), q);
+    }
+  };
+
+
 
   struct BlockPreconditioner3CHData
   {
@@ -3366,6 +3396,7 @@ namespace Sintering
       const BlockPreconditioner3CHData &                  data = {})
       : matrix_free(matrix_free)
       , operator_0(matrix_free, constraints, op)
+      , mass_matrix(matrix_free, constraints)
       , operator_2(matrix_free, constraints, op)
       , pcout(std::cout, Utilities::MPI::this_mpi_process(MPI_COMM_WORLD) == 1)
       , timer(pcout, TimerOutput::never, TimerOutput::wall_times)
@@ -3418,7 +3449,42 @@ namespace Sintering
       }
 
       {
-        AssertThrow(false, ExcNotImplemented());
+        VectorType b_0, b_1, g; // TODO: reduce number of temporal vectors
+        b_0.reinit(src_0);      //
+        b_1.reinit(src_0);      //
+        g.reinit(src_0);        //
+
+        VectorType epsilon;            // TODO: get from operator
+        epsilon.reinit(src_0);         //
+        const double sqrt_delta = 0.0; //
+        const double dt         = 0.0; //
+
+        // b_0
+        for (unsigned int i = 0; i < src_0.locally_owned_size(); ++i)
+          b_0.local_element(i) = sqrt_delta * dt / epsilon.local_element(i) *
+                                   src_0.local_element(i) +
+                                 src_1.local_element(i);
+
+        // g
+        preconditioner_0->vmult(g, b_0);
+
+        // b_1
+        mass_matrix.vmult(b_1, g);
+        for (unsigned int i = 0; i < src_0.locally_owned_size(); ++i)
+          b_1.local_element(i) -=
+            sqrt_delta * dt / epsilon.local_element(i) * src_0.local_element(i);
+
+        // x_0 tilde
+        preconditioner_0->vmult(dst_1, b_1);
+
+        // x_0 and x_1
+        for (unsigned int i = 0; i < src_0.locally_owned_size(); ++i)
+          {
+            dst_0.local_element(i) =
+              epsilon.local_element(i) / sqrt_delta *
+              (g.local_element(i) - dst_1.local_element(i));
+            dst_1.local_element(i) *= -1.0;
+          }
       }
 
       {
@@ -3456,6 +3522,8 @@ namespace Sintering
 
     OperatorCahnHillardA<dim, 1, n_components, Number, VectorizedArrayType>
       operator_0;
+
+    MassMatrix<dim, 1, Number, VectorizedArrayType> mass_matrix;
 
     OperatorAllenCahn<dim,
                       n_components - 2,
