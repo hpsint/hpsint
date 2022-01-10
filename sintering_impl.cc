@@ -3331,6 +3331,278 @@ namespace Sintering
 
 
 
+  struct BlockPreconditioner3CHData
+  {
+    std::string type                       = "LD";
+    std::string block_0_preconditioner     = "ILU";
+    double      block_0_relative_tolerance = 0.0;
+    std::string block_1_preconditioner     = "ILU";
+    double      block_1_relative_tolerance = 0.0;
+    std::string block_2_preconditioner     = "InverseDiagonalMatrix";
+    double      block_2_relative_tolerance = 0.0;
+  };
+
+
+
+  template <int dim,
+            int n_components,
+            typename Number,
+            typename VectorizedArrayType>
+  class BlockPreconditioner3CH
+    : public Preconditioners::PreconditionerBase<Number>
+  {
+  public:
+    using VectorType =
+      typename Preconditioners::PreconditionerBase<Number>::VectorType;
+
+    using value_type  = Number;
+    using vector_type = VectorType;
+
+    BlockPreconditioner3CH(
+      const SinteringOperator<dim, n_components, Number, VectorizedArrayType>
+        &                                                 op,
+      const MatrixFree<dim, Number, VectorizedArrayType> &matrix_free,
+      const AffineConstraints<Number> &                   constraints,
+      const BlockPreconditioner3CHData &                  data = {})
+      : matrix_free(matrix_free)
+      , operator_0(matrix_free, constraints, op)
+      , block_ch_b(matrix_free, constraints, op)
+      , block_ch_c(matrix_free, constraints, op)
+      , operator_1(matrix_free, constraints, op)
+      , operator_2(matrix_free, constraints, op)
+      , pcout(std::cout, Utilities::MPI::this_mpi_process(MPI_COMM_WORLD) == 1)
+      , timer(pcout, TimerOutput::never, TimerOutput::wall_times)
+      , data(data)
+    {
+      matrix_free.initialize_dof_vector(dst_0, 3 /*TODO*/);
+      matrix_free.initialize_dof_vector(src_0, 3 /*TODO*/);
+
+      matrix_free.initialize_dof_vector(dst_1, 3 /*TODO*/);
+      matrix_free.initialize_dof_vector(src_1, 3 /*TODO*/);
+
+      matrix_free.initialize_dof_vector(dst_2, 2);
+      matrix_free.initialize_dof_vector(src_2, 2);
+
+      preconditioner_0 =
+        Preconditioners::create(operator_0, data.block_0_preconditioner);
+      preconditioner_1 =
+        Preconditioners::create(operator_1, data.block_1_preconditioner);
+      preconditioner_2 =
+        Preconditioners::create(operator_2, data.block_2_preconditioner);
+    }
+
+    ~BlockPreconditioner3CH()
+    {
+      if (timer.get_summary_data(TimerOutput::OutputData::total_wall_time)
+            .size() > 0)
+        timer.print_wall_time_statistics(MPI_COMM_WORLD);
+    }
+
+    void
+    vmult(VectorType &dst, const VectorType &src) const override
+    {
+      {
+        MyScope scope(timer, "vmult::split_up");
+        VectorTools::split_up_fast(src, src_0, src_1, src_2);
+
+#ifdef DEBUG
+        VectorType temp_0, temp_1, temp_2;
+        temp_0.reinit(src_0);
+        temp_1.reinit(src_1);
+        temp_2.reinit(src_2);
+
+        VectorTools::split_up(this->matrix_free, src, temp_0, temp_1, temp_2);
+
+        AssertThrow(VectorTools::check_identity(src_0, temp_0),
+                    ExcInternalError());
+        AssertThrow(VectorTools::check_identity(src_1, temp_1),
+                    ExcInternalError());
+        AssertThrow(VectorTools::check_identity(src_2, temp_2),
+                    ExcInternalError());
+#endif
+      }
+
+      if (data.type == "D")
+        {
+          // Block Jacobi
+          {
+            MyScope scope(timer, "vmult::precon_0");
+
+            if (data.block_0_relative_tolerance == 0.0)
+              {
+                preconditioner_0->vmult(dst_0, src_0);
+              }
+            else
+              {
+                ReductionControl reduction_control(
+                  1000, 1e-20, data.block_0_relative_tolerance);
+
+                SolverGMRES<VectorType> solver(reduction_control);
+                solver.solve(operator_0, dst_0, src_0, *preconditioner_0);
+              }
+          }
+
+          {
+            MyScope scope(timer, "vmult::precon_1");
+
+            if (data.block_1_relative_tolerance == 0.0)
+              {
+                preconditioner_1->vmult(dst_1, src_1);
+              }
+            else
+              {
+                ReductionControl reduction_control(
+                  1000, 1e-20, data.block_1_relative_tolerance);
+
+                SolverGMRES<VectorType> solver(reduction_control);
+                solver.solve(operator_1, dst_1, src_1, *preconditioner_1);
+              }
+          }
+        }
+      else if (data.type == "LD")
+        {
+          // Block Gauss Seidel: L+D
+          VectorType tmp;
+          tmp.reinit(src_0);
+
+          if (data.block_0_relative_tolerance == 0.0)
+            {
+              preconditioner_0->vmult(dst_0, src_0);
+            }
+          else
+            {
+              ReductionControl reduction_control(
+                100, 1e-20, data.block_0_relative_tolerance);
+
+              SolverGMRES<VectorType> solver(reduction_control);
+              solver.solve(operator_0, dst_0, src_0, *preconditioner_0);
+            }
+
+          block_ch_c.vmult(tmp, dst_0);
+          src_1 -= tmp;
+
+          if (data.block_1_relative_tolerance == 0.0)
+            {
+              preconditioner_1->vmult(dst_1, src_1);
+            }
+          else
+            {
+              ReductionControl reduction_control(
+                100, 1e-20, data.block_1_relative_tolerance);
+
+              SolverGMRES<VectorType> solver(reduction_control);
+              solver.solve(operator_1, dst_1, src_1, *preconditioner_1);
+            }
+        }
+      else if (data.type == "RD")
+        {
+          // Block Gauss Seidel: R+D
+          VectorType tmp;
+          tmp.reinit(src_0);
+
+          if (data.block_1_relative_tolerance == 0.0)
+            {
+              preconditioner_1->vmult(dst_1, src_1);
+            }
+          else
+            {
+              ReductionControl reduction_control(
+                100, 1e-20, data.block_1_relative_tolerance);
+
+              SolverGMRES<VectorType> solver(reduction_control);
+              solver.solve(operator_1, dst_1, src_1, *preconditioner_1);
+            }
+
+          block_ch_b.vmult(tmp, dst_1);
+          src_0 -= tmp;
+
+          if (data.block_0_relative_tolerance == 0.0)
+            {
+              preconditioner_0->vmult(dst_0, src_0);
+            }
+          else
+            {
+              ReductionControl reduction_control(
+                100, 1e-20, data.block_0_relative_tolerance);
+
+              SolverGMRES<VectorType> solver(reduction_control);
+              solver.solve(operator_0, dst_0, src_0, *preconditioner_0);
+            }
+        }
+      else if (data.type == "SYMM")
+        {
+          // Block Gauss Seidel: symmetric
+          AssertThrow(false, ExcNotImplemented());
+        }
+      else
+        {
+          AssertThrow(false, ExcNotImplemented());
+        }
+
+      {
+        AssertThrow(data.block_2_relative_tolerance == 0.0,
+                    ExcNotImplemented());
+
+        MyScope scope(timer, "vmult::precon_2");
+        preconditioner_2->vmult(dst_2, src_2);
+      }
+
+      {
+        MyScope scope(timer, "vmult::merge");
+        VectorTools::merge_fast(dst_0, dst_1, dst_2, dst);
+
+#ifdef DEBUG
+        VectorType temp;
+        temp.reinit(dst);
+
+        VectorTools::merge(this->matrix_free, dst_0, dst_1, dst_2, temp);
+
+        AssertThrow(VectorTools::check_identity(dst, temp), ExcInternalError());
+#endif
+      }
+    }
+
+    void
+    do_update() override
+    {
+      preconditioner_0->do_update();
+      preconditioner_1->do_update();
+      preconditioner_2->do_update();
+    }
+
+  private:
+    const MatrixFree<dim, Number, VectorizedArrayType> &matrix_free;
+
+    OperatorCahnHillardA<dim, 1, n_components, Number, VectorizedArrayType>
+      operator_0;
+    OperatorCahnHillardB<dim, 1, n_components, Number, VectorizedArrayType>
+      block_ch_b;
+    OperatorCahnHillardC<dim, 1, n_components, Number, VectorizedArrayType>
+      block_ch_c;
+    OperatorCahnHillardD<dim, 1, n_components, Number, VectorizedArrayType>
+      operator_1;
+
+    OperatorAllenCahn<dim,
+                      n_components - 2,
+                      n_components,
+                      Number,
+                      VectorizedArrayType>
+      operator_2;
+
+    mutable VectorType dst_0, dst_1, dst_2;
+    mutable VectorType src_0, src_1, src_2;
+
+    std::unique_ptr<Preconditioners::PreconditionerBase<Number>>
+      preconditioner_0, preconditioner_1, preconditioner_2;
+
+    ConditionalOStream  pcout;
+    mutable TimerOutput timer;
+
+    BlockPreconditioner3CHData data;
+  };
+
+
+
   struct Parameters
   {
     unsigned int fe_degree   = 1;
@@ -3338,8 +3610,9 @@ namespace Sintering
 
     std::string outer_preconditioner = "BlockPreconditioner2";
 
-    BlockPreconditioner2Data block_preconditioner_2_data;
-    BlockPreconditioner3Data block_preconditioner_3_data;
+    BlockPreconditioner2Data   block_preconditioner_2_data;
+    BlockPreconditioner3Data   block_preconditioner_3_data;
+    BlockPreconditioner3CHData block_preconditioner_3_ch_data;
 
     void
     parse(const std::string file_name)
@@ -3425,6 +3698,10 @@ namespace Sintering
       prm.add_parameter("Block2RelativeTolerance",
                         block_preconditioner_3_data.block_2_relative_tolerance,
                         "Relative tolerance of the third block.");
+      prm.leave_subsection();
+
+      prm.enter_subsection("BlockPreconditioner3CH");
+      // TODO
       prm.leave_subsection();
     }
   };
@@ -3665,6 +3942,16 @@ namespace Sintering
             matrix_free,
             constraint,
             params.block_preconditioner_3_data);
+      else if (params.outer_preconditioner == "BlockPreconditioner3CH")
+        preconditioner =
+          std::make_unique<BlockPreconditioner3CH<dim,
+                                                  number_of_components,
+                                                  Number,
+                                                  VectorizedArrayType>>(
+            nonlinear_operator,
+            matrix_free,
+            constraint,
+            params.block_preconditioner_3_ch_data);
       else
         preconditioner = Preconditioners::create(nonlinear_operator,
                                                  params.outer_preconditioner);
