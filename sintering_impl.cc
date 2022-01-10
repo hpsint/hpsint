@@ -984,7 +984,9 @@ namespace LinearSolvers
 
     ~SolverGMRESWrapper()
     {
-      timer.print_wall_time_statistics(MPI_COMM_WORLD);
+      if (timer.get_summary_data(TimerOutput::OutputData::total_wall_time)
+            .size() > 0)
+        timer.print_wall_time_statistics(MPI_COMM_WORLD);
     }
 
     unsigned int
@@ -1814,7 +1816,9 @@ namespace Sintering
 
     virtual ~OperatorBase()
     {
-      timer.print_wall_time_statistics(MPI_COMM_WORLD);
+      if (timer.get_summary_data(TimerOutput::OutputData::total_wall_time)
+            .size() > 0)
+        timer.print_wall_time_statistics(MPI_COMM_WORLD);
     }
 
     const DoFHandler<dim> &
@@ -2824,7 +2828,9 @@ namespace Sintering
 
     ~InverseDiagonalMatrixAllenCahnHelmholtz()
     {
-      timer.print_wall_time_statistics(MPI_COMM_WORLD);
+      if (timer.get_summary_data(TimerOutput::OutputData::total_wall_time)
+            .size() > 0)
+        timer.print_wall_time_statistics(MPI_COMM_WORLD);
     }
 
     void
@@ -2948,7 +2954,9 @@ namespace Sintering
 
     ~BlockPreconditioner2()
     {
-      timer.print_wall_time_statistics(MPI_COMM_WORLD);
+      if (timer.get_summary_data(TimerOutput::OutputData::total_wall_time)
+            .size() > 0)
+        timer.print_wall_time_statistics(MPI_COMM_WORLD);
     }
 
     void
@@ -3113,7 +3121,9 @@ namespace Sintering
 
     ~BlockPreconditioner3()
     {
-      timer.print_wall_time_statistics(MPI_COMM_WORLD);
+      if (timer.get_summary_data(TimerOutput::OutputData::total_wall_time)
+            .size() > 0)
+        timer.print_wall_time_statistics(MPI_COMM_WORLD);
     }
 
     void
@@ -3817,6 +3827,12 @@ namespace Sintering
 
       pcout << std::endl;
       pcout << "Final statistics:" << std::endl;
+      pcout << "  - n cell:                    " << tria.n_global_active_cells()
+            << std::endl;
+      pcout << "  - n levels:                  " << tria.n_global_levels()
+            << std::endl;
+      pcout << "  - n dofs:                    " << dof_handler.n_dofs()
+            << std::endl;
       pcout << "  - n timesteps:               " << n_timestep << std::endl;
       pcout << "  - n non-linear iterations:   " << n_non_linear_iterations
             << std::endl;
