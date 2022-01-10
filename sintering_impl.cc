@@ -3386,6 +3386,7 @@ namespace Sintering
                                                           3,
                                                           "ch_helmholtz_op")
       , op(op)
+      , dt(0.0)
     {}
 
     double
@@ -3403,7 +3404,40 @@ namespace Sintering
     const VectorType &
     get_epsilon() const
     {
-      AssertThrow(false, ExcNotImplemented());
+      const double new_dt = op.get_dt();
+
+      if (epsilon.size() == 0)
+        {
+          this->initialize_dof_vector(epsilon);
+        }
+
+      if (this->dt != new_dt)
+        {
+          this->dt = new_dt;
+
+          VectorType vec_w_mobility, vec_wo_mobility;
+
+          this->initialize_dof_vector(vec_w_mobility);
+          this->initialize_dof_vector(vec_wo_mobility);
+
+          MatrixFreeTools::compute_diagonal(
+            this->matrix_free,
+            vec_w_mobility,
+            &OperatorCahnHillardHelmholtz::do_vmult_cell_laplace<true>,
+            this,
+            this->dof_index);
+
+          MatrixFreeTools::compute_diagonal(
+            this->matrix_free,
+            vec_wo_mobility,
+            &OperatorCahnHillardHelmholtz::do_vmult_cell_laplace<false>,
+            this,
+            this->dof_index);
+
+          for (unsigned int i = 0; i < epsilon.locally_owned_size(); ++i)
+            epsilon.local_element(i) = vec_w_mobility.local_element(i) /
+                                       vec_wo_mobility.local_element(i);
+        }
 
       return epsilon;
     }
@@ -3443,10 +3477,53 @@ namespace Sintering
         }
     }
 
+    template <bool use_mobility>
+    void
+    do_vmult_cell_laplace(FECellIntegrator &phi) const
+    {
+      phi.evaluate(EvaluationFlags::EvaluationFlags::gradients);
+
+      const unsigned int cell = phi.get_current_cell_index();
+
+      const auto &mobility            = this->op.get_data().mobility;
+      const auto &nonlinear_values    = this->op.get_nonlinear_values();
+      const auto &nonlinear_gradients = this->op.get_nonlinear_gradients();
+
+      const auto sqrt_delta = this->get_sqrt_delta();
+
+      for (unsigned int q = 0; q < phi.n_q_points; ++q)
+        {
+          const auto &c    = nonlinear_values(cell, q)[0];
+          const auto &eta1 = nonlinear_values(cell, q)[2];
+          const auto &eta2 = nonlinear_values(cell, q)[3];
+
+          const auto &c_grad    = nonlinear_gradients(cell, q)[0];
+          const auto &eta1_grad = nonlinear_gradients(cell, q)[2];
+          const auto &eta2_grad = nonlinear_gradients(cell, q)[3];
+
+          const std::array<VectorizedArrayType, 2> etas{{eta1, eta2}};
+          const std::array<Tensor<1, dim, VectorizedArrayType>, 2> etas_grad{
+            {eta1_grad, eta2_grad}};
+
+          const auto gradient = phi.get_gradient(q);
+
+          phi.submit_gradient(sqrt_delta *
+                                (use_mobility ?
+                                   mobility.M(c, etas, c_grad, etas_grad) :
+                                   VectorizedArrayType(1.0)) *
+                                gradient,
+                              q);
+        }
+
+      phi.integrate(EvaluationFlags::EvaluationFlags::gradients);
+    }
+
     const SinteringOperator<dim, n_components_, Number, VectorizedArrayType>
       &op;
 
     mutable VectorType epsilon;
+
+    mutable double dt;
   };
 
 
