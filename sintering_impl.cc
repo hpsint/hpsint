@@ -3436,7 +3436,8 @@ namespace Sintering
 
           for (unsigned int i = 0; i < epsilon.locally_owned_size(); ++i)
             epsilon.local_element(i) = vec_w_mobility.local_element(i) /
-                                       vec_wo_mobility.local_element(i);
+                                       vec_wo_mobility.local_element(i) *
+                                       std::sqrt(dt);
         }
 
       return epsilon;
