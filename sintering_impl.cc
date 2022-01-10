@@ -3457,6 +3457,7 @@ namespace Sintering
       const auto &nonlinear_gradients = this->op.get_nonlinear_gradients();
 
       const auto sqrt_delta = this->get_sqrt_delta();
+      const auto sqrt_dt    = std::sqrt(get_dt());
 
       for (unsigned int q = 0; q < phi.n_q_points; ++q)
         {
@@ -3474,8 +3475,7 @@ namespace Sintering
 
           const auto value    = phi.get_value(q);
           const auto gradient = phi.get_gradient(q);
-          const auto epsilon =
-            std::sqrt(dt) * mobility.M(c, etas, c_grad, etas_grad);
+          const auto epsilon = sqrt_dt * mobility.M(c, etas, c_grad, etas_grad);
 
           phi.submit_value(value, q);
           phi.submit_gradient(sqrt_delta * epsilon * gradient, q);
@@ -3495,6 +3495,7 @@ namespace Sintering
       const auto &nonlinear_gradients = this->op.get_nonlinear_gradients();
 
       const auto sqrt_delta = this->get_sqrt_delta();
+      const auto sqrt_dt    = std::sqrt(get_dt());
 
       for (unsigned int q = 0; q < phi.n_q_points; ++q)
         {
@@ -3512,9 +3513,8 @@ namespace Sintering
 
           const auto gradient = phi.get_gradient(q);
           const auto epsilon =
-            std::sqrt(dt) * (use_mobility ?
-                               mobility.M(c, etas, c_grad, etas_grad) :
-                               VectorizedArrayType(1.0));
+            sqrt_dt * (use_mobility ? mobility.M(c, etas, c_grad, etas_grad) :
+                                      VectorizedArrayType(1.0));
 
           phi.submit_gradient(sqrt_delta * epsilon * gradient, q);
         }
