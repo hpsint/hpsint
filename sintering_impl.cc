@@ -995,7 +995,7 @@ namespace LinearSolvers
     {
       MyScope scope(timer, "gmres::solve");
 
-      unsigned int            max_iter = 100;
+      unsigned int            max_iter = 1000;
       ReductionControl        reduction_control(max_iter);
       SolverGMRES<VectorType> solver(reduction_control);
       solver.solve(op, dst, src, preconditioner);
@@ -2378,13 +2378,14 @@ namespace Sintering
             {eta1_grad, eta2_grad}};
 
           Tensor<1, n_components, VectorizedArrayType> value_result;
+          Tensor<1, n_components, Tensor<1, dim, VectorizedArrayType>>
+            gradient_result;
 
+#if true
+          // CH with all terms
           value_result[0] = phi.get_value(q)[0] / dt;
           value_result[1] = -phi.get_value(q)[1] +
                             free_energy.d2f_dc2(c, etas) * phi.get_value(q)[0];
-
-          Tensor<1, n_components, Tensor<1, dim, VectorizedArrayType>>
-            gradient_result;
 
           gradient_result[0] =
             mobility.M(c, etas, c_grad, etas_grad) * phi.get_gradient(q)[1] +
@@ -2392,6 +2393,15 @@ namespace Sintering
               phi.get_value(q)[0] +
             mobility.dM_dgrad_c(c, c_grad, mu_grad) * phi.get_gradient(q)[0];
           gradient_result[1] = kappa_c * phi.get_gradient(q)[0];
+#else
+          // CH with the terms as considered in BlockPreconditioner3CHData
+          value_result[0] = phi.get_value(q)[0] / dt;
+          value_result[1] = -phi.get_value(q)[1];
+
+          gradient_result[0] =
+            mobility.M(c, etas, c_grad, etas_grad) * phi.get_gradient(q)[1];
+          gradient_result[1] = kappa_c * phi.get_gradient(q)[0];
+#endif
 
           phi.submit_value(value_result, q);
           phi.submit_gradient(gradient_result, q);
@@ -2818,7 +2828,7 @@ namespace Sintering
                                                 VectorizedArrayType>;
     using VectorType = typename Operator::VectorType;
 
-    static const unsigned int n_components = n_components_ - 2;
+    static constexpr unsigned int n_components = n_components_ - 2;
 
     InverseDiagonalMatrixAllenCahnHelmholtz(const Operator &op)
       : op(op)
@@ -3441,6 +3451,26 @@ namespace Sintering
             epsilon.local_element(i) = vec_w_mobility.local_element(i) /
                                        vec_wo_mobility.local_element(i) *
                                        std::sqrt(dt);
+
+          if (true /*TODO*/)
+            {
+              // perfom limiting
+              const auto max_value = [this]() {
+                typename VectorType::value_type temp = 0;
+
+                for (const auto i : epsilon)
+                  temp = std::max(temp, i);
+
+                temp = Utilities::MPI::max(temp, MPI_COMM_WORLD);
+
+                return temp;
+              }();
+
+              for (auto &i : epsilon)
+                i = std::max(i,
+                             max_value /
+                               100); // bound smallest entries by the max value
+            }
         }
 
       return epsilon;
@@ -3457,7 +3487,7 @@ namespace Sintering
       const auto &nonlinear_gradients = this->op.get_nonlinear_gradients();
 
       const auto sqrt_delta = this->get_sqrt_delta();
-      const auto sqrt_dt    = std::sqrt(get_dt());
+      const auto dt         = get_dt();
 
       for (unsigned int q = 0; q < phi.n_q_points; ++q)
         {
@@ -3475,10 +3505,12 @@ namespace Sintering
 
           const auto value    = phi.get_value(q);
           const auto gradient = phi.get_gradient(q);
-          const auto epsilon = sqrt_dt * mobility.M(c, etas, c_grad, etas_grad);
+          const auto epsilon  = dt * mobility.M(c, etas, c_grad, etas_grad);
 
           phi.submit_value(value, q);
-          phi.submit_gradient(sqrt_delta * epsilon * gradient, q);
+          phi.submit_gradient(std::sqrt(std::abs(sqrt_delta * epsilon)) *
+                                gradient,
+                              q);
         }
     }
 
@@ -3495,7 +3527,7 @@ namespace Sintering
       const auto &nonlinear_gradients = this->op.get_nonlinear_gradients();
 
       const auto sqrt_delta = this->get_sqrt_delta();
-      const auto sqrt_dt    = std::sqrt(get_dt());
+      const auto dt         = get_dt();
 
       for (unsigned int q = 0; q < phi.n_q_points; ++q)
         {
@@ -3513,10 +3545,12 @@ namespace Sintering
 
           const auto gradient = phi.get_gradient(q);
           const auto epsilon =
-            sqrt_dt * (use_mobility ? mobility.M(c, etas, c_grad, etas_grad) :
-                                      VectorizedArrayType(1.0));
+            dt * (use_mobility ? mobility.M(c, etas, c_grad, etas_grad) :
+                                 VectorizedArrayType(1.0));
 
-          phi.submit_gradient(sqrt_delta * epsilon * gradient, q);
+          phi.submit_gradient(std::sqrt(std::abs(sqrt_delta * epsilon)) *
+                                gradient,
+                              q);
         }
 
       phi.integrate(EvaluationFlags::EvaluationFlags::gradients);
@@ -3713,7 +3747,8 @@ namespace Sintering
     unsigned int fe_degree   = 1;
     unsigned int n_points_1D = 2;
 
-    std::string outer_preconditioner = "BlockPreconditioner3CH";
+    std::string outer_preconditioner = "BlockPreconditioner2";
+    // std::string outer_preconditioner = "BlockPreconditioner3CH";
 
     BlockPreconditioner2Data   block_preconditioner_2_data;
     BlockPreconditioner3Data   block_preconditioner_3_data;
