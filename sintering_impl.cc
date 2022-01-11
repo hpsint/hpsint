@@ -944,7 +944,8 @@ namespace Preconditioners
     else if (label == "ILU")
       return std::make_unique<ILU<T>>(op);
 
-    AssertThrow(false, ExcNotImplemented());
+    AssertThrow(false,
+                ExcMessage("Preconditioner << " + label + " >> not known!"));
 
     return {};
   }
@@ -994,7 +995,7 @@ namespace LinearSolvers
     {
       MyScope scope(timer, "gmres::solve");
 
-      unsigned int            max_iter = 100;
+      unsigned int            max_iter = 1000;
       ReductionControl        reduction_control(max_iter);
       SolverGMRES<VectorType> solver(reduction_control);
       solver.solve(op, dst, src, preconditioner);
@@ -2377,13 +2378,14 @@ namespace Sintering
             {eta1_grad, eta2_grad}};
 
           Tensor<1, n_components, VectorizedArrayType> value_result;
+          Tensor<1, n_components, Tensor<1, dim, VectorizedArrayType>>
+            gradient_result;
 
+#if true
+          // CH with all terms
           value_result[0] = phi.get_value(q)[0] / dt;
           value_result[1] = -phi.get_value(q)[1] +
                             free_energy.d2f_dc2(c, etas) * phi.get_value(q)[0];
-
-          Tensor<1, n_components, Tensor<1, dim, VectorizedArrayType>>
-            gradient_result;
 
           gradient_result[0] =
             mobility.M(c, etas, c_grad, etas_grad) * phi.get_gradient(q)[1] +
@@ -2391,6 +2393,15 @@ namespace Sintering
               phi.get_value(q)[0] +
             mobility.dM_dgrad_c(c, c_grad, mu_grad) * phi.get_gradient(q)[0];
           gradient_result[1] = kappa_c * phi.get_gradient(q)[0];
+#else
+          // CH with the terms as considered in BlockPreconditioner3CHData
+          value_result[0] = phi.get_value(q)[0] / dt;
+          value_result[1] = -phi.get_value(q)[1];
+
+          gradient_result[0] =
+            mobility.M(c, etas, c_grad, etas_grad) * phi.get_gradient(q)[1];
+          gradient_result[1] = kappa_c * phi.get_gradient(q)[0];
+#endif
 
           phi.submit_value(value_result, q);
           phi.submit_gradient(gradient_result, q);
@@ -2817,7 +2828,7 @@ namespace Sintering
                                                 VectorizedArrayType>;
     using VectorType = typename Operator::VectorType;
 
-    static const unsigned int n_components = n_components_ - 2;
+    static constexpr unsigned int n_components = n_components_ - 2;
 
     InverseDiagonalMatrixAllenCahnHelmholtz(const Operator &op)
       : op(op)
@@ -3330,6 +3341,406 @@ namespace Sintering
   };
 
 
+  template <int dim,
+            int n_components,
+            typename Number,
+            typename VectorizedArrayType>
+  class MassMatrix
+    : public OperatorBase<dim, n_components, Number, VectorizedArrayType>
+  {
+  public:
+    using FECellIntegrator =
+      FEEvaluation<dim, -1, 0, n_components, Number, VectorizedArrayType>;
+
+    MassMatrix(const MatrixFree<dim, Number, VectorizedArrayType> &matrix_free,
+               const AffineConstraints<Number> &                   constraints)
+      : OperatorBase<dim, n_components, Number, VectorizedArrayType>(
+          matrix_free,
+          constraints,
+          3,
+          "mass_matrix_op")
+    {}
+
+  private:
+    void
+    do_vmult_kernel(FECellIntegrator &phi) const final
+    {
+      for (unsigned int q = 0; q < phi.n_q_points; ++q)
+        {
+          phi.submit_value(phi.get_value(q), q);
+          phi.submit_gradient({}, q);
+        }
+    }
+  };
+
+
+
+  template <int dim,
+            int n_components_,
+            typename Number,
+            typename VectorizedArrayType>
+  class OperatorCahnHillardHelmholtz
+    : public OperatorBase<dim, 1, Number, VectorizedArrayType>
+  {
+  public:
+    using FECellIntegrator =
+      FEEvaluation<dim, -1, 0, 1, Number, VectorizedArrayType>;
+
+    using VectorType =
+      typename OperatorBase<dim, 1, Number, VectorizedArrayType>::VectorType;
+
+    OperatorCahnHillardHelmholtz(
+      const MatrixFree<dim, Number, VectorizedArrayType> &matrix_free,
+      const AffineConstraints<Number> &                   constraints,
+      const SinteringOperator<dim, n_components_, Number, VectorizedArrayType>
+        &op)
+      : OperatorBase<dim, 1, Number, VectorizedArrayType>(matrix_free,
+                                                          constraints,
+                                                          3,
+                                                          "ch_helmholtz_op")
+      , op(op)
+      , dt(0.0)
+    {}
+
+    double
+    get_dt() const
+    {
+      return op.get_dt();
+    }
+
+    double
+    get_sqrt_delta() const
+    {
+      return std::sqrt(this->op.get_data().kappa_c);
+    }
+
+    const VectorType &
+    get_epsilon() const
+    {
+      const double new_dt = op.get_dt();
+
+      if (epsilon.size() == 0)
+        {
+          this->initialize_dof_vector(epsilon);
+        }
+
+      if (this->dt != new_dt)
+        {
+          this->dt = new_dt;
+
+          VectorType vec_w_mobility, vec_wo_mobility;
+
+          this->initialize_dof_vector(vec_w_mobility);
+          this->initialize_dof_vector(vec_wo_mobility);
+
+          MatrixFreeTools::compute_diagonal(
+            this->matrix_free,
+            vec_w_mobility,
+            &OperatorCahnHillardHelmholtz::do_vmult_cell_laplace<true>,
+            this,
+            this->dof_index);
+
+          MatrixFreeTools::compute_diagonal(
+            this->matrix_free,
+            vec_wo_mobility,
+            &OperatorCahnHillardHelmholtz::do_vmult_cell_laplace<false>,
+            this,
+            this->dof_index);
+
+          for (unsigned int i = 0; i < epsilon.locally_owned_size(); ++i)
+            epsilon.local_element(i) = vec_w_mobility.local_element(i) /
+                                       vec_wo_mobility.local_element(i) *
+                                       std::sqrt(dt);
+
+          if (true /*TODO*/)
+            {
+              // perfom limiting
+              const auto max_value = [this]() {
+                typename VectorType::value_type temp = 0;
+
+                for (const auto i : epsilon)
+                  temp = std::max(temp, i);
+
+                temp = Utilities::MPI::max(temp, MPI_COMM_WORLD);
+
+                return temp;
+              }();
+
+              for (auto &i : epsilon)
+                i = std::max(i,
+                             max_value /
+                               100); // bound smallest entries by the max value
+            }
+        }
+
+      return epsilon;
+    }
+
+  private:
+    void
+    do_vmult_kernel(FECellIntegrator &phi) const final
+    {
+      const unsigned int cell = phi.get_current_cell_index();
+
+      const auto &mobility            = this->op.get_data().mobility;
+      const auto &nonlinear_values    = this->op.get_nonlinear_values();
+      const auto &nonlinear_gradients = this->op.get_nonlinear_gradients();
+
+      const auto sqrt_delta = this->get_sqrt_delta();
+      const auto dt         = get_dt();
+
+      for (unsigned int q = 0; q < phi.n_q_points; ++q)
+        {
+          const auto &c    = nonlinear_values(cell, q)[0];
+          const auto &eta1 = nonlinear_values(cell, q)[2];
+          const auto &eta2 = nonlinear_values(cell, q)[3];
+
+          const auto &c_grad    = nonlinear_gradients(cell, q)[0];
+          const auto &eta1_grad = nonlinear_gradients(cell, q)[2];
+          const auto &eta2_grad = nonlinear_gradients(cell, q)[3];
+
+          const std::array<VectorizedArrayType, 2> etas{{eta1, eta2}};
+          const std::array<Tensor<1, dim, VectorizedArrayType>, 2> etas_grad{
+            {eta1_grad, eta2_grad}};
+
+          const auto value    = phi.get_value(q);
+          const auto gradient = phi.get_gradient(q);
+          const auto epsilon  = dt * mobility.M(c, etas, c_grad, etas_grad);
+
+          phi.submit_value(value, q);
+          phi.submit_gradient(std::sqrt(std::abs(sqrt_delta * epsilon)) *
+                                gradient,
+                              q);
+        }
+    }
+
+    template <bool use_mobility>
+    void
+    do_vmult_cell_laplace(FECellIntegrator &phi) const
+    {
+      phi.evaluate(EvaluationFlags::EvaluationFlags::gradients);
+
+      const unsigned int cell = phi.get_current_cell_index();
+
+      const auto &mobility            = this->op.get_data().mobility;
+      const auto &nonlinear_values    = this->op.get_nonlinear_values();
+      const auto &nonlinear_gradients = this->op.get_nonlinear_gradients();
+
+      const auto sqrt_delta = this->get_sqrt_delta();
+      const auto dt         = get_dt();
+
+      for (unsigned int q = 0; q < phi.n_q_points; ++q)
+        {
+          const auto &c    = nonlinear_values(cell, q)[0];
+          const auto &eta1 = nonlinear_values(cell, q)[2];
+          const auto &eta2 = nonlinear_values(cell, q)[3];
+
+          const auto &c_grad    = nonlinear_gradients(cell, q)[0];
+          const auto &eta1_grad = nonlinear_gradients(cell, q)[2];
+          const auto &eta2_grad = nonlinear_gradients(cell, q)[3];
+
+          const std::array<VectorizedArrayType, 2> etas{{eta1, eta2}};
+          const std::array<Tensor<1, dim, VectorizedArrayType>, 2> etas_grad{
+            {eta1_grad, eta2_grad}};
+
+          const auto gradient = phi.get_gradient(q);
+          const auto epsilon =
+            dt * (use_mobility ? mobility.M(c, etas, c_grad, etas_grad) :
+                                 VectorizedArrayType(1.0));
+
+          phi.submit_gradient(std::sqrt(std::abs(sqrt_delta * epsilon)) *
+                                gradient,
+                              q);
+        }
+
+      phi.integrate(EvaluationFlags::EvaluationFlags::gradients);
+    }
+
+    const SinteringOperator<dim, n_components_, Number, VectorizedArrayType>
+      &op;
+
+    mutable VectorType epsilon;
+
+    mutable double dt;
+  };
+
+
+
+  struct BlockPreconditioner3CHData
+  {
+    std::string block_0_preconditioner = "AMG";
+    std::string block_2_preconditioner = "InverseDiagonalMatrix";
+  };
+
+
+
+  template <int dim,
+            int n_components,
+            typename Number,
+            typename VectorizedArrayType>
+  class BlockPreconditioner3CH
+    : public Preconditioners::PreconditionerBase<Number>
+  {
+  public:
+    using VectorType =
+      typename Preconditioners::PreconditionerBase<Number>::VectorType;
+
+    using value_type  = Number;
+    using vector_type = VectorType;
+
+    BlockPreconditioner3CH(
+      const SinteringOperator<dim, n_components, Number, VectorizedArrayType>
+        &                                                 op,
+      const MatrixFree<dim, Number, VectorizedArrayType> &matrix_free,
+      const AffineConstraints<Number> &                   constraints,
+      const BlockPreconditioner3CHData &                  data = {})
+      : matrix_free(matrix_free)
+      , operator_0(matrix_free, constraints, op)
+      , mass_matrix(matrix_free, constraints)
+      , operator_2(matrix_free, constraints, op)
+      , pcout(std::cout, Utilities::MPI::this_mpi_process(MPI_COMM_WORLD) == 1)
+      , timer(pcout, TimerOutput::never, TimerOutput::wall_times)
+      , data(data)
+    {
+      matrix_free.initialize_dof_vector(dst_0, 3 /*TODO*/);
+      matrix_free.initialize_dof_vector(src_0, 3 /*TODO*/);
+
+      matrix_free.initialize_dof_vector(dst_1, 3 /*TODO*/);
+      matrix_free.initialize_dof_vector(src_1, 3 /*TODO*/);
+
+      matrix_free.initialize_dof_vector(dst_2, 2);
+      matrix_free.initialize_dof_vector(src_2, 2);
+
+      preconditioner_0 =
+        Preconditioners::create(operator_0, data.block_0_preconditioner);
+      preconditioner_2 =
+        Preconditioners::create(operator_2, data.block_2_preconditioner);
+    }
+
+    ~BlockPreconditioner3CH()
+    {
+      if (timer.get_summary_data(TimerOutput::OutputData::total_wall_time)
+            .size() > 0)
+        timer.print_wall_time_statistics(MPI_COMM_WORLD);
+    }
+
+    void
+    vmult(VectorType &dst, const VectorType &src) const override
+    {
+      {
+        MyScope scope(timer, "vmult::split_up");
+        VectorTools::split_up_fast(src, src_0, src_1, src_2);
+
+#ifdef DEBUG
+        VectorType temp_0, temp_1, temp_2;
+        temp_0.reinit(src_0);
+        temp_1.reinit(src_1);
+        temp_2.reinit(src_2);
+
+        VectorTools::split_up(this->matrix_free, src, temp_0, temp_1, temp_2);
+
+        AssertThrow(VectorTools::check_identity(src_0, temp_0),
+                    ExcInternalError());
+        AssertThrow(VectorTools::check_identity(src_1, temp_1),
+                    ExcInternalError());
+        AssertThrow(VectorTools::check_identity(src_2, temp_2),
+                    ExcInternalError());
+#endif
+      }
+
+      {
+        VectorType b_0, b_1, g; // TODO: reduce number of temporal vectors
+        b_0.reinit(src_0);      //
+        b_1.reinit(src_0);      //
+        g.reinit(src_0);        //
+
+        const auto &epsilon    = operator_0.get_epsilon();
+        const auto  sqrt_delta = operator_0.get_sqrt_delta();
+        const auto  dt         = operator_0.get_dt();
+
+        // b_0
+        for (unsigned int i = 0; i < src_0.locally_owned_size(); ++i)
+          b_0.local_element(i) = sqrt_delta / epsilon.local_element(i) *
+                                   (dt * src_0.local_element(i)) +
+                                 src_1.local_element(i);
+
+        // g
+        preconditioner_0->vmult(g, b_0);
+
+        // b_1
+        mass_matrix.vmult(b_1, g);
+        for (unsigned int i = 0; i < src_0.locally_owned_size(); ++i)
+          b_1.local_element(i) -= sqrt_delta / epsilon.local_element(i) *
+                                  (dt * src_0.local_element(i));
+
+        // x_0 tilde
+        preconditioner_0->vmult(dst_1, b_1);
+
+        // x_0 and x_1
+        for (unsigned int i = 0; i < src_0.locally_owned_size(); ++i)
+          {
+            dst_0.local_element(i) =
+              epsilon.local_element(i) / sqrt_delta *
+              (g.local_element(i) - dst_1.local_element(i));
+            dst_1.local_element(i) *= -1.0;
+          }
+      }
+
+      {
+        MyScope scope(timer, "vmult::precon_2");
+        preconditioner_2->vmult(dst_2, src_2);
+      }
+
+      {
+        MyScope scope(timer, "vmult::merge");
+        VectorTools::merge_fast(dst_0, dst_1, dst_2, dst);
+
+#ifdef DEBUG
+        VectorType temp;
+        temp.reinit(dst);
+
+        VectorTools::merge(this->matrix_free, dst_0, dst_1, dst_2, temp);
+
+        AssertThrow(VectorTools::check_identity(dst, temp), ExcInternalError());
+#endif
+      }
+    }
+
+    void
+    do_update() override
+    {
+      preconditioner_0->do_update();
+      preconditioner_2->do_update();
+    }
+
+  private:
+    const MatrixFree<dim, Number, VectorizedArrayType> &matrix_free;
+
+    OperatorCahnHillardHelmholtz<dim, n_components, Number, VectorizedArrayType>
+      operator_0;
+
+    MassMatrix<dim, 1, Number, VectorizedArrayType> mass_matrix;
+
+    OperatorAllenCahn<dim,
+                      n_components - 2,
+                      n_components,
+                      Number,
+                      VectorizedArrayType>
+      operator_2;
+
+    mutable VectorType dst_0, dst_1, dst_2;
+    mutable VectorType src_0, src_1, src_2;
+
+    std::unique_ptr<Preconditioners::PreconditionerBase<Number>>
+      preconditioner_0, preconditioner_2;
+
+    ConditionalOStream  pcout;
+    mutable TimerOutput timer;
+
+    BlockPreconditioner3CHData data;
+  };
+
+
 
   struct Parameters
   {
@@ -3337,9 +3748,11 @@ namespace Sintering
     unsigned int n_points_1D = 2;
 
     std::string outer_preconditioner = "BlockPreconditioner2";
+    // std::string outer_preconditioner = "BlockPreconditioner3CH";
 
-    BlockPreconditioner2Data block_preconditioner_2_data;
-    BlockPreconditioner3Data block_preconditioner_3_data;
+    BlockPreconditioner2Data   block_preconditioner_2_data;
+    BlockPreconditioner3Data   block_preconditioner_3_data;
+    BlockPreconditioner3CHData block_preconditioner_3_ch_data;
 
     void
     parse(const std::string file_name)
@@ -3381,12 +3794,13 @@ namespace Sintering
       prm.add_parameter("NPoints1D",
                         n_points_1D,
                         "Number of quadrature points.");
-      prm.add_parameter("OuterPreconditioner",
-                        outer_preconditioner,
-                        "Preconditioner to be used for the outer system.",
-                        Patterns::Selection(
-                          preconditioner_types +
-                          "|BlockPreconditioner2|BlockPreconditioner3"));
+      prm.add_parameter(
+        "OuterPreconditioner",
+        outer_preconditioner,
+        "Preconditioner to be used for the outer system.",
+        Patterns::Selection(
+          preconditioner_types +
+          "|BlockPreconditioner2|BlockPreconditioner3|BlockPreconditioner3CH"));
 
       prm.enter_subsection("BlockPreconditioner2");
       prm.add_parameter("Block0Preconditioner",
@@ -3425,6 +3839,17 @@ namespace Sintering
       prm.add_parameter("Block2RelativeTolerance",
                         block_preconditioner_3_data.block_2_relative_tolerance,
                         "Relative tolerance of the third block.");
+      prm.leave_subsection();
+
+      prm.enter_subsection("BlockPreconditioner3CH");
+      prm.add_parameter("Block0Preconditioner",
+                        block_preconditioner_3_ch_data.block_0_preconditioner,
+                        "Preconditioner to be used for the first block.",
+                        Patterns::Selection(preconditioner_types));
+      prm.add_parameter("Block2Preconditioner",
+                        block_preconditioner_3_ch_data.block_2_preconditioner,
+                        "Preconditioner to be used for the second block.",
+                        Patterns::Selection(preconditioner_types));
       prm.leave_subsection();
     }
   };
@@ -3665,6 +4090,16 @@ namespace Sintering
             matrix_free,
             constraint,
             params.block_preconditioner_3_data);
+      else if (params.outer_preconditioner == "BlockPreconditioner3CH")
+        preconditioner =
+          std::make_unique<BlockPreconditioner3CH<dim,
+                                                  number_of_components,
+                                                  Number,
+                                                  VectorizedArrayType>>(
+            nonlinear_operator,
+            matrix_free,
+            constraint,
+            params.block_preconditioner_3_ch_data);
       else
         preconditioner = Preconditioners::create(nonlinear_operator,
                                                  params.outer_preconditioner);
