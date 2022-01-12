@@ -3799,6 +3799,10 @@ namespace Sintering
 
         if (false)
           {
+            precon_inner->vmult(dst_block, src_block);
+          }
+        else if (true)
+          {
             using RelaxationType = PreconditionRelaxation<
               BlockPreconditioner3CHOperator<dim,
                                              n_components,
@@ -3812,7 +3816,8 @@ namespace Sintering
             typename RelaxationType::AdditionalData ad;
 
             ad.preconditioner = precon_inner;
-            ad.n_iterations   = 3;
+            ad.n_iterations   = 1;
+            ad.relaxation     = 1.0;
 
             RelaxationType precon;
             precon.initialize(op_ch, ad);
@@ -4380,8 +4385,8 @@ namespace Sintering
                           desirable_linear_iterations)
                       {
                         dt *= dt_increment;
-                        pcout << "Increasing timestep, dt = " << dt
-                              << std::endl;
+                        pcout << "\033[32mIncreasing timestep, dt = " << dt
+                              << "\033[0m" << std::endl;
 
                         if (dt > dt_max)
                           {
@@ -4400,8 +4405,21 @@ namespace Sintering
             catch (const NonLinearSolvers::ExcNewtonDidNotConverge &)
               {
                 dt *= 0.5;
-                pcout << "Solver diverged, reducing timestep, dt = " << dt
-                      << std::endl;
+                pcout << "\033[31mSolver diverged, reducing timestep, dt = "
+                      << dt << "\033[0m" << std::endl;
+
+                solution = nonlinear_operator.get_previous_solution();
+
+                AssertThrow(
+                  dt > dt_min,
+                  ExcMessage(
+                    "Minimum timestep size exceeded, solution failed!"));
+              }
+            catch (const SolverControl::NoConvergence &)
+              {
+                dt *= 0.5;
+                pcout << "\033[33mSolver diverged, reducing timestep, dt = "
+                      << dt << "\033[0m" << std::endl;
 
                 solution = nonlinear_operator.get_previous_solution();
 
