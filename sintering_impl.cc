@@ -3579,6 +3579,55 @@ namespace Sintering
             int n_components,
             typename Number,
             typename VectorizedArrayType>
+  class BlockPreconditioner3CHOperator
+  {
+  public:
+    using VectorType = LinearAlgebra::distributed::Vector<Number>;
+
+    BlockPreconditioner3CHOperator(
+      const MatrixFree<dim, Number, VectorizedArrayType> &matrix_free,
+      const AffineConstraints<Number> &                   constraints,
+      const SinteringOperator<dim, n_components, Number, VectorizedArrayType>
+        &op)
+      : operator_a(matrix_free, constraints, op)
+      , operator_b(matrix_free, constraints, op)
+      , operator_c(matrix_free, constraints, op)
+      , operator_d(matrix_free, constraints, op)
+    {}
+
+    void
+    vmult(LinearAlgebra::distributed::BlockVector<Number> &      dst,
+          const LinearAlgebra::distributed::BlockVector<Number> &src) const
+    {
+      VectorType temp;
+      temp.reinit(src.block(0));
+
+      operator_a.vmult(dst.block(0), src.block(0));
+      operator_b.vmult(temp, src.block(1));
+      dst.block(0).add(1.0, temp);
+
+      operator_c.vmult(dst.block(1), src.block(0));
+      operator_d.vmult(temp, src.block(1));
+      dst.block(1).add(1.0, temp);
+    }
+
+  private:
+    OperatorCahnHillardA<dim, 1, n_components, Number, VectorizedArrayType>
+      operator_a;
+    OperatorCahnHillardB<dim, 1, n_components, Number, VectorizedArrayType>
+      operator_b;
+    OperatorCahnHillardC<dim, 1, n_components, Number, VectorizedArrayType>
+      operator_c;
+    OperatorCahnHillardD<dim, 1, n_components, Number, VectorizedArrayType>
+      operator_d;
+  };
+
+
+
+  template <int dim,
+            int n_components,
+            typename Number,
+            typename VectorizedArrayType>
   class BlockPreconditioner3CHPreconditioner
   {
   public:
@@ -3680,6 +3729,7 @@ namespace Sintering
       , operator_0(matrix_free, constraints, op)
       , mass_matrix(matrix_free, constraints)
       , operator_2(matrix_free, constraints, op)
+      , op_ch(matrix_free, constraints, op)
       , pcout(std::cout, Utilities::MPI::this_mpi_process(MPI_COMM_WORLD) == 1)
       , timer(pcout, TimerOutput::never, TimerOutput::wall_times)
       , data(data)
@@ -3746,7 +3796,13 @@ namespace Sintering
                                                    VectorizedArrayType>
           precon(operator_0, mass_matrix, preconditioner_0);
 
-        precon.vmult(dst_block, src_block);
+        // precon.vmult(dst_block, src_block);
+
+        ReductionControl reduction_control(100, 1e-20, 1e-6);
+
+        SolverGMRES<LinearAlgebra::distributed::BlockVector<Number>> solver(
+          reduction_control);
+        solver.solve(op_ch, dst_block, src_block, precon);
 
         dst_0 = dst_block.block(0);
         dst_1 = dst_block.block(1);
@@ -3793,6 +3849,13 @@ namespace Sintering
                       Number,
                       VectorizedArrayType>
       operator_2;
+
+
+    const BlockPreconditioner3CHOperator<dim,
+                                         n_components,
+                                         Number,
+                                         VectorizedArrayType>
+      op_ch;
 
     mutable VectorType dst_0, dst_1, dst_2;
     mutable VectorType src_0, src_1, src_2;
