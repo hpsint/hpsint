@@ -3579,7 +3579,7 @@ namespace Sintering
             int n_components,
             typename Number,
             typename VectorizedArrayType>
-  class BlockPreconditioner3CHOperator
+  class BlockPreconditioner3CHOperator : public Subscriptor
   {
   public:
     using VectorType = LinearAlgebra::distributed::Vector<Number>;
@@ -3790,19 +3790,49 @@ namespace Sintering
         dst_block.block(0).reinit(dst_0);
         dst_block.block(1).reinit(dst_1);
 
-        const BlockPreconditioner3CHPreconditioner<dim,
+        auto precon_inner = std::make_shared<
+          BlockPreconditioner3CHPreconditioner<dim,
+                                               n_components,
+                                               Number,
+                                               VectorizedArrayType>>(
+          operator_0, mass_matrix, preconditioner_0);
+
+        if (false)
+          {
+            using RelaxationType = PreconditionRelaxation<
+              BlockPreconditioner3CHOperator<dim,
+                                             n_components,
+                                             Number,
+                                             VectorizedArrayType>,
+              BlockPreconditioner3CHPreconditioner<dim,
                                                    n_components,
                                                    Number,
-                                                   VectorizedArrayType>
-          precon(operator_0, mass_matrix, preconditioner_0);
+                                                   VectorizedArrayType>>;
 
-        // precon.vmult(dst_block, src_block);
+            typename RelaxationType::AdditionalData ad;
 
-        ReductionControl reduction_control(100, 1e-20, 1e-6);
+            ad.preconditioner = precon_inner;
+            ad.n_iterations   = 3;
 
-        SolverGMRES<LinearAlgebra::distributed::BlockVector<Number>> solver(
-          reduction_control);
-        solver.solve(op_ch, dst_block, src_block, precon);
+            RelaxationType precon;
+            precon.initialize(op_ch, ad);
+            precon.vmult(dst_block, src_block);
+          }
+        else
+          {
+            try
+              {
+                ReductionControl reduction_control(10, 1e-20, 1e-4);
+
+                SolverGMRES<LinearAlgebra::distributed::BlockVector<Number>>
+                  solver(reduction_control);
+                solver.solve(op_ch, dst_block, src_block, *precon_inner);
+              }
+            catch (const SolverControl::NoConvergence &)
+              {
+                // TODO
+              }
+          }
 
         dst_0 = dst_block.block(0);
         dst_1 = dst_block.block(1);
@@ -4005,7 +4035,7 @@ namespace Sintering
     static constexpr double boundary_factor = 1.0;
 
     // mesh
-    static constexpr unsigned int elements_per_interface = 4;
+    static constexpr unsigned int elements_per_interface = 8;
 
     // time discretization
     static constexpr double t_end                = 100;
