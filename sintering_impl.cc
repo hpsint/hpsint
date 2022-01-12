@@ -3003,10 +3003,17 @@ namespace Sintering
         {
           MyScope scope(timer, "precon::vmult::precon_0");
 
-          ReductionControl reduction_control(100, 1e-20, 1e-8);
+          try
+            {
+              ReductionControl reduction_control(100, 1e-20, 1e-8);
 
-          SolverGMRES<VectorType> solver(reduction_control);
-          solver.solve(operator_0, dst_0, src_0, *preconditioner_0);
+              SolverGMRES<VectorType> solver(reduction_control);
+              solver.solve(operator_0, dst_0, src_0, *preconditioner_0);
+            }
+          catch (const SolverControl::NoConvergence &)
+            {
+              // TODO
+            }
         }
 
       {
@@ -3911,8 +3918,8 @@ namespace Sintering
     unsigned int fe_degree   = 1;
     unsigned int n_points_1D = 2;
 
-    // std::string outer_preconditioner = "BlockPreconditioner2";
-    std::string outer_preconditioner = "BlockPreconditioner3CH";
+    std::string outer_preconditioner = "BlockPreconditioner2";
+    // std::string outer_preconditioner = "BlockPreconditioner3CH";
 
     BlockPreconditioner2Data   block_preconditioner_2_data;
     BlockPreconditioner3Data   block_preconditioner_3_data;
