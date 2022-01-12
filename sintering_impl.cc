@@ -35,6 +35,7 @@
 #include <deal.II/grid/grid_generator.h>
 
 #include <deal.II/lac/diagonal_matrix.h>
+#include <deal.II/lac/la_parallel_block_vector.h>
 #include <deal.II/lac/precondition.h>
 #include <deal.II/lac/solver_cg.h>
 #include <deal.II/lac/solver_control.h>
@@ -3578,6 +3579,87 @@ namespace Sintering
             int n_components,
             typename Number,
             typename VectorizedArrayType>
+  class BlockPreconditioner3CHPreconditioner
+  {
+  public:
+    using VectorType = LinearAlgebra::distributed::Vector<Number>;
+
+
+    BlockPreconditioner3CHPreconditioner(
+      const OperatorCahnHillardHelmholtz<dim,
+                                         n_components,
+                                         Number,
+                                         VectorizedArrayType> &operator_0,
+      const MassMatrix<dim, 1, Number, VectorizedArrayType> &  mass_matrix,
+      const std::unique_ptr<Preconditioners::PreconditionerBase<Number>>
+        &preconditioner_0)
+      : operator_0(operator_0)
+      , mass_matrix(mass_matrix)
+      , preconditioner_0(preconditioner_0)
+    {}
+
+    void
+    vmult(LinearAlgebra::distributed::BlockVector<Number> &      dst,
+          const LinearAlgebra::distributed::BlockVector<Number> &src) const
+    {
+      const auto &src_0 = src.block(0);
+      const auto &src_1 = src.block(1);
+      auto &      dst_0 = dst.block(0);
+      auto &      dst_1 = dst.block(1);
+
+      VectorType b_0, b_1, g; // TODO: reduce number of temporal vectors
+      b_0.reinit(src_0);      //
+      b_1.reinit(src_0);      //
+      g.reinit(src_0);        //
+
+      const auto &epsilon    = operator_0.get_epsilon();
+      const auto  sqrt_delta = operator_0.get_sqrt_delta();
+      const auto  dt         = operator_0.get_dt();
+
+      // b_0
+      for (unsigned int i = 0; i < src_0.locally_owned_size(); ++i)
+        b_0.local_element(i) = sqrt_delta / epsilon.local_element(i) *
+                                 (dt * src_0.local_element(i)) +
+                               src_1.local_element(i);
+
+      // g
+      preconditioner_0->vmult(g, b_0);
+
+      // b_1
+      mass_matrix.vmult(b_1, g);
+      for (unsigned int i = 0; i < src_0.locally_owned_size(); ++i)
+        b_1.local_element(i) -=
+          sqrt_delta / epsilon.local_element(i) * (dt * src_0.local_element(i));
+
+      // x_0 tilde
+      preconditioner_0->vmult(dst_1, b_1);
+
+      // x_0 and x_1
+      for (unsigned int i = 0; i < src_0.locally_owned_size(); ++i)
+        {
+          dst_0.local_element(i) =
+            epsilon.local_element(i) / sqrt_delta *
+            (g.local_element(i) - dst_1.local_element(i));
+          dst_1.local_element(i) *= -1.0;
+        }
+    }
+
+  private:
+    const OperatorCahnHillardHelmholtz<dim,
+                                       n_components,
+                                       Number,
+                                       VectorizedArrayType> &operator_0;
+
+    const MassMatrix<dim, 1, Number, VectorizedArrayType> &mass_matrix;
+
+    const std::unique_ptr<Preconditioners::PreconditionerBase<Number>>
+      &preconditioner_0;
+  };
+
+  template <int dim,
+            int n_components,
+            typename Number,
+            typename VectorizedArrayType>
   class BlockPreconditioner3CH
     : public Preconditioners::PreconditionerBase<Number>
   {
@@ -3649,41 +3731,25 @@ namespace Sintering
       }
 
       {
-        VectorType b_0, b_1, g; // TODO: reduce number of temporal vectors
-        b_0.reinit(src_0);      //
-        b_1.reinit(src_0);      //
-        g.reinit(src_0);        //
+        LinearAlgebra::distributed::BlockVector<Number> src_block(2);
+        LinearAlgebra::distributed::BlockVector<Number> dst_block(2);
 
-        const auto &epsilon    = operator_0.get_epsilon();
-        const auto  sqrt_delta = operator_0.get_sqrt_delta();
-        const auto  dt         = operator_0.get_dt();
+        src_block.block(0) = src_0;
+        src_block.block(1) = src_1;
 
-        // b_0
-        for (unsigned int i = 0; i < src_0.locally_owned_size(); ++i)
-          b_0.local_element(i) = sqrt_delta / epsilon.local_element(i) *
-                                   (dt * src_0.local_element(i)) +
-                                 src_1.local_element(i);
+        dst_block.block(0).reinit(dst_0);
+        dst_block.block(1).reinit(dst_1);
 
-        // g
-        preconditioner_0->vmult(g, b_0);
+        const BlockPreconditioner3CHPreconditioner<dim,
+                                                   n_components,
+                                                   Number,
+                                                   VectorizedArrayType>
+          precon(operator_0, mass_matrix, preconditioner_0);
 
-        // b_1
-        mass_matrix.vmult(b_1, g);
-        for (unsigned int i = 0; i < src_0.locally_owned_size(); ++i)
-          b_1.local_element(i) -= sqrt_delta / epsilon.local_element(i) *
-                                  (dt * src_0.local_element(i));
+        precon.vmult(dst_block, src_block);
 
-        // x_0 tilde
-        preconditioner_0->vmult(dst_1, b_1);
-
-        // x_0 and x_1
-        for (unsigned int i = 0; i < src_0.locally_owned_size(); ++i)
-          {
-            dst_0.local_element(i) =
-              epsilon.local_element(i) / sqrt_delta *
-              (g.local_element(i) - dst_1.local_element(i));
-            dst_1.local_element(i) *= -1.0;
-          }
+        dst_0 = dst_block.block(0);
+        dst_1 = dst_block.block(1);
       }
 
       {
@@ -3747,8 +3813,8 @@ namespace Sintering
     unsigned int fe_degree   = 1;
     unsigned int n_points_1D = 2;
 
-    std::string outer_preconditioner = "BlockPreconditioner2";
-    // std::string outer_preconditioner = "BlockPreconditioner3CH";
+    // std::string outer_preconditioner = "BlockPreconditioner2";
+    std::string outer_preconditioner = "BlockPreconditioner3CH";
 
     BlockPreconditioner2Data   block_preconditioner_2_data;
     BlockPreconditioner3Data   block_preconditioner_3_data;
