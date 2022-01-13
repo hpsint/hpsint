@@ -16,6 +16,7 @@
 // Sintering of 2 particles
 
 #define WITH_TIMING
+#define WITH_TRACKER
 
 #include <deal.II/base/conditional_ostream.h>
 #include <deal.II/base/mpi.h>
@@ -1972,6 +1973,137 @@ namespace Sintering
 
 
 
+  template <typename Number, typename VectorizedArrayType>
+  class ConstantsTracker
+  {
+  public:
+    ConstantsTracker()
+    {}
+
+    void
+    initialize(const unsigned int n_filled_lanes)
+    {
+      this->n_filled_lanes = n_filled_lanes;
+      this->temp_min.clear();
+      this->temp_max.clear();
+    }
+
+    void
+    emplace_back(const Number &value)
+    {
+      temp_min.emplace_back(value);
+      temp_max.emplace_back(value);
+    }
+
+    void
+    emplace_back(const VectorizedArrayType &value)
+    {
+      const auto [min_value, max_value] = get_min_max(value);
+      temp_min.emplace_back(min_value);
+      temp_max.emplace_back(max_value);
+    }
+
+    template <int dim>
+    void
+    emplace_back(const Tensor<1, dim, VectorizedArrayType> &value)
+    {
+      for (unsigned int d = 0; d < dim; ++d)
+        for (unsigned int i = 0; i < n_filled_lanes; ++i)
+          {
+            const auto [min_value, max_value] = get_min_max(value[d][i]);
+            temp_min.emplace_back(min_value);
+            temp_max.emplace_back(max_value);
+          }
+    }
+
+    template <int dim>
+    void
+    emplace_back(const Tensor<2, dim, VectorizedArrayType> &value)
+    {
+      for (unsigned int d0 = 0; d0 < dim; ++d0)
+        for (unsigned int d1 = 0; d1 < dim; ++d1)
+          for (unsigned int i = 0; i < n_filled_lanes; ++i)
+            {
+              const auto [min_value, max_value] = get_min_max(value[d0][d1][i]);
+              temp_min.emplace_back(min_value);
+              temp_max.emplace_back(max_value);
+            }
+    }
+
+    void
+    finalize()
+    {
+      std::vector<Number> global_min(temp_min.size());
+      Utilities::MPI::min(temp_min, MPI_COMM_WORLD, global_min);
+      all_values_min.emplace_back(global_min);
+
+      std::vector<Number> global_max(temp_max.size());
+      Utilities::MPI::max(temp_max, MPI_COMM_WORLD, global_max);
+      all_values_max.emplace_back(global_max);
+    }
+
+    void
+    print()
+    {
+      if (Utilities::MPI::this_mpi_process(MPI_COMM_WORLD) == 0)
+        {
+          const auto internal_print = [](const auto &all_values,
+                                         const auto &label) {
+            std::ofstream pcout;
+            pcout.open(label);
+
+            for (unsigned int i = 0; i < all_values.size(); ++i)
+              {
+                for (unsigned int j = 0; j < all_values[i].size(); ++j)
+                  {
+                    pcout << all_values[i][j] << " ";
+                  }
+                pcout << std::endl;
+              }
+            pcout.close();
+          };
+
+          internal_print(all_values_min, "constants_min.txt");
+          internal_print(all_values_max, "constants_max.txt");
+        }
+    }
+
+  private:
+    std::pair<Number, Number>
+    get_min_max(const VectorizedArrayType &value) const
+    {
+      Number min_val = 0;
+      Number max_val = 0;
+
+      for (unsigned int i = 0; i < n_filled_lanes; ++i)
+        {
+          const auto val = value[i];
+
+          if (i == 0)
+            {
+              min_val = val;
+              max_val = val;
+            }
+          else
+            {
+              min_val = std::min(val, min_val);
+              max_val = std::max(val, max_val);
+            }
+        }
+
+      return {min_val, max_val};
+    }
+
+    unsigned int        n_filled_lanes;
+    std::vector<Number> temp_min;
+    std::vector<Number> temp_max;
+
+    std::vector<std::vector<Number>> all_values_min;
+    std::vector<std::vector<Number>> all_values_max;
+  };
+
+
+
   template <int dim, typename VectorizedArrayType>
   struct SinteringOperatorData
   {
@@ -2034,6 +2166,13 @@ namespace Sintering
       , data(data)
       , phi_lin(this->matrix_free, this->dof_index)
     {}
+
+    ~SinteringOperator()
+    {
+#ifdef WITH_TRACKER
+      tracker.print();
+#endif
+    }
 
     void
     evaluate_nonlinear_residual(VectorType &dst, const VectorType &src) const
@@ -2165,6 +2304,9 @@ namespace Sintering
 
           Tensor<1, n_components, VectorizedArrayType> value_result;
 
+          Tensor<1, n_components, Tensor<1, dim, VectorizedArrayType>>
+            gradient_result;
+
           value_result[0] = phi.get_value(q)[0] * dt_inv;
           value_result[1] =
             -phi.get_value(q)[1] +
@@ -2182,9 +2324,6 @@ namespace Sintering
             L * free_energy.d2f_detaidetaj(c, etas, 1, 0) *
               phi.get_value(q)[2] +
             L * free_energy.d2f_detai2(c, etas, 1) * phi.get_value(q)[3];
-
-          Tensor<1, n_components, Tensor<1, dim, VectorizedArrayType>>
-            gradient_result;
 
           gradient_result[0] =
             mobility.M(c, etas, c_grad, etas_grad) * phi.get_gradient(q)[1] +
@@ -2290,6 +2429,15 @@ namespace Sintering
       const VectorType &                           src,
       const std::pair<unsigned int, unsigned int> &range)
     {
+#ifdef WITH_TRACKER
+      const auto &free_energy = this->data.free_energy;
+      const auto &L           = this->data.L;
+      const auto &mobility    = this->data.mobility;
+      const auto &kappa_c     = this->data.kappa_c;
+      const auto &kappa_p     = this->data.kappa_p;
+      const auto  dt_inv      = 1.0 / dt;
+#endif
+
       FECellIntegrator phi(matrix_free);
 
       for (auto cell = range.first; cell < range.second; ++cell)
@@ -2302,6 +2450,54 @@ namespace Sintering
             {
               nonlinear_values(cell, q)    = phi.get_value(q);
               nonlinear_gradients(cell, q) = phi.get_gradient(q);
+
+#ifdef WITH_TRACKER
+              const auto &c    = nonlinear_values(cell, q)[0];
+              const auto &eta1 = nonlinear_values(cell, q)[2];
+              const auto &eta2 = nonlinear_values(cell, q)[3];
+
+              const auto &c_grad    = nonlinear_gradients(cell, q)[0];
+              const auto &mu_grad   = nonlinear_gradients(cell, q)[1];
+              const auto &eta1_grad = nonlinear_gradients(cell, q)[2];
+              const auto &eta2_grad = nonlinear_gradients(cell, q)[3];
+
+              const std::array<VectorizedArrayType, 2> etas{{ eta1, eta2 }};
+              const std::array<Tensor<1, dim, VectorizedArrayType>, 2>
+                etas_grad{
+                  { eta1_grad,
+                    eta2_grad }};
+
+              tracker.initialize(
+                matrix_free.n_active_entries_per_cell_batch(cell));
+
+              tracker.emplace_back(dt_inv);
+              tracker.emplace_back(free_energy.d2f_dc2(c, etas));
+              tracker.emplace_back(free_energy.d2f_dcdetai(c, etas, 0));
+              tracker.emplace_back(free_energy.d2f_dcdetai(c, etas, 1));
+
+              tracker.emplace_back(L * free_energy.d2f_dcdetai(c, etas, 0));
+              tracker.emplace_back(L * free_energy.d2f_detai2(c, etas, 0));
+              tracker.emplace_back(L *
+                                   free_energy.d2f_detaidetaj(c, etas, 0, 1));
+
+              tracker.emplace_back(L * free_energy.d2f_dcdetai(c, etas, 1));
+              tracker.emplace_back(L *
+                                   free_energy.d2f_detaidetaj(c, etas, 1, 0));
+              tracker.emplace_back(L * free_energy.d2f_detai2(c, etas, 1));
+
+              tracker.emplace_back(mobility.M(c, etas, c_grad, etas_grad));
+              tracker.emplace_back(mobility.dM_dc(c, etas, c_grad, etas_grad) *
+                                   mu_grad);
+              tracker.emplace_back(mobility.dM_dgrad_c(c, c_grad, mu_grad));
+              tracker.emplace_back(
+                mobility.dM_detai(c, etas, c_grad, etas_grad, 0) * mu_grad);
+              tracker.emplace_back(
+                mobility.dM_detai(c, etas, c_grad, etas_grad, 1) * mu_grad);
+              tracker.emplace_back(kappa_c);
+              tracker.emplace_back(L * kappa_p);
+
+              tracker.finalize();
+#endif
             }
         }
     }
@@ -2321,6 +2517,8 @@ namespace Sintering
                          n_components,
                          dealii::Tensor<1, dim, VectorizedArrayType>>>
       nonlinear_gradients;
+
+    ConstantsTracker<Number, VectorizedArrayType> tracker;
   };
 
 
@@ -4047,7 +4245,7 @@ namespace Sintering
     static constexpr double boundary_factor = 1.0;
 
     // mesh
-    static constexpr unsigned int elements_per_interface = 8;
+    static constexpr unsigned int elements_per_interface = 4;
 
     // time discretization
     static constexpr double t_end                = 100;
