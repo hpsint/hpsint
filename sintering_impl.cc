@@ -1978,6 +1978,8 @@ namespace Sintering
   {
   public:
     ConstantsTracker()
+      : n_th(10000)
+      , max_level(0)
     {}
 
     void
@@ -1989,15 +1991,21 @@ namespace Sintering
     }
 
     void
-    emplace_back(const Number &value)
+    emplace_back(const unsigned int level, const Number &value)
     {
+      if (level > max_level)
+        return;
+
       temp_min.emplace_back(value);
       temp_max.emplace_back(value);
     }
 
     void
-    emplace_back(const VectorizedArrayType &value)
+    emplace_back(const unsigned int level, const VectorizedArrayType &value)
     {
+      if (level > max_level)
+        return;
+
       const auto [min_value, max_value] = get_min_max(value);
       temp_min.emplace_back(min_value);
       temp_max.emplace_back(max_value);
@@ -2005,8 +2013,12 @@ namespace Sintering
 
     template <int dim>
     void
-    emplace_back(const Tensor<1, dim, VectorizedArrayType> &value)
+    emplace_back(const unsigned int                         level,
+                 const Tensor<1, dim, VectorizedArrayType> &value)
     {
+      if (level > max_level)
+        return;
+
       for (unsigned int d = 0; d < dim; ++d)
         for (unsigned int i = 0; i < n_filled_lanes; ++i)
           {
@@ -2018,8 +2030,12 @@ namespace Sintering
 
     template <int dim>
     void
-    emplace_back(const Tensor<2, dim, VectorizedArrayType> &value)
+    emplace_back(const unsigned int                         level,
+                 const Tensor<2, dim, VectorizedArrayType> &value)
     {
+      if (level > max_level)
+        return;
+
       for (unsigned int d0 = 0; d0 < dim; ++d0)
         for (unsigned int d1 = 0; d1 < dim; ++d1)
           for (unsigned int i = 0; i < n_filled_lanes; ++i)
@@ -2047,19 +2063,31 @@ namespace Sintering
     {
       if (Utilities::MPI::this_mpi_process(MPI_COMM_WORLD) == 0)
         {
-          const auto internal_print = [](const auto &all_values,
-                                         const auto &label) {
+          const auto internal_print = [this](const auto &all_values,
+                                             const auto &label) {
             std::ofstream pcout;
             pcout.open(label);
 
-            for (unsigned int i = 0; i < all_values.size(); ++i)
+            unsigned int i = 0;
+
+            for (; i < all_values.size(); i += n_th)
               {
                 for (unsigned int j = 0; j < all_values[i].size(); ++j)
-                  {
-                    pcout << all_values[i][j] << " ";
-                  }
+                  pcout << all_values[i][j] << " ";
+
                 pcout << std::endl;
               }
+
+            if ((i + 2) != (all_values.size() + n_th)) // print last entry
+              {
+                i = all_values.size() - 2;
+
+                for (unsigned int j = 0; j < all_values[i].size(); ++j)
+                  pcout << all_values[i][j] << " ";
+
+                pcout << std::endl;
+              }
+
             pcout.close();
           };
 
@@ -2100,6 +2128,9 @@ namespace Sintering
 
     std::vector<std::vector<Number>> all_values_min;
     std::vector<std::vector<Number>> all_values_max;
+
+    const unsigned int n_th;
+    const unsigned int max_level;
   };
 
 
@@ -2470,31 +2501,25 @@ namespace Sintering
               tracker.initialize(
                 matrix_free.n_active_entries_per_cell_batch(cell));
 
-              tracker.emplace_back(dt_inv);
-              tracker.emplace_back(free_energy.d2f_dc2(c, etas));
-              tracker.emplace_back(free_energy.d2f_dcdetai(c, etas, 0));
-              tracker.emplace_back(free_energy.d2f_dcdetai(c, etas, 1));
-
-              tracker.emplace_back(L * free_energy.d2f_dcdetai(c, etas, 0));
-              tracker.emplace_back(L * free_energy.d2f_detai2(c, etas, 0));
-              tracker.emplace_back(L *
-                                   free_energy.d2f_detaidetaj(c, etas, 0, 1));
-
-              tracker.emplace_back(L * free_energy.d2f_dcdetai(c, etas, 1));
-              tracker.emplace_back(L *
-                                   free_energy.d2f_detaidetaj(c, etas, 1, 0));
-              tracker.emplace_back(L * free_energy.d2f_detai2(c, etas, 1));
-
-              tracker.emplace_back(mobility.M(c, etas, c_grad, etas_grad));
-              tracker.emplace_back(mobility.dM_dc(c, etas, c_grad, etas_grad) *
-                                   mu_grad);
-              tracker.emplace_back(mobility.dM_dgrad_c(c, c_grad, mu_grad));
-              tracker.emplace_back(
-                mobility.dM_detai(c, etas, c_grad, etas_grad, 0) * mu_grad);
-              tracker.emplace_back(
-                mobility.dM_detai(c, etas, c_grad, etas_grad, 1) * mu_grad);
-              tracker.emplace_back(kappa_c);
-              tracker.emplace_back(L * kappa_p);
+              // clang-format off
+              tracker.emplace_back(0, dt_inv);
+              tracker.emplace_back(1, free_energy.d2f_dc2(c, etas));
+              tracker.emplace_back(2, free_energy.d2f_dcdetai(c, etas, 0));
+              tracker.emplace_back(2, free_energy.d2f_dcdetai(c, etas, 1));
+              tracker.emplace_back(2, L * free_energy.d2f_dcdetai(c, etas, 0));
+              tracker.emplace_back(2, L * free_energy.d2f_detai2(c, etas, 0));
+              tracker.emplace_back(2, L * free_energy.d2f_detaidetaj(c, etas, 0, 1));
+              tracker.emplace_back(2, L * free_energy.d2f_dcdetai(c, etas, 1));
+              tracker.emplace_back(2, L * free_energy.d2f_detaidetaj(c, etas, 1, 0));
+              tracker.emplace_back(2, L * free_energy.d2f_detai2(c, etas, 1));
+              tracker.emplace_back(0, mobility.M(c, etas, c_grad, etas_grad));
+              tracker.emplace_back(1, mobility.dM_dc(c, etas, c_grad, etas_grad) * mu_grad);
+              tracker.emplace_back(1, mobility.dM_dgrad_c(c, c_grad, mu_grad));
+              tracker.emplace_back(2, mobility.dM_detai(c, etas, c_grad, etas_grad, 0) * mu_grad);
+              tracker.emplace_back(2, mobility.dM_detai(c, etas, c_grad, etas_grad, 1) * mu_grad); 
+              tracker.emplace_back(0, kappa_c);
+              tracker.emplace_back(2, L * kappa_p);
+              // clang-format on
 
               tracker.finalize();
 #endif
