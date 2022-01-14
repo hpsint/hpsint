@@ -46,6 +46,7 @@
 
 #include <deal.II/matrix_free/fe_evaluation.h>
 #include <deal.II/matrix_free/matrix_free.h>
+#include <deal.II/matrix_free/operators.h>
 #include <deal.II/matrix_free/tools.h>
 
 #include <deal.II/multigrid/mg_coarse.h>
@@ -2332,6 +2333,105 @@ namespace Sintering
       return nonlinear_gradients;
     }
 
+    void
+    add_data_vectors(DataOut<dim> &data_out) const
+    {
+      constexpr unsigned int            n_entries = 17;
+      std::array<VectorType, n_entries> data_vectors;
+
+      for (auto &data_vector : data_vectors)
+        this->matrix_free.initialize_dof_vector(data_vector, 3);
+
+      FECellIntegrator fe_eval_all(this->matrix_free);
+      FEEvaluation<dim, -1, 0, 1, Number, VectorizedArrayType> fe_eval(
+        this->matrix_free, 3 /*scalar dof index*/);
+
+      MatrixFreeOperators::
+        CellwiseInverseMassMatrix<dim, -1, 1, Number, VectorizedArrayType>
+          inverse_mass_matrix(fe_eval);
+
+      AlignedVector<VectorizedArrayType> buffer(fe_eval.n_q_points * n_entries);
+
+      const auto &free_energy = this->data.free_energy;
+      const auto &L           = this->data.L;
+      const auto &mobility    = this->data.mobility;
+      const auto &kappa_c     = this->data.kappa_c;
+      const auto &kappa_p     = this->data.kappa_p;
+      const auto  dt_inv      = 1.0 / dt;
+
+      for (unsigned int cell = 0; cell < this->matrix_free.n_cell_batches();
+           ++cell)
+        {
+          fe_eval_all.reinit(cell);
+          fe_eval.reinit(cell);
+
+          fe_eval_all.reinit(cell);
+          fe_eval_all.read_dof_values_plain(this->newton_step);
+          fe_eval_all.evaluate(EvaluationFlags::values |
+                               EvaluationFlags::gradients);
+
+          for (unsigned int q = 0; q < fe_eval.n_q_points; ++q)
+            {
+              const auto c    = fe_eval_all.get_value(q)[0];
+              const auto eta1 = fe_eval_all.get_value(q)[2];
+              const auto eta2 = fe_eval_all.get_value(q)[3];
+
+              const auto c_grad    = fe_eval_all.get_gradient(q)[0];
+              const auto mu_grad   = fe_eval_all.get_gradient(q)[1];
+              const auto eta1_grad = fe_eval_all.get_gradient(q)[2];
+              const auto eta2_grad = fe_eval_all.get_gradient(q)[3];
+
+              const std::array<VectorizedArrayType, 2> etas{{eta1, eta2}};
+              const std::array<Tensor<1, dim, VectorizedArrayType>, 2>
+                etas_grad{{eta1_grad, eta2_grad}};
+
+              // clang-format off
+              const std::array<VectorizedArrayType, n_entries> temp{{
+                 VectorizedArrayType(dt_inv),                                         // 00
+                 free_energy.d2f_dc2(c, etas),                                        // 01
+                 free_energy.d2f_dcdetai(c, etas, 0),                                 // 02
+                 free_energy.d2f_dcdetai(c, etas, 1),                                 // 03
+                 L * free_energy.d2f_dcdetai(c, etas, 0),                             // 04
+                 L * free_energy.d2f_detai2(c, etas, 0),                              // 05
+                 L * free_energy.d2f_detaidetaj(c, etas, 0, 1),                       // 06
+                 L * free_energy.d2f_dcdetai(c, etas, 1),                             // 07
+                 L * free_energy.d2f_detaidetaj(c, etas, 1, 0),                       // 08
+                 L * free_energy.d2f_detai2(c, etas, 1),                              // 09
+                 mobility.M(c, etas, c_grad, etas_grad),                              // 10
+                 (mobility.dM_dc(c, etas, c_grad, etas_grad) * mu_grad).norm(),       // 11
+                 (mobility.dM_dgrad_c(c, c_grad, mu_grad)).norm(),                    // 12
+                 (mobility.dM_detai(c, etas, c_grad, etas_grad, 0) * mu_grad).norm(), // 13
+                 (mobility.dM_detai(c, etas, c_grad, etas_grad, 1) * mu_grad).norm(), // 14
+                 VectorizedArrayType(kappa_c),                                        // 15
+                 VectorizedArrayType(L * kappa_p)                                     // 16
+                 }};
+              // clang-format on
+
+              for (unsigned int c = 0; c < n_entries; ++c)
+                buffer[c * fe_eval.n_q_points + q] = temp[c];
+            }
+
+          for (unsigned int c = 0; c < n_entries; ++c)
+            {
+              inverse_mass_matrix.transform_from_q_points_to_basis(
+                1,
+                buffer.data() + c * fe_eval.n_q_points,
+                fe_eval.begin_dof_values());
+
+              fe_eval.set_dof_values(data_vectors[c]);
+            }
+        }
+
+      for (unsigned int c = 0; c < n_entries; ++c)
+        {
+          std::ostringstream ss;
+          ss << "aux_" << std::setw(2) << std::setfill('0') << c << "\n";
+
+          data_out.add_data_vector(this->matrix_free.get_dof_handler(3),
+                                   data_vectors[c],
+                                   ss.str());
+        }
+    }
 
   private:
     void
@@ -4322,7 +4422,7 @@ namespace Sintering
     static constexpr double dt_max               = 1e3 * dt_deseride;
     static constexpr double dt_min               = 1e-2 * dt_deseride;
     static constexpr double dt_increment         = 1.2;
-    static constexpr double output_time_interval = 100.0;
+    static constexpr double output_time_interval = 10.0;
 
     // desirable number of newton iterations
     static constexpr unsigned int desirable_newton_iterations = 5;
@@ -4602,7 +4702,7 @@ namespace Sintering
                                solution);
 
       double time_last_output = 0;
-      output_result(solution, time_last_output);
+      output_result(solution, nonlinear_operator, time_last_output);
 
       unsigned int n_timestep              = 0;
       unsigned int n_linear_iterations     = 0;
@@ -4706,7 +4806,7 @@ namespace Sintering
             if (has_converged && t > output_time_interval + time_last_output)
               {
                 time_last_output = t;
-                output_result(solution, time_last_output);
+                output_result(solution, nonlinear_operator, time_last_output);
               }
           }
       }
@@ -4808,7 +4908,9 @@ namespace Sintering
     }
 
     void
-    output_result(const VectorType &solution, const double t)
+    output_result(const VectorType &       solution,
+                  const NonLinearOperator &sintering_operator,
+                  const double             t)
     {
       DataOutBase::VtkFlags flags;
       flags.write_higher_order_cells = true;
@@ -4818,6 +4920,8 @@ namespace Sintering
       data_out.attach_dof_handler(dof_handler);
       std::vector<std::string> names{"c", "mu", "eta1", "eta2"};
       data_out.add_data_vector(solution, names);
+
+      sintering_operator.add_data_vectors(data_out);
 
       solution.update_ghost_values();
       data_out.build_patches(mapping, this->fe.tensor_degree());

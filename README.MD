@@ -4,7 +4,8 @@
 
 - Vladimir Ivannikov
 - Peter Munch
-- Daniel Paukner 
+- Daniel Paukner
+- Magdalena Schreter
 
 ## Setup and run
 
