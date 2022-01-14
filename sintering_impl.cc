@@ -15,8 +15,8 @@
 
 // Sintering of 2 particles
 
-#define WITH_TIMING
-#define WITH_TRACKER
+//#define WITH_TIMING
+//#define WITH_TRACKER
 
 #include <deal.II/base/conditional_ostream.h>
 #include <deal.II/base/mpi.h>
@@ -999,11 +999,10 @@ namespace LinearSolvers
       MyScope scope(timer, "gmres::solve");
 
       unsigned int            max_iter = 1000;
-      ReductionControl        reduction_control(max_iter, 1e-20, 1e-8);
+      ReductionControl        reduction_control(max_iter, 1.e-10, 1.e-2);
       SolverGMRES<VectorType> solver(reduction_control);
       solver.solve(op, dst, src, preconditioner);
 
-      return 1;
       return reduction_control.last_step();
     }
 
@@ -1981,7 +1980,7 @@ namespace Sintering
   public:
     ConstantsTracker()
       : n_th(1)
-      , max_level(1)
+      , max_level(2)
     {}
 
     void
@@ -2252,23 +2251,27 @@ namespace Sintering
     {
       MyScope scope(this->timer, "sintering_op::nonlinear_residual");
 
+      // this->old_solution.update_ghost_values();
       this->matrix_free.cell_loop(
         &SinteringOperator::do_evaluate_nonlinear_residual,
         this,
         dst,
         src,
         true);
+      // this->old_solution.zero_out_ghost_values();
     }
 
     void
     set_previous_solution(const VectorType &src) const
     {
       this->old_solution = src;
+      this->old_solution.update_ghost_values();
     }
 
     const VectorType &
     get_previous_solution() const
     {
+      this->old_solution.zero_out_ghost_values();
       return this->old_solution;
     }
 
@@ -2429,7 +2432,7 @@ namespace Sintering
       for (unsigned int c = 0; c < n_entries; ++c)
         {
           std::ostringstream ss;
-          ss << "aux_" << std::setw(2) << std::setfill('0') << c << "\n";
+          ss << "aux_" << std::setw(2) << std::setfill('0') << c;
 
           data_out.add_data_vector(this->matrix_free.get_dof_handler(3),
                                    data_vectors[c],
@@ -2626,7 +2629,9 @@ namespace Sintering
           phi.read_dof_values_plain(src);
           phi.evaluate(EvaluationFlags::values | EvaluationFlags::gradients);
 
+#ifdef WITH_TRACKER
           tracker.initialize(matrix_free.n_active_entries_per_cell_batch(cell));
+#endif
 
           for (unsigned int q = 0; q < phi.n_q_points; ++q)
             {
@@ -4426,7 +4431,7 @@ namespace Sintering
     static constexpr double dt_max               = 1e3 * dt_deseride;
     static constexpr double dt_min               = 1e-2 * dt_deseride;
     static constexpr double dt_increment         = 1.2;
-    static constexpr double output_time_interval = 10.0;
+    static constexpr double output_time_interval = 0.0; // 0.0 means no output
 
     // desirable number of newton iterations
     static constexpr unsigned int desirable_newton_iterations = 5;
@@ -4704,9 +4709,12 @@ namespace Sintering
                                dof_handler,
                                initial_solution,
                                solution);
+      solution.zero_out_ghost_values();
 
       double time_last_output = 0;
-      output_result(solution, nonlinear_operator, time_last_output);
+
+      if (output_time_interval > 0.0)
+        output_result(solution, nonlinear_operator, time_last_output);
 
       unsigned int n_timestep              = 0;
       unsigned int n_linear_iterations     = 0;
@@ -4807,7 +4815,8 @@ namespace Sintering
                     "Minimum timestep size exceeded, solution failed!"));
               }
 
-            if (has_converged && t > output_time_interval + time_last_output)
+            if ((output_time_interval > 0.0) && has_converged &&
+                (t > output_time_interval + time_last_output))
               {
                 time_last_output = t;
                 output_result(solution, nonlinear_operator, time_last_output);
@@ -4927,7 +4936,6 @@ namespace Sintering
 
       sintering_operator.add_data_vectors(data_out, solution);
 
-      solution.update_ghost_values();
       data_out.build_patches(mapping, this->fe.tensor_degree());
 
       static unsigned int counter = 0;
