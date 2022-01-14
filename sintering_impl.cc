@@ -2334,7 +2334,7 @@ namespace Sintering
     }
 
     void
-    add_data_vectors(DataOut<dim> &data_out) const
+    add_data_vectors(DataOut<dim> &data_out, const VectorType &vec) const
     {
       constexpr unsigned int            n_entries = 17;
       std::array<VectorType, n_entries> data_vectors;
@@ -2359,6 +2359,8 @@ namespace Sintering
       const auto &kappa_p     = this->data.kappa_p;
       const auto  dt_inv      = 1.0 / dt;
 
+      vec.update_ghost_values();
+
       for (unsigned int cell = 0; cell < this->matrix_free.n_cell_batches();
            ++cell)
         {
@@ -2366,7 +2368,7 @@ namespace Sintering
           fe_eval.reinit(cell);
 
           fe_eval_all.reinit(cell);
-          fe_eval_all.read_dof_values_plain(this->newton_step);
+          fe_eval_all.read_dof_values_plain(vec);
           fe_eval_all.evaluate(EvaluationFlags::values |
                                EvaluationFlags::gradients);
 
@@ -2421,6 +2423,8 @@ namespace Sintering
               fe_eval.set_dof_values(data_vectors[c]);
             }
         }
+
+      vec.zero_out_ghost_values();
 
       for (unsigned int c = 0; c < n_entries; ++c)
         {
@@ -4921,7 +4925,7 @@ namespace Sintering
       std::vector<std::string> names{"c", "mu", "eta1", "eta2"};
       data_out.add_data_vector(solution, names);
 
-      sintering_operator.add_data_vectors(data_out);
+      sintering_operator.add_data_vectors(data_out, solution);
 
       solution.update_ghost_values();
       data_out.build_patches(mapping, this->fe.tensor_degree());
