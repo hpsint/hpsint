@@ -15,7 +15,8 @@
 
 // Sintering of 2 particles
 
-#define WITH_TIMING
+//#define WITH_TIMING
+//#define WITH_TRACKER
 
 #include <deal.II/base/conditional_ostream.h>
 #include <deal.II/base/mpi.h>
@@ -45,6 +46,7 @@
 
 #include <deal.II/matrix_free/fe_evaluation.h>
 #include <deal.II/matrix_free/matrix_free.h>
+#include <deal.II/matrix_free/operators.h>
 #include <deal.II/matrix_free/tools.h>
 
 #include <deal.II/multigrid/mg_coarse.h>
@@ -997,7 +999,7 @@ namespace LinearSolvers
       MyScope scope(timer, "gmres::solve");
 
       unsigned int            max_iter = 1000;
-      ReductionControl        reduction_control(max_iter);
+      ReductionControl        reduction_control(max_iter, 1.e-10, 1.e-2);
       SolverGMRES<VectorType> solver(reduction_control);
       solver.solve(op, dst, src, preconditioner);
 
@@ -1972,6 +1974,208 @@ namespace Sintering
 
 
 
+  template <typename Number, typename VectorizedArrayType>
+  class ConstantsTracker
+  {
+  public:
+    ConstantsTracker()
+      : n_th(1)
+      , max_level(2)
+    {}
+
+    void
+    initialize(const unsigned int n_filled_lanes)
+    {
+      this->n_filled_lanes = n_filled_lanes;
+      this->temp_min.clear();
+      this->temp_max.clear();
+    }
+
+    void
+    emplace_back(const unsigned int level, const Number &value)
+    {
+      if (level > max_level)
+        return;
+
+      temp_min.emplace_back(value);
+      temp_max.emplace_back(value);
+    }
+
+    void
+    emplace_back(const unsigned int level, const VectorizedArrayType &value)
+    {
+      if (level > max_level)
+        return;
+
+      const auto [min_value, max_value] = get_min_max(value);
+      temp_min.emplace_back(min_value);
+      temp_max.emplace_back(max_value);
+    }
+
+    template <int dim>
+    void
+    emplace_back(const unsigned int                         level,
+                 const Tensor<1, dim, VectorizedArrayType> &value)
+    {
+      if (level > max_level)
+        return;
+
+#if false
+      for (unsigned int d = 0; d < dim; ++d)
+          {
+            const auto [min_value, max_value] = get_min_max(value[d]);
+            temp_min.emplace_back(min_value);
+            temp_max.emplace_back(max_value);
+          }
+#else
+      const auto [min_value, max_value] = get_min_max(value.norm());
+      temp_min.emplace_back(min_value);
+      temp_max.emplace_back(max_value);
+#endif
+    }
+
+    template <int dim>
+    void
+    emplace_back(const unsigned int                         level,
+                 const Tensor<2, dim, VectorizedArrayType> &value)
+    {
+      if (level > max_level)
+        return;
+
+#if false
+      for (unsigned int d0 = 0; d0 < dim; ++d0)
+        for (unsigned int d1 = 0; d1 < dim; ++d1)
+            {
+              const auto [min_value, max_value] = get_min_max(value[d0][d1]);
+              temp_min.emplace_back(min_value);
+              temp_max.emplace_back(max_value);
+            }
+#else
+      const auto [min_value, max_value] = get_min_max(value.norm());
+      temp_min.emplace_back(min_value);
+      temp_max.emplace_back(max_value);
+#endif
+    }
+
+    void
+    finalize_point()
+    {
+      if (temp_min_0.size() == 0)
+        temp_min_0 = temp_min;
+      else
+        {
+          for (unsigned int i = 0; i < temp_min_0.size(); ++i)
+            temp_min_0[i] = std::min(temp_min_0[i], temp_min[i]);
+        }
+
+      if (temp_max_0.size() == 0)
+        temp_max_0 = temp_max;
+      else
+        {
+          for (unsigned int i = 0; i < temp_max_0.size(); ++i)
+            temp_max_0[i] = std::max(temp_max_0[i], temp_max[i]);
+        }
+
+      temp_min.clear();
+      temp_max.clear();
+    }
+
+    void
+    finalize()
+    {
+      std::vector<Number> global_min(temp_min_0.size());
+      Utilities::MPI::min(temp_min_0, MPI_COMM_WORLD, global_min);
+      all_values_min.emplace_back(global_min);
+
+      std::vector<Number> global_max(temp_max_0.size());
+      Utilities::MPI::max(temp_max_0, MPI_COMM_WORLD, global_max);
+      all_values_max.emplace_back(global_max);
+
+      this->temp_min_0.clear();
+      this->temp_max_0.clear();
+    }
+
+    void
+    print()
+    {
+      if (Utilities::MPI::this_mpi_process(MPI_COMM_WORLD) == 0)
+        {
+          const auto internal_print = [this](const auto &all_values,
+                                             const auto &label) {
+            std::ofstream pcout;
+            pcout.open(label);
+
+            unsigned int i = 0;
+
+            for (; i < all_values.size() - 1; i += n_th)
+              {
+                for (unsigned int j = 0; j < all_values[i].size(); ++j)
+                  pcout << all_values[i][j] << " ";
+
+                pcout << std::endl;
+              }
+
+            if (n_th != 0)
+              if ((i + 2) != (all_values.size() + n_th)) // print last entry
+                {
+                  i = all_values.size() - 2;
+
+                  for (unsigned int j = 0; j < all_values[i].size(); ++j)
+                    pcout << all_values[i][j] << " ";
+
+                  pcout << std::endl;
+                }
+
+            pcout.close();
+          };
+
+          internal_print(all_values_min, "constants_min.txt");
+          internal_print(all_values_max, "constants_max.txt");
+        }
+    }
+
+  private:
+    std::pair<Number, Number>
+    get_min_max(const VectorizedArrayType &value) const
+    {
+      Number min_val = 0;
+      Number max_val = 0;
+
+      for (unsigned int i = 0; i < n_filled_lanes; ++i)
+        {
+          const auto val = value[i];
+
+          if (i == 0)
+            {
+              min_val = val;
+              max_val = val;
+            }
+          else
+            {
+              min_val = std::min(val, min_val);
+              max_val = std::max(val, max_val);
+            }
+        }
+
+      return {min_val, max_val};
+    }
+
+    unsigned int        n_filled_lanes;
+    std::vector<Number> temp_min;
+    std::vector<Number> temp_max;
+
+    std::vector<Number> temp_min_0;
+    std::vector<Number> temp_max_0;
+
+    std::vector<std::vector<Number>> all_values_min;
+    std::vector<std::vector<Number>> all_values_max;
+
+    const unsigned int n_th;
+    const unsigned int max_level;
+  };
+
+
+
   template <int dim, typename VectorizedArrayType>
   struct SinteringOperatorData
   {
@@ -2035,28 +2239,39 @@ namespace Sintering
       , phi_lin(this->matrix_free, this->dof_index)
     {}
 
+    ~SinteringOperator()
+    {
+#ifdef WITH_TRACKER
+      tracker.print();
+#endif
+    }
+
     void
     evaluate_nonlinear_residual(VectorType &dst, const VectorType &src) const
     {
       MyScope scope(this->timer, "sintering_op::nonlinear_residual");
 
+      // this->old_solution.update_ghost_values();
       this->matrix_free.cell_loop(
         &SinteringOperator::do_evaluate_nonlinear_residual,
         this,
         dst,
         src,
         true);
+      // this->old_solution.zero_out_ghost_values();
     }
 
     void
     set_previous_solution(const VectorType &src) const
     {
       this->old_solution = src;
+      this->old_solution.update_ghost_values();
     }
 
     const VectorType &
     get_previous_solution() const
     {
+      this->old_solution.zero_out_ghost_values();
       return this->old_solution;
     }
 
@@ -2078,6 +2293,10 @@ namespace Sintering
                                   this,
                                   dummy,
                                   newton_step);
+
+#ifdef WITH_TRACKER
+      tracker.finalize();
+#endif
 
       this->newton_step = newton_step;
       this->newton_step.update_ghost_values();
@@ -2117,6 +2336,109 @@ namespace Sintering
       return nonlinear_gradients;
     }
 
+    void
+    add_data_vectors(DataOut<dim> &data_out, const VectorType &vec) const
+    {
+      constexpr unsigned int            n_entries = 17;
+      std::array<VectorType, n_entries> data_vectors;
+
+      for (auto &data_vector : data_vectors)
+        this->matrix_free.initialize_dof_vector(data_vector, 3);
+
+      FECellIntegrator fe_eval_all(this->matrix_free);
+      FEEvaluation<dim, -1, 0, 1, Number, VectorizedArrayType> fe_eval(
+        this->matrix_free, 3 /*scalar dof index*/);
+
+      MatrixFreeOperators::
+        CellwiseInverseMassMatrix<dim, -1, 1, Number, VectorizedArrayType>
+          inverse_mass_matrix(fe_eval);
+
+      AlignedVector<VectorizedArrayType> buffer(fe_eval.n_q_points * n_entries);
+
+      const auto &free_energy = this->data.free_energy;
+      const auto &L           = this->data.L;
+      const auto &mobility    = this->data.mobility;
+      const auto &kappa_c     = this->data.kappa_c;
+      const auto &kappa_p     = this->data.kappa_p;
+      const auto  dt_inv      = 1.0 / dt;
+
+      vec.update_ghost_values();
+
+      for (unsigned int cell = 0; cell < this->matrix_free.n_cell_batches();
+           ++cell)
+        {
+          fe_eval_all.reinit(cell);
+          fe_eval.reinit(cell);
+
+          fe_eval_all.reinit(cell);
+          fe_eval_all.read_dof_values_plain(vec);
+          fe_eval_all.evaluate(EvaluationFlags::values |
+                               EvaluationFlags::gradients);
+
+          for (unsigned int q = 0; q < fe_eval.n_q_points; ++q)
+            {
+              const auto c    = fe_eval_all.get_value(q)[0];
+              const auto eta1 = fe_eval_all.get_value(q)[2];
+              const auto eta2 = fe_eval_all.get_value(q)[3];
+
+              const auto c_grad    = fe_eval_all.get_gradient(q)[0];
+              const auto mu_grad   = fe_eval_all.get_gradient(q)[1];
+              const auto eta1_grad = fe_eval_all.get_gradient(q)[2];
+              const auto eta2_grad = fe_eval_all.get_gradient(q)[3];
+
+              const std::array<VectorizedArrayType, 2> etas{{eta1, eta2}};
+              const std::array<Tensor<1, dim, VectorizedArrayType>, 2>
+                etas_grad{{eta1_grad, eta2_grad}};
+
+              // clang-format off
+              const std::array<VectorizedArrayType, n_entries> temp{{
+                 VectorizedArrayType(dt_inv),                                         // 00
+                 free_energy.d2f_dc2(c, etas),                                        // 01
+                 free_energy.d2f_dcdetai(c, etas, 0),                                 // 02
+                 free_energy.d2f_dcdetai(c, etas, 1),                                 // 03
+                 L * free_energy.d2f_dcdetai(c, etas, 0),                             // 04
+                 L * free_energy.d2f_detai2(c, etas, 0),                              // 05
+                 L * free_energy.d2f_detaidetaj(c, etas, 0, 1),                       // 06
+                 L * free_energy.d2f_dcdetai(c, etas, 1),                             // 07
+                 L * free_energy.d2f_detaidetaj(c, etas, 1, 0),                       // 08
+                 L * free_energy.d2f_detai2(c, etas, 1),                              // 09
+                 mobility.M(c, etas, c_grad, etas_grad),                              // 10
+                 (mobility.dM_dc(c, etas, c_grad, etas_grad) * mu_grad).norm(),       // 11
+                 (mobility.dM_dgrad_c(c, c_grad, mu_grad)).norm(),                    // 12
+                 (mobility.dM_detai(c, etas, c_grad, etas_grad, 0) * mu_grad).norm(), // 13
+                 (mobility.dM_detai(c, etas, c_grad, etas_grad, 1) * mu_grad).norm(), // 14
+                 VectorizedArrayType(kappa_c),                                        // 15
+                 VectorizedArrayType(L * kappa_p)                                     // 16
+                 }};
+              // clang-format on
+
+              for (unsigned int c = 0; c < n_entries; ++c)
+                buffer[c * fe_eval.n_q_points + q] = temp[c];
+            }
+
+          for (unsigned int c = 0; c < n_entries; ++c)
+            {
+              inverse_mass_matrix.transform_from_q_points_to_basis(
+                1,
+                buffer.data() + c * fe_eval.n_q_points,
+                fe_eval.begin_dof_values());
+
+              fe_eval.set_dof_values(data_vectors[c]);
+            }
+        }
+
+      vec.zero_out_ghost_values();
+
+      for (unsigned int c = 0; c < n_entries; ++c)
+        {
+          std::ostringstream ss;
+          ss << "aux_" << std::setw(2) << std::setfill('0') << c;
+
+          data_out.add_data_vector(this->matrix_free.get_dof_handler(3),
+                                   data_vectors[c],
+                                   ss.str());
+        }
+    }
 
   private:
     void
@@ -2165,6 +2487,9 @@ namespace Sintering
 
           Tensor<1, n_components, VectorizedArrayType> value_result;
 
+          Tensor<1, n_components, Tensor<1, dim, VectorizedArrayType>>
+            gradient_result;
+
           value_result[0] = phi.get_value(q)[0] * dt_inv;
           value_result[1] =
             -phi.get_value(q)[1] +
@@ -2182,9 +2507,6 @@ namespace Sintering
             L * free_energy.d2f_detaidetaj(c, etas, 1, 0) *
               phi.get_value(q)[2] +
             L * free_energy.d2f_detai2(c, etas, 1) * phi.get_value(q)[3];
-
-          Tensor<1, n_components, Tensor<1, dim, VectorizedArrayType>>
-            gradient_result;
 
           gradient_result[0] =
             mobility.M(c, etas, c_grad, etas_grad) * phi.get_gradient(q)[1] +
@@ -2290,6 +2612,15 @@ namespace Sintering
       const VectorType &                           src,
       const std::pair<unsigned int, unsigned int> &range)
     {
+#ifdef WITH_TRACKER
+      const auto &free_energy = this->data.free_energy;
+      const auto &L           = this->data.L;
+      const auto &mobility    = this->data.mobility;
+      const auto &kappa_c     = this->data.kappa_c;
+      const auto &kappa_p     = this->data.kappa_p;
+      const auto  dt_inv      = 1.0 / dt;
+#endif
+
       FECellIntegrator phi(matrix_free);
 
       for (auto cell = range.first; cell < range.second; ++cell)
@@ -2298,10 +2629,53 @@ namespace Sintering
           phi.read_dof_values_plain(src);
           phi.evaluate(EvaluationFlags::values | EvaluationFlags::gradients);
 
+#ifdef WITH_TRACKER
+          tracker.initialize(matrix_free.n_active_entries_per_cell_batch(cell));
+#endif
+
           for (unsigned int q = 0; q < phi.n_q_points; ++q)
             {
               nonlinear_values(cell, q)    = phi.get_value(q);
               nonlinear_gradients(cell, q) = phi.get_gradient(q);
+
+#ifdef WITH_TRACKER
+              const auto &c    = nonlinear_values(cell, q)[0];
+              const auto &eta1 = nonlinear_values(cell, q)[2];
+              const auto &eta2 = nonlinear_values(cell, q)[3];
+
+              const auto &c_grad    = nonlinear_gradients(cell, q)[0];
+              const auto &mu_grad   = nonlinear_gradients(cell, q)[1];
+              const auto &eta1_grad = nonlinear_gradients(cell, q)[2];
+              const auto &eta2_grad = nonlinear_gradients(cell, q)[3];
+
+              const std::array<VectorizedArrayType, 2> etas{{ eta1, eta2 }};
+              const std::array<Tensor<1, dim, VectorizedArrayType>, 2>
+                etas_grad{
+                  { eta1_grad,
+                    eta2_grad }};
+
+              // clang-format off
+              tracker.emplace_back(0, dt_inv);
+              tracker.emplace_back(1, free_energy.d2f_dc2(c, etas));
+              tracker.emplace_back(2, free_energy.d2f_dcdetai(c, etas, 0));
+              tracker.emplace_back(2, free_energy.d2f_dcdetai(c, etas, 1));
+              tracker.emplace_back(2, L * free_energy.d2f_dcdetai(c, etas, 0));
+              tracker.emplace_back(2, L * free_energy.d2f_detai2(c, etas, 0));
+              tracker.emplace_back(2, L * free_energy.d2f_detaidetaj(c, etas, 0, 1));
+              tracker.emplace_back(2, L * free_energy.d2f_dcdetai(c, etas, 1));
+              tracker.emplace_back(2, L * free_energy.d2f_detaidetaj(c, etas, 1, 0));
+              tracker.emplace_back(2, L * free_energy.d2f_detai2(c, etas, 1));
+              tracker.emplace_back(0, mobility.M(c, etas, c_grad, etas_grad));
+              tracker.emplace_back(1, mobility.dM_dc(c, etas, c_grad, etas_grad) * mu_grad);
+              tracker.emplace_back(1, mobility.dM_dgrad_c(c, c_grad, mu_grad));
+              tracker.emplace_back(2, mobility.dM_detai(c, etas, c_grad, etas_grad, 0) * mu_grad);
+              tracker.emplace_back(2, mobility.dM_detai(c, etas, c_grad, etas_grad, 1) * mu_grad); 
+              tracker.emplace_back(0, kappa_c);
+              tracker.emplace_back(2, L * kappa_p);
+              // clang-format on
+
+              tracker.finalize_point();
+#endif
             }
         }
     }
@@ -2321,6 +2695,8 @@ namespace Sintering
                          n_components,
                          dealii::Tensor<1, dim, VectorizedArrayType>>>
       nonlinear_gradients;
+
+    ConstantsTracker<Number, VectorizedArrayType> tracker;
   };
 
 
@@ -4047,7 +4423,7 @@ namespace Sintering
     static constexpr double boundary_factor = 1.0;
 
     // mesh
-    static constexpr unsigned int elements_per_interface = 8;
+    static constexpr unsigned int elements_per_interface = 4;
 
     // time discretization
     static constexpr double t_end                = 100;
@@ -4055,7 +4431,7 @@ namespace Sintering
     static constexpr double dt_max               = 1e3 * dt_deseride;
     static constexpr double dt_min               = 1e-2 * dt_deseride;
     static constexpr double dt_increment         = 1.2;
-    static constexpr double output_time_interval = 100.0;
+    static constexpr double output_time_interval = 0.0; // 0.0 means no output
 
     // desirable number of newton iterations
     static constexpr unsigned int desirable_newton_iterations = 5;
@@ -4333,9 +4709,12 @@ namespace Sintering
                                dof_handler,
                                initial_solution,
                                solution);
+      solution.zero_out_ghost_values();
 
       double time_last_output = 0;
-      output_result(solution, time_last_output);
+
+      if (output_time_interval > 0.0)
+        output_result(solution, nonlinear_operator, time_last_output);
 
       unsigned int n_timestep              = 0;
       unsigned int n_linear_iterations     = 0;
@@ -4436,10 +4815,11 @@ namespace Sintering
                     "Minimum timestep size exceeded, solution failed!"));
               }
 
-            if (has_converged && t > output_time_interval + time_last_output)
+            if ((output_time_interval > 0.0) && has_converged &&
+                (t > output_time_interval + time_last_output))
               {
                 time_last_output = t;
-                output_result(solution, time_last_output);
+                output_result(solution, nonlinear_operator, time_last_output);
               }
           }
       }
@@ -4541,7 +4921,9 @@ namespace Sintering
     }
 
     void
-    output_result(const VectorType &solution, const double t)
+    output_result(const VectorType &       solution,
+                  const NonLinearOperator &sintering_operator,
+                  const double             t)
     {
       DataOutBase::VtkFlags flags;
       flags.write_higher_order_cells = true;
@@ -4552,7 +4934,8 @@ namespace Sintering
       std::vector<std::string> names{"c", "mu", "eta1", "eta2"};
       data_out.add_data_vector(solution, names);
 
-      solution.update_ghost_values();
+      sintering_operator.add_data_vectors(data_out, solution);
+
       data_out.build_patches(mapping, this->fe.tensor_degree());
 
       static unsigned int counter = 0;
