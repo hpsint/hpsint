@@ -998,10 +998,11 @@ namespace LinearSolvers
       MyScope scope(timer, "gmres::solve");
 
       unsigned int            max_iter = 1000;
-      ReductionControl        reduction_control(max_iter);
+      ReductionControl        reduction_control(max_iter, 1e-20, 1e-8);
       SolverGMRES<VectorType> solver(reduction_control);
       solver.solve(op, dst, src, preconditioner);
 
+      return 1;
       return reduction_control.last_step();
     }
 
@@ -1978,8 +1979,8 @@ namespace Sintering
   {
   public:
     ConstantsTracker()
-      : n_th(10000)
-      , max_level(0)
+      : n_th(1)
+      , max_level(1)
     {}
 
     void
@@ -2019,13 +2020,18 @@ namespace Sintering
       if (level > max_level)
         return;
 
+#if false
       for (unsigned int d = 0; d < dim; ++d)
-        for (unsigned int i = 0; i < n_filled_lanes; ++i)
           {
-            const auto [min_value, max_value] = get_min_max(value[d][i]);
+            const auto [min_value, max_value] = get_min_max(value[d]);
             temp_min.emplace_back(min_value);
             temp_max.emplace_back(max_value);
           }
+#else
+      const auto [min_value, max_value] = get_min_max(value.norm());
+      temp_min.emplace_back(min_value);
+      temp_max.emplace_back(max_value);
+#endif
     }
 
     template <int dim>
@@ -2036,26 +2042,57 @@ namespace Sintering
       if (level > max_level)
         return;
 
+#if false
       for (unsigned int d0 = 0; d0 < dim; ++d0)
         for (unsigned int d1 = 0; d1 < dim; ++d1)
-          for (unsigned int i = 0; i < n_filled_lanes; ++i)
             {
-              const auto [min_value, max_value] = get_min_max(value[d0][d1][i]);
+              const auto [min_value, max_value] = get_min_max(value[d0][d1]);
               temp_min.emplace_back(min_value);
               temp_max.emplace_back(max_value);
             }
+#else
+      const auto [min_value, max_value] = get_min_max(value.norm());
+      temp_min.emplace_back(min_value);
+      temp_max.emplace_back(max_value);
+#endif
+    }
+
+    void
+    finalize_point()
+    {
+      if (temp_min_0.size() == 0)
+        temp_min_0 = temp_min;
+      else
+        {
+          for (unsigned int i = 0; i < temp_min_0.size(); ++i)
+            temp_min_0[i] = std::min(temp_min_0[i], temp_min[i]);
+        }
+
+      if (temp_max_0.size() == 0)
+        temp_max_0 = temp_max;
+      else
+        {
+          for (unsigned int i = 0; i < temp_max_0.size(); ++i)
+            temp_max_0[i] = std::max(temp_max_0[i], temp_max[i]);
+        }
+
+      temp_min.clear();
+      temp_max.clear();
     }
 
     void
     finalize()
     {
-      std::vector<Number> global_min(temp_min.size());
-      Utilities::MPI::min(temp_min, MPI_COMM_WORLD, global_min);
+      std::vector<Number> global_min(temp_min_0.size());
+      Utilities::MPI::min(temp_min_0, MPI_COMM_WORLD, global_min);
       all_values_min.emplace_back(global_min);
 
-      std::vector<Number> global_max(temp_max.size());
-      Utilities::MPI::max(temp_max, MPI_COMM_WORLD, global_max);
+      std::vector<Number> global_max(temp_max_0.size());
+      Utilities::MPI::max(temp_max_0, MPI_COMM_WORLD, global_max);
       all_values_max.emplace_back(global_max);
+
+      this->temp_min_0.clear();
+      this->temp_max_0.clear();
     }
 
     void
@@ -2070,7 +2107,7 @@ namespace Sintering
 
             unsigned int i = 0;
 
-            for (; i < all_values.size(); i += n_th)
+            for (; i < all_values.size() - 1; i += n_th)
               {
                 for (unsigned int j = 0; j < all_values[i].size(); ++j)
                   pcout << all_values[i][j] << " ";
@@ -2078,15 +2115,16 @@ namespace Sintering
                 pcout << std::endl;
               }
 
-            if ((i + 2) != (all_values.size() + n_th)) // print last entry
-              {
-                i = all_values.size() - 2;
+            if (n_th != 0)
+              if ((i + 2) != (all_values.size() + n_th)) // print last entry
+                {
+                  i = all_values.size() - 2;
 
-                for (unsigned int j = 0; j < all_values[i].size(); ++j)
-                  pcout << all_values[i][j] << " ";
+                  for (unsigned int j = 0; j < all_values[i].size(); ++j)
+                    pcout << all_values[i][j] << " ";
 
-                pcout << std::endl;
-              }
+                  pcout << std::endl;
+                }
 
             pcout.close();
           };
@@ -2125,6 +2163,9 @@ namespace Sintering
     unsigned int        n_filled_lanes;
     std::vector<Number> temp_min;
     std::vector<Number> temp_max;
+
+    std::vector<Number> temp_min_0;
+    std::vector<Number> temp_max_0;
 
     std::vector<std::vector<Number>> all_values_min;
     std::vector<std::vector<Number>> all_values_max;
@@ -2248,6 +2289,10 @@ namespace Sintering
                                   this,
                                   dummy,
                                   newton_step);
+
+#ifdef WITH_TRACKER
+      tracker.finalize();
+#endif
 
       this->newton_step = newton_step;
       this->newton_step.update_ghost_values();
@@ -2477,6 +2522,8 @@ namespace Sintering
           phi.read_dof_values_plain(src);
           phi.evaluate(EvaluationFlags::values | EvaluationFlags::gradients);
 
+          tracker.initialize(matrix_free.n_active_entries_per_cell_batch(cell));
+
           for (unsigned int q = 0; q < phi.n_q_points; ++q)
             {
               nonlinear_values(cell, q)    = phi.get_value(q);
@@ -2498,9 +2545,6 @@ namespace Sintering
                   { eta1_grad,
                     eta2_grad }};
 
-              tracker.initialize(
-                matrix_free.n_active_entries_per_cell_batch(cell));
-
               // clang-format off
               tracker.emplace_back(0, dt_inv);
               tracker.emplace_back(1, free_energy.d2f_dc2(c, etas));
@@ -2521,7 +2565,7 @@ namespace Sintering
               tracker.emplace_back(2, L * kappa_p);
               // clang-format on
 
-              tracker.finalize();
+              tracker.finalize_point();
 #endif
             }
         }
