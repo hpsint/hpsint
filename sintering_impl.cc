@@ -4301,6 +4301,8 @@ namespace Sintering
     BlockPreconditioner3Data   block_preconditioner_3_data;
     BlockPreconditioner3CHData block_preconditioner_3_ch_data;
 
+    bool print_time_loop = false;
+
     void
     parse(const std::string file_name)
     {
@@ -4462,6 +4464,7 @@ namespace Sintering
 
     const Parameters                          params;
     ConditionalOStream                        pcout;
+    ConditionalOStream                        pcout_statistics;
     parallel::distributed::Triangulation<dim> tria;
     FESystem<dim>                             fe;
     MappingQ<dim>                             mapping;
@@ -4477,7 +4480,11 @@ namespace Sintering
 
     Problem(const Parameters &params)
       : params(params)
-      , pcout(std::cout, Utilities::MPI::this_mpi_process(MPI_COMM_WORLD) == 0)
+      , pcout(std::cout,
+              (Utilities::MPI::this_mpi_process(MPI_COMM_WORLD) == 0) &&
+                params.print_time_loop)
+      , pcout_statistics(std::cout,
+                         Utilities::MPI::this_mpi_process(MPI_COMM_WORLD) == 0)
       , tria(MPI_COMM_WORLD)
       , fe(FE_Q<dim>{params.fe_degree}, number_of_components)
       , mapping(1)
@@ -4660,7 +4667,9 @@ namespace Sintering
           Preconditioners::PreconditionerBase<Number>>>(nonlinear_operator,
                                                         *preconditioner);
 
-      TimerOutput timer(pcout, TimerOutput::never, TimerOutput::wall_times);
+      TimerOutput timer(pcout_statistics,
+                        TimerOutput::never,
+                        TimerOutput::wall_times);
 
       // ... non-linear Newton solver
       auto non_linear_solver =
@@ -4715,6 +4724,14 @@ namespace Sintering
 
       if (output_time_interval > 0.0)
         output_result(solution, nonlinear_operator, time_last_output);
+
+      // clang-format off
+      pcout_statistics << "System statistics:" << std::endl;
+      pcout_statistics << "  - n cell:                    " << tria.n_global_active_cells() << std::endl;
+      pcout_statistics << "  - n levels:                  " << tria.n_global_levels() << std::endl;
+      pcout_statistics << "  - n dofs:                    " << dof_handler.n_dofs() << std::endl;
+      pcout_statistics << std::endl;
+      // clang-format on
 
       unsigned int n_timestep              = 0;
       unsigned int n_linear_iterations     = 0;
@@ -4824,28 +4841,17 @@ namespace Sintering
           }
       }
 
-      pcout << std::endl;
-      pcout << "Final statistics:" << std::endl;
-      pcout << "  - n cell:                    " << tria.n_global_active_cells()
-            << std::endl;
-      pcout << "  - n levels:                  " << tria.n_global_levels()
-            << std::endl;
-      pcout << "  - n dofs:                    " << dof_handler.n_dofs()
-            << std::endl;
-      pcout << "  - n timesteps:               " << n_timestep << std::endl;
-      pcout << "  - n non-linear iterations:   " << n_non_linear_iterations
-            << std::endl;
-      pcout << "  - n linear iterations:       " << n_linear_iterations
-            << std::endl;
-      pcout << "  - avg non-linear iterations: "
-            << static_cast<double>(n_non_linear_iterations) / n_timestep
-            << std::endl;
-      pcout << "  - avg linear iterations:     "
-            << static_cast<double>(n_linear_iterations) /
-                 n_non_linear_iterations
-            << std::endl;
-      pcout << "  - max dt:                    " << max_reached_dt << std::endl;
-      pcout << std::endl;
+      // clang-format off
+      pcout_statistics << std::endl;
+      pcout_statistics << "Final statistics:" << std::endl;
+      pcout_statistics << "  - n timesteps:               " << n_timestep << std::endl;
+      pcout_statistics << "  - n non-linear iterations:   " << n_non_linear_iterations << std::endl;
+      pcout_statistics << "  - n linear iterations:       " << n_linear_iterations << std::endl;
+      pcout_statistics << "  - avg non-linear iterations: " << static_cast<double>(n_non_linear_iterations) / n_timestep << std::endl;
+      pcout_statistics << "  - avg linear iterations:     " << static_cast<double>(n_linear_iterations) / n_non_linear_iterations << std::endl;
+      pcout_statistics << "  - max dt:                    " << max_reached_dt << std::endl;
+      pcout_statistics << std::endl;
+      // clang-format on
 
       timer.print_wall_time_statistics(MPI_COMM_WORLD);
 
@@ -4861,7 +4867,9 @@ namespace Sintering
 
         const unsigned int n_repetitions = 1000;
 
-        TimerOutput timer(pcout, TimerOutput::never, TimerOutput::wall_times);
+        TimerOutput timer(pcout_statistics,
+                          TimerOutput::never,
+                          TimerOutput::wall_times);
 
         {
           TimerOutput::Scope scope(timer, "vmult_matrixfree");
