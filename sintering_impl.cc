@@ -742,6 +742,8 @@ namespace Preconditioners
 
     ILU(const Operator &op)
       : op(op)
+      , pcout(std::cout, Utilities::MPI::this_mpi_process(MPI_COMM_WORLD) == 0)
+      , timer(pcout, TimerOutput::never, TimerOutput::wall_times)
     {
       additional_data.ilu_fill = 0;
       additional_data.ilu_atol = 0.0;
@@ -749,15 +751,24 @@ namespace Preconditioners
       additional_data.overlap  = 0;
     }
 
+    ~ILU()
+    {
+      if (timer.get_summary_data(TimerOutput::OutputData::total_wall_time)
+            .size() > 0)
+        timer.print_wall_time_statistics(MPI_COMM_WORLD);
+    }
+
     void
     vmult(VectorType &dst, const VectorType &src) const override
     {
+      MyScope scope(timer, "ilu::vmult");
       precondition_ilu.vmult(dst, src);
     }
 
     void
     do_update() override
     {
+      MyScope scope(timer, "ilu::setup");
       precondition_ilu.initialize(op.get_system_matrix(), additional_data);
     }
 
@@ -766,6 +777,9 @@ namespace Preconditioners
 
     TrilinosWrappers::PreconditionILU::AdditionalData additional_data;
     TrilinosWrappers::PreconditionILU                 precondition_ilu;
+
+    ConditionalOStream  pcout;
+    mutable TimerOutput timer;
   };
 
 
@@ -1855,8 +1869,19 @@ namespace Sintering
     {
       MyScope scope(this->timer, label + "::vmult");
 
-      matrix_free.cell_loop(
-        &OperatorBase::do_vmult_range, this, dst, src, true);
+
+      const bool system_matrix_is_empty =
+        system_matrix.m() == 0 || system_matrix.n() == 0;
+
+      if (system_matrix_is_empty)
+        {
+          matrix_free.cell_loop(
+            &OperatorBase::do_vmult_range, this, dst, src, true);
+        }
+      else
+        {
+          system_matrix.vmult(dst, src);
+        }
     }
 
     void
@@ -2229,7 +2254,8 @@ namespace Sintering
     SinteringOperator(
       const MatrixFree<dim, Number, VectorizedArrayType> &   matrix_free,
       const AffineConstraints<Number> &                      constraints,
-      const SinteringOperatorData<dim, VectorizedArrayType> &data)
+      const SinteringOperatorData<dim, VectorizedArrayType> &data,
+      const bool                                             matrix_based)
       : OperatorBase<dim, n_components, Number, VectorizedArrayType>(
           matrix_free,
           constraints,
@@ -2237,6 +2263,7 @@ namespace Sintering
           "sintering_op")
       , data(data)
       , phi_lin(this->matrix_free, this->dof_index)
+      , matrix_based(matrix_based)
     {}
 
     ~SinteringOperator()
@@ -2251,14 +2278,12 @@ namespace Sintering
     {
       MyScope scope(this->timer, "sintering_op::nonlinear_residual");
 
-      // this->old_solution.update_ghost_values();
       this->matrix_free.cell_loop(
         &SinteringOperator::do_evaluate_nonlinear_residual,
         this,
         dst,
         src,
         true);
-      // this->old_solution.zero_out_ghost_values();
     }
 
     void
@@ -2300,6 +2325,9 @@ namespace Sintering
 
       this->newton_step = newton_step;
       this->newton_step.update_ghost_values();
+
+      if (matrix_based)
+        this->get_system_matrix(); // assemble matrix
     }
 
     void
@@ -2697,6 +2725,8 @@ namespace Sintering
       nonlinear_gradients;
 
     ConstantsTracker<Number, VectorizedArrayType> tracker;
+
+    const bool matrix_based;
   };
 
 
@@ -4294,6 +4324,8 @@ namespace Sintering
     unsigned int fe_degree   = 1;
     unsigned int n_points_1D = 2;
 
+    bool matrix_based = false;
+
     std::string outer_preconditioner = "BlockPreconditioner2";
     // std::string outer_preconditioner = "BlockPreconditioner3CH";
 
@@ -4543,7 +4575,8 @@ namespace Sintering
       // ... non-linear operator
       NonLinearOperator nonlinear_operator(matrix_free,
                                            constraint,
-                                           sintering_data);
+                                           sintering_data,
+                                           params.matrix_based);
 
       // ... preconditioner
       std::unique_ptr<Preconditioners::PreconditionerBase<Number>>
@@ -4603,7 +4636,8 @@ namespace Sintering
               mg_operators[l] =
                 std::make_shared<NonLinearOperator>(mg_matrixfrees[l],
                                                     *constraints,
-                                                    sintering_data);
+                                                    sintering_data,
+                                                    params.matrix_based);
 
               mg_dof_handlers[l] = dof_handler;
               mg_constraints[l]  = constraints;
