@@ -4512,8 +4512,11 @@ namespace Sintering
     DoFHandler<dim>                           dof_handler_ch;
     DoFHandler<dim>                           dof_handler_ac;
     DoFHandler<dim>                           dof_handler_scalar;
-    AffineConstraints<Number> constraint; // TODO: currently no constraints are
-                                          // applied
+
+    AffineConstraints<Number> constraint;
+    AffineConstraints<Number> constraint_ch;
+    AffineConstraints<Number> constraint_ac;
+    AffineConstraints<Number> constraint_scalar;
 
     InitialValues<dim> initial_solution;
 
@@ -4554,6 +4557,12 @@ namespace Sintering
       dof_handler_ac.distribute_dofs(
         FESystem<dim>(FE_Q<dim>{params.fe_degree}, number_of_components - 2));
       dof_handler_scalar.distribute_dofs(FE_Q<dim>{params.fe_degree});
+
+      DoFTools::make_hanging_node_constraints(dof_handler, constraint);
+      DoFTools::make_hanging_node_constraints(dof_handler_ch, constraint_ch);
+      DoFTools::make_hanging_node_constraints(dof_handler_ac, constraint_ac);
+      DoFTools::make_hanging_node_constraints(dof_handler_scalar,
+                                              constraint_scalar);
     }
 
 
@@ -4571,7 +4580,7 @@ namespace Sintering
       const std::vector<const DoFHandler<dim> *> dof_handlers{
         &dof_handler, &dof_handler_ch, &dof_handler_ac, &dof_handler_scalar};
       const std::vector<const AffineConstraints<double> *> constraints{
-        &constraint, &constraint, &constraint, &constraint};
+        &constraint, &constraint_ch, &constraint_ac, &constraint_scalar};
 
       matrix_free.reinit(
         mapping, dof_handlers, constraints, quad, additional_data);
@@ -4807,6 +4816,7 @@ namespace Sintering
                 MyScope scope(timer, "time_loop::newton");
 
                 const auto statistics = non_linear_solver->solve(solution);
+                constraint.distribute(solution);
 
                 has_converged = true;
 
@@ -4967,6 +4977,15 @@ namespace Sintering
 
       if (n_refinements > 0)
         tria.refine_global(n_refinements);
+
+      if (false) // TODO: remove
+        {
+          for (const auto &cell : tria.active_cell_iterators())
+            if (cell->is_locally_owned() &&
+                cell->center()[0] < domain_width / 2.0)
+              cell->set_refine_flag();
+          tria.execute_coarsening_and_refinement();
+        }
     }
 
     void
