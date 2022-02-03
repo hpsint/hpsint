@@ -28,6 +28,8 @@ static_assert(false, "No dimension has been given!");
 #include <deal.II/base/quadrature_lib.h>
 #include <deal.II/base/timer.h>
 
+#include <deal.II/distributed/grid_refinement.h>
+#include <deal.II/distributed/solution_transfer.h>
 #include <deal.II/distributed/tria.h>
 
 #include <deal.II/dofs/dof_handler.h>
@@ -60,6 +62,7 @@ static_assert(false, "No dimension has been given!");
 #include <deal.II/multigrid/multigrid.h>
 
 #include <deal.II/numerics/data_out.h>
+#include <deal.II/numerics/error_estimator.h>
 #include <deal.II/numerics/vector_tools.h>
 
 using namespace dealii;
@@ -4518,6 +4521,8 @@ namespace Sintering
     AffineConstraints<Number> constraint_ac;
     AffineConstraints<Number> constraint_scalar;
 
+    MatrixFree<dim, Number, VectorizedArrayType> matrix_free;
+
     InitialValues<dim> initial_solution;
 
     Problem(const Parameters &params)
@@ -4543,14 +4548,19 @@ namespace Sintering
                          number_of_components,
                          is_accumulative)
     {
-      // create mesh
       create_mesh(tria,
                   domain_width,
                   domain_height,
                   interface_width,
                   elements_per_interface);
 
-      // distribute dofs
+      initialize();
+    }
+
+    void
+    initialize()
+    {
+      // setup DoFHandler, ...
       dof_handler.distribute_dofs(fe);
       dof_handler_ch.distribute_dofs(
         FESystem<dim>(FE_Q<dim>{params.fe_degree}, 2));
@@ -4558,24 +4568,17 @@ namespace Sintering
         FESystem<dim>(FE_Q<dim>{params.fe_degree}, number_of_components - 2));
       dof_handler_scalar.distribute_dofs(FE_Q<dim>{params.fe_degree});
 
+      // ... constraints, and ...
       DoFTools::make_hanging_node_constraints(dof_handler, constraint);
       DoFTools::make_hanging_node_constraints(dof_handler_ch, constraint_ch);
       DoFTools::make_hanging_node_constraints(dof_handler_ac, constraint_ac);
       DoFTools::make_hanging_node_constraints(dof_handler_scalar,
                                               constraint_scalar);
-    }
 
-
-
-    void
-    run()
-    {
-      // setup MatrixFree ...
+      // ... MatrixFree
       typename MatrixFree<dim, Number, VectorizedArrayType>::AdditionalData
         additional_data;
       additional_data.mapping_update_flags = update_values | update_gradients;
-
-      MatrixFree<dim, Number, VectorizedArrayType> matrix_free;
 
       const std::vector<const DoFHandler<dim> *> dof_handlers{
         &dof_handler, &dof_handler_ch, &dof_handler_ac, &dof_handler_scalar};
@@ -4584,7 +4587,11 @@ namespace Sintering
 
       matrix_free.reinit(
         mapping, dof_handlers, constraints, quad, additional_data);
+    }
 
+    void
+    run()
+    {
       SinteringOperatorData<dim, VectorizedArrayType> sintering_data(
         A, B, Mvol, Mvap, Msurf, Mgb, L, kappa_c, kappa_p);
 
@@ -4602,79 +4609,7 @@ namespace Sintering
       MGLevelObject<MatrixFree<dim, Number, VectorizedArrayType>>
         mg_matrixfrees;
 
-      MGLevelObject<std::shared_ptr<const DoFHandler<dim>>> mg_dof_handlers;
-      MGLevelObject<std::shared_ptr<const AffineConstraints<double>>>
-                                                        mg_constraints;
-      MGLevelObject<std::shared_ptr<NonLinearOperator>> mg_operators;
-      MGLevelObject<VectorType>                         mg_solutions;
-
-      MGLevelObject<MGTwoLevelTransfer<dim, VectorType>>           transfers;
-      std::unique_ptr<MGTransferGlobalCoarsening<dim, VectorType>> transfer;
-
-      if (params.outer_preconditioner == "GMG")
-        {
-          mg_triangulations = MGTransferGlobalCoarseningTools::
-            create_geometric_coarsening_sequence(tria);
-
-          // TODO: problem during setup of Chebyshev if coarse-grid has 0 DoFs
-          const unsigned int min_level = 0;
-          const unsigned int max_level = mg_triangulations.size() - 1;
-
-          mg_dof_handlers.resize(min_level, max_level);
-          mg_constraints.resize(min_level, max_level);
-          mg_operators.resize(min_level, max_level);
-          mg_matrixfrees.resize(min_level, max_level);
-          mg_solutions.resize(min_level, max_level);
-          transfers.resize(min_level, max_level);
-
-          for (unsigned int l = min_level; l <= max_level; ++l)
-            {
-              auto dof_handler =
-                std::make_shared<DoFHandler<dim>>(*mg_triangulations[l]);
-              auto constraints = std::make_shared<AffineConstraints<double>>();
-
-              dof_handler->distribute_dofs(fe);
-
-              IndexSet locally_relevant_dofs;
-              DoFTools::extract_locally_relevant_dofs(*dof_handler,
-                                                      locally_relevant_dofs);
-              constraints->reinit(locally_relevant_dofs);
-
-              DoFTools::make_zero_boundary_constraints(*dof_handler,
-                                                       0,
-                                                       *constraints);
-
-              constraints->close();
-
-              mg_matrixfrees[l].reinit(
-                mapping, *dof_handler, *constraints, quad, additional_data);
-
-              mg_operators[l] =
-                std::make_shared<NonLinearOperator>(mg_matrixfrees[l],
-                                                    *constraints,
-                                                    sintering_data,
-                                                    params.matrix_based);
-
-              mg_dof_handlers[l] = dof_handler;
-              mg_constraints[l]  = constraints;
-            }
-
-          for (auto l = min_level; l < max_level; ++l)
-            transfers[l + 1].reinit(*mg_dof_handlers[l + 1],
-                                    *mg_dof_handlers[l]);
-
-          transfer =
-            std::make_unique<MGTransferGlobalCoarsening<dim, VectorType>>(
-              transfers, [&](const auto l, auto &vector) {
-                mg_matrixfrees[l].initialize_dof_vector(vector);
-              });
-
-          preconditioner = std::make_unique<
-            Preconditioners::
-              PreconditionerGMG<dim, NonLinearOperator, VectorType>>(
-            this->dof_handler, mg_dof_handlers, mg_constraints, mg_operators);
-        }
-      else if (params.outer_preconditioner == "BlockPreconditioner2")
+      if (params.outer_preconditioner == "BlockPreconditioner2")
         preconditioner =
           std::make_unique<BlockPreconditioner2<dim,
                                                 number_of_components,
@@ -4793,21 +4728,56 @@ namespace Sintering
         TimerOutput::Scope scope(timer, "time_loop");
         for (double t = 0, dt = dt_deseride; t <= t_end;)
           {
+            if (n_timestep != 0 && n_timestep % 10 == 0)
+              {
+                IndexSet locally_relevant_dofs;
+                DoFTools::extract_locally_relevant_dofs(dof_handler,
+                                                        locally_relevant_dofs);
+
+                VectorType solution_dealii(dof_handler.locally_owned_dofs(),
+                                           locally_relevant_dofs,
+                                           dof_handler.get_communicator());
+
+                solution_dealii.copy_locally_owned_data_from(solution);
+
+                solution_dealii.update_ghost_values();
+
+                Vector<float> estimated_error_per_cell(tria.n_active_cells());
+
+                KellyErrorEstimator<dim>::estimate(
+                  this->dof_handler,
+                  QGauss<dim - 1>(this->dof_handler.get_fe().degree + 1),
+                  std::map<types::boundary_id, const Function<dim> *>(),
+                  solution_dealii,
+                  estimated_error_per_cell);
+
+                parallel::distributed::GridRefinement::
+                  refine_and_coarsen_fixed_number(tria,
+                                                  estimated_error_per_cell,
+                                                  0.3,
+                                                  0.03);
+
+                tria.prepare_coarsening_and_refinement();
+
+                parallel::distributed::SolutionTransfer<dim, VectorType>
+                  solution_trans(dof_handler);
+                solution_trans.prepare_for_coarsening_and_refinement(
+                  solution_dealii);
+
+                solution.update_ghost_values();
+                tria.execute_coarsening_and_refinement();
+
+                initialize();
+
+                VectorType interpolated_solution;
+                nonlinear_operator.initialize_dof_vector(interpolated_solution);
+                solution_trans.interpolate(interpolated_solution);
+
+                solution.copy_locally_owned_data_from(interpolated_solution);
+              }
+
             nonlinear_operator.set_timestep(dt);
             nonlinear_operator.set_previous_solution(solution);
-
-            if (transfer)
-              {
-                transfer->interpolate_to_mg(mg_solutions, solution);
-
-                for (unsigned int l = mg_operators.min_level();
-                     l <= mg_operators.max_level();
-                     ++l)
-                  {
-                    mg_operators[l]->set_timestep(dt);
-                    mg_operators[l]->set_previous_solution(mg_solutions[l]);
-                  }
-              }
 
             bool has_converged = false;
 
