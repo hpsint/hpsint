@@ -534,6 +534,12 @@ namespace Preconditioners
     virtual ~PreconditionerBase() = default;
 
     virtual void
+    clear()
+    {
+      AssertThrow(false, ExcNotImplemented());
+    }
+
+    virtual void
     vmult(VectorType &dst, const VectorType &src) const = 0;
 
     virtual void
@@ -552,6 +558,12 @@ namespace Preconditioners
     InverseDiagonalMatrix(const Operator &op)
       : op(op)
     {}
+
+    virtual void
+    clear()
+    {
+      diagonal_matrix.clear();
+    }
 
     void
     vmult(VectorType &dst, const VectorType &src) const override
@@ -763,6 +775,12 @@ namespace Preconditioners
       if (timer.get_summary_data(TimerOutput::OutputData::total_wall_time)
             .size() > 0)
         timer.print_wall_time_statistics(MPI_COMM_WORLD);
+    }
+
+    virtual void
+    clear()
+    {
+      precondition_ilu.clear();
     }
 
     void
@@ -1844,6 +1862,12 @@ namespace Sintering
       if (timer.get_summary_data(TimerOutput::OutputData::total_wall_time)
             .size() > 0)
         timer.print_wall_time_statistics(MPI_COMM_WORLD);
+    }
+
+    virtual void
+    clear()
+    {
+      this->system_matrix.clear();
     }
 
     const DoFHandler<dim> &
@@ -3258,6 +3282,14 @@ namespace Sintering
         timer.print_wall_time_statistics(MPI_COMM_WORLD);
     }
 
+    virtual void
+    clear() override
+    {
+      this->diag.reinit(0);
+      this->vec_mass.reinit(0);
+      this->vec_laplace.reinit(0);
+    }
+
     void
     vmult(VectorType &dst, const VectorType &src) const override
     {
@@ -3384,10 +3416,25 @@ namespace Sintering
         timer.print_wall_time_statistics(MPI_COMM_WORLD);
     }
 
+    virtual void
+    clear()
+    {
+      operator_0.clear();
+      operator_1.clear();
+      operator_1_helmholtz.clear();
+      preconditioner_0->clear();
+      preconditioner_1->clear();
+    }
+
     void
     vmult(VectorType &dst, const VectorType &src) const override
     {
       MyScope scope(timer, "precon::vmult");
+
+      matrix_free.initialize_dof_vector(dst_0, 1); // TODO
+      matrix_free.initialize_dof_vector(src_0, 1); // TODO
+      matrix_free.initialize_dof_vector(dst_1, 2); // TODO
+      matrix_free.initialize_dof_vector(src_1, 2); // TODO
 
       {
         MyScope scope(timer, "precon::vmult::split_up");
@@ -4569,11 +4616,22 @@ namespace Sintering
       dof_handler_scalar.distribute_dofs(FE_Q<dim>{params.fe_degree});
 
       // ... constraints, and ...
+      constraint.clear();
       DoFTools::make_hanging_node_constraints(dof_handler, constraint);
+      constraint.close();
+
+      constraint_ch.clear();
       DoFTools::make_hanging_node_constraints(dof_handler_ch, constraint_ch);
+      constraint_ch.close();
+
+      constraint_ac.clear();
       DoFTools::make_hanging_node_constraints(dof_handler_ac, constraint_ac);
+      constraint_ac.close();
+
+      constraint_scalar.clear();
       DoFTools::make_hanging_node_constraints(dof_handler_scalar,
                                               constraint_scalar);
+      constraint_scalar.close();
 
       // ... MatrixFree
       typename MatrixFree<dim, Number, VectorizedArrayType>::AdditionalData
@@ -4764,15 +4822,18 @@ namespace Sintering
                 solution_trans.prepare_for_coarsening_and_refinement(
                   solution_dealii);
 
-                solution.update_ghost_values();
                 tria.execute_coarsening_and_refinement();
 
                 initialize();
+
+                nonlinear_operator.clear();
+                preconditioner->clear();
 
                 VectorType interpolated_solution;
                 nonlinear_operator.initialize_dof_vector(interpolated_solution);
                 solution_trans.interpolate(interpolated_solution);
 
+                nonlinear_operator.initialize_dof_vector(solution);
                 solution.copy_locally_owned_data_from(interpolated_solution);
               }
 
