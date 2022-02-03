@@ -15,6 +15,10 @@
 
 // Sintering of 2 particles
 
+#ifndef SINTERING_DIM
+static_assert(false, "No dimension has been given!");
+#endif
+
 //#define WITH_TIMING
 //#define WITH_TRACKER
 
@@ -4336,7 +4340,7 @@ namespace Sintering
     BlockPreconditioner3Data   block_preconditioner_3_data;
     BlockPreconditioner3CHData block_preconditioner_3_ch_data;
 
-    bool print_time_loop = false;
+    bool print_time_loop = true;
 
     void
     parse(const std::string file_name)
@@ -5015,6 +5019,6 @@ main(int argc, char **argv)
         }
     }
 
-  Sintering::Problem<2> runner(params);
+  Sintering::Problem<SINTERING_DIM> runner(params);
   runner.run();
 }
