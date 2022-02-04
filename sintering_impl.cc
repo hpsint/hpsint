@@ -4383,7 +4383,7 @@ namespace Sintering
 
     bool matrix_based = false;
 
-    std::string outer_preconditioner = "BlockPreconditioner2";
+    std::string outer_preconditioner = "ILU";
     // std::string outer_preconditioner = "BlockPreconditioner3CH";
 
     BlockPreconditioner2Data   block_preconditioner_2_data;
@@ -4522,7 +4522,7 @@ namespace Sintering
     static constexpr double dt_max               = 1e3 * dt_deseride;
     static constexpr double dt_min               = 1e-2 * dt_deseride;
     static constexpr double dt_increment         = 1.2;
-    static constexpr double output_time_interval = 0.0; // 0.0 means no output
+    static constexpr double output_time_interval = 1.0; // 0.0 means no output
 
     // desirable number of newton iterations
     static constexpr unsigned int desirable_newton_iterations = 5;
@@ -4781,6 +4781,8 @@ namespace Sintering
       unsigned int n_non_linear_iterations = 0;
       double       max_reached_dt          = 0.0;
 
+      const unsigned int init_level = tria.n_global_levels() - 1;
+
       // run time loop
       {
         TimerOutput::Scope scope(timer, "time_loop");
@@ -4788,6 +4790,13 @@ namespace Sintering
           {
             if (n_timestep != 0 && n_timestep % 10 == 0)
               {
+                pcout << "Execute refinement/coarsening:" << std::endl;
+
+                const double   top_fraction_of_cells    = 0.3;
+                const double   bottom_fraction_of_cells = 0.03;
+                const unsigned min_refinement_depth     = 2;
+                const unsigned max_refinement_depth     = 0;
+
                 IndexSet locally_relevant_dofs;
                 DoFTools::extract_locally_relevant_dofs(dof_handler,
                                                         locally_relevant_dofs);
@@ -4802,18 +4811,34 @@ namespace Sintering
 
                 Vector<float> estimated_error_per_cell(tria.n_active_cells());
 
+                std::vector<bool> mask(number_of_components, true);
+                std::fill(mask.begin(), mask.begin() + 2, false);
+
                 KellyErrorEstimator<dim>::estimate(
                   this->dof_handler,
                   QGauss<dim - 1>(this->dof_handler.get_fe().degree + 1),
                   std::map<types::boundary_id, const Function<dim> *>(),
                   solution_dealii,
-                  estimated_error_per_cell);
+                  estimated_error_per_cell,
+                  mask,
+                  nullptr,
+                  0,
+                  Utilities::MPI::this_mpi_process(MPI_COMM_WORLD));
 
                 parallel::distributed::GridRefinement::
-                  refine_and_coarsen_fixed_number(tria,
-                                                  estimated_error_per_cell,
-                                                  0.3,
-                                                  0.03);
+                  refine_and_coarsen_fixed_fraction(tria,
+                                                    estimated_error_per_cell,
+                                                    top_fraction_of_cells,
+                                                    bottom_fraction_of_cells);
+
+                if (tria.n_levels() > init_level + max_refinement_depth)
+                  for (const auto &cell : tria.active_cell_iterators_on_level(
+                         init_level + max_refinement_depth))
+                    cell->clear_refine_flag();
+
+                for (const auto &cell : tria.active_cell_iterators_on_level(
+                       init_level - min_refinement_depth))
+                  cell->clear_coarsen_flag();
 
                 tria.prepare_coarsening_and_refinement();
 
