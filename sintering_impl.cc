@@ -4381,6 +4381,12 @@ namespace Sintering
     unsigned int fe_degree   = 1;
     unsigned int n_points_1D = 2;
 
+    double   top_fraction_of_cells    = 0.3;
+    double   bottom_fraction_of_cells = 0.03;
+    unsigned min_refinement_depth     = 2;
+    unsigned max_refinement_depth     = 0;
+    unsigned refinement_frequency     = 10;
+
     bool matrix_based = false;
 
     std::string outer_preconditioner = "ILU";
@@ -4788,27 +4794,22 @@ namespace Sintering
         TimerOutput::Scope scope(timer, "time_loop");
         for (double t = 0, dt = dt_deseride; t <= t_end;)
           {
-            if (n_timestep != 0 && n_timestep % 10 == 0)
+            if (n_timestep != 0 && params.refinement_frequency > 0 &&
+                n_timestep % params.refinement_frequency == 0)
               {
                 pcout << "Execute refinement/coarsening:" << std::endl;
 
-                const double   top_fraction_of_cells    = 0.3;
-                const double   bottom_fraction_of_cells = 0.03;
-                const unsigned min_refinement_depth     = 2;
-                const unsigned max_refinement_depth     = 0;
-
+                // 1) copy solution so that it has the right ghosting
                 IndexSet locally_relevant_dofs;
                 DoFTools::extract_locally_relevant_dofs(dof_handler,
                                                         locally_relevant_dofs);
-
                 VectorType solution_dealii(dof_handler.locally_owned_dofs(),
                                            locally_relevant_dofs,
                                            dof_handler.get_communicator());
-
                 solution_dealii.copy_locally_owned_data_from(solution);
-
                 solution_dealii.update_ghost_values();
 
+                // 2) estimate errors
                 Vector<float> estimated_error_per_cell(tria.n_active_cells());
 
                 std::vector<bool> mask(number_of_components, true);
@@ -4825,21 +4826,24 @@ namespace Sintering
                   0,
                   Utilities::MPI::this_mpi_process(MPI_COMM_WORLD));
 
+                // 3) mark cells
                 parallel::distributed::GridRefinement::
-                  refine_and_coarsen_fixed_fraction(tria,
-                                                    estimated_error_per_cell,
-                                                    top_fraction_of_cells,
-                                                    bottom_fraction_of_cells);
+                  refine_and_coarsen_fixed_fraction(
+                    tria,
+                    estimated_error_per_cell,
+                    params.top_fraction_of_cells,
+                    params.bottom_fraction_of_cells);
 
-                if (tria.n_levels() > init_level + max_refinement_depth)
+                if (tria.n_levels() > init_level + params.max_refinement_depth)
                   for (const auto &cell : tria.active_cell_iterators_on_level(
-                         init_level + max_refinement_depth))
+                         init_level + params.max_refinement_depth))
                     cell->clear_refine_flag();
 
                 for (const auto &cell : tria.active_cell_iterators_on_level(
-                       init_level - min_refinement_depth))
+                       init_level - params.min_refinement_depth))
                   cell->clear_coarsen_flag();
 
+                // 4) perform interpolation and initialize data structures
                 tria.prepare_coarsening_and_refinement();
 
                 parallel::distributed::SolutionTransfer<dim, VectorType>
