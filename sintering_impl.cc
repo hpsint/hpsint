@@ -1928,6 +1928,7 @@ namespace Sintering
     {
       MyScope scope(this->timer, label + "::diagonal");
 
+      matrix_free.initialize_dof_vector(diagonal, dof_index);
       MatrixFreeTools::compute_diagonal(
         matrix_free, diagonal, &OperatorBase::do_vmult_cell, this, dof_index);
       for (auto &i : diagonal)
@@ -3397,7 +3398,7 @@ namespace Sintering
       preconditioner_0 =
         Preconditioners::create(operator_0, data.block_0_preconditioner);
 
-      if (false /*TODO*/)
+      if (true /*TODO*/)
         preconditioner_1 =
           Preconditioners::create(operator_1, data.block_1_preconditioner);
       else
@@ -4389,7 +4390,7 @@ namespace Sintering
 
     bool matrix_based = false;
 
-    std::string outer_preconditioner = "ILU";
+    std::string outer_preconditioner = "BlockPreconditioner2";
     // std::string outer_preconditioner = "BlockPreconditioner3CH";
 
     BlockPreconditioner2Data   block_preconditioner_2_data;
@@ -4643,6 +4644,7 @@ namespace Sintering
       typename MatrixFree<dim, Number, VectorizedArrayType>::AdditionalData
         additional_data;
       additional_data.mapping_update_flags = update_values | update_gradients;
+      // additional_data.use_fast_hanging_node_algorithm = false; // TODO
 
       const std::vector<const DoFHandler<dim> *> dof_handlers{
         &dof_handler, &dof_handler_ch, &dof_handler_ac, &dof_handler_scalar};
@@ -4749,7 +4751,10 @@ namespace Sintering
           if (true)
             {
               MyScope scope(timer, "time_loop::newton::setup_jacobian");
-              nonlinear_operator.evaluate_newton_step(current_u);
+
+              auto tmp = current_u;
+              constraint.distribute(tmp);
+              nonlinear_operator.evaluate_newton_step(tmp);
             }
 
           if (do_update_preconditioner)
@@ -4762,7 +4767,13 @@ namespace Sintering
       non_linear_solver->solve_with_jacobian = [&](const auto &src, auto &dst) {
         MyScope scope(timer, "time_loop::newton::solve_with_jacobian");
 
-        return linear_solver->solve(dst, src);
+        auto tmp = src;
+
+        constraint.set_zero(tmp);
+        const unsigned int n_iterations = linear_solver->solve(dst, tmp);
+        constraint.distribute(dst);
+
+        return n_iterations;
       };
 
 
@@ -4864,6 +4875,7 @@ namespace Sintering
 
                 nonlinear_operator.initialize_dof_vector(solution);
                 solution.copy_locally_owned_data_from(interpolated_solution);
+                constraint.distribute(solution);
               }
 
             nonlinear_operator.set_timestep(dt);
