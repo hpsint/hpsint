@@ -4651,6 +4651,14 @@ namespace Sintering
 
       matrix_free.reinit(
         mapping, dof_handlers, constraints, quad, additional_data);
+
+      // clang-format off
+      pcout_statistics << "System statistics:" << std::endl;
+      pcout_statistics << "  - n cell:                    " << tria.n_global_active_cells() << std::endl;
+      pcout_statistics << "  - n levels:                  " << tria.n_global_levels() << std::endl;
+      pcout_statistics << "  - n dofs:                    " << dof_handler.n_dofs() << std::endl;
+      pcout_statistics << std::endl;
+      // clang-format on
     }
 
     void
@@ -4773,14 +4781,6 @@ namespace Sintering
 
       if (output_time_interval > 0.0)
         output_result(solution, nonlinear_operator, time_last_output);
-
-      // clang-format off
-      pcout_statistics << "System statistics:" << std::endl;
-      pcout_statistics << "  - n cell:                    " << tria.n_global_active_cells() << std::endl;
-      pcout_statistics << "  - n levels:                  " << tria.n_global_levels() << std::endl;
-      pcout_statistics << "  - n dofs:                    " << dof_handler.n_dofs() << std::endl;
-      pcout_statistics << std::endl;
-      // clang-format on
 
       unsigned int n_timestep              = 0;
       unsigned int n_linear_iterations     = 0;
