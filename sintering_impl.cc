@@ -5041,7 +5041,7 @@ namespace Sintering
                 const double                               interface_width,
                 const unsigned int elements_per_interface)
     {
-      const unsigned int initial_ny = 16;
+      const unsigned int initial_ny = 10;
       const unsigned int initial_nx =
         static_cast<unsigned int>(domain_width / domain_height * initial_ny);
 
