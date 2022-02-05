@@ -4391,8 +4391,8 @@ namespace Sintering
     unsigned int n_points_1D = 2;
 
     double   top_fraction_of_cells    = 0.3;
-    double   bottom_fraction_of_cells = 0.03;
-    unsigned min_refinement_depth     = 2;
+    double   bottom_fraction_of_cells = 0.1;
+    unsigned min_refinement_depth     = 3;
     unsigned max_refinement_depth     = 0;
     unsigned refinement_frequency     = 10;
 
@@ -4529,7 +4529,7 @@ namespace Sintering
     static constexpr double boundary_factor = 1.0;
 
     // mesh
-    static constexpr unsigned int elements_per_interface = 4;
+    static constexpr unsigned int elements_per_interface = 8;
 
     // time discretization
     static constexpr double t_end                = 100;
@@ -4858,14 +4858,17 @@ namespace Sintering
                     params.top_fraction_of_cells,
                     params.bottom_fraction_of_cells);
 
-                if (tria.n_levels() > init_level + params.max_refinement_depth)
-                  for (const auto &cell : tria.active_cell_iterators_on_level(
-                         init_level + params.max_refinement_depth))
+                for (const auto &cell : tria.active_cell_iterators())
+                  if (cell->refine_flag_set() &&
+                      (static_cast<unsigned int>(cell->level()) ==
+                       (init_level + params.max_refinement_depth)))
                     cell->clear_refine_flag();
-
-                for (const auto &cell : tria.active_cell_iterators_on_level(
-                       init_level - params.min_refinement_depth))
-                  cell->clear_coarsen_flag();
+                  else if (cell->coarsen_flag_set() &&
+                           (static_cast<unsigned int>(cell->level()) ==
+                            (init_level -
+                             std::min(init_level,
+                                      params.min_refinement_depth))))
+                    cell->clear_coarsen_flag();
 
                 // 4) perform interpolation and initialize data structures
                 tria.prepare_coarsening_and_refinement();
@@ -5038,13 +5041,13 @@ namespace Sintering
                 const double                               interface_width,
                 const unsigned int elements_per_interface)
     {
-      const unsigned int initial_ny = 50;
+      const unsigned int initial_ny = 16;
       const unsigned int initial_nx =
-        int(domain_width / domain_height * initial_ny);
+        static_cast<unsigned int>(domain_width / domain_height * initial_ny);
 
-      const unsigned int n_refinements =
-        int(std::round(std::log2(elements_per_interface / interface_width *
-                                 domain_height / initial_ny)));
+      const unsigned int n_refinements = static_cast<unsigned int>(
+        std::round(std::log2(elements_per_interface / interface_width *
+                             domain_height / initial_ny)));
 
       std::vector<unsigned int> subdivisions(dim);
       subdivisions[0] = initial_nx;
