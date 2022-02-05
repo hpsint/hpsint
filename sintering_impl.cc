@@ -1845,12 +1845,12 @@ namespace Sintering
       FEEvaluation<dim, -1, 0, n_components, Number, VectorizedArrayType>;
 
     OperatorBase(
-      const MatrixFree<dim, Number, VectorizedArrayType> &matrix_free,
-      const AffineConstraints<Number> &                   constraints,
-      const unsigned int                                  dof_index,
-      const std::string                                   label = "")
+      const MatrixFree<dim, Number, VectorizedArrayType> &  matrix_free,
+      const std::vector<const AffineConstraints<Number> *> &constraints,
+      const unsigned int                                    dof_index,
+      const std::string                                     label = "")
       : matrix_free(matrix_free)
-      , constraints(constraints)
+      , constraints(*constraints[dof_index])
       , dof_index(dof_index)
       , label(label)
       , pcout(std::cout, Utilities::MPI::this_mpi_process(MPI_COMM_WORLD) == 0)
@@ -2285,7 +2285,7 @@ namespace Sintering
 
     SinteringOperator(
       const MatrixFree<dim, Number, VectorizedArrayType> &   matrix_free,
-      const AffineConstraints<Number> &                      constraints,
+      const std::vector<const AffineConstraints<Number> *> & constraints,
       const SinteringOperatorData<dim, VectorizedArrayType> &data,
       const bool                                             matrix_based)
       : OperatorBase<dim, n_components, Number, VectorizedArrayType>(
@@ -2776,8 +2776,8 @@ namespace Sintering
       FEEvaluation<dim, -1, 0, n_components, Number, VectorizedArrayType>;
 
     OperatorCahnHilliard(
-      const MatrixFree<dim, Number, VectorizedArrayType> &matrix_free,
-      const AffineConstraints<Number> &                   constraints,
+      const MatrixFree<dim, Number, VectorizedArrayType> &  matrix_free,
+      const std::vector<const AffineConstraints<Number> *> &constraints,
       const SinteringOperator<dim, n_components_, Number, VectorizedArrayType>
         &op)
       : OperatorBase<dim, n_components, Number, VectorizedArrayType>(
@@ -2866,8 +2866,8 @@ namespace Sintering
       FEEvaluation<dim, -1, 0, n_components, Number, VectorizedArrayType>;
 
     OperatorCahnHilliardA(
-      const MatrixFree<dim, Number, VectorizedArrayType> &matrix_free,
-      const AffineConstraints<Number> &                   constraints,
+      const MatrixFree<dim, Number, VectorizedArrayType> &  matrix_free,
+      const std::vector<const AffineConstraints<Number> *> &constraints,
       const SinteringOperator<dim, n_components_, Number, VectorizedArrayType>
         &op)
       : OperatorBase<dim, n_components, Number, VectorizedArrayType>(
@@ -2934,8 +2934,8 @@ namespace Sintering
       FEEvaluation<dim, -1, 0, n_components, Number, VectorizedArrayType>;
 
     OperatorCahnHilliardB(
-      const MatrixFree<dim, Number, VectorizedArrayType> &matrix_free,
-      const AffineConstraints<Number> &                   constraints,
+      const MatrixFree<dim, Number, VectorizedArrayType> &  matrix_free,
+      const std::vector<const AffineConstraints<Number> *> &constraints,
       const SinteringOperator<dim, n_components_, Number, VectorizedArrayType>
         &op)
       : OperatorBase<dim, n_components, Number, VectorizedArrayType>(
@@ -2997,8 +2997,8 @@ namespace Sintering
       FEEvaluation<dim, -1, 0, n_components, Number, VectorizedArrayType>;
 
     OperatorCahnHilliardC(
-      const MatrixFree<dim, Number, VectorizedArrayType> &matrix_free,
-      const AffineConstraints<Number> &                   constraints,
+      const MatrixFree<dim, Number, VectorizedArrayType> &  matrix_free,
+      const std::vector<const AffineConstraints<Number> *> &constraints,
       const SinteringOperator<dim, n_components_, Number, VectorizedArrayType>
         &op)
       : OperatorBase<dim, n_components, Number, VectorizedArrayType>(
@@ -3053,8 +3053,8 @@ namespace Sintering
       FEEvaluation<dim, -1, 0, n_components, Number, VectorizedArrayType>;
 
     OperatorCahnHilliardD(
-      const MatrixFree<dim, Number, VectorizedArrayType> &matrix_free,
-      const AffineConstraints<Number> &                   constraints,
+      const MatrixFree<dim, Number, VectorizedArrayType> &  matrix_free,
+      const std::vector<const AffineConstraints<Number> *> &constraints,
       const SinteringOperator<dim, n_components_, Number, VectorizedArrayType>
         &op)
       : OperatorBase<dim, n_components, Number, VectorizedArrayType>(
@@ -3097,8 +3097,8 @@ namespace Sintering
       FEEvaluation<dim, -1, 0, n_components, Number, VectorizedArrayType>;
 
     OperatorAllenCahn(
-      const MatrixFree<dim, Number, VectorizedArrayType> &matrix_free,
-      const AffineConstraints<Number> &                   constraints,
+      const MatrixFree<dim, Number, VectorizedArrayType> &  matrix_free,
+      const std::vector<const AffineConstraints<Number> *> &constraints,
       const SinteringOperator<dim, n_components_, Number, VectorizedArrayType>
         &op)
       : OperatorBase<dim, n_components, Number, VectorizedArrayType>(
@@ -3173,8 +3173,8 @@ namespace Sintering
       typename OperatorBase<dim, 1, Number, VectorizedArrayType>::VectorType;
 
     OperatorAllenCahnHelmholtz(
-      const MatrixFree<dim, Number, VectorizedArrayType> &matrix_free,
-      const AffineConstraints<Number> &                   constraints,
+      const MatrixFree<dim, Number, VectorizedArrayType> &  matrix_free,
+      const std::vector<const AffineConstraints<Number> *> &constraints,
       const SinteringOperator<dim, n_components_, Number, VectorizedArrayType>
         &op)
       : OperatorBase<dim, 1, Number, VectorizedArrayType>(matrix_free,
@@ -3377,10 +3377,10 @@ namespace Sintering
 
     BlockPreconditioner2(
       const SinteringOperator<dim, n_components, Number, VectorizedArrayType>
-        &                                                 op,
-      const MatrixFree<dim, Number, VectorizedArrayType> &matrix_free,
-      const AffineConstraints<Number> &                   constraints,
-      const BlockPreconditioner2Data &                    data = {})
+        &                                                   op,
+      const MatrixFree<dim, Number, VectorizedArrayType> &  matrix_free,
+      const std::vector<const AffineConstraints<Number> *> &constraints,
+      const BlockPreconditioner2Data &                      data = {})
       : matrix_free(matrix_free)
       , operator_0(matrix_free, constraints, op)
       , operator_1(matrix_free, constraints, op)
@@ -3389,12 +3389,6 @@ namespace Sintering
       , timer(pcout, TimerOutput::never, TimerOutput::wall_times)
       , data(data)
     {
-      matrix_free.initialize_dof_vector(dst_0, 1);
-      matrix_free.initialize_dof_vector(src_0, 1);
-
-      matrix_free.initialize_dof_vector(dst_1, 2);
-      matrix_free.initialize_dof_vector(src_1, 2);
-
       preconditioner_0 =
         Preconditioners::create(operator_0, data.block_0_preconditioner);
 
@@ -3425,17 +3419,17 @@ namespace Sintering
       operator_1_helmholtz.clear();
       preconditioner_0->clear();
       preconditioner_1->clear();
+
+      dst_0.reinit(0);
+      src_0.reinit(0);
+      dst_1.reinit(0);
+      src_1.reinit(0);
     }
 
     void
     vmult(VectorType &dst, const VectorType &src) const override
     {
       MyScope scope(timer, "precon::vmult");
-
-      matrix_free.initialize_dof_vector(dst_0, 1); // TODO
-      matrix_free.initialize_dof_vector(src_0, 1); // TODO
-      matrix_free.initialize_dof_vector(dst_1, 2); // TODO
-      matrix_free.initialize_dof_vector(src_1, 2); // TODO
 
       {
         MyScope scope(timer, "precon::vmult::split_up");
@@ -3501,6 +3495,19 @@ namespace Sintering
     do_update() override
     {
       MyScope scope(timer, "precon::update");
+
+      if (dst_0.size() == 0)
+        {
+          AssertDimension(src_0.size(), 0);
+          AssertDimension(dst_1.size(), 0);
+          AssertDimension(src_1.size(), 0);
+
+          matrix_free.initialize_dof_vector(dst_0, 1);
+          matrix_free.initialize_dof_vector(src_0, 1);
+          matrix_free.initialize_dof_vector(dst_1, 2);
+          matrix_free.initialize_dof_vector(src_1, 2);
+        }
+
       {
         MyScope scope(timer, "precon::update::precon_0");
         preconditioner_0->do_update();
@@ -3568,10 +3575,10 @@ namespace Sintering
 
     BlockPreconditioner3(
       const SinteringOperator<dim, n_components, Number, VectorizedArrayType>
-        &                                                 op,
-      const MatrixFree<dim, Number, VectorizedArrayType> &matrix_free,
-      const AffineConstraints<Number> &                   constraints,
-      const BlockPreconditioner3Data &                    data = {})
+        &                                                   op,
+      const MatrixFree<dim, Number, VectorizedArrayType> &  matrix_free,
+      const std::vector<const AffineConstraints<Number> *> &constraints,
+      const BlockPreconditioner3Data &                      data = {})
       : matrix_free(matrix_free)
       , operator_0(matrix_free, constraints, op)
       , block_ch_b(matrix_free, constraints, op)
@@ -3821,8 +3828,9 @@ namespace Sintering
     using FECellIntegrator =
       FEEvaluation<dim, -1, 0, n_components, Number, VectorizedArrayType>;
 
-    MassMatrix(const MatrixFree<dim, Number, VectorizedArrayType> &matrix_free,
-               const AffineConstraints<Number> &                   constraints)
+    MassMatrix(
+      const MatrixFree<dim, Number, VectorizedArrayType> &  matrix_free,
+      const std::vector<const AffineConstraints<Number> *> &constraints)
       : OperatorBase<dim, n_components, Number, VectorizedArrayType>(
           matrix_free,
           constraints,
@@ -3859,8 +3867,8 @@ namespace Sintering
       typename OperatorBase<dim, 1, Number, VectorizedArrayType>::VectorType;
 
     OperatorCahnHilliardHelmholtz(
-      const MatrixFree<dim, Number, VectorizedArrayType> &matrix_free,
-      const AffineConstraints<Number> &                   constraints,
+      const MatrixFree<dim, Number, VectorizedArrayType> &  matrix_free,
+      const std::vector<const AffineConstraints<Number> *> &constraints,
       const SinteringOperator<dim, n_components_, Number, VectorizedArrayType>
         &op)
       : OperatorBase<dim, 1, Number, VectorizedArrayType>(matrix_free,
@@ -4053,8 +4061,8 @@ namespace Sintering
     using VectorType = LinearAlgebra::distributed::Vector<Number>;
 
     BlockPreconditioner3CHOperator(
-      const MatrixFree<dim, Number, VectorizedArrayType> &matrix_free,
-      const AffineConstraints<Number> &                   constraints,
+      const MatrixFree<dim, Number, VectorizedArrayType> &  matrix_free,
+      const std::vector<const AffineConstraints<Number> *> &constraints,
       const SinteringOperator<dim, n_components, Number, VectorizedArrayType>
         &op)
       : operator_a(matrix_free, constraints, op)
@@ -4189,10 +4197,10 @@ namespace Sintering
 
     BlockPreconditioner3CH(
       const SinteringOperator<dim, n_components, Number, VectorizedArrayType>
-        &                                                 op,
-      const MatrixFree<dim, Number, VectorizedArrayType> &matrix_free,
-      const AffineConstraints<Number> &                   constraints,
-      const BlockPreconditioner3CHData &                  data = {})
+        &                                                   op,
+      const MatrixFree<dim, Number, VectorizedArrayType> &  matrix_free,
+      const std::vector<const AffineConstraints<Number> *> &constraints,
+      const BlockPreconditioner3CHData &                    data = {})
       : matrix_free(matrix_free)
       , operator_0(matrix_free, constraints, op)
       , mass_matrix(matrix_free, constraints)
@@ -4575,6 +4583,8 @@ namespace Sintering
     AffineConstraints<Number> constraint_ac;
     AffineConstraints<Number> constraint_scalar;
 
+    const std::vector<const AffineConstraints<double> *> constraints;
+
     MatrixFree<dim, Number, VectorizedArrayType> matrix_free;
 
     InitialValues<dim> initial_solution;
@@ -4594,6 +4604,10 @@ namespace Sintering
       , dof_handler_ch(tria)
       , dof_handler_ac(tria)
       , dof_handler_scalar(tria)
+      , constraints{&constraint,
+                    &constraint_ch,
+                    &constraint_ac,
+                    &constraint_scalar}
       , initial_solution(x01,
                          x02,
                          y0,
@@ -4648,8 +4662,6 @@ namespace Sintering
 
       const std::vector<const DoFHandler<dim> *> dof_handlers{
         &dof_handler, &dof_handler_ch, &dof_handler_ac, &dof_handler_scalar};
-      const std::vector<const AffineConstraints<double> *> constraints{
-        &constraint, &constraint_ch, &constraint_ac, &constraint_scalar};
 
       matrix_free.reinit(
         mapping, dof_handlers, constraints, quad, additional_data);
@@ -4671,7 +4683,7 @@ namespace Sintering
 
       // ... non-linear operator
       NonLinearOperator nonlinear_operator(matrix_free,
-                                           constraint,
+                                           constraints,
                                            sintering_data,
                                            params.matrix_based);
 
@@ -4691,7 +4703,7 @@ namespace Sintering
                                                 VectorizedArrayType>>(
             nonlinear_operator,
             matrix_free,
-            constraint,
+            constraints,
             params.block_preconditioner_2_data);
       else if (params.outer_preconditioner == "BlockPreconditioner3")
         preconditioner =
@@ -4701,7 +4713,7 @@ namespace Sintering
                                                 VectorizedArrayType>>(
             nonlinear_operator,
             matrix_free,
-            constraint,
+            constraints,
             params.block_preconditioner_3_data);
       else if (params.outer_preconditioner == "BlockPreconditioner3CH")
         preconditioner =
@@ -4711,7 +4723,7 @@ namespace Sintering
                                                   VectorizedArrayType>>(
             nonlinear_operator,
             matrix_free,
-            constraint,
+            constraints,
             params.block_preconditioner_3_ch_data);
       else
         preconditioner = Preconditioners::create(nonlinear_operator,
@@ -5049,15 +5061,6 @@ namespace Sintering
 
       if (n_refinements > 0)
         tria.refine_global(n_refinements);
-
-      if (false) // TODO: remove
-        {
-          for (const auto &cell : tria.active_cell_iterators())
-            if (cell->is_locally_owned() &&
-                cell->center()[0] < domain_width / 2.0)
-              cell->set_refine_flag();
-          tria.execute_coarsening_and_refinement();
-        }
     }
 
     void
