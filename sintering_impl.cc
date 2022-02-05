@@ -4777,6 +4777,8 @@ namespace Sintering
       non_linear_solver->solve_with_jacobian = [&](const auto &src, auto &dst) {
         MyScope scope(timer, "time_loop::newton::solve_with_jacobian");
 
+        // note: we mess with the input here, since we know that Newton does not
+        // use the content anymore
         constraint.set_zero(const_cast<VectorType &>(src));
         const unsigned int n_iterations = linear_solver->solve(dst, src);
         constraint.distribute(dst);
@@ -4825,6 +4827,9 @@ namespace Sintering
                 VectorType solution_dealii(dof_handler.locally_owned_dofs(),
                                            locally_relevant_dofs,
                                            dof_handler.get_communicator());
+
+                // note: we do not need to apply constraints, since they are
+                // are already set by the Newton solver
                 solution_dealii.copy_locally_owned_data_from(solution);
                 solution_dealii.update_ghost_values();
 
@@ -4883,6 +4888,8 @@ namespace Sintering
 
                 nonlinear_operator.initialize_dof_vector(solution);
                 solution.copy_locally_owned_data_from(interpolated_solution);
+
+                // note: apply constraints since the Newton solver expects this
                 constraint.distribute(solution);
               }
 
@@ -4895,6 +4902,8 @@ namespace Sintering
               {
                 MyScope scope(timer, "time_loop::newton");
 
+                // note: input/output (solution) needs/has the right
+                // constraints applied
                 const auto statistics = non_linear_solver->solve(solution);
 
                 has_converged = true;
