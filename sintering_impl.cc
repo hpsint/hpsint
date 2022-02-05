@@ -28,6 +28,8 @@ static_assert(false, "No dimension has been given!");
 #include <deal.II/base/quadrature_lib.h>
 #include <deal.II/base/timer.h>
 
+#include <deal.II/distributed/grid_refinement.h>
+#include <deal.II/distributed/solution_transfer.h>
 #include <deal.II/distributed/tria.h>
 
 #include <deal.II/dofs/dof_handler.h>
@@ -60,6 +62,7 @@ static_assert(false, "No dimension has been given!");
 #include <deal.II/multigrid/multigrid.h>
 
 #include <deal.II/numerics/data_out.h>
+#include <deal.II/numerics/error_estimator.h>
 #include <deal.II/numerics/vector_tools.h>
 
 using namespace dealii;
@@ -531,6 +534,12 @@ namespace Preconditioners
     virtual ~PreconditionerBase() = default;
 
     virtual void
+    clear()
+    {
+      AssertThrow(false, ExcNotImplemented());
+    }
+
+    virtual void
     vmult(VectorType &dst, const VectorType &src) const = 0;
 
     virtual void
@@ -549,6 +558,12 @@ namespace Preconditioners
     InverseDiagonalMatrix(const Operator &op)
       : op(op)
     {}
+
+    virtual void
+    clear()
+    {
+      diagonal_matrix.clear();
+    }
 
     void
     vmult(VectorType &dst, const VectorType &src) const override
@@ -760,6 +775,12 @@ namespace Preconditioners
       if (timer.get_summary_data(TimerOutput::OutputData::total_wall_time)
             .size() > 0)
         timer.print_wall_time_statistics(MPI_COMM_WORLD);
+    }
+
+    virtual void
+    clear()
+    {
+      precondition_ilu.clear();
     }
 
     void
@@ -1824,12 +1845,12 @@ namespace Sintering
       FEEvaluation<dim, -1, 0, n_components, Number, VectorizedArrayType>;
 
     OperatorBase(
-      const MatrixFree<dim, Number, VectorizedArrayType> &matrix_free,
-      const AffineConstraints<Number> &                   constraints,
-      const unsigned int                                  dof_index,
-      const std::string                                   label = "")
+      const MatrixFree<dim, Number, VectorizedArrayType> &  matrix_free,
+      const std::vector<const AffineConstraints<Number> *> &constraints,
+      const unsigned int                                    dof_index,
+      const std::string                                     label = "")
       : matrix_free(matrix_free)
-      , constraints(constraints)
+      , constraints(*constraints[dof_index])
       , dof_index(dof_index)
       , label(label)
       , pcout(std::cout, Utilities::MPI::this_mpi_process(MPI_COMM_WORLD) == 0)
@@ -1841,6 +1862,12 @@ namespace Sintering
       if (timer.get_summary_data(TimerOutput::OutputData::total_wall_time)
             .size() > 0)
         timer.print_wall_time_statistics(MPI_COMM_WORLD);
+    }
+
+    virtual void
+    clear()
+    {
+      this->system_matrix.clear();
     }
 
     const DoFHandler<dim> &
@@ -1901,6 +1928,7 @@ namespace Sintering
     {
       MyScope scope(this->timer, label + "::diagonal");
 
+      matrix_free.initialize_dof_vector(diagonal, dof_index);
       MatrixFreeTools::compute_diagonal(
         matrix_free, diagonal, &OperatorBase::do_vmult_cell, this, dof_index);
       for (auto &i : diagonal)
@@ -2257,7 +2285,7 @@ namespace Sintering
 
     SinteringOperator(
       const MatrixFree<dim, Number, VectorizedArrayType> &   matrix_free,
-      const AffineConstraints<Number> &                      constraints,
+      const std::vector<const AffineConstraints<Number> *> & constraints,
       const SinteringOperatorData<dim, VectorizedArrayType> &data,
       const bool                                             matrix_based)
       : OperatorBase<dim, n_components, Number, VectorizedArrayType>(
@@ -2748,8 +2776,8 @@ namespace Sintering
       FEEvaluation<dim, -1, 0, n_components, Number, VectorizedArrayType>;
 
     OperatorCahnHilliard(
-      const MatrixFree<dim, Number, VectorizedArrayType> &matrix_free,
-      const AffineConstraints<Number> &                   constraints,
+      const MatrixFree<dim, Number, VectorizedArrayType> &  matrix_free,
+      const std::vector<const AffineConstraints<Number> *> &constraints,
       const SinteringOperator<dim, n_components_, Number, VectorizedArrayType>
         &op)
       : OperatorBase<dim, n_components, Number, VectorizedArrayType>(
@@ -2838,8 +2866,8 @@ namespace Sintering
       FEEvaluation<dim, -1, 0, n_components, Number, VectorizedArrayType>;
 
     OperatorCahnHilliardA(
-      const MatrixFree<dim, Number, VectorizedArrayType> &matrix_free,
-      const AffineConstraints<Number> &                   constraints,
+      const MatrixFree<dim, Number, VectorizedArrayType> &  matrix_free,
+      const std::vector<const AffineConstraints<Number> *> &constraints,
       const SinteringOperator<dim, n_components_, Number, VectorizedArrayType>
         &op)
       : OperatorBase<dim, n_components, Number, VectorizedArrayType>(
@@ -2906,8 +2934,8 @@ namespace Sintering
       FEEvaluation<dim, -1, 0, n_components, Number, VectorizedArrayType>;
 
     OperatorCahnHilliardB(
-      const MatrixFree<dim, Number, VectorizedArrayType> &matrix_free,
-      const AffineConstraints<Number> &                   constraints,
+      const MatrixFree<dim, Number, VectorizedArrayType> &  matrix_free,
+      const std::vector<const AffineConstraints<Number> *> &constraints,
       const SinteringOperator<dim, n_components_, Number, VectorizedArrayType>
         &op)
       : OperatorBase<dim, n_components, Number, VectorizedArrayType>(
@@ -2969,8 +2997,8 @@ namespace Sintering
       FEEvaluation<dim, -1, 0, n_components, Number, VectorizedArrayType>;
 
     OperatorCahnHilliardC(
-      const MatrixFree<dim, Number, VectorizedArrayType> &matrix_free,
-      const AffineConstraints<Number> &                   constraints,
+      const MatrixFree<dim, Number, VectorizedArrayType> &  matrix_free,
+      const std::vector<const AffineConstraints<Number> *> &constraints,
       const SinteringOperator<dim, n_components_, Number, VectorizedArrayType>
         &op)
       : OperatorBase<dim, n_components, Number, VectorizedArrayType>(
@@ -3025,8 +3053,8 @@ namespace Sintering
       FEEvaluation<dim, -1, 0, n_components, Number, VectorizedArrayType>;
 
     OperatorCahnHilliardD(
-      const MatrixFree<dim, Number, VectorizedArrayType> &matrix_free,
-      const AffineConstraints<Number> &                   constraints,
+      const MatrixFree<dim, Number, VectorizedArrayType> &  matrix_free,
+      const std::vector<const AffineConstraints<Number> *> &constraints,
       const SinteringOperator<dim, n_components_, Number, VectorizedArrayType>
         &op)
       : OperatorBase<dim, n_components, Number, VectorizedArrayType>(
@@ -3069,8 +3097,8 @@ namespace Sintering
       FEEvaluation<dim, -1, 0, n_components, Number, VectorizedArrayType>;
 
     OperatorAllenCahn(
-      const MatrixFree<dim, Number, VectorizedArrayType> &matrix_free,
-      const AffineConstraints<Number> &                   constraints,
+      const MatrixFree<dim, Number, VectorizedArrayType> &  matrix_free,
+      const std::vector<const AffineConstraints<Number> *> &constraints,
       const SinteringOperator<dim, n_components_, Number, VectorizedArrayType>
         &op)
       : OperatorBase<dim, n_components, Number, VectorizedArrayType>(
@@ -3145,8 +3173,8 @@ namespace Sintering
       typename OperatorBase<dim, 1, Number, VectorizedArrayType>::VectorType;
 
     OperatorAllenCahnHelmholtz(
-      const MatrixFree<dim, Number, VectorizedArrayType> &matrix_free,
-      const AffineConstraints<Number> &                   constraints,
+      const MatrixFree<dim, Number, VectorizedArrayType> &  matrix_free,
+      const std::vector<const AffineConstraints<Number> *> &constraints,
       const SinteringOperator<dim, n_components_, Number, VectorizedArrayType>
         &op)
       : OperatorBase<dim, 1, Number, VectorizedArrayType>(matrix_free,
@@ -3255,6 +3283,14 @@ namespace Sintering
         timer.print_wall_time_statistics(MPI_COMM_WORLD);
     }
 
+    virtual void
+    clear() override
+    {
+      this->diag.reinit(0);
+      this->vec_mass.reinit(0);
+      this->vec_laplace.reinit(0);
+    }
+
     void
     vmult(VectorType &dst, const VectorType &src) const override
     {
@@ -3341,10 +3377,10 @@ namespace Sintering
 
     BlockPreconditioner2(
       const SinteringOperator<dim, n_components, Number, VectorizedArrayType>
-        &                                                 op,
-      const MatrixFree<dim, Number, VectorizedArrayType> &matrix_free,
-      const AffineConstraints<Number> &                   constraints,
-      const BlockPreconditioner2Data &                    data = {})
+        &                                                   op,
+      const MatrixFree<dim, Number, VectorizedArrayType> &  matrix_free,
+      const std::vector<const AffineConstraints<Number> *> &constraints,
+      const BlockPreconditioner2Data &                      data = {})
       : matrix_free(matrix_free)
       , operator_0(matrix_free, constraints, op)
       , operator_1(matrix_free, constraints, op)
@@ -3353,16 +3389,10 @@ namespace Sintering
       , timer(pcout, TimerOutput::never, TimerOutput::wall_times)
       , data(data)
     {
-      matrix_free.initialize_dof_vector(dst_0, 1);
-      matrix_free.initialize_dof_vector(src_0, 1);
-
-      matrix_free.initialize_dof_vector(dst_1, 2);
-      matrix_free.initialize_dof_vector(src_1, 2);
-
       preconditioner_0 =
         Preconditioners::create(operator_0, data.block_0_preconditioner);
 
-      if (false /*TODO*/)
+      if (true /*TODO*/)
         preconditioner_1 =
           Preconditioners::create(operator_1, data.block_1_preconditioner);
       else
@@ -3379,6 +3409,21 @@ namespace Sintering
       if (timer.get_summary_data(TimerOutput::OutputData::total_wall_time)
             .size() > 0)
         timer.print_wall_time_statistics(MPI_COMM_WORLD);
+    }
+
+    virtual void
+    clear()
+    {
+      operator_0.clear();
+      operator_1.clear();
+      operator_1_helmholtz.clear();
+      preconditioner_0->clear();
+      preconditioner_1->clear();
+
+      dst_0.reinit(0);
+      src_0.reinit(0);
+      dst_1.reinit(0);
+      src_1.reinit(0);
     }
 
     void
@@ -3450,6 +3495,19 @@ namespace Sintering
     do_update() override
     {
       MyScope scope(timer, "precon::update");
+
+      if (dst_0.size() == 0)
+        {
+          AssertDimension(src_0.size(), 0);
+          AssertDimension(dst_1.size(), 0);
+          AssertDimension(src_1.size(), 0);
+
+          matrix_free.initialize_dof_vector(dst_0, 1);
+          matrix_free.initialize_dof_vector(src_0, 1);
+          matrix_free.initialize_dof_vector(dst_1, 2);
+          matrix_free.initialize_dof_vector(src_1, 2);
+        }
+
       {
         MyScope scope(timer, "precon::update::precon_0");
         preconditioner_0->do_update();
@@ -3517,10 +3575,10 @@ namespace Sintering
 
     BlockPreconditioner3(
       const SinteringOperator<dim, n_components, Number, VectorizedArrayType>
-        &                                                 op,
-      const MatrixFree<dim, Number, VectorizedArrayType> &matrix_free,
-      const AffineConstraints<Number> &                   constraints,
-      const BlockPreconditioner3Data &                    data = {})
+        &                                                   op,
+      const MatrixFree<dim, Number, VectorizedArrayType> &  matrix_free,
+      const std::vector<const AffineConstraints<Number> *> &constraints,
+      const BlockPreconditioner3Data &                      data = {})
       : matrix_free(matrix_free)
       , operator_0(matrix_free, constraints, op)
       , block_ch_b(matrix_free, constraints, op)
@@ -3770,8 +3828,9 @@ namespace Sintering
     using FECellIntegrator =
       FEEvaluation<dim, -1, 0, n_components, Number, VectorizedArrayType>;
 
-    MassMatrix(const MatrixFree<dim, Number, VectorizedArrayType> &matrix_free,
-               const AffineConstraints<Number> &                   constraints)
+    MassMatrix(
+      const MatrixFree<dim, Number, VectorizedArrayType> &  matrix_free,
+      const std::vector<const AffineConstraints<Number> *> &constraints)
       : OperatorBase<dim, n_components, Number, VectorizedArrayType>(
           matrix_free,
           constraints,
@@ -3808,8 +3867,8 @@ namespace Sintering
       typename OperatorBase<dim, 1, Number, VectorizedArrayType>::VectorType;
 
     OperatorCahnHilliardHelmholtz(
-      const MatrixFree<dim, Number, VectorizedArrayType> &matrix_free,
-      const AffineConstraints<Number> &                   constraints,
+      const MatrixFree<dim, Number, VectorizedArrayType> &  matrix_free,
+      const std::vector<const AffineConstraints<Number> *> &constraints,
       const SinteringOperator<dim, n_components_, Number, VectorizedArrayType>
         &op)
       : OperatorBase<dim, 1, Number, VectorizedArrayType>(matrix_free,
@@ -4002,8 +4061,8 @@ namespace Sintering
     using VectorType = LinearAlgebra::distributed::Vector<Number>;
 
     BlockPreconditioner3CHOperator(
-      const MatrixFree<dim, Number, VectorizedArrayType> &matrix_free,
-      const AffineConstraints<Number> &                   constraints,
+      const MatrixFree<dim, Number, VectorizedArrayType> &  matrix_free,
+      const std::vector<const AffineConstraints<Number> *> &constraints,
       const SinteringOperator<dim, n_components, Number, VectorizedArrayType>
         &op)
       : operator_a(matrix_free, constraints, op)
@@ -4138,10 +4197,10 @@ namespace Sintering
 
     BlockPreconditioner3CH(
       const SinteringOperator<dim, n_components, Number, VectorizedArrayType>
-        &                                                 op,
-      const MatrixFree<dim, Number, VectorizedArrayType> &matrix_free,
-      const AffineConstraints<Number> &                   constraints,
-      const BlockPreconditioner3CHData &                  data = {})
+        &                                                   op,
+      const MatrixFree<dim, Number, VectorizedArrayType> &  matrix_free,
+      const std::vector<const AffineConstraints<Number> *> &constraints,
+      const BlockPreconditioner3CHData &                    data = {})
       : matrix_free(matrix_free)
       , operator_0(matrix_free, constraints, op)
       , mass_matrix(matrix_free, constraints)
@@ -4331,6 +4390,12 @@ namespace Sintering
     unsigned int fe_degree   = 1;
     unsigned int n_points_1D = 2;
 
+    double   top_fraction_of_cells    = 0.3;
+    double   bottom_fraction_of_cells = 0.1;
+    unsigned min_refinement_depth     = 3;
+    unsigned max_refinement_depth     = 0;
+    unsigned refinement_frequency     = 10;
+
     bool matrix_based = false;
 
     std::string outer_preconditioner = "BlockPreconditioner2";
@@ -4464,7 +4529,7 @@ namespace Sintering
     static constexpr double boundary_factor = 1.0;
 
     // mesh
-    static constexpr unsigned int elements_per_interface = 4;
+    static constexpr unsigned int elements_per_interface = 8;
 
     // time discretization
     static constexpr double t_end                = 100;
@@ -4472,7 +4537,7 @@ namespace Sintering
     static constexpr double dt_max               = 1e3 * dt_deseride;
     static constexpr double dt_min               = 1e-2 * dt_deseride;
     static constexpr double dt_increment         = 1.2;
-    static constexpr double output_time_interval = 0.0; // 0.0 means no output
+    static constexpr double output_time_interval = 1.0; // 0.0 means no output
 
     // desirable number of newton iterations
     static constexpr unsigned int desirable_newton_iterations = 5;
@@ -4518,6 +4583,10 @@ namespace Sintering
     AffineConstraints<Number> constraint_ac;
     AffineConstraints<Number> constraint_scalar;
 
+    const std::vector<const AffineConstraints<double> *> constraints;
+
+    MatrixFree<dim, Number, VectorizedArrayType> matrix_free;
+
     InitialValues<dim> initial_solution;
 
     Problem(const Parameters &params)
@@ -4535,6 +4604,10 @@ namespace Sintering
       , dof_handler_ch(tria)
       , dof_handler_ac(tria)
       , dof_handler_scalar(tria)
+      , constraints{&constraint,
+                    &constraint_ch,
+                    &constraint_ac,
+                    &constraint_scalar}
       , initial_solution(x01,
                          x02,
                          y0,
@@ -4543,14 +4616,19 @@ namespace Sintering
                          number_of_components,
                          is_accumulative)
     {
-      // create mesh
       create_mesh(tria,
                   domain_width,
                   domain_height,
                   interface_width,
                   elements_per_interface);
 
-      // distribute dofs
+      initialize();
+    }
+
+    void
+    initialize()
+    {
+      // setup DoFHandler, ...
       dof_handler.distribute_dofs(fe);
       dof_handler_ch.distribute_dofs(
         FESystem<dim>(FE_Q<dim>{params.fe_degree}, 2));
@@ -4558,39 +4636,54 @@ namespace Sintering
         FESystem<dim>(FE_Q<dim>{params.fe_degree}, number_of_components - 2));
       dof_handler_scalar.distribute_dofs(FE_Q<dim>{params.fe_degree});
 
+      // ... constraints, and ...
+      constraint.clear();
       DoFTools::make_hanging_node_constraints(dof_handler, constraint);
+      constraint.close();
+
+      constraint_ch.clear();
       DoFTools::make_hanging_node_constraints(dof_handler_ch, constraint_ch);
+      constraint_ch.close();
+
+      constraint_ac.clear();
       DoFTools::make_hanging_node_constraints(dof_handler_ac, constraint_ac);
+      constraint_ac.close();
+
+      constraint_scalar.clear();
       DoFTools::make_hanging_node_constraints(dof_handler_scalar,
                                               constraint_scalar);
-    }
+      constraint_scalar.close();
 
-
-
-    void
-    run()
-    {
-      // setup MatrixFree ...
+      // ... MatrixFree
       typename MatrixFree<dim, Number, VectorizedArrayType>::AdditionalData
         additional_data;
       additional_data.mapping_update_flags = update_values | update_gradients;
-
-      MatrixFree<dim, Number, VectorizedArrayType> matrix_free;
+      // additional_data.use_fast_hanging_node_algorithm = false; // TODO
 
       const std::vector<const DoFHandler<dim> *> dof_handlers{
         &dof_handler, &dof_handler_ch, &dof_handler_ac, &dof_handler_scalar};
-      const std::vector<const AffineConstraints<double> *> constraints{
-        &constraint, &constraint_ch, &constraint_ac, &constraint_scalar};
 
       matrix_free.reinit(
         mapping, dof_handlers, constraints, quad, additional_data);
 
+      // clang-format off
+      pcout_statistics << "System statistics:" << std::endl;
+      pcout_statistics << "  - n cell:                    " << tria.n_global_active_cells() << std::endl;
+      pcout_statistics << "  - n levels:                  " << tria.n_global_levels() << std::endl;
+      pcout_statistics << "  - n dofs:                    " << dof_handler.n_dofs() << std::endl;
+      pcout_statistics << std::endl;
+      // clang-format on
+    }
+
+    void
+    run()
+    {
       SinteringOperatorData<dim, VectorizedArrayType> sintering_data(
         A, B, Mvol, Mvap, Msurf, Mgb, L, kappa_c, kappa_p);
 
       // ... non-linear operator
       NonLinearOperator nonlinear_operator(matrix_free,
-                                           constraint,
+                                           constraints,
                                            sintering_data,
                                            params.matrix_based);
 
@@ -4602,79 +4695,7 @@ namespace Sintering
       MGLevelObject<MatrixFree<dim, Number, VectorizedArrayType>>
         mg_matrixfrees;
 
-      MGLevelObject<std::shared_ptr<const DoFHandler<dim>>> mg_dof_handlers;
-      MGLevelObject<std::shared_ptr<const AffineConstraints<double>>>
-                                                        mg_constraints;
-      MGLevelObject<std::shared_ptr<NonLinearOperator>> mg_operators;
-      MGLevelObject<VectorType>                         mg_solutions;
-
-      MGLevelObject<MGTwoLevelTransfer<dim, VectorType>>           transfers;
-      std::unique_ptr<MGTransferGlobalCoarsening<dim, VectorType>> transfer;
-
-      if (params.outer_preconditioner == "GMG")
-        {
-          mg_triangulations = MGTransferGlobalCoarseningTools::
-            create_geometric_coarsening_sequence(tria);
-
-          // TODO: problem during setup of Chebyshev if coarse-grid has 0 DoFs
-          const unsigned int min_level = 0;
-          const unsigned int max_level = mg_triangulations.size() - 1;
-
-          mg_dof_handlers.resize(min_level, max_level);
-          mg_constraints.resize(min_level, max_level);
-          mg_operators.resize(min_level, max_level);
-          mg_matrixfrees.resize(min_level, max_level);
-          mg_solutions.resize(min_level, max_level);
-          transfers.resize(min_level, max_level);
-
-          for (unsigned int l = min_level; l <= max_level; ++l)
-            {
-              auto dof_handler =
-                std::make_shared<DoFHandler<dim>>(*mg_triangulations[l]);
-              auto constraints = std::make_shared<AffineConstraints<double>>();
-
-              dof_handler->distribute_dofs(fe);
-
-              IndexSet locally_relevant_dofs;
-              DoFTools::extract_locally_relevant_dofs(*dof_handler,
-                                                      locally_relevant_dofs);
-              constraints->reinit(locally_relevant_dofs);
-
-              DoFTools::make_zero_boundary_constraints(*dof_handler,
-                                                       0,
-                                                       *constraints);
-
-              constraints->close();
-
-              mg_matrixfrees[l].reinit(
-                mapping, *dof_handler, *constraints, quad, additional_data);
-
-              mg_operators[l] =
-                std::make_shared<NonLinearOperator>(mg_matrixfrees[l],
-                                                    *constraints,
-                                                    sintering_data,
-                                                    params.matrix_based);
-
-              mg_dof_handlers[l] = dof_handler;
-              mg_constraints[l]  = constraints;
-            }
-
-          for (auto l = min_level; l < max_level; ++l)
-            transfers[l + 1].reinit(*mg_dof_handlers[l + 1],
-                                    *mg_dof_handlers[l]);
-
-          transfer =
-            std::make_unique<MGTransferGlobalCoarsening<dim, VectorType>>(
-              transfers, [&](const auto l, auto &vector) {
-                mg_matrixfrees[l].initialize_dof_vector(vector);
-              });
-
-          preconditioner = std::make_unique<
-            Preconditioners::
-              PreconditionerGMG<dim, NonLinearOperator, VectorType>>(
-            this->dof_handler, mg_dof_handlers, mg_constraints, mg_operators);
-        }
-      else if (params.outer_preconditioner == "BlockPreconditioner2")
+      if (params.outer_preconditioner == "BlockPreconditioner2")
         preconditioner =
           std::make_unique<BlockPreconditioner2<dim,
                                                 number_of_components,
@@ -4682,7 +4703,7 @@ namespace Sintering
                                                 VectorizedArrayType>>(
             nonlinear_operator,
             matrix_free,
-            constraint,
+            constraints,
             params.block_preconditioner_2_data);
       else if (params.outer_preconditioner == "BlockPreconditioner3")
         preconditioner =
@@ -4692,7 +4713,7 @@ namespace Sintering
                                                 VectorizedArrayType>>(
             nonlinear_operator,
             matrix_free,
-            constraint,
+            constraints,
             params.block_preconditioner_3_data);
       else if (params.outer_preconditioner == "BlockPreconditioner3CH")
         preconditioner =
@@ -4702,7 +4723,7 @@ namespace Sintering
                                                   VectorizedArrayType>>(
             nonlinear_operator,
             matrix_free,
-            constraint,
+            constraints,
             params.block_preconditioner_3_ch_data);
       else
         preconditioner = Preconditioners::create(nonlinear_operator,
@@ -4742,6 +4763,7 @@ namespace Sintering
           if (true)
             {
               MyScope scope(timer, "time_loop::newton::setup_jacobian");
+
               nonlinear_operator.evaluate_newton_step(current_u);
             }
 
@@ -4755,7 +4777,13 @@ namespace Sintering
       non_linear_solver->solve_with_jacobian = [&](const auto &src, auto &dst) {
         MyScope scope(timer, "time_loop::newton::solve_with_jacobian");
 
-        return linear_solver->solve(dst, src);
+        // note: we mess with the input here, since we know that Newton does not
+        // use the content anymore
+        constraint.set_zero(const_cast<VectorType &>(src));
+        const unsigned int n_iterations = linear_solver->solve(dst, src);
+        constraint.distribute(dst);
+
+        return n_iterations;
       };
 
 
@@ -4775,39 +4803,101 @@ namespace Sintering
       if (output_time_interval > 0.0)
         output_result(solution, nonlinear_operator, time_last_output);
 
-      // clang-format off
-      pcout_statistics << "System statistics:" << std::endl;
-      pcout_statistics << "  - n cell:                    " << tria.n_global_active_cells() << std::endl;
-      pcout_statistics << "  - n levels:                  " << tria.n_global_levels() << std::endl;
-      pcout_statistics << "  - n dofs:                    " << dof_handler.n_dofs() << std::endl;
-      pcout_statistics << std::endl;
-      // clang-format on
-
       unsigned int n_timestep              = 0;
       unsigned int n_linear_iterations     = 0;
       unsigned int n_non_linear_iterations = 0;
       double       max_reached_dt          = 0.0;
+
+      const unsigned int init_level = tria.n_global_levels() - 1;
 
       // run time loop
       {
         TimerOutput::Scope scope(timer, "time_loop");
         for (double t = 0, dt = dt_deseride; t <= t_end;)
           {
+            if (n_timestep != 0 && params.refinement_frequency > 0 &&
+                n_timestep % params.refinement_frequency == 0)
+              {
+                pcout << "Execute refinement/coarsening:" << std::endl;
+
+                // 1) copy solution so that it has the right ghosting
+                IndexSet locally_relevant_dofs;
+                DoFTools::extract_locally_relevant_dofs(dof_handler,
+                                                        locally_relevant_dofs);
+                VectorType solution_dealii(dof_handler.locally_owned_dofs(),
+                                           locally_relevant_dofs,
+                                           dof_handler.get_communicator());
+
+                // note: we do not need to apply constraints, since they are
+                // are already set by the Newton solver
+                solution_dealii.copy_locally_owned_data_from(solution);
+                solution_dealii.update_ghost_values();
+
+                // 2) estimate errors
+                Vector<float> estimated_error_per_cell(tria.n_active_cells());
+
+                std::vector<bool> mask(number_of_components, true);
+                std::fill(mask.begin(), mask.begin() + 2, false);
+
+                KellyErrorEstimator<dim>::estimate(
+                  this->dof_handler,
+                  QGauss<dim - 1>(this->dof_handler.get_fe().degree + 1),
+                  std::map<types::boundary_id, const Function<dim> *>(),
+                  solution_dealii,
+                  estimated_error_per_cell,
+                  mask,
+                  nullptr,
+                  0,
+                  Utilities::MPI::this_mpi_process(MPI_COMM_WORLD));
+
+                // 3) mark cells
+                parallel::distributed::GridRefinement::
+                  refine_and_coarsen_fixed_fraction(
+                    tria,
+                    estimated_error_per_cell,
+                    params.top_fraction_of_cells,
+                    params.bottom_fraction_of_cells);
+
+                for (const auto &cell : tria.active_cell_iterators())
+                  if (cell->refine_flag_set() &&
+                      (static_cast<unsigned int>(cell->level()) ==
+                       (init_level + params.max_refinement_depth)))
+                    cell->clear_refine_flag();
+                  else if (cell->coarsen_flag_set() &&
+                           (static_cast<unsigned int>(cell->level()) ==
+                            (init_level -
+                             std::min(init_level,
+                                      params.min_refinement_depth))))
+                    cell->clear_coarsen_flag();
+
+                // 4) perform interpolation and initialize data structures
+                tria.prepare_coarsening_and_refinement();
+
+                parallel::distributed::SolutionTransfer<dim, VectorType>
+                  solution_trans(dof_handler);
+                solution_trans.prepare_for_coarsening_and_refinement(
+                  solution_dealii);
+
+                tria.execute_coarsening_and_refinement();
+
+                initialize();
+
+                nonlinear_operator.clear();
+                preconditioner->clear();
+
+                VectorType interpolated_solution;
+                nonlinear_operator.initialize_dof_vector(interpolated_solution);
+                solution_trans.interpolate(interpolated_solution);
+
+                nonlinear_operator.initialize_dof_vector(solution);
+                solution.copy_locally_owned_data_from(interpolated_solution);
+
+                // note: apply constraints since the Newton solver expects this
+                constraint.distribute(solution);
+              }
+
             nonlinear_operator.set_timestep(dt);
             nonlinear_operator.set_previous_solution(solution);
-
-            if (transfer)
-              {
-                transfer->interpolate_to_mg(mg_solutions, solution);
-
-                for (unsigned int l = mg_operators.min_level();
-                     l <= mg_operators.max_level();
-                     ++l)
-                  {
-                    mg_operators[l]->set_timestep(dt);
-                    mg_operators[l]->set_previous_solution(mg_solutions[l]);
-                  }
-              }
 
             bool has_converged = false;
 
@@ -4815,8 +4905,9 @@ namespace Sintering
               {
                 MyScope scope(timer, "time_loop::newton");
 
+                // note: input/output (solution) needs/has the right
+                // constraints applied
                 const auto statistics = non_linear_solver->solve(solution);
-                constraint.distribute(solution);
 
                 has_converged = true;
 
@@ -4952,11 +5043,11 @@ namespace Sintering
     {
       const unsigned int initial_ny = 10;
       const unsigned int initial_nx =
-        int(domain_width / domain_height * initial_ny);
+        static_cast<unsigned int>(domain_width / domain_height * initial_ny);
 
-      const unsigned int n_refinements =
-        int(std::round(std::log2(elements_per_interface / interface_width *
-                                 domain_height / initial_ny)));
+      const unsigned int n_refinements = static_cast<unsigned int>(
+        std::round(std::log2(elements_per_interface / interface_width *
+                             domain_height / initial_ny)));
 
       std::vector<unsigned int> subdivisions(dim);
       subdivisions[0] = initial_nx;
@@ -4977,15 +5068,6 @@ namespace Sintering
 
       if (n_refinements > 0)
         tria.refine_global(n_refinements);
-
-      if (false) // TODO: remove
-        {
-          for (const auto &cell : tria.active_cell_iterators())
-            if (cell->is_locally_owned() &&
-                cell->center()[0] < domain_width / 2.0)
-              cell->set_refine_flag();
-          tria.execute_coarsening_and_refinement();
-        }
     }
 
     void
