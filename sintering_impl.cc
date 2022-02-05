@@ -4764,9 +4764,7 @@ namespace Sintering
             {
               MyScope scope(timer, "time_loop::newton::setup_jacobian");
 
-              auto tmp = current_u;
-              constraint.distribute(tmp);
-              nonlinear_operator.evaluate_newton_step(tmp);
+              nonlinear_operator.evaluate_newton_step(current_u);
             }
 
           if (do_update_preconditioner)
@@ -4779,10 +4777,8 @@ namespace Sintering
       non_linear_solver->solve_with_jacobian = [&](const auto &src, auto &dst) {
         MyScope scope(timer, "time_loop::newton::solve_with_jacobian");
 
-        auto tmp = src;
-
-        constraint.set_zero(tmp);
-        const unsigned int n_iterations = linear_solver->solve(dst, tmp);
+        constraint.set_zero(const_cast<VectorType &>(src));
+        const unsigned int n_iterations = linear_solver->solve(dst, src);
         constraint.distribute(dst);
 
         return n_iterations;
@@ -4900,7 +4896,6 @@ namespace Sintering
                 MyScope scope(timer, "time_loop::newton");
 
                 const auto statistics = non_linear_solver->solve(solution);
-                constraint.distribute(solution);
 
                 has_converged = true;
 
@@ -5034,7 +5029,7 @@ namespace Sintering
                 const double                               interface_width,
                 const unsigned int elements_per_interface)
     {
-      const unsigned int initial_ny = 10;
+      const unsigned int initial_ny = 50;
       const unsigned int initial_nx =
         int(domain_width / domain_height * initial_ny);
 
