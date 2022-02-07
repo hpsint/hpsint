@@ -65,6 +65,8 @@ static_assert(false, "No dimension has been given!");
 #include <deal.II/numerics/error_estimator.h>
 #include <deal.II/numerics/vector_tools.h>
 
+#include <fstream>
+
 using namespace dealii;
 
 namespace dealii
@@ -1350,10 +1352,11 @@ namespace Sintering
 
     template <std::size_t n>
     DEAL_II_ALWAYS_INLINE VectorizedArrayType
-    M(const VectorizedArrayType &                               c,
-      const std::array<VectorizedArrayType, n> &                etas,
-      const Tensor<1, dim, VectorizedArrayType> &               c_grad,
-      const std::array<Tensor<1, dim, VectorizedArrayType>, n> &etas_grad) const
+    M(const VectorizedArrayType &                       c,
+      const std::array<const VectorizedArrayType *, n> &etas,
+      const Tensor<1, dim, VectorizedArrayType> &       c_grad,
+      const std::array<const Tensor<1, dim, VectorizedArrayType> *, n>
+        &etas_grad) const
     {
       (void)c_grad;
       (void)etas_grad;
@@ -1368,9 +1371,9 @@ namespace Sintering
         {
           for (const auto &etaj : etas)
             {
-              if (&etai != &etaj)
+              if (etai != etaj)
                 {
-                  etaijSum += etai * etaj;
+                  etaijSum += (*etai) * (*etaj);
                 }
             }
         }
@@ -1389,11 +1392,11 @@ namespace Sintering
 
     template <std::size_t n>
     DEAL_II_ALWAYS_INLINE VectorizedArrayType
-    dM_dc(
-      const VectorizedArrayType &                               c,
-      const std::array<VectorizedArrayType, n> &                etas,
-      const Tensor<1, dim, VectorizedArrayType> &               c_grad,
-      const std::array<Tensor<1, dim, VectorizedArrayType>, n> &etas_grad) const
+    dM_dc(const VectorizedArrayType &                       c,
+          const std::array<const VectorizedArrayType *, n> &etas,
+          const Tensor<1, dim, VectorizedArrayType> &       c_grad,
+          const std::array<const Tensor<1, dim, VectorizedArrayType> *, n>
+            &etas_grad) const
     {
       (void)etas;
       (void)c_grad;
@@ -1425,12 +1428,12 @@ namespace Sintering
 
     template <std::size_t n>
     DEAL_II_ALWAYS_INLINE VectorizedArrayType
-    dM_detai(
-      const VectorizedArrayType &                               c,
-      const std::array<VectorizedArrayType, n> &                etas,
-      const Tensor<1, dim, VectorizedArrayType> &               c_grad,
-      const std::array<Tensor<1, dim, VectorizedArrayType>, n> &etas_grad,
-      unsigned int                                              index_i) const
+    dM_detai(const VectorizedArrayType &                       c,
+             const std::array<const VectorizedArrayType *, n> &etas,
+             const Tensor<1, dim, VectorizedArrayType> &       c_grad,
+             const std::array<const Tensor<1, dim, VectorizedArrayType> *, n>
+               &          etas_grad,
+             unsigned int index_i) const
     {
       (void)c;
       (void)c_grad;
@@ -1441,7 +1444,7 @@ namespace Sintering
         {
           if (j != index_i)
             {
-              etajSum += etas[j];
+              etajSum += *etas[j];
             }
         }
 
@@ -1475,10 +1478,11 @@ namespace Sintering
 
     template <std::size_t n>
     DEAL_II_ALWAYS_INLINE Tensor<2, dim, VectorizedArrayType>
-                          M(const VectorizedArrayType &                               c,
-                            const std::array<VectorizedArrayType, n> &                etas,
-                            const Tensor<1, dim, VectorizedArrayType> &               c_grad,
-                            const std::array<Tensor<1, dim, VectorizedArrayType>, n> &etas_grad) const
+                          M(const VectorizedArrayType &                       c,
+                            const std::array<const VectorizedArrayType *, n> &etas,
+                            const Tensor<1, dim, VectorizedArrayType> &       c_grad,
+                            const std::array<const Tensor<1, dim, VectorizedArrayType> *, n>
+                              &etas_grad) const
     {
       VectorizedArrayType cl = c;
       std::for_each(cl.begin(), cl.end(), [](auto &val) {
@@ -1507,9 +1511,9 @@ namespace Sintering
             {
               if (i != j)
                 {
-                  VectorizedArrayType fgb = Mgb * etas[i] * etas[j];
+                  VectorizedArrayType fgb = Mgb * (*etas[i]) * (*etas[j]);
                   Tensor<1, dim, VectorizedArrayType> etaGradDiff =
-                    etas_grad[i] - etas_grad[j];
+                    (*etas_grad[i]) - (*etas_grad[j]);
                   Tensor<1, dim, VectorizedArrayType> neta =
                     unitVector(etaGradDiff);
                   M += projectorMatrix(neta, fgb);
@@ -1522,11 +1526,11 @@ namespace Sintering
 
     template <std::size_t n>
     DEAL_II_ALWAYS_INLINE Tensor<2, dim, VectorizedArrayType>
-                          dM_dc(
-                            const VectorizedArrayType &                               c,
-                            const std::array<VectorizedArrayType, n> &                etas,
-                            const Tensor<1, dim, VectorizedArrayType> &               c_grad,
-                            const std::array<Tensor<1, dim, VectorizedArrayType>, n> &etas_grad) const
+                          dM_dc(const VectorizedArrayType &                       c,
+                                const std::array<const VectorizedArrayType *, n> &etas,
+                                const Tensor<1, dim, VectorizedArrayType> &       c_grad,
+                                const std::array<const Tensor<1, dim, VectorizedArrayType> *, n>
+                                  &etas_grad) const
     {
       (void)etas;
       (void)etas_grad;
@@ -1595,12 +1599,12 @@ namespace Sintering
 
     template <std::size_t n>
     DEAL_II_ALWAYS_INLINE Tensor<2, dim, VectorizedArrayType>
-                          dM_detai(
-                            const VectorizedArrayType &                               c,
-                            const std::array<VectorizedArrayType, n> &                etas,
-                            const Tensor<1, dim, VectorizedArrayType> &               c_grad,
-                            const std::array<Tensor<1, dim, VectorizedArrayType>, n> &etas_grad,
-                            unsigned int                                              index_i) const
+                          dM_detai(const VectorizedArrayType &                       c,
+                                   const std::array<const VectorizedArrayType *, n> &etas,
+                                   const Tensor<1, dim, VectorizedArrayType> &       c_grad,
+                                   const std::array<const Tensor<1, dim, VectorizedArrayType> *, n>
+                                     &          etas_grad,
+                                   unsigned int index_i) const
     {
       (void)c;
       (void)c_grad;
@@ -1611,9 +1615,9 @@ namespace Sintering
         {
           if (j != index_i)
             {
-              VectorizedArrayType                 fgb = 2. * Mgb * etas[j];
+              VectorizedArrayType                 fgb = 2. * Mgb * (*etas[j]);
               Tensor<1, dim, VectorizedArrayType> etaGradDiff =
-                etas_grad[index_i] - etas_grad[j];
+                (*etas_grad[index_i]) - (*etas_grad[j]);
               Tensor<1, dim, VectorizedArrayType> neta =
                 unitVector(etaGradDiff);
               M += projectorMatrix(neta, fgb);
@@ -1638,7 +1642,7 @@ namespace Sintering
     }
 
     DEAL_II_ALWAYS_INLINE Tensor<1, dim, VectorizedArrayType>
-    unitVector(const Tensor<1, dim, VectorizedArrayType> &vec) const
+                          unitVector(const Tensor<1, dim, VectorizedArrayType> &vec) const
     {
       VectorizedArrayType nrm = vec.norm();
       VectorizedArrayType filter;
@@ -1664,8 +1668,8 @@ namespace Sintering
     }
 
     DEAL_II_ALWAYS_INLINE Tensor<2, dim, VectorizedArrayType>
-    projectorMatrix(const Tensor<1, dim, VectorizedArrayType> vec,
-                    const VectorizedArrayType &               fac = 1.) const
+                          projectorMatrix(const Tensor<1, dim, VectorizedArrayType> vec,
+                                          const VectorizedArrayType &               fac = 1.) const
     {
       auto tensor = unitMatrix() - dealii::outer_product(vec, vec);
       tensor *= fac;
@@ -1680,7 +1684,7 @@ namespace Sintering
   public:
     template <typename T>
     DEAL_II_ALWAYS_INLINE static T
-    power_sum(const std::array<T, n> &etas)
+    power_sum(const std::array<T *, n> &etas)
     {
       T initial = 0.0;
 
@@ -1688,7 +1692,7 @@ namespace Sintering
                              etas.end(),
                              initial,
                              [](auto a, auto b) {
-                               return std::move(a) + std::pow(b, n);
+                               return std::move(a) + std::pow(*b, p);
                              });
     }
   };
@@ -1699,9 +1703,9 @@ namespace Sintering
   public:
     template <typename T>
     DEAL_II_ALWAYS_INLINE static T
-    power_sum(const std::array<T, 2> &etas)
+    power_sum(const std::array<T *, 2> &etas)
     {
-      return etas[0] * etas[0] + etas[1] * etas[1];
+      return (*etas[0]) * (*etas[0]) + (*etas[1]) * (*etas[1]);
     }
   };
 
@@ -1711,9 +1715,10 @@ namespace Sintering
   public:
     template <typename T>
     DEAL_II_ALWAYS_INLINE static T
-    power_sum(const std::array<T, 2> &etas)
+    power_sum(const std::array<T *, 2> &etas)
     {
-      return etas[0] * etas[0] * etas[0] + etas[1] * etas[1] * etas[1];
+      return (*etas[0]) * (*etas[0]) * (*etas[0]) +
+             (*etas[1]) * (*etas[1]) * (*etas[1]);
     }
   };
 
@@ -1732,8 +1737,8 @@ namespace Sintering
 
     template <std::size_t n>
     DEAL_II_ALWAYS_INLINE VectorizedArrayType
-    f(const VectorizedArrayType &               c,
-      const std::array<VectorizedArrayType, n> &etas) const
+    f(const VectorizedArrayType &                       c,
+      const std::array<const VectorizedArrayType *, n> &etas) const
     {
       const auto etaPower2Sum = PowerHelper<n, 2>::power_sum(etas);
       const auto etaPower3Sum = PowerHelper<n, 3>::power_sum(etas);
@@ -1746,8 +1751,8 @@ namespace Sintering
 
     template <std::size_t n>
     DEAL_II_ALWAYS_INLINE VectorizedArrayType
-    df_dc(const VectorizedArrayType &               c,
-          const std::array<VectorizedArrayType, n> &etas) const
+    df_dc(const VectorizedArrayType &                       c,
+          const std::array<const VectorizedArrayType *, n> &etas) const
     {
       const auto etaPower2Sum = PowerHelper<n, 2>::power_sum(etas);
       const auto etaPower3Sum = PowerHelper<n, 3>::power_sum(etas);
@@ -1759,13 +1764,13 @@ namespace Sintering
 
     template <std::size_t n>
     DEAL_II_ALWAYS_INLINE VectorizedArrayType
-    df_detai(const VectorizedArrayType &               c,
-             const std::array<VectorizedArrayType, n> &etas,
-             unsigned int                              index_i) const
+    df_detai(const VectorizedArrayType &                       c,
+             const std::array<const VectorizedArrayType *, n> &etas,
+             unsigned int                                      index_i) const
     {
       const auto etaPower2Sum = PowerHelper<n, 2>::power_sum(etas);
 
-      const auto &etai = etas[index_i];
+      const auto &etai = *etas[index_i];
 
       return B * (3.0 * (etai * etai) * (4.0 * c - 8.0) +
                   2.0 * etai * (-6.0 * c + 6.0) + 12.0 * etai * (etaPower2Sum));
@@ -1773,8 +1778,8 @@ namespace Sintering
 
     template <std::size_t n>
     DEAL_II_ALWAYS_INLINE VectorizedArrayType
-    d2f_dc2(const VectorizedArrayType &               c,
-            const std::array<VectorizedArrayType, n> &etas) const
+    d2f_dc2(const VectorizedArrayType &                       c,
+            const std::array<const VectorizedArrayType *, n> &etas) const
     {
       (void)etas;
 
@@ -1784,26 +1789,26 @@ namespace Sintering
 
     template <std::size_t n>
     DEAL_II_ALWAYS_INLINE VectorizedArrayType
-    d2f_dcdetai(const VectorizedArrayType &               c,
-                const std::array<VectorizedArrayType, n> &etas,
-                unsigned int                              index_i) const
+    d2f_dcdetai(const VectorizedArrayType &                       c,
+                const std::array<const VectorizedArrayType *, n> &etas,
+                unsigned int                                      index_i) const
     {
       (void)c;
 
-      const auto &etai = etas[index_i];
+      const auto &etai = *etas[index_i];
 
       return B * (12.0 * (etai * etai) - 12.0 * etai);
     }
 
     template <std::size_t n>
     DEAL_II_ALWAYS_INLINE VectorizedArrayType
-    d2f_detai2(const VectorizedArrayType &               c,
-               const std::array<VectorizedArrayType, n> &etas,
-               unsigned int                              index_i) const
+    d2f_detai2(const VectorizedArrayType &                       c,
+               const std::array<const VectorizedArrayType *, n> &etas,
+               unsigned int                                      index_i) const
     {
       const auto etaPower2Sum = PowerHelper<n, 2>::power_sum(etas);
 
-      const auto &etai = etas[index_i];
+      const auto &etai = *etas[index_i];
 
       return B * (12.0 - 12.0 * c + 2.0 * etai * (12.0 * c - 24.0) +
                   24.0 * (etai * etai) + 12.0 * etaPower2Sum);
@@ -1811,15 +1816,15 @@ namespace Sintering
 
     template <std::size_t n>
     DEAL_II_ALWAYS_INLINE VectorizedArrayType
-    d2f_detaidetaj(const VectorizedArrayType &               c,
-                   const std::array<VectorizedArrayType, n> &etas,
-                   unsigned int                              index_i,
-                   unsigned int                              index_j) const
+    d2f_detaidetaj(const VectorizedArrayType &                       c,
+                   const std::array<const VectorizedArrayType *, n> &etas,
+                   unsigned int                                      index_i,
+                   unsigned int index_j) const
     {
       (void)c;
 
-      const auto &etai = etas[index_i];
-      const auto &etaj = etas[index_j];
+      const auto &etai = *etas[index_i];
+      const auto &etaj = *etas[index_j];
 
       return 24.0 * B * etai * etaj;
     }
@@ -2446,9 +2451,10 @@ namespace Sintering
               const auto eta1_grad = fe_eval_all.get_gradient(q)[2];
               const auto eta2_grad = fe_eval_all.get_gradient(q)[3];
 
-              const std::array<VectorizedArrayType, 2> etas{{eta1, eta2}};
-              const std::array<Tensor<1, dim, VectorizedArrayType>, 2>
-                etas_grad{{eta1_grad, eta2_grad}};
+              const std::array<const VectorizedArrayType *, 2> etas{
+                {&eta1, &eta2}};
+              const std::array<const Tensor<1, dim, VectorizedArrayType> *, 2>
+                etas_grad{{&eta1_grad, &eta2_grad}};
 
               // clang-format off
               const std::array<VectorizedArrayType, n_entries> temp{{
@@ -2541,9 +2547,9 @@ namespace Sintering
           const auto &eta2_grad = nonlinear_gradients(cell, q)[3];
 #endif
 
-          const std::array<VectorizedArrayType, 2> etas{{eta1, eta2}};
-          const std::array<Tensor<1, dim, VectorizedArrayType>, 2> etas_grad{
-            {eta1_grad, eta2_grad}};
+          const std::array<const VectorizedArrayType *, 2> etas{{&eta1, &eta2}};
+          const std::array<const Tensor<1, dim, VectorizedArrayType> *, 2>
+            etas_grad{{&eta1_grad, &eta2_grad}};
 
           Tensor<1, n_components, VectorizedArrayType> value_result;
 
@@ -2634,9 +2640,10 @@ namespace Sintering
               auto &eta1_grad = grad[2];
               auto &eta2_grad = grad[3];
 
-              const std::array<VectorizedArrayType, 2> etas{{eta1, eta2}};
-              const std::array<Tensor<1, dim, VectorizedArrayType>, 2>
-                etas_grad{{eta1_grad, eta2_grad}};
+              const std::array<const VectorizedArrayType *, 2> etas{
+                {&eta1, &eta2}};
+              const std::array<const Tensor<1, dim, VectorizedArrayType> *, 2>
+                etas_grad{{&eta1_grad, &eta2_grad}};
 
               Tensor<1, n_components, VectorizedArrayType> value_result;
 
@@ -2708,11 +2715,13 @@ namespace Sintering
               const auto &eta1_grad = nonlinear_gradients(cell, q)[2];
               const auto &eta2_grad = nonlinear_gradients(cell, q)[3];
 
-              const std::array<VectorizedArrayType, 2> etas{{ eta1, eta2 }};
-              const std::array<Tensor<1, dim, VectorizedArrayType>, 2>
+              const std::array<const VectorizedArrayType *, 2> etas{
+                { &eta1,
+                  &eta2 }};
+              const std::array<const Tensor<1, dim, VectorizedArrayType> *, 2>
                 etas_grad{
-                  { eta1_grad,
-                    eta2_grad }};
+                  { &eta1_grad,
+                    &eta2_grad }};
 
               // clang-format off
               tracker.emplace_back(0, dt_inv);
@@ -2812,9 +2821,9 @@ namespace Sintering
           auto &eta1_grad = nonlinear_gradients(cell, q)[2];
           auto &eta2_grad = nonlinear_gradients(cell, q)[3];
 
-          const std::array<VectorizedArrayType, 2> etas{{eta1, eta2}};
-          const std::array<Tensor<1, dim, VectorizedArrayType>, 2> etas_grad{
-            {eta1_grad, eta2_grad}};
+          const std::array<const VectorizedArrayType *, 2> etas{{&eta1, &eta2}};
+          const std::array<const Tensor<1, dim, VectorizedArrayType> *, 2>
+            etas_grad{{&eta1_grad, &eta2_grad}};
 
           Tensor<1, n_components, VectorizedArrayType> value_result;
           Tensor<1, n_components, Tensor<1, dim, VectorizedArrayType>>
@@ -2899,9 +2908,9 @@ namespace Sintering
           auto &eta1_grad = nonlinear_gradients(cell, q)[2];
           auto &eta2_grad = nonlinear_gradients(cell, q)[3];
 
-          const std::array<VectorizedArrayType, 2> etas{{eta1, eta2}};
-          const std::array<Tensor<1, dim, VectorizedArrayType>, 2> etas_grad{
-            {eta1_grad, eta2_grad}};
+          const std::array<const VectorizedArrayType *, 2> etas{{&eta1, &eta2}};
+          const std::array<const Tensor<1, dim, VectorizedArrayType> *, 2>
+            etas_grad{{&eta1_grad, &eta2_grad}};
 
           const auto value    = phi.get_value(q);
           const auto gradient = phi.get_gradient(q);
@@ -2965,9 +2974,9 @@ namespace Sintering
           auto &eta1_grad = nonlinear_gradients(cell, q)[2];
           auto &eta2_grad = nonlinear_gradients(cell, q)[3];
 
-          const std::array<VectorizedArrayType, 2> etas{{eta1, eta2}};
-          const std::array<Tensor<1, dim, VectorizedArrayType>, 2> etas_grad{
-            {eta1_grad, eta2_grad}};
+          const std::array<const VectorizedArrayType *, 2> etas{{&eta1, &eta2}};
+          const std::array<const Tensor<1, dim, VectorizedArrayType> *, 2>
+            etas_grad{{&eta1_grad, &eta2_grad}};
 
           const auto value    = phi.get_value(q);
           const auto gradient = phi.get_gradient(q);
@@ -3024,7 +3033,7 @@ namespace Sintering
           auto &eta1 = nonlinear_values(cell, q)[2];
           auto &eta2 = nonlinear_values(cell, q)[3];
 
-          const std::array<VectorizedArrayType, 2> etas{{eta1, eta2}};
+          const std::array<const VectorizedArrayType *, 2> etas{{&eta1, &eta2}};
 
           const auto value    = phi.get_value(q);
           const auto gradient = phi.get_gradient(q);
@@ -3127,7 +3136,7 @@ namespace Sintering
           auto &eta1 = nonlinear_values(cell, q)[2];
           auto &eta2 = nonlinear_values(cell, q)[3];
 
-          const std::array<VectorizedArrayType, 2> etas{{eta1, eta2}};
+          const std::array<const VectorizedArrayType *, 2> etas{{&eta1, &eta2}};
 
           Tensor<1, n_components, VectorizedArrayType> value_result;
 
@@ -3976,9 +3985,9 @@ namespace Sintering
           const auto &eta1_grad = nonlinear_gradients(cell, q)[2];
           const auto &eta2_grad = nonlinear_gradients(cell, q)[3];
 
-          const std::array<VectorizedArrayType, 2> etas{{eta1, eta2}};
-          const std::array<Tensor<1, dim, VectorizedArrayType>, 2> etas_grad{
-            {eta1_grad, eta2_grad}};
+          const std::array<const VectorizedArrayType *, 2> etas{{&eta1, &eta2}};
+          const std::array<const Tensor<1, dim, VectorizedArrayType> *, 2>
+            etas_grad{{&eta1_grad, &eta2_grad}};
 
           const auto value    = phi.get_value(q);
           const auto gradient = phi.get_gradient(q);
@@ -4016,9 +4025,9 @@ namespace Sintering
           const auto &eta1_grad = nonlinear_gradients(cell, q)[2];
           const auto &eta2_grad = nonlinear_gradients(cell, q)[3];
 
-          const std::array<VectorizedArrayType, 2> etas{{eta1, eta2}};
-          const std::array<Tensor<1, dim, VectorizedArrayType>, 2> etas_grad{
-            {eta1_grad, eta2_grad}};
+          const std::array<const VectorizedArrayType *, 2> etas{{&eta1, &eta2}};
+          const std::array<const Tensor<1, dim, VectorizedArrayType> *, 2>
+            etas_grad{{&eta1_grad, &eta2_grad}};
 
           const auto gradient = phi.get_gradient(q);
           const auto epsilon =
