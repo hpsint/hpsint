@@ -4792,11 +4792,103 @@ namespace Sintering
 
       nonlinear_operator.initialize_dof_vector(solution);
 
-      VectorTools::interpolate(mapping,
-                               dof_handler,
-                               initial_solution,
-                               solution);
-      solution.zero_out_ghost_values();
+      const auto initialize_solution = [&]() {
+        VectorTools::interpolate(mapping,
+                                 dof_handler,
+                                 initial_solution,
+                                 solution);
+        solution.zero_out_ghost_values();
+      };
+
+      const unsigned int init_level = tria.n_global_levels() - 1;
+
+      const auto execute_coarsening_and_refinement = [&]() {
+        pcout << "Execute refinement/coarsening:" << std::endl;
+
+        // 1) copy solution so that it has the right ghosting
+        IndexSet locally_relevant_dofs;
+        DoFTools::extract_locally_relevant_dofs(dof_handler,
+                                                locally_relevant_dofs);
+        VectorType solution_dealii(dof_handler.locally_owned_dofs(),
+                                   locally_relevant_dofs,
+                                   dof_handler.get_communicator());
+
+        // note: we do not need to apply constraints, since they are
+        // are already set by the Newton solver
+        solution_dealii.copy_locally_owned_data_from(solution);
+        solution_dealii.update_ghost_values();
+
+        // 2) estimate errors
+        Vector<float> estimated_error_per_cell(tria.n_active_cells());
+
+        std::vector<bool> mask(number_of_components, true);
+        std::fill(mask.begin(), mask.begin() + 2, false);
+
+        KellyErrorEstimator<dim>::estimate(
+          this->dof_handler,
+          QGauss<dim - 1>(this->dof_handler.get_fe().degree + 1),
+          std::map<types::boundary_id, const Function<dim> *>(),
+          solution_dealii,
+          estimated_error_per_cell,
+          mask,
+          nullptr,
+          0,
+          Utilities::MPI::this_mpi_process(MPI_COMM_WORLD));
+
+        // 3) mark cells
+        parallel::distributed::GridRefinement::
+          refine_and_coarsen_fixed_fraction(tria,
+                                            estimated_error_per_cell,
+                                            params.top_fraction_of_cells,
+                                            params.bottom_fraction_of_cells);
+
+        for (const auto &cell : tria.active_cell_iterators())
+          if (cell->refine_flag_set() &&
+              (static_cast<unsigned int>(cell->level()) ==
+               (init_level + params.max_refinement_depth)))
+            cell->clear_refine_flag();
+          else if (cell->coarsen_flag_set() &&
+                   (static_cast<unsigned int>(cell->level()) ==
+                    (init_level -
+                     std::min(init_level, params.min_refinement_depth))))
+            cell->clear_coarsen_flag();
+
+        // 4) perform interpolation and initialize data structures
+        tria.prepare_coarsening_and_refinement();
+
+        parallel::distributed::SolutionTransfer<dim, VectorType> solution_trans(
+          dof_handler);
+        solution_trans.prepare_for_coarsening_and_refinement(solution_dealii);
+
+        tria.execute_coarsening_and_refinement();
+
+        initialize();
+
+        nonlinear_operator.clear();
+        preconditioner->clear();
+
+        VectorType interpolated_solution;
+        nonlinear_operator.initialize_dof_vector(interpolated_solution);
+        solution_trans.interpolate(interpolated_solution);
+
+        nonlinear_operator.initialize_dof_vector(solution);
+        solution.copy_locally_owned_data_from(interpolated_solution);
+
+        // note: apply constraints since the Newton solver expects this
+        constraint.distribute(solution);
+      };
+
+      initialize_solution();
+
+      // initial local refinement
+      if (params.refinement_frequency > 0)
+        for (unsigned int i = 0; i < std::max(params.min_refinement_depth,
+                                              params.max_refinement_depth);
+             ++i)
+          {
+            execute_coarsening_and_refinement();
+            initialize_solution();
+          }
 
       double time_last_output = 0;
 
@@ -4808,8 +4900,6 @@ namespace Sintering
       unsigned int n_non_linear_iterations = 0;
       double       max_reached_dt          = 0.0;
 
-      const unsigned int init_level = tria.n_global_levels() - 1;
-
       // run time loop
       {
         TimerOutput::Scope scope(timer, "time_loop");
@@ -4817,84 +4907,7 @@ namespace Sintering
           {
             if (n_timestep != 0 && params.refinement_frequency > 0 &&
                 n_timestep % params.refinement_frequency == 0)
-              {
-                pcout << "Execute refinement/coarsening:" << std::endl;
-
-                // 1) copy solution so that it has the right ghosting
-                IndexSet locally_relevant_dofs;
-                DoFTools::extract_locally_relevant_dofs(dof_handler,
-                                                        locally_relevant_dofs);
-                VectorType solution_dealii(dof_handler.locally_owned_dofs(),
-                                           locally_relevant_dofs,
-                                           dof_handler.get_communicator());
-
-                // note: we do not need to apply constraints, since they are
-                // are already set by the Newton solver
-                solution_dealii.copy_locally_owned_data_from(solution);
-                solution_dealii.update_ghost_values();
-
-                // 2) estimate errors
-                Vector<float> estimated_error_per_cell(tria.n_active_cells());
-
-                std::vector<bool> mask(number_of_components, true);
-                std::fill(mask.begin(), mask.begin() + 2, false);
-
-                KellyErrorEstimator<dim>::estimate(
-                  this->dof_handler,
-                  QGauss<dim - 1>(this->dof_handler.get_fe().degree + 1),
-                  std::map<types::boundary_id, const Function<dim> *>(),
-                  solution_dealii,
-                  estimated_error_per_cell,
-                  mask,
-                  nullptr,
-                  0,
-                  Utilities::MPI::this_mpi_process(MPI_COMM_WORLD));
-
-                // 3) mark cells
-                parallel::distributed::GridRefinement::
-                  refine_and_coarsen_fixed_fraction(
-                    tria,
-                    estimated_error_per_cell,
-                    params.top_fraction_of_cells,
-                    params.bottom_fraction_of_cells);
-
-                for (const auto &cell : tria.active_cell_iterators())
-                  if (cell->refine_flag_set() &&
-                      (static_cast<unsigned int>(cell->level()) ==
-                       (init_level + params.max_refinement_depth)))
-                    cell->clear_refine_flag();
-                  else if (cell->coarsen_flag_set() &&
-                           (static_cast<unsigned int>(cell->level()) ==
-                            (init_level -
-                             std::min(init_level,
-                                      params.min_refinement_depth))))
-                    cell->clear_coarsen_flag();
-
-                // 4) perform interpolation and initialize data structures
-                tria.prepare_coarsening_and_refinement();
-
-                parallel::distributed::SolutionTransfer<dim, VectorType>
-                  solution_trans(dof_handler);
-                solution_trans.prepare_for_coarsening_and_refinement(
-                  solution_dealii);
-
-                tria.execute_coarsening_and_refinement();
-
-                initialize();
-
-                nonlinear_operator.clear();
-                preconditioner->clear();
-
-                VectorType interpolated_solution;
-                nonlinear_operator.initialize_dof_vector(interpolated_solution);
-                solution_trans.interpolate(interpolated_solution);
-
-                nonlinear_operator.initialize_dof_vector(solution);
-                solution.copy_locally_owned_data_from(interpolated_solution);
-
-                // note: apply constraints since the Newton solver expects this
-                constraint.distribute(solution);
-              }
+              execute_coarsening_and_refinement();
 
             nonlinear_operator.set_timestep(dt);
             nonlinear_operator.set_previous_solution(solution);
