@@ -2404,7 +2404,8 @@ namespace Sintering
     void
     add_data_vectors(DataOut<dim> &data_out, const VectorType &vec) const
     {
-      constexpr unsigned int            n_entries = 17;
+      constexpr unsigned int n_entries =
+        8 + 3 * n_grains + n_grains * (n_grains - 1) / 2;
       std::array<VectorType, n_entries> data_vectors;
 
       for (auto &data_vector : data_vectors)
@@ -2442,41 +2443,66 @@ namespace Sintering
 
           for (unsigned int q = 0; q < fe_eval.n_q_points; ++q)
             {
-              const auto c    = fe_eval_all.get_value(q)[0];
-              const auto eta1 = fe_eval_all.get_value(q)[2];
-              const auto eta2 = fe_eval_all.get_value(q)[3];
+              const auto val  = fe_eval_all.get_value(q);
+              const auto grad = fe_eval_all.get_gradient(q);
 
-              const auto c_grad    = fe_eval_all.get_gradient(q)[0];
-              const auto mu_grad   = fe_eval_all.get_gradient(q)[1];
-              const auto eta1_grad = fe_eval_all.get_gradient(q)[2];
-              const auto eta2_grad = fe_eval_all.get_gradient(q)[3];
+              const auto &c       = val[0];
+              const auto &c_grad  = grad[0];
+              const auto &mu_grad = grad[1];
 
-              const std::array<const VectorizedArrayType *, 2> etas{
-                {&eta1, &eta2}};
-              const std::array<const Tensor<1, dim, VectorizedArrayType> *, 2>
-                etas_grad{{&eta1_grad, &eta2_grad}};
+              std::array<const VectorizedArrayType *, n_grains> etas;
+              std::array<const Tensor<1, dim, VectorizedArrayType> *, n_grains>
+                etas_grad;
 
-              // clang-format off
-              const std::array<VectorizedArrayType, n_entries> temp{{
-                 VectorizedArrayType(dt_inv),                                         // 00
-                 free_energy.d2f_dc2(c, etas),                                        // 01
-                 free_energy.d2f_dcdetai(c, etas, 0),                                 // 02
-                 free_energy.d2f_dcdetai(c, etas, 1),                                 // 03
-                 L * free_energy.d2f_dcdetai(c, etas, 0),                             // 04
-                 L * free_energy.d2f_detai2(c, etas, 0),                              // 05
-                 L * free_energy.d2f_detaidetaj(c, etas, 0, 1),                       // 06
-                 L * free_energy.d2f_dcdetai(c, etas, 1),                             // 07
-                 L * free_energy.d2f_detaidetaj(c, etas, 1, 0),                       // 08
-                 L * free_energy.d2f_detai2(c, etas, 1),                              // 09
-                 mobility.M(c, etas, c_grad, etas_grad),                              // 10
-                 (mobility.dM_dc(c, etas, c_grad, etas_grad) * mu_grad).norm(),       // 11
-                 (mobility.dM_dgrad_c(c, c_grad, mu_grad)).norm(),                    // 12
-                 (mobility.dM_detai(c, etas, c_grad, etas_grad, 0) * mu_grad).norm(), // 13
-                 (mobility.dM_detai(c, etas, c_grad, etas_grad, 1) * mu_grad).norm(), // 14
-                 VectorizedArrayType(kappa_c),                                        // 15
-                 VectorizedArrayType(L * kappa_p)                                     // 16
-                 }};
-              // clang-format on
+              for (unsigned int ig = 0; ig < n_grains; ig++)
+                {
+                  etas[ig]      = &val[2 + ig];
+                  etas_grad[ig] = &grad[2 + ig];
+                }
+
+              std::array<VectorizedArrayType, n_entries> temp;
+
+              unsigned int counter = 0;
+
+              temp[counter++] = VectorizedArrayType(dt_inv);
+              temp[counter++] = free_energy.d2f_dc2(c, etas);
+
+              for (unsigned int ig = 0; ig < n_grains; ig++)
+                {
+                  temp[counter++] = free_energy.d2f_dcdetai(c, etas, ig);
+                }
+
+              for (unsigned int ig = 0; ig < n_grains; ig++)
+                {
+                  temp[counter++] = free_energy.d2f_detai2(c, etas, ig);
+                }
+
+              for (unsigned int ig = 0; ig < n_grains; ig++)
+                {
+                  for (unsigned int jg = ig + 1; jg < n_grains; jg++)
+                    {
+                      temp[counter++] =
+                        free_energy.d2f_detaidetaj(c, etas, ig, jg);
+                    }
+                }
+
+              temp[counter++] = mobility.M(c, etas, c_grad, etas_grad);
+              temp[counter++] =
+                (mobility.dM_dc(c, etas, c_grad, etas_grad) * mu_grad).norm();
+              temp[counter++] =
+                (mobility.dM_dgrad_c(c, c_grad, mu_grad)).norm();
+
+              for (unsigned int ig = 0; ig < n_grains; ig++)
+                {
+                  temp[counter++] =
+                    (mobility.dM_detai(c, etas, c_grad, etas_grad, ig) *
+                     mu_grad)
+                      .norm();
+                }
+
+              temp[counter++] = VectorizedArrayType(kappa_c);
+              temp[counter++] = VectorizedArrayType(kappa_p);
+              temp[counter++] = VectorizedArrayType(L);
 
               for (unsigned int c = 0; c < n_entries; ++c)
                 buffer[c * fe_eval.n_q_points + q] = temp[c];
@@ -2506,6 +2532,8 @@ namespace Sintering
         }
     }
 
+    static constexpr unsigned int n_grains{n_components - 2};
+
   private:
     void
     do_vmult_kernel(FECellIntegrator &phi) const
@@ -2528,64 +2556,71 @@ namespace Sintering
       for (unsigned int q = 0; q < phi.n_q_points; ++q)
         {
 #if true
-          const auto c    = phi_lin.get_value(q)[0];
-          const auto eta1 = phi_lin.get_value(q)[2];
-          const auto eta2 = phi_lin.get_value(q)[3];
-
-          const auto c_grad    = phi_lin.get_gradient(q)[0];
-          const auto mu_grad   = phi_lin.get_gradient(q)[1];
-          const auto eta1_grad = phi_lin.get_gradient(q)[2];
-          const auto eta2_grad = phi_lin.get_gradient(q)[3];
+          const auto val  = phi_lin.get_value(q);
+          const auto grad = phi_lin.get_gradient(q);
 #else
-          const auto &c    = nonlinear_values(cell, q)[0];
-          const auto &eta1 = nonlinear_values(cell, q)[2];
-          const auto &eta2 = nonlinear_values(cell, q)[3];
-
-          const auto &c_grad    = nonlinear_gradients(cell, q)[0];
-          const auto &mu_grad   = nonlinear_gradients(cell, q)[1];
-          const auto &eta1_grad = nonlinear_gradients(cell, q)[2];
-          const auto &eta2_grad = nonlinear_gradients(cell, q)[3];
+          const auto &val  = nonlinear_values(cell, q);
+          const auto &grad = nonlinear_gradients(cell, q);
 #endif
 
-          const std::array<const VectorizedArrayType *, 2> etas{{&eta1, &eta2}};
-          const std::array<const Tensor<1, dim, VectorizedArrayType> *, 2>
-            etas_grad{{&eta1_grad, &eta2_grad}};
+          const auto &c       = val[0];
+          const auto &c_grad  = grad[0];
+          const auto &mu_grad = grad[1];
+
+          std::array<const VectorizedArrayType *, n_grains> etas;
+          std::array<const Tensor<1, dim, VectorizedArrayType> *, n_grains>
+            etas_grad;
+
+          for (unsigned int ig = 0; ig < n_grains; ig++)
+            {
+              etas[ig]      = &val[2 + ig];
+              etas_grad[ig] = &grad[2 + ig];
+            }
 
           Tensor<1, n_components, VectorizedArrayType> value_result;
-
           Tensor<1, n_components, Tensor<1, dim, VectorizedArrayType>>
             gradient_result;
 
           value_result[0] = phi.get_value(q)[0] * dt_inv;
-          value_result[1] =
-            -phi.get_value(q)[1] +
-            free_energy.d2f_dc2(c, etas) * phi.get_value(q)[0] +
-            free_energy.d2f_dcdetai(c, etas, 0) * phi.get_value(q)[2] +
-            free_energy.d2f_dcdetai(c, etas, 1) * phi.get_value(q)[3];
-          value_result[2] =
-            phi.get_value(q)[2] * dt_inv +
-            L * free_energy.d2f_dcdetai(c, etas, 0) * phi.get_value(q)[0] +
-            L * free_energy.d2f_detai2(c, etas, 0) * phi.get_value(q)[2] +
-            L * free_energy.d2f_detaidetaj(c, etas, 0, 1) * phi.get_value(q)[3];
-          value_result[3] =
-            phi.get_value(q)[3] * dt_inv +
-            L * free_energy.d2f_dcdetai(c, etas, 1) * phi.get_value(q)[0] +
-            L * free_energy.d2f_detaidetaj(c, etas, 1, 0) *
-              phi.get_value(q)[2] +
-            L * free_energy.d2f_detai2(c, etas, 1) * phi.get_value(q)[3];
+          value_result[1] = -phi.get_value(q)[1] +
+                            free_energy.d2f_dc2(c, etas) * phi.get_value(q)[0];
 
           gradient_result[0] =
             mobility.M(c, etas, c_grad, etas_grad) * phi.get_gradient(q)[1] +
             mobility.dM_dc(c, etas, c_grad, etas_grad) * mu_grad *
               phi.get_value(q)[0] +
-            mobility.dM_dgrad_c(c, c_grad, mu_grad) * phi.get_gradient(q)[0] +
-            mobility.dM_detai(c, etas, c_grad, etas_grad, 0) * mu_grad *
-              phi.get_value(q)[2] +
-            mobility.dM_detai(c, etas, c_grad, etas_grad, 1) * mu_grad *
-              phi.get_value(q)[3];
+            mobility.dM_dgrad_c(c, c_grad, mu_grad) * phi.get_gradient(q)[0];
+
           gradient_result[1] = kappa_c * phi.get_gradient(q)[0];
-          gradient_result[2] = L * kappa_p * phi.get_gradient(q)[2];
-          gradient_result[3] = L * kappa_p * phi.get_gradient(q)[3];
+
+          for (unsigned int ig = 0; ig < n_grains; ig++)
+            {
+              value_result[1] +=
+                free_energy.d2f_dcdetai(c, etas, ig) * phi.get_value(q)[ig + 2];
+
+              value_result[ig + 2] =
+                phi.get_value(q)[ig + 2] * dt_inv +
+                L * free_energy.d2f_dcdetai(c, etas, ig) * phi.get_value(q)[0] +
+                L * free_energy.d2f_detai2(c, etas, ig) *
+                  phi.get_value(q)[ig + 2];
+
+              gradient_result[0] +=
+                mobility.dM_detai(c, etas, c_grad, etas_grad, ig) * mu_grad *
+                phi.get_value(q)[ig + 2];
+
+              gradient_result[ig + 2] =
+                L * kappa_p * phi.get_gradient(q)[ig + 2];
+
+              for (unsigned int jg = 0; jg < n_grains; jg++)
+                {
+                  if (ig != jg)
+                    {
+                      value_result[ig + 2] +=
+                        L * free_energy.d2f_detaidetaj(c, etas, ig, jg) *
+                        phi.get_value(q)[jg + 2];
+                    }
+                }
+            }
 
           phi.submit_value(value_result, q);
           phi.submit_gradient(gradient_result, q);
@@ -2627,41 +2662,40 @@ namespace Sintering
               const auto val_old = phi_old.get_value(q);
               const auto grad    = phi.get_gradient(q);
 
-              auto &c    = val[0];
-              auto &mu   = val[1];
-              auto &eta1 = val[2];
-              auto &eta2 = val[3];
+              auto &c      = val[0];
+              auto &mu     = val[1];
+              auto &c_old  = val_old[0];
+              auto &c_grad = grad[0];
 
-              auto &c_old    = val_old[0];
-              auto &eta1_old = val_old[2];
-              auto &eta2_old = val_old[3];
+              std::array<const VectorizedArrayType *, n_grains> etas;
+              std::array<const Tensor<1, dim, VectorizedArrayType> *, n_grains>
+                etas_grad;
 
-              auto &c_grad    = grad[0];
-              auto &eta1_grad = grad[2];
-              auto &eta2_grad = grad[3];
-
-              const std::array<const VectorizedArrayType *, 2> etas{
-                {&eta1, &eta2}};
-              const std::array<const Tensor<1, dim, VectorizedArrayType> *, 2>
-                etas_grad{{&eta1_grad, &eta2_grad}};
+              for (unsigned int ig = 0; ig < n_grains; ig++)
+                {
+                  etas[ig]      = &val[2 + ig];
+                  etas_grad[ig] = &grad[2 + ig];
+                }
 
               Tensor<1, n_components, VectorizedArrayType> value_result;
-
-              value_result[0] = (c - c_old) / dt;
-              value_result[1] = -mu + free_energy.df_dc(c, etas);
-              value_result[2] =
-                (eta1 - eta1_old) / dt + L * free_energy.df_detai(c, etas, 0);
-              value_result[3] =
-                (eta2 - eta2_old) / dt + L * free_energy.df_detai(c, etas, 1);
-
               Tensor<1, n_components, Tensor<1, dim, VectorizedArrayType>>
                 gradient_result;
 
+              // CH equations
+              value_result[0] = (c - c_old) / dt;
+              value_result[1] = -mu + free_energy.df_dc(c, etas);
               gradient_result[0] =
                 mobility.M(c, etas, c_grad, etas_grad) * grad[1];
               gradient_result[1] = kappa_c * grad[0];
-              gradient_result[2] = L * kappa_p * grad[2];
-              gradient_result[3] = L * kappa_p * grad[3];
+
+              // AC equations
+              for (unsigned int ig = 0; ig < n_grains; ig++)
+                {
+                  value_result[2 + ig] = (val[2 + ig] - val_old[2 + ig]) / dt +
+                                         L * free_energy.df_detai(c, etas, ig);
+
+                  gradient_result[2 + ig] = L * kappa_p * grad[2 + ig];
+                }
 
               phi.submit_value(value_result, q);
               phi.submit_gradient(gradient_result, q);
@@ -2706,41 +2740,47 @@ namespace Sintering
               nonlinear_gradients(cell, q) = phi.get_gradient(q);
 
 #ifdef WITH_TRACKER
-              const auto &c    = nonlinear_values(cell, q)[0];
-              const auto &eta1 = nonlinear_values(cell, q)[2];
-              const auto &eta2 = nonlinear_values(cell, q)[3];
+              const auto &val  = nonlinear_values(cell, q);
+              const auto &grad = nonlinear_gradients(cell, q);
 
-              const auto &c_grad    = nonlinear_gradients(cell, q)[0];
-              const auto &mu_grad   = nonlinear_gradients(cell, q)[1];
-              const auto &eta1_grad = nonlinear_gradients(cell, q)[2];
-              const auto &eta2_grad = nonlinear_gradients(cell, q)[3];
+              const auto &c       = val[0];
+              const auto &c_grad  = grad[0];
+              const auto &mu_grad = grad[1];
 
-              const std::array<const VectorizedArrayType *, 2> etas{
-                { &eta1,
-                  &eta2 }};
-              const std::array<const Tensor<1, dim, VectorizedArrayType> *, 2>
-                etas_grad{
-                  { &eta1_grad,
-                    &eta2_grad }};
+              std::array<const VectorizedArrayType *, n_grains> etas;
+              std::array<const Tensor<1, dim, VectorizedArrayType> *, n_grains>
+                etas_grad;
+
+              for (unsigned int ig = 0; ig < n_grains; ig++)
+                {
+                  etas[ig]      = &val[2 + ig];
+                  etas_grad[ig] = &grad[2 + ig];
+                }
 
               // clang-format off
               tracker.emplace_back(0, dt_inv);
               tracker.emplace_back(1, free_energy.d2f_dc2(c, etas));
-              tracker.emplace_back(2, free_energy.d2f_dcdetai(c, etas, 0));
-              tracker.emplace_back(2, free_energy.d2f_dcdetai(c, etas, 1));
-              tracker.emplace_back(2, L * free_energy.d2f_dcdetai(c, etas, 0));
-              tracker.emplace_back(2, L * free_energy.d2f_detai2(c, etas, 0));
-              tracker.emplace_back(2, L * free_energy.d2f_detaidetaj(c, etas, 0, 1));
-              tracker.emplace_back(2, L * free_energy.d2f_dcdetai(c, etas, 1));
-              tracker.emplace_back(2, L * free_energy.d2f_detaidetaj(c, etas, 1, 0));
-              tracker.emplace_back(2, L * free_energy.d2f_detai2(c, etas, 1));
+              for(unsigned int ig = 0; ig < n_grains; ig++) {
+                tracker.emplace_back(2, free_energy.d2f_dcdetai(c, etas, ig));
+              }
+              for(unsigned int ig = 0; ig < n_grains; ig++) {
+                tracker.emplace_back(2, free_energy.d2f_detai2(c, etas, ig));
+              }
+              for(unsigned int ig = 0; ig < n_grains; ig++) {
+                for(unsigned int jg = ig + 1; jg < n_grains; jg++) {
+                  tracker.emplace_back(2, free_energy.d2f_detaidetaj(c, etas, ig, jg));
+                }
+              }
               tracker.emplace_back(0, mobility.M(c, etas, c_grad, etas_grad));
               tracker.emplace_back(1, mobility.dM_dc(c, etas, c_grad, etas_grad) * mu_grad);
               tracker.emplace_back(1, mobility.dM_dgrad_c(c, c_grad, mu_grad));
-              tracker.emplace_back(2, mobility.dM_detai(c, etas, c_grad, etas_grad, 0) * mu_grad);
-              tracker.emplace_back(2, mobility.dM_detai(c, etas, c_grad, etas_grad, 1) * mu_grad); 
+
+              for(unsigned int ig = 0; ig < n_grains; ig++) {
+                tracker.emplace_back(2, mobility.dM_detai(c, etas, c_grad, etas_grad, ig) * mu_grad);
+              }
               tracker.emplace_back(0, kappa_c);
-              tracker.emplace_back(2, L * kappa_p);
+              tracker.emplace_back(0, kappa_p);
+              tracker.emplace_back(0, L);
               // clang-format on
 
               tracker.finalize_point();
@@ -2812,18 +2852,23 @@ namespace Sintering
 
       for (unsigned int q = 0; q < phi.n_q_points; ++q)
         {
-          auto &c    = nonlinear_values(cell, q)[0];
-          auto &eta1 = nonlinear_values(cell, q)[2];
-          auto &eta2 = nonlinear_values(cell, q)[3];
+          const auto &val  = nonlinear_values(cell, q);
+          const auto &grad = nonlinear_gradients(cell, q);
 
-          auto &c_grad    = nonlinear_gradients(cell, q)[0];
-          auto &mu_grad   = nonlinear_gradients(cell, q)[1];
-          auto &eta1_grad = nonlinear_gradients(cell, q)[2];
-          auto &eta2_grad = nonlinear_gradients(cell, q)[3];
+          const auto &c       = val[0];
+          const auto &c_grad  = grad[0];
+          const auto &mu_grad = grad[1];
 
-          const std::array<const VectorizedArrayType *, 2> etas{{&eta1, &eta2}};
-          const std::array<const Tensor<1, dim, VectorizedArrayType> *, 2>
-            etas_grad{{&eta1_grad, &eta2_grad}};
+          std::array<const VectorizedArrayType *, this->op.n_grains> etas;
+          std::array<const Tensor<1, dim, VectorizedArrayType> *,
+                     this->op.n_grains>
+            etas_grad;
+
+          for (unsigned int ig = 0; ig < this->op.n_grains; ig++)
+            {
+              etas[ig]      = &val[2 + ig];
+              etas_grad[ig] = &grad[2 + ig];
+            }
 
           Tensor<1, n_components, VectorizedArrayType> value_result;
           Tensor<1, n_components, Tensor<1, dim, VectorizedArrayType>>
@@ -2899,18 +2944,23 @@ namespace Sintering
 
       for (unsigned int q = 0; q < phi.n_q_points; ++q)
         {
-          auto &c    = nonlinear_values(cell, q)[0];
-          auto &eta1 = nonlinear_values(cell, q)[2];
-          auto &eta2 = nonlinear_values(cell, q)[3];
+          const auto &val  = nonlinear_values(cell, q);
+          const auto &grad = nonlinear_gradients(cell, q);
 
-          auto &c_grad    = nonlinear_gradients(cell, q)[0];
-          auto &mu_grad   = nonlinear_gradients(cell, q)[1];
-          auto &eta1_grad = nonlinear_gradients(cell, q)[2];
-          auto &eta2_grad = nonlinear_gradients(cell, q)[3];
+          const auto &c       = val[0];
+          const auto &c_grad  = grad[0];
+          const auto &mu_grad = grad[1];
 
-          const std::array<const VectorizedArrayType *, 2> etas{{&eta1, &eta2}};
-          const std::array<const Tensor<1, dim, VectorizedArrayType> *, 2>
-            etas_grad{{&eta1_grad, &eta2_grad}};
+          std::array<const VectorizedArrayType *, this->op.n_grains> etas;
+          std::array<const Tensor<1, dim, VectorizedArrayType> *,
+                     this->op.n_grains>
+            etas_grad;
+
+          for (unsigned int ig = 0; ig < this->op.n_grains; ig++)
+            {
+              etas[ig]      = &val[2 + ig];
+              etas_grad[ig] = &grad[2 + ig];
+            }
 
           const auto value    = phi.get_value(q);
           const auto gradient = phi.get_gradient(q);
@@ -2966,17 +3016,22 @@ namespace Sintering
 
       for (unsigned int q = 0; q < phi.n_q_points; ++q)
         {
-          auto &c    = nonlinear_values(cell, q)[0];
-          auto &eta1 = nonlinear_values(cell, q)[2];
-          auto &eta2 = nonlinear_values(cell, q)[3];
+          const auto &val  = nonlinear_values(cell, q);
+          const auto &grad = nonlinear_gradients(cell, q);
 
-          auto &c_grad    = nonlinear_gradients(cell, q)[0];
-          auto &eta1_grad = nonlinear_gradients(cell, q)[2];
-          auto &eta2_grad = nonlinear_gradients(cell, q)[3];
+          const auto &c      = val[0];
+          const auto &c_grad = grad[0];
 
-          const std::array<const VectorizedArrayType *, 2> etas{{&eta1, &eta2}};
-          const std::array<const Tensor<1, dim, VectorizedArrayType> *, 2>
-            etas_grad{{&eta1_grad, &eta2_grad}};
+          std::array<const VectorizedArrayType *, this->op.n_grains> etas;
+          std::array<const Tensor<1, dim, VectorizedArrayType> *,
+                     this->op.n_grains>
+            etas_grad;
+
+          for (unsigned int ig = 0; ig < this->op.n_grains; ig++)
+            {
+              etas[ig]      = &val[2 + ig];
+              etas_grad[ig] = &grad[2 + ig];
+            }
 
           const auto value    = phi.get_value(q);
           const auto gradient = phi.get_gradient(q);
@@ -3029,11 +3084,16 @@ namespace Sintering
 
       for (unsigned int q = 0; q < phi.n_q_points; ++q)
         {
-          auto &c    = nonlinear_values(cell, q)[0];
-          auto &eta1 = nonlinear_values(cell, q)[2];
-          auto &eta2 = nonlinear_values(cell, q)[3];
+          const auto &val = nonlinear_values(cell, q);
 
-          const std::array<const VectorizedArrayType *, 2> etas{{&eta1, &eta2}};
+          const auto &c = val[0];
+
+          std::array<const VectorizedArrayType *, this->op.n_grains> etas;
+
+          for (unsigned int ig = 0; ig < this->op.n_grains; ig++)
+            {
+              etas[ig] = &val[2 + ig];
+            }
 
           const auto value    = phi.get_value(q);
           const auto gradient = phi.get_gradient(q);
@@ -3132,11 +3192,16 @@ namespace Sintering
 
       for (unsigned int q = 0; q < phi.n_q_points; ++q)
         {
-          auto &c    = nonlinear_values(cell, q)[0];
-          auto &eta1 = nonlinear_values(cell, q)[2];
-          auto &eta2 = nonlinear_values(cell, q)[3];
+          const auto &val = nonlinear_values(cell, q);
 
-          const std::array<const VectorizedArrayType *, 2> etas{{&eta1, &eta2}};
+          const auto &c = val[0];
+
+          std::array<const VectorizedArrayType *, this->op.n_grains> etas;
+
+          for (unsigned int ig = 0; ig < this->op.n_grains; ig++)
+            {
+              etas[ig] = &val[2 + ig];
+            }
 
           Tensor<1, n_components, VectorizedArrayType> value_result;
 
@@ -3977,17 +4042,22 @@ namespace Sintering
 
       for (unsigned int q = 0; q < phi.n_q_points; ++q)
         {
-          const auto &c    = nonlinear_values(cell, q)[0];
-          const auto &eta1 = nonlinear_values(cell, q)[2];
-          const auto &eta2 = nonlinear_values(cell, q)[3];
+          const auto &val  = nonlinear_values(cell, q);
+          const auto &grad = nonlinear_gradients(cell, q);
 
-          const auto &c_grad    = nonlinear_gradients(cell, q)[0];
-          const auto &eta1_grad = nonlinear_gradients(cell, q)[2];
-          const auto &eta2_grad = nonlinear_gradients(cell, q)[3];
+          const auto &c      = val[0];
+          const auto &c_grad = grad[0];
 
-          const std::array<const VectorizedArrayType *, 2> etas{{&eta1, &eta2}};
-          const std::array<const Tensor<1, dim, VectorizedArrayType> *, 2>
-            etas_grad{{&eta1_grad, &eta2_grad}};
+          std::array<const VectorizedArrayType *, this->op.n_grains> etas;
+          std::array<const Tensor<1, dim, VectorizedArrayType> *,
+                     this->op.n_grains>
+            etas_grad;
+
+          for (unsigned int ig = 0; ig < this->op.n_grains; ig++)
+            {
+              etas[ig]      = &val[2 + ig];
+              etas_grad[ig] = &grad[2 + ig];
+            }
 
           const auto value    = phi.get_value(q);
           const auto gradient = phi.get_gradient(q);
@@ -4017,17 +4087,22 @@ namespace Sintering
 
       for (unsigned int q = 0; q < phi.n_q_points; ++q)
         {
-          const auto &c    = nonlinear_values(cell, q)[0];
-          const auto &eta1 = nonlinear_values(cell, q)[2];
-          const auto &eta2 = nonlinear_values(cell, q)[3];
+          const auto &val  = nonlinear_values(cell, q);
+          const auto &grad = nonlinear_gradients(cell, q);
 
-          const auto &c_grad    = nonlinear_gradients(cell, q)[0];
-          const auto &eta1_grad = nonlinear_gradients(cell, q)[2];
-          const auto &eta2_grad = nonlinear_gradients(cell, q)[3];
+          const auto &c      = val[0];
+          const auto &c_grad = grad[0];
 
-          const std::array<const VectorizedArrayType *, 2> etas{{&eta1, &eta2}};
-          const std::array<const Tensor<1, dim, VectorizedArrayType> *, 2>
-            etas_grad{{&eta1_grad, &eta2_grad}};
+          std::array<const VectorizedArrayType *, this->op.n_grains> etas;
+          std::array<const Tensor<1, dim, VectorizedArrayType> *,
+                     this->op.n_grains>
+            etas_grad;
+
+          for (unsigned int ig = 0; ig < this->op.n_grains; ig++)
+            {
+              etas[ig]      = &val[2 + ig];
+              etas_grad[ig] = &grad[2 + ig];
+            }
 
           const auto gradient = phi.get_gradient(q);
           const auto epsilon =
@@ -4403,7 +4478,7 @@ namespace Sintering
     double   bottom_fraction_of_cells = 0.1;
     unsigned min_refinement_depth     = 3;
     unsigned max_refinement_depth     = 0;
-    unsigned refinement_frequency     = 10;
+    unsigned refinement_frequency     = 0;
 
     bool matrix_based = false;
 
@@ -4538,7 +4613,7 @@ namespace Sintering
     static constexpr double boundary_factor = 1.0;
 
     // mesh
-    static constexpr unsigned int elements_per_interface = 8;
+    static constexpr unsigned int elements_per_interface = 4;
 
     // time discretization
     static constexpr double t_end                = 100;
@@ -4546,7 +4621,7 @@ namespace Sintering
     static constexpr double dt_max               = 1e3 * dt_deseride;
     static constexpr double dt_min               = 1e-2 * dt_deseride;
     static constexpr double dt_increment         = 1.2;
-    static constexpr double output_time_interval = 1.0; // 0.0 means no output
+    static constexpr double output_time_interval = 0.0; // 0.0 means no output
 
     // desirable number of newton iterations
     static constexpr unsigned int desirable_newton_iterations = 5;
