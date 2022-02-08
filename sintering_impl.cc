@@ -99,18 +99,23 @@ namespace dealii
 
     template <typename VectorType>
     void
-    split_up_fast(const VectorType &vec, VectorType &vec_0, VectorType &vec_1, const unsigned int n_grains)
+    split_up_fast(const VectorType & vec,
+                  VectorType &       vec_0,
+                  VectorType &       vec_1,
+                  const unsigned int n_grains)
     {
       for (unsigned int i = 0, i0 = 0, i1 = 0;
            i < vec.get_partitioner()->locally_owned_size();)
         {
-          for (unsigned int j = 0; j < 2; ++j) {
-            vec_0.local_element(i0++) = vec.local_element(i++);
-          }
+          for (unsigned int j = 0; j < 2; ++j)
+            {
+              vec_0.local_element(i0++) = vec.local_element(i++);
+            }
 
-          for (unsigned int j = 0; j < n_grains; ++j) {
-            vec_1.local_element(i1++) = vec.local_element(i++);
-          }
+          for (unsigned int j = 0; j < n_grains; ++j)
+            {
+              vec_1.local_element(i1++) = vec.local_element(i++);
+            }
         }
     }
 
@@ -189,10 +194,11 @@ namespace dealii
 
     template <typename VectorType>
     void
-    split_up_fast(const VectorType &vec,
-                  VectorType &      vec_0,
-                  VectorType &      vec_1,
-                  VectorType &      vec_2, const unsigned int n_grains)
+    split_up_fast(const VectorType & vec,
+                  VectorType &       vec_0,
+                  VectorType &       vec_1,
+                  VectorType &       vec_2,
+                  const unsigned int n_grains)
     {
       for (unsigned int i = 0, i0 = 0, i1 = 0, i2 = 0;
            i < vec.get_partitioner()->locally_owned_size();)
@@ -303,9 +309,9 @@ namespace dealii
 
     template <typename VectorType>
     void
-    merge_fast(const VectorType &vec_0,
-               const VectorType &vec_1,
-               VectorType &      vec,
+    merge_fast(const VectorType & vec_0,
+               const VectorType & vec_1,
+               VectorType &       vec,
                const unsigned int n_grains)
     {
       for (unsigned int i = 0, i0 = 0, i1 = 0;
@@ -395,10 +401,10 @@ namespace dealii
 
     template <typename VectorType>
     void
-    merge_fast(const VectorType &vec_0,
-               const VectorType &vec_1,
-               const VectorType &vec_2,
-               VectorType &      vec,
+    merge_fast(const VectorType & vec_0,
+               const VectorType & vec_1,
+               const VectorType & vec_2,
+               VectorType &       vec,
                const unsigned int n_grains)
     {
       for (unsigned int i = 0, i0 = 0, i1 = 0, i2 = 0;
@@ -4665,7 +4671,8 @@ namespace Sintering
     static constexpr bool   is_accumulative = false;
 
     // mesh
-    static constexpr unsigned int elements_per_interface = 8; // 4 - works well with AMR=off
+    static constexpr unsigned int elements_per_interface =
+      8; // 4 - works well with AMR=off
 
     // time discretization
     static constexpr double t_end                = 100;
@@ -5190,7 +5197,7 @@ namespace Sintering
 
       const unsigned int n_refinements = static_cast<unsigned int>(
         std::round(std::log2(elements_per_interface / interface_width *
-                            domain_height / initial_ny)));
+                             domain_height / initial_ny)));
 
       std::vector<unsigned int> subdivisions(dim);
       subdivisions[0] = initial_nx;
