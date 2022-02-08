@@ -62,14 +62,20 @@ FOREACH ( source_file ${SOURCE_FILES} )
 
 ENDFOREACH ( source_file ${SOURCE_FILES} )
 
-# Sintering 2D
-ADD_EXECUTABLE(sintering-2D "sintering_impl.cc")
-DEAL_II_SETUP_TARGET(sintering-2D)
-TARGET_COMPILE_DEFINITIONS("sintering-2D" PUBLIC -DSINTERING_DIM=2)
-TARGET_LINK_LIBRARIES(sintering-2D "pf-applications")
+# Sintering 2D, 2 particles
+ADD_EXECUTABLE(sintering-2D-2 "sintering_impl.cc")
+DEAL_II_SETUP_TARGET(sintering-2D-2)
+TARGET_COMPILE_DEFINITIONS("sintering-2D-2" PUBLIC -DSINTERING_DIM=2 -DSINTERING_GRAINS=2)
+TARGET_LINK_LIBRARIES(sintering-2D-2 "pf-applications")
+
+# Sintering 2D, 3 particles
+ADD_EXECUTABLE(sintering-2D-3 "sintering_impl.cc")
+DEAL_II_SETUP_TARGET(sintering-2D-3)
+TARGET_COMPILE_DEFINITIONS("sintering-2D-3" PUBLIC -DSINTERING_DIM=2 -DSINTERING_GRAINS=3)
+TARGET_LINK_LIBRARIES(sintering-2D-3 "pf-applications")
 
 # Sintering 3D
-ADD_EXECUTABLE(sintering-3D "sintering_impl.cc")
-DEAL_II_SETUP_TARGET(sintering-3D)
-TARGET_COMPILE_DEFINITIONS("sintering-3D" PUBLIC -DSINTERING_DIM=3)
-TARGET_LINK_LIBRARIES(sintering-3D "pf-applications")
+ADD_EXECUTABLE(sintering-3D-2 "sintering_impl.cc")
+DEAL_II_SETUP_TARGET(sintering-3D-2)
+TARGET_COMPILE_DEFINITIONS("sintering-3D-2" PUBLIC -DSINTERING_DIM=3 -DSINTERING_GRAINS=2)
+TARGET_LINK_LIBRARIES(sintering-3D-2 "pf-applications")

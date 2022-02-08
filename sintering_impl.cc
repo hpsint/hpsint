@@ -19,6 +19,10 @@
 static_assert(false, "No dimension has been given!");
 #endif
 
+#ifndef SINTERING_GRAINS
+static_assert(false, "No grains number has been given!");
+#endif
+
 //#define WITH_TIMING
 //#define WITH_TRACKER
 
@@ -95,18 +99,18 @@ namespace dealii
 
     template <typename VectorType>
     void
-    split_up_fast(const VectorType &vec, VectorType &vec_0, VectorType &vec_1)
+    split_up_fast(const VectorType &vec, VectorType &vec_0, VectorType &vec_1, const unsigned int n_grains)
     {
-      std::cout << "vec.get_partitioner()->locally_owned_size() = "
-                << vec.get_partitioner()->locally_owned_size() << std::endl;
       for (unsigned int i = 0, i0 = 0, i1 = 0;
            i < vec.get_partitioner()->locally_owned_size();)
         {
-          for (unsigned int j = 0; j < 2; ++j)
+          for (unsigned int j = 0; j < 2; ++j) {
             vec_0.local_element(i0++) = vec.local_element(i++);
+          }
 
-          for (unsigned int j = 0; j < 2; ++j)
+          for (unsigned int j = 0; j < n_grains; ++j) {
             vec_1.local_element(i1++) = vec.local_element(i++);
+          }
         }
     }
 
@@ -188,7 +192,7 @@ namespace dealii
     split_up_fast(const VectorType &vec,
                   VectorType &      vec_0,
                   VectorType &      vec_1,
-                  VectorType &      vec_2)
+                  VectorType &      vec_2, const unsigned int n_grains)
     {
       for (unsigned int i = 0, i0 = 0, i1 = 0, i2 = 0;
            i < vec.get_partitioner()->locally_owned_size();)
@@ -196,7 +200,7 @@ namespace dealii
           vec_0.local_element(i0++) = vec.local_element(i++);
           vec_1.local_element(i1++) = vec.local_element(i++);
 
-          for (unsigned int j = 0; j < 2; ++j)
+          for (unsigned int j = 0; j < n_grains; ++j)
             vec_2.local_element(i2++) = vec.local_element(i++);
         }
     }
@@ -301,7 +305,8 @@ namespace dealii
     void
     merge_fast(const VectorType &vec_0,
                const VectorType &vec_1,
-               VectorType &      vec)
+               VectorType &      vec,
+               const unsigned int n_grains)
     {
       for (unsigned int i = 0, i0 = 0, i1 = 0;
            i < vec.get_partitioner()->locally_owned_size();)
@@ -309,7 +314,7 @@ namespace dealii
           for (unsigned int j = 0; j < 2; ++j)
             vec.local_element(i++) = vec_0.local_element(i0++);
 
-          for (unsigned int j = 0; j < 2; ++j)
+          for (unsigned int j = 0; j < n_grains; ++j)
             vec.local_element(i++) = vec_1.local_element(i1++);
         }
     }
@@ -393,7 +398,8 @@ namespace dealii
     merge_fast(const VectorType &vec_0,
                const VectorType &vec_1,
                const VectorType &vec_2,
-               VectorType &      vec)
+               VectorType &      vec,
+               const unsigned int n_grains)
     {
       for (unsigned int i = 0, i0 = 0, i1 = 0, i2 = 0;
            i < vec.get_partitioner()->locally_owned_size();)
@@ -401,7 +407,7 @@ namespace dealii
           vec.local_element(i++) = vec_0.local_element(i0++);
           vec.local_element(i++) = vec_1.local_element(i1++);
 
-          for (unsigned int j = 0; j < 2; ++j)
+          for (unsigned int j = 0; j < n_grains; ++j)
             vec.local_element(i++) = vec_2.local_element(i2++);
         }
     }
@@ -3549,7 +3555,7 @@ namespace Sintering
 
       {
         MyScope scope(timer, "precon::vmult::split_up");
-        VectorTools::split_up_fast(src, src_0, src_1);
+        VectorTools::split_up_fast(src, src_0, src_1, n_components - 2);
 
 #ifdef DEBUG
         VectorType temp_0, temp_1;
@@ -3594,7 +3600,7 @@ namespace Sintering
 
       {
         MyScope scope(timer, "precon::vmult::merge");
-        VectorTools::merge_fast(dst_0, dst_1, dst);
+        VectorTools::merge_fast(dst_0, dst_1, dst, n_components - 2);
 
 #ifdef DEBUG
         VectorType temp;
@@ -3734,7 +3740,7 @@ namespace Sintering
     {
       {
         MyScope scope(timer, "vmult::split_up");
-        VectorTools::split_up_fast(src, src_0, src_1, src_2);
+        VectorTools::split_up_fast(src, src_0, src_1, src_2, n_components - 2);
 
 #ifdef DEBUG
         VectorType temp_0, temp_1, temp_2;
@@ -3880,7 +3886,7 @@ namespace Sintering
 
       {
         MyScope scope(timer, "vmult::merge");
-        VectorTools::merge_fast(dst_0, dst_1, dst_2, dst);
+        VectorTools::merge_fast(dst_0, dst_1, dst_2, dst, n_components - 2);
 
 #ifdef DEBUG
         VectorType temp;
@@ -4363,7 +4369,7 @@ namespace Sintering
     {
       {
         MyScope scope(timer, "vmult::split_up");
-        VectorTools::split_up_fast(src, src_0, src_1, src_2);
+        VectorTools::split_up_fast(src, src_0, src_1, src_2, n_components - 2);
 
 #ifdef DEBUG
         VectorType temp_0, temp_1, temp_2;
@@ -4452,7 +4458,7 @@ namespace Sintering
 
       {
         MyScope scope(timer, "vmult::merge");
-        VectorTools::merge_fast(dst_0, dst_1, dst_2, dst);
+        VectorTools::merge_fast(dst_0, dst_1, dst_2, dst, n_components - 2);
 
 #ifdef DEBUG
         VectorType temp;
@@ -4520,12 +4526,13 @@ namespace Sintering
     double   bottom_fraction_of_cells = 0.1;
     unsigned min_refinement_depth     = 3;
     unsigned max_refinement_depth     = 0;
-    unsigned refinement_frequency     = 0;
+    unsigned refinement_frequency     = 10;
 
     bool matrix_based = false;
 
     std::string outer_preconditioner = "BlockPreconditioner2";
     // std::string outer_preconditioner = "BlockPreconditioner3CH";
+    // std::string outer_preconditioner = "ILU";
 
     BlockPreconditioner2Data   block_preconditioner_2_data;
     BlockPreconditioner3Data   block_preconditioner_3_data;
@@ -4636,6 +4643,7 @@ namespace Sintering
 
 
   template <int dim,
+            int number_of_grains,
             typename Number              = double,
             typename VectorizedArrayType = VectorizedArray<Number>>
   class Problem
@@ -4644,7 +4652,6 @@ namespace Sintering
     using VectorType = LinearAlgebra::distributed::Vector<Number>;
 
     // components number
-    static constexpr unsigned int number_of_grains     = 2;
     static constexpr unsigned int number_of_components = number_of_grains + 2;
 
     using NonLinearOperator =
@@ -4658,7 +4665,7 @@ namespace Sintering
     static constexpr bool   is_accumulative = false;
 
     // mesh
-    static constexpr unsigned int elements_per_interface = 2; // 8, 4, 2
+    static constexpr unsigned int elements_per_interface = 8; // 4 - works well with AMR=off
 
     // time discretization
     static constexpr double t_end                = 100;
@@ -5182,7 +5189,7 @@ namespace Sintering
         static_cast<unsigned int>(domain_width / domain_height * initial_ny);
 
       const unsigned int n_refinements = static_cast<unsigned int>(
-        std::ceil(std::log2(elements_per_interface / interface_width *
+        std::round(std::log2(elements_per_interface / interface_width *
                             domain_height / initial_ny)));
 
       std::vector<unsigned int> subdivisions(dim);
@@ -5259,6 +5266,6 @@ main(int argc, char **argv)
         }
     }
 
-  Sintering::Problem<SINTERING_DIM> runner(params);
+  Sintering::Problem<SINTERING_DIM, SINTERING_GRAINS> runner(params);
   runner.run();
 }
