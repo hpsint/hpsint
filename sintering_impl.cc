@@ -689,6 +689,13 @@ namespace Preconditioners
     }
 
     void
+    clear() override
+    {
+      blocks.clear();
+      weights.reinit(0);
+    }
+
+    void
     vmult(VectorType &dst, const VectorType &src) const override
     {
       dst = 0.0;
