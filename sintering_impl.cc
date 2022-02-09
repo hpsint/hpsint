@@ -601,6 +601,77 @@ namespace Preconditioners
 
 
 
+  template <typename Operator>
+  class InverseComponentBlockDiagonalMatrix
+    : public PreconditionerBase<typename Operator::value_type>
+  {
+  public:
+    using Number     = typename Operator::value_type;
+    using VectorType = typename Operator::VectorType;
+
+    InverseComponentBlockDiagonalMatrix(const Operator &op)
+      : op(op)
+    {}
+
+    virtual void
+    clear()
+    {
+      diagonal_matrix.clear();
+    }
+
+    void
+    vmult(VectorType &dst, const VectorType &src) const override
+    {
+      const unsigned int n_components =
+        op.get_dof_handler().get_fe().n_components();
+
+      dealii::Vector<Number> dst_(n_components);
+      dealii::Vector<Number> src_(n_components);
+
+      for (unsigned int cell = 0; cell < diagonal_matrix.size(); ++cell)
+        {
+          for (unsigned int c = 0; c < n_components; ++c)
+            src_[c] = src.local_element(c + cell * n_components);
+
+          diagonal_matrix[cell].vmult(dst_, src_);
+
+          for (unsigned int c = 0; c < n_components; ++c)
+            dst.local_element(c + cell * n_components) = dst_[c];
+        }
+    }
+
+    void
+    do_update() override
+    {
+      const auto &matrix = op.get_system_matrix();
+
+      const unsigned int n_components =
+        op.get_dof_handler().get_fe().n_components();
+      const auto local_range = matrix.local_range();
+
+      diagonal_matrix.resize((local_range.second - local_range.first) /
+                               n_components,
+                             FullMatrix<Number>(n_components));
+
+      for (unsigned int cell = 0; cell < diagonal_matrix.size(); ++cell)
+        {
+          for (unsigned int i = 0; i < n_components; ++i)
+            for (unsigned int j = 0; j < n_components; ++j)
+              diagonal_matrix[cell][i][j] =
+                matrix(i + local_range.first + cell * n_components,
+                       j + local_range.first + cell * n_components);
+
+          diagonal_matrix[cell].gauss_jordan();
+        }
+    }
+
+  private:
+    const Operator &                op;
+    std::vector<FullMatrix<Number>> diagonal_matrix;
+  };
+
+
+
   template <typename Operator, int dim>
   class InverseBlockDiagonalMatrix
     : public PreconditionerBase<typename Operator::value_type>
@@ -996,6 +1067,8 @@ namespace Preconditioners
   {
     if (label == "InverseDiagonalMatrix")
       return std::make_unique<InverseDiagonalMatrix<T>>(op);
+    else if (label == "InverseComponentBlockDiagonalMatrix")
+      return std::make_unique<InverseComponentBlockDiagonalMatrix<T>>(op);
     else if (label == "InverseBlockDiagonalMatrix")
       return std::make_unique<InverseBlockDiagonalMatrix<T, T::dimension>>(op);
     else if (label == "AMG")
@@ -1706,7 +1779,7 @@ namespace Sintering
     }
 
     DEAL_II_ALWAYS_INLINE Tensor<1, dim, VectorizedArrayType>
-                          unitVector(const Tensor<1, dim, VectorizedArrayType> &vec) const
+    unitVector(const Tensor<1, dim, VectorizedArrayType> &vec) const
     {
       VectorizedArrayType nrm = vec.norm();
       VectorizedArrayType filter;
@@ -1732,8 +1805,8 @@ namespace Sintering
     }
 
     DEAL_II_ALWAYS_INLINE Tensor<2, dim, VectorizedArrayType>
-                          projectorMatrix(const Tensor<1, dim, VectorizedArrayType> vec,
-                                          const VectorizedArrayType &               fac = 1.) const
+    projectorMatrix(const Tensor<1, dim, VectorizedArrayType> vec,
+                    const VectorizedArrayType &               fac = 1.) const
     {
       auto tensor = unitMatrix() - dealii::outer_product(vec, vec);
       tensor *= fac;
@@ -4590,7 +4663,7 @@ namespace Sintering
     add_parameters(ParameterHandler &prm)
     {
       const std::string preconditioner_types =
-        "AMG|InverseBlockDiagonalMatrix|InverseDiagonalMatrix|ILU";
+        "AMG|InverseBlockDiagonalMatrix|InverseDiagonalMatrix|ILU|InverseComponentBlockDiagonalMatrix";
 
       prm.add_parameter("FEDegree",
                         fe_degree,
