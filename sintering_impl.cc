@@ -1698,7 +1698,7 @@ namespace Sintering
     }
 
     DEAL_II_ALWAYS_INLINE Tensor<1, dim, VectorizedArrayType>
-                          unitVector(const Tensor<1, dim, VectorizedArrayType> &vec) const
+    unitVector(const Tensor<1, dim, VectorizedArrayType> &vec) const
     {
       VectorizedArrayType nrm = vec.norm();
       VectorizedArrayType filter;
@@ -1724,8 +1724,8 @@ namespace Sintering
     }
 
     DEAL_II_ALWAYS_INLINE Tensor<2, dim, VectorizedArrayType>
-                          projectorMatrix(const Tensor<1, dim, VectorizedArrayType> vec,
-                                          const VectorizedArrayType &               fac = 1.) const
+    projectorMatrix(const Tensor<1, dim, VectorizedArrayType> vec,
+                    const VectorizedArrayType &               fac = 1.) const
     {
       auto tensor = unitMatrix() - dealii::outer_product(vec, vec);
       tensor *= fac;
@@ -3246,18 +3246,18 @@ namespace Sintering
       const auto &dt               = this->op.get_dt();
       const auto &nonlinear_values = this->op.get_nonlinear_values();
 
-      const auto dt_inv = 1.0/dt;
+      const auto dt_inv = 1.0 / dt;
 
       for (unsigned int q = 0; q < phi.n_q_points; ++q)
         {
           const auto &val = nonlinear_values(cell, q);
 
-          const auto &c       = val[0];
+          const auto &c = val[0];
 
           std::array<const VectorizedArrayType *, n_grains> etas;
 
           for (unsigned int ig = 0; ig < n_grains; ++ig)
-            etas[ig]      = &val[2 + ig];
+            etas[ig] = &val[2 + ig];
 
           Tensor<1, n_components, VectorizedArrayType> value_result;
           Tensor<1, n_components, Tensor<1, dim, VectorizedArrayType>>
@@ -3267,11 +3267,9 @@ namespace Sintering
             {
               value_result[ig] =
                 phi.get_value(q)[ig] * dt_inv +
-                L * free_energy.d2f_detai2(c, etas, ig) *
-                  phi.get_value(q)[ig];
+                L * free_energy.d2f_detai2(c, etas, ig) * phi.get_value(q)[ig];
 
-              gradient_result[ig] =
-                L * kappa_p * phi.get_gradient(q)[ig];
+              gradient_result[ig] = L * kappa_p * phi.get_gradient(q)[ig];
 
               for (unsigned int jg = 0; jg < n_grains; ++jg)
                 {
@@ -3439,8 +3437,9 @@ namespace Sintering
 
       DEAL_II_OPENMP_SIMD_PRAGMA
       for (unsigned int i = 0; i < diag.locally_owned_size(); ++i)
-        for(unsigned int c = 0; c < n_components; ++c)
-          dst_ptr[i * n_components + c] = diag_ptr[i] * src_ptr[i * n_components + c];
+        for (unsigned int c = 0; c < n_components; ++c)
+          dst_ptr[i * n_components + c] =
+            diag_ptr[i] * src_ptr[i * n_components + c];
     }
 
     void
@@ -5101,8 +5100,9 @@ namespace Sintering
             catch (const NonLinearSolvers::ExcNewtonDidNotConverge &)
               {
                 dt *= 0.5;
-                pcout << "\033[31mNon-linear solver did not converge, reducing timestep, dt = "
-                      << dt << "\033[0m" << std::endl;
+                pcout
+                  << "\033[31mNon-linear solver did not converge, reducing timestep, dt = "
+                  << dt << "\033[0m" << std::endl;
 
                 solution = nonlinear_operator.get_previous_solution();
 
@@ -5114,8 +5114,9 @@ namespace Sintering
             catch (const SolverControl::NoConvergence &)
               {
                 dt *= 0.5;
-                pcout << "\033[33mLinear solver did not converge, reducing timestep, dt = "
-                      << dt << "\033[0m" << std::endl;
+                pcout
+                  << "\033[33mLinear solver did not converge, reducing timestep, dt = "
+                  << dt << "\033[0m" << std::endl;
 
                 solution = nonlinear_operator.get_previous_solution();
 
