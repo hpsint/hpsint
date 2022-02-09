@@ -3219,6 +3219,8 @@ namespace Sintering
     using FECellIntegrator =
       FEEvaluation<dim, -1, 0, n_components, Number, VectorizedArrayType>;
 
+    static const int n_grains = n_components;
+
     OperatorAllenCahn(
       const MatrixFree<dim, Number, VectorizedArrayType> &  matrix_free,
       const std::vector<const AffineConstraints<Number> *> &constraints,
@@ -3244,36 +3246,43 @@ namespace Sintering
       const auto &dt               = this->op.get_dt();
       const auto &nonlinear_values = this->op.get_nonlinear_values();
 
+      const auto dt_inv = 1.0/dt;
+
       for (unsigned int q = 0; q < phi.n_q_points; ++q)
         {
           const auto &val = nonlinear_values(cell, q);
 
-          const auto &c = val[0];
+          const auto &c       = val[0];
 
-          std::array<const VectorizedArrayType *, this->op.n_grains> etas;
+          std::array<const VectorizedArrayType *, n_grains> etas;
 
-          for (unsigned int ig = 0; ig < this->op.n_grains; ig++)
-            {
-              etas[ig] = &val[2 + ig];
-            }
+          for (unsigned int ig = 0; ig < n_grains; ig++)
+            etas[ig]      = &val[2 + ig];
 
           Tensor<1, n_components, VectorizedArrayType> value_result;
-
-          value_result[0] =
-            phi.get_value(q)[0] / dt +
-            L * free_energy.d2f_detai2(c, etas, 0) * phi.get_value(q)[0] +
-            L * free_energy.d2f_detaidetaj(c, etas, 0, 1) * phi.get_value(q)[1];
-          value_result[1] =
-            phi.get_value(q)[1] / dt +
-            L * free_energy.d2f_detaidetaj(c, etas, 1, 0) *
-              phi.get_value(q)[0] +
-            L * free_energy.d2f_detai2(c, etas, 1) * phi.get_value(q)[1];
-
           Tensor<1, n_components, Tensor<1, dim, VectorizedArrayType>>
             gradient_result;
 
-          gradient_result[0] = L * kappa_p * phi.get_gradient(q)[0];
-          gradient_result[1] = L * kappa_p * phi.get_gradient(q)[1];
+          for (unsigned int ig = 0; ig < n_grains; ig++)
+            {
+              value_result[ig] =
+                phi.get_value(q)[ig] * dt_inv +
+                L * free_energy.d2f_detai2(c, etas, ig) *
+                  phi.get_value(q)[ig];
+
+              gradient_result[ig] =
+                L * kappa_p * phi.get_gradient(q)[ig];
+
+              for (unsigned int jg = 0; jg < n_grains; jg++)
+                {
+                  if (ig != jg)
+                    {
+                      value_result[ig] +=
+                        L * free_energy.d2f_detaidetaj(c, etas, ig, jg) *
+                        phi.get_value(q)[jg];
+                    }
+                }
+            }
 
           phi.submit_value(value_result, q);
           phi.submit_gradient(gradient_result, q);
