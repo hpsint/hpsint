@@ -19,10 +19,15 @@
 static_assert(false, "No dimension has been given!");
 #endif
 
+#ifndef SINTERING_GRAINS
+static_assert(false, "No grains number has been given!");
+#endif
+
 //#define WITH_TIMING
 //#define WITH_TRACKER
 
 #include <deal.II/base/conditional_ostream.h>
+#include <deal.II/base/geometric_utilities.h>
 #include <deal.II/base/mpi.h>
 #include <deal.II/base/parameter_handler.h>
 #include <deal.II/base/quadrature_lib.h>
@@ -65,6 +70,8 @@ static_assert(false, "No dimension has been given!");
 #include <deal.II/numerics/error_estimator.h>
 #include <deal.II/numerics/vector_tools.h>
 
+#include <fstream>
+
 using namespace dealii;
 
 namespace dealii
@@ -92,16 +99,23 @@ namespace dealii
 
     template <typename VectorType>
     void
-    split_up_fast(const VectorType &vec, VectorType &vec_0, VectorType &vec_1)
+    split_up_fast(const VectorType & vec,
+                  VectorType &       vec_0,
+                  VectorType &       vec_1,
+                  const unsigned int n_grains)
     {
       for (unsigned int i = 0, i0 = 0, i1 = 0;
            i < vec.get_partitioner()->locally_owned_size();)
         {
           for (unsigned int j = 0; j < 2; ++j)
-            vec_0.local_element(i0++) = vec.local_element(i++);
+            {
+              vec_0.local_element(i0++) = vec.local_element(i++);
+            }
 
-          for (unsigned int j = 0; j < 2; ++j)
-            vec_1.local_element(i1++) = vec.local_element(i++);
+          for (unsigned int j = 0; j < n_grains; ++j)
+            {
+              vec_1.local_element(i1++) = vec.local_element(i++);
+            }
         }
     }
 
@@ -180,10 +194,11 @@ namespace dealii
 
     template <typename VectorType>
     void
-    split_up_fast(const VectorType &vec,
-                  VectorType &      vec_0,
-                  VectorType &      vec_1,
-                  VectorType &      vec_2)
+    split_up_fast(const VectorType & vec,
+                  VectorType &       vec_0,
+                  VectorType &       vec_1,
+                  VectorType &       vec_2,
+                  const unsigned int n_grains)
     {
       for (unsigned int i = 0, i0 = 0, i1 = 0, i2 = 0;
            i < vec.get_partitioner()->locally_owned_size();)
@@ -191,7 +206,7 @@ namespace dealii
           vec_0.local_element(i0++) = vec.local_element(i++);
           vec_1.local_element(i1++) = vec.local_element(i++);
 
-          for (unsigned int j = 0; j < 2; ++j)
+          for (unsigned int j = 0; j < n_grains; ++j)
             vec_2.local_element(i2++) = vec.local_element(i++);
         }
     }
@@ -294,9 +309,10 @@ namespace dealii
 
     template <typename VectorType>
     void
-    merge_fast(const VectorType &vec_0,
-               const VectorType &vec_1,
-               VectorType &      vec)
+    merge_fast(const VectorType & vec_0,
+               const VectorType & vec_1,
+               VectorType &       vec,
+               const unsigned int n_grains)
     {
       for (unsigned int i = 0, i0 = 0, i1 = 0;
            i < vec.get_partitioner()->locally_owned_size();)
@@ -304,7 +320,7 @@ namespace dealii
           for (unsigned int j = 0; j < 2; ++j)
             vec.local_element(i++) = vec_0.local_element(i0++);
 
-          for (unsigned int j = 0; j < 2; ++j)
+          for (unsigned int j = 0; j < n_grains; ++j)
             vec.local_element(i++) = vec_1.local_element(i1++);
         }
     }
@@ -385,10 +401,11 @@ namespace dealii
 
     template <typename VectorType>
     void
-    merge_fast(const VectorType &vec_0,
-               const VectorType &vec_1,
-               const VectorType &vec_2,
-               VectorType &      vec)
+    merge_fast(const VectorType & vec_0,
+               const VectorType & vec_1,
+               const VectorType & vec_2,
+               VectorType &       vec,
+               const unsigned int n_grains)
     {
       for (unsigned int i = 0, i0 = 0, i1 = 0, i2 = 0;
            i < vec.get_partitioner()->locally_owned_size();)
@@ -396,7 +413,7 @@ namespace dealii
           vec.local_element(i++) = vec_0.local_element(i0++);
           vec.local_element(i++) = vec_1.local_element(i1++);
 
-          for (unsigned int j = 0; j < 2; ++j)
+          for (unsigned int j = 0; j < n_grains; ++j)
             vec.local_element(i++) = vec_2.local_element(i2++);
         }
     }
@@ -1216,30 +1233,43 @@ namespace Sintering
   class InitialValues : public dealii::Function<dim>
   {
   private:
-    dealii::Point<dim> p1;
-    dealii::Point<dim> p2;
+    std::vector<dealii::Point<dim>> centers;
 
     double r0;
     double interface_width;
+    /* This parameter defines how particles interact within a grain boundary at
+     * the initial configuration: whether the particles barely touch each other
+     * or proto-necks are built up.
+     *
+     * That what happens at the grain boundary for the case of two particles:
+     *    - false -> min(eta0, eta1)
+     *    - true  -> eta0 + eta1
+     */
+    bool is_accumulative;
 
     double interface_offset = 0;
 
-    bool is_accumulative;
-
   public:
-    InitialValues(double       x01,
-                  double       x02,
-                  double       y0,
-                  double       r0,
+    InitialValues(double       r0,
                   double       interface_width,
-                  unsigned int n_components,
+                  unsigned int n_grains,
                   bool         is_accumulative)
-      : dealii::Function<dim>(n_components)
+      : dealii::Function<dim>(n_grains + 2)
       , r0(r0)
       , interface_width(interface_width)
       , is_accumulative(is_accumulative)
     {
-      initializeCenters(x01, x02, y0, y0);
+      double alfa = 2 * M_PI / n_grains;
+
+      double h = r0 / std::sin(alfa / 2.);
+
+      for (unsigned int ip = 0; ip < n_grains; ip++)
+        {
+          std::array<double, dim> scoords{{h, ip * alfa}};
+          centers.push_back(
+            dealii::GeometricUtilities::Coordinates::from_spherical<dim>(
+              scoords));
+        }
     }
 
     virtual double
@@ -1250,54 +1280,90 @@ namespace Sintering
 
       if (component == 0)
         {
-          double eta1 = is_in_sphere(p, p1);
-          double eta2 = is_in_sphere(p, p2);
+          std::vector<double> etas;
+          for (const auto &pt : centers)
+            {
+              etas.push_back(is_in_sphere(p, pt));
+            }
 
           if (is_accumulative)
             {
-              ret_val = eta1 + eta2;
+              ret_val = std::accumulate(etas.begin(),
+                                        etas.end(),
+                                        0,
+                                        [](auto a, auto b) {
+                                          return std::move(a) + b;
+                                        });
+              if (ret_val > 1.0)
+                {
+                  ret_val = 1.0;
+                }
             }
           else
             {
-              ret_val = std::max(eta1, eta2);
+              ret_val = *std::max_element(etas.begin(), etas.end());
             }
         }
-      else if (component == 2)
+      else if (component == 1)
         {
-          ret_val = is_in_sphere(p, p1);
-        }
-      else if (component == 3)
-        {
-          ret_val = is_in_sphere(p, p2);
+          ret_val = 0;
         }
       else
         {
-          ret_val = 0;
+          const auto &pt = centers[component - 2];
+          ret_val        = is_in_sphere(p, pt);
         }
 
       return ret_val;
     }
 
-  private:
-    void
-    initializeCenters(double x01, double x02, double y01, double y02)
+    std::pair<dealii::Point<dim>, dealii::Point<dim>>
+    domain_boundaries() const
     {
+      const auto &pt_xmax = std::max_element(centers.begin(),
+                                             centers.end(),
+                                             [](const auto &a, const auto &b) {
+                                               return a[0] < b[0];
+                                             });
+
+      const auto &pt_ymax = std::max_element(centers.begin(),
+                                             centers.end(),
+                                             [](const auto &a, const auto &b) {
+                                               return a[1] < b[1];
+                                             });
+
+      const auto &pt_xmin = std::min_element(centers.begin(),
+                                             centers.end(),
+                                             [](const auto &a, const auto &b) {
+                                               return a[0] < b[0];
+                                             });
+
+      const auto &pt_ymin = std::min_element(centers.begin(),
+                                             centers.end(),
+                                             [](const auto &a, const auto &b) {
+                                               return a[1] < b[1];
+                                             });
+
+      double xmin = (*pt_xmin)[0] - r0;
+      double xmax = (*pt_xmax)[0] + r0;
+      double ymin = (*pt_ymin)[1] - r0;
+      double ymax = (*pt_ymax)[1] + r0;
+
       if (dim == 2)
         {
-          p1 = dealii::Point<dim>(x01, y01);
-          p2 = dealii::Point<dim>(x02, y02);
+          return std::make_pair(dealii::Point<dim>(xmin, ymin),
+                                dealii::Point<dim>(xmax, ymax));
         }
       else if (dim == 3)
         {
-          p1 = dealii::Point<dim>(x01, y01, y01);
-          p2 = dealii::Point<dim>(x02, y02, y02);
-        }
-      else
-        {
-          throw std::runtime_error("This dim size is not admissible");
+          double zmin = -r0;
+          double zmax = r0;
+          return std::make_pair(dealii::Point<dim>(xmin, ymin, zmin),
+                                dealii::Point<dim>(xmax, ymax, zmax));
         }
     }
 
+  private:
     double
     is_in_sphere(const dealii::Point<dim> &point,
                  const dealii::Point<dim> &center) const
@@ -1350,10 +1416,11 @@ namespace Sintering
 
     template <std::size_t n>
     DEAL_II_ALWAYS_INLINE VectorizedArrayType
-    M(const VectorizedArrayType &                               c,
-      const std::array<VectorizedArrayType, n> &                etas,
-      const Tensor<1, dim, VectorizedArrayType> &               c_grad,
-      const std::array<Tensor<1, dim, VectorizedArrayType>, n> &etas_grad) const
+    M(const VectorizedArrayType &                       c,
+      const std::array<const VectorizedArrayType *, n> &etas,
+      const Tensor<1, dim, VectorizedArrayType> &       c_grad,
+      const std::array<const Tensor<1, dim, VectorizedArrayType> *, n>
+        &etas_grad) const
     {
       (void)c_grad;
       (void)etas_grad;
@@ -1368,9 +1435,9 @@ namespace Sintering
         {
           for (const auto &etaj : etas)
             {
-              if (&etai != &etaj)
+              if (etai != etaj)
                 {
-                  etaijSum += etai * etaj;
+                  etaijSum += (*etai) * (*etaj);
                 }
             }
         }
@@ -1389,11 +1456,11 @@ namespace Sintering
 
     template <std::size_t n>
     DEAL_II_ALWAYS_INLINE VectorizedArrayType
-    dM_dc(
-      const VectorizedArrayType &                               c,
-      const std::array<VectorizedArrayType, n> &                etas,
-      const Tensor<1, dim, VectorizedArrayType> &               c_grad,
-      const std::array<Tensor<1, dim, VectorizedArrayType>, n> &etas_grad) const
+    dM_dc(const VectorizedArrayType &                       c,
+          const std::array<const VectorizedArrayType *, n> &etas,
+          const Tensor<1, dim, VectorizedArrayType> &       c_grad,
+          const std::array<const Tensor<1, dim, VectorizedArrayType> *, n>
+            &etas_grad) const
     {
       (void)etas;
       (void)c_grad;
@@ -1425,12 +1492,12 @@ namespace Sintering
 
     template <std::size_t n>
     DEAL_II_ALWAYS_INLINE VectorizedArrayType
-    dM_detai(
-      const VectorizedArrayType &                               c,
-      const std::array<VectorizedArrayType, n> &                etas,
-      const Tensor<1, dim, VectorizedArrayType> &               c_grad,
-      const std::array<Tensor<1, dim, VectorizedArrayType>, n> &etas_grad,
-      unsigned int                                              index_i) const
+    dM_detai(const VectorizedArrayType &                       c,
+             const std::array<const VectorizedArrayType *, n> &etas,
+             const Tensor<1, dim, VectorizedArrayType> &       c_grad,
+             const std::array<const Tensor<1, dim, VectorizedArrayType> *, n>
+               &          etas_grad,
+             unsigned int index_i) const
     {
       (void)c;
       (void)c_grad;
@@ -1441,7 +1508,7 @@ namespace Sintering
         {
           if (j != index_i)
             {
-              etajSum += etas[j];
+              etajSum += *etas[j];
             }
         }
 
@@ -1475,10 +1542,11 @@ namespace Sintering
 
     template <std::size_t n>
     DEAL_II_ALWAYS_INLINE Tensor<2, dim, VectorizedArrayType>
-                          M(const VectorizedArrayType &                               c,
-                            const std::array<VectorizedArrayType, n> &                etas,
-                            const Tensor<1, dim, VectorizedArrayType> &               c_grad,
-                            const std::array<Tensor<1, dim, VectorizedArrayType>, n> &etas_grad) const
+                          M(const VectorizedArrayType &                       c,
+                            const std::array<const VectorizedArrayType *, n> &etas,
+                            const Tensor<1, dim, VectorizedArrayType> &       c_grad,
+                            const std::array<const Tensor<1, dim, VectorizedArrayType> *, n>
+                              &etas_grad) const
     {
       VectorizedArrayType cl = c;
       std::for_each(cl.begin(), cl.end(), [](auto &val) {
@@ -1507,9 +1575,9 @@ namespace Sintering
             {
               if (i != j)
                 {
-                  VectorizedArrayType fgb = Mgb * etas[i] * etas[j];
+                  VectorizedArrayType fgb = Mgb * (*etas[i]) * (*etas[j]);
                   Tensor<1, dim, VectorizedArrayType> etaGradDiff =
-                    etas_grad[i] - etas_grad[j];
+                    (*etas_grad[i]) - (*etas_grad[j]);
                   Tensor<1, dim, VectorizedArrayType> neta =
                     unitVector(etaGradDiff);
                   M += projectorMatrix(neta, fgb);
@@ -1522,11 +1590,11 @@ namespace Sintering
 
     template <std::size_t n>
     DEAL_II_ALWAYS_INLINE Tensor<2, dim, VectorizedArrayType>
-                          dM_dc(
-                            const VectorizedArrayType &                               c,
-                            const std::array<VectorizedArrayType, n> &                etas,
-                            const Tensor<1, dim, VectorizedArrayType> &               c_grad,
-                            const std::array<Tensor<1, dim, VectorizedArrayType>, n> &etas_grad) const
+                          dM_dc(const VectorizedArrayType &                       c,
+                                const std::array<const VectorizedArrayType *, n> &etas,
+                                const Tensor<1, dim, VectorizedArrayType> &       c_grad,
+                                const std::array<const Tensor<1, dim, VectorizedArrayType> *, n>
+                                  &etas_grad) const
     {
       (void)etas;
       (void)etas_grad;
@@ -1595,12 +1663,12 @@ namespace Sintering
 
     template <std::size_t n>
     DEAL_II_ALWAYS_INLINE Tensor<2, dim, VectorizedArrayType>
-                          dM_detai(
-                            const VectorizedArrayType &                               c,
-                            const std::array<VectorizedArrayType, n> &                etas,
-                            const Tensor<1, dim, VectorizedArrayType> &               c_grad,
-                            const std::array<Tensor<1, dim, VectorizedArrayType>, n> &etas_grad,
-                            unsigned int                                              index_i) const
+                          dM_detai(const VectorizedArrayType &                       c,
+                                   const std::array<const VectorizedArrayType *, n> &etas,
+                                   const Tensor<1, dim, VectorizedArrayType> &       c_grad,
+                                   const std::array<const Tensor<1, dim, VectorizedArrayType> *, n>
+                                     &          etas_grad,
+                                   unsigned int index_i) const
     {
       (void)c;
       (void)c_grad;
@@ -1611,9 +1679,9 @@ namespace Sintering
         {
           if (j != index_i)
             {
-              VectorizedArrayType                 fgb = 2. * Mgb * etas[j];
+              VectorizedArrayType                 fgb = 2. * Mgb * (*etas[j]);
               Tensor<1, dim, VectorizedArrayType> etaGradDiff =
-                etas_grad[index_i] - etas_grad[j];
+                (*etas_grad[index_i]) - (*etas_grad[j]);
               Tensor<1, dim, VectorizedArrayType> neta =
                 unitVector(etaGradDiff);
               M += projectorMatrix(neta, fgb);
@@ -1638,7 +1706,7 @@ namespace Sintering
     }
 
     DEAL_II_ALWAYS_INLINE Tensor<1, dim, VectorizedArrayType>
-    unitVector(const Tensor<1, dim, VectorizedArrayType> &vec) const
+                          unitVector(const Tensor<1, dim, VectorizedArrayType> &vec) const
     {
       VectorizedArrayType nrm = vec.norm();
       VectorizedArrayType filter;
@@ -1664,8 +1732,8 @@ namespace Sintering
     }
 
     DEAL_II_ALWAYS_INLINE Tensor<2, dim, VectorizedArrayType>
-    projectorMatrix(const Tensor<1, dim, VectorizedArrayType> vec,
-                    const VectorizedArrayType &               fac = 1.) const
+                          projectorMatrix(const Tensor<1, dim, VectorizedArrayType> vec,
+                                          const VectorizedArrayType &               fac = 1.) const
     {
       auto tensor = unitMatrix() - dealii::outer_product(vec, vec);
       tensor *= fac;
@@ -1680,16 +1748,14 @@ namespace Sintering
   public:
     template <typename T>
     DEAL_II_ALWAYS_INLINE static T
-    power_sum(const std::array<T, n> &etas)
+    power_sum(const std::array<T *, n> &etas)
     {
       T initial = 0.0;
 
-      return std::accumulate(etas.begin(),
-                             etas.end(),
-                             initial,
-                             [](auto a, auto b) {
-                               return std::move(a) + std::pow(b, n);
-                             });
+      return std::accumulate(
+        etas.begin(), etas.end(), initial, [](auto a, auto b) {
+          return std::move(a) + std::pow(*b, static_cast<double>(p));
+        });
     }
   };
 
@@ -1699,9 +1765,9 @@ namespace Sintering
   public:
     template <typename T>
     DEAL_II_ALWAYS_INLINE static T
-    power_sum(const std::array<T, 2> &etas)
+    power_sum(const std::array<T *, 2> &etas)
     {
-      return etas[0] * etas[0] + etas[1] * etas[1];
+      return (*etas[0]) * (*etas[0]) + (*etas[1]) * (*etas[1]);
     }
   };
 
@@ -1711,9 +1777,10 @@ namespace Sintering
   public:
     template <typename T>
     DEAL_II_ALWAYS_INLINE static T
-    power_sum(const std::array<T, 2> &etas)
+    power_sum(const std::array<T *, 2> &etas)
     {
-      return etas[0] * etas[0] * etas[0] + etas[1] * etas[1] * etas[1];
+      return (*etas[0]) * (*etas[0]) * (*etas[0]) +
+             (*etas[1]) * (*etas[1]) * (*etas[1]);
     }
   };
 
@@ -1732,8 +1799,8 @@ namespace Sintering
 
     template <std::size_t n>
     DEAL_II_ALWAYS_INLINE VectorizedArrayType
-    f(const VectorizedArrayType &               c,
-      const std::array<VectorizedArrayType, n> &etas) const
+    f(const VectorizedArrayType &                       c,
+      const std::array<const VectorizedArrayType *, n> &etas) const
     {
       const auto etaPower2Sum = PowerHelper<n, 2>::power_sum(etas);
       const auto etaPower3Sum = PowerHelper<n, 3>::power_sum(etas);
@@ -1746,8 +1813,8 @@ namespace Sintering
 
     template <std::size_t n>
     DEAL_II_ALWAYS_INLINE VectorizedArrayType
-    df_dc(const VectorizedArrayType &               c,
-          const std::array<VectorizedArrayType, n> &etas) const
+    df_dc(const VectorizedArrayType &                       c,
+          const std::array<const VectorizedArrayType *, n> &etas) const
     {
       const auto etaPower2Sum = PowerHelper<n, 2>::power_sum(etas);
       const auto etaPower3Sum = PowerHelper<n, 3>::power_sum(etas);
@@ -1759,13 +1826,13 @@ namespace Sintering
 
     template <std::size_t n>
     DEAL_II_ALWAYS_INLINE VectorizedArrayType
-    df_detai(const VectorizedArrayType &               c,
-             const std::array<VectorizedArrayType, n> &etas,
-             unsigned int                              index_i) const
+    df_detai(const VectorizedArrayType &                       c,
+             const std::array<const VectorizedArrayType *, n> &etas,
+             unsigned int                                      index_i) const
     {
       const auto etaPower2Sum = PowerHelper<n, 2>::power_sum(etas);
 
-      const auto &etai = etas[index_i];
+      const auto &etai = *etas[index_i];
 
       return B * (3.0 * (etai * etai) * (4.0 * c - 8.0) +
                   2.0 * etai * (-6.0 * c + 6.0) + 12.0 * etai * (etaPower2Sum));
@@ -1773,8 +1840,8 @@ namespace Sintering
 
     template <std::size_t n>
     DEAL_II_ALWAYS_INLINE VectorizedArrayType
-    d2f_dc2(const VectorizedArrayType &               c,
-            const std::array<VectorizedArrayType, n> &etas) const
+    d2f_dc2(const VectorizedArrayType &                       c,
+            const std::array<const VectorizedArrayType *, n> &etas) const
     {
       (void)etas;
 
@@ -1784,26 +1851,26 @@ namespace Sintering
 
     template <std::size_t n>
     DEAL_II_ALWAYS_INLINE VectorizedArrayType
-    d2f_dcdetai(const VectorizedArrayType &               c,
-                const std::array<VectorizedArrayType, n> &etas,
-                unsigned int                              index_i) const
+    d2f_dcdetai(const VectorizedArrayType &                       c,
+                const std::array<const VectorizedArrayType *, n> &etas,
+                unsigned int                                      index_i) const
     {
       (void)c;
 
-      const auto &etai = etas[index_i];
+      const auto &etai = *etas[index_i];
 
       return B * (12.0 * (etai * etai) - 12.0 * etai);
     }
 
     template <std::size_t n>
     DEAL_II_ALWAYS_INLINE VectorizedArrayType
-    d2f_detai2(const VectorizedArrayType &               c,
-               const std::array<VectorizedArrayType, n> &etas,
-               unsigned int                              index_i) const
+    d2f_detai2(const VectorizedArrayType &                       c,
+               const std::array<const VectorizedArrayType *, n> &etas,
+               unsigned int                                      index_i) const
     {
       const auto etaPower2Sum = PowerHelper<n, 2>::power_sum(etas);
 
-      const auto &etai = etas[index_i];
+      const auto &etai = *etas[index_i];
 
       return B * (12.0 - 12.0 * c + 2.0 * etai * (12.0 * c - 24.0) +
                   24.0 * (etai * etai) + 12.0 * etaPower2Sum);
@@ -1811,15 +1878,15 @@ namespace Sintering
 
     template <std::size_t n>
     DEAL_II_ALWAYS_INLINE VectorizedArrayType
-    d2f_detaidetaj(const VectorizedArrayType &               c,
-                   const std::array<VectorizedArrayType, n> &etas,
-                   unsigned int                              index_i,
-                   unsigned int                              index_j) const
+    d2f_detaidetaj(const VectorizedArrayType &                       c,
+                   const std::array<const VectorizedArrayType *, n> &etas,
+                   unsigned int                                      index_i,
+                   unsigned int index_j) const
     {
       (void)c;
 
-      const auto &etai = etas[index_i];
-      const auto &etaj = etas[index_j];
+      const auto &etai = *etas[index_i];
+      const auto &etaj = *etas[index_j];
 
       return 24.0 * B * etai * etaj;
     }
@@ -2399,7 +2466,8 @@ namespace Sintering
     void
     add_data_vectors(DataOut<dim> &data_out, const VectorType &vec) const
     {
-      constexpr unsigned int            n_entries = 17;
+      constexpr unsigned int n_entries =
+        8 + 3 * n_grains + n_grains * (n_grains - 1) / 2;
       std::array<VectorType, n_entries> data_vectors;
 
       for (auto &data_vector : data_vectors)
@@ -2437,40 +2505,66 @@ namespace Sintering
 
           for (unsigned int q = 0; q < fe_eval.n_q_points; ++q)
             {
-              const auto c    = fe_eval_all.get_value(q)[0];
-              const auto eta1 = fe_eval_all.get_value(q)[2];
-              const auto eta2 = fe_eval_all.get_value(q)[3];
+              const auto val  = fe_eval_all.get_value(q);
+              const auto grad = fe_eval_all.get_gradient(q);
 
-              const auto c_grad    = fe_eval_all.get_gradient(q)[0];
-              const auto mu_grad   = fe_eval_all.get_gradient(q)[1];
-              const auto eta1_grad = fe_eval_all.get_gradient(q)[2];
-              const auto eta2_grad = fe_eval_all.get_gradient(q)[3];
+              const auto &c       = val[0];
+              const auto &c_grad  = grad[0];
+              const auto &mu_grad = grad[1];
 
-              const std::array<VectorizedArrayType, 2> etas{{eta1, eta2}};
-              const std::array<Tensor<1, dim, VectorizedArrayType>, 2>
-                etas_grad{{eta1_grad, eta2_grad}};
+              std::array<const VectorizedArrayType *, n_grains> etas;
+              std::array<const Tensor<1, dim, VectorizedArrayType> *, n_grains>
+                etas_grad;
 
-              // clang-format off
-              const std::array<VectorizedArrayType, n_entries> temp{{
-                 VectorizedArrayType(dt_inv),                                         // 00
-                 free_energy.d2f_dc2(c, etas),                                        // 01
-                 free_energy.d2f_dcdetai(c, etas, 0),                                 // 02
-                 free_energy.d2f_dcdetai(c, etas, 1),                                 // 03
-                 L * free_energy.d2f_dcdetai(c, etas, 0),                             // 04
-                 L * free_energy.d2f_detai2(c, etas, 0),                              // 05
-                 L * free_energy.d2f_detaidetaj(c, etas, 0, 1),                       // 06
-                 L * free_energy.d2f_dcdetai(c, etas, 1),                             // 07
-                 L * free_energy.d2f_detaidetaj(c, etas, 1, 0),                       // 08
-                 L * free_energy.d2f_detai2(c, etas, 1),                              // 09
-                 mobility.M(c, etas, c_grad, etas_grad),                              // 10
-                 (mobility.dM_dc(c, etas, c_grad, etas_grad) * mu_grad).norm(),       // 11
-                 (mobility.dM_dgrad_c(c, c_grad, mu_grad)).norm(),                    // 12
-                 (mobility.dM_detai(c, etas, c_grad, etas_grad, 0) * mu_grad).norm(), // 13
-                 (mobility.dM_detai(c, etas, c_grad, etas_grad, 1) * mu_grad).norm(), // 14
-                 VectorizedArrayType(kappa_c),                                        // 15
-                 VectorizedArrayType(L * kappa_p)                                     // 16
-                 }};
-              // clang-format on
+              for (unsigned int ig = 0; ig < n_grains; ++ig)
+                {
+                  etas[ig]      = &val[2 + ig];
+                  etas_grad[ig] = &grad[2 + ig];
+                }
+
+              std::array<VectorizedArrayType, n_entries> temp;
+
+              unsigned int counter = 0;
+
+              temp[counter++] = VectorizedArrayType(dt_inv);
+              temp[counter++] = free_energy.d2f_dc2(c, etas);
+
+              for (unsigned int ig = 0; ig < n_grains; ++ig)
+                {
+                  temp[counter++] = free_energy.d2f_dcdetai(c, etas, ig);
+                }
+
+              for (unsigned int ig = 0; ig < n_grains; ++ig)
+                {
+                  temp[counter++] = free_energy.d2f_detai2(c, etas, ig);
+                }
+
+              for (unsigned int ig = 0; ig < n_grains; ++ig)
+                {
+                  for (unsigned int jg = ig + 1; jg < n_grains; ++jg)
+                    {
+                      temp[counter++] =
+                        free_energy.d2f_detaidetaj(c, etas, ig, jg);
+                    }
+                }
+
+              temp[counter++] = mobility.M(c, etas, c_grad, etas_grad);
+              temp[counter++] =
+                (mobility.dM_dc(c, etas, c_grad, etas_grad) * mu_grad).norm();
+              temp[counter++] =
+                (mobility.dM_dgrad_c(c, c_grad, mu_grad)).norm();
+
+              for (unsigned int ig = 0; ig < n_grains; ++ig)
+                {
+                  temp[counter++] =
+                    (mobility.dM_detai(c, etas, c_grad, etas_grad, ig) *
+                     mu_grad)
+                      .norm();
+                }
+
+              temp[counter++] = VectorizedArrayType(kappa_c);
+              temp[counter++] = VectorizedArrayType(kappa_p);
+              temp[counter++] = VectorizedArrayType(L);
 
               for (unsigned int c = 0; c < n_entries; ++c)
                 buffer[c * fe_eval.n_q_points + q] = temp[c];
@@ -2500,6 +2594,8 @@ namespace Sintering
         }
     }
 
+    static constexpr unsigned int n_grains{n_components - 2};
+
   private:
     void
     do_vmult_kernel(FECellIntegrator &phi) const
@@ -2522,64 +2618,71 @@ namespace Sintering
       for (unsigned int q = 0; q < phi.n_q_points; ++q)
         {
 #if true
-          const auto c    = phi_lin.get_value(q)[0];
-          const auto eta1 = phi_lin.get_value(q)[2];
-          const auto eta2 = phi_lin.get_value(q)[3];
-
-          const auto c_grad    = phi_lin.get_gradient(q)[0];
-          const auto mu_grad   = phi_lin.get_gradient(q)[1];
-          const auto eta1_grad = phi_lin.get_gradient(q)[2];
-          const auto eta2_grad = phi_lin.get_gradient(q)[3];
+          const auto val  = phi_lin.get_value(q);
+          const auto grad = phi_lin.get_gradient(q);
 #else
-          const auto &c    = nonlinear_values(cell, q)[0];
-          const auto &eta1 = nonlinear_values(cell, q)[2];
-          const auto &eta2 = nonlinear_values(cell, q)[3];
-
-          const auto &c_grad    = nonlinear_gradients(cell, q)[0];
-          const auto &mu_grad   = nonlinear_gradients(cell, q)[1];
-          const auto &eta1_grad = nonlinear_gradients(cell, q)[2];
-          const auto &eta2_grad = nonlinear_gradients(cell, q)[3];
+          const auto &val  = nonlinear_values(cell, q);
+          const auto &grad = nonlinear_gradients(cell, q);
 #endif
 
-          const std::array<VectorizedArrayType, 2> etas{{eta1, eta2}};
-          const std::array<Tensor<1, dim, VectorizedArrayType>, 2> etas_grad{
-            {eta1_grad, eta2_grad}};
+          const auto &c       = val[0];
+          const auto &c_grad  = grad[0];
+          const auto &mu_grad = grad[1];
+
+          std::array<const VectorizedArrayType *, n_grains> etas;
+          std::array<const Tensor<1, dim, VectorizedArrayType> *, n_grains>
+            etas_grad;
+
+          for (unsigned int ig = 0; ig < n_grains; ++ig)
+            {
+              etas[ig]      = &val[2 + ig];
+              etas_grad[ig] = &grad[2 + ig];
+            }
 
           Tensor<1, n_components, VectorizedArrayType> value_result;
-
           Tensor<1, n_components, Tensor<1, dim, VectorizedArrayType>>
             gradient_result;
 
           value_result[0] = phi.get_value(q)[0] * dt_inv;
-          value_result[1] =
-            -phi.get_value(q)[1] +
-            free_energy.d2f_dc2(c, etas) * phi.get_value(q)[0] +
-            free_energy.d2f_dcdetai(c, etas, 0) * phi.get_value(q)[2] +
-            free_energy.d2f_dcdetai(c, etas, 1) * phi.get_value(q)[3];
-          value_result[2] =
-            phi.get_value(q)[2] * dt_inv +
-            L * free_energy.d2f_dcdetai(c, etas, 0) * phi.get_value(q)[0] +
-            L * free_energy.d2f_detai2(c, etas, 0) * phi.get_value(q)[2] +
-            L * free_energy.d2f_detaidetaj(c, etas, 0, 1) * phi.get_value(q)[3];
-          value_result[3] =
-            phi.get_value(q)[3] * dt_inv +
-            L * free_energy.d2f_dcdetai(c, etas, 1) * phi.get_value(q)[0] +
-            L * free_energy.d2f_detaidetaj(c, etas, 1, 0) *
-              phi.get_value(q)[2] +
-            L * free_energy.d2f_detai2(c, etas, 1) * phi.get_value(q)[3];
+          value_result[1] = -phi.get_value(q)[1] +
+                            free_energy.d2f_dc2(c, etas) * phi.get_value(q)[0];
 
           gradient_result[0] =
             mobility.M(c, etas, c_grad, etas_grad) * phi.get_gradient(q)[1] +
             mobility.dM_dc(c, etas, c_grad, etas_grad) * mu_grad *
               phi.get_value(q)[0] +
-            mobility.dM_dgrad_c(c, c_grad, mu_grad) * phi.get_gradient(q)[0] +
-            mobility.dM_detai(c, etas, c_grad, etas_grad, 0) * mu_grad *
-              phi.get_value(q)[2] +
-            mobility.dM_detai(c, etas, c_grad, etas_grad, 1) * mu_grad *
-              phi.get_value(q)[3];
+            mobility.dM_dgrad_c(c, c_grad, mu_grad) * phi.get_gradient(q)[0];
+
           gradient_result[1] = kappa_c * phi.get_gradient(q)[0];
-          gradient_result[2] = L * kappa_p * phi.get_gradient(q)[2];
-          gradient_result[3] = L * kappa_p * phi.get_gradient(q)[3];
+
+          for (unsigned int ig = 0; ig < n_grains; ++ig)
+            {
+              value_result[1] +=
+                free_energy.d2f_dcdetai(c, etas, ig) * phi.get_value(q)[ig + 2];
+
+              value_result[ig + 2] =
+                phi.get_value(q)[ig + 2] * dt_inv +
+                L * free_energy.d2f_dcdetai(c, etas, ig) * phi.get_value(q)[0] +
+                L * free_energy.d2f_detai2(c, etas, ig) *
+                  phi.get_value(q)[ig + 2];
+
+              gradient_result[0] +=
+                mobility.dM_detai(c, etas, c_grad, etas_grad, ig) * mu_grad *
+                phi.get_value(q)[ig + 2];
+
+              gradient_result[ig + 2] =
+                L * kappa_p * phi.get_gradient(q)[ig + 2];
+
+              for (unsigned int jg = 0; jg < n_grains; ++jg)
+                {
+                  if (ig != jg)
+                    {
+                      value_result[ig + 2] +=
+                        L * free_energy.d2f_detaidetaj(c, etas, ig, jg) *
+                        phi.get_value(q)[jg + 2];
+                    }
+                }
+            }
 
           phi.submit_value(value_result, q);
           phi.submit_gradient(gradient_result, q);
@@ -2621,40 +2724,40 @@ namespace Sintering
               const auto val_old = phi_old.get_value(q);
               const auto grad    = phi.get_gradient(q);
 
-              auto &c    = val[0];
-              auto &mu   = val[1];
-              auto &eta1 = val[2];
-              auto &eta2 = val[3];
+              auto &c      = val[0];
+              auto &mu     = val[1];
+              auto &c_old  = val_old[0];
+              auto &c_grad = grad[0];
 
-              auto &c_old    = val_old[0];
-              auto &eta1_old = val_old[2];
-              auto &eta2_old = val_old[3];
+              std::array<const VectorizedArrayType *, n_grains> etas;
+              std::array<const Tensor<1, dim, VectorizedArrayType> *, n_grains>
+                etas_grad;
 
-              auto &c_grad    = grad[0];
-              auto &eta1_grad = grad[2];
-              auto &eta2_grad = grad[3];
-
-              const std::array<VectorizedArrayType, 2> etas{{eta1, eta2}};
-              const std::array<Tensor<1, dim, VectorizedArrayType>, 2>
-                etas_grad{{eta1_grad, eta2_grad}};
+              for (unsigned int ig = 0; ig < n_grains; ++ig)
+                {
+                  etas[ig]      = &val[2 + ig];
+                  etas_grad[ig] = &grad[2 + ig];
+                }
 
               Tensor<1, n_components, VectorizedArrayType> value_result;
-
-              value_result[0] = (c - c_old) / dt;
-              value_result[1] = -mu + free_energy.df_dc(c, etas);
-              value_result[2] =
-                (eta1 - eta1_old) / dt + L * free_energy.df_detai(c, etas, 0);
-              value_result[3] =
-                (eta2 - eta2_old) / dt + L * free_energy.df_detai(c, etas, 1);
-
               Tensor<1, n_components, Tensor<1, dim, VectorizedArrayType>>
                 gradient_result;
 
+              // CH equations
+              value_result[0] = (c - c_old) / dt;
+              value_result[1] = -mu + free_energy.df_dc(c, etas);
               gradient_result[0] =
                 mobility.M(c, etas, c_grad, etas_grad) * grad[1];
               gradient_result[1] = kappa_c * grad[0];
-              gradient_result[2] = L * kappa_p * grad[2];
-              gradient_result[3] = L * kappa_p * grad[3];
+
+              // AC equations
+              for (unsigned int ig = 0; ig < n_grains; ++ig)
+                {
+                  value_result[2 + ig] = (val[2 + ig] - val_old[2 + ig]) / dt +
+                                         L * free_energy.df_detai(c, etas, ig);
+
+                  gradient_result[2 + ig] = L * kappa_p * grad[2 + ig];
+                }
 
               phi.submit_value(value_result, q);
               phi.submit_gradient(gradient_result, q);
@@ -2699,39 +2802,47 @@ namespace Sintering
               nonlinear_gradients(cell, q) = phi.get_gradient(q);
 
 #ifdef WITH_TRACKER
-              const auto &c    = nonlinear_values(cell, q)[0];
-              const auto &eta1 = nonlinear_values(cell, q)[2];
-              const auto &eta2 = nonlinear_values(cell, q)[3];
+              const auto &val  = nonlinear_values(cell, q);
+              const auto &grad = nonlinear_gradients(cell, q);
 
-              const auto &c_grad    = nonlinear_gradients(cell, q)[0];
-              const auto &mu_grad   = nonlinear_gradients(cell, q)[1];
-              const auto &eta1_grad = nonlinear_gradients(cell, q)[2];
-              const auto &eta2_grad = nonlinear_gradients(cell, q)[3];
+              const auto &c       = val[0];
+              const auto &c_grad  = grad[0];
+              const auto &mu_grad = grad[1];
 
-              const std::array<VectorizedArrayType, 2> etas{{ eta1, eta2 }};
-              const std::array<Tensor<1, dim, VectorizedArrayType>, 2>
-                etas_grad{
-                  { eta1_grad,
-                    eta2_grad }};
+              std::array<const VectorizedArrayType *, n_grains> etas;
+              std::array<const Tensor<1, dim, VectorizedArrayType> *, n_grains>
+                etas_grad;
+
+              for (unsigned int ig = 0; ig < n_grains; ++ig)
+                {
+                  etas[ig]      = &val[2 + ig];
+                  etas_grad[ig] = &grad[2 + ig];
+                }
 
               // clang-format off
               tracker.emplace_back(0, dt_inv);
               tracker.emplace_back(1, free_energy.d2f_dc2(c, etas));
-              tracker.emplace_back(2, free_energy.d2f_dcdetai(c, etas, 0));
-              tracker.emplace_back(2, free_energy.d2f_dcdetai(c, etas, 1));
-              tracker.emplace_back(2, L * free_energy.d2f_dcdetai(c, etas, 0));
-              tracker.emplace_back(2, L * free_energy.d2f_detai2(c, etas, 0));
-              tracker.emplace_back(2, L * free_energy.d2f_detaidetaj(c, etas, 0, 1));
-              tracker.emplace_back(2, L * free_energy.d2f_dcdetai(c, etas, 1));
-              tracker.emplace_back(2, L * free_energy.d2f_detaidetaj(c, etas, 1, 0));
-              tracker.emplace_back(2, L * free_energy.d2f_detai2(c, etas, 1));
+              for(unsigned int ig = 0; ig < n_grains; ++ig) {
+                tracker.emplace_back(2, free_energy.d2f_dcdetai(c, etas, ig));
+              }
+              for(unsigned int ig = 0; ig < n_grains; ++ig) {
+                tracker.emplace_back(2, free_energy.d2f_detai2(c, etas, ig));
+              }
+              for(unsigned int ig = 0; ig < n_grains; ++ig) {
+                for(unsigned int jg = ig + 1; jg < n_grains; ++jg) {
+                  tracker.emplace_back(2, free_energy.d2f_detaidetaj(c, etas, ig, jg));
+                }
+              }
               tracker.emplace_back(0, mobility.M(c, etas, c_grad, etas_grad));
               tracker.emplace_back(1, mobility.dM_dc(c, etas, c_grad, etas_grad) * mu_grad);
               tracker.emplace_back(1, mobility.dM_dgrad_c(c, c_grad, mu_grad));
-              tracker.emplace_back(2, mobility.dM_detai(c, etas, c_grad, etas_grad, 0) * mu_grad);
-              tracker.emplace_back(2, mobility.dM_detai(c, etas, c_grad, etas_grad, 1) * mu_grad); 
+
+              for(unsigned int ig = 0; ig < n_grains; ++ig) {
+                tracker.emplace_back(2, mobility.dM_detai(c, etas, c_grad, etas_grad, ig) * mu_grad);
+              }
               tracker.emplace_back(0, kappa_c);
-              tracker.emplace_back(2, L * kappa_p);
+              tracker.emplace_back(0, kappa_p);
+              tracker.emplace_back(0, L);
               // clang-format on
 
               tracker.finalize_point();
@@ -2803,18 +2914,23 @@ namespace Sintering
 
       for (unsigned int q = 0; q < phi.n_q_points; ++q)
         {
-          auto &c    = nonlinear_values(cell, q)[0];
-          auto &eta1 = nonlinear_values(cell, q)[2];
-          auto &eta2 = nonlinear_values(cell, q)[3];
+          const auto &val  = nonlinear_values(cell, q);
+          const auto &grad = nonlinear_gradients(cell, q);
 
-          auto &c_grad    = nonlinear_gradients(cell, q)[0];
-          auto &mu_grad   = nonlinear_gradients(cell, q)[1];
-          auto &eta1_grad = nonlinear_gradients(cell, q)[2];
-          auto &eta2_grad = nonlinear_gradients(cell, q)[3];
+          const auto &c       = val[0];
+          const auto &c_grad  = grad[0];
+          const auto &mu_grad = grad[1];
 
-          const std::array<VectorizedArrayType, 2> etas{{eta1, eta2}};
-          const std::array<Tensor<1, dim, VectorizedArrayType>, 2> etas_grad{
-            {eta1_grad, eta2_grad}};
+          std::array<const VectorizedArrayType *, this->op.n_grains> etas;
+          std::array<const Tensor<1, dim, VectorizedArrayType> *,
+                     this->op.n_grains>
+            etas_grad;
+
+          for (unsigned int ig = 0; ig < this->op.n_grains; ++ig)
+            {
+              etas[ig]      = &val[2 + ig];
+              etas_grad[ig] = &grad[2 + ig];
+            }
 
           Tensor<1, n_components, VectorizedArrayType> value_result;
           Tensor<1, n_components, Tensor<1, dim, VectorizedArrayType>>
@@ -2890,18 +3006,23 @@ namespace Sintering
 
       for (unsigned int q = 0; q < phi.n_q_points; ++q)
         {
-          auto &c    = nonlinear_values(cell, q)[0];
-          auto &eta1 = nonlinear_values(cell, q)[2];
-          auto &eta2 = nonlinear_values(cell, q)[3];
+          const auto &val  = nonlinear_values(cell, q);
+          const auto &grad = nonlinear_gradients(cell, q);
 
-          auto &c_grad    = nonlinear_gradients(cell, q)[0];
-          auto &mu_grad   = nonlinear_gradients(cell, q)[1];
-          auto &eta1_grad = nonlinear_gradients(cell, q)[2];
-          auto &eta2_grad = nonlinear_gradients(cell, q)[3];
+          const auto &c       = val[0];
+          const auto &c_grad  = grad[0];
+          const auto &mu_grad = grad[1];
 
-          const std::array<VectorizedArrayType, 2> etas{{eta1, eta2}};
-          const std::array<Tensor<1, dim, VectorizedArrayType>, 2> etas_grad{
-            {eta1_grad, eta2_grad}};
+          std::array<const VectorizedArrayType *, this->op.n_grains> etas;
+          std::array<const Tensor<1, dim, VectorizedArrayType> *,
+                     this->op.n_grains>
+            etas_grad;
+
+          for (unsigned int ig = 0; ig < this->op.n_grains; ++ig)
+            {
+              etas[ig]      = &val[2 + ig];
+              etas_grad[ig] = &grad[2 + ig];
+            }
 
           const auto value    = phi.get_value(q);
           const auto gradient = phi.get_gradient(q);
@@ -2957,17 +3078,22 @@ namespace Sintering
 
       for (unsigned int q = 0; q < phi.n_q_points; ++q)
         {
-          auto &c    = nonlinear_values(cell, q)[0];
-          auto &eta1 = nonlinear_values(cell, q)[2];
-          auto &eta2 = nonlinear_values(cell, q)[3];
+          const auto &val  = nonlinear_values(cell, q);
+          const auto &grad = nonlinear_gradients(cell, q);
 
-          auto &c_grad    = nonlinear_gradients(cell, q)[0];
-          auto &eta1_grad = nonlinear_gradients(cell, q)[2];
-          auto &eta2_grad = nonlinear_gradients(cell, q)[3];
+          const auto &c      = val[0];
+          const auto &c_grad = grad[0];
 
-          const std::array<VectorizedArrayType, 2> etas{{eta1, eta2}};
-          const std::array<Tensor<1, dim, VectorizedArrayType>, 2> etas_grad{
-            {eta1_grad, eta2_grad}};
+          std::array<const VectorizedArrayType *, this->op.n_grains> etas;
+          std::array<const Tensor<1, dim, VectorizedArrayType> *,
+                     this->op.n_grains>
+            etas_grad;
+
+          for (unsigned int ig = 0; ig < this->op.n_grains; ++ig)
+            {
+              etas[ig]      = &val[2 + ig];
+              etas_grad[ig] = &grad[2 + ig];
+            }
 
           const auto value    = phi.get_value(q);
           const auto gradient = phi.get_gradient(q);
@@ -3020,11 +3146,16 @@ namespace Sintering
 
       for (unsigned int q = 0; q < phi.n_q_points; ++q)
         {
-          auto &c    = nonlinear_values(cell, q)[0];
-          auto &eta1 = nonlinear_values(cell, q)[2];
-          auto &eta2 = nonlinear_values(cell, q)[3];
+          const auto &val = nonlinear_values(cell, q);
 
-          const std::array<VectorizedArrayType, 2> etas{{eta1, eta2}};
+          const auto &c = val[0];
+
+          std::array<const VectorizedArrayType *, this->op.n_grains> etas;
+
+          for (unsigned int ig = 0; ig < this->op.n_grains; ++ig)
+            {
+              etas[ig] = &val[2 + ig];
+            }
 
           const auto value    = phi.get_value(q);
           const auto gradient = phi.get_gradient(q);
@@ -3096,6 +3227,8 @@ namespace Sintering
     using FECellIntegrator =
       FEEvaluation<dim, -1, 0, n_components, Number, VectorizedArrayType>;
 
+    static const int n_grains = n_components;
+
     OperatorAllenCahn(
       const MatrixFree<dim, Number, VectorizedArrayType> &  matrix_free,
       const std::vector<const AffineConstraints<Number> *> &constraints,
@@ -3121,31 +3254,41 @@ namespace Sintering
       const auto &dt               = this->op.get_dt();
       const auto &nonlinear_values = this->op.get_nonlinear_values();
 
+      const auto dt_inv = 1.0 / dt;
+
       for (unsigned int q = 0; q < phi.n_q_points; ++q)
         {
-          auto &c    = nonlinear_values(cell, q)[0];
-          auto &eta1 = nonlinear_values(cell, q)[2];
-          auto &eta2 = nonlinear_values(cell, q)[3];
+          const auto &val = nonlinear_values(cell, q);
 
-          const std::array<VectorizedArrayType, 2> etas{{eta1, eta2}};
+          const auto &c = val[0];
+
+          std::array<const VectorizedArrayType *, n_grains> etas;
+
+          for (unsigned int ig = 0; ig < n_grains; ++ig)
+            etas[ig] = &val[2 + ig];
 
           Tensor<1, n_components, VectorizedArrayType> value_result;
-
-          value_result[0] =
-            phi.get_value(q)[0] / dt +
-            L * free_energy.d2f_detai2(c, etas, 0) * phi.get_value(q)[0] +
-            L * free_energy.d2f_detaidetaj(c, etas, 0, 1) * phi.get_value(q)[1];
-          value_result[1] =
-            phi.get_value(q)[1] / dt +
-            L * free_energy.d2f_detaidetaj(c, etas, 1, 0) *
-              phi.get_value(q)[0] +
-            L * free_energy.d2f_detai2(c, etas, 1) * phi.get_value(q)[1];
-
           Tensor<1, n_components, Tensor<1, dim, VectorizedArrayType>>
             gradient_result;
 
-          gradient_result[0] = L * kappa_p * phi.get_gradient(q)[0];
-          gradient_result[1] = L * kappa_p * phi.get_gradient(q)[1];
+          for (unsigned int ig = 0; ig < n_grains; ++ig)
+            {
+              value_result[ig] =
+                phi.get_value(q)[ig] * dt_inv +
+                L * free_energy.d2f_detai2(c, etas, ig) * phi.get_value(q)[ig];
+
+              gradient_result[ig] = L * kappa_p * phi.get_gradient(q)[ig];
+
+              for (unsigned int jg = 0; jg < n_grains; ++jg)
+                {
+                  if (ig != jg)
+                    {
+                      value_result[ig] +=
+                        L * free_energy.d2f_detaidetaj(c, etas, ig, jg) *
+                        phi.get_value(q)[jg];
+                    }
+                }
+            }
 
           phi.submit_value(value_result, q);
           phi.submit_gradient(gradient_result, q);
@@ -3300,14 +3443,11 @@ namespace Sintering
       double *__restrict__ src_ptr  = src.get_values();
       double *__restrict__ diag_ptr = diag.get_values();
 
-      AssertDimension(n_components, 2);
-
       DEAL_II_OPENMP_SIMD_PRAGMA
       for (unsigned int i = 0; i < diag.locally_owned_size(); ++i)
-        {
-          dst_ptr[i * 2 + 0] = diag_ptr[i] * src_ptr[i * 2 + 0];
-          dst_ptr[i * 2 + 1] = diag_ptr[i] * src_ptr[i * 2 + 1];
-        }
+        for (unsigned int c = 0; c < n_components; ++c)
+          dst_ptr[i * n_components + c] =
+            diag_ptr[i] * src_ptr[i * n_components + c];
     }
 
     void
@@ -3433,7 +3573,7 @@ namespace Sintering
 
       {
         MyScope scope(timer, "precon::vmult::split_up");
-        VectorTools::split_up_fast(src, src_0, src_1);
+        VectorTools::split_up_fast(src, src_0, src_1, n_components - 2);
 
 #ifdef DEBUG
         VectorType temp_0, temp_1;
@@ -3478,7 +3618,7 @@ namespace Sintering
 
       {
         MyScope scope(timer, "precon::vmult::merge");
-        VectorTools::merge_fast(dst_0, dst_1, dst);
+        VectorTools::merge_fast(dst_0, dst_1, dst, n_components - 2);
 
 #ifdef DEBUG
         VectorType temp;
@@ -3618,7 +3758,7 @@ namespace Sintering
     {
       {
         MyScope scope(timer, "vmult::split_up");
-        VectorTools::split_up_fast(src, src_0, src_1, src_2);
+        VectorTools::split_up_fast(src, src_0, src_1, src_2, n_components - 2);
 
 #ifdef DEBUG
         VectorType temp_0, temp_1, temp_2;
@@ -3764,7 +3904,7 @@ namespace Sintering
 
       {
         MyScope scope(timer, "vmult::merge");
-        VectorTools::merge_fast(dst_0, dst_1, dst_2, dst);
+        VectorTools::merge_fast(dst_0, dst_1, dst_2, dst, n_components - 2);
 
 #ifdef DEBUG
         VectorType temp;
@@ -3968,17 +4108,22 @@ namespace Sintering
 
       for (unsigned int q = 0; q < phi.n_q_points; ++q)
         {
-          const auto &c    = nonlinear_values(cell, q)[0];
-          const auto &eta1 = nonlinear_values(cell, q)[2];
-          const auto &eta2 = nonlinear_values(cell, q)[3];
+          const auto &val  = nonlinear_values(cell, q);
+          const auto &grad = nonlinear_gradients(cell, q);
 
-          const auto &c_grad    = nonlinear_gradients(cell, q)[0];
-          const auto &eta1_grad = nonlinear_gradients(cell, q)[2];
-          const auto &eta2_grad = nonlinear_gradients(cell, q)[3];
+          const auto &c      = val[0];
+          const auto &c_grad = grad[0];
 
-          const std::array<VectorizedArrayType, 2> etas{{eta1, eta2}};
-          const std::array<Tensor<1, dim, VectorizedArrayType>, 2> etas_grad{
-            {eta1_grad, eta2_grad}};
+          std::array<const VectorizedArrayType *, this->op.n_grains> etas;
+          std::array<const Tensor<1, dim, VectorizedArrayType> *,
+                     this->op.n_grains>
+            etas_grad;
+
+          for (unsigned int ig = 0; ig < this->op.n_grains; ++ig)
+            {
+              etas[ig]      = &val[2 + ig];
+              etas_grad[ig] = &grad[2 + ig];
+            }
 
           const auto value    = phi.get_value(q);
           const auto gradient = phi.get_gradient(q);
@@ -4008,17 +4153,22 @@ namespace Sintering
 
       for (unsigned int q = 0; q < phi.n_q_points; ++q)
         {
-          const auto &c    = nonlinear_values(cell, q)[0];
-          const auto &eta1 = nonlinear_values(cell, q)[2];
-          const auto &eta2 = nonlinear_values(cell, q)[3];
+          const auto &val  = nonlinear_values(cell, q);
+          const auto &grad = nonlinear_gradients(cell, q);
 
-          const auto &c_grad    = nonlinear_gradients(cell, q)[0];
-          const auto &eta1_grad = nonlinear_gradients(cell, q)[2];
-          const auto &eta2_grad = nonlinear_gradients(cell, q)[3];
+          const auto &c      = val[0];
+          const auto &c_grad = grad[0];
 
-          const std::array<VectorizedArrayType, 2> etas{{eta1, eta2}};
-          const std::array<Tensor<1, dim, VectorizedArrayType>, 2> etas_grad{
-            {eta1_grad, eta2_grad}};
+          std::array<const VectorizedArrayType *, this->op.n_grains> etas;
+          std::array<const Tensor<1, dim, VectorizedArrayType> *,
+                     this->op.n_grains>
+            etas_grad;
+
+          for (unsigned int ig = 0; ig < this->op.n_grains; ++ig)
+            {
+              etas[ig]      = &val[2 + ig];
+              etas_grad[ig] = &grad[2 + ig];
+            }
 
           const auto gradient = phi.get_gradient(q);
           const auto epsilon =
@@ -4237,7 +4387,7 @@ namespace Sintering
     {
       {
         MyScope scope(timer, "vmult::split_up");
-        VectorTools::split_up_fast(src, src_0, src_1, src_2);
+        VectorTools::split_up_fast(src, src_0, src_1, src_2, n_components - 2);
 
 #ifdef DEBUG
         VectorType temp_0, temp_1, temp_2;
@@ -4326,7 +4476,7 @@ namespace Sintering
 
       {
         MyScope scope(timer, "vmult::merge");
-        VectorTools::merge_fast(dst_0, dst_1, dst_2, dst);
+        VectorTools::merge_fast(dst_0, dst_1, dst_2, dst, n_components - 2);
 
 #ifdef DEBUG
         VectorType temp;
@@ -4400,6 +4550,7 @@ namespace Sintering
 
     std::string outer_preconditioner = "BlockPreconditioner2";
     // std::string outer_preconditioner = "BlockPreconditioner3CH";
+    // std::string outer_preconditioner = "ILU";
 
     BlockPreconditioner2Data   block_preconditioner_2_data;
     BlockPreconditioner3Data   block_preconditioner_3_data;
@@ -4510,6 +4661,7 @@ namespace Sintering
 
 
   template <int dim,
+            int number_of_grains,
             typename Number              = double,
             typename VectorizedArrayType = VectorizedArray<Number>>
   class Problem
@@ -4518,7 +4670,7 @@ namespace Sintering
     using VectorType = LinearAlgebra::distributed::Vector<Number>;
 
     // components number
-    static constexpr unsigned int number_of_components = 4;
+    static constexpr unsigned int number_of_components = number_of_grains + 2;
 
     using NonLinearOperator =
       SinteringOperator<dim, number_of_components, Number, VectorizedArrayType>;
@@ -4526,10 +4678,13 @@ namespace Sintering
     // geometry
     static constexpr double diameter        = 15.0;
     static constexpr double interface_width = 2.0;
-    static constexpr double boundary_factor = 1.0;
+    static constexpr double boundary_factor = 0.5;
+    static constexpr double r0              = diameter / 2.;
+    static constexpr bool   is_accumulative = false;
 
     // mesh
-    static constexpr unsigned int elements_per_interface = 8;
+    static constexpr unsigned int elements_per_interface =
+      8; // 4 - works well with AMR=off
 
     // time discretization
     static constexpr double t_end                = 100;
@@ -4537,7 +4692,7 @@ namespace Sintering
     static constexpr double dt_max               = 1e3 * dt_deseride;
     static constexpr double dt_min               = 1e-2 * dt_deseride;
     static constexpr double dt_increment         = 1.2;
-    static constexpr double output_time_interval = 1.0; // 0.0 means no output
+    static constexpr double output_time_interval = 10.0; // 0.0 means no output
 
     // desirable number of newton iterations
     static constexpr unsigned int desirable_newton_iterations = 5;
@@ -4553,18 +4708,6 @@ namespace Sintering
     static constexpr double L       = 1;
     static constexpr double kappa_c = 1;
     static constexpr double kappa_p = 0.5;
-
-    // Create mesh
-    static constexpr double domain_width =
-      2 * diameter + boundary_factor * diameter;
-    static constexpr double domain_height =
-      1 * diameter + boundary_factor * diameter;
-
-    static constexpr double x01             = domain_width / 2. - diameter / 2.;
-    static constexpr double x02             = domain_width / 2. + diameter / 2.;
-    static constexpr double y0              = domain_height / 2.;
-    static constexpr double r0              = diameter / 2.;
-    static constexpr bool   is_accumulative = false;
 
     const Parameters                          params;
     ConditionalOStream                        pcout;
@@ -4608,17 +4751,19 @@ namespace Sintering
                     &constraint_ch,
                     &constraint_ac,
                     &constraint_scalar}
-      , initial_solution(x01,
-                         x02,
-                         y0,
-                         r0,
-                         interface_width,
-                         number_of_components,
-                         is_accumulative)
+      , initial_solution(r0, interface_width, number_of_grains, is_accumulative)
     {
+      auto boundaries = initial_solution.domain_boundaries();
+
+      for (unsigned int i = 0; i < dim; i++)
+        {
+          boundaries.first[i] -= boundary_factor * r0;
+          boundaries.second[i] += boundary_factor * r0;
+        }
+
       create_mesh(tria,
-                  domain_width,
-                  domain_height,
+                  boundaries.first,
+                  boundaries.second,
                   interface_width,
                   elements_per_interface);
 
@@ -4963,8 +5108,9 @@ namespace Sintering
             catch (const NonLinearSolvers::ExcNewtonDidNotConverge &)
               {
                 dt *= 0.5;
-                pcout << "\033[31mSolver diverged, reducing timestep, dt = "
-                      << dt << "\033[0m" << std::endl;
+                pcout
+                  << "\033[31mNon-linear solver did not converge, reducing timestep, dt = "
+                  << dt << "\033[0m" << std::endl;
 
                 solution = nonlinear_operator.get_previous_solution();
 
@@ -4976,8 +5122,9 @@ namespace Sintering
             catch (const SolverControl::NoConvergence &)
               {
                 dt *= 0.5;
-                pcout << "\033[33mSolver diverged, reducing timestep, dt = "
-                      << dt << "\033[0m" << std::endl;
+                pcout
+                  << "\033[33mLinear solver did not converge, reducing timestep, dt = "
+                  << dt << "\033[0m" << std::endl;
 
                 solution = nonlinear_operator.get_previous_solution();
 
@@ -5049,11 +5196,15 @@ namespace Sintering
   private:
     void
     create_mesh(parallel::distributed::Triangulation<dim> &tria,
-                const double                               domain_width,
-                const double                               domain_height,
+                const dealii::Point<dim> &                 bottom_left,
+                const dealii::Point<dim> &                 top_right,
                 const double                               interface_width,
                 const unsigned int elements_per_interface)
     {
+      const auto   domain_size   = top_right - bottom_left;
+      const double domain_width  = domain_size[0];
+      const double domain_height = domain_size[1];
+
       const unsigned int initial_ny = 10;
       const unsigned int initial_nx =
         static_cast<unsigned int>(domain_width / domain_height * initial_ny);
@@ -5066,13 +5217,12 @@ namespace Sintering
       subdivisions[0] = initial_nx;
       subdivisions[1] = initial_ny;
       if (dim == 3)
-        subdivisions[2] = initial_ny;
-
-      const dealii::Point<dim> bottom_left;
-      const dealii::Point<dim> top_right =
-        (dim == 2 ?
-           dealii::Point<dim>(domain_width, domain_height) :
-           dealii::Point<dim>(domain_width, domain_height, domain_height));
+        {
+          const double       domain_depth = domain_size[2];
+          const unsigned int initial_nz   = static_cast<unsigned int>(
+            domain_depth / domain_height * initial_ny);
+          subdivisions[2] = initial_nz;
+        }
 
       dealii::GridGenerator::subdivided_hyper_rectangle(tria,
                                                         subdivisions,
@@ -5094,7 +5244,11 @@ namespace Sintering
       DataOut<dim> data_out;
       data_out.set_flags(flags);
       data_out.attach_dof_handler(dof_handler);
-      std::vector<std::string> names{"c", "mu", "eta1", "eta2"};
+      std::vector<std::string> names{"c", "mu"};
+      for (unsigned int ig = 0; ig < number_of_grains; ++ig)
+        {
+          names.push_back("eta" + dealii::Utilities::int_to_string(ig));
+        }
       data_out.add_data_vector(solution, names);
 
       sintering_operator.add_data_vectors(data_out, solution);
@@ -5133,6 +5287,6 @@ main(int argc, char **argv)
         }
     }
 
-  Sintering::Problem<SINTERING_DIM> runner(params);
+  Sintering::Problem<SINTERING_DIM, SINTERING_GRAINS> runner(params);
   runner.run();
 }
