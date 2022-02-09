@@ -1,0 +1,52 @@
+name: GitHub CI
+
+on:
+  pull_request:
+    branches: [ master ]
+    types: [ opened, synchronize, reopened, labeled ]
+  schedule:
+  - cron:  '0 0 * * *'
+    
+concurrency:
+  group: ${ {github.event_name }}-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{github.event_name == 'pull_request'}}
+    
+env:
+  COMPILE_JOBS: 2
+
+jobs:
+  build:
+    if: ${{ github.event_name == 'schedule' || contains(github.event.pull_request.labels.*.name, 'ready to test') }}
+    name: Build ${{ matrix.build_type }}-dealii:${{ matrix.dealii_version }}-${{ matrix.adaflo }}
+    runs-on: [ubuntu-18.04]
+
+    strategy:
+      fail-fast: false
+      matrix:
+        build_type: ["Release", "Debug"]
+        dealii_version: ["master"]
+    
+    container:
+      image: dealii/dealii:${{ matrix.dealii_version }}-focal
+
+    steps:
+      - name: Setup
+        run: |
+          sudo chown -R $USER:$USER $GITHUB_WORKSPACE
+          
+      - uses: actions/checkout@v2
+
+      - name: Compile
+        run: |
+          mkdir build
+          cd build
+          cmake \
+            -D CMAKE_CXX_FLAGS="-Werror" \
+            -D CMAKE_BUILD_TYPE=${{ matrix.build_type }} \
+            .. 
+          make -j${{ env.COMPILE_JOBS }}
+          
+      - name: Test
+        run: |
+          cd build
+          ctest --output-on-failure
