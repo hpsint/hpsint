@@ -5060,13 +5060,34 @@ namespace Sintering
           0,
           Utilities::MPI::this_mpi_process(MPI_COMM_WORLD));
 
-        // 3) mark cells
+        // 3) mark automatically cells for coarsening/refinement, ...
         parallel::distributed::GridRefinement::
           refine_and_coarsen_fixed_fraction(tria,
                                             estimated_error_per_cell,
                                             params.top_fraction_of_cells,
                                             params.bottom_fraction_of_cells);
 
+        // make sure that cells close to the interfaces are refined, ...
+        Vector<Number> values(fe.n_dofs_per_cell());
+        for (const auto &cell : dof_handler.active_cell_iterators())
+          {
+            if (cell->is_locally_owned() == false)
+              continue;
+
+            cell->get_dof_values(solution_dealii, values);
+
+            for (unsigned int i = 0; i < values.size(); ++i)
+              if (fe.system_to_component_index(i).first >= 2)
+                if (0.05 < values[i] && values[i] < 0.95)
+                  {
+                    cell->clear_coarsen_flag();
+                    cell->set_refine_flag();
+
+                    break;
+                  }
+          }
+
+        // and limit the number of levels
         for (const auto &cell : tria.active_cell_iterators())
           if (cell->refine_flag_set() &&
               (static_cast<unsigned int>(cell->level()) ==
