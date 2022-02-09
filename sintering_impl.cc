@@ -5101,7 +5101,7 @@ namespace Sintering
             catch (const NonLinearSolvers::ExcNewtonDidNotConverge &)
               {
                 dt *= 0.5;
-                pcout << "\033[31mSolver diverged, reducing timestep, dt = "
+                pcout << "\033[31mNon-linear solver did not converge, reducing timestep, dt = "
                       << dt << "\033[0m" << std::endl;
 
                 solution = nonlinear_operator.get_previous_solution();
@@ -5114,7 +5114,7 @@ namespace Sintering
             catch (const SolverControl::NoConvergence &)
               {
                 dt *= 0.5;
-                pcout << "\033[33mSolver diverged, reducing timestep, dt = "
+                pcout << "\033[33mLinear solver did not converge, reducing timestep, dt = "
                       << dt << "\033[0m" << std::endl;
 
                 solution = nonlinear_operator.get_previous_solution();
