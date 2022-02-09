@@ -13,7 +13,7 @@
 //
 // ---------------------------------------------------------------------
 
-// Sintering of 2 particles
+// Sintering of N particles located along the circle
 
 #ifndef SINTERING_DIM
 static_assert(false, "No dimension has been given!");
@@ -48,13 +48,11 @@ namespace Sintering
      */
     bool is_accumulative;
 
-    double interface_offset = 0;
-
   public:
-    InitialValuesCircle(double       r0,
-                        double       interface_width,
-                        unsigned int n_grains,
-                        bool         is_accumulative)
+    InitialValuesCircle(const double       r0,
+                        const double       interface_width,
+                        const unsigned int n_grains,
+                        const bool         is_accumulative)
       : InitialValues<dim>(n_grains + 2)
       , r0(r0)
       , interface_width(interface_width)
@@ -84,7 +82,7 @@ namespace Sintering
           std::vector<double> etas;
           for (const auto &pt : centers)
             {
-              etas.push_back(is_in_sphere(p, pt));
+              etas.push_back(this->is_in_sphere(p, pt, r0));
             }
 
           if (is_accumulative)
@@ -112,7 +110,7 @@ namespace Sintering
       else
         {
           const auto &pt = centers[component - 2];
-          ret_val        = is_in_sphere(p, pt);
+          ret_val        = this->is_in_sphere(p, pt, r0);
         }
 
       return ret_val;
@@ -174,34 +172,6 @@ namespace Sintering
     get_interface_width() const override
     {
       return interface_width;
-    }
-
-  private:
-    double
-    is_in_sphere(const dealii::Point<dim> &point,
-                 const dealii::Point<dim> &center) const
-    {
-      double c = 0;
-
-      double rm  = r0 - interface_offset;
-      double rad = center.distance(point);
-
-      if (rad <= rm - interface_width / 2.0)
-        {
-          c = 1;
-        }
-      else if (rad < rm + interface_width / 2.0)
-        {
-          double outvalue = 0.;
-          double invalue  = 1.;
-          double int_pos = (rad - rm + interface_width / 2.0) / interface_width;
-
-          c = outvalue +
-              (invalue - outvalue) * (1.0 + std::cos(int_pos * M_PI)) / 2.0;
-          // c = 0.5 - 0.5 * std::sin(M_PI * (rad - rm) / interface_width);
-        }
-
-      return c;
     }
   };
 } // namespace Sintering

@@ -13,10 +13,10 @@
 //
 // ---------------------------------------------------------------------
 
-// Sintering of 2 particles
+// Sintering of N particles
 
-//#define WITH_TIMING
-//#define WITH_TRACKER
+#ifndef SINTERING_SINTERING_IMPL_H_
+#define SINTERING_SINTERING_IMPL_H_
 
 #include <deal.II/base/conditional_ostream.h>
 #include <deal.II/base/geometric_utilities.h>
@@ -1305,8 +1305,8 @@ namespace Sintering
   class InitialValues : public dealii::Function<dim>
   {
   public:
-    InitialValues(unsigned int n_components)
-      : dealii::Function<dim>(n_components)
+    InitialValues(unsigned int n_components, double interface_offset = 0)
+      : dealii::Function<dim>(n_components), interface_offset(interface_offset)
     {}
 
     virtual std::pair<dealii::Point<dim>, dealii::Point<dim>>
@@ -1317,6 +1317,38 @@ namespace Sintering
 
     virtual double
     get_interface_width() const = 0;
+
+  private:
+    double interface_offset;
+
+  protected:
+    double
+    is_in_sphere(const dealii::Point<dim> &point,
+                 const dealii::Point<dim> &center,
+                 double rc) const
+    {
+      double c = 0;
+
+      double rm  = rc - interface_offset;
+      double rad = center.distance(point);
+
+      if (rad <= rm - get_interface_width() / 2.0)
+        {
+          c = 1;
+        }
+      else if (rad < rm + get_interface_width() / 2.0)
+        {
+          double outvalue = 0.;
+          double invalue  = 1.;
+          double int_pos = (rad - rm + get_interface_width() / 2.0) / get_interface_width();
+
+          c = outvalue +
+              (invalue - outvalue) * (1.0 + std::cos(int_pos * M_PI)) / 2.0;
+          // c = 0.5 - 0.5 * std::sin(M_PI * (rad - rm) / get_interface_width());
+        }
+
+      return c;
+    }
   };
 
   template <int dim, typename VectorizedArrayType>
@@ -5191,7 +5223,7 @@ namespace Sintering
       std::vector<std::string> names{"c", "mu"};
       for (unsigned int ig = 0; ig < number_of_grains; ++ig)
         {
-          names.push_back("eta" + dealii::Utilities::int_to_string(ig));
+          names.push_back("eta" + std::to_string(ig));
         }
       data_out.add_data_vector(solution, names);
 
@@ -5208,3 +5240,5 @@ namespace Sintering
     };
   };
 } // namespace Sintering
+
+#endif
