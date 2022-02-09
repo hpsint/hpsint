@@ -2508,7 +2508,7 @@ namespace Sintering
               std::array<const Tensor<1, dim, VectorizedArrayType> *, n_grains>
                 etas_grad;
 
-              for (unsigned int ig = 0; ig < n_grains; ig++)
+              for (unsigned int ig = 0; ig < n_grains; ++ig)
                 {
                   etas[ig]      = &val[2 + ig];
                   etas_grad[ig] = &grad[2 + ig];
@@ -2521,19 +2521,19 @@ namespace Sintering
               temp[counter++] = VectorizedArrayType(dt_inv);
               temp[counter++] = free_energy.d2f_dc2(c, etas);
 
-              for (unsigned int ig = 0; ig < n_grains; ig++)
+              for (unsigned int ig = 0; ig < n_grains; ++ig)
                 {
                   temp[counter++] = free_energy.d2f_dcdetai(c, etas, ig);
                 }
 
-              for (unsigned int ig = 0; ig < n_grains; ig++)
+              for (unsigned int ig = 0; ig < n_grains; ++ig)
                 {
                   temp[counter++] = free_energy.d2f_detai2(c, etas, ig);
                 }
 
-              for (unsigned int ig = 0; ig < n_grains; ig++)
+              for (unsigned int ig = 0; ig < n_grains; ++ig)
                 {
-                  for (unsigned int jg = ig + 1; jg < n_grains; jg++)
+                  for (unsigned int jg = ig + 1; jg < n_grains; ++jg)
                     {
                       temp[counter++] =
                         free_energy.d2f_detaidetaj(c, etas, ig, jg);
@@ -2546,7 +2546,7 @@ namespace Sintering
               temp[counter++] =
                 (mobility.dM_dgrad_c(c, c_grad, mu_grad)).norm();
 
-              for (unsigned int ig = 0; ig < n_grains; ig++)
+              for (unsigned int ig = 0; ig < n_grains; ++ig)
                 {
                   temp[counter++] =
                     (mobility.dM_detai(c, etas, c_grad, etas_grad, ig) *
@@ -2625,7 +2625,7 @@ namespace Sintering
           std::array<const Tensor<1, dim, VectorizedArrayType> *, n_grains>
             etas_grad;
 
-          for (unsigned int ig = 0; ig < n_grains; ig++)
+          for (unsigned int ig = 0; ig < n_grains; ++ig)
             {
               etas[ig]      = &val[2 + ig];
               etas_grad[ig] = &grad[2 + ig];
@@ -2647,7 +2647,7 @@ namespace Sintering
 
           gradient_result[1] = kappa_c * phi.get_gradient(q)[0];
 
-          for (unsigned int ig = 0; ig < n_grains; ig++)
+          for (unsigned int ig = 0; ig < n_grains; ++ig)
             {
               value_result[1] +=
                 free_energy.d2f_dcdetai(c, etas, ig) * phi.get_value(q)[ig + 2];
@@ -2665,7 +2665,7 @@ namespace Sintering
               gradient_result[ig + 2] =
                 L * kappa_p * phi.get_gradient(q)[ig + 2];
 
-              for (unsigned int jg = 0; jg < n_grains; jg++)
+              for (unsigned int jg = 0; jg < n_grains; ++jg)
                 {
                   if (ig != jg)
                     {
@@ -2725,7 +2725,7 @@ namespace Sintering
               std::array<const Tensor<1, dim, VectorizedArrayType> *, n_grains>
                 etas_grad;
 
-              for (unsigned int ig = 0; ig < n_grains; ig++)
+              for (unsigned int ig = 0; ig < n_grains; ++ig)
                 {
                   etas[ig]      = &val[2 + ig];
                   etas_grad[ig] = &grad[2 + ig];
@@ -2743,7 +2743,7 @@ namespace Sintering
               gradient_result[1] = kappa_c * grad[0];
 
               // AC equations
-              for (unsigned int ig = 0; ig < n_grains; ig++)
+              for (unsigned int ig = 0; ig < n_grains; ++ig)
                 {
                   value_result[2 + ig] = (val[2 + ig] - val_old[2 + ig]) / dt +
                                          L * free_energy.df_detai(c, etas, ig);
@@ -2805,7 +2805,7 @@ namespace Sintering
               std::array<const Tensor<1, dim, VectorizedArrayType> *, n_grains>
                 etas_grad;
 
-              for (unsigned int ig = 0; ig < n_grains; ig++)
+              for (unsigned int ig = 0; ig < n_grains; ++ig)
                 {
                   etas[ig]      = &val[2 + ig];
                   etas_grad[ig] = &grad[2 + ig];
@@ -2814,14 +2814,14 @@ namespace Sintering
               // clang-format off
               tracker.emplace_back(0, dt_inv);
               tracker.emplace_back(1, free_energy.d2f_dc2(c, etas));
-              for(unsigned int ig = 0; ig < n_grains; ig++) {
+              for(unsigned int ig = 0; ig < n_grains; ++ig) {
                 tracker.emplace_back(2, free_energy.d2f_dcdetai(c, etas, ig));
               }
-              for(unsigned int ig = 0; ig < n_grains; ig++) {
+              for(unsigned int ig = 0; ig < n_grains; ++ig) {
                 tracker.emplace_back(2, free_energy.d2f_detai2(c, etas, ig));
               }
-              for(unsigned int ig = 0; ig < n_grains; ig++) {
-                for(unsigned int jg = ig + 1; jg < n_grains; jg++) {
+              for(unsigned int ig = 0; ig < n_grains; ++ig) {
+                for(unsigned int jg = ig + 1; jg < n_grains; ++jg) {
                   tracker.emplace_back(2, free_energy.d2f_detaidetaj(c, etas, ig, jg));
                 }
               }
@@ -2829,7 +2829,7 @@ namespace Sintering
               tracker.emplace_back(1, mobility.dM_dc(c, etas, c_grad, etas_grad) * mu_grad);
               tracker.emplace_back(1, mobility.dM_dgrad_c(c, c_grad, mu_grad));
 
-              for(unsigned int ig = 0; ig < n_grains; ig++) {
+              for(unsigned int ig = 0; ig < n_grains; ++ig) {
                 tracker.emplace_back(2, mobility.dM_detai(c, etas, c_grad, etas_grad, ig) * mu_grad);
               }
               tracker.emplace_back(0, kappa_c);
@@ -2918,7 +2918,7 @@ namespace Sintering
                      this->op.n_grains>
             etas_grad;
 
-          for (unsigned int ig = 0; ig < this->op.n_grains; ig++)
+          for (unsigned int ig = 0; ig < this->op.n_grains; ++ig)
             {
               etas[ig]      = &val[2 + ig];
               etas_grad[ig] = &grad[2 + ig];
@@ -3010,7 +3010,7 @@ namespace Sintering
                      this->op.n_grains>
             etas_grad;
 
-          for (unsigned int ig = 0; ig < this->op.n_grains; ig++)
+          for (unsigned int ig = 0; ig < this->op.n_grains; ++ig)
             {
               etas[ig]      = &val[2 + ig];
               etas_grad[ig] = &grad[2 + ig];
@@ -3081,7 +3081,7 @@ namespace Sintering
                      this->op.n_grains>
             etas_grad;
 
-          for (unsigned int ig = 0; ig < this->op.n_grains; ig++)
+          for (unsigned int ig = 0; ig < this->op.n_grains; ++ig)
             {
               etas[ig]      = &val[2 + ig];
               etas_grad[ig] = &grad[2 + ig];
@@ -3144,7 +3144,7 @@ namespace Sintering
 
           std::array<const VectorizedArrayType *, this->op.n_grains> etas;
 
-          for (unsigned int ig = 0; ig < this->op.n_grains; ig++)
+          for (unsigned int ig = 0; ig < this->op.n_grains; ++ig)
             {
               etas[ig] = &val[2 + ig];
             }
@@ -3256,14 +3256,14 @@ namespace Sintering
 
           std::array<const VectorizedArrayType *, n_grains> etas;
 
-          for (unsigned int ig = 0; ig < n_grains; ig++)
+          for (unsigned int ig = 0; ig < n_grains; ++ig)
             etas[ig]      = &val[2 + ig];
 
           Tensor<1, n_components, VectorizedArrayType> value_result;
           Tensor<1, n_components, Tensor<1, dim, VectorizedArrayType>>
             gradient_result;
 
-          for (unsigned int ig = 0; ig < n_grains; ig++)
+          for (unsigned int ig = 0; ig < n_grains; ++ig)
             {
               value_result[ig] =
                 phi.get_value(q)[ig] * dt_inv +
@@ -3273,7 +3273,7 @@ namespace Sintering
               gradient_result[ig] =
                 L * kappa_p * phi.get_gradient(q)[ig];
 
-              for (unsigned int jg = 0; jg < n_grains; jg++)
+              for (unsigned int jg = 0; jg < n_grains; ++jg)
                 {
                   if (ig != jg)
                     {
@@ -4112,7 +4112,7 @@ namespace Sintering
                      this->op.n_grains>
             etas_grad;
 
-          for (unsigned int ig = 0; ig < this->op.n_grains; ig++)
+          for (unsigned int ig = 0; ig < this->op.n_grains; ++ig)
             {
               etas[ig]      = &val[2 + ig];
               etas_grad[ig] = &grad[2 + ig];
@@ -4157,7 +4157,7 @@ namespace Sintering
                      this->op.n_grains>
             etas_grad;
 
-          for (unsigned int ig = 0; ig < this->op.n_grains; ig++)
+          for (unsigned int ig = 0; ig < this->op.n_grains; ++ig)
             {
               etas[ig]      = &val[2 + ig];
               etas_grad[ig] = &grad[2 + ig];
@@ -5236,7 +5236,7 @@ namespace Sintering
       data_out.set_flags(flags);
       data_out.attach_dof_handler(dof_handler);
       std::vector<std::string> names{"c", "mu"};
-      for (unsigned int ig = 0; ig < number_of_grains; ig++)
+      for (unsigned int ig = 0; ig < number_of_grains; ++ig)
         {
           names.push_back("eta" + dealii::Utilities::int_to_string(ig));
         }
