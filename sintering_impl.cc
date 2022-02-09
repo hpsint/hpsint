@@ -1237,7 +1237,15 @@ namespace Sintering
 
     double r0;
     double interface_width;
-    bool   is_accumulative;
+    /* This parameter defines how particles interact within a grain boundary at
+     * the initial configuration: whether the particles barely touch each other
+     * or proto-necks are built up.
+     *
+     * That what happens at the grain boundary for the case of two particles:
+     *    - false -> min(eta0, eta1)
+     *    - true  -> eta0 + eta1
+     */
+    bool is_accumulative;
 
     double interface_offset = 0;
 
@@ -1698,7 +1706,7 @@ namespace Sintering
     }
 
     DEAL_II_ALWAYS_INLINE Tensor<1, dim, VectorizedArrayType>
-    unitVector(const Tensor<1, dim, VectorizedArrayType> &vec) const
+                          unitVector(const Tensor<1, dim, VectorizedArrayType> &vec) const
     {
       VectorizedArrayType nrm = vec.norm();
       VectorizedArrayType filter;
@@ -1724,8 +1732,8 @@ namespace Sintering
     }
 
     DEAL_II_ALWAYS_INLINE Tensor<2, dim, VectorizedArrayType>
-    projectorMatrix(const Tensor<1, dim, VectorizedArrayType> vec,
-                    const VectorizedArrayType &               fac = 1.) const
+                          projectorMatrix(const Tensor<1, dim, VectorizedArrayType> vec,
+                                          const VectorizedArrayType &               fac = 1.) const
     {
       auto tensor = unitMatrix() - dealii::outer_product(vec, vec);
       tensor *= fac;
