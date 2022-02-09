@@ -3428,14 +3428,10 @@ namespace Sintering
       double *__restrict__ src_ptr  = src.get_values();
       double *__restrict__ diag_ptr = diag.get_values();
 
-      AssertDimension(n_components, 2);
-
       DEAL_II_OPENMP_SIMD_PRAGMA
       for (unsigned int i = 0; i < diag.locally_owned_size(); ++i)
-        {
-          dst_ptr[i * 2 + 0] = diag_ptr[i] * src_ptr[i * 2 + 0];
-          dst_ptr[i * 2 + 1] = diag_ptr[i] * src_ptr[i * 2 + 1];
-        }
+        for(unsigned int c = 0; c < n_components; ++c)
+          dst_ptr[i * n_components + c] = diag_ptr[i] * src_ptr[i * n_components + c];
     }
 
     void
