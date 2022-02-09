@@ -15,14 +15,6 @@
 
 // Sintering of 2 particles
 
-#ifndef SINTERING_DIM
-static_assert(false, "No dimension has been given!");
-#endif
-
-#ifndef SINTERING_GRAINS
-static_assert(false, "No grains number has been given!");
-#endif
-
 //#define WITH_TIMING
 //#define WITH_TRACKER
 
@@ -1441,6 +1433,12 @@ namespace Sintering
           return std::make_pair(dealii::Point<dim>(xmin, ymin, zmin),
                                 dealii::Point<dim>(xmax, ymax, zmax));
         }
+    }
+
+    double
+    maxR() const
+    {
+      return r0;
     }
 
   private:
@@ -4833,12 +4831,13 @@ namespace Sintering
                     &constraint_scalar}
       , initial_solution(r0, interface_width, number_of_grains, is_accumulative)
     {
-      auto boundaries = initial_solution.domain_boundaries();
+      auto   boundaries = initial_solution.domain_boundaries();
+      double rmax       = initial_solution.maxR();
 
       for (unsigned int i = 0; i < dim; i++)
         {
-          boundaries.first[i] -= boundary_factor * r0;
-          boundaries.second[i] += boundary_factor * r0;
+          boundaries.first[i] -= boundary_factor * rmax;
+          boundaries.second[i] += boundary_factor * rmax;
         }
 
       create_mesh(tria,
@@ -5365,29 +5364,3 @@ namespace Sintering
     };
   };
 } // namespace Sintering
-
-
-
-int
-main(int argc, char **argv)
-{
-  Utilities::MPI::MPI_InitFinalize mpi_init(argc, argv, 1);
-
-  Sintering::Parameters params;
-
-  if (argc == 2)
-    {
-      if (std::string(argv[1]) == "--help")
-        {
-          params.print();
-          return 0;
-        }
-      else
-        {
-          params.parse(std::string(argv[1]));
-        }
-    }
-
-  Sintering::Problem<SINTERING_DIM, SINTERING_GRAINS> runner(params);
-  runner.run();
-}
