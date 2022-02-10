@@ -255,7 +255,7 @@ namespace Sintering
            * of the neighbours contributes its concentration and we skip this
            * part.
            */
-          if (secondary_id < std::numeric_limits<unsigned int>::max())
+          if (secondary_id < numbers::invalid_unsigned_int)
             {
               // Extract the contact object for the two particles
               auto key = std::make_pair(particle_current.id, secondary_id);
