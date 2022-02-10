@@ -59,10 +59,10 @@ namespace Tools
   {
   public:
     using iterator_category = std::input_iterator_tag;
-    using value_type = CSVRow;
-    using difference_type = std::size_t;
-    using pointer = CSVRow *;
-    using reference = CSVRow &;
+    using value_type        = CSVRow;
+    using difference_type   = std::size_t;
+    using pointer           = CSVRow *;
+    using reference         = CSVRow &;
 
     CSVIterator(std::istream &str)
       : str(str.good() ? &str : NULL)

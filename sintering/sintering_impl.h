@@ -1306,7 +1306,8 @@ namespace Sintering
   {
   public:
     InitialValues(unsigned int n_components, double interface_offset = 0)
-      : dealii::Function<dim>(n_components), interface_offset(interface_offset)
+      : dealii::Function<dim>(n_components)
+      , interface_offset(interface_offset)
     {}
 
     virtual std::pair<dealii::Point<dim>, dealii::Point<dim>>
@@ -1325,7 +1326,7 @@ namespace Sintering
     double
     is_in_sphere(const dealii::Point<dim> &point,
                  const dealii::Point<dim> &center,
-                 double rc) const
+                 double                    rc) const
     {
       double c = 0;
 
@@ -1340,11 +1341,13 @@ namespace Sintering
         {
           double outvalue = 0.;
           double invalue  = 1.;
-          double int_pos = (rad - rm + get_interface_width() / 2.0) / get_interface_width();
+          double int_pos =
+            (rad - rm + get_interface_width() / 2.0) / get_interface_width();
 
-          c = outvalue +
-              (invalue - outvalue) * (1.0 + std::cos(int_pos * numbers::PI)) / 2.0;
-          // c = 0.5 - 0.5 * std::sin(numbers::PI * (rad - rm) / get_interface_width());
+          c = outvalue + (invalue - outvalue) *
+                           (1.0 + std::cos(int_pos * numbers::PI)) / 2.0;
+          // c = 0.5 - 0.5 * std::sin(numbers::PI * (rad - rm) /
+          // get_interface_width());
         }
 
       return c;

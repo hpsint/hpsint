@@ -174,7 +174,6 @@ namespace Sintering
      *    - true  -> eta0 + eta1
      */
     bool is_accumulative;
-
   };
 } // namespace Sintering
 
