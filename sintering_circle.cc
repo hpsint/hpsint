@@ -33,21 +33,6 @@ namespace Sintering
   template <int dim>
   class InitialValuesCircle : public InitialValues<dim>
   {
-  private:
-    std::vector<dealii::Point<dim>> centers;
-
-    double r0;
-    double interface_width;
-    /* This parameter defines how particles interact within a grain boundary at
-     * the initial configuration: whether the particles barely touch each other
-     * or proto-necks are built up.
-     *
-     * That what happens at the grain boundary for the case of two particles:
-     *    - false -> min(eta0, eta1)
-     *    - true  -> eta0 + eta1
-     */
-    bool is_accumulative;
-
   public:
     InitialValuesCircle(const double       r0,
                         const double       interface_width,
@@ -58,9 +43,9 @@ namespace Sintering
       , interface_width(interface_width)
       , is_accumulative(is_accumulative)
     {
-      double alfa = 2 * M_PI / n_grains;
+      const double alfa = 2 * M_PI / n_grains;
 
-      double h = r0 / std::sin(alfa / 2.);
+      const double h = r0 / std::sin(alfa / 2.);
 
       for (unsigned int ip = 0; ip < n_grains; ip++)
         {
@@ -110,7 +95,8 @@ namespace Sintering
       else
         {
           const auto &pt = centers[component - 2];
-          ret_val        = this->is_in_sphere(p, pt, r0);
+
+          ret_val = this->is_in_sphere(p, pt, r0);
         }
 
       return ret_val;
@@ -119,34 +105,34 @@ namespace Sintering
     virtual std::pair<dealii::Point<dim>, dealii::Point<dim>>
     get_domain_boundaries() const override
     {
-      const auto &pt_xmax = std::max_element(centers.begin(),
+      const auto pt_xmax = *std::max_element(centers.begin(),
                                              centers.end(),
                                              [](const auto &a, const auto &b) {
                                                return a[0] < b[0];
                                              });
 
-      const auto &pt_ymax = std::max_element(centers.begin(),
+      const auto pt_ymax = *std::max_element(centers.begin(),
                                              centers.end(),
                                              [](const auto &a, const auto &b) {
                                                return a[1] < b[1];
                                              });
 
-      const auto &pt_xmin = std::min_element(centers.begin(),
+      const auto pt_xmin = *std::min_element(centers.begin(),
                                              centers.end(),
                                              [](const auto &a, const auto &b) {
                                                return a[0] < b[0];
                                              });
 
-      const auto &pt_ymin = std::min_element(centers.begin(),
+      const auto pt_ymin = *std::min_element(centers.begin(),
                                              centers.end(),
                                              [](const auto &a, const auto &b) {
                                                return a[1] < b[1];
                                              });
 
-      double xmin = (*pt_xmin)[0] - r0;
-      double xmax = (*pt_xmax)[0] + r0;
-      double ymin = (*pt_ymin)[1] - r0;
-      double ymax = (*pt_ymax)[1] + r0;
+      double xmin = pt_xmin[0] - r0;
+      double xmax = pt_xmax[0] + r0;
+      double ymin = pt_ymin[1] - r0;
+      double ymax = pt_ymax[1] + r0;
 
       if (dim == 2)
         {
@@ -162,17 +148,33 @@ namespace Sintering
         }
     }
 
-    virtual double
-    get_r_max() const override
+    double
+    get_r_max() const final
     {
       return r0;
     }
 
-    virtual double
-    get_interface_width() const override
+    double
+    get_interface_width() const final
     {
       return interface_width;
     }
+
+  private:
+    std::vector<dealii::Point<dim>> centers;
+
+    double r0;
+    double interface_width;
+    /* This parameter defines how particles interact within a grain boundary at
+     * the initial configuration: whether the particles barely touch each other
+     * or proto-necks are built up.
+     *
+     * That what happens at the grain boundary for the case of two particles:
+     *    - false -> min(eta0, eta1)
+     *    - true  -> eta0 + eta1
+     */
+    bool is_accumulative;
+
   };
 } // namespace Sintering
 
@@ -201,7 +203,7 @@ main(int argc, char **argv)
   static constexpr double interface_width = 2.0;
   static constexpr bool   is_accumulative = false;
 
-  auto initial_solution =
+  const auto initial_solution =
     std::make_shared<Sintering::InitialValuesCircle<SINTERING_DIM>>(
       r0, interface_width, SINTERING_GRAINS, is_accumulative);
 

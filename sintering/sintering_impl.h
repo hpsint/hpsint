@@ -1343,8 +1343,8 @@ namespace Sintering
           double int_pos = (rad - rm + get_interface_width() / 2.0) / get_interface_width();
 
           c = outvalue +
-              (invalue - outvalue) * (1.0 + std::cos(int_pos * M_PI)) / 2.0;
-          // c = 0.5 - 0.5 * std::sin(M_PI * (rad - rm) / get_interface_width());
+              (invalue - outvalue) * (1.0 + std::cos(int_pos * numbers::PI)) / 2.0;
+          // c = 0.5 - 0.5 * std::sin(numbers::PI * (rad - rm) / get_interface_width());
         }
 
       return c;

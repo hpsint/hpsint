@@ -58,11 +58,11 @@ namespace Tools
   class CSVIterator
   {
   public:
-    typedef std::input_iterator_tag iterator_category;
-    typedef CSVRow                  value_type;
-    typedef std::size_t             difference_type;
-    typedef CSVRow *                pointer;
-    typedef CSVRow &                reference;
+    using iterator_category = std::input_iterator_tag;
+    using value_type = CSVRow;
+    using difference_type = std::size_t;
+    using pointer = CSVRow *;
+    using reference = CSVRow &;
 
     CSVIterator(std::istream &str)
       : str(str.good() ? &str : NULL)
