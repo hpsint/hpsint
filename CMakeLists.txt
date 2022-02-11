@@ -44,6 +44,8 @@ DEAL_II_INITIALIZE_CACHED_VARIABLES()
 
 DEAL_II_SETUP_TARGET(pf-applications)
 
+target_include_directories(pf-applications PUBLIC "include/")
+
 FILE(GLOB SOURCE_FILES "*.cc")
 
 FOREACH ( source_file ${SOURCE_FILES} )

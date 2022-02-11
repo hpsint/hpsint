@@ -41,7 +41,7 @@
 
 #include <deal.II/sundials/kinsol.h>
 
-#include "include/newton.h"
+#include <pf-applications/newton.h>
 
 #define IDENTITY
 #define NEWTON
