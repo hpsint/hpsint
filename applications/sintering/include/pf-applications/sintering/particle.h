@@ -1,11 +1,23 @@
-#ifndef SINTERING_UTIL_H_
-#define SINTERING_UTIL_H_
+#ifndef SINTERING_PARTICLE_H_
+#define SINTERING_PARTICLE_H_
 
-#include "../include/csv_reader.h"
-#include "particle.h"
+#include <deal.II/base/point.h>
+
+#include <pf-applications/sintering/csv_reader.h>
+
+#include <vector>
 
 namespace Sintering
 {
+  template <int dim>
+  struct Particle
+  {
+    dealii::Point<dim>        center;
+    double                    radius;
+    unsigned int              id;
+    std::vector<unsigned int> neighbours;
+  };
+
   template <int dim>
   std::vector<Particle<dim>>
   read_particles(std::istream &stream)
@@ -15,7 +27,8 @@ namespace Sintering
     unsigned int id_counter = 0;
 
     bool is_header_done = false;
-    for (Tools::CSVIterator loop(stream); loop != Tools::CSVIterator(); ++loop)
+    for (internal::CSVIterator loop(stream); loop != internal::CSVIterator();
+         ++loop)
       {
         if (!is_header_done)
           {
@@ -47,6 +60,7 @@ namespace Sintering
 
     return particles;
   }
+
 } // namespace Sintering
 
 #endif
