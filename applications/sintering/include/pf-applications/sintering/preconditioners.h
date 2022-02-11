@@ -6,7 +6,7 @@ namespace Sintering
 {
   using namespace dealii;
 
-template <int dim,
+  template <int dim,
             int n_components,
             int n_components_,
             typename Number,
@@ -1665,4 +1665,4 @@ template <int dim,
     BlockPreconditioner3CHData data;
   };
 
-}
+} // namespace Sintering

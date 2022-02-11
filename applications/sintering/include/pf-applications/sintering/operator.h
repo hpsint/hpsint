@@ -1481,4 +1481,4 @@ namespace Sintering
     const bool matrix_based;
   };
 
-}
+} // namespace Sintering

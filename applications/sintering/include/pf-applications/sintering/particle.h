@@ -3,9 +3,9 @@
 
 #include <deal.II/base/point.h>
 
-#include <vector>
-
 #include <pf-applications/sintering/csv_reader.h>
+
+#include <vector>
 
 namespace Sintering
 {
@@ -27,7 +27,8 @@ namespace Sintering
     unsigned int id_counter = 0;
 
     bool is_header_done = false;
-    for (internal::CSVIterator loop(stream); loop != internal::CSVIterator(); ++loop)
+    for (internal::CSVIterator loop(stream); loop != internal::CSVIterator();
+         ++loop)
       {
         if (!is_header_done)
           {
