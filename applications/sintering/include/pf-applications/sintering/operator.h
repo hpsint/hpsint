@@ -987,12 +987,16 @@ namespace Sintering
     {
       MyScope scope(this->timer, "sintering_op::nonlinear_residual");
 
-      this->matrix_free.cell_loop(
-        &SinteringOperator::do_evaluate_nonlinear_residual,
-        this,
-        dst,
-        src,
-        true);
+
+      switch (n_components)
+        {
+          // clang-format off
+          case 4: this->matrix_free.cell_loop(&SinteringOperator::do_evaluate_nonlinear_residual<4>, this, dst, src, true); break;
+          case 5: this->matrix_free.cell_loop(&SinteringOperator::do_evaluate_nonlinear_residual<5>, this, dst, src, true); break;
+          // clang-format on
+          default:
+            Assert(false, ExcNotImplemented());
+        }
     }
 
     void
@@ -1018,15 +1022,20 @@ namespace Sintering
       const unsigned n_quadrature_points =
         this->matrix_free.get_quadrature().size();
 
-      nonlinear_values.reinit(n_cells, n_quadrature_points);
-      nonlinear_gradients.reinit(n_cells, n_quadrature_points);
+      nonlinear_values.reinit({n_cells, n_quadrature_points, n_components});
+      nonlinear_gradients.reinit({n_cells, n_quadrature_points, n_components});
 
       int dummy = 0;
 
-      this->matrix_free.cell_loop(&SinteringOperator::do_evaluate_newton_step,
-                                  this,
-                                  dummy,
-                                  newton_step);
+      switch (n_components)
+        {
+          // clang-format off
+          case 4: this->matrix_free.cell_loop(&SinteringOperator::do_evaluate_newton_step<4>, this, dummy, newton_step); break;
+          case 5: this->matrix_free.cell_loop(&SinteringOperator::do_evaluate_newton_step<5>, this, dummy, newton_step); break;
+          // clang-format on
+          default:
+            Assert(false, ExcNotImplemented());
+        }
 
 #ifdef WITH_TRACKER
       tracker.finalize();
@@ -1057,17 +1066,14 @@ namespace Sintering
       return this->dt;
     }
 
-    const Table<2, dealii::Tensor<1, n_components, VectorizedArrayType>> &
+    const Table<3, VectorizedArrayType> &
     get_nonlinear_values() const
     {
       return nonlinear_values;
     }
 
 
-    const Table<2,
-                dealii::Tensor<1,
-                               n_components,
-                               dealii::Tensor<1, dim, VectorizedArrayType>>> &
+    const Table<3, dealii::Tensor<1, dim, VectorizedArrayType>> &
     get_nonlinear_gradients() const
     {
       return nonlinear_gradients;
@@ -1221,12 +1227,12 @@ namespace Sintering
 
       for (unsigned int q = 0; q < phi.n_q_points; ++q)
         {
-          const auto &val  = nonlinear_values(cell, q);
-          const auto &grad = nonlinear_gradients(cell, q);
+          const auto val  = nonlinear_values[cell][q];
+          const auto grad = nonlinear_gradients[cell][q];
 
-          const auto &c       = val[0];
-          const auto &c_grad  = grad[0];
-          const auto &mu_grad = grad[1];
+          const auto c       = val[0];
+          const auto c_grad  = grad[0];
+          const auto mu_grad = grad[1];
 
           std::array<const VectorizedArrayType *, n_grains> etas;
           std::array<const Tensor<1, dim, VectorizedArrayType> *, n_grains>
@@ -1288,6 +1294,7 @@ namespace Sintering
         }
     }
 
+    template <int n_comp>
     void
     do_evaluate_nonlinear_residual(
       const MatrixFree<dim, Number, VectorizedArrayType> &matrix_free,
@@ -1295,8 +1302,10 @@ namespace Sintering
       const VectorType &                                  src,
       const std::pair<unsigned int, unsigned int> &       range) const
     {
-      FECellIntegrator phi_old(matrix_free);
-      FECellIntegrator phi(matrix_free);
+      FEEvaluation<dim, -1, 0, n_comp, Number, VectorizedArrayType> phi_old(
+        matrix_free);
+      FEEvaluation<dim, -1, 0, n_comp, Number, VectorizedArrayType> phi(
+        matrix_free);
 
       const auto &free_energy = this->data.free_energy;
       const auto &L           = this->data.L;
@@ -1338,8 +1347,8 @@ namespace Sintering
                   etas_grad[ig] = &grad[2 + ig];
                 }
 
-              Tensor<1, n_components, VectorizedArrayType> value_result;
-              Tensor<1, n_components, Tensor<1, dim, VectorizedArrayType>>
+              Tensor<1, n_comp, VectorizedArrayType> value_result;
+              Tensor<1, n_comp, Tensor<1, dim, VectorizedArrayType>>
                 gradient_result;
 
               // CH equations
@@ -1367,6 +1376,7 @@ namespace Sintering
         }
     }
 
+    template <int n_comp>
     void
     do_evaluate_newton_step(
       const MatrixFree<dim, Number, VectorizedArrayType> &matrix_free,
@@ -1383,7 +1393,8 @@ namespace Sintering
       const auto  dt_inv      = 1.0 / dt;
 #endif
 
-      FECellIntegrator phi(matrix_free);
+      FEEvaluation<dim, -1, 0, n_comp, Number, VectorizedArrayType> phi(
+        matrix_free);
 
       for (auto cell = range.first; cell < range.second; ++cell)
         {
@@ -1397,16 +1408,19 @@ namespace Sintering
 
           for (unsigned int q = 0; q < phi.n_q_points; ++q)
             {
-              nonlinear_values(cell, q)    = phi.get_value(q);
-              nonlinear_gradients(cell, q) = phi.get_gradient(q);
+              for (unsigned int c = 0; c < n_comp; ++c)
+                {
+                  nonlinear_values(cell, q, c)    = phi.get_value(q)[c];
+                  nonlinear_gradients(cell, q, c) = phi.get_gradient(q)[c];
+                }
 
 #ifdef WITH_TRACKER
-              const auto &val  = nonlinear_values(cell, q);
-              const auto &grad = nonlinear_gradients(cell, q);
+              const auto val  = nonlinear_values[cell][q];
+              const auto grad = nonlinear_gradients[cell][q];
 
-              const auto &c       = val[0];
-              const auto &c_grad  = grad[0];
-              const auto &mu_grad = grad[1];
+              const auto c       = val[0];
+              const auto c_grad  = grad[0];
+              const auto mu_grad = grad[1];
 
               std::array<const VectorizedArrayType *, n_grains> etas;
               std::array<const Tensor<1, dim, VectorizedArrayType> *, n_grains>
@@ -1456,13 +1470,8 @@ namespace Sintering
 
     mutable VectorType old_solution, newton_step;
 
-    Table<2, dealii::Tensor<1, n_components, VectorizedArrayType>>
-      nonlinear_values;
-    Table<2,
-          dealii::Tensor<1,
-                         n_components,
-                         dealii::Tensor<1, dim, VectorizedArrayType>>>
-      nonlinear_gradients;
+    Table<3, VectorizedArrayType>                         nonlinear_values;
+    Table<3, dealii::Tensor<1, dim, VectorizedArrayType>> nonlinear_gradients;
 
     ConstantsTracker<Number, VectorizedArrayType> tracker;
 

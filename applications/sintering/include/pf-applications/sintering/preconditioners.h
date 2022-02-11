@@ -46,8 +46,8 @@ namespace Sintering
 
       for (unsigned int q = 0; q < phi.n_q_points; ++q)
         {
-          const auto &val  = nonlinear_values(cell, q);
-          const auto &grad = nonlinear_gradients(cell, q);
+          const auto &val  = nonlinear_values[cell][q];
+          const auto &grad = nonlinear_gradients[cell][q];
 
           const auto &c       = val[0];
           const auto &c_grad  = grad[0];
@@ -138,8 +138,8 @@ namespace Sintering
 
       for (unsigned int q = 0; q < phi.n_q_points; ++q)
         {
-          const auto &val  = nonlinear_values(cell, q);
-          const auto &grad = nonlinear_gradients(cell, q);
+          const auto &val  = nonlinear_values[cell][q];
+          const auto &grad = nonlinear_gradients[cell][q];
 
           const auto &c       = val[0];
           const auto &c_grad  = grad[0];
@@ -210,8 +210,8 @@ namespace Sintering
 
       for (unsigned int q = 0; q < phi.n_q_points; ++q)
         {
-          const auto &val  = nonlinear_values(cell, q);
-          const auto &grad = nonlinear_gradients(cell, q);
+          const auto &val  = nonlinear_values[cell][q];
+          const auto &grad = nonlinear_gradients[cell][q];
 
           const auto &c      = val[0];
           const auto &c_grad = grad[0];
@@ -278,7 +278,7 @@ namespace Sintering
 
       for (unsigned int q = 0; q < phi.n_q_points; ++q)
         {
-          const auto &val = nonlinear_values(cell, q);
+          const auto &val = nonlinear_values[cell][q];
 
           const auto &c = val[0];
 
@@ -390,7 +390,7 @@ namespace Sintering
 
       for (unsigned int q = 0; q < phi.n_q_points; ++q)
         {
-          const auto &val = nonlinear_values(cell, q);
+          const auto &val = nonlinear_values[cell][q];
 
           const auto &c = val[0];
 
@@ -1238,8 +1238,8 @@ namespace Sintering
 
       for (unsigned int q = 0; q < phi.n_q_points; ++q)
         {
-          const auto &val  = nonlinear_values(cell, q);
-          const auto &grad = nonlinear_gradients(cell, q);
+          const auto &val  = nonlinear_values[cell][q];
+          const auto &grad = nonlinear_gradients[cell][q];
 
           const auto &c      = val[0];
           const auto &c_grad = grad[0];
@@ -1284,8 +1284,8 @@ namespace Sintering
 
       for (unsigned int q = 0; q < phi.n_q_points; ++q)
         {
-          const auto &val  = nonlinear_values(cell, q);
-          const auto &grad = nonlinear_gradients(cell, q);
+          const auto &val  = nonlinear_values[cell][q];
+          const auto &grad = nonlinear_gradients[cell][q];
 
           const auto &c      = val[0];
           const auto &c_grad = grad[0];
