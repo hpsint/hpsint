@@ -1,5 +1,7 @@
 #pragma once
 
+#include <deal.II/base/mpi_compute_index_owner_internal.h>
+
 #include <pf-applications/base/timer.h>
 
 namespace Preconditioners
@@ -146,11 +148,7 @@ namespace Preconditioners
 
     InverseBlockDiagonalMatrix(const Operator &op)
       : op(op)
-    {
-      AssertThrow(Utilities::MPI::n_mpi_processes(
-                    op.get_dof_handler().get_communicator()) == 1,
-                  ExcNotImplemented());
-    }
+    {}
 
     void
     clear() override
@@ -171,8 +169,13 @@ namespace Preconditioners
       Vector<double> vector_dst(dofs_per_cell);
       Vector<double> vector_weights(dofs_per_cell);
 
+      src.update_ghost_values();
+
       for (const auto &cell : op.get_dof_handler().active_cell_iterators())
         {
+          if (cell->is_locally_owned() == false)
+            continue;
+
           // gather and ...
           cell->get_dof_values(src, vector_src);
           cell->get_dof_values(weights, vector_weights);
@@ -191,6 +194,9 @@ namespace Preconditioners
           // scatter
           cell->distribute_local_to_global(vector_dst, dst);
         }
+
+      dst.compress(VectorOperation::values::add);
+      src.zero_out_ghost_values();
     }
 
     void
@@ -206,28 +212,112 @@ namespace Preconditioners
       compute_block_diagonal_matrix(op.get_dof_handler(),
                                     op.get_system_matrix(),
                                     blocks);
-      const auto temp = compute_weights(op.get_dof_handler());
+      weights = compute_weights(op.get_dof_handler());
 
-      op.initialize_dof_vector(weights);
-
-      for (unsigned i = 0; i < weights.size(); ++i)
-        weights[i] = temp[i];
+      weights.update_ghost_values();
     }
 
 
   private:
     static void
     compute_block_diagonal_matrix(
-      const DoFHandler<dim> &                                   dof_handler_0,
+      const DoFHandler<dim> &                                   dof_handler,
       const TrilinosWrappers::SparseMatrix &                    system_matrix_0,
       std::vector<FullMatrix<typename VectorType::value_type>> &blocks)
     {
-      const unsigned int dofs_per_cell =
-        dof_handler_0.get_fe().n_dofs_per_cell();
+      const unsigned int dofs_per_cell = dof_handler.get_fe().n_dofs_per_cell();
 
       std::vector<types::global_dof_index> local_dof_indices(dofs_per_cell);
 
-      for (const auto &cell : dof_handler_0.active_cell_iterators())
+      const auto locally_owned_dofs = dof_handler.locally_owned_dofs();
+
+      IndexSet locally_active_dofs;
+      DoFTools::extract_locally_active_dofs(dof_handler, locally_active_dofs);
+
+      locally_active_dofs.subtract_set(locally_owned_dofs);
+
+      const auto comm = dof_handler.get_communicator();
+
+      std::vector<unsigned int> dummy(locally_active_dofs.n_elements());
+
+      Utilities::MPI::internal::ComputeIndexOwner::ConsensusAlgorithmsPayload
+        process(locally_owned_dofs, locally_active_dofs, comm, dummy, true);
+
+      Utilities::MPI::ConsensusAlgorithms::Selector<
+        std::pair<types::global_dof_index, types::global_dof_index>,
+        unsigned int>
+        consensus_algorithm;
+      consensus_algorithm.run(process, comm);
+
+      using T1 = char;
+      using T2 = char;
+
+      auto requesters = process.get_requesters();
+
+      std::vector<std::vector<std::pair<types::global_dof_index, Number>>>
+        locally_relevant_matrix_entries(locally_active_dofs.n_elements());
+
+      dealii::Utilities::MPI::ConsensusAlgorithms::AnonymousProcess<T1, T2>
+        process_(
+          [&]() {
+            std::vector<unsigned int> ranks;
+
+            for (const auto &i : requesters)
+              ranks.push_back(i.first);
+
+            return ranks;
+          },
+          [&](const unsigned int other_rank, std::vector<T1> &send_buffer) {
+            std::vector<std::pair<
+              types::global_dof_index,
+              std::vector<std::pair<types::global_dof_index, Number>>>>
+              temp;
+
+            for (auto index : requesters[other_rank])
+              {
+                std::vector<std::pair<types::global_dof_index, Number>> t;
+
+                for (auto entry = system_matrix_0.begin(index);
+                     entry != system_matrix_0.end(index);
+                     ++entry)
+                  t.emplace_back(entry->column(), entry->value());
+
+                temp.emplace_back(index, t);
+              }
+
+            send_buffer = Utilities::pack(temp, false);
+          },
+          [&](const unsigned int &,
+              const std::vector<T1> &buffer_recv,
+              std::vector<T2> &) {
+            const auto temp = Utilities::unpack<std::vector<std::pair<
+              types::global_dof_index,
+              std::vector<std::pair<types::global_dof_index, Number>>>>>(
+              buffer_recv, false);
+
+            for (const auto &i : temp)
+              {
+                auto &dst =
+                  locally_relevant_matrix_entries[locally_active_dofs
+                                                    .index_within_set(i.first)];
+                dst = i.second;
+                std::sort(dst.begin(),
+                          dst.end(),
+                          [](const auto &a, const auto &b) {
+                            return a.first < b.first;
+                          });
+              }
+          });
+
+      dealii::Utilities::MPI::ConsensusAlgorithms::Selector<char, char>().run(
+        process_, comm);
+
+#if false
+      using T = std::pair<CellId, FullMatrix<Number>>;
+      std::vector<T> results;
+#endif
+
+      for (const auto &cell : dof_handler.active_cell_iterators())
         {
           if (cell->is_locally_owned() == false)
             continue;
@@ -238,20 +328,80 @@ namespace Preconditioners
 
           for (unsigned int i = 0; i < dofs_per_cell; ++i)
             for (unsigned int j = 0; j < dofs_per_cell; ++j)
-              cell_matrix(i, j) =
-                system_matrix_0(local_dof_indices[i], local_dof_indices[j]);
+              {
+                if (locally_owned_dofs.is_element(
+                      local_dof_indices[i])) // row is local
+                  {
+                    cell_matrix(i, j) = system_matrix_0(local_dof_indices[i],
+                                                        local_dof_indices[j]);
+                  }
+                else // row is ghost
+                  {
+                    Assert(locally_active_dofs.is_element(local_dof_indices[i]),
+                           ExcInternalError());
+
+                    const auto &row_entries = locally_relevant_matrix_entries
+                      [locally_active_dofs.index_within_set(
+                        local_dof_indices[i])];
+
+                    const auto ptr = std::lower_bound(
+                      row_entries.begin(),
+                      row_entries.end(),
+                      std::pair<types::global_dof_index, Number>{
+                        local_dof_indices[j], /*dummy*/ 0.0},
+                      [](const auto a, const auto b) {
+                        return a.first < b.first;
+                      });
+
+                    Assert(ptr != row_entries.end() &&
+                             local_dof_indices[j] == ptr->first,
+                           ExcInternalError());
+
+                    cell_matrix(i, j) = ptr->second;
+                  }
+              }
+#if false
+          results.emplace_back(cell->id(), cell_matrix);
+#endif
 
           cell_matrix.gauss_jordan();
         }
+
+#if false
+          const auto results_all =
+            Utilities::MPI::gather(comm, Utilities::pack(results, false));
+
+          std::vector<T> results_all_sorted;
+
+          for(const auto & is : results_all)
+            for(const auto & i : Utilities::unpack<std::vector<T>>(is, false))
+              results_all_sorted.emplace_back(i);
+
+          std::sort(results_all_sorted.begin(), results_all_sorted.end(), 
+              [](const auto & a, const auto & b){return a.first < b.first;});
+
+          if(Utilities::MPI::this_mpi_process(MPI_COMM_WORLD) == 0)
+            {
+              for(auto cell_matrix : results_all_sorted)
+                {
+                  cell_matrix.second.print(std::cout);
+                  std::cout << std::endl;
+                }
+            }
+          exit(0);
+#endif
     }
 
-    static Vector<Number>
-    compute_weights(const DoFHandler<dim> &dof_handler_0)
+    VectorType
+    compute_weights(const DoFHandler<dim> &dof_handler_0) const
     {
       const unsigned int dofs_per_cell =
         dof_handler_0.get_fe().n_dofs_per_cell();
 
-      Vector<double>                       weights(dof_handler_0.n_dofs());
+      LinearAlgebra::distributed::Vector<Number> weights;
+
+      op.initialize_dof_vector(weights);
+
       std::vector<types::global_dof_index> local_dof_indices(dofs_per_cell);
 
       for (const auto &cell : dof_handler_0.active_cell_iterators())
@@ -267,8 +417,8 @@ namespace Preconditioners
 
       weights.compress(VectorOperation::values::add);
 
-      for (unsigned int i = 0; i < weights.locally_owned_size(); ++i)
-        weights[i] = (weights[i] == 0.0) ? 0.0 : std::sqrt(1.0 / weights[i]);
+      for (auto &i : weights)
+        i = (i == 0.0) ? 0.0 : std::sqrt(1.0 / i);
 
       return weights;
     }
