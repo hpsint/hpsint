@@ -32,6 +32,8 @@ static_assert(false, "No grains number has been given!");
 #include "sintering/sintering_impl.h"
 #include "sintering/util.h"
 
+using namespace dealii;
+
 namespace Sintering
 {
   template <int dim>
