@@ -441,9 +441,6 @@ namespace Sintering
     : public OperatorBase<dim, 1, Number, VectorizedArrayType>
   {
   public:
-    using FECellIntegrator =
-      FEEvaluation<dim, -1, 0, 1, Number, VectorizedArrayType>;
-
     using VectorType =
       typename OperatorBase<dim, 1, Number, VectorizedArrayType>::VectorType;
 
@@ -493,7 +490,8 @@ namespace Sintering
 
   private:
     void
-    do_vmult_cell_mass(FECellIntegrator &phi) const
+    do_vmult_cell_mass(
+      FEEvaluation<dim, -1, 0, 1, Number, VectorizedArrayType> &phi) const
     {
       phi.evaluate(EvaluationFlags::EvaluationFlags::values);
 
@@ -503,7 +501,8 @@ namespace Sintering
       phi.integrate(EvaluationFlags::EvaluationFlags::values);
     }
     void
-    do_vmult_cell_laplace(FECellIntegrator &phi) const
+    do_vmult_cell_laplace(
+      FEEvaluation<dim, -1, 0, 1, Number, VectorizedArrayType> &phi) const
     {
       const auto &L       = this->op.get_data().L;
       const auto &kappa_p = this->op.get_data().kappa_p;
@@ -517,7 +516,8 @@ namespace Sintering
     }
 
     void
-    do_vmult_kernel(FECellIntegrator &) const final
+    do_vmult_kernel(
+      FEEvaluation<dim, -1, 0, 1, Number, VectorizedArrayType> &) const final
     {
       AssertThrow(false, ExcNotImplemented());
     }
@@ -1132,9 +1132,6 @@ namespace Sintering
     : public OperatorBase<dim, 1, Number, VectorizedArrayType>
   {
   public:
-    using FECellIntegrator =
-      FEEvaluation<dim, -1, 0, 1, Number, VectorizedArrayType>;
-
     using VectorType =
       typename OperatorBase<dim, 1, Number, VectorizedArrayType>::VectorType;
 
@@ -1227,7 +1224,8 @@ namespace Sintering
 
   private:
     void
-    do_vmult_kernel(FECellIntegrator &phi) const final
+    do_vmult_kernel(
+      FEEvaluation<dim, -1, 0, 1, Number, VectorizedArrayType> &phi) const final
     {
       const unsigned int cell = phi.get_current_cell_index();
 
@@ -1270,7 +1268,8 @@ namespace Sintering
 
     template <bool use_mobility>
     void
-    do_vmult_cell_laplace(FECellIntegrator &phi) const
+    do_vmult_cell_laplace(
+      FEEvaluation<dim, -1, 0, 1, Number, VectorizedArrayType> &phi) const
     {
       phi.evaluate(EvaluationFlags::EvaluationFlags::gradients);
 
