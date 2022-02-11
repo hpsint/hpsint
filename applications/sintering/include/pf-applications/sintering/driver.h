@@ -69,8 +69,6 @@
 #include <pf-applications/sintering/operator.h>
 #include <pf-applications/sintering/preconditioners.h>
 
-#include <fstream>
-
 namespace Sintering
 {
   using namespace dealii;

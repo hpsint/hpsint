@@ -1,5 +1,7 @@
 #pragma once
 
+#include <fstream>
+
 namespace Sintering
 {
   using namespace dealii;
