@@ -26,7 +26,7 @@ static_assert(false, "No grains number has been given!");
 //#define WITH_TIMING
 //#define WITH_TRACKER
 
-#include <pf-applications/sintering/sintering_impl.h>
+#include <pf-applications/sintering/driver.h>
 
 using namespace dealii;
 

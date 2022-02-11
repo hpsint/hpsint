@@ -119,6 +119,14 @@ IncludeCategories:
     Priority: 310
   - Regex:    "deal.II/sundials/.*\\.h"
     Priority: 320
+  - Regex:    "pf-applications/base/.*\\.h"
+    Priority: 400
+  - Regex:    "pf-applications/lac/.*\\.h"
+    Priority: 401
+  - Regex:    "pf-applications/numerics/.*\\.h"
+    Priority: 402
+  - Regex:    "pf-applications/sintering/.*\\.h"
+    Priority: 410
 # put boost right after deal:
   - Regex: "<boost.*>"
     Priority: 500
