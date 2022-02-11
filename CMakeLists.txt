@@ -50,27 +50,4 @@ FILE(GLOB SOURCE_FILES "*.cc")
 
 ADD_SUBDIRECTORY(applications/allen_cahn)
 ADD_SUBDIRECTORY(applications/cahn_hilliard)
-
-# Sintering 2D, 2 particles (circle)
-ADD_EXECUTABLE(sintering-circle-2D-2 "sintering_circle.cc")
-DEAL_II_SETUP_TARGET(sintering-circle-2D-2)
-TARGET_COMPILE_DEFINITIONS("sintering-circle-2D-2" PUBLIC -DSINTERING_DIM=2 -DSINTERING_GRAINS=2)
-TARGET_LINK_LIBRARIES(sintering-circle-2D-2 "pf-applications")
-
-# Sintering 2D, 3 particles (circle)
-ADD_EXECUTABLE(sintering-circle-2D-3 "sintering_circle.cc")
-DEAL_II_SETUP_TARGET(sintering-circle-2D-3)
-TARGET_COMPILE_DEFINITIONS("sintering-circle-2D-3" PUBLIC -DSINTERING_DIM=2 -DSINTERING_GRAINS=3)
-TARGET_LINK_LIBRARIES(sintering-circle-2D-3 "pf-applications")
-
-# Sintering 3D, 2 particles (circle)
-ADD_EXECUTABLE(sintering-circle-3D-2 "sintering_circle.cc")
-DEAL_II_SETUP_TARGET(sintering-circle-3D-2)
-TARGET_COMPILE_DEFINITIONS("sintering-circle-3D-2" PUBLIC -DSINTERING_DIM=3 -DSINTERING_GRAINS=2)
-TARGET_LINK_LIBRARIES(sintering-circle-3D-2 "pf-applications")
-
-# Sintering 2D, 5 particles (cloud)
-ADD_EXECUTABLE(sintering-cloud-2D-5 "sintering_cloud.cc")
-DEAL_II_SETUP_TARGET(sintering-cloud-2D-5)
-TARGET_COMPILE_DEFINITIONS("sintering-cloud-2D-5" PUBLIC -DSINTERING_DIM=2 -DSINTERING_GRAINS=5)
-TARGET_LINK_LIBRARIES(sintering-cloud-2D-5 "pf-applications")
+ADD_SUBDIRECTORY(applications/sintering)

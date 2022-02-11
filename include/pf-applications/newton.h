@@ -1,5 +1,4 @@
-#ifndef INCLUDE_NEWTON_H_
-#define INCLUDE_NEWTON_H_
+#pragma once
 
 using namespace dealii;
 
@@ -176,6 +175,3 @@ private:
 
   VectorType residual, increment, tmp;
 };
-
-
-#endif

@@ -28,9 +28,8 @@ static_assert(false, "No grains number has been given!");
 
 #include <cstdlib>
 
-#include "sintering/particle.h"
-#include "sintering/sintering_impl.h"
-#include "sintering/util.h"
+#include <pf-applications/sintering/particle.h>
+#include <pf-applications/sintering/sintering_impl.h>
 
 using namespace dealii;
 
