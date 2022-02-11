@@ -972,7 +972,6 @@ namespace Sintering
           0,
           "sintering_op")
       , data(data)
-      , phi_lin(this->matrix_free, this->dof_index)
       , matrix_based(matrix_based)
     {}
 
@@ -1220,21 +1219,10 @@ namespace Sintering
       const auto &kappa_p     = this->data.kappa_p;
       const auto  dt_inv      = 1.0 / dt;
 
-#if true
-      phi_lin.reinit(cell);
-      phi_lin.read_dof_values_plain(this->newton_step);
-      phi_lin.evaluate(EvaluationFlags::values | EvaluationFlags::gradients);
-#endif
-
       for (unsigned int q = 0; q < phi.n_q_points; ++q)
         {
-#if true
-          const auto val  = phi_lin.get_value(q);
-          const auto grad = phi_lin.get_gradient(q);
-#else
           const auto &val  = nonlinear_values(cell, q);
           const auto &grad = nonlinear_gradients(cell, q);
-#endif
 
           const auto &c       = val[0];
           const auto &c_grad  = grad[0];
@@ -1467,8 +1455,6 @@ namespace Sintering
     double dt;
 
     mutable VectorType old_solution, newton_step;
-
-    mutable FECellIntegrator phi_lin;
 
     Table<2, dealii::Tensor<1, n_components, VectorizedArrayType>>
       nonlinear_values;
