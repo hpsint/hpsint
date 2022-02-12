@@ -1345,7 +1345,11 @@ namespace Sintering
         }
     }
 
-    static constexpr unsigned int n_grains{n_components - 2};
+    unsigned int
+    n_grains() const
+    {
+      return this->n_components - 2;
+    }
 
     template <int n_comp>
     void
