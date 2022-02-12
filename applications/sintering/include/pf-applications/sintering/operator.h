@@ -1359,6 +1359,8 @@ namespace Sintering
         }
       else
         {
+          constexpr unsigned int n_grains = n_comp - 2;
+
           const unsigned int cell = phi.get_current_cell_index();
 
           const auto &free_energy = this->data.free_energy;
@@ -1460,6 +1462,8 @@ namespace Sintering
         }
       else
         {
+          constexpr unsigned int n_grains = n_comp - 2;
+
           FEEvaluation<dim, -1, 0, n_comp, Number, VectorizedArrayType> phi_old(
             matrix_free);
           FEEvaluation<dim, -1, 0, n_comp, Number, VectorizedArrayType> phi(
@@ -1557,12 +1561,13 @@ namespace Sintering
       else
         {
 #ifdef WITH_TRACKER
-          const auto &free_energy = this->data.free_energy;
-          const auto &L           = this->data.L;
-          const auto &mobility    = this->data.mobility;
-          const auto &kappa_c     = this->data.kappa_c;
-          const auto &kappa_p     = this->data.kappa_p;
-          const auto  dt_inv      = 1.0 / dt;
+          constexpr unsigned int n_grains    = n_comp - 2;
+          const auto &           free_energy = this->data.free_energy;
+          const auto &           L           = this->data.L;
+          const auto &           mobility    = this->data.mobility;
+          const auto &           kappa_c     = this->data.kappa_c;
+          const auto &           kappa_p     = this->data.kappa_p;
+          const auto             dt_inv      = 1.0 / dt;
 #endif
 
           FEEvaluation<dim, -1, 0, n_comp, Number, VectorizedArrayType> phi(

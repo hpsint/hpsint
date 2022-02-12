@@ -72,10 +72,9 @@ namespace Sintering
               const auto &c_grad  = grad[0];
               const auto &mu_grad = grad[1];
 
-              std::array<const VectorizedArrayType *, this->op.n_grains> etas;
-              std::array<const Tensor<1, dim, VectorizedArrayType> *,
-                         this->op.n_grains>
-                etas_grad;
+              std::vector<const VectorizedArrayType *> etas(this->op.n_grains);
+              std::vector<const Tensor<1, dim, VectorizedArrayType> *>
+                etas_grad(this->op.n_grains);
 
               for (unsigned int ig = 0; ig < this->op.n_grains; ++ig)
                 {
@@ -186,10 +185,9 @@ namespace Sintering
               const auto &c_grad  = grad[0];
               const auto &mu_grad = grad[1];
 
-              std::array<const VectorizedArrayType *, this->op.n_grains> etas;
-              std::array<const Tensor<1, dim, VectorizedArrayType> *,
-                         this->op.n_grains>
-                etas_grad;
+              std::vector<const VectorizedArrayType *> etas(this->op.n_grains);
+              std::vector<const Tensor<1, dim, VectorizedArrayType> *>
+                etas_grad(this->op.n_grains);
 
               for (unsigned int ig = 0; ig < this->op.n_grains; ++ig)
                 {
@@ -277,10 +275,9 @@ namespace Sintering
               const auto &c      = val[0];
               const auto &c_grad = grad[0];
 
-              std::array<const VectorizedArrayType *, this->op.n_grains> etas;
-              std::array<const Tensor<1, dim, VectorizedArrayType> *,
-                         this->op.n_grains>
-                etas_grad;
+              std::vector<const VectorizedArrayType *> etas(this->op.n_grains);
+              std::vector<const Tensor<1, dim, VectorizedArrayType> *>
+                etas_grad(this->op.n_grains);
 
               for (unsigned int ig = 0; ig < this->op.n_grains; ++ig)
                 {
@@ -364,7 +361,7 @@ namespace Sintering
 
               const auto &c = val[0];
 
-              std::array<const VectorizedArrayType *, this->op.n_grains> etas;
+              std::vector<const VectorizedArrayType *> etas(this->op.n_grains);
 
               for (unsigned int ig = 0; ig < this->op.n_grains; ++ig)
                 {
@@ -1422,10 +1419,9 @@ namespace Sintering
               const auto &c      = val[0];
               const auto &c_grad = grad[0];
 
-              std::array<const VectorizedArrayType *, this->op.n_grains> etas;
-              std::array<const Tensor<1, dim, VectorizedArrayType> *,
-                         this->op.n_grains>
-                etas_grad;
+              std::vector<const VectorizedArrayType *> etas(this->op.n_grains);
+              std::vector<const Tensor<1, dim, VectorizedArrayType> *>
+                etas_grad(this->op.n_grains);
 
               for (unsigned int ig = 0; ig < this->op.n_grains; ++ig)
                 {
@@ -1474,10 +1470,9 @@ namespace Sintering
           const auto &c      = val[0];
           const auto &c_grad = grad[0];
 
-          std::array<const VectorizedArrayType *, this->op.n_grains> etas;
-          std::array<const Tensor<1, dim, VectorizedArrayType> *,
-                     this->op.n_grains>
-            etas_grad;
+          std::vector<const VectorizedArrayType *> etas(this->op.n_grains);
+          std::vector<const Tensor<1, dim, VectorizedArrayType> *> etas_grad(
+            this->op.n_grains);
 
           for (unsigned int ig = 0; ig < this->op.n_grains; ++ig)
             {
