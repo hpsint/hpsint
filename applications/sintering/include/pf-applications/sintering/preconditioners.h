@@ -23,9 +23,6 @@ namespace Sintering
                                                VectorizedArrayType>>
   {
   public:
-    using FECellIntegrator =
-      FEEvaluation<dim, -1, 0, n_components, Number, VectorizedArrayType>;
-
     OperatorCahnHilliard(
       const MatrixFree<dim, Number, VectorizedArrayType> &  matrix_free,
       const std::vector<const AffineConstraints<Number> *> &constraints,
@@ -47,8 +44,10 @@ namespace Sintering
       , op(op)
     {}
 
+    template <int n_comp>
     void
-    do_vmult_kernel(FECellIntegrator &phi) const
+    do_vmult_kernel(
+      FEEvaluation<dim, -1, 0, n_comp, Number, VectorizedArrayType> &phi) const
     {
       const unsigned int cell = phi.get_current_cell_index();
 
@@ -134,9 +133,6 @@ namespace Sintering
                                                 VectorizedArrayType>>
   {
   public:
-    using FECellIntegrator =
-      FEEvaluation<dim, -1, 0, n_components, Number, VectorizedArrayType>;
-
     OperatorCahnHilliardA(
       const MatrixFree<dim, Number, VectorizedArrayType> &  matrix_free,
       const std::vector<const AffineConstraints<Number> *> &constraints,
@@ -156,8 +152,10 @@ namespace Sintering
       , op(op)
     {}
 
+    template <int n_comp>
     void
-    do_vmult_kernel(FECellIntegrator &phi) const
+    do_vmult_kernel(
+      FEEvaluation<dim, -1, 0, n_comp, Number, VectorizedArrayType> &phi) const
     {
       const unsigned int cell = phi.get_current_cell_index();
 
@@ -222,9 +220,6 @@ namespace Sintering
                                                 VectorizedArrayType>>
   {
   public:
-    using FECellIntegrator =
-      FEEvaluation<dim, -1, 0, n_components, Number, VectorizedArrayType>;
-
     OperatorCahnHilliardB(
       const MatrixFree<dim, Number, VectorizedArrayType> &  matrix_free,
       const std::vector<const AffineConstraints<Number> *> &constraints,
@@ -244,8 +239,10 @@ namespace Sintering
       , op(op)
     {}
 
+    template <int n_comp>
     void
-    do_vmult_kernel(FECellIntegrator &phi) const
+    do_vmult_kernel(
+      FEEvaluation<dim, -1, 0, n_comp, Number, VectorizedArrayType> &phi) const
     {
       const unsigned int cell = phi.get_current_cell_index();
 
@@ -305,9 +302,6 @@ namespace Sintering
                                                 VectorizedArrayType>>
   {
   public:
-    using FECellIntegrator =
-      FEEvaluation<dim, -1, 0, n_components, Number, VectorizedArrayType>;
-
     OperatorCahnHilliardC(
       const MatrixFree<dim, Number, VectorizedArrayType> &  matrix_free,
       const std::vector<const AffineConstraints<Number> *> &constraints,
@@ -327,8 +321,10 @@ namespace Sintering
       , op(op)
     {}
 
+    template <int n_comp>
     void
-    do_vmult_kernel(FECellIntegrator &phi) const
+    do_vmult_kernel(
+      FEEvaluation<dim, -1, 0, n_comp, Number, VectorizedArrayType> &phi) const
     {
       const unsigned int cell = phi.get_current_cell_index();
 
@@ -381,9 +377,6 @@ namespace Sintering
                                                 VectorizedArrayType>>
   {
   public:
-    using FECellIntegrator =
-      FEEvaluation<dim, -1, 0, n_components, Number, VectorizedArrayType>;
-
     OperatorCahnHilliardD(
       const MatrixFree<dim, Number, VectorizedArrayType> &  matrix_free,
       const std::vector<const AffineConstraints<Number> *> &constraints,
@@ -403,8 +396,10 @@ namespace Sintering
       , op(op)
     {}
 
+    template <int n_comp>
     void
-    do_vmult_kernel(FECellIntegrator &phi) const
+    do_vmult_kernel(
+      FEEvaluation<dim, -1, 0, n_comp, Number, VectorizedArrayType> &phi) const
     {
       for (unsigned int q = 0; q < phi.n_q_points; ++q)
         {
@@ -440,9 +435,6 @@ namespace Sintering
                                             VectorizedArrayType>>
   {
   public:
-    using FECellIntegrator =
-      FEEvaluation<dim, -1, 0, n_components, Number, VectorizedArrayType>;
-
     static const int n_grains = n_components;
 
     OperatorAllenCahn(
@@ -465,8 +457,10 @@ namespace Sintering
       , op(op)
     {}
 
+    template <int n_comp>
     void
-    do_vmult_kernel(FECellIntegrator &phi) const
+    do_vmult_kernel(
+      FEEvaluation<dim, -1, 0, n_comp, Number, VectorizedArrayType> &phi) const
     {
       const unsigned int cell = phi.get_current_cell_index();
 
@@ -601,9 +595,10 @@ namespace Sintering
       }
     }
 
+    template <int n_comp>
     void
     do_vmult_kernel(
-      FEEvaluation<dim, -1, 0, 1, Number, VectorizedArrayType> &) const
+      FEEvaluation<dim, -1, 0, n_comp, Number, VectorizedArrayType> &) const
     {
       AssertThrow(false, ExcNotImplemented());
     }
@@ -1215,9 +1210,6 @@ namespace Sintering
         MassMatrix<dim, n_components, Number, VectorizedArrayType>>
   {
   public:
-    using FECellIntegrator =
-      FEEvaluation<dim, -1, 0, n_components, Number, VectorizedArrayType>;
-
     MassMatrix(
       const MatrixFree<dim, Number, VectorizedArrayType> &  matrix_free,
       const std::vector<const AffineConstraints<Number> *> &constraints)
@@ -1233,8 +1225,10 @@ namespace Sintering
           "mass_matrix_op")
     {}
 
+    template <int n_comp>
     void
-    do_vmult_kernel(FECellIntegrator &phi) const
+    do_vmult_kernel(
+      FEEvaluation<dim, -1, 0, n_comp, Number, VectorizedArrayType> &phi) const
     {
       for (unsigned int q = 0; q < phi.n_q_points; ++q)
         {
@@ -1366,46 +1360,54 @@ namespace Sintering
       return epsilon;
     }
 
+    template <int n_comp>
     void
     do_vmult_kernel(
-      FEEvaluation<dim, -1, 0, 1, Number, VectorizedArrayType> &phi) const
+      FEEvaluation<dim, -1, 0, n_comp, Number, VectorizedArrayType> &phi) const
     {
-      const unsigned int cell = phi.get_current_cell_index();
-
-      const auto &mobility            = this->op.get_data().mobility;
-      const auto &nonlinear_values    = this->op.get_nonlinear_values();
-      const auto &nonlinear_gradients = this->op.get_nonlinear_gradients();
-
-      const auto sqrt_delta = this->get_sqrt_delta();
-      const auto dt         = get_dt();
-
-      for (unsigned int q = 0; q < phi.n_q_points; ++q)
+      if constexpr (n_comp == 1)
         {
-          const auto &val  = nonlinear_values[cell][q];
-          const auto &grad = nonlinear_gradients[cell][q];
+          const unsigned int cell = phi.get_current_cell_index();
 
-          const auto &c      = val[0];
-          const auto &c_grad = grad[0];
+          const auto &mobility            = this->op.get_data().mobility;
+          const auto &nonlinear_values    = this->op.get_nonlinear_values();
+          const auto &nonlinear_gradients = this->op.get_nonlinear_gradients();
 
-          std::array<const VectorizedArrayType *, this->op.n_grains> etas;
-          std::array<const Tensor<1, dim, VectorizedArrayType> *,
-                     this->op.n_grains>
-            etas_grad;
+          const auto sqrt_delta = this->get_sqrt_delta();
+          const auto dt         = get_dt();
 
-          for (unsigned int ig = 0; ig < this->op.n_grains; ++ig)
+          for (unsigned int q = 0; q < phi.n_q_points; ++q)
             {
-              etas[ig]      = &val[2 + ig];
-              etas_grad[ig] = &grad[2 + ig];
+              const auto &val  = nonlinear_values[cell][q];
+              const auto &grad = nonlinear_gradients[cell][q];
+
+              const auto &c      = val[0];
+              const auto &c_grad = grad[0];
+
+              std::array<const VectorizedArrayType *, this->op.n_grains> etas;
+              std::array<const Tensor<1, dim, VectorizedArrayType> *,
+                         this->op.n_grains>
+                etas_grad;
+
+              for (unsigned int ig = 0; ig < this->op.n_grains; ++ig)
+                {
+                  etas[ig]      = &val[2 + ig];
+                  etas_grad[ig] = &grad[2 + ig];
+                }
+
+              const auto value    = phi.get_value(q);
+              const auto gradient = phi.get_gradient(q);
+              const auto epsilon  = dt * mobility.M(c, etas, c_grad, etas_grad);
+
+              phi.submit_value(value, q);
+              phi.submit_gradient(std::sqrt(std::abs(sqrt_delta * epsilon)) *
+                                    gradient,
+                                  q);
             }
-
-          const auto value    = phi.get_value(q);
-          const auto gradient = phi.get_gradient(q);
-          const auto epsilon  = dt * mobility.M(c, etas, c_grad, etas_grad);
-
-          phi.submit_value(value, q);
-          phi.submit_gradient(std::sqrt(std::abs(sqrt_delta * epsilon)) *
-                                gradient,
-                              q);
+        }
+      else
+        {
+          Assert(false, ExcNotImplemented());
         }
     }
 

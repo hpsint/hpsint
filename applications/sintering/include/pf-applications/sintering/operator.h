@@ -992,9 +992,6 @@ namespace Sintering
     using value_type  = Number;
     using vector_type = VectorType;
 
-    using FECellIntegrator =
-      FEEvaluation<dim, -1, 0, n_components, Number, VectorizedArrayType>;
-
     SinteringOperator(
       const MatrixFree<dim, Number, VectorizedArrayType> &   matrix_free,
       const std::vector<const AffineConstraints<Number> *> & constraints,
@@ -1267,8 +1264,10 @@ namespace Sintering
 
     static constexpr unsigned int n_grains{n_components - 2};
 
+    template <int n_comp>
     void
-    do_vmult_kernel(FECellIntegrator &phi) const
+    do_vmult_kernel(
+      FEEvaluation<dim, -1, 0, n_comp, Number, VectorizedArrayType> &phi) const
     {
       const unsigned int cell = phi.get_current_cell_index();
 
