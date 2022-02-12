@@ -51,6 +51,12 @@ namespace Sintering
           const auto &nonlinear_values    = this->op.get_nonlinear_values();
           const auto &nonlinear_gradients = this->op.get_nonlinear_gradients();
 
+          // TODO: 1) allow std::array again and 2) allocate less often in the
+          // case of std::vector
+          std::vector<const VectorizedArrayType *> etas(this->op.n_grains());
+          std::vector<const Tensor<1, dim, VectorizedArrayType> *> etas_grad(
+            this->op.n_grains());
+
           for (unsigned int q = 0; q < phi.n_q_points; ++q)
             {
               const auto &val  = nonlinear_values[cell][q];
@@ -60,12 +66,7 @@ namespace Sintering
               const auto &c_grad  = grad[0];
               const auto &mu_grad = grad[1];
 
-              std::vector<const VectorizedArrayType *> etas(
-                this->op.n_grains());
-              std::vector<const Tensor<1, dim, VectorizedArrayType> *>
-                etas_grad(this->op.n_grains());
-
-              for (unsigned int ig = 0; ig < this->op.n_grains(); ++ig)
+              for (unsigned int ig = 0; ig < etas.size(); ++ig)
                 {
                   etas[ig]      = &val[2 + ig];
                   etas_grad[ig] = &grad[2 + ig];
@@ -153,6 +154,11 @@ namespace Sintering
           const auto &nonlinear_values    = this->op.get_nonlinear_values();
           const auto &nonlinear_gradients = this->op.get_nonlinear_gradients();
 
+          // TODO: see above
+          std::vector<const VectorizedArrayType *> etas(this->op.n_grains());
+          std::vector<const Tensor<1, dim, VectorizedArrayType> *> etas_grad(
+            this->op.n_grains());
+
           for (unsigned int q = 0; q < phi.n_q_points; ++q)
             {
               const auto &val  = nonlinear_values[cell][q];
@@ -162,12 +168,7 @@ namespace Sintering
               const auto &c_grad  = grad[0];
               const auto &mu_grad = grad[1];
 
-              std::vector<const VectorizedArrayType *> etas(
-                this->op.n_grains());
-              std::vector<const Tensor<1, dim, VectorizedArrayType> *>
-                etas_grad(this->op.n_grains());
-
-              for (unsigned int ig = 0; ig < this->op.n_grains(); ++ig)
+              for (unsigned int ig = 0; ig < etas.size(); ++ig)
                 {
                   etas[ig]      = &val[2 + ig];
                   etas_grad[ig] = &grad[2 + ig];
@@ -233,6 +234,11 @@ namespace Sintering
           const auto &nonlinear_values    = this->op.get_nonlinear_values();
           const auto &nonlinear_gradients = this->op.get_nonlinear_gradients();
 
+          // TODO: see above
+          std::vector<const VectorizedArrayType *> etas(this->op.n_grains());
+          std::vector<const Tensor<1, dim, VectorizedArrayType> *> etas_grad(
+            this->op.n_grains());
+
           for (unsigned int q = 0; q < phi.n_q_points; ++q)
             {
               const auto &val  = nonlinear_values[cell][q];
@@ -241,12 +247,7 @@ namespace Sintering
               const auto &c      = val[0];
               const auto &c_grad = grad[0];
 
-              std::vector<const VectorizedArrayType *> etas(
-                this->op.n_grains());
-              std::vector<const Tensor<1, dim, VectorizedArrayType> *>
-                etas_grad(this->op.n_grains());
-
-              for (unsigned int ig = 0; ig < this->op.n_grains(); ++ig)
+              for (unsigned int ig = 0; ig < etas.size(); ++ig)
                 {
                   etas[ig]      = &val[2 + ig];
                   etas_grad[ig] = &grad[2 + ig];
@@ -310,16 +311,16 @@ namespace Sintering
           const auto &kappa_c          = this->op.get_data().kappa_c;
           const auto &nonlinear_values = this->op.get_nonlinear_values();
 
+          // TODO: see above
+          std::vector<const VectorizedArrayType *> etas(this->op.n_grains());
+
           for (unsigned int q = 0; q < phi.n_q_points; ++q)
             {
               const auto &val = nonlinear_values[cell][q];
 
               const auto &c = val[0];
 
-              std::vector<const VectorizedArrayType *> etas(
-                this->op.n_grains());
-
-              for (unsigned int ig = 0; ig < this->op.n_grains(); ++ig)
+              for (unsigned int ig = 0; ig < etas.size(); ++ig)
                 {
                   etas[ig] = &val[2 + ig];
                 }
@@ -1287,6 +1288,11 @@ namespace Sintering
           const auto sqrt_delta = this->get_sqrt_delta();
           const auto dt         = get_dt();
 
+          // TODO: see above
+          std::vector<const VectorizedArrayType *> etas(this->op.n_grains());
+          std::vector<const Tensor<1, dim, VectorizedArrayType> *> etas_grad(
+            this->op.n_grains());
+
           for (unsigned int q = 0; q < phi.n_q_points; ++q)
             {
               const auto &val  = nonlinear_values[cell][q];
@@ -1295,12 +1301,7 @@ namespace Sintering
               const auto &c      = val[0];
               const auto &c_grad = grad[0];
 
-              std::vector<const VectorizedArrayType *> etas(
-                this->op.n_grains());
-              std::vector<const Tensor<1, dim, VectorizedArrayType> *>
-                etas_grad(this->op.n_grains());
-
-              for (unsigned int ig = 0; ig < this->op.n_grains(); ++ig)
+              for (unsigned int ig = 0; ig < etas.size(); ++ig)
                 {
                   etas[ig]      = &val[2 + ig];
                   etas_grad[ig] = &grad[2 + ig];
@@ -1339,6 +1340,11 @@ namespace Sintering
       const auto sqrt_delta = this->get_sqrt_delta();
       const auto dt         = get_dt();
 
+      // TODO: see above
+      std::vector<const VectorizedArrayType *> etas(this->op.n_grains());
+      std::vector<const Tensor<1, dim, VectorizedArrayType> *> etas_grad(
+        this->op.n_grains());
+
       for (unsigned int q = 0; q < phi.n_q_points; ++q)
         {
           const auto &val  = nonlinear_values[cell][q];
@@ -1347,11 +1353,7 @@ namespace Sintering
           const auto &c      = val[0];
           const auto &c_grad = grad[0];
 
-          std::vector<const VectorizedArrayType *> etas(this->op.n_grains());
-          std::vector<const Tensor<1, dim, VectorizedArrayType> *> etas_grad(
-            this->op.n_grains());
-
-          for (unsigned int ig = 0; ig < this->op.n_grains(); ++ig)
+          for (unsigned int ig = 0; ig < etas.size(); ++ig)
             {
               etas[ig]      = &val[2 + ig];
               etas_grad[ig] = &grad[2 + ig];
