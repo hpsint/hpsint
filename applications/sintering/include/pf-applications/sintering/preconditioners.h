@@ -13,7 +13,6 @@ namespace Sintering
             typename VectorizedArrayType>
   class OperatorCahnHilliard
     : public OperatorBase<dim,
-                          n_components,
                           Number,
                           VectorizedArrayType,
                           OperatorCahnHilliard<dim,
@@ -29,7 +28,6 @@ namespace Sintering
       const SinteringOperator<dim, n_components_, Number, VectorizedArrayType>
         &op)
       : OperatorBase<dim,
-                     n_components,
                      Number,
                      VectorizedArrayType,
                      OperatorCahnHilliard<dim,
@@ -133,7 +131,6 @@ namespace Sintering
             typename VectorizedArrayType>
   class OperatorCahnHilliardA
     : public OperatorBase<dim,
-                          n_components,
                           Number,
                           VectorizedArrayType,
                           OperatorCahnHilliardA<dim,
@@ -149,7 +146,6 @@ namespace Sintering
       const SinteringOperator<dim, n_components_, Number, VectorizedArrayType>
         &op)
       : OperatorBase<dim,
-                     n_components,
                      Number,
                      VectorizedArrayType,
                      OperatorCahnHilliardA<dim,
@@ -228,7 +224,6 @@ namespace Sintering
             typename VectorizedArrayType>
   class OperatorCahnHilliardB
     : public OperatorBase<dim,
-                          n_components,
                           Number,
                           VectorizedArrayType,
                           OperatorCahnHilliardB<dim,
@@ -244,7 +239,6 @@ namespace Sintering
       const SinteringOperator<dim, n_components_, Number, VectorizedArrayType>
         &op)
       : OperatorBase<dim,
-                     n_components,
                      Number,
                      VectorizedArrayType,
                      OperatorCahnHilliardB<dim,
@@ -319,7 +313,6 @@ namespace Sintering
             typename VectorizedArrayType>
   class OperatorCahnHilliardC
     : public OperatorBase<dim,
-                          n_components,
                           Number,
                           VectorizedArrayType,
                           OperatorCahnHilliardC<dim,
@@ -335,7 +328,6 @@ namespace Sintering
       const SinteringOperator<dim, n_components_, Number, VectorizedArrayType>
         &op)
       : OperatorBase<dim,
-                     n_components,
                      Number,
                      VectorizedArrayType,
                      OperatorCahnHilliardC<dim,
@@ -402,7 +394,6 @@ namespace Sintering
             typename VectorizedArrayType>
   class OperatorCahnHilliardD
     : public OperatorBase<dim,
-                          n_components,
                           Number,
                           VectorizedArrayType,
                           OperatorCahnHilliardD<dim,
@@ -418,7 +409,6 @@ namespace Sintering
       const SinteringOperator<dim, n_components_, Number, VectorizedArrayType>
         &op)
       : OperatorBase<dim,
-                     n_components,
                      Number,
                      VectorizedArrayType,
                      OperatorCahnHilliardD<dim,
@@ -468,7 +458,6 @@ namespace Sintering
             typename VectorizedArrayType>
   class OperatorAllenCahn
     : public OperatorBase<dim,
-                          n_components,
                           Number,
                           VectorizedArrayType,
                           OperatorAllenCahn<dim,
@@ -486,7 +475,6 @@ namespace Sintering
       const SinteringOperator<dim, n_components_, Number, VectorizedArrayType>
         &op)
       : OperatorBase<dim,
-                     n_components,
                      Number,
                      VectorizedArrayType,
                      OperatorAllenCahn<dim,
@@ -575,7 +563,6 @@ namespace Sintering
             typename VectorizedArrayType>
   class OperatorAllenCahnHelmholtz
     : public OperatorBase<dim,
-                          1,
                           Number,
                           VectorizedArrayType,
                           OperatorAllenCahnHelmholtz<dim,
@@ -586,7 +573,6 @@ namespace Sintering
   public:
     using VectorType = typename OperatorBase<
       dim,
-      1,
       Number,
       VectorizedArrayType,
       OperatorAllenCahnHelmholtz<dim,
@@ -600,7 +586,6 @@ namespace Sintering
       const SinteringOperator<dim, n_components_, Number, VectorizedArrayType>
         &op)
       : OperatorBase<dim,
-                     1,
                      Number,
                      VectorizedArrayType,
                      OperatorAllenCahnHelmholtz<dim,
@@ -1255,7 +1240,6 @@ namespace Sintering
   class MassMatrix
     : public OperatorBase<
         dim,
-        n_components,
         Number,
         VectorizedArrayType,
         MassMatrix<dim, n_components, Number, VectorizedArrayType>>
@@ -1266,7 +1250,6 @@ namespace Sintering
       const std::vector<const AffineConstraints<Number> *> &constraints)
       : OperatorBase<
           dim,
-          n_components,
           Number,
           VectorizedArrayType,
           MassMatrix<dim, n_components, Number, VectorizedArrayType>>(
@@ -1304,7 +1287,6 @@ namespace Sintering
             typename VectorizedArrayType>
   class OperatorCahnHilliardHelmholtz
     : public OperatorBase<dim,
-                          1,
                           Number,
                           VectorizedArrayType,
                           OperatorCahnHilliardHelmholtz<dim,
@@ -1315,7 +1297,6 @@ namespace Sintering
   public:
     using VectorType = typename OperatorBase<
       dim,
-      1,
       Number,
       VectorizedArrayType,
       OperatorCahnHilliardHelmholtz<dim,
@@ -1329,7 +1310,6 @@ namespace Sintering
       const SinteringOperator<dim, n_components_, Number, VectorizedArrayType>
         &op)
       : OperatorBase<dim,
-                     1,
                      Number,
                      VectorizedArrayType,
                      OperatorCahnHilliardHelmholtz<dim,

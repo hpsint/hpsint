@@ -25,14 +25,19 @@ namespace Sintering
       , Mgb(Mgb)
     {}
 
-    template <std::size_t n>
+    template <typename VectorTypeValue, typename VectorTypeGradient>
     DEAL_II_ALWAYS_INLINE VectorizedArrayType
-    M(const VectorizedArrayType &                       c,
-      const std::array<const VectorizedArrayType *, n> &etas,
-      const Tensor<1, dim, VectorizedArrayType> &       c_grad,
-      const std::array<const Tensor<1, dim, VectorizedArrayType> *, n>
-        &etas_grad) const
+    M(const VectorizedArrayType &                c,
+      const VectorTypeValue &                    etas,
+      const Tensor<1, dim, VectorizedArrayType> &c_grad,
+      const VectorTypeGradient &                 etas_grad) const
     {
+      static_assert(std::is_same<typename VectorTypeValue::value_type,
+                                 const VectorizedArrayType *>::value);
+      static_assert(
+        std::is_same<typename VectorTypeGradient::value_type,
+                     const Tensor<1, dim, VectorizedArrayType> *>::value);
+
       (void)c_grad;
       (void)etas_grad;
 
@@ -65,14 +70,19 @@ namespace Sintering
       return M;
     }
 
-    template <std::size_t n>
+    template <typename VectorTypeValue, typename VectorTypeGradient>
     DEAL_II_ALWAYS_INLINE VectorizedArrayType
-    dM_dc(const VectorizedArrayType &                       c,
-          const std::array<const VectorizedArrayType *, n> &etas,
-          const Tensor<1, dim, VectorizedArrayType> &       c_grad,
-          const std::array<const Tensor<1, dim, VectorizedArrayType> *, n>
-            &etas_grad) const
+    dM_dc(const VectorizedArrayType &                c,
+          const VectorTypeValue &                    etas,
+          const Tensor<1, dim, VectorizedArrayType> &c_grad,
+          const VectorTypeGradient &                 etas_grad) const
     {
+      static_assert(std::is_same<typename VectorTypeValue::value_type,
+                                 const VectorizedArrayType *>::value);
+      static_assert(
+        std::is_same<typename VectorTypeGradient::value_type,
+                     const Tensor<1, dim, VectorizedArrayType> *>::value);
+
       (void)etas;
       (void)c_grad;
       (void)etas_grad;
@@ -101,15 +111,20 @@ namespace Sintering
       return Tensor<2, dim, VectorizedArrayType>();
     }
 
-    template <std::size_t n>
+    template <typename VectorTypeValue, typename VectorTypeGradient>
     DEAL_II_ALWAYS_INLINE VectorizedArrayType
-    dM_detai(const VectorizedArrayType &                       c,
-             const std::array<const VectorizedArrayType *, n> &etas,
-             const Tensor<1, dim, VectorizedArrayType> &       c_grad,
-             const std::array<const Tensor<1, dim, VectorizedArrayType> *, n>
-               &          etas_grad,
-             unsigned int index_i) const
+    dM_detai(const VectorizedArrayType &                c,
+             const VectorTypeValue &                    etas,
+             const Tensor<1, dim, VectorizedArrayType> &c_grad,
+             const VectorTypeGradient &                 etas_grad,
+             unsigned int                               index_i) const
     {
+      static_assert(std::is_same<typename VectorTypeValue::value_type,
+                                 const VectorizedArrayType *>::value);
+      static_assert(
+        std::is_same<typename VectorTypeGradient::value_type,
+                     const Tensor<1, dim, VectorizedArrayType> *>::value);
+
       (void)c;
       (void)c_grad;
       (void)etas_grad;
@@ -151,14 +166,19 @@ namespace Sintering
       , Mgb(Mgb)
     {}
 
-    template <std::size_t n>
+    template <typename VectorTypeValue, typename VectorTypeGradient>
     DEAL_II_ALWAYS_INLINE Tensor<2, dim, VectorizedArrayType>
-                          M(const VectorizedArrayType &                       c,
-                            const std::array<const VectorizedArrayType *, n> &etas,
-                            const Tensor<1, dim, VectorizedArrayType> &       c_grad,
-                            const std::array<const Tensor<1, dim, VectorizedArrayType> *, n>
-                              &etas_grad) const
+                          M(const VectorizedArrayType &                c,
+                            const VectorTypeValue &                    etas,
+                            const Tensor<1, dim, VectorizedArrayType> &c_grad,
+                            const VectorTypeGradient &                 etas_grad) const
     {
+      static_assert(std::is_same<typename VectorTypeValue::value_type,
+                                 const VectorizedArrayType *>::value);
+      static_assert(
+        std::is_same<typename VectorTypeGradient::value_type,
+                     const Tensor<1, dim, VectorizedArrayType> *>::value);
+
       VectorizedArrayType cl = c;
       std::for_each(cl.begin(), cl.end(), [](auto &val) {
         val = val > 1.0 ? 1.0 : (val < 0.0 ? 0.0 : val);
@@ -199,14 +219,19 @@ namespace Sintering
       return M;
     }
 
-    template <std::size_t n>
+    template <typename VectorTypeValue, typename VectorTypeGradient>
     DEAL_II_ALWAYS_INLINE Tensor<2, dim, VectorizedArrayType>
-                          dM_dc(const VectorizedArrayType &                       c,
-                                const std::array<const VectorizedArrayType *, n> &etas,
-                                const Tensor<1, dim, VectorizedArrayType> &       c_grad,
-                                const std::array<const Tensor<1, dim, VectorizedArrayType> *, n>
-                                  &etas_grad) const
+                          dM_dc(const VectorizedArrayType &                c,
+                                const VectorTypeValue &                    etas,
+                                const Tensor<1, dim, VectorizedArrayType> &c_grad,
+                                const VectorTypeGradient &                 etas_grad) const
     {
+      static_assert(std::is_same<typename VectorTypeValue::value_type,
+                                 const VectorizedArrayType *>::value);
+      static_assert(
+        std::is_same<typename VectorTypeGradient::value_type,
+                     const Tensor<1, dim, VectorizedArrayType> *>::value);
+
       (void)etas;
       (void)etas_grad;
 
@@ -272,15 +297,20 @@ namespace Sintering
       return T * M;
     }
 
-    template <std::size_t n>
+    template <typename VectorTypeValue, typename VectorTypeGradient>
     DEAL_II_ALWAYS_INLINE Tensor<2, dim, VectorizedArrayType>
-                          dM_detai(const VectorizedArrayType &                       c,
-                                   const std::array<const VectorizedArrayType *, n> &etas,
-                                   const Tensor<1, dim, VectorizedArrayType> &       c_grad,
-                                   const std::array<const Tensor<1, dim, VectorizedArrayType> *, n>
-                                     &          etas_grad,
-                                   unsigned int index_i) const
+                          dM_detai(const VectorizedArrayType &                c,
+                                   const VectorTypeValue &                    etas,
+                                   const Tensor<1, dim, VectorizedArrayType> &c_grad,
+                                   const VectorTypeGradient &                 etas_grad,
+                                   unsigned int                               index_i) const
     {
+      static_assert(std::is_same<typename VectorTypeValue::value_type,
+                                 const VectorizedArrayType *>::value);
+      static_assert(
+        std::is_same<typename VectorTypeGradient::value_type,
+                     const Tensor<1, dim, VectorizedArrayType> *>::value);
+
       (void)c;
       (void)c_grad;
 
@@ -395,6 +425,24 @@ namespace Sintering
     }
   };
 
+  template <class T>
+  class SizeHelper;
+
+  template <class T, std::size_t n>
+  class SizeHelper<std::array<T, n>>
+  {
+  public:
+    static const std::size_t size = n;
+  };
+
+  template <class T>
+  class SizeHelper<std::vector<T>>
+  {
+  public:
+    static const std::size_t size = 0;
+  };
+
+
   template <typename VectorizedArrayType>
   class FreeEnergy
   {
@@ -408,11 +456,15 @@ namespace Sintering
       , B(B)
     {}
 
-    template <std::size_t n>
+    template <typename VectorType>
     DEAL_II_ALWAYS_INLINE VectorizedArrayType
-    f(const VectorizedArrayType &                       c,
-      const std::array<const VectorizedArrayType *, n> &etas) const
+    f(const VectorizedArrayType &c, const VectorType &etas) const
     {
+      static_assert(std::is_same<typename VectorType::value_type,
+                                 const VectorizedArrayType *>::value);
+
+      const std::size_t n = SizeHelper<VectorType>::size;
+
       const auto etaPower2Sum = PowerHelper<n, 2>::power_sum(etas);
       const auto etaPower3Sum = PowerHelper<n, 3>::power_sum(etas);
 
@@ -422,11 +474,15 @@ namespace Sintering
                   3.0 * (etaPower2Sum * etaPower2Sum));
     }
 
-    template <std::size_t n>
+    template <typename VectorType>
     DEAL_II_ALWAYS_INLINE VectorizedArrayType
-    df_dc(const VectorizedArrayType &                       c,
-          const std::array<const VectorizedArrayType *, n> &etas) const
+    df_dc(const VectorizedArrayType &c, const VectorType &etas) const
     {
+      static_assert(std::is_same<typename VectorType::value_type,
+                                 const VectorizedArrayType *>::value);
+
+      const std::size_t n = SizeHelper<VectorType>::size;
+
       const auto etaPower2Sum = PowerHelper<n, 2>::power_sum(etas);
       const auto etaPower3Sum = PowerHelper<n, 3>::power_sum(etas);
 
@@ -435,12 +491,17 @@ namespace Sintering
              B * (2.0 * c - 6.0 * etaPower2Sum + 4.0 * etaPower3Sum);
     }
 
-    template <std::size_t n>
+    template <typename VectorType>
     DEAL_II_ALWAYS_INLINE VectorizedArrayType
-    df_detai(const VectorizedArrayType &                       c,
-             const std::array<const VectorizedArrayType *, n> &etas,
-             unsigned int                                      index_i) const
+    df_detai(const VectorizedArrayType &c,
+             const VectorType &         etas,
+             unsigned int               index_i) const
     {
+      static_assert(std::is_same<typename VectorType::value_type,
+                                 const VectorizedArrayType *>::value);
+
+      const std::size_t n = SizeHelper<VectorType>::size;
+
       const auto etaPower2Sum = PowerHelper<n, 2>::power_sum(etas);
 
       const auto &etai = *etas[index_i];
@@ -449,23 +510,28 @@ namespace Sintering
                   2.0 * etai * (-6.0 * c + 6.0) + 12.0 * etai * (etaPower2Sum));
     }
 
-    template <std::size_t n>
+    template <typename VectorType>
     DEAL_II_ALWAYS_INLINE VectorizedArrayType
-    d2f_dc2(const VectorizedArrayType &                       c,
-            const std::array<const VectorizedArrayType *, n> &etas) const
+    d2f_dc2(const VectorizedArrayType &c, const VectorType &etas) const
     {
+      static_assert(std::is_same<typename VectorType::value_type,
+                                 const VectorizedArrayType *>::value);
+
       (void)etas;
 
       return 2.0 * A * (c * c) + 4.0 * A * c * (2.0 * c - 2.0) +
              2.0 * A * ((-c + 1.0) * (-c + 1.0)) + 2.0 * B;
     }
 
-    template <std::size_t n>
+    template <typename VectorType>
     DEAL_II_ALWAYS_INLINE VectorizedArrayType
-    d2f_dcdetai(const VectorizedArrayType &                       c,
-                const std::array<const VectorizedArrayType *, n> &etas,
-                unsigned int                                      index_i) const
+    d2f_dcdetai(const VectorizedArrayType &c,
+                const VectorType &         etas,
+                unsigned int               index_i) const
     {
+      static_assert(std::is_same<typename VectorType::value_type,
+                                 const VectorizedArrayType *>::value);
+
       (void)c;
 
       const auto &etai = *etas[index_i];
@@ -473,12 +539,17 @@ namespace Sintering
       return B * (12.0 * (etai * etai) - 12.0 * etai);
     }
 
-    template <std::size_t n>
+    template <typename VectorType>
     DEAL_II_ALWAYS_INLINE VectorizedArrayType
-    d2f_detai2(const VectorizedArrayType &                       c,
-               const std::array<const VectorizedArrayType *, n> &etas,
-               unsigned int                                      index_i) const
+    d2f_detai2(const VectorizedArrayType &c,
+               const VectorType &         etas,
+               unsigned int               index_i) const
     {
+      static_assert(std::is_same<typename VectorType::value_type,
+                                 const VectorizedArrayType *>::value);
+
+      const std::size_t n = SizeHelper<VectorType>::size;
+
       const auto etaPower2Sum = PowerHelper<n, 2>::power_sum(etas);
 
       const auto &etai = *etas[index_i];
@@ -487,13 +558,16 @@ namespace Sintering
                   24.0 * (etai * etai) + 12.0 * etaPower2Sum);
     }
 
-    template <std::size_t n>
+    template <typename VectorType>
     DEAL_II_ALWAYS_INLINE VectorizedArrayType
-    d2f_detaidetaj(const VectorizedArrayType &                       c,
-                   const std::array<const VectorizedArrayType *, n> &etas,
-                   unsigned int                                      index_i,
-                   unsigned int index_j) const
+    d2f_detaidetaj(const VectorizedArrayType &c,
+                   const VectorType &         etas,
+                   unsigned int               index_i,
+                   unsigned int               index_j) const
     {
+      static_assert(std::is_same<typename VectorType::value_type,
+                                 const VectorizedArrayType *>::value);
+
       (void)c;
 
       const auto &etai = *etas[index_i];
@@ -505,11 +579,7 @@ namespace Sintering
 
 
 
-  template <int dim,
-            int n_components,
-            typename Number,
-            typename VectorizedArrayType,
-            typename T>
+  template <int dim, typename Number, typename VectorizedArrayType, typename T>
   class OperatorBase : public Subscriptor
   {
   public:
@@ -528,6 +598,8 @@ namespace Sintering
       : matrix_free(matrix_free)
       , constraints(*constraints[dof_index])
       , dof_index(dof_index)
+      , n_components(
+          matrix_free.get_dof_handler(dof_index).get_fe().n_components())
       , label(label)
       , pcout(std::cout, Utilities::MPI::this_mpi_process(MPI_COMM_WORLD) == 0)
       , timer(pcout, TimerOutput::never, TimerOutput::wall_times)
@@ -582,7 +654,7 @@ namespace Sintering
 
       if (system_matrix_is_empty)
         {
-          switch (n_components)
+          switch (this->n_components)
             {
               // clang-format off
               case 1: this->matrix_free.cell_loop(&OperatorBase::do_vmult_range<1>, this, dst, src, true); break;
@@ -616,7 +688,7 @@ namespace Sintering
 
       matrix_free.initialize_dof_vector(diagonal, dof_index);
 
-      switch (n_components)
+      switch (this->n_components)
         {
           // clang-format off
           case 1: MatrixFreeTools::compute_diagonal(matrix_free, diagonal, &OperatorBase::do_vmult_cell<1>, this, dof_index); break;
@@ -663,7 +735,7 @@ namespace Sintering
         if (system_matrix_is_empty == false)
           system_matrix = 0.0; // clear existing content
 
-        switch (n_components)
+        switch (this->n_components)
           {
             // clang-format off
             case 1: MatrixFreeTools::compute_matrix(matrix_free, constraints, system_matrix, &OperatorBase::do_vmult_cell<1>, this, dof_index); break;
@@ -726,6 +798,7 @@ namespace Sintering
     const AffineConstraints<Number> &                   constraints;
 
     const unsigned int dof_index;
+    const unsigned int n_components;
     const std::string  label;
 
     mutable TrilinosWrappers::SparseMatrix system_matrix;
@@ -979,7 +1052,6 @@ namespace Sintering
   class SinteringOperator
     : public OperatorBase<
         dim,
-        n_components,
         Number,
         VectorizedArrayType,
         SinteringOperator<dim, n_components, Number, VectorizedArrayType>>
@@ -997,7 +1069,6 @@ namespace Sintering
       const bool                                             matrix_based)
       : OperatorBase<
           dim,
-          n_components,
           Number,
           VectorizedArrayType,
           SinteringOperator<dim, n_components, Number, VectorizedArrayType>>(
@@ -1021,7 +1092,7 @@ namespace Sintering
     {
       MyScope scope(this->timer, "sintering_op::nonlinear_residual");
 
-      switch (n_components)
+      switch (this->n_components)
         {
           // clang-format off
           case 4: this->matrix_free.cell_loop(&SinteringOperator::do_evaluate_nonlinear_residual<4>, this, dst, src, true); break;
@@ -1055,12 +1126,14 @@ namespace Sintering
       const unsigned n_quadrature_points =
         this->matrix_free.get_quadrature().size();
 
-      nonlinear_values.reinit({n_cells, n_quadrature_points, n_components});
-      nonlinear_gradients.reinit({n_cells, n_quadrature_points, n_components});
+      nonlinear_values.reinit(
+        {n_cells, n_quadrature_points, this->n_components});
+      nonlinear_gradients.reinit(
+        {n_cells, n_quadrature_points, this->n_components});
 
       int dummy = 0;
 
-      switch (n_components)
+      switch (this->n_components)
         {
           // clang-format off
           case 4: this->matrix_free.cell_loop(&SinteringOperator::do_evaluate_newton_step<4>, this, dummy, newton_step); break;
@@ -1261,7 +1334,7 @@ namespace Sintering
     void
     add_data_vectors(DataOut<dim> &data_out, const VectorType &vec) const
     {
-      switch (n_components)
+      switch (this->n_components)
         {
           // clang-format off
           case 4: do_add_data_vectors<4>(data_out, vec); break;
