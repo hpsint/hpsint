@@ -33,7 +33,7 @@ namespace Sintering
 
   protected:
     void
-    do_vmult_kernel(FECellIntegrator &phi) const
+    do_vmult_kernel(FECellIntegrator &phi) const final
     {
       const unsigned int cell = phi.get_current_cell_index();
 
@@ -127,7 +127,7 @@ namespace Sintering
 
   protected:
     void
-    do_vmult_kernel(FECellIntegrator &phi) const
+    do_vmult_kernel(FECellIntegrator &phi) const final
     {
       const unsigned int cell = phi.get_current_cell_index();
 
@@ -200,7 +200,7 @@ namespace Sintering
 
   protected:
     void
-    do_vmult_kernel(FECellIntegrator &phi) const
+    do_vmult_kernel(FECellIntegrator &phi) const final
     {
       const unsigned int cell = phi.get_current_cell_index();
 
@@ -268,7 +268,7 @@ namespace Sintering
 
   protected:
     void
-    do_vmult_kernel(FECellIntegrator &phi) const
+    do_vmult_kernel(FECellIntegrator &phi) const final
     {
       const unsigned int cell = phi.get_current_cell_index();
 
@@ -329,7 +329,7 @@ namespace Sintering
 
   protected:
     void
-    do_vmult_kernel(FECellIntegrator &phi) const
+    do_vmult_kernel(FECellIntegrator &phi) const final
     {
       for (unsigned int q = 0; q < phi.n_q_points; ++q)
         {

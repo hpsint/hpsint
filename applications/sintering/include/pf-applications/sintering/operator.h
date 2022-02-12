@@ -519,9 +519,6 @@ namespace Sintering
 
     static const int dimension = dim;
 
-    using FECellIntegrator =
-      FEEvaluation<dim, -1, 0, n_components, Number, VectorizedArrayType>;
-
     OperatorBase(
       const MatrixFree<dim, Number, VectorizedArrayType> &  matrix_free,
       const std::vector<const AffineConstraints<Number> *> &constraints,
@@ -584,8 +581,18 @@ namespace Sintering
 
       if (system_matrix_is_empty)
         {
-          matrix_free.cell_loop(
-            &OperatorBase::do_vmult_range, this, dst, src, true);
+          switch (n_components)
+            {
+              // clang-format off
+              case 1: this->matrix_free.cell_loop(&OperatorBase::do_vmult_range<1>, this, dst, src, true); break;
+              case 2: this->matrix_free.cell_loop(&OperatorBase::do_vmult_range<2>, this, dst, src, true); break;
+              case 3: this->matrix_free.cell_loop(&OperatorBase::do_vmult_range<3>, this, dst, src, true); break;
+              case 4: this->matrix_free.cell_loop(&OperatorBase::do_vmult_range<4>, this, dst, src, true); break;
+              case 5: this->matrix_free.cell_loop(&OperatorBase::do_vmult_range<5>, this, dst, src, true); break;
+              // clang-format on
+              default:
+                Assert(false, ExcNotImplemented());
+            }
         }
       else
         {
@@ -607,8 +614,20 @@ namespace Sintering
       MyScope scope(this->timer, label + "::diagonal");
 
       matrix_free.initialize_dof_vector(diagonal, dof_index);
-      MatrixFreeTools::compute_diagonal(
-        matrix_free, diagonal, &OperatorBase::do_vmult_cell, this, dof_index);
+
+      switch (n_components)
+        {
+          // clang-format off
+          case 1: MatrixFreeTools::compute_diagonal(matrix_free, diagonal, &OperatorBase::do_vmult_cell<1>, this, dof_index); break;
+          case 2: MatrixFreeTools::compute_diagonal(matrix_free, diagonal, &OperatorBase::do_vmult_cell<2>, this, dof_index); break;
+          case 3: MatrixFreeTools::compute_diagonal(matrix_free, diagonal, &OperatorBase::do_vmult_cell<3>, this, dof_index); break;
+          case 4: MatrixFreeTools::compute_diagonal(matrix_free, diagonal, &OperatorBase::do_vmult_cell<4>, this, dof_index); break;
+          case 5: MatrixFreeTools::compute_diagonal(matrix_free, diagonal, &OperatorBase::do_vmult_cell<5>, this, dof_index); break;
+          // clang-format on
+          default:
+            Assert(false, ExcNotImplemented());
+        }
+
       for (auto &i : diagonal)
         i = (std::abs(i) > 1.0e-10) ? (1.0 / i) : 1.0;
     }
@@ -643,12 +662,18 @@ namespace Sintering
         if (system_matrix_is_empty == false)
           system_matrix = 0.0; // clear existing content
 
-        MatrixFreeTools::compute_matrix(matrix_free,
-                                        constraints,
-                                        system_matrix,
-                                        &OperatorBase::do_vmult_cell,
-                                        this,
-                                        dof_index);
+        switch (n_components)
+          {
+            // clang-format off
+            case 1: MatrixFreeTools::compute_matrix(matrix_free, constraints, system_matrix, &OperatorBase::do_vmult_cell<1>, this, dof_index); break;
+            case 2: MatrixFreeTools::compute_matrix(matrix_free, constraints, system_matrix, &OperatorBase::do_vmult_cell<2>, this, dof_index); break;
+            case 3: MatrixFreeTools::compute_matrix(matrix_free, constraints, system_matrix, &OperatorBase::do_vmult_cell<3>, this, dof_index); break;
+            case 4: MatrixFreeTools::compute_matrix(matrix_free, constraints, system_matrix, &OperatorBase::do_vmult_cell<4>, this, dof_index); break;
+            case 5: MatrixFreeTools::compute_matrix(matrix_free, constraints, system_matrix, &OperatorBase::do_vmult_cell<5>, this, dof_index); break;
+            // clang-format on
+            default:
+              Assert(false, ExcNotImplemented());
+          }
       }
 
       return system_matrix;
@@ -656,20 +681,26 @@ namespace Sintering
 
   protected:
     virtual void
-    do_vmult_kernel(FECellIntegrator &phi) const = 0;
+    do_vmult_kernel(
+      FEEvaluation<dim, -1, 0, n_components, Number, VectorizedArrayType> &phi)
+      const = 0;
 
+    template <int n_comp>
     void
-    do_vmult_cell(FECellIntegrator &phi) const
+    do_vmult_cell(
+      FEEvaluation<dim, -1, 0, n_comp, Number, VectorizedArrayType> &phi) const
     {
       phi.evaluate(EvaluationFlags::EvaluationFlags::values |
                    EvaluationFlags::EvaluationFlags::gradients);
 
-      do_vmult_kernel(phi);
+      if constexpr (n_comp == n_components)
+        do_vmult_kernel(phi);
 
       phi.integrate(EvaluationFlags::EvaluationFlags::values |
                     EvaluationFlags::EvaluationFlags::gradients);
     }
 
+    template <int n_comp>
     void
     do_vmult_range(
       const MatrixFree<dim, Number, VectorizedArrayType> &matrix_free,
@@ -677,7 +708,8 @@ namespace Sintering
       const VectorType &                                  src,
       const std::pair<unsigned int, unsigned int> &       range) const
     {
-      FECellIntegrator phi(matrix_free, dof_index);
+      FEEvaluation<dim, -1, 0, n_comp, Number, VectorizedArrayType> phi(
+        matrix_free, dof_index);
 
       for (auto cell = range.first; cell < range.second; ++cell)
         {
@@ -686,7 +718,8 @@ namespace Sintering
                               EvaluationFlags::EvaluationFlags::values |
                                 EvaluationFlags::EvaluationFlags::gradients);
 
-          do_vmult_kernel(phi);
+          if constexpr (n_comp == n_components)
+            do_vmult_kernel(phi);
 
           phi.integrate_scatter(EvaluationFlags::EvaluationFlags::values |
                                   EvaluationFlags::EvaluationFlags::gradients,
@@ -1230,7 +1263,7 @@ namespace Sintering
 
   private:
     void
-    do_vmult_kernel(FECellIntegrator &phi) const
+    do_vmult_kernel(FECellIntegrator &phi) const final
     {
       const unsigned int cell = phi.get_current_cell_index();
 
