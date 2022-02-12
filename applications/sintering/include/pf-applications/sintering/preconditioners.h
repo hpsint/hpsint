@@ -628,9 +628,9 @@ namespace Sintering
 
       DEAL_II_OPENMP_SIMD_PRAGMA
       for (unsigned int i = 0; i < diag.locally_owned_size(); ++i)
-        for (unsigned int c = 0; c < op.n_components; ++c)
-          dst_ptr[i * op.n_components + c] =
-            diag_ptr[i] * src_ptr[i * op.n_components + c];
+        for (unsigned int c = 0; c < op.n_components(); ++c)
+          dst_ptr[i * op.n_components() + c] =
+            diag_ptr[i] * src_ptr[i * op.n_components() + c];
     }
 
     void
@@ -751,7 +751,10 @@ namespace Sintering
 
       {
         MyScope scope(timer, "precon::vmult::split_up");
-        VectorTools::split_up_fast(src, src_0, src_1, operator_1.n_components);
+        VectorTools::split_up_fast(src,
+                                   src_0,
+                                   src_1,
+                                   operator_1.n_components());
 
 #ifdef DEBUG
         VectorType temp_0, temp_1;
@@ -796,7 +799,7 @@ namespace Sintering
 
       {
         MyScope scope(timer, "precon::vmult::merge");
-        VectorTools::merge_fast(dst_0, dst_1, dst, operator_1.n_components);
+        VectorTools::merge_fast(dst_0, dst_1, dst, operator_1.n_components());
 
 #ifdef DEBUG
         VectorType temp;
@@ -927,7 +930,7 @@ namespace Sintering
       {
         MyScope scope(timer, "vmult::split_up");
         VectorTools::split_up_fast(
-          src, src_0, src_1, src_2, operator_2.n_components);
+          src, src_0, src_1, src_2, operator_2.n_components());
 
 #ifdef DEBUG
         VectorType temp_0, temp_1, temp_2;
@@ -1074,7 +1077,7 @@ namespace Sintering
       {
         MyScope scope(timer, "vmult::merge");
         VectorTools::merge_fast(
-          dst_0, dst_1, dst_2, dst, operator_2.n_components);
+          dst_0, dst_1, dst_2, dst, operator_2.n_components());
 
 #ifdef DEBUG
         VectorType temp;
@@ -1552,7 +1555,7 @@ namespace Sintering
       {
         MyScope scope(timer, "vmult::split_up");
         VectorTools::split_up_fast(
-          src, src_0, src_1, src_2, operator_2.n_components);
+          src, src_0, src_1, src_2, operator_2.n_components());
 
 #ifdef DEBUG
         VectorType temp_0, temp_1, temp_2;
@@ -1637,7 +1640,7 @@ namespace Sintering
       {
         MyScope scope(timer, "vmult::merge");
         VectorTools::merge_fast(
-          dst_0, dst_1, dst_2, dst, operator_2.n_components);
+          dst_0, dst_1, dst_2, dst, operator_2.n_components());
 
 #ifdef DEBUG
         VectorType temp;

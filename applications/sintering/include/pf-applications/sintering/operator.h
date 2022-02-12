@@ -5,8 +5,8 @@
 // clang-format off
 #define EXPAND_OPERATIONS(OPERATION)                              \
   constexpr int max_components = SINTERING_GRAINS + 2;            \
-  AssertIndexRange(this->n_components, max_components + 1);       \
-  switch (this->n_components)                                     \
+  AssertIndexRange(this->n_components(), max_components + 1);     \
+  switch (this->n_components())                                   \
     {                                                             \
       case  1: OPERATION(std::min(max_components,  1), 0); break; \
       case  2: OPERATION(std::min(max_components,  2), 0); break; \
@@ -619,7 +619,7 @@ namespace Sintering
       : matrix_free(matrix_free)
       , constraints(*constraints[dof_index])
       , dof_index(dof_index)
-      , n_components(
+      , components_number(
           matrix_free.get_dof_handler(dof_index).get_fe().n_components())
       , label(label)
       , pcout(std::cout, Utilities::MPI::this_mpi_process(MPI_COMM_WORLD) == 0)
@@ -637,6 +637,12 @@ namespace Sintering
     clear()
     {
       this->system_matrix.clear();
+    }
+
+    unsigned int
+    n_components() const
+    {
+      return components_number;
     }
 
     const DoFHandler<dim> &
@@ -675,11 +681,11 @@ namespace Sintering
 
       if (system_matrix_is_empty)
         {
-// clang-format off
-          #define OPERATION(c, d) this->matrix_free.cell_loop(&OperatorBase::do_vmult_range<c>, this, dst, src, true);
+#define OPERATION(c, d)        \
+  this->matrix_free.cell_loop( \
+    &OperatorBase::do_vmult_range<c>, this, dst, src, true);
           EXPAND_OPERATIONS(OPERATION);
-          #undef OPERATION
-          // clang-format on
+#undef OPERATION
         }
       else
         {
@@ -702,11 +708,11 @@ namespace Sintering
 
       matrix_free.initialize_dof_vector(diagonal, dof_index);
 
-// clang-format off
-      #define OPERATION(c, d) MatrixFreeTools::compute_diagonal(matrix_free, diagonal, &OperatorBase::do_vmult_cell<c>, this, dof_index);
+#define OPERATION(c, d)              \
+  MatrixFreeTools::compute_diagonal( \
+    matrix_free, diagonal, &OperatorBase::do_vmult_cell<c>, this, dof_index);
       EXPAND_OPERATIONS(OPERATION);
-      #undef OPERATION
-      // clang-format on
+#undef OPERATION
 
       for (auto &i : diagonal)
         i = (std::abs(i) > 1.0e-10) ? (1.0 / i) : 1.0;
@@ -740,13 +746,19 @@ namespace Sintering
         MyScope scope(this->timer, label + "::matrix::compute");
 
         if (system_matrix_is_empty == false)
-          system_matrix = 0.0; // clear existing content
+          {
+            system_matrix = 0.0; // clear existing content
+          }
 
-// clang-format off
-        #define OPERATION(c, d) MatrixFreeTools::compute_matrix(matrix_free, constraints, system_matrix, &OperatorBase::do_vmult_cell<c>, this, dof_index);
+#define OPERATION(c, d)                                            \
+  MatrixFreeTools::compute_matrix(matrix_free,                     \
+                                  constraints,                     \
+                                  system_matrix,                   \
+                                  &OperatorBase::do_vmult_cell<c>, \
+                                  this,                            \
+                                  dof_index);
         EXPAND_OPERATIONS(OPERATION);
-        #undef OPERATION
-        // clang-format on
+#undef OPERATION
       }
 
       return system_matrix;
@@ -798,11 +810,8 @@ namespace Sintering
     const AffineConstraints<Number> &                   constraints;
 
     const unsigned int dof_index;
+    const unsigned int components_number;
 
-  public:
-    const unsigned int n_components;
-
-  protected:
     const std::string label;
 
     mutable TrilinosWrappers::SparseMatrix system_matrix;
@@ -1091,11 +1100,15 @@ namespace Sintering
     {
       MyScope scope(this->timer, "sintering_op::nonlinear_residual");
 
-// clang-format off
-      #define OPERATION(c, d) this->matrix_free.cell_loop(&SinteringOperator::do_evaluate_nonlinear_residual<c>, this, dst, src, true);
+#define OPERATION(c, d)                                    \
+  this->matrix_free.cell_loop(                             \
+    &SinteringOperator::do_evaluate_nonlinear_residual<c>, \
+    this,                                                  \
+    dst,                                                   \
+    src,                                                   \
+    true);
       EXPAND_OPERATIONS(OPERATION);
-      #undef OPERATION
-      // clang-format on
+#undef OPERATION
     }
 
     void
@@ -1122,17 +1135,19 @@ namespace Sintering
         this->matrix_free.get_quadrature().size();
 
       nonlinear_values.reinit(
-        {n_cells, n_quadrature_points, this->n_components});
+        {n_cells, n_quadrature_points, this->n_components()});
       nonlinear_gradients.reinit(
-        {n_cells, n_quadrature_points, this->n_components});
+        {n_cells, n_quadrature_points, this->n_components()});
 
       int dummy = 0;
 
-// clang-format off
-      #define OPERATION(c, d) this->matrix_free.cell_loop(&SinteringOperator::do_evaluate_newton_step<c>, this, dummy, newton_step);
+#define OPERATION(c, d)                                                       \
+  this->matrix_free.cell_loop(&SinteringOperator::do_evaluate_newton_step<c>, \
+                              this,                                           \
+                              dummy,                                          \
+                              newton_step);
       EXPAND_OPERATIONS(OPERATION);
-      #undef OPERATION
-      // clang-format on
+#undef OPERATION
 
 #ifdef WITH_TRACKER
       tracker.finalize();
@@ -1325,17 +1340,15 @@ namespace Sintering
     void
     add_data_vectors(DataOut<dim> &data_out, const VectorType &vec) const
     {
-// clang-format off
-      #define OPERATION(c, d) this->do_add_data_vectors<c>(data_out, vec);
+#define OPERATION(c, d) this->do_add_data_vectors<c>(data_out, vec);
       EXPAND_OPERATIONS(OPERATION);
-      #undef OPERATION
-      // clang-format on
+#undef OPERATION
     }
 
     unsigned int
     n_grains() const
     {
-      return this->n_components - 2;
+      return this->n_components() - 2;
     }
 
     template <int n_comp>
@@ -1603,31 +1616,43 @@ namespace Sintering
                       etas_grad[ig] = &grad[2 + ig];
                     }
 
-                  // clang-format off
-              tracker.emplace_back(0, dt_inv);
-              tracker.emplace_back(1, free_energy.d2f_dc2(c, etas));
-              for(unsigned int ig = 0; ig < n_grains; ++ig) {
-                tracker.emplace_back(2, free_energy.d2f_dcdetai(c, etas, ig));
-              }
-              for(unsigned int ig = 0; ig < n_grains; ++ig) {
-                tracker.emplace_back(2, free_energy.d2f_detai2(c, etas, ig));
-              }
-              for(unsigned int ig = 0; ig < n_grains; ++ig) {
-                for(unsigned int jg = ig + 1; jg < n_grains; ++jg) {
-                  tracker.emplace_back(2, free_energy.d2f_detaidetaj(c, etas, ig, jg));
-                }
-              }
-              tracker.emplace_back(0, mobility.M(c, etas, c_grad, etas_grad));
-              tracker.emplace_back(1, mobility.dM_dc(c, etas, c_grad, etas_grad) * mu_grad);
-              tracker.emplace_back(1, mobility.dM_dgrad_c(c, c_grad, mu_grad));
+                  tracker.emplace_back(0, dt_inv);
+                  tracker.emplace_back(1, free_energy.d2f_dc2(c, etas));
+                  for (unsigned int ig = 0; ig < n_grains; ++ig)
+                    {
+                      tracker.emplace_back(
+                        2, free_energy.d2f_dcdetai(c, etas, ig));
+                    }
+                  for (unsigned int ig = 0; ig < n_grains; ++ig)
+                    {
+                      tracker.emplace_back(2,
+                                           free_energy.d2f_detai2(c, etas, ig));
+                    }
+                  for (unsigned int ig = 0; ig < n_grains; ++ig)
+                    {
+                      for (unsigned int jg = ig + 1; jg < n_grains; ++jg)
+                        {
+                          tracker.emplace_back(
+                            2, free_energy.d2f_detaidetaj(c, etas, ig, jg));
+                        }
+                    }
+                  tracker.emplace_back(0,
+                                       mobility.M(c, etas, c_grad, etas_grad));
+                  tracker.emplace_back(
+                    1, mobility.dM_dc(c, etas, c_grad, etas_grad) * mu_grad);
+                  tracker.emplace_back(1,
+                                       mobility.dM_dgrad_c(c, c_grad, mu_grad));
 
-              for(unsigned int ig = 0; ig < n_grains; ++ig) {
-                tracker.emplace_back(2, mobility.dM_detai(c, etas, c_grad, etas_grad, ig) * mu_grad);
-              }
-              tracker.emplace_back(0, kappa_c);
-              tracker.emplace_back(0, kappa_p);
-              tracker.emplace_back(0, L);
-                  // clang-format on
+                  for (unsigned int ig = 0; ig < n_grains; ++ig)
+                    {
+                      tracker.emplace_back(
+                        2,
+                        mobility.dM_detai(c, etas, c_grad, etas_grad, ig) *
+                          mu_grad);
+                    }
+                  tracker.emplace_back(0, kappa_c);
+                  tracker.emplace_back(0, kappa_p);
+                  tracker.emplace_back(0, L);
 
                   tracker.finalize_point();
 #endif
