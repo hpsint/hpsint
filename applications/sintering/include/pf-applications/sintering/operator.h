@@ -2,6 +2,27 @@
 
 #include <fstream>
 
+// clang-format off
+#define EXPAND_OPERATIONS(OPERATION)                              \
+  constexpr int max_components = SINTERING_GRAINS + 2;            \
+  AssertIndexRange(this->n_components, max_components + 1);       \
+  switch (this->n_components)                                     \
+    {                                                             \
+      case  1: OPERATION(std::min(max_components,  1), 0); break; \
+      case  2: OPERATION(std::min(max_components,  2), 0); break; \
+      case  3: OPERATION(std::min(max_components,  3), 0); break; \
+      case  4: OPERATION(std::min(max_components,  4), 0); break; \
+      case  5: OPERATION(std::min(max_components,  5), 0); break; \
+      case  6: OPERATION(std::min(max_components,  6), 0); break; \
+      case  7: OPERATION(std::min(max_components,  7), 0); break; \
+      case  8: OPERATION(std::min(max_components,  8), 0); break; \
+      case  9: OPERATION(std::min(max_components,  9), 0); break; \
+      case 10: OPERATION(std::min(max_components, 10), 0); break; \
+      default:                                                    \
+        Assert(false, ExcNotImplemented());                       \
+    }
+// clang-format on
+
 namespace Sintering
 {
   using namespace dealii;
@@ -654,18 +675,11 @@ namespace Sintering
 
       if (system_matrix_is_empty)
         {
-          switch (this->n_components)
-            {
-              // clang-format off
-              case 1: this->matrix_free.cell_loop(&OperatorBase::do_vmult_range<1>, this, dst, src, true); break;
-              case 2: this->matrix_free.cell_loop(&OperatorBase::do_vmult_range<2>, this, dst, src, true); break;
-              case 3: this->matrix_free.cell_loop(&OperatorBase::do_vmult_range<3>, this, dst, src, true); break;
-              case 4: this->matrix_free.cell_loop(&OperatorBase::do_vmult_range<4>, this, dst, src, true); break;
-              case 5: this->matrix_free.cell_loop(&OperatorBase::do_vmult_range<5>, this, dst, src, true); break;
-              // clang-format on
-              default:
-                Assert(false, ExcNotImplemented());
-            }
+// clang-format off
+          #define OPERATION(c, d) this->matrix_free.cell_loop(&OperatorBase::do_vmult_range<c>, this, dst, src, true);
+          EXPAND_OPERATIONS(OPERATION);
+          #undef OPERATION
+          // clang-format on
         }
       else
         {
@@ -688,18 +702,11 @@ namespace Sintering
 
       matrix_free.initialize_dof_vector(diagonal, dof_index);
 
-      switch (this->n_components)
-        {
-          // clang-format off
-          case 1: MatrixFreeTools::compute_diagonal(matrix_free, diagonal, &OperatorBase::do_vmult_cell<1>, this, dof_index); break;
-          case 2: MatrixFreeTools::compute_diagonal(matrix_free, diagonal, &OperatorBase::do_vmult_cell<2>, this, dof_index); break;
-          case 3: MatrixFreeTools::compute_diagonal(matrix_free, diagonal, &OperatorBase::do_vmult_cell<3>, this, dof_index); break;
-          case 4: MatrixFreeTools::compute_diagonal(matrix_free, diagonal, &OperatorBase::do_vmult_cell<4>, this, dof_index); break;
-          case 5: MatrixFreeTools::compute_diagonal(matrix_free, diagonal, &OperatorBase::do_vmult_cell<5>, this, dof_index); break;
-          // clang-format on
-          default:
-            Assert(false, ExcNotImplemented());
-        }
+// clang-format off
+      #define OPERATION(c, d) MatrixFreeTools::compute_diagonal(matrix_free, diagonal, &OperatorBase::do_vmult_cell<c>, this, dof_index);
+      EXPAND_OPERATIONS(OPERATION);
+      #undef OPERATION
+      // clang-format on
 
       for (auto &i : diagonal)
         i = (std::abs(i) > 1.0e-10) ? (1.0 / i) : 1.0;
@@ -735,18 +742,11 @@ namespace Sintering
         if (system_matrix_is_empty == false)
           system_matrix = 0.0; // clear existing content
 
-        switch (this->n_components)
-          {
-            // clang-format off
-            case 1: MatrixFreeTools::compute_matrix(matrix_free, constraints, system_matrix, &OperatorBase::do_vmult_cell<1>, this, dof_index); break;
-            case 2: MatrixFreeTools::compute_matrix(matrix_free, constraints, system_matrix, &OperatorBase::do_vmult_cell<2>, this, dof_index); break;
-            case 3: MatrixFreeTools::compute_matrix(matrix_free, constraints, system_matrix, &OperatorBase::do_vmult_cell<3>, this, dof_index); break;
-            case 4: MatrixFreeTools::compute_matrix(matrix_free, constraints, system_matrix, &OperatorBase::do_vmult_cell<4>, this, dof_index); break;
-            case 5: MatrixFreeTools::compute_matrix(matrix_free, constraints, system_matrix, &OperatorBase::do_vmult_cell<5>, this, dof_index); break;
-            // clang-format on
-            default:
-              Assert(false, ExcNotImplemented());
-          }
+// clang-format off
+        #define OPERATION(c, d) MatrixFreeTools::compute_matrix(matrix_free, constraints, system_matrix, &OperatorBase::do_vmult_cell<c>, this, dof_index);
+        EXPAND_OPERATIONS(OPERATION);
+        #undef OPERATION
+        // clang-format on
       }
 
       return system_matrix;
@@ -1091,15 +1091,11 @@ namespace Sintering
     {
       MyScope scope(this->timer, "sintering_op::nonlinear_residual");
 
-      switch (this->n_components)
-        {
-          // clang-format off
-          case 4: this->matrix_free.cell_loop(&SinteringOperator::do_evaluate_nonlinear_residual<4>, this, dst, src, true); break;
-          case 5: this->matrix_free.cell_loop(&SinteringOperator::do_evaluate_nonlinear_residual<5>, this, dst, src, true); break;
-          // clang-format on
-          default:
-            Assert(false, ExcNotImplemented());
-        }
+// clang-format off
+      #define OPERATION(c, d) this->matrix_free.cell_loop(&SinteringOperator::do_evaluate_nonlinear_residual<c>, this, dst, src, true);
+      EXPAND_OPERATIONS(OPERATION);
+      #undef OPERATION
+      // clang-format on
     }
 
     void
@@ -1132,15 +1128,11 @@ namespace Sintering
 
       int dummy = 0;
 
-      switch (this->n_components)
-        {
-          // clang-format off
-          case 4: this->matrix_free.cell_loop(&SinteringOperator::do_evaluate_newton_step<4>, this, dummy, newton_step); break;
-          case 5: this->matrix_free.cell_loop(&SinteringOperator::do_evaluate_newton_step<5>, this, dummy, newton_step); break;
-          // clang-format on
-          default:
-            Assert(false, ExcNotImplemented());
-        }
+// clang-format off
+      #define OPERATION(c, d) this->matrix_free.cell_loop(&SinteringOperator::do_evaluate_newton_step<c>, this, dummy, newton_step);
+      EXPAND_OPERATIONS(OPERATION);
+      #undef OPERATION
+      // clang-format on
 
 #ifdef WITH_TRACKER
       tracker.finalize();
@@ -1333,15 +1325,11 @@ namespace Sintering
     void
     add_data_vectors(DataOut<dim> &data_out, const VectorType &vec) const
     {
-      switch (this->n_components)
-        {
-          // clang-format off
-          case 4: do_add_data_vectors<4>(data_out, vec); break;
-          case 5: do_add_data_vectors<5>(data_out, vec); break;
-          // clang-format on
-          default:
-            Assert(false, ExcNotImplemented());
-        }
+// clang-format off
+      #define OPERATION(c, d) this->do_add_data_vectors<c>(data_out, vec);
+      EXPAND_OPERATIONS(OPERATION);
+      #undef OPERATION
+      // clang-format on
     }
 
     unsigned int
