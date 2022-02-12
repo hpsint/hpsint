@@ -798,8 +798,12 @@ namespace Sintering
     const AffineConstraints<Number> &                   constraints;
 
     const unsigned int dof_index;
+
+  public:
     const unsigned int n_components;
-    const std::string  label;
+
+  protected:
+    const std::string label;
 
     mutable TrilinosWrappers::SparseMatrix system_matrix;
 
