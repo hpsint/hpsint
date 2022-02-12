@@ -49,63 +49,73 @@ namespace Sintering
     do_vmult_kernel(
       FEEvaluation<dim, -1, 0, n_comp, Number, VectorizedArrayType> &phi) const
     {
-      const unsigned int cell = phi.get_current_cell_index();
-
-      const auto &free_energy         = this->op.get_data().free_energy;
-      const auto &mobility            = this->op.get_data().mobility;
-      const auto &kappa_c             = this->op.get_data().kappa_c;
-      const auto &dt                  = this->op.get_dt();
-      const auto &nonlinear_values    = this->op.get_nonlinear_values();
-      const auto &nonlinear_gradients = this->op.get_nonlinear_gradients();
-
-      for (unsigned int q = 0; q < phi.n_q_points; ++q)
+      if constexpr (n_comp != 2)
         {
-          const auto &val  = nonlinear_values[cell][q];
-          const auto &grad = nonlinear_gradients[cell][q];
+          Assert(false, ExcNotImplemented());
+          (void)phi;
+        }
+      else
+        {
+          const unsigned int cell = phi.get_current_cell_index();
 
-          const auto &c       = val[0];
-          const auto &c_grad  = grad[0];
-          const auto &mu_grad = grad[1];
+          const auto &free_energy         = this->op.get_data().free_energy;
+          const auto &mobility            = this->op.get_data().mobility;
+          const auto &kappa_c             = this->op.get_data().kappa_c;
+          const auto &dt                  = this->op.get_dt();
+          const auto &nonlinear_values    = this->op.get_nonlinear_values();
+          const auto &nonlinear_gradients = this->op.get_nonlinear_gradients();
 
-          std::array<const VectorizedArrayType *, this->op.n_grains> etas;
-          std::array<const Tensor<1, dim, VectorizedArrayType> *,
-                     this->op.n_grains>
-            etas_grad;
-
-          for (unsigned int ig = 0; ig < this->op.n_grains; ++ig)
+          for (unsigned int q = 0; q < phi.n_q_points; ++q)
             {
-              etas[ig]      = &val[2 + ig];
-              etas_grad[ig] = &grad[2 + ig];
-            }
+              const auto &val  = nonlinear_values[cell][q];
+              const auto &grad = nonlinear_gradients[cell][q];
 
-          Tensor<1, n_components, VectorizedArrayType> value_result;
-          Tensor<1, n_components, Tensor<1, dim, VectorizedArrayType>>
-            gradient_result;
+              const auto &c       = val[0];
+              const auto &c_grad  = grad[0];
+              const auto &mu_grad = grad[1];
+
+              std::array<const VectorizedArrayType *, this->op.n_grains> etas;
+              std::array<const Tensor<1, dim, VectorizedArrayType> *,
+                         this->op.n_grains>
+                etas_grad;
+
+              for (unsigned int ig = 0; ig < this->op.n_grains; ++ig)
+                {
+                  etas[ig]      = &val[2 + ig];
+                  etas_grad[ig] = &grad[2 + ig];
+                }
+
+              Tensor<1, n_components, VectorizedArrayType> value_result;
+              Tensor<1, n_components, Tensor<1, dim, VectorizedArrayType>>
+                gradient_result;
 
 #if true
-          // CH with all terms
-          value_result[0] = phi.get_value(q)[0] / dt;
-          value_result[1] = -phi.get_value(q)[1] +
-                            free_energy.d2f_dc2(c, etas) * phi.get_value(q)[0];
+              // CH with all terms
+              value_result[0] = phi.get_value(q)[0] / dt;
+              value_result[1] =
+                -phi.get_value(q)[1] +
+                free_energy.d2f_dc2(c, etas) * phi.get_value(q)[0];
 
-          gradient_result[0] =
-            mobility.M(c, etas, c_grad, etas_grad) * phi.get_gradient(q)[1] +
-            mobility.dM_dc(c, etas, c_grad, etas_grad) * mu_grad *
-              phi.get_value(q)[0] +
-            mobility.dM_dgrad_c(c, c_grad, mu_grad) * phi.get_gradient(q)[0];
-          gradient_result[1] = kappa_c * phi.get_gradient(q)[0];
+              gradient_result[0] = mobility.M(c, etas, c_grad, etas_grad) *
+                                     phi.get_gradient(q)[1] +
+                                   mobility.dM_dc(c, etas, c_grad, etas_grad) *
+                                     mu_grad * phi.get_value(q)[0] +
+                                   mobility.dM_dgrad_c(c, c_grad, mu_grad) *
+                                     phi.get_gradient(q)[0];
+              gradient_result[1] = kappa_c * phi.get_gradient(q)[0];
 #else
-          // CH with the terms as considered in BlockPreconditioner3CHData
-          value_result[0] = phi.get_value(q)[0] / dt;
-          value_result[1] = -phi.get_value(q)[1];
+              // CH with the terms as considered in BlockPreconditioner3CHData
+              value_result[0] = phi.get_value(q)[0] / dt;
+              value_result[1] = -phi.get_value(q)[1];
 
-          gradient_result[0] =
-            mobility.M(c, etas, c_grad, etas_grad) * phi.get_gradient(q)[1];
-          gradient_result[1] = kappa_c * phi.get_gradient(q)[0];
+              gradient_result[0] =
+                mobility.M(c, etas, c_grad, etas_grad) * phi.get_gradient(q)[1];
+              gradient_result[1] = kappa_c * phi.get_gradient(q)[0];
 #endif
 
-          phi.submit_value(value_result, q);
-          phi.submit_gradient(gradient_result, q);
+              phi.submit_value(value_result, q);
+              phi.submit_gradient(gradient_result, q);
+            }
         }
     }
 
@@ -157,42 +167,50 @@ namespace Sintering
     do_vmult_kernel(
       FEEvaluation<dim, -1, 0, n_comp, Number, VectorizedArrayType> &phi) const
     {
-      const unsigned int cell = phi.get_current_cell_index();
-
-      const auto &mobility            = this->op.get_data().mobility;
-      const auto &dt                  = this->op.get_dt();
-      const auto &nonlinear_values    = this->op.get_nonlinear_values();
-      const auto &nonlinear_gradients = this->op.get_nonlinear_gradients();
-
-      for (unsigned int q = 0; q < phi.n_q_points; ++q)
+      if constexpr (n_comp != 1)
         {
-          const auto &val  = nonlinear_values[cell][q];
-          const auto &grad = nonlinear_gradients[cell][q];
+          Assert(false, ExcNotImplemented());
+          (void)phi;
+        }
+      else
+        {
+          const unsigned int cell = phi.get_current_cell_index();
 
-          const auto &c       = val[0];
-          const auto &c_grad  = grad[0];
-          const auto &mu_grad = grad[1];
+          const auto &mobility            = this->op.get_data().mobility;
+          const auto &dt                  = this->op.get_dt();
+          const auto &nonlinear_values    = this->op.get_nonlinear_values();
+          const auto &nonlinear_gradients = this->op.get_nonlinear_gradients();
 
-          std::array<const VectorizedArrayType *, this->op.n_grains> etas;
-          std::array<const Tensor<1, dim, VectorizedArrayType> *,
-                     this->op.n_grains>
-            etas_grad;
-
-          for (unsigned int ig = 0; ig < this->op.n_grains; ++ig)
+          for (unsigned int q = 0; q < phi.n_q_points; ++q)
             {
-              etas[ig]      = &val[2 + ig];
-              etas_grad[ig] = &grad[2 + ig];
+              const auto &val  = nonlinear_values[cell][q];
+              const auto &grad = nonlinear_gradients[cell][q];
+
+              const auto &c       = val[0];
+              const auto &c_grad  = grad[0];
+              const auto &mu_grad = grad[1];
+
+              std::array<const VectorizedArrayType *, this->op.n_grains> etas;
+              std::array<const Tensor<1, dim, VectorizedArrayType> *,
+                         this->op.n_grains>
+                etas_grad;
+
+              for (unsigned int ig = 0; ig < this->op.n_grains; ++ig)
+                {
+                  etas[ig]      = &val[2 + ig];
+                  etas_grad[ig] = &grad[2 + ig];
+                }
+
+              const auto value    = phi.get_value(q);
+              const auto gradient = phi.get_gradient(q);
+
+              phi.submit_value(value / dt, q);
+              phi.submit_gradient(mobility.dM_dc(c, etas, c_grad, etas_grad) *
+                                      mu_grad * value +
+                                    mobility.dM_dgrad_c(c, c_grad, mu_grad) *
+                                      gradient,
+                                  q);
             }
-
-          const auto value    = phi.get_value(q);
-          const auto gradient = phi.get_gradient(q);
-
-          phi.submit_value(value / dt, q);
-          phi.submit_gradient(mobility.dM_dc(c, etas, c_grad, etas_grad) *
-                                  mu_grad * value +
-                                mobility.dM_dgrad_c(c, c_grad, mu_grad) *
-                                  gradient,
-                              q);
         }
     }
 
@@ -244,37 +262,46 @@ namespace Sintering
     do_vmult_kernel(
       FEEvaluation<dim, -1, 0, n_comp, Number, VectorizedArrayType> &phi) const
     {
-      const unsigned int cell = phi.get_current_cell_index();
-
-      const auto &mobility            = this->op.get_data().mobility;
-      const auto &nonlinear_values    = this->op.get_nonlinear_values();
-      const auto &nonlinear_gradients = this->op.get_nonlinear_gradients();
-
-      for (unsigned int q = 0; q < phi.n_q_points; ++q)
+      if constexpr (n_comp != 1)
         {
-          const auto &val  = nonlinear_values[cell][q];
-          const auto &grad = nonlinear_gradients[cell][q];
+          Assert(false, ExcNotImplemented());
+          (void)phi;
+        }
+      else
+        {
+          const unsigned int cell = phi.get_current_cell_index();
 
-          const auto &c      = val[0];
-          const auto &c_grad = grad[0];
+          const auto &mobility            = this->op.get_data().mobility;
+          const auto &nonlinear_values    = this->op.get_nonlinear_values();
+          const auto &nonlinear_gradients = this->op.get_nonlinear_gradients();
 
-          std::array<const VectorizedArrayType *, this->op.n_grains> etas;
-          std::array<const Tensor<1, dim, VectorizedArrayType> *,
-                     this->op.n_grains>
-            etas_grad;
-
-          for (unsigned int ig = 0; ig < this->op.n_grains; ++ig)
+          for (unsigned int q = 0; q < phi.n_q_points; ++q)
             {
-              etas[ig]      = &val[2 + ig];
-              etas_grad[ig] = &grad[2 + ig];
+              const auto &val  = nonlinear_values[cell][q];
+              const auto &grad = nonlinear_gradients[cell][q];
+
+              const auto &c      = val[0];
+              const auto &c_grad = grad[0];
+
+              std::array<const VectorizedArrayType *, this->op.n_grains> etas;
+              std::array<const Tensor<1, dim, VectorizedArrayType> *,
+                         this->op.n_grains>
+                etas_grad;
+
+              for (unsigned int ig = 0; ig < this->op.n_grains; ++ig)
+                {
+                  etas[ig]      = &val[2 + ig];
+                  etas_grad[ig] = &grad[2 + ig];
+                }
+
+              const auto value    = phi.get_value(q);
+              const auto gradient = phi.get_gradient(q);
+
+              phi.submit_value(value * 0.0, q); // TODO
+              phi.submit_gradient(mobility.M(c, etas, c_grad, etas_grad) *
+                                    gradient,
+                                  q);
             }
-
-          const auto value    = phi.get_value(q);
-          const auto gradient = phi.get_gradient(q);
-
-          phi.submit_value(value * 0.0, q); // TODO
-          phi.submit_gradient(mobility.M(c, etas, c_grad, etas_grad) * gradient,
-                              q);
         }
     }
 
@@ -326,30 +353,38 @@ namespace Sintering
     do_vmult_kernel(
       FEEvaluation<dim, -1, 0, n_comp, Number, VectorizedArrayType> &phi) const
     {
-      const unsigned int cell = phi.get_current_cell_index();
-
-      const auto &free_energy      = this->op.get_data().free_energy;
-      const auto &kappa_c          = this->op.get_data().kappa_c;
-      const auto &nonlinear_values = this->op.get_nonlinear_values();
-
-      for (unsigned int q = 0; q < phi.n_q_points; ++q)
+      if constexpr (n_comp != 1)
         {
-          const auto &val = nonlinear_values[cell][q];
+          Assert(false, ExcNotImplemented());
+          (void)phi;
+        }
+      else
+        {
+          const unsigned int cell = phi.get_current_cell_index();
 
-          const auto &c = val[0];
+          const auto &free_energy      = this->op.get_data().free_energy;
+          const auto &kappa_c          = this->op.get_data().kappa_c;
+          const auto &nonlinear_values = this->op.get_nonlinear_values();
 
-          std::array<const VectorizedArrayType *, this->op.n_grains> etas;
-
-          for (unsigned int ig = 0; ig < this->op.n_grains; ++ig)
+          for (unsigned int q = 0; q < phi.n_q_points; ++q)
             {
-              etas[ig] = &val[2 + ig];
+              const auto &val = nonlinear_values[cell][q];
+
+              const auto &c = val[0];
+
+              std::array<const VectorizedArrayType *, this->op.n_grains> etas;
+
+              for (unsigned int ig = 0; ig < this->op.n_grains; ++ig)
+                {
+                  etas[ig] = &val[2 + ig];
+                }
+
+              const auto value    = phi.get_value(q);
+              const auto gradient = phi.get_gradient(q);
+
+              phi.submit_value(free_energy.d2f_dc2(c, etas) * value, q);
+              phi.submit_gradient(kappa_c * gradient, q);
             }
-
-          const auto value    = phi.get_value(q);
-          const auto gradient = phi.get_gradient(q);
-
-          phi.submit_value(free_energy.d2f_dc2(c, etas) * value, q);
-          phi.submit_gradient(kappa_c * gradient, q);
         }
     }
 
@@ -401,13 +436,21 @@ namespace Sintering
     do_vmult_kernel(
       FEEvaluation<dim, -1, 0, n_comp, Number, VectorizedArrayType> &phi) const
     {
-      for (unsigned int q = 0; q < phi.n_q_points; ++q)
+      if constexpr (n_comp != 1)
         {
-          const auto value    = phi.get_value(q);
-          const auto gradient = phi.get_gradient(q);
+          Assert(false, ExcNotImplemented());
+          (void)phi;
+        }
+      else
+        {
+          for (unsigned int q = 0; q < phi.n_q_points; ++q)
+            {
+              const auto value    = phi.get_value(q);
+              const auto gradient = phi.get_gradient(q);
 
-          phi.submit_value(-value, q);
-          phi.submit_gradient(gradient * 0.0, q); // TODO
+              phi.submit_value(-value, q);
+              phi.submit_gradient(gradient * 0.0, q); // TODO
+            }
         }
     }
 
@@ -462,52 +505,60 @@ namespace Sintering
     do_vmult_kernel(
       FEEvaluation<dim, -1, 0, n_comp, Number, VectorizedArrayType> &phi) const
     {
-      const unsigned int cell = phi.get_current_cell_index();
-
-      const auto &free_energy      = this->op.get_data().free_energy;
-      const auto &L                = this->op.get_data().L;
-      const auto &kappa_p          = this->op.get_data().kappa_p;
-      const auto &dt               = this->op.get_dt();
-      const auto &nonlinear_values = this->op.get_nonlinear_values();
-
-      const auto dt_inv = 1.0 / dt;
-
-      for (unsigned int q = 0; q < phi.n_q_points; ++q)
+      if constexpr (n_comp <= 2)
         {
-          const auto &val = nonlinear_values[cell][q];
+          Assert(false, ExcNotImplemented());
+          (void)phi;
+        }
+      else
+        {
+          const unsigned int cell = phi.get_current_cell_index();
 
-          const auto &c = val[0];
+          const auto &free_energy      = this->op.get_data().free_energy;
+          const auto &L                = this->op.get_data().L;
+          const auto &kappa_p          = this->op.get_data().kappa_p;
+          const auto &dt               = this->op.get_dt();
+          const auto &nonlinear_values = this->op.get_nonlinear_values();
 
-          std::array<const VectorizedArrayType *, n_grains> etas;
+          const auto dt_inv = 1.0 / dt;
 
-          for (unsigned int ig = 0; ig < n_grains; ++ig)
-            etas[ig] = &val[2 + ig];
-
-          Tensor<1, n_components, VectorizedArrayType> value_result;
-          Tensor<1, n_components, Tensor<1, dim, VectorizedArrayType>>
-            gradient_result;
-
-          for (unsigned int ig = 0; ig < n_grains; ++ig)
+          for (unsigned int q = 0; q < phi.n_q_points; ++q)
             {
-              value_result[ig] =
-                phi.get_value(q)[ig] * dt_inv +
-                L * free_energy.d2f_detai2(c, etas, ig) * phi.get_value(q)[ig];
+              const auto &val = nonlinear_values[cell][q];
 
-              gradient_result[ig] = L * kappa_p * phi.get_gradient(q)[ig];
+              const auto &c = val[0];
 
-              for (unsigned int jg = 0; jg < n_grains; ++jg)
+              std::array<const VectorizedArrayType *, n_grains> etas;
+
+              for (unsigned int ig = 0; ig < n_grains; ++ig)
+                etas[ig] = &val[2 + ig];
+
+              Tensor<1, n_components, VectorizedArrayType> value_result;
+              Tensor<1, n_components, Tensor<1, dim, VectorizedArrayType>>
+                gradient_result;
+
+              for (unsigned int ig = 0; ig < n_grains; ++ig)
                 {
-                  if (ig != jg)
+                  value_result[ig] = phi.get_value(q)[ig] * dt_inv +
+                                     L * free_energy.d2f_detai2(c, etas, ig) *
+                                       phi.get_value(q)[ig];
+
+                  gradient_result[ig] = L * kappa_p * phi.get_gradient(q)[ig];
+
+                  for (unsigned int jg = 0; jg < n_grains; ++jg)
                     {
-                      value_result[ig] +=
-                        L * free_energy.d2f_detaidetaj(c, etas, ig, jg) *
-                        phi.get_value(q)[jg];
+                      if (ig != jg)
+                        {
+                          value_result[ig] +=
+                            L * free_energy.d2f_detaidetaj(c, etas, ig, jg) *
+                            phi.get_value(q)[jg];
+                        }
                     }
                 }
-            }
 
-          phi.submit_value(value_result, q);
-          phi.submit_gradient(gradient_result, q);
+              phi.submit_value(value_result, q);
+              phi.submit_gradient(gradient_result, q);
+            }
         }
     }
 
