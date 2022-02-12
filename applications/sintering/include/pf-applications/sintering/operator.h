@@ -689,8 +689,7 @@ namespace Sintering
       phi.evaluate(EvaluationFlags::EvaluationFlags::values |
                    EvaluationFlags::EvaluationFlags::gradients);
 
-      if constexpr (n_comp == n_components)
-        static_cast<const T &>(*this).do_vmult_kernel(phi);
+      static_cast<const T &>(*this).do_vmult_kernel(phi);
 
       phi.integrate(EvaluationFlags::EvaluationFlags::values |
                     EvaluationFlags::EvaluationFlags::gradients);
@@ -714,8 +713,7 @@ namespace Sintering
                               EvaluationFlags::EvaluationFlags::values |
                                 EvaluationFlags::EvaluationFlags::gradients);
 
-          if constexpr (n_comp == n_components)
-            static_cast<const T &>(*this).do_vmult_kernel(phi);
+          static_cast<const T &>(*this).do_vmult_kernel(phi);
 
           phi.integrate_scatter(EvaluationFlags::EvaluationFlags::values |
                                   EvaluationFlags::EvaluationFlags::gradients,
@@ -1316,8 +1314,8 @@ namespace Sintering
                   etas_grad[ig] = &grad[2 + ig];
                 }
 
-              Tensor<1, n_components, VectorizedArrayType> value_result;
-              Tensor<1, n_components, Tensor<1, dim, VectorizedArrayType>>
+              Tensor<1, n_comp, VectorizedArrayType> value_result;
+              Tensor<1, n_comp, Tensor<1, dim, VectorizedArrayType>>
                 gradient_result;
 
               value_result[0] = phi.get_value(q)[0] * dt_inv;

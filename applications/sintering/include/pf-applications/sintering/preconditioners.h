@@ -85,8 +85,8 @@ namespace Sintering
                   etas_grad[ig] = &grad[2 + ig];
                 }
 
-              Tensor<1, n_components, VectorizedArrayType> value_result;
-              Tensor<1, n_components, Tensor<1, dim, VectorizedArrayType>>
+              Tensor<1, n_comp, VectorizedArrayType> value_result;
+              Tensor<1, n_comp, Tensor<1, dim, VectorizedArrayType>>
                 gradient_result;
 
 #if true
@@ -533,8 +533,8 @@ namespace Sintering
               for (unsigned int ig = 0; ig < n_grains; ++ig)
                 etas[ig] = &val[2 + ig];
 
-              Tensor<1, n_components, VectorizedArrayType> value_result;
-              Tensor<1, n_components, Tensor<1, dim, VectorizedArrayType>>
+              Tensor<1, n_comp, VectorizedArrayType> value_result;
+              Tensor<1, n_comp, Tensor<1, dim, VectorizedArrayType>>
                 gradient_result;
 
               for (unsigned int ig = 0; ig < n_grains; ++ig)
@@ -1284,7 +1284,14 @@ namespace Sintering
       for (unsigned int q = 0; q < phi.n_q_points; ++q)
         {
           phi.submit_value(phi.get_value(q), q);
-          phi.submit_gradient({}, q);
+          phi.submit_gradient(
+            typename FEEvaluation<dim,
+                                  -1,
+                                  0,
+                                  n_comp,
+                                  Number,
+                                  VectorizedArrayType>::gradient_type(),
+            q);
         }
     }
   };
