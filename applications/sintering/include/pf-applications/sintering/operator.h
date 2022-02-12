@@ -987,7 +987,6 @@ namespace Sintering
     {
       MyScope scope(this->timer, "sintering_op::nonlinear_residual");
 
-
       switch (n_components)
         {
           // clang-format off
@@ -1079,9 +1078,11 @@ namespace Sintering
       return nonlinear_gradients;
     }
 
+    template <int n_comp>
     void
-    add_data_vectors(DataOut<dim> &data_out, const VectorType &vec) const
+    do_add_data_vectors(DataOut<dim> &data_out, const VectorType &vec) const
     {
+      constexpr unsigned int n_grains = n_comp - 2;
       constexpr unsigned int n_entries =
         8 + 3 * n_grains + n_grains * (n_grains - 1) / 2;
       std::array<VectorType, n_entries> data_vectors;
@@ -1089,7 +1090,8 @@ namespace Sintering
       for (auto &data_vector : data_vectors)
         this->matrix_free.initialize_dof_vector(data_vector, 3);
 
-      FECellIntegrator fe_eval_all(this->matrix_free);
+      FEEvaluation<dim, -1, 0, n_comp, Number, VectorizedArrayType> fe_eval_all(
+        this->matrix_free);
       FEEvaluation<dim, -1, 0, 1, Number, VectorizedArrayType> fe_eval(
         this->matrix_free, 3 /*scalar dof index*/);
 
@@ -1207,6 +1209,20 @@ namespace Sintering
           data_out.add_data_vector(this->matrix_free.get_dof_handler(3),
                                    data_vectors[c],
                                    ss.str());
+        }
+    }
+
+    void
+    add_data_vectors(DataOut<dim> &data_out, const VectorType &vec) const
+    {
+      switch (n_components)
+        {
+          // clang-format off
+          case 4: do_add_data_vectors<4>(data_out, vec); break;
+          case 5: do_add_data_vectors<5>(data_out, vec); break;
+          // clang-format on
+          default:
+            Assert(false, ExcNotImplemented());
         }
     }
 
