@@ -117,18 +117,14 @@ namespace Sintering
 
   template <int dim,
             int n_components,
-            int n_components_,
             typename Number,
             typename VectorizedArrayType>
   class OperatorCahnHilliardA
-    : public OperatorBase<dim,
-                          Number,
-                          VectorizedArrayType,
-                          OperatorCahnHilliardA<dim,
-                                                n_components,
-                                                n_components_,
-                                                Number,
-                                                VectorizedArrayType>>
+    : public OperatorBase<
+        dim,
+        Number,
+        VectorizedArrayType,
+        OperatorCahnHilliardA<dim, n_components, Number, VectorizedArrayType>>
   {
   public:
     OperatorCahnHilliardA(
@@ -140,7 +136,6 @@ namespace Sintering
                      VectorizedArrayType,
                      OperatorCahnHilliardA<dim,
                                            n_components,
-                                           n_components_,
                                            Number,
                                            VectorizedArrayType>>(matrix_free,
                                                                  constraints,
@@ -208,18 +203,14 @@ namespace Sintering
 
   template <int dim,
             int n_components,
-            int n_components_,
             typename Number,
             typename VectorizedArrayType>
   class OperatorCahnHilliardB
-    : public OperatorBase<dim,
-                          Number,
-                          VectorizedArrayType,
-                          OperatorCahnHilliardB<dim,
-                                                n_components,
-                                                n_components_,
-                                                Number,
-                                                VectorizedArrayType>>
+    : public OperatorBase<
+        dim,
+        Number,
+        VectorizedArrayType,
+        OperatorCahnHilliardB<dim, n_components, Number, VectorizedArrayType>>
   {
   public:
     OperatorCahnHilliardB(
@@ -231,7 +222,6 @@ namespace Sintering
                      VectorizedArrayType,
                      OperatorCahnHilliardB<dim,
                                            n_components,
-                                           n_components_,
                                            Number,
                                            VectorizedArrayType>>(matrix_free,
                                                                  constraints,
@@ -295,18 +285,14 @@ namespace Sintering
 
   template <int dim,
             int n_components,
-            int n_components_,
             typename Number,
             typename VectorizedArrayType>
   class OperatorCahnHilliardC
-    : public OperatorBase<dim,
-                          Number,
-                          VectorizedArrayType,
-                          OperatorCahnHilliardC<dim,
-                                                n_components,
-                                                n_components_,
-                                                Number,
-                                                VectorizedArrayType>>
+    : public OperatorBase<
+        dim,
+        Number,
+        VectorizedArrayType,
+        OperatorCahnHilliardC<dim, n_components, Number, VectorizedArrayType>>
   {
   public:
     OperatorCahnHilliardC(
@@ -318,7 +304,6 @@ namespace Sintering
                      VectorizedArrayType,
                      OperatorCahnHilliardC<dim,
                                            n_components,
-                                           n_components_,
                                            Number,
                                            VectorizedArrayType>>(matrix_free,
                                                                  constraints,
@@ -375,18 +360,14 @@ namespace Sintering
 
   template <int dim,
             int n_components,
-            int n_components_,
             typename Number,
             typename VectorizedArrayType>
   class OperatorCahnHilliardD
-    : public OperatorBase<dim,
-                          Number,
-                          VectorizedArrayType,
-                          OperatorCahnHilliardD<dim,
-                                                n_components,
-                                                n_components_,
-                                                Number,
-                                                VectorizedArrayType>>
+    : public OperatorBase<
+        dim,
+        Number,
+        VectorizedArrayType,
+        OperatorCahnHilliardD<dim, n_components, Number, VectorizedArrayType>>
   {
   public:
     OperatorCahnHilliardD(
@@ -398,7 +379,6 @@ namespace Sintering
                      VectorizedArrayType,
                      OperatorCahnHilliardD<dim,
                                            n_components,
-                                           n_components_,
                                            Number,
                                            VectorizedArrayType>>(matrix_free,
                                                                  constraints,
@@ -437,18 +417,14 @@ namespace Sintering
 
   template <int dim,
             int n_components,
-            int n_components_,
             typename Number,
             typename VectorizedArrayType>
   class OperatorAllenCahn
-    : public OperatorBase<dim,
-                          Number,
-                          VectorizedArrayType,
-                          OperatorAllenCahn<dim,
-                                            n_components,
-                                            n_components_,
-                                            Number,
-                                            VectorizedArrayType>>
+    : public OperatorBase<
+        dim,
+        Number,
+        VectorizedArrayType,
+        OperatorAllenCahn<dim, n_components, Number, VectorizedArrayType>>
   {
   public:
     static const int n_grains = n_components;
@@ -457,17 +433,15 @@ namespace Sintering
       const MatrixFree<dim, Number, VectorizedArrayType> &       matrix_free,
       const std::vector<const AffineConstraints<Number> *> &     constraints,
       const SinteringOperator<dim, Number, VectorizedArrayType> &op)
-      : OperatorBase<dim,
-                     Number,
-                     VectorizedArrayType,
-                     OperatorAllenCahn<dim,
-                                       n_components,
-                                       n_components_,
-                                       Number,
-                                       VectorizedArrayType>>(matrix_free,
-                                                             constraints,
-                                                             2,
-                                                             "allen_cahn_op")
+      : OperatorBase<
+          dim,
+          Number,
+          VectorizedArrayType,
+          OperatorAllenCahn<dim, n_components, Number, VectorizedArrayType>>(
+          matrix_free,
+          constraints,
+          2,
+          "allen_cahn_op")
       , op(op)
     {}
 
@@ -539,40 +513,30 @@ namespace Sintering
 
 
 
-  template <int dim,
-            int n_components_,
-            typename Number,
-            typename VectorizedArrayType>
+  template <int dim, typename Number, typename VectorizedArrayType>
   class OperatorAllenCahnHelmholtz
-    : public OperatorBase<dim,
-                          Number,
-                          VectorizedArrayType,
-                          OperatorAllenCahnHelmholtz<dim,
-                                                     n_components_,
-                                                     Number,
-                                                     VectorizedArrayType>>
+    : public OperatorBase<
+        dim,
+        Number,
+        VectorizedArrayType,
+        OperatorAllenCahnHelmholtz<dim, Number, VectorizedArrayType>>
   {
   public:
     using VectorType = typename OperatorBase<
       dim,
       Number,
       VectorizedArrayType,
-      OperatorAllenCahnHelmholtz<dim,
-                                 n_components_,
-                                 Number,
-                                 VectorizedArrayType>>::VectorType;
+      OperatorAllenCahnHelmholtz<dim, Number, VectorizedArrayType>>::VectorType;
 
     OperatorAllenCahnHelmholtz(
       const MatrixFree<dim, Number, VectorizedArrayType> &       matrix_free,
       const std::vector<const AffineConstraints<Number> *> &     constraints,
       const SinteringOperator<dim, Number, VectorizedArrayType> &op)
-      : OperatorBase<dim,
-                     Number,
-                     VectorizedArrayType,
-                     OperatorAllenCahnHelmholtz<dim,
-                                                n_components_,
-                                                Number,
-                                                VectorizedArrayType>>(
+      : OperatorBase<
+          dim,
+          Number,
+          VectorizedArrayType,
+          OperatorAllenCahnHelmholtz<dim, Number, VectorizedArrayType>>(
           matrix_free,
           constraints,
           3,
@@ -660,10 +624,8 @@ namespace Sintering
     : public Preconditioners::PreconditionerBase<Number>
   {
   public:
-    using Operator   = OperatorAllenCahnHelmholtz<dim,
-                                                n_components_,
-                                                Number,
-                                                VectorizedArrayType>;
+    using Operator =
+      OperatorAllenCahnHelmholtz<dim, Number, VectorizedArrayType>;
     using VectorType = typename Operator::VectorType;
 
     static constexpr unsigned int n_components = n_components_ - 2;
@@ -916,11 +878,10 @@ namespace Sintering
   private:
     const MatrixFree<dim, Number, VectorizedArrayType> &matrix_free;
 
-    OperatorCahnHilliard<dim, 2, n_components, Number, VectorizedArrayType>
-      operator_0;
+    OperatorCahnHilliard<dim, 2, Number, VectorizedArrayType> operator_0;
     OperatorAllenCahn<dim, n_components - 2, Number, VectorizedArrayType>
       operator_1;
-    OperatorAllenCahnHelmholtz<dim, n_components, Number, VectorizedArrayType>
+    OperatorAllenCahnHelmholtz<dim, Number, VectorizedArrayType>
       operator_1_helmholtz;
 
     mutable VectorType dst_0, dst_1;
@@ -1178,20 +1139,12 @@ namespace Sintering
   private:
     const MatrixFree<dim, Number, VectorizedArrayType> &matrix_free;
 
-    OperatorCahnHilliardA<dim, 1, n_components, Number, VectorizedArrayType>
-      operator_0;
-    OperatorCahnHilliardB<dim, 1, n_components, Number, VectorizedArrayType>
-      block_ch_b;
-    OperatorCahnHilliardC<dim, 1, n_components, Number, VectorizedArrayType>
-      block_ch_c;
-    OperatorCahnHilliardD<dim, 1, n_components, Number, VectorizedArrayType>
-      operator_1;
+    OperatorCahnHilliardA<dim, 1, Number, VectorizedArrayType> operator_0;
+    OperatorCahnHilliardB<dim, 1, Number, VectorizedArrayType> block_ch_b;
+    OperatorCahnHilliardC<dim, 1, Number, VectorizedArrayType> block_ch_c;
+    OperatorCahnHilliardD<dim, 1, Number, VectorizedArrayType> operator_1;
 
-    OperatorAllenCahn<dim,
-                      n_components - 2,
-                      n_components,
-                      Number,
-                      VectorizedArrayType>
+    OperatorAllenCahn<dim, n_components - 2, Number, VectorizedArrayType>
       operator_2;
 
     mutable VectorType dst_0, dst_1, dst_2;
@@ -1255,40 +1208,31 @@ namespace Sintering
 
 
 
-  template <int dim,
-            int n_components_,
-            typename Number,
-            typename VectorizedArrayType>
+  template <int dim, typename Number, typename VectorizedArrayType>
   class OperatorCahnHilliardHelmholtz
-    : public OperatorBase<dim,
-                          Number,
-                          VectorizedArrayType,
-                          OperatorCahnHilliardHelmholtz<dim,
-                                                        n_components_,
-                                                        Number,
-                                                        VectorizedArrayType>>
+    : public OperatorBase<
+        dim,
+        Number,
+        VectorizedArrayType,
+        OperatorCahnHilliardHelmholtz<dim, Number, VectorizedArrayType>>
   {
   public:
     using VectorType = typename OperatorBase<
       dim,
       Number,
       VectorizedArrayType,
-      OperatorCahnHilliardHelmholtz<dim,
-                                    n_components_,
-                                    Number,
-                                    VectorizedArrayType>>::VectorType;
+      OperatorCahnHilliardHelmholtz<dim, Number, VectorizedArrayType>>::
+      VectorType;
 
     OperatorCahnHilliardHelmholtz(
       const MatrixFree<dim, Number, VectorizedArrayType> &       matrix_free,
       const std::vector<const AffineConstraints<Number> *> &     constraints,
       const SinteringOperator<dim, Number, VectorizedArrayType> &op)
-      : OperatorBase<dim,
-                     Number,
-                     VectorizedArrayType,
-                     OperatorCahnHilliardHelmholtz<dim,
-                                                   n_components_,
-                                                   Number,
-                                                   VectorizedArrayType>>(
+      : OperatorBase<
+          dim,
+          Number,
+          VectorizedArrayType,
+          OperatorCahnHilliardHelmholtz<dim, Number, VectorizedArrayType>>(
           matrix_free,
           constraints,
           3,
@@ -1523,14 +1467,10 @@ namespace Sintering
     }
 
   private:
-    OperatorCahnHilliardA<dim, 1, n_components, Number, VectorizedArrayType>
-      operator_a;
-    OperatorCahnHilliardB<dim, 1, n_components, Number, VectorizedArrayType>
-      operator_b;
-    OperatorCahnHilliardC<dim, 1, n_components, Number, VectorizedArrayType>
-      operator_c;
-    OperatorCahnHilliardD<dim, 1, n_components, Number, VectorizedArrayType>
-      operator_d;
+    OperatorCahnHilliardA<dim, 1, Number, VectorizedArrayType> operator_a;
+    OperatorCahnHilliardB<dim, 1, Number, VectorizedArrayType> operator_b;
+    OperatorCahnHilliardC<dim, 1, Number, VectorizedArrayType> operator_c;
+    OperatorCahnHilliardD<dim, 1, Number, VectorizedArrayType> operator_d;
   };
 
 
@@ -1546,11 +1486,9 @@ namespace Sintering
 
 
     BlockPreconditioner3CHPreconditioner(
-      const OperatorCahnHilliardHelmholtz<dim,
-                                          n_components,
-                                          Number,
-                                          VectorizedArrayType> &operator_0,
-      const MassMatrix<dim, 1, Number, VectorizedArrayType> &   mass_matrix,
+      const OperatorCahnHilliardHelmholtz<dim, Number, VectorizedArrayType>
+        &                                                    operator_0,
+      const MassMatrix<dim, 1, Number, VectorizedArrayType> &mass_matrix,
       const std::unique_ptr<Preconditioners::PreconditionerBase<Number>>
         &preconditioner_0)
       : operator_0(operator_0)
@@ -1605,10 +1543,8 @@ namespace Sintering
     }
 
   private:
-    const OperatorCahnHilliardHelmholtz<dim,
-                                        n_components,
-                                        Number,
-                                        VectorizedArrayType> &operator_0;
+    const OperatorCahnHilliardHelmholtz<dim, Number, VectorizedArrayType>
+      &operator_0;
 
     const MassMatrix<dim, 1, Number, VectorizedArrayType> &mass_matrix;
 
@@ -1783,19 +1719,11 @@ namespace Sintering
   private:
     const MatrixFree<dim, Number, VectorizedArrayType> &matrix_free;
 
-    OperatorCahnHilliardHelmholtz<dim,
-                                  n_components,
-                                  Number,
-                                  VectorizedArrayType>
-      operator_0;
+    OperatorCahnHilliardHelmholtz<dim, Number, VectorizedArrayType> operator_0;
 
     MassMatrix<dim, 1, Number, VectorizedArrayType> mass_matrix;
 
-    OperatorAllenCahn<dim,
-                      n_components - 2,
-                      n_components,
-                      Number,
-                      VectorizedArrayType>
+    OperatorAllenCahn<dim, n_components - 2, Number, VectorizedArrayType>
       operator_2;
 
 
