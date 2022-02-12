@@ -508,7 +508,8 @@ namespace Sintering
   template <int dim,
             int n_components,
             typename Number,
-            typename VectorizedArrayType>
+            typename VectorizedArrayType,
+            typename T>
   class OperatorBase : public Subscriptor
   {
   public:
@@ -680,11 +681,6 @@ namespace Sintering
     }
 
   protected:
-    virtual void
-    do_vmult_kernel(
-      FEEvaluation<dim, -1, 0, n_components, Number, VectorizedArrayType> &phi)
-      const = 0;
-
     template <int n_comp>
     void
     do_vmult_cell(
@@ -694,7 +690,7 @@ namespace Sintering
                    EvaluationFlags::EvaluationFlags::gradients);
 
       if constexpr (n_comp == n_components)
-        do_vmult_kernel(phi);
+        static_cast<const T &>(*this).do_vmult_kernel(phi);
 
       phi.integrate(EvaluationFlags::EvaluationFlags::values |
                     EvaluationFlags::EvaluationFlags::gradients);
@@ -719,7 +715,7 @@ namespace Sintering
                                 EvaluationFlags::EvaluationFlags::gradients);
 
           if constexpr (n_comp == n_components)
-            do_vmult_kernel(phi);
+            static_cast<const T &>(*this).do_vmult_kernel(phi);
 
           phi.integrate_scatter(EvaluationFlags::EvaluationFlags::values |
                                   EvaluationFlags::EvaluationFlags::gradients,
@@ -983,7 +979,12 @@ namespace Sintering
             typename Number,
             typename VectorizedArrayType>
   class SinteringOperator
-    : public OperatorBase<dim, n_components, Number, VectorizedArrayType>
+    : public OperatorBase<
+        dim,
+        n_components,
+        Number,
+        VectorizedArrayType,
+        SinteringOperator<dim, n_components, Number, VectorizedArrayType>>
   {
   public:
     using VectorType = LinearAlgebra::distributed::Vector<Number>;
@@ -999,7 +1000,12 @@ namespace Sintering
       const std::vector<const AffineConstraints<Number> *> & constraints,
       const SinteringOperatorData<dim, VectorizedArrayType> &data,
       const bool                                             matrix_based)
-      : OperatorBase<dim, n_components, Number, VectorizedArrayType>(
+      : OperatorBase<
+          dim,
+          n_components,
+          Number,
+          VectorizedArrayType,
+          SinteringOperator<dim, n_components, Number, VectorizedArrayType>>(
           matrix_free,
           constraints,
           0,
@@ -1261,9 +1267,8 @@ namespace Sintering
 
     static constexpr unsigned int n_grains{n_components - 2};
 
-  private:
     void
-    do_vmult_kernel(FECellIntegrator &phi) const final
+    do_vmult_kernel(FECellIntegrator &phi) const
     {
       const unsigned int cell = phi.get_current_cell_index();
 
@@ -1343,6 +1348,7 @@ namespace Sintering
         }
     }
 
+  private:
     template <int n_comp>
     void
     do_evaluate_nonlinear_residual(

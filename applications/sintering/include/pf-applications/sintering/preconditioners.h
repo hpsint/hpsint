@@ -12,7 +12,15 @@ namespace Sintering
             typename Number,
             typename VectorizedArrayType>
   class OperatorCahnHilliard
-    : public OperatorBase<dim, n_components, Number, VectorizedArrayType>
+    : public OperatorBase<dim,
+                          n_components,
+                          Number,
+                          VectorizedArrayType,
+                          OperatorCahnHilliard<dim,
+                                               n_components,
+                                               n_components_,
+                                               Number,
+                                               VectorizedArrayType>>
   {
   public:
     using FECellIntegrator =
@@ -23,7 +31,15 @@ namespace Sintering
       const std::vector<const AffineConstraints<Number> *> &constraints,
       const SinteringOperator<dim, n_components_, Number, VectorizedArrayType>
         &op)
-      : OperatorBase<dim, n_components, Number, VectorizedArrayType>(
+      : OperatorBase<dim,
+                     n_components,
+                     Number,
+                     VectorizedArrayType,
+                     OperatorCahnHilliard<dim,
+                                          n_components,
+                                          n_components_,
+                                          Number,
+                                          VectorizedArrayType>>(
           matrix_free,
           constraints,
           1,
@@ -31,9 +47,8 @@ namespace Sintering
       , op(op)
     {}
 
-  protected:
     void
-    do_vmult_kernel(FECellIntegrator &phi) const final
+    do_vmult_kernel(FECellIntegrator &phi) const
     {
       const unsigned int cell = phi.get_current_cell_index();
 
@@ -95,6 +110,7 @@ namespace Sintering
         }
     }
 
+  private:
     const SinteringOperator<dim, n_components_, Number, VectorizedArrayType>
       &op;
   };
@@ -107,7 +123,15 @@ namespace Sintering
             typename Number,
             typename VectorizedArrayType>
   class OperatorCahnHilliardA
-    : public OperatorBase<dim, n_components, Number, VectorizedArrayType>
+    : public OperatorBase<dim,
+                          n_components,
+                          Number,
+                          VectorizedArrayType,
+                          OperatorCahnHilliardA<dim,
+                                                n_components,
+                                                n_components_,
+                                                Number,
+                                                VectorizedArrayType>>
   {
   public:
     using FECellIntegrator =
@@ -118,16 +142,22 @@ namespace Sintering
       const std::vector<const AffineConstraints<Number> *> &constraints,
       const SinteringOperator<dim, n_components_, Number, VectorizedArrayType>
         &op)
-      : OperatorBase<dim, n_components, Number, VectorizedArrayType>(
-          matrix_free,
-          constraints,
-          3 /*TODO*/)
+      : OperatorBase<dim,
+                     n_components,
+                     Number,
+                     VectorizedArrayType,
+                     OperatorCahnHilliardA<dim,
+                                           n_components,
+                                           n_components_,
+                                           Number,
+                                           VectorizedArrayType>>(matrix_free,
+                                                                 constraints,
+                                                                 3 /*TODO*/)
       , op(op)
     {}
 
-  protected:
     void
-    do_vmult_kernel(FECellIntegrator &phi) const final
+    do_vmult_kernel(FECellIntegrator &phi) const
     {
       const unsigned int cell = phi.get_current_cell_index();
 
@@ -168,6 +198,7 @@ namespace Sintering
         }
     }
 
+  private:
     const SinteringOperator<dim, n_components_, Number, VectorizedArrayType>
       &op;
   };
@@ -180,7 +211,15 @@ namespace Sintering
             typename Number,
             typename VectorizedArrayType>
   class OperatorCahnHilliardB
-    : public OperatorBase<dim, n_components, Number, VectorizedArrayType>
+    : public OperatorBase<dim,
+                          n_components,
+                          Number,
+                          VectorizedArrayType,
+                          OperatorCahnHilliardB<dim,
+                                                n_components,
+                                                n_components_,
+                                                Number,
+                                                VectorizedArrayType>>
   {
   public:
     using FECellIntegrator =
@@ -191,16 +230,22 @@ namespace Sintering
       const std::vector<const AffineConstraints<Number> *> &constraints,
       const SinteringOperator<dim, n_components_, Number, VectorizedArrayType>
         &op)
-      : OperatorBase<dim, n_components, Number, VectorizedArrayType>(
-          matrix_free,
-          constraints,
-          3 /*TODO*/)
+      : OperatorBase<dim,
+                     n_components,
+                     Number,
+                     VectorizedArrayType,
+                     OperatorCahnHilliardB<dim,
+                                           n_components,
+                                           n_components_,
+                                           Number,
+                                           VectorizedArrayType>>(matrix_free,
+                                                                 constraints,
+                                                                 3 /*TODO*/)
       , op(op)
     {}
 
-  protected:
     void
-    do_vmult_kernel(FECellIntegrator &phi) const final
+    do_vmult_kernel(FECellIntegrator &phi) const
     {
       const unsigned int cell = phi.get_current_cell_index();
 
@@ -236,6 +281,7 @@ namespace Sintering
         }
     }
 
+  private:
     const SinteringOperator<dim, n_components_, Number, VectorizedArrayType>
       &op;
   };
@@ -248,7 +294,15 @@ namespace Sintering
             typename Number,
             typename VectorizedArrayType>
   class OperatorCahnHilliardC
-    : public OperatorBase<dim, n_components, Number, VectorizedArrayType>
+    : public OperatorBase<dim,
+                          n_components,
+                          Number,
+                          VectorizedArrayType,
+                          OperatorCahnHilliardC<dim,
+                                                n_components,
+                                                n_components_,
+                                                Number,
+                                                VectorizedArrayType>>
   {
   public:
     using FECellIntegrator =
@@ -259,16 +313,22 @@ namespace Sintering
       const std::vector<const AffineConstraints<Number> *> &constraints,
       const SinteringOperator<dim, n_components_, Number, VectorizedArrayType>
         &op)
-      : OperatorBase<dim, n_components, Number, VectorizedArrayType>(
-          matrix_free,
-          constraints,
-          3 /*TODO*/)
+      : OperatorBase<dim,
+                     n_components,
+                     Number,
+                     VectorizedArrayType,
+                     OperatorCahnHilliardC<dim,
+                                           n_components,
+                                           n_components_,
+                                           Number,
+                                           VectorizedArrayType>>(matrix_free,
+                                                                 constraints,
+                                                                 3 /*TODO*/)
       , op(op)
     {}
 
-  protected:
     void
-    do_vmult_kernel(FECellIntegrator &phi) const final
+    do_vmult_kernel(FECellIntegrator &phi) const
     {
       const unsigned int cell = phi.get_current_cell_index();
 
@@ -297,6 +357,7 @@ namespace Sintering
         }
     }
 
+  private:
     const SinteringOperator<dim, n_components_, Number, VectorizedArrayType>
       &op;
   };
@@ -309,7 +370,15 @@ namespace Sintering
             typename Number,
             typename VectorizedArrayType>
   class OperatorCahnHilliardD
-    : public OperatorBase<dim, n_components, Number, VectorizedArrayType>
+    : public OperatorBase<dim,
+                          n_components,
+                          Number,
+                          VectorizedArrayType,
+                          OperatorCahnHilliardD<dim,
+                                                n_components,
+                                                n_components_,
+                                                Number,
+                                                VectorizedArrayType>>
   {
   public:
     using FECellIntegrator =
@@ -320,16 +389,22 @@ namespace Sintering
       const std::vector<const AffineConstraints<Number> *> &constraints,
       const SinteringOperator<dim, n_components_, Number, VectorizedArrayType>
         &op)
-      : OperatorBase<dim, n_components, Number, VectorizedArrayType>(
-          matrix_free,
-          constraints,
-          3 /*TODO*/)
+      : OperatorBase<dim,
+                     n_components,
+                     Number,
+                     VectorizedArrayType,
+                     OperatorCahnHilliardD<dim,
+                                           n_components,
+                                           n_components_,
+                                           Number,
+                                           VectorizedArrayType>>(matrix_free,
+                                                                 constraints,
+                                                                 3 /*TODO*/)
       , op(op)
     {}
 
-  protected:
     void
-    do_vmult_kernel(FECellIntegrator &phi) const final
+    do_vmult_kernel(FECellIntegrator &phi) const
     {
       for (unsigned int q = 0; q < phi.n_q_points; ++q)
         {
@@ -341,6 +416,7 @@ namespace Sintering
         }
     }
 
+  private:
     const SinteringOperator<dim, n_components_, Number, VectorizedArrayType>
       &op;
   };
@@ -353,7 +429,15 @@ namespace Sintering
             typename Number,
             typename VectorizedArrayType>
   class OperatorAllenCahn
-    : public OperatorBase<dim, n_components, Number, VectorizedArrayType>
+    : public OperatorBase<dim,
+                          n_components,
+                          Number,
+                          VectorizedArrayType,
+                          OperatorAllenCahn<dim,
+                                            n_components,
+                                            n_components_,
+                                            Number,
+                                            VectorizedArrayType>>
   {
   public:
     using FECellIntegrator =
@@ -366,17 +450,23 @@ namespace Sintering
       const std::vector<const AffineConstraints<Number> *> &constraints,
       const SinteringOperator<dim, n_components_, Number, VectorizedArrayType>
         &op)
-      : OperatorBase<dim, n_components, Number, VectorizedArrayType>(
-          matrix_free,
-          constraints,
-          2,
-          "allen_cahn_op")
+      : OperatorBase<dim,
+                     n_components,
+                     Number,
+                     VectorizedArrayType,
+                     OperatorAllenCahn<dim,
+                                       n_components,
+                                       n_components_,
+                                       Number,
+                                       VectorizedArrayType>>(matrix_free,
+                                                             constraints,
+                                                             2,
+                                                             "allen_cahn_op")
       , op(op)
     {}
 
-  private:
     void
-    do_vmult_kernel(FECellIntegrator &phi) const final
+    do_vmult_kernel(FECellIntegrator &phi) const
     {
       const unsigned int cell = phi.get_current_cell_index();
 
@@ -427,6 +517,7 @@ namespace Sintering
         }
     }
 
+  private:
     const SinteringOperator<dim, n_components_, Number, VectorizedArrayType>
       &op;
   };
@@ -438,21 +529,43 @@ namespace Sintering
             typename Number,
             typename VectorizedArrayType>
   class OperatorAllenCahnHelmholtz
-    : public OperatorBase<dim, 1, Number, VectorizedArrayType>
+    : public OperatorBase<dim,
+                          1,
+                          Number,
+                          VectorizedArrayType,
+                          OperatorAllenCahnHelmholtz<dim,
+                                                     n_components_,
+                                                     Number,
+                                                     VectorizedArrayType>>
   {
   public:
-    using VectorType =
-      typename OperatorBase<dim, 1, Number, VectorizedArrayType>::VectorType;
+    using VectorType = typename OperatorBase<
+      dim,
+      1,
+      Number,
+      VectorizedArrayType,
+      OperatorAllenCahnHelmholtz<dim,
+                                 n_components_,
+                                 Number,
+                                 VectorizedArrayType>>::VectorType;
 
     OperatorAllenCahnHelmholtz(
       const MatrixFree<dim, Number, VectorizedArrayType> &  matrix_free,
       const std::vector<const AffineConstraints<Number> *> &constraints,
       const SinteringOperator<dim, n_components_, Number, VectorizedArrayType>
         &op)
-      : OperatorBase<dim, 1, Number, VectorizedArrayType>(matrix_free,
-                                                          constraints,
-                                                          3,
-                                                          "helmholtz_op")
+      : OperatorBase<dim,
+                     1,
+                     Number,
+                     VectorizedArrayType,
+                     OperatorAllenCahnHelmholtz<dim,
+                                                n_components_,
+                                                Number,
+                                                VectorizedArrayType>>(
+          matrix_free,
+          constraints,
+          3,
+          "helmholtz_op")
       , op(op)
     {}
 
@@ -488,6 +601,13 @@ namespace Sintering
       }
     }
 
+    void
+    do_vmult_kernel(
+      FEEvaluation<dim, -1, 0, 1, Number, VectorizedArrayType> &) const
+    {
+      AssertThrow(false, ExcNotImplemented());
+    }
+
   private:
     void
     do_vmult_cell_mass(
@@ -513,13 +633,6 @@ namespace Sintering
         phi.submit_gradient(L * kappa_p * phi.get_gradient(q), q);
 
       phi.integrate(EvaluationFlags::EvaluationFlags::gradients);
-    }
-
-    void
-    do_vmult_kernel(
-      FEEvaluation<dim, -1, 0, 1, Number, VectorizedArrayType> &) const final
-    {
-      AssertThrow(false, ExcNotImplemented());
     }
 
     const SinteringOperator<dim, n_components_, Number, VectorizedArrayType>
@@ -1094,7 +1207,12 @@ namespace Sintering
             typename Number,
             typename VectorizedArrayType>
   class MassMatrix
-    : public OperatorBase<dim, n_components, Number, VectorizedArrayType>
+    : public OperatorBase<
+        dim,
+        n_components,
+        Number,
+        VectorizedArrayType,
+        MassMatrix<dim, n_components, Number, VectorizedArrayType>>
   {
   public:
     using FECellIntegrator =
@@ -1103,16 +1221,20 @@ namespace Sintering
     MassMatrix(
       const MatrixFree<dim, Number, VectorizedArrayType> &  matrix_free,
       const std::vector<const AffineConstraints<Number> *> &constraints)
-      : OperatorBase<dim, n_components, Number, VectorizedArrayType>(
+      : OperatorBase<
+          dim,
+          n_components,
+          Number,
+          VectorizedArrayType,
+          MassMatrix<dim, n_components, Number, VectorizedArrayType>>(
           matrix_free,
           constraints,
           3,
           "mass_matrix_op")
     {}
 
-  private:
     void
-    do_vmult_kernel(FECellIntegrator &phi) const final
+    do_vmult_kernel(FECellIntegrator &phi) const
     {
       for (unsigned int q = 0; q < phi.n_q_points; ++q)
         {
@@ -1129,21 +1251,43 @@ namespace Sintering
             typename Number,
             typename VectorizedArrayType>
   class OperatorCahnHilliardHelmholtz
-    : public OperatorBase<dim, 1, Number, VectorizedArrayType>
+    : public OperatorBase<dim,
+                          1,
+                          Number,
+                          VectorizedArrayType,
+                          OperatorCahnHilliardHelmholtz<dim,
+                                                        n_components_,
+                                                        Number,
+                                                        VectorizedArrayType>>
   {
   public:
-    using VectorType =
-      typename OperatorBase<dim, 1, Number, VectorizedArrayType>::VectorType;
+    using VectorType = typename OperatorBase<
+      dim,
+      1,
+      Number,
+      VectorizedArrayType,
+      OperatorCahnHilliardHelmholtz<dim,
+                                    n_components_,
+                                    Number,
+                                    VectorizedArrayType>>::VectorType;
 
     OperatorCahnHilliardHelmholtz(
       const MatrixFree<dim, Number, VectorizedArrayType> &  matrix_free,
       const std::vector<const AffineConstraints<Number> *> &constraints,
       const SinteringOperator<dim, n_components_, Number, VectorizedArrayType>
         &op)
-      : OperatorBase<dim, 1, Number, VectorizedArrayType>(matrix_free,
-                                                          constraints,
-                                                          3,
-                                                          "ch_helmholtz_op")
+      : OperatorBase<dim,
+                     1,
+                     Number,
+                     VectorizedArrayType,
+                     OperatorCahnHilliardHelmholtz<dim,
+                                                   n_components_,
+                                                   Number,
+                                                   VectorizedArrayType>>(
+          matrix_free,
+          constraints,
+          3,
+          "ch_helmholtz_op")
       , op(op)
       , dt(0.0)
     {}
@@ -1222,10 +1366,9 @@ namespace Sintering
       return epsilon;
     }
 
-  private:
     void
     do_vmult_kernel(
-      FEEvaluation<dim, -1, 0, 1, Number, VectorizedArrayType> &phi) const final
+      FEEvaluation<dim, -1, 0, 1, Number, VectorizedArrayType> &phi) const
     {
       const unsigned int cell = phi.get_current_cell_index();
 
@@ -1266,6 +1409,7 @@ namespace Sintering
         }
     }
 
+  private:
     template <bool use_mobility>
     void
     do_vmult_cell_laplace(
