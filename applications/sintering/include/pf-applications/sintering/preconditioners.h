@@ -8,33 +8,25 @@ namespace Sintering
 
   template <int dim,
             int n_components,
-            int n_components_,
             typename Number,
             typename VectorizedArrayType>
   class OperatorCahnHilliard
-    : public OperatorBase<dim,
-                          Number,
-                          VectorizedArrayType,
-                          OperatorCahnHilliard<dim,
-                                               n_components,
-                                               n_components_,
-                                               Number,
-                                               VectorizedArrayType>>
+    : public OperatorBase<
+        dim,
+        Number,
+        VectorizedArrayType,
+        OperatorCahnHilliard<dim, n_components, Number, VectorizedArrayType>>
   {
   public:
     OperatorCahnHilliard(
-      const MatrixFree<dim, Number, VectorizedArrayType> &  matrix_free,
-      const std::vector<const AffineConstraints<Number> *> &constraints,
-      const SinteringOperator<dim, n_components_, Number, VectorizedArrayType>
-        &op)
-      : OperatorBase<dim,
-                     Number,
-                     VectorizedArrayType,
-                     OperatorCahnHilliard<dim,
-                                          n_components,
-                                          n_components_,
-                                          Number,
-                                          VectorizedArrayType>>(
+      const MatrixFree<dim, Number, VectorizedArrayType> &       matrix_free,
+      const std::vector<const AffineConstraints<Number> *> &     constraints,
+      const SinteringOperator<dim, Number, VectorizedArrayType> &op)
+      : OperatorBase<
+          dim,
+          Number,
+          VectorizedArrayType,
+          OperatorCahnHilliard<dim, n_components, Number, VectorizedArrayType>>(
           matrix_free,
           constraints,
           1,
@@ -118,8 +110,7 @@ namespace Sintering
     }
 
   private:
-    const SinteringOperator<dim, n_components_, Number, VectorizedArrayType>
-      &op;
+    const SinteringOperator<dim, Number, VectorizedArrayType> &op;
   };
 
 
@@ -141,10 +132,9 @@ namespace Sintering
   {
   public:
     OperatorCahnHilliardA(
-      const MatrixFree<dim, Number, VectorizedArrayType> &  matrix_free,
-      const std::vector<const AffineConstraints<Number> *> &constraints,
-      const SinteringOperator<dim, n_components_, Number, VectorizedArrayType>
-        &op)
+      const MatrixFree<dim, Number, VectorizedArrayType> &       matrix_free,
+      const std::vector<const AffineConstraints<Number> *> &     constraints,
+      const SinteringOperator<dim, Number, VectorizedArrayType> &op)
       : OperatorBase<dim,
                      Number,
                      VectorizedArrayType,
@@ -211,8 +201,7 @@ namespace Sintering
     }
 
   private:
-    const SinteringOperator<dim, n_components_, Number, VectorizedArrayType>
-      &op;
+    const SinteringOperator<dim, Number, VectorizedArrayType> &op;
   };
 
 
@@ -234,10 +223,9 @@ namespace Sintering
   {
   public:
     OperatorCahnHilliardB(
-      const MatrixFree<dim, Number, VectorizedArrayType> &  matrix_free,
-      const std::vector<const AffineConstraints<Number> *> &constraints,
-      const SinteringOperator<dim, n_components_, Number, VectorizedArrayType>
-        &op)
+      const MatrixFree<dim, Number, VectorizedArrayType> &       matrix_free,
+      const std::vector<const AffineConstraints<Number> *> &     constraints,
+      const SinteringOperator<dim, Number, VectorizedArrayType> &op)
       : OperatorBase<dim,
                      Number,
                      VectorizedArrayType,
@@ -300,8 +288,7 @@ namespace Sintering
     }
 
   private:
-    const SinteringOperator<dim, n_components_, Number, VectorizedArrayType>
-      &op;
+    const SinteringOperator<dim, Number, VectorizedArrayType> &op;
   };
 
 
@@ -323,10 +310,9 @@ namespace Sintering
   {
   public:
     OperatorCahnHilliardC(
-      const MatrixFree<dim, Number, VectorizedArrayType> &  matrix_free,
-      const std::vector<const AffineConstraints<Number> *> &constraints,
-      const SinteringOperator<dim, n_components_, Number, VectorizedArrayType>
-        &op)
+      const MatrixFree<dim, Number, VectorizedArrayType> &       matrix_free,
+      const std::vector<const AffineConstraints<Number> *> &     constraints,
+      const SinteringOperator<dim, Number, VectorizedArrayType> &op)
       : OperatorBase<dim,
                      Number,
                      VectorizedArrayType,
@@ -382,8 +368,7 @@ namespace Sintering
     }
 
   private:
-    const SinteringOperator<dim, n_components_, Number, VectorizedArrayType>
-      &op;
+    const SinteringOperator<dim, Number, VectorizedArrayType> &op;
   };
 
 
@@ -405,10 +390,9 @@ namespace Sintering
   {
   public:
     OperatorCahnHilliardD(
-      const MatrixFree<dim, Number, VectorizedArrayType> &  matrix_free,
-      const std::vector<const AffineConstraints<Number> *> &constraints,
-      const SinteringOperator<dim, n_components_, Number, VectorizedArrayType>
-        &op)
+      const MatrixFree<dim, Number, VectorizedArrayType> &       matrix_free,
+      const std::vector<const AffineConstraints<Number> *> &     constraints,
+      const SinteringOperator<dim, Number, VectorizedArrayType> &op)
       : OperatorBase<dim,
                      Number,
                      VectorizedArrayType,
@@ -446,8 +430,7 @@ namespace Sintering
     }
 
   private:
-    const SinteringOperator<dim, n_components_, Number, VectorizedArrayType>
-      &op;
+    const SinteringOperator<dim, Number, VectorizedArrayType> &op;
   };
 
 
@@ -471,10 +454,9 @@ namespace Sintering
     static const int n_grains = n_components;
 
     OperatorAllenCahn(
-      const MatrixFree<dim, Number, VectorizedArrayType> &  matrix_free,
-      const std::vector<const AffineConstraints<Number> *> &constraints,
-      const SinteringOperator<dim, n_components_, Number, VectorizedArrayType>
-        &op)
+      const MatrixFree<dim, Number, VectorizedArrayType> &       matrix_free,
+      const std::vector<const AffineConstraints<Number> *> &     constraints,
+      const SinteringOperator<dim, Number, VectorizedArrayType> &op)
       : OperatorBase<dim,
                      Number,
                      VectorizedArrayType,
@@ -552,8 +534,7 @@ namespace Sintering
     }
 
   private:
-    const SinteringOperator<dim, n_components_, Number, VectorizedArrayType>
-      &op;
+    const SinteringOperator<dim, Number, VectorizedArrayType> &op;
   };
 
 
@@ -582,10 +563,9 @@ namespace Sintering
                                  VectorizedArrayType>>::VectorType;
 
     OperatorAllenCahnHelmholtz(
-      const MatrixFree<dim, Number, VectorizedArrayType> &  matrix_free,
-      const std::vector<const AffineConstraints<Number> *> &constraints,
-      const SinteringOperator<dim, n_components_, Number, VectorizedArrayType>
-        &op)
+      const MatrixFree<dim, Number, VectorizedArrayType> &       matrix_free,
+      const std::vector<const AffineConstraints<Number> *> &     constraints,
+      const SinteringOperator<dim, Number, VectorizedArrayType> &op)
       : OperatorBase<dim,
                      Number,
                      VectorizedArrayType,
@@ -667,8 +647,7 @@ namespace Sintering
       phi.integrate(EvaluationFlags::EvaluationFlags::gradients);
     }
 
-    const SinteringOperator<dim, n_components_, Number, VectorizedArrayType>
-      &op;
+    const SinteringOperator<dim, Number, VectorizedArrayType> &op;
   };
 
 
@@ -793,11 +772,10 @@ namespace Sintering
     using vector_type = VectorType;
 
     BlockPreconditioner2(
-      const SinteringOperator<dim, n_components, Number, VectorizedArrayType>
-        &                                                   op,
-      const MatrixFree<dim, Number, VectorizedArrayType> &  matrix_free,
-      const std::vector<const AffineConstraints<Number> *> &constraints,
-      const BlockPreconditioner2Data &                      data = {})
+      const SinteringOperator<dim, Number, VectorizedArrayType> &op,
+      const MatrixFree<dim, Number, VectorizedArrayType> &       matrix_free,
+      const std::vector<const AffineConstraints<Number> *> &     constraints,
+      const BlockPreconditioner2Data &                           data = {})
       : matrix_free(matrix_free)
       , operator_0(matrix_free, constraints, op)
       , operator_1(matrix_free, constraints, op)
@@ -940,11 +918,7 @@ namespace Sintering
 
     OperatorCahnHilliard<dim, 2, n_components, Number, VectorizedArrayType>
       operator_0;
-    OperatorAllenCahn<dim,
-                      n_components - 2,
-                      n_components,
-                      Number,
-                      VectorizedArrayType>
+    OperatorAllenCahn<dim, n_components - 2, Number, VectorizedArrayType>
       operator_1;
     OperatorAllenCahnHelmholtz<dim, n_components, Number, VectorizedArrayType>
       operator_1_helmholtz;
@@ -991,11 +965,10 @@ namespace Sintering
     using vector_type = VectorType;
 
     BlockPreconditioner3(
-      const SinteringOperator<dim, n_components, Number, VectorizedArrayType>
-        &                                                   op,
-      const MatrixFree<dim, Number, VectorizedArrayType> &  matrix_free,
-      const std::vector<const AffineConstraints<Number> *> &constraints,
-      const BlockPreconditioner3Data &                      data = {})
+      const SinteringOperator<dim, Number, VectorizedArrayType> &op,
+      const MatrixFree<dim, Number, VectorizedArrayType> &       matrix_free,
+      const std::vector<const AffineConstraints<Number> *> &     constraints,
+      const BlockPreconditioner3Data &                           data = {})
       : matrix_free(matrix_free)
       , operator_0(matrix_free, constraints, op)
       , block_ch_b(matrix_free, constraints, op)
@@ -1306,10 +1279,9 @@ namespace Sintering
                                     VectorizedArrayType>>::VectorType;
 
     OperatorCahnHilliardHelmholtz(
-      const MatrixFree<dim, Number, VectorizedArrayType> &  matrix_free,
-      const std::vector<const AffineConstraints<Number> *> &constraints,
-      const SinteringOperator<dim, n_components_, Number, VectorizedArrayType>
-        &op)
+      const MatrixFree<dim, Number, VectorizedArrayType> &       matrix_free,
+      const std::vector<const AffineConstraints<Number> *> &     constraints,
+      const SinteringOperator<dim, Number, VectorizedArrayType> &op)
       : OperatorBase<dim,
                      Number,
                      VectorizedArrayType,
@@ -1498,8 +1470,7 @@ namespace Sintering
       phi.integrate(EvaluationFlags::EvaluationFlags::gradients);
     }
 
-    const SinteringOperator<dim, n_components_, Number, VectorizedArrayType>
-      &op;
+    const SinteringOperator<dim, Number, VectorizedArrayType> &op;
 
     mutable VectorType epsilon;
 
@@ -1526,10 +1497,9 @@ namespace Sintering
     using VectorType = LinearAlgebra::distributed::Vector<Number>;
 
     BlockPreconditioner3CHOperator(
-      const MatrixFree<dim, Number, VectorizedArrayType> &  matrix_free,
-      const std::vector<const AffineConstraints<Number> *> &constraints,
-      const SinteringOperator<dim, n_components, Number, VectorizedArrayType>
-        &op)
+      const MatrixFree<dim, Number, VectorizedArrayType> &       matrix_free,
+      const std::vector<const AffineConstraints<Number> *> &     constraints,
+      const SinteringOperator<dim, Number, VectorizedArrayType> &op)
       : operator_a(matrix_free, constraints, op)
       , operator_b(matrix_free, constraints, op)
       , operator_c(matrix_free, constraints, op)
@@ -1661,11 +1631,10 @@ namespace Sintering
     using vector_type = VectorType;
 
     BlockPreconditioner3CH(
-      const SinteringOperator<dim, n_components, Number, VectorizedArrayType>
-        &                                                   op,
-      const MatrixFree<dim, Number, VectorizedArrayType> &  matrix_free,
-      const std::vector<const AffineConstraints<Number> *> &constraints,
-      const BlockPreconditioner3CHData &                    data = {})
+      const SinteringOperator<dim, Number, VectorizedArrayType> &op,
+      const MatrixFree<dim, Number, VectorizedArrayType> &       matrix_free,
+      const std::vector<const AffineConstraints<Number> *> &     constraints,
+      const BlockPreconditioner3CHData &                         data = {})
       : matrix_free(matrix_free)
       , operator_0(matrix_free, constraints, op)
       , mass_matrix(matrix_free, constraints)

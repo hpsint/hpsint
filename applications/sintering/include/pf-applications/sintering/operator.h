@@ -1045,16 +1045,12 @@ namespace Sintering
 
 
 
-  template <int dim,
-            int n_components,
-            typename Number,
-            typename VectorizedArrayType>
+  template <int dim, typename Number, typename VectorizedArrayType>
   class SinteringOperator
-    : public OperatorBase<
-        dim,
-        Number,
-        VectorizedArrayType,
-        SinteringOperator<dim, n_components, Number, VectorizedArrayType>>
+    : public OperatorBase<dim,
+                          Number,
+                          VectorizedArrayType,
+                          SinteringOperator<dim, Number, VectorizedArrayType>>
   {
   public:
     using VectorType = LinearAlgebra::distributed::Vector<Number>;
@@ -1067,11 +1063,10 @@ namespace Sintering
       const std::vector<const AffineConstraints<Number> *> & constraints,
       const SinteringOperatorData<dim, VectorizedArrayType> &data,
       const bool                                             matrix_based)
-      : OperatorBase<
-          dim,
-          Number,
-          VectorizedArrayType,
-          SinteringOperator<dim, n_components, Number, VectorizedArrayType>>(
+      : OperatorBase<dim,
+                     Number,
+                     VectorizedArrayType,
+                     SinteringOperator<dim, Number, VectorizedArrayType>>(
           matrix_free,
           constraints,
           0,

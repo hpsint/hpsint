@@ -264,7 +264,7 @@ namespace Sintering
     static constexpr unsigned int number_of_components = number_of_grains + 2;
 
     using NonLinearOperator =
-      SinteringOperator<dim, number_of_components, Number, VectorizedArrayType>;
+      SinteringOperator<dim, Number, VectorizedArrayType>;
 
     // padding of computational domain
     static constexpr double boundary_factor = 0.5;
