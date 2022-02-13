@@ -1102,10 +1102,7 @@ namespace Sintering
                           SinteringOperator<dim, Number, VectorizedArrayType>>
   {
   public:
-    using T = OperatorBase<dim,
-                           Number,
-                           VectorizedArrayType,
-                           SinteringOperator<dim, Number, VectorizedArrayType>>;
+    using T = SinteringOperator<dim, Number, VectorizedArrayType>;
 
     using VectorType = LinearAlgebra::distributed::Vector<Number>;
 
@@ -1403,6 +1400,8 @@ namespace Sintering
     do_vmult_kernel(
       FEEvaluation<dim, -1, 0, n_comp, Number, VectorizedArrayType> &phi) const
     {
+      AssertDimension(n_comp - 2, n_grains);
+
       const unsigned int cell = phi.get_current_cell_index();
 
       const auto &free_energy = this->data.free_energy;
@@ -1500,6 +1499,8 @@ namespace Sintering
         }
       else
         {
+          AssertDimension(n_comp - 2, n_grains);
+
           FEEvaluation<dim, -1, 0, n_comp, Number, VectorizedArrayType> phi_old(
             matrix_free);
           FEEvaluation<dim, -1, 0, n_comp, Number, VectorizedArrayType> phi(
@@ -1596,6 +1597,7 @@ namespace Sintering
         }
       else
         {
+          AssertDimension(n_comp - 2, n_grains);
 #ifdef WITH_TRACKER
           const auto &free_energy = this->data.free_energy;
           const auto &L           = this->data.L;
