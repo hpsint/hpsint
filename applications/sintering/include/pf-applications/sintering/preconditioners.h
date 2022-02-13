@@ -30,7 +30,7 @@ namespace Sintering
       , op(op)
     {}
 
-    template <int n_comp>
+    template <int n_comp, int>
     void
     do_vmult_kernel(
       FEEvaluation<dim, -1, 0, n_comp, Number, VectorizedArrayType> &phi) const
@@ -135,7 +135,7 @@ namespace Sintering
       , op(op)
     {}
 
-    template <int n_comp>
+    template <int n_comp, int>
     void
     do_vmult_kernel(
       FEEvaluation<dim, -1, 0, n_comp, Number, VectorizedArrayType> &phi) const
@@ -216,7 +216,7 @@ namespace Sintering
       , op(op)
     {}
 
-    template <int n_comp>
+    template <int n_comp, int>
     void
     do_vmult_kernel(
       FEEvaluation<dim, -1, 0, n_comp, Number, VectorizedArrayType> &phi) const
@@ -293,7 +293,7 @@ namespace Sintering
       , op(op)
     {}
 
-    template <int n_comp>
+    template <int n_comp, int>
     void
     do_vmult_kernel(
       FEEvaluation<dim, -1, 0, n_comp, Number, VectorizedArrayType> &phi) const
@@ -363,7 +363,7 @@ namespace Sintering
       , op(op)
     {}
 
-    template <int n_comp>
+    template <int n_comp, int>
     void
     do_vmult_kernel(
       FEEvaluation<dim, -1, 0, n_comp, Number, VectorizedArrayType> &phi) const
@@ -415,7 +415,7 @@ namespace Sintering
       , op(op)
     {}
 
-    template <int n_comp>
+    template <int n_comp, int>
     void
     do_vmult_kernel(
       FEEvaluation<dim, -1, 0, n_comp, Number, VectorizedArrayType> &phi) const
@@ -547,7 +547,7 @@ namespace Sintering
       }
     }
 
-    template <int n_comp>
+    template <int n_comp, int>
     void
     do_vmult_kernel(
       FEEvaluation<dim, -1, 0, n_comp, Number, VectorizedArrayType> &) const
@@ -1143,22 +1143,29 @@ namespace Sintering
           "mass_matrix_op")
     {}
 
-    template <int n_comp>
+    template <int n_comp, int n_grains>
     void
     do_vmult_kernel(
       FEEvaluation<dim, -1, 0, n_comp, Number, VectorizedArrayType> &phi) const
     {
-      for (unsigned int q = 0; q < phi.n_q_points; ++q)
+      if constexpr (n_grains != 0)
         {
-          phi.submit_value(phi.get_value(q), q);
-          phi.submit_gradient(
-            typename FEEvaluation<dim,
-                                  -1,
-                                  0,
-                                  n_comp,
-                                  Number,
-                                  VectorizedArrayType>::gradient_type(),
-            q);
+          Assert(false, ExcNotImplemented());
+        }
+      else
+        {
+          for (unsigned int q = 0; q < phi.n_q_points; ++q)
+            {
+              phi.submit_value(phi.get_value(q), q);
+              phi.submit_gradient(
+                typename FEEvaluation<dim,
+                                      -1,
+                                      0,
+                                      n_comp,
+                                      Number,
+                                      VectorizedArrayType>::gradient_type(),
+                q);
+            }
         }
     }
   };
@@ -1272,7 +1279,7 @@ namespace Sintering
       return epsilon;
     }
 
-    template <int n_comp>
+    template <int n_comp, int>
     void
     do_vmult_kernel(
       FEEvaluation<dim, -1, 0, n_comp, Number, VectorizedArrayType> &phi) const

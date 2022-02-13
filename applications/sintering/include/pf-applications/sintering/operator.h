@@ -2,25 +2,56 @@
 
 #include <fstream>
 
+template <typename T>
+using n_grains_t = decltype(std::declval<T const>().n_grains());
+
+template <typename T>
+constexpr bool has_n_grains =
+  dealii::internal::is_supported_operation<n_grains_t, T>;
+
 // clang-format off
-#define EXPAND_OPERATIONS(OPERATION)                              \
-  constexpr int max_components = SINTERING_GRAINS + 2;            \
-  AssertIndexRange(this->n_components(), max_components + 1);     \
-  switch (this->n_components())                                   \
-    {                                                             \
-      case  1: OPERATION(std::min(max_components,  1), 0); break; \
-      case  2: OPERATION(std::min(max_components,  2), 0); break; \
-      case  3: OPERATION(std::min(max_components,  3), 0); break; \
-      case  4: OPERATION(std::min(max_components,  4), 0); break; \
-      case  5: OPERATION(std::min(max_components,  5), 0); break; \
-      case  6: OPERATION(std::min(max_components,  6), 0); break; \
-      case  7: OPERATION(std::min(max_components,  7), 0); break; \
-      case  8: OPERATION(std::min(max_components,  8), 0); break; \
-      case  9: OPERATION(std::min(max_components,  9), 0); break; \
-      case 10: OPERATION(std::min(max_components, 10), 0); break; \
-      default:                                                    \
-        Assert(false, ExcNotImplemented());                       \
-    }
+#define EXPAND_OPERATIONS(OPERATION)                                                                                  \
+  if constexpr(has_n_grains<T>)                                                                                       \
+    {                                                                                                                 \
+      constexpr int max_grains = SINTERING_GRAINS;                                                                    \
+      const unsigned int n_grains = static_cast<const T&>(*this).n_grains();                                          \
+      AssertIndexRange(n_grains, max_grains + 1);                                                                     \
+      switch (n_grains)                                                                                               \
+        {                                                                                                             \
+          case  1: OPERATION(T::n_grains_to_n_components(std::min(max_grains,  1)), std::min(max_grains,  1)); break; \
+          case  2: OPERATION(T::n_grains_to_n_components(std::min(max_grains,  2)), std::min(max_grains,  2)); break; \
+          case  3: OPERATION(T::n_grains_to_n_components(std::min(max_grains,  3)), std::min(max_grains,  3)); break; \
+          case  4: OPERATION(T::n_grains_to_n_components(std::min(max_grains,  4)), std::min(max_grains,  4)); break; \
+          case  5: OPERATION(T::n_grains_to_n_components(std::min(max_grains,  5)), std::min(max_grains,  5)); break; \
+          case  6: OPERATION(T::n_grains_to_n_components(std::min(max_grains,  6)), std::min(max_grains,  6)); break; \
+          case  7: OPERATION(T::n_grains_to_n_components(std::min(max_grains,  7)), std::min(max_grains,  7)); break; \
+          case  8: OPERATION(T::n_grains_to_n_components(std::min(max_grains,  8)), std::min(max_grains,  8)); break; \
+          case  9: OPERATION(T::n_grains_to_n_components(std::min(max_grains,  9)), std::min(max_grains,  9)); break; \
+          case 10: OPERATION(T::n_grains_to_n_components(std::min(max_grains, 10)), std::min(max_grains, 10)); break; \
+          default:                                                                                                    \
+            Assert(false, ExcNotImplemented());                                                                       \
+        }                                                                                                             \
+    }                                                                                                                 \
+  else                                                                                                                \
+    {                                                                                                                 \
+      constexpr int max_components = SINTERING_GRAINS +2 ;                                                            \
+      AssertIndexRange(this->n_components(), max_components + 1);                                                     \
+      switch (this->n_components())                                                                                   \
+        {                                                                                                             \
+          case  1: OPERATION(std::min(max_components,  1), 0); break;                                                 \
+          case  2: OPERATION(std::min(max_components,  2), 0); break;                                                 \
+          case  3: OPERATION(std::min(max_components,  3), 0); break;                                                 \
+          case  4: OPERATION(std::min(max_components,  4), 0); break;                                                 \
+          case  5: OPERATION(std::min(max_components,  5), 0); break;                                                 \
+          case  6: OPERATION(std::min(max_components,  6), 0); break;                                                 \
+          case  7: OPERATION(std::min(max_components,  7), 0); break;                                                 \
+          case  8: OPERATION(std::min(max_components,  8), 0); break;                                                 \
+          case  9: OPERATION(std::min(max_components,  9), 0); break;                                                 \
+          case 10: OPERATION(std::min(max_components, 10), 0); break;                                                 \
+          default:                                                                                                    \
+            Assert(false, ExcNotImplemented());                                                                       \
+        }                                                                                                             \
+  }
 // clang-format on
 
 namespace Sintering
@@ -683,7 +714,7 @@ namespace Sintering
         {
 #define OPERATION(c, d)        \
   this->matrix_free.cell_loop( \
-    &OperatorBase::do_vmult_range<c>, this, dst, src, true);
+    &OperatorBase::do_vmult_range<c, d>, this, dst, src, true);
           EXPAND_OPERATIONS(OPERATION);
 #undef OPERATION
         }
@@ -708,9 +739,12 @@ namespace Sintering
 
       matrix_free.initialize_dof_vector(diagonal, dof_index);
 
-#define OPERATION(c, d)              \
-  MatrixFreeTools::compute_diagonal( \
-    matrix_free, diagonal, &OperatorBase::do_vmult_cell<c>, this, dof_index);
+#define OPERATION(c, d)                                                 \
+  MatrixFreeTools::compute_diagonal(matrix_free,                        \
+                                    diagonal,                           \
+                                    &OperatorBase::do_vmult_cell<c, d>, \
+                                    this,                               \
+                                    dof_index);
       EXPAND_OPERATIONS(OPERATION);
 #undef OPERATION
 
@@ -750,12 +784,12 @@ namespace Sintering
             system_matrix = 0.0; // clear existing content
           }
 
-#define OPERATION(c, d)                                            \
-  MatrixFreeTools::compute_matrix(matrix_free,                     \
-                                  constraints,                     \
-                                  system_matrix,                   \
-                                  &OperatorBase::do_vmult_cell<c>, \
-                                  this,                            \
+#define OPERATION(c, d)                                               \
+  MatrixFreeTools::compute_matrix(matrix_free,                        \
+                                  constraints,                        \
+                                  system_matrix,                      \
+                                  &OperatorBase::do_vmult_cell<c, d>, \
+                                  this,                               \
                                   dof_index);
         EXPAND_OPERATIONS(OPERATION);
 #undef OPERATION
@@ -765,7 +799,7 @@ namespace Sintering
     }
 
   protected:
-    template <int n_comp>
+    template <int n_comp, int n_grains>
     void
     do_vmult_cell(
       FEEvaluation<dim, -1, 0, n_comp, Number, VectorizedArrayType> &phi) const
@@ -773,13 +807,14 @@ namespace Sintering
       phi.evaluate(EvaluationFlags::EvaluationFlags::values |
                    EvaluationFlags::EvaluationFlags::gradients);
 
-      static_cast<const T &>(*this).do_vmult_kernel(phi);
+      static_cast<const T &>(*this).template do_vmult_kernel<n_comp, n_grains>(
+        phi);
 
       phi.integrate(EvaluationFlags::EvaluationFlags::values |
                     EvaluationFlags::EvaluationFlags::gradients);
     }
 
-    template <int n_comp>
+    template <int n_comp, int n_grains>
     void
     do_vmult_range(
       const MatrixFree<dim, Number, VectorizedArrayType> &matrix_free,
@@ -797,7 +832,8 @@ namespace Sintering
                               EvaluationFlags::EvaluationFlags::values |
                                 EvaluationFlags::EvaluationFlags::gradients);
 
-          static_cast<const T &>(*this).do_vmult_kernel(phi);
+          static_cast<const T &>(*this)
+            .template do_vmult_kernel<n_comp, n_grains>(phi);
 
           phi.integrate_scatter(EvaluationFlags::EvaluationFlags::values |
                                   EvaluationFlags::EvaluationFlags::gradients,
@@ -1066,6 +1102,11 @@ namespace Sintering
                           SinteringOperator<dim, Number, VectorizedArrayType>>
   {
   public:
+    using T = OperatorBase<dim,
+                           Number,
+                           VectorizedArrayType,
+                           SinteringOperator<dim, Number, VectorizedArrayType>>;
+
     using VectorType = LinearAlgebra::distributed::Vector<Number>;
 
     using value_type  = Number;
@@ -1100,12 +1141,12 @@ namespace Sintering
     {
       MyScope scope(this->timer, "sintering_op::nonlinear_residual");
 
-#define OPERATION(c, d)                                    \
-  this->matrix_free.cell_loop(                             \
-    &SinteringOperator::do_evaluate_nonlinear_residual<c>, \
-    this,                                                  \
-    dst,                                                   \
-    src,                                                   \
+#define OPERATION(c, d)                                       \
+  this->matrix_free.cell_loop(                                \
+    &SinteringOperator::do_evaluate_nonlinear_residual<c, d>, \
+    this,                                                     \
+    dst,                                                      \
+    src,                                                      \
     true);
       EXPAND_OPERATIONS(OPERATION);
 #undef OPERATION
@@ -1141,11 +1182,12 @@ namespace Sintering
 
       int dummy = 0;
 
-#define OPERATION(c, d)                                                       \
-  this->matrix_free.cell_loop(&SinteringOperator::do_evaluate_newton_step<c>, \
-                              this,                                           \
-                              dummy,                                          \
-                              newton_step);
+#define OPERATION(c, d)                                \
+  this->matrix_free.cell_loop(                         \
+    &SinteringOperator::do_evaluate_newton_step<c, d>, \
+    this,                                              \
+    dummy,                                             \
+    newton_step);
       EXPAND_OPERATIONS(OPERATION);
 #undef OPERATION
 
@@ -1191,7 +1233,7 @@ namespace Sintering
       return nonlinear_gradients;
     }
 
-    template <int n_comp>
+    template <int n_comp, int n_grains>
     void
     do_add_data_vectors(DataOut<dim> &data_out, const VectorType &vec) const
     {
@@ -1203,7 +1245,6 @@ namespace Sintering
         }
       else
         {
-          constexpr unsigned int n_grains = n_comp - 2;
           constexpr unsigned int n_entries =
             8 + 3 * n_grains + n_grains * (n_grains - 1) / 2;
           std::array<VectorType, n_entries> data_vectors;
@@ -1340,7 +1381,7 @@ namespace Sintering
     void
     add_data_vectors(DataOut<dim> &data_out, const VectorType &vec) const
     {
-#define OPERATION(c, d) this->do_add_data_vectors<c>(data_out, vec);
+#define OPERATION(c, d) this->do_add_data_vectors<c, d>(data_out, vec);
       EXPAND_OPERATIONS(OPERATION);
 #undef OPERATION
     }
@@ -1351,104 +1392,97 @@ namespace Sintering
       return this->n_components() - 2;
     }
 
-    template <int n_comp>
+    static constexpr unsigned int
+    n_grains_to_n_components(const unsigned int n_grains)
+    {
+      return n_grains + 2;
+    }
+
+    template <int n_comp, int n_grains>
     void
     do_vmult_kernel(
       FEEvaluation<dim, -1, 0, n_comp, Number, VectorizedArrayType> &phi) const
     {
-      if constexpr (n_comp <= 2)
+      const unsigned int cell = phi.get_current_cell_index();
+
+      const auto &free_energy = this->data.free_energy;
+      const auto &L           = this->data.L;
+      const auto &mobility    = this->data.mobility;
+      const auto &kappa_c     = this->data.kappa_c;
+      const auto &kappa_p     = this->data.kappa_p;
+      const auto  dt_inv      = 1.0 / dt;
+
+      for (unsigned int q = 0; q < phi.n_q_points; ++q)
         {
-          Assert(false, ExcNotImplemented());
-          (void)phi;
-        }
-      else
-        {
-          constexpr unsigned int n_grains = n_comp - 2;
+          const auto val  = nonlinear_values[cell][q];
+          const auto grad = nonlinear_gradients[cell][q];
 
-          const unsigned int cell = phi.get_current_cell_index();
+          const auto c       = val[0];
+          const auto c_grad  = grad[0];
+          const auto mu_grad = grad[1];
 
-          const auto &free_energy = this->data.free_energy;
-          const auto &L           = this->data.L;
-          const auto &mobility    = this->data.mobility;
-          const auto &kappa_c     = this->data.kappa_c;
-          const auto &kappa_p     = this->data.kappa_p;
-          const auto  dt_inv      = 1.0 / dt;
+          std::array<const VectorizedArrayType *, n_grains> etas;
+          std::array<const Tensor<1, dim, VectorizedArrayType> *, n_grains>
+            etas_grad;
 
-          for (unsigned int q = 0; q < phi.n_q_points; ++q)
+          for (unsigned int ig = 0; ig < n_grains; ++ig)
             {
-              const auto val  = nonlinear_values[cell][q];
-              const auto grad = nonlinear_gradients[cell][q];
+              etas[ig]      = &val[2 + ig];
+              etas_grad[ig] = &grad[2 + ig];
+            }
 
-              const auto c       = val[0];
-              const auto c_grad  = grad[0];
-              const auto mu_grad = grad[1];
+          Tensor<1, n_comp, VectorizedArrayType> value_result;
+          Tensor<1, n_comp, Tensor<1, dim, VectorizedArrayType>>
+            gradient_result;
 
-              std::array<const VectorizedArrayType *, n_grains> etas;
-              std::array<const Tensor<1, dim, VectorizedArrayType> *, n_grains>
-                etas_grad;
+          value_result[0] = phi.get_value(q)[0] * dt_inv;
+          value_result[1] = -phi.get_value(q)[1] +
+                            free_energy.d2f_dc2(c, etas) * phi.get_value(q)[0];
 
-              for (unsigned int ig = 0; ig < n_grains; ++ig)
+          gradient_result[0] =
+            mobility.M(c, etas, c_grad, etas_grad) * phi.get_gradient(q)[1] +
+            mobility.dM_dc(c, etas, c_grad, etas_grad) * mu_grad *
+              phi.get_value(q)[0] +
+            mobility.dM_dgrad_c(c, c_grad, mu_grad) * phi.get_gradient(q)[0];
+
+          gradient_result[1] = kappa_c * phi.get_gradient(q)[0];
+
+          for (unsigned int ig = 0; ig < n_grains; ++ig)
+            {
+              value_result[1] +=
+                free_energy.d2f_dcdetai(c, etas, ig) * phi.get_value(q)[ig + 2];
+
+              value_result[ig + 2] =
+                phi.get_value(q)[ig + 2] * dt_inv +
+                L * free_energy.d2f_dcdetai(c, etas, ig) * phi.get_value(q)[0] +
+                L * free_energy.d2f_detai2(c, etas, ig) *
+                  phi.get_value(q)[ig + 2];
+
+              gradient_result[0] +=
+                mobility.dM_detai(c, etas, c_grad, etas_grad, ig) * mu_grad *
+                phi.get_value(q)[ig + 2];
+
+              gradient_result[ig + 2] =
+                L * kappa_p * phi.get_gradient(q)[ig + 2];
+
+              for (unsigned int jg = 0; jg < n_grains; ++jg)
                 {
-                  etas[ig]      = &val[2 + ig];
-                  etas_grad[ig] = &grad[2 + ig];
-                }
-
-              Tensor<1, n_comp, VectorizedArrayType> value_result;
-              Tensor<1, n_comp, Tensor<1, dim, VectorizedArrayType>>
-                gradient_result;
-
-              value_result[0] = phi.get_value(q)[0] * dt_inv;
-              value_result[1] =
-                -phi.get_value(q)[1] +
-                free_energy.d2f_dc2(c, etas) * phi.get_value(q)[0];
-
-              gradient_result[0] = mobility.M(c, etas, c_grad, etas_grad) *
-                                     phi.get_gradient(q)[1] +
-                                   mobility.dM_dc(c, etas, c_grad, etas_grad) *
-                                     mu_grad * phi.get_value(q)[0] +
-                                   mobility.dM_dgrad_c(c, c_grad, mu_grad) *
-                                     phi.get_gradient(q)[0];
-
-              gradient_result[1] = kappa_c * phi.get_gradient(q)[0];
-
-              for (unsigned int ig = 0; ig < n_grains; ++ig)
-                {
-                  value_result[1] += free_energy.d2f_dcdetai(c, etas, ig) *
-                                     phi.get_value(q)[ig + 2];
-
-                  value_result[ig + 2] =
-                    phi.get_value(q)[ig + 2] * dt_inv +
-                    L * free_energy.d2f_dcdetai(c, etas, ig) *
-                      phi.get_value(q)[0] +
-                    L * free_energy.d2f_detai2(c, etas, ig) *
-                      phi.get_value(q)[ig + 2];
-
-                  gradient_result[0] +=
-                    mobility.dM_detai(c, etas, c_grad, etas_grad, ig) *
-                    mu_grad * phi.get_value(q)[ig + 2];
-
-                  gradient_result[ig + 2] =
-                    L * kappa_p * phi.get_gradient(q)[ig + 2];
-
-                  for (unsigned int jg = 0; jg < n_grains; ++jg)
+                  if (ig != jg)
                     {
-                      if (ig != jg)
-                        {
-                          value_result[ig + 2] +=
-                            L * free_energy.d2f_detaidetaj(c, etas, ig, jg) *
-                            phi.get_value(q)[jg + 2];
-                        }
+                      value_result[ig + 2] +=
+                        L * free_energy.d2f_detaidetaj(c, etas, ig, jg) *
+                        phi.get_value(q)[jg + 2];
                     }
                 }
-
-              phi.submit_value(value_result, q);
-              phi.submit_gradient(gradient_result, q);
             }
+
+          phi.submit_value(value_result, q);
+          phi.submit_gradient(gradient_result, q);
         }
     }
 
   private:
-    template <int n_comp>
+    template <int n_comp, int n_grains>
     void
     do_evaluate_nonlinear_residual(
       const MatrixFree<dim, Number, VectorizedArrayType> &matrix_free,
@@ -1466,8 +1500,6 @@ namespace Sintering
         }
       else
         {
-          constexpr unsigned int n_grains = n_comp - 2;
-
           FEEvaluation<dim, -1, 0, n_comp, Number, VectorizedArrayType> phi_old(
             matrix_free);
           FEEvaluation<dim, -1, 0, n_comp, Number, VectorizedArrayType> phi(
@@ -1547,7 +1579,7 @@ namespace Sintering
         }
     }
 
-    template <int n_comp>
+    template <int n_comp, int n_grains>
     void
     do_evaluate_newton_step(
       const MatrixFree<dim, Number, VectorizedArrayType> &matrix_free,
@@ -1565,13 +1597,12 @@ namespace Sintering
       else
         {
 #ifdef WITH_TRACKER
-          constexpr unsigned int n_grains    = n_comp - 2;
-          const auto &           free_energy = this->data.free_energy;
-          const auto &           L           = this->data.L;
-          const auto &           mobility    = this->data.mobility;
-          const auto &           kappa_c     = this->data.kappa_c;
-          const auto &           kappa_p     = this->data.kappa_p;
-          const auto             dt_inv      = 1.0 / dt;
+          const auto &free_energy = this->data.free_energy;
+          const auto &L           = this->data.L;
+          const auto &mobility    = this->data.mobility;
+          const auto &kappa_c     = this->data.kappa_c;
+          const auto &kappa_p     = this->data.kappa_p;
+          const auto  dt_inv      = 1.0 / dt;
 #endif
 
           FEEvaluation<dim, -1, 0, n_comp, Number, VectorizedArrayType> phi(
