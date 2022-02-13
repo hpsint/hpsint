@@ -18,7 +18,6 @@ constexpr bool has_n_grains =
       AssertIndexRange(n_grains, max_grains + 1);                                                                     \
       switch (n_grains)                                                                                               \
         {                                                                                                             \
-          case  1: OPERATION(T::n_grains_to_n_components(std::min(max_grains,  1)), std::min(max_grains,  1)); break; \
           case  2: OPERATION(T::n_grains_to_n_components(std::min(max_grains,  2)), std::min(max_grains,  2)); break; \
           case  3: OPERATION(T::n_grains_to_n_components(std::min(max_grains,  3)), std::min(max_grains,  3)); break; \
           case  4: OPERATION(T::n_grains_to_n_components(std::min(max_grains,  4)), std::min(max_grains,  4)); break; \
