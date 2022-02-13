@@ -1148,24 +1148,19 @@ namespace Sintering
     do_vmult_kernel(
       FEEvaluation<dim, -1, 0, n_comp, Number, VectorizedArrayType> &phi) const
     {
-      if constexpr (n_grains != 0)
+      static_assert(n_grains == -1);
+
+      for (unsigned int q = 0; q < phi.n_q_points; ++q)
         {
-          Assert(false, ExcNotImplemented());
-        }
-      else
-        {
-          for (unsigned int q = 0; q < phi.n_q_points; ++q)
-            {
-              phi.submit_value(phi.get_value(q), q);
-              phi.submit_gradient(
-                typename FEEvaluation<dim,
-                                      -1,
-                                      0,
-                                      n_comp,
-                                      Number,
-                                      VectorizedArrayType>::gradient_type(),
-                q);
-            }
+          phi.submit_value(phi.get_value(q), q);
+          phi.submit_gradient(
+            typename FEEvaluation<dim,
+                                  -1,
+                                  0,
+                                  n_comp,
+                                  Number,
+                                  VectorizedArrayType>::gradient_type(),
+            q);
         }
     }
   };

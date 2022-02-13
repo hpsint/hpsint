@@ -38,16 +38,16 @@ constexpr bool has_n_grains =
       AssertIndexRange(this->n_components(), max_components + 1);                                                     \
       switch (this->n_components())                                                                                   \
         {                                                                                                             \
-          case  1: OPERATION(std::min(max_components,  1), 0); break;                                                 \
-          case  2: OPERATION(std::min(max_components,  2), 0); break;                                                 \
-          case  3: OPERATION(std::min(max_components,  3), 0); break;                                                 \
-          case  4: OPERATION(std::min(max_components,  4), 0); break;                                                 \
-          case  5: OPERATION(std::min(max_components,  5), 0); break;                                                 \
-          case  6: OPERATION(std::min(max_components,  6), 0); break;                                                 \
-          case  7: OPERATION(std::min(max_components,  7), 0); break;                                                 \
-          case  8: OPERATION(std::min(max_components,  8), 0); break;                                                 \
-          case  9: OPERATION(std::min(max_components,  9), 0); break;                                                 \
-          case 10: OPERATION(std::min(max_components, 10), 0); break;                                                 \
+          case  1: OPERATION(std::min(max_components,  1), -1); break;                                                \
+          case  2: OPERATION(std::min(max_components,  2), -1); break;                                                \
+          case  3: OPERATION(std::min(max_components,  3), -1); break;                                                \
+          case  4: OPERATION(std::min(max_components,  4), -1); break;                                                \
+          case  5: OPERATION(std::min(max_components,  5), -1); break;                                                \
+          case  6: OPERATION(std::min(max_components,  6), -1); break;                                                \
+          case  7: OPERATION(std::min(max_components,  7), -1); break;                                                \
+          case  8: OPERATION(std::min(max_components,  8), -1); break;                                                \
+          case  9: OPERATION(std::min(max_components,  9), -1); break;                                                \
+          case 10: OPERATION(std::min(max_components, 10), -1); break;                                                \
           default:                                                                                                    \
             Assert(false, ExcNotImplemented());                                                                       \
         }                                                                                                             \
