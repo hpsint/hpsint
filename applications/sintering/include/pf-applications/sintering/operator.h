@@ -1234,144 +1234,134 @@ namespace Sintering
     void
     do_add_data_vectors(DataOut<dim> &data_out, const VectorType &vec) const
     {
-      if constexpr (n_comp <= 2)
+      AssertDimension(n_comp - 2, n_grains);
+
+      constexpr unsigned int n_entries =
+        8 + 3 * n_grains + n_grains * (n_grains - 1) / 2;
+      std::array<VectorType, n_entries> data_vectors;
+
+      for (auto &data_vector : data_vectors)
+        this->matrix_free.initialize_dof_vector(data_vector, 3);
+
+      FEEvaluation<dim, -1, 0, n_comp, Number, VectorizedArrayType> fe_eval_all(
+        this->matrix_free);
+      FEEvaluation<dim, -1, 0, 1, Number, VectorizedArrayType> fe_eval(
+        this->matrix_free, 3 /*scalar dof index*/);
+
+      MatrixFreeOperators::
+        CellwiseInverseMassMatrix<dim, -1, 1, Number, VectorizedArrayType>
+          inverse_mass_matrix(fe_eval);
+
+      AlignedVector<VectorizedArrayType> buffer(fe_eval.n_q_points * n_entries);
+
+      const auto &free_energy = this->data.free_energy;
+      const auto &L           = this->data.L;
+      const auto &mobility    = this->data.mobility;
+      const auto &kappa_c     = this->data.kappa_c;
+      const auto &kappa_p     = this->data.kappa_p;
+      const auto  dt_inv      = 1.0 / dt;
+
+      vec.update_ghost_values();
+
+      for (unsigned int cell = 0; cell < this->matrix_free.n_cell_batches();
+           ++cell)
         {
-          Assert(false, ExcNotImplemented());
-          (void)data_out;
-          (void)vec;
-        }
-      else
-        {
-          constexpr unsigned int n_entries =
-            8 + 3 * n_grains + n_grains * (n_grains - 1) / 2;
-          std::array<VectorType, n_entries> data_vectors;
+          fe_eval_all.reinit(cell);
+          fe_eval.reinit(cell);
 
-          for (auto &data_vector : data_vectors)
-            this->matrix_free.initialize_dof_vector(data_vector, 3);
+          fe_eval_all.reinit(cell);
+          fe_eval_all.read_dof_values_plain(vec);
+          fe_eval_all.evaluate(EvaluationFlags::values |
+                               EvaluationFlags::gradients);
 
-          FEEvaluation<dim, -1, 0, n_comp, Number, VectorizedArrayType>
-            fe_eval_all(this->matrix_free);
-          FEEvaluation<dim, -1, 0, 1, Number, VectorizedArrayType> fe_eval(
-            this->matrix_free, 3 /*scalar dof index*/);
-
-          MatrixFreeOperators::
-            CellwiseInverseMassMatrix<dim, -1, 1, Number, VectorizedArrayType>
-              inverse_mass_matrix(fe_eval);
-
-          AlignedVector<VectorizedArrayType> buffer(fe_eval.n_q_points *
-                                                    n_entries);
-
-          const auto &free_energy = this->data.free_energy;
-          const auto &L           = this->data.L;
-          const auto &mobility    = this->data.mobility;
-          const auto &kappa_c     = this->data.kappa_c;
-          const auto &kappa_p     = this->data.kappa_p;
-          const auto  dt_inv      = 1.0 / dt;
-
-          vec.update_ghost_values();
-
-          for (unsigned int cell = 0; cell < this->matrix_free.n_cell_batches();
-               ++cell)
+          for (unsigned int q = 0; q < fe_eval.n_q_points; ++q)
             {
-              fe_eval_all.reinit(cell);
-              fe_eval.reinit(cell);
+              const auto val  = fe_eval_all.get_value(q);
+              const auto grad = fe_eval_all.get_gradient(q);
 
-              fe_eval_all.reinit(cell);
-              fe_eval_all.read_dof_values_plain(vec);
-              fe_eval_all.evaluate(EvaluationFlags::values |
-                                   EvaluationFlags::gradients);
+              const auto &c       = val[0];
+              const auto &c_grad  = grad[0];
+              const auto &mu_grad = grad[1];
 
-              for (unsigned int q = 0; q < fe_eval.n_q_points; ++q)
+              std::array<const VectorizedArrayType *, n_grains> etas;
+              std::array<const Tensor<1, dim, VectorizedArrayType> *, n_grains>
+                etas_grad;
+
+              for (unsigned int ig = 0; ig < n_grains; ++ig)
                 {
-                  const auto val  = fe_eval_all.get_value(q);
-                  const auto grad = fe_eval_all.get_gradient(q);
+                  etas[ig]      = &val[2 + ig];
+                  etas_grad[ig] = &grad[2 + ig];
+                }
 
-                  const auto &c       = val[0];
-                  const auto &c_grad  = grad[0];
-                  const auto &mu_grad = grad[1];
+              std::array<VectorizedArrayType, n_entries> temp;
 
-                  std::array<const VectorizedArrayType *, n_grains> etas;
-                  std::array<const Tensor<1, dim, VectorizedArrayType> *,
-                             n_grains>
-                    etas_grad;
+              unsigned int counter = 0;
 
-                  for (unsigned int ig = 0; ig < n_grains; ++ig)
-                    {
-                      etas[ig]      = &val[2 + ig];
-                      etas_grad[ig] = &grad[2 + ig];
-                    }
+              temp[counter++] = VectorizedArrayType(dt_inv);
+              temp[counter++] = free_energy.d2f_dc2(c, etas);
 
-                  std::array<VectorizedArrayType, n_entries> temp;
+              for (unsigned int ig = 0; ig < n_grains; ++ig)
+                {
+                  temp[counter++] = free_energy.d2f_dcdetai(c, etas, ig);
+                }
 
-                  unsigned int counter = 0;
+              for (unsigned int ig = 0; ig < n_grains; ++ig)
+                {
+                  temp[counter++] = free_energy.d2f_detai2(c, etas, ig);
+                }
 
-                  temp[counter++] = VectorizedArrayType(dt_inv);
-                  temp[counter++] = free_energy.d2f_dc2(c, etas);
-
-                  for (unsigned int ig = 0; ig < n_grains; ++ig)
-                    {
-                      temp[counter++] = free_energy.d2f_dcdetai(c, etas, ig);
-                    }
-
-                  for (unsigned int ig = 0; ig < n_grains; ++ig)
-                    {
-                      temp[counter++] = free_energy.d2f_detai2(c, etas, ig);
-                    }
-
-                  for (unsigned int ig = 0; ig < n_grains; ++ig)
-                    {
-                      for (unsigned int jg = ig + 1; jg < n_grains; ++jg)
-                        {
-                          temp[counter++] =
-                            free_energy.d2f_detaidetaj(c, etas, ig, jg);
-                        }
-                    }
-
-                  temp[counter++] = mobility.M(c, etas, c_grad, etas_grad);
-                  temp[counter++] =
-                    (mobility.dM_dc(c, etas, c_grad, etas_grad) * mu_grad)
-                      .norm();
-                  temp[counter++] =
-                    (mobility.dM_dgrad_c(c, c_grad, mu_grad)).norm();
-
-                  for (unsigned int ig = 0; ig < n_grains; ++ig)
+              for (unsigned int ig = 0; ig < n_grains; ++ig)
+                {
+                  for (unsigned int jg = ig + 1; jg < n_grains; ++jg)
                     {
                       temp[counter++] =
-                        (mobility.dM_detai(c, etas, c_grad, etas_grad, ig) *
-                         mu_grad)
-                          .norm();
+                        free_energy.d2f_detaidetaj(c, etas, ig, jg);
                     }
-
-                  temp[counter++] = VectorizedArrayType(kappa_c);
-                  temp[counter++] = VectorizedArrayType(kappa_p);
-                  temp[counter++] = VectorizedArrayType(L);
-
-                  for (unsigned int c = 0; c < n_entries; ++c)
-                    buffer[c * fe_eval.n_q_points + q] = temp[c];
                 }
+
+              temp[counter++] = mobility.M(c, etas, c_grad, etas_grad);
+              temp[counter++] =
+                (mobility.dM_dc(c, etas, c_grad, etas_grad) * mu_grad).norm();
+              temp[counter++] =
+                (mobility.dM_dgrad_c(c, c_grad, mu_grad)).norm();
+
+              for (unsigned int ig = 0; ig < n_grains; ++ig)
+                {
+                  temp[counter++] =
+                    (mobility.dM_detai(c, etas, c_grad, etas_grad, ig) *
+                     mu_grad)
+                      .norm();
+                }
+
+              temp[counter++] = VectorizedArrayType(kappa_c);
+              temp[counter++] = VectorizedArrayType(kappa_p);
+              temp[counter++] = VectorizedArrayType(L);
 
               for (unsigned int c = 0; c < n_entries; ++c)
-                {
-                  inverse_mass_matrix.transform_from_q_points_to_basis(
-                    1,
-                    buffer.data() + c * fe_eval.n_q_points,
-                    fe_eval.begin_dof_values());
-
-                  fe_eval.set_dof_values(data_vectors[c]);
-                }
+                buffer[c * fe_eval.n_q_points + q] = temp[c];
             }
-
-          vec.zero_out_ghost_values();
 
           for (unsigned int c = 0; c < n_entries; ++c)
             {
-              std::ostringstream ss;
-              ss << "aux_" << std::setw(2) << std::setfill('0') << c;
+              inverse_mass_matrix.transform_from_q_points_to_basis(
+                1,
+                buffer.data() + c * fe_eval.n_q_points,
+                fe_eval.begin_dof_values());
 
-              data_out.add_data_vector(this->matrix_free.get_dof_handler(3),
-                                       data_vectors[c],
-                                       ss.str());
+              fe_eval.set_dof_values(data_vectors[c]);
             }
+        }
+
+      vec.zero_out_ghost_values();
+
+      for (unsigned int c = 0; c < n_entries; ++c)
+        {
+          std::ostringstream ss;
+          ss << "aux_" << std::setw(2) << std::setfill('0') << c;
+
+          data_out.add_data_vector(this->matrix_free.get_dof_handler(3),
+                                   data_vectors[c],
+                                   ss.str());
         }
     }
 
@@ -1489,94 +1479,79 @@ namespace Sintering
       const VectorType &                                  src,
       const std::pair<unsigned int, unsigned int> &       range) const
     {
-      if constexpr (n_comp <= 2)
+      AssertDimension(n_comp - 2, n_grains);
+
+      FEEvaluation<dim, -1, 0, n_comp, Number, VectorizedArrayType> phi_old(
+        matrix_free);
+      FEEvaluation<dim, -1, 0, n_comp, Number, VectorizedArrayType> phi(
+        matrix_free);
+
+      const auto &free_energy = this->data.free_energy;
+      const auto &L           = this->data.L;
+      const auto &mobility    = this->data.mobility;
+      const auto &kappa_c     = this->data.kappa_c;
+      const auto &kappa_p     = this->data.kappa_p;
+
+      for (auto cell = range.first; cell < range.second; ++cell)
         {
-          Assert(false, ExcNotImplemented());
-          (void)matrix_free;
-          (void)dst;
-          (void)src;
-          (void)range;
-        }
-      else
-        {
-          AssertDimension(n_comp - 2, n_grains);
+          phi_old.reinit(cell);
+          phi.reinit(cell);
 
-          FEEvaluation<dim, -1, 0, n_comp, Number, VectorizedArrayType> phi_old(
-            matrix_free);
-          FEEvaluation<dim, -1, 0, n_comp, Number, VectorizedArrayType> phi(
-            matrix_free);
+          phi.gather_evaluate(src,
+                              EvaluationFlags::EvaluationFlags::values |
+                                EvaluationFlags::EvaluationFlags::gradients);
 
-          const auto &free_energy = this->data.free_energy;
-          const auto &L           = this->data.L;
-          const auto &mobility    = this->data.mobility;
-          const auto &kappa_c     = this->data.kappa_c;
-          const auto &kappa_p     = this->data.kappa_p;
+          // get values from old solution
+          phi_old.read_dof_values_plain(old_solution);
+          phi_old.evaluate(EvaluationFlags::EvaluationFlags::values);
 
-          for (auto cell = range.first; cell < range.second; ++cell)
+          for (unsigned int q = 0; q < phi.n_q_points; ++q)
             {
-              phi_old.reinit(cell);
-              phi.reinit(cell);
+              const auto val     = phi.get_value(q);
+              const auto val_old = phi_old.get_value(q);
+              const auto grad    = phi.get_gradient(q);
 
-              phi.gather_evaluate(
-                src,
-                EvaluationFlags::EvaluationFlags::values |
-                  EvaluationFlags::EvaluationFlags::gradients);
+              auto &c      = val[0];
+              auto &mu     = val[1];
+              auto &c_old  = val_old[0];
+              auto &c_grad = grad[0];
 
-              // get values from old solution
-              phi_old.read_dof_values_plain(old_solution);
-              phi_old.evaluate(EvaluationFlags::EvaluationFlags::values);
+              std::array<const VectorizedArrayType *, n_grains> etas;
+              std::array<const Tensor<1, dim, VectorizedArrayType> *, n_grains>
+                etas_grad;
 
-              for (unsigned int q = 0; q < phi.n_q_points; ++q)
+              for (unsigned int ig = 0; ig < n_grains; ++ig)
                 {
-                  const auto val     = phi.get_value(q);
-                  const auto val_old = phi_old.get_value(q);
-                  const auto grad    = phi.get_gradient(q);
-
-                  auto &c      = val[0];
-                  auto &mu     = val[1];
-                  auto &c_old  = val_old[0];
-                  auto &c_grad = grad[0];
-
-                  std::array<const VectorizedArrayType *, n_grains> etas;
-                  std::array<const Tensor<1, dim, VectorizedArrayType> *,
-                             n_grains>
-                    etas_grad;
-
-                  for (unsigned int ig = 0; ig < n_grains; ++ig)
-                    {
-                      etas[ig]      = &val[2 + ig];
-                      etas_grad[ig] = &grad[2 + ig];
-                    }
-
-                  Tensor<1, n_comp, VectorizedArrayType> value_result;
-                  Tensor<1, n_comp, Tensor<1, dim, VectorizedArrayType>>
-                    gradient_result;
-
-                  // CH equations
-                  value_result[0] = (c - c_old) / dt;
-                  value_result[1] = -mu + free_energy.df_dc(c, etas);
-                  gradient_result[0] =
-                    mobility.M(c, etas, c_grad, etas_grad) * grad[1];
-                  gradient_result[1] = kappa_c * grad[0];
-
-                  // AC equations
-                  for (unsigned int ig = 0; ig < n_grains; ++ig)
-                    {
-                      value_result[2 + ig] =
-                        (val[2 + ig] - val_old[2 + ig]) / dt +
-                        L * free_energy.df_detai(c, etas, ig);
-
-                      gradient_result[2 + ig] = L * kappa_p * grad[2 + ig];
-                    }
-
-                  phi.submit_value(value_result, q);
-                  phi.submit_gradient(gradient_result, q);
+                  etas[ig]      = &val[2 + ig];
+                  etas_grad[ig] = &grad[2 + ig];
                 }
-              phi.integrate_scatter(
-                EvaluationFlags::EvaluationFlags::values |
-                  EvaluationFlags::EvaluationFlags::gradients,
-                dst);
+
+              Tensor<1, n_comp, VectorizedArrayType> value_result;
+              Tensor<1, n_comp, Tensor<1, dim, VectorizedArrayType>>
+                gradient_result;
+
+              // CH equations
+              value_result[0] = (c - c_old) / dt;
+              value_result[1] = -mu + free_energy.df_dc(c, etas);
+              gradient_result[0] =
+                mobility.M(c, etas, c_grad, etas_grad) * grad[1];
+              gradient_result[1] = kappa_c * grad[0];
+
+              // AC equations
+              for (unsigned int ig = 0; ig < n_grains; ++ig)
+                {
+                  value_result[2 + ig] = (val[2 + ig] - val_old[2 + ig]) / dt +
+                                         L * free_energy.df_detai(c, etas, ig);
+
+                  gradient_result[2 + ig] = L * kappa_p * grad[2 + ig];
+                }
+
+              phi.submit_value(value_result, q);
+              phi.submit_gradient(gradient_result, q);
             }
+          phi.integrate_scatter(EvaluationFlags::EvaluationFlags::values |
+                                  EvaluationFlags::EvaluationFlags::gradients,
+                                dst);
         }
     }
 
@@ -1588,108 +1563,92 @@ namespace Sintering
       const VectorType &                           src,
       const std::pair<unsigned int, unsigned int> &range)
     {
-      if constexpr (n_comp <= 2)
-        {
-          Assert(false, ExcNotImplemented());
-          (void)matrix_free;
-          (void)src;
-          (void)range;
-        }
-      else
-        {
-          AssertDimension(n_comp - 2, n_grains);
+      AssertDimension(n_comp - 2, n_grains);
 #ifdef WITH_TRACKER
-          const auto &free_energy = this->data.free_energy;
-          const auto &L           = this->data.L;
-          const auto &mobility    = this->data.mobility;
-          const auto &kappa_c     = this->data.kappa_c;
-          const auto &kappa_p     = this->data.kappa_p;
-          const auto  dt_inv      = 1.0 / dt;
+      const auto &free_energy = this->data.free_energy;
+      const auto &L           = this->data.L;
+      const auto &mobility    = this->data.mobility;
+      const auto &kappa_c     = this->data.kappa_c;
+      const auto &kappa_p     = this->data.kappa_p;
+      const auto  dt_inv      = 1.0 / dt;
 #endif
 
-          FEEvaluation<dim, -1, 0, n_comp, Number, VectorizedArrayType> phi(
-            matrix_free);
+      FEEvaluation<dim, -1, 0, n_comp, Number, VectorizedArrayType> phi(
+        matrix_free);
 
-          for (auto cell = range.first; cell < range.second; ++cell)
+      for (auto cell = range.first; cell < range.second; ++cell)
+        {
+          phi.reinit(cell);
+          phi.read_dof_values_plain(src);
+          phi.evaluate(EvaluationFlags::values | EvaluationFlags::gradients);
+
+#ifdef WITH_TRACKER
+          tracker.initialize(matrix_free.n_active_entries_per_cell_batch(cell));
+#endif
+
+          for (unsigned int q = 0; q < phi.n_q_points; ++q)
             {
-              phi.reinit(cell);
-              phi.read_dof_values_plain(src);
-              phi.evaluate(EvaluationFlags::values |
-                           EvaluationFlags::gradients);
-
-#ifdef WITH_TRACKER
-              tracker.initialize(
-                matrix_free.n_active_entries_per_cell_batch(cell));
-#endif
-
-              for (unsigned int q = 0; q < phi.n_q_points; ++q)
+              for (unsigned int c = 0; c < n_comp; ++c)
                 {
-                  for (unsigned int c = 0; c < n_comp; ++c)
-                    {
-                      nonlinear_values(cell, q, c)    = phi.get_value(q)[c];
-                      nonlinear_gradients(cell, q, c) = phi.get_gradient(q)[c];
-                    }
+                  nonlinear_values(cell, q, c)    = phi.get_value(q)[c];
+                  nonlinear_gradients(cell, q, c) = phi.get_gradient(q)[c];
+                }
 
 #ifdef WITH_TRACKER
-                  const auto val  = nonlinear_values[cell][q];
-                  const auto grad = nonlinear_gradients[cell][q];
+              const auto val  = nonlinear_values[cell][q];
+              const auto grad = nonlinear_gradients[cell][q];
 
-                  const auto c       = val[0];
-                  const auto c_grad  = grad[0];
-                  const auto mu_grad = grad[1];
+              const auto c       = val[0];
+              const auto c_grad  = grad[0];
+              const auto mu_grad = grad[1];
 
-                  std::array<const VectorizedArrayType *, n_grains> etas;
-                  std::array<const Tensor<1, dim, VectorizedArrayType> *,
-                             n_grains>
-                    etas_grad;
+              std::array<const VectorizedArrayType *, n_grains> etas;
+              std::array<const Tensor<1, dim, VectorizedArrayType> *, n_grains>
+                etas_grad;
 
-                  for (unsigned int ig = 0; ig < n_grains; ++ig)
-                    {
-                      etas[ig]      = &val[2 + ig];
-                      etas_grad[ig] = &grad[2 + ig];
-                    }
-
-                  tracker.emplace_back(0, dt_inv);
-                  tracker.emplace_back(1, free_energy.d2f_dc2(c, etas));
-                  for (unsigned int ig = 0; ig < n_grains; ++ig)
-                    {
-                      tracker.emplace_back(
-                        2, free_energy.d2f_dcdetai(c, etas, ig));
-                    }
-                  for (unsigned int ig = 0; ig < n_grains; ++ig)
-                    {
-                      tracker.emplace_back(2,
-                                           free_energy.d2f_detai2(c, etas, ig));
-                    }
-                  for (unsigned int ig = 0; ig < n_grains; ++ig)
-                    {
-                      for (unsigned int jg = ig + 1; jg < n_grains; ++jg)
-                        {
-                          tracker.emplace_back(
-                            2, free_energy.d2f_detaidetaj(c, etas, ig, jg));
-                        }
-                    }
-                  tracker.emplace_back(0,
-                                       mobility.M(c, etas, c_grad, etas_grad));
-                  tracker.emplace_back(
-                    1, mobility.dM_dc(c, etas, c_grad, etas_grad) * mu_grad);
-                  tracker.emplace_back(1,
-                                       mobility.dM_dgrad_c(c, c_grad, mu_grad));
-
-                  for (unsigned int ig = 0; ig < n_grains; ++ig)
-                    {
-                      tracker.emplace_back(
-                        2,
-                        mobility.dM_detai(c, etas, c_grad, etas_grad, ig) *
-                          mu_grad);
-                    }
-                  tracker.emplace_back(0, kappa_c);
-                  tracker.emplace_back(0, kappa_p);
-                  tracker.emplace_back(0, L);
-
-                  tracker.finalize_point();
-#endif
+              for (unsigned int ig = 0; ig < n_grains; ++ig)
+                {
+                  etas[ig]      = &val[2 + ig];
+                  etas_grad[ig] = &grad[2 + ig];
                 }
+
+              tracker.emplace_back(0, dt_inv);
+              tracker.emplace_back(1, free_energy.d2f_dc2(c, etas));
+              for (unsigned int ig = 0; ig < n_grains; ++ig)
+                {
+                  tracker.emplace_back(2, free_energy.d2f_dcdetai(c, etas, ig));
+                }
+              for (unsigned int ig = 0; ig < n_grains; ++ig)
+                {
+                  tracker.emplace_back(2, free_energy.d2f_detai2(c, etas, ig));
+                }
+              for (unsigned int ig = 0; ig < n_grains; ++ig)
+                {
+                  for (unsigned int jg = ig + 1; jg < n_grains; ++jg)
+                    {
+                      tracker.emplace_back(
+                        2, free_energy.d2f_detaidetaj(c, etas, ig, jg));
+                    }
+                }
+              tracker.emplace_back(0, mobility.M(c, etas, c_grad, etas_grad));
+              tracker.emplace_back(1,
+                                   mobility.dM_dc(c, etas, c_grad, etas_grad) *
+                                     mu_grad);
+              tracker.emplace_back(1, mobility.dM_dgrad_c(c, c_grad, mu_grad));
+
+              for (unsigned int ig = 0; ig < n_grains; ++ig)
+                {
+                  tracker.emplace_back(
+                    2,
+                    mobility.dM_detai(c, etas, c_grad, etas_grad, ig) *
+                      mu_grad);
+                }
+              tracker.emplace_back(0, kappa_c);
+              tracker.emplace_back(0, kappa_p);
+              tracker.emplace_back(0, L);
+
+              tracker.finalize_point();
+#endif
             }
         }
     }
