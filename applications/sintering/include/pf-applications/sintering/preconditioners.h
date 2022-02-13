@@ -59,9 +59,9 @@ namespace Sintering
 
       // TODO: 1) allow std::array again and 2) allocate less often in the
       // case of std::vector
-      std::vector<const VectorizedArrayType *>                 etas(n_grains);
-      std::vector<const Tensor<1, dim, VectorizedArrayType> *> etas_grad(
-        n_grains);
+      std::array<const VectorizedArrayType *, n_grains> etas;
+      std::array<const Tensor<1, dim, VectorizedArrayType> *, n_grains>
+        etas_grad;
 
       for (unsigned int q = 0; q < phi.n_q_points; ++q)
         {
@@ -165,9 +165,9 @@ namespace Sintering
       const auto &nonlinear_gradients = this->op.get_nonlinear_gradients();
 
       // TODO: see above
-      std::vector<const VectorizedArrayType *>                 etas(n_grains);
-      std::vector<const Tensor<1, dim, VectorizedArrayType> *> etas_grad(
-        n_grains);
+      std::array<const VectorizedArrayType *, n_grains> etas;
+      std::array<const Tensor<1, dim, VectorizedArrayType> *, n_grains>
+        etas_grad;
 
       for (unsigned int q = 0; q < phi.n_q_points; ++q)
         {
@@ -249,9 +249,9 @@ namespace Sintering
       const auto &nonlinear_gradients = this->op.get_nonlinear_gradients();
 
       // TODO: see above
-      std::vector<const VectorizedArrayType *>                 etas(n_grains);
-      std::vector<const Tensor<1, dim, VectorizedArrayType> *> etas_grad(
-        n_grains);
+      std::array<const VectorizedArrayType *, n_grains> etas;
+      std::array<const Tensor<1, dim, VectorizedArrayType> *, n_grains>
+        etas_grad;
 
       for (unsigned int q = 0; q < phi.n_q_points; ++q)
         {
@@ -329,7 +329,7 @@ namespace Sintering
       const auto &nonlinear_values = this->op.get_nonlinear_values();
 
       // TODO: see above
-      std::vector<const VectorizedArrayType *> etas(n_grains);
+      std::array<const VectorizedArrayType *, n_grains> etas;
 
       for (unsigned int q = 0; q < phi.n_q_points; ++q)
         {
@@ -1326,9 +1326,9 @@ namespace Sintering
       const auto dt         = get_dt();
 
       // TODO: see above
-      std::vector<const VectorizedArrayType *>                 etas(n_grains);
-      std::vector<const Tensor<1, dim, VectorizedArrayType> *> etas_grad(
-        n_grains);
+      std::array<const VectorizedArrayType *, n_grains> etas;
+      std::array<const Tensor<1, dim, VectorizedArrayType> *, n_grains>
+        etas_grad;
 
       for (unsigned int q = 0; q < phi.n_q_points; ++q)
         {
