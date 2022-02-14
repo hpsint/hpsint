@@ -252,7 +252,7 @@ namespace Sintering
 
 
   template <int dim,
-            int number_of_grains,
+            int n_grains,
             typename Number              = double,
             typename VectorizedArrayType = VectorizedArray<Number>>
   class Problem
@@ -261,10 +261,10 @@ namespace Sintering
     using VectorType = LinearAlgebra::distributed::Vector<Number>;
 
     // components number
-    static constexpr unsigned int number_of_components = number_of_grains + 2;
+    static constexpr unsigned int n_components = n_grains + 2;
 
     using NonLinearOperator =
-      SinteringOperator<dim, number_of_components, Number, VectorizedArrayType>;
+      SinteringOperator<dim, Number, VectorizedArrayType>;
 
     // padding of computational domain
     static constexpr double boundary_factor = 0.5;
@@ -328,7 +328,7 @@ namespace Sintering
       , pcout_statistics(std::cout,
                          Utilities::MPI::this_mpi_process(MPI_COMM_WORLD) == 0)
       , tria(MPI_COMM_WORLD)
-      , fe(FE_Q<dim>{params.fe_degree}, number_of_components)
+      , fe(FE_Q<dim>{params.fe_degree}, n_components)
       , mapping(1)
       , quad(params.n_points_1D)
       , dof_handler(tria)
@@ -362,12 +362,16 @@ namespace Sintering
     void
     initialize()
     {
-      // setup DoFHandler, ...
+      // setup DoFHandlers, ...
+      // a) complete system
       dof_handler.distribute_dofs(fe);
+      // b) Cahn-Hilliard system
       dof_handler_ch.distribute_dofs(
         FESystem<dim>(FE_Q<dim>{params.fe_degree}, 2));
+      // c) Allen-Cahn system
       dof_handler_ac.distribute_dofs(
-        FESystem<dim>(FE_Q<dim>{params.fe_degree}, number_of_components - 2));
+        FESystem<dim>(FE_Q<dim>{params.fe_degree}, n_components - 2));
+      // d) scalar
       dof_handler_scalar.distribute_dofs(FE_Q<dim>{params.fe_degree});
 
       // ... constraints, and ...
@@ -430,35 +434,26 @@ namespace Sintering
         mg_matrixfrees;
 
       if (params.outer_preconditioner == "BlockPreconditioner2")
-        preconditioner =
-          std::make_unique<BlockPreconditioner2<dim,
-                                                number_of_components,
-                                                Number,
-                                                VectorizedArrayType>>(
-            nonlinear_operator,
-            matrix_free,
-            constraints,
-            params.block_preconditioner_2_data);
+        preconditioner = std::make_unique<
+          BlockPreconditioner2<dim, Number, VectorizedArrayType>>(
+          nonlinear_operator,
+          matrix_free,
+          constraints,
+          params.block_preconditioner_2_data);
       else if (params.outer_preconditioner == "BlockPreconditioner3")
-        preconditioner =
-          std::make_unique<BlockPreconditioner3<dim,
-                                                number_of_components,
-                                                Number,
-                                                VectorizedArrayType>>(
-            nonlinear_operator,
-            matrix_free,
-            constraints,
-            params.block_preconditioner_3_data);
+        preconditioner = std::make_unique<
+          BlockPreconditioner3<dim, Number, VectorizedArrayType>>(
+          nonlinear_operator,
+          matrix_free,
+          constraints,
+          params.block_preconditioner_3_data);
       else if (params.outer_preconditioner == "BlockPreconditioner3CH")
-        preconditioner =
-          std::make_unique<BlockPreconditioner3CH<dim,
-                                                  number_of_components,
-                                                  Number,
-                                                  VectorizedArrayType>>(
-            nonlinear_operator,
-            matrix_free,
-            constraints,
-            params.block_preconditioner_3_ch_data);
+        preconditioner = std::make_unique<
+          BlockPreconditioner3CH<dim, Number, VectorizedArrayType>>(
+          nonlinear_operator,
+          matrix_free,
+          constraints,
+          params.block_preconditioner_3_ch_data);
       else
         preconditioner = Preconditioners::create(nonlinear_operator,
                                                  params.outer_preconditioner);
@@ -555,7 +550,7 @@ namespace Sintering
         // 2) estimate errors
         Vector<float> estimated_error_per_cell(tria.n_active_cells());
 
-        std::vector<bool> mask(number_of_components, true);
+        std::vector<bool> mask(n_components, true);
         std::fill(mask.begin(), mask.begin() + 2, false);
 
         KellyErrorEstimator<dim>::estimate(
@@ -855,7 +850,7 @@ namespace Sintering
       data_out.set_flags(flags);
       data_out.attach_dof_handler(dof_handler);
       std::vector<std::string> names{"c", "mu"};
-      for (unsigned int ig = 0; ig < number_of_grains; ++ig)
+      for (unsigned int ig = 0; ig < n_grains; ++ig)
         {
           names.push_back("eta" + std::to_string(ig));
         }

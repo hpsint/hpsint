@@ -6,24 +6,23 @@ namespace Sintering
 {
   using namespace dealii;
 
-  template <int dim,
-            int n_components,
-            int n_components_,
-            typename Number,
-            typename VectorizedArrayType>
+  template <int dim, typename Number, typename VectorizedArrayType>
   class OperatorCahnHilliard
-    : public OperatorBase<dim, n_components, Number, VectorizedArrayType>
+    : public OperatorBase<
+        dim,
+        Number,
+        VectorizedArrayType,
+        OperatorCahnHilliard<dim, Number, VectorizedArrayType>>
   {
   public:
-    using FECellIntegrator =
-      FEEvaluation<dim, -1, 0, n_components, Number, VectorizedArrayType>;
-
     OperatorCahnHilliard(
-      const MatrixFree<dim, Number, VectorizedArrayType> &  matrix_free,
-      const std::vector<const AffineConstraints<Number> *> &constraints,
-      const SinteringOperator<dim, n_components_, Number, VectorizedArrayType>
-        &op)
-      : OperatorBase<dim, n_components, Number, VectorizedArrayType>(
+      const MatrixFree<dim, Number, VectorizedArrayType> &       matrix_free,
+      const std::vector<const AffineConstraints<Number> *> &     constraints,
+      const SinteringOperator<dim, Number, VectorizedArrayType> &op)
+      : OperatorBase<dim,
+                     Number,
+                     VectorizedArrayType,
+                     OperatorCahnHilliard<dim, Number, VectorizedArrayType>>(
           matrix_free,
           constraints,
           1,
@@ -31,10 +30,24 @@ namespace Sintering
       , op(op)
     {}
 
-  protected:
-    void
-    do_vmult_kernel(FECellIntegrator &phi) const
+    unsigned int
+    n_grains() const
     {
+      return op.n_grains();
+    }
+
+    static constexpr unsigned int
+    n_grains_to_n_components(const unsigned int)
+    {
+      return 2;
+    }
+
+    template <int n_comp, int n_grains>
+    void
+    do_vmult_kernel(
+      FEEvaluation<dim, -1, 0, n_comp, Number, VectorizedArrayType> &phi) const
+    {
+      static_assert(n_grains != -1);
       const unsigned int cell = phi.get_current_cell_index();
 
       const auto &free_energy         = this->op.get_data().free_energy;
@@ -44,28 +57,29 @@ namespace Sintering
       const auto &nonlinear_values    = this->op.get_nonlinear_values();
       const auto &nonlinear_gradients = this->op.get_nonlinear_gradients();
 
+      // TODO: 1) allow std::array again and 2) allocate less often in the
+      // case of std::vector
+      std::array<const VectorizedArrayType *, n_grains> etas;
+      std::array<const Tensor<1, dim, VectorizedArrayType> *, n_grains>
+        etas_grad;
+
       for (unsigned int q = 0; q < phi.n_q_points; ++q)
         {
-          const auto &val  = nonlinear_values(cell, q);
-          const auto &grad = nonlinear_gradients(cell, q);
+          const auto &val  = nonlinear_values[cell][q];
+          const auto &grad = nonlinear_gradients[cell][q];
 
           const auto &c       = val[0];
           const auto &c_grad  = grad[0];
           const auto &mu_grad = grad[1];
 
-          std::array<const VectorizedArrayType *, this->op.n_grains> etas;
-          std::array<const Tensor<1, dim, VectorizedArrayType> *,
-                     this->op.n_grains>
-            etas_grad;
-
-          for (unsigned int ig = 0; ig < this->op.n_grains; ++ig)
+          for (unsigned int ig = 0; ig < etas.size(); ++ig)
             {
               etas[ig]      = &val[2 + ig];
               etas_grad[ig] = &grad[2 + ig];
             }
 
-          Tensor<1, n_components, VectorizedArrayType> value_result;
-          Tensor<1, n_components, Tensor<1, dim, VectorizedArrayType>>
+          Tensor<1, n_comp, VectorizedArrayType> value_result;
+          Tensor<1, n_comp, Tensor<1, dim, VectorizedArrayType>>
             gradient_result;
 
 #if true
@@ -95,40 +109,54 @@ namespace Sintering
         }
     }
 
-    const SinteringOperator<dim, n_components_, Number, VectorizedArrayType>
-      &op;
+  private:
+    const SinteringOperator<dim, Number, VectorizedArrayType> &op;
   };
 
 
 
-  template <int dim,
-            int n_components,
-            int n_components_,
-            typename Number,
-            typename VectorizedArrayType>
+  template <int dim, typename Number, typename VectorizedArrayType>
   class OperatorCahnHilliardA
-    : public OperatorBase<dim, n_components, Number, VectorizedArrayType>
+    : public OperatorBase<
+        dim,
+        Number,
+        VectorizedArrayType,
+        OperatorCahnHilliardA<dim, Number, VectorizedArrayType>>
   {
   public:
-    using FECellIntegrator =
-      FEEvaluation<dim, -1, 0, n_components, Number, VectorizedArrayType>;
-
     OperatorCahnHilliardA(
-      const MatrixFree<dim, Number, VectorizedArrayType> &  matrix_free,
-      const std::vector<const AffineConstraints<Number> *> &constraints,
-      const SinteringOperator<dim, n_components_, Number, VectorizedArrayType>
-        &op)
-      : OperatorBase<dim, n_components, Number, VectorizedArrayType>(
+      const MatrixFree<dim, Number, VectorizedArrayType> &       matrix_free,
+      const std::vector<const AffineConstraints<Number> *> &     constraints,
+      const SinteringOperator<dim, Number, VectorizedArrayType> &op)
+      : OperatorBase<dim,
+                     Number,
+                     VectorizedArrayType,
+                     OperatorCahnHilliardA<dim, Number, VectorizedArrayType>>(
           matrix_free,
           constraints,
           3 /*TODO*/)
       , op(op)
     {}
 
-  protected:
-    void
-    do_vmult_kernel(FECellIntegrator &phi) const
+    unsigned int
+    n_grains() const
     {
+      return op.n_grains();
+    }
+
+    static constexpr unsigned int
+    n_grains_to_n_components(const unsigned int)
+    {
+      return 1;
+    }
+
+    template <int n_comp, int n_grains>
+    void
+    do_vmult_kernel(
+      FEEvaluation<dim, -1, 0, n_comp, Number, VectorizedArrayType> &phi) const
+    {
+      static_assert(n_grains != -1);
+
       const unsigned int cell = phi.get_current_cell_index();
 
       const auto &mobility            = this->op.get_data().mobility;
@@ -136,21 +164,21 @@ namespace Sintering
       const auto &nonlinear_values    = this->op.get_nonlinear_values();
       const auto &nonlinear_gradients = this->op.get_nonlinear_gradients();
 
+      // TODO: see above
+      std::array<const VectorizedArrayType *, n_grains> etas;
+      std::array<const Tensor<1, dim, VectorizedArrayType> *, n_grains>
+        etas_grad;
+
       for (unsigned int q = 0; q < phi.n_q_points; ++q)
         {
-          const auto &val  = nonlinear_values(cell, q);
-          const auto &grad = nonlinear_gradients(cell, q);
+          const auto &val  = nonlinear_values[cell][q];
+          const auto &grad = nonlinear_gradients[cell][q];
 
           const auto &c       = val[0];
           const auto &c_grad  = grad[0];
           const auto &mu_grad = grad[1];
 
-          std::array<const VectorizedArrayType *, this->op.n_grains> etas;
-          std::array<const Tensor<1, dim, VectorizedArrayType> *,
-                     this->op.n_grains>
-            etas_grad;
-
-          for (unsigned int ig = 0; ig < this->op.n_grains; ++ig)
+          for (unsigned int ig = 0; ig < etas.size(); ++ig)
             {
               etas[ig]      = &val[2 + ig];
               etas_grad[ig] = &grad[2 + ig];
@@ -168,39 +196,51 @@ namespace Sintering
         }
     }
 
-    const SinteringOperator<dim, n_components_, Number, VectorizedArrayType>
-      &op;
+  private:
+    const SinteringOperator<dim, Number, VectorizedArrayType> &op;
   };
 
 
 
-  template <int dim,
-            int n_components,
-            int n_components_,
-            typename Number,
-            typename VectorizedArrayType>
+  template <int dim, typename Number, typename VectorizedArrayType>
   class OperatorCahnHilliardB
-    : public OperatorBase<dim, n_components, Number, VectorizedArrayType>
+    : public OperatorBase<
+        dim,
+        Number,
+        VectorizedArrayType,
+        OperatorCahnHilliardB<dim, Number, VectorizedArrayType>>
   {
   public:
-    using FECellIntegrator =
-      FEEvaluation<dim, -1, 0, n_components, Number, VectorizedArrayType>;
-
     OperatorCahnHilliardB(
-      const MatrixFree<dim, Number, VectorizedArrayType> &  matrix_free,
-      const std::vector<const AffineConstraints<Number> *> &constraints,
-      const SinteringOperator<dim, n_components_, Number, VectorizedArrayType>
-        &op)
-      : OperatorBase<dim, n_components, Number, VectorizedArrayType>(
+      const MatrixFree<dim, Number, VectorizedArrayType> &       matrix_free,
+      const std::vector<const AffineConstraints<Number> *> &     constraints,
+      const SinteringOperator<dim, Number, VectorizedArrayType> &op)
+      : OperatorBase<dim,
+                     Number,
+                     VectorizedArrayType,
+                     OperatorCahnHilliardB<dim, Number, VectorizedArrayType>>(
           matrix_free,
           constraints,
           3 /*TODO*/)
       , op(op)
     {}
 
-  protected:
+    unsigned int
+    n_grains() const
+    {
+      return op.n_grains();
+    }
+
+    static constexpr unsigned int
+    n_grains_to_n_components(const unsigned int)
+    {
+      return 1;
+    }
+
+    template <int n_comp, int n_grains>
     void
-    do_vmult_kernel(FECellIntegrator &phi) const
+    do_vmult_kernel(
+      FEEvaluation<dim, -1, 0, n_comp, Number, VectorizedArrayType> &phi) const
     {
       const unsigned int cell = phi.get_current_cell_index();
 
@@ -208,20 +248,20 @@ namespace Sintering
       const auto &nonlinear_values    = this->op.get_nonlinear_values();
       const auto &nonlinear_gradients = this->op.get_nonlinear_gradients();
 
+      // TODO: see above
+      std::array<const VectorizedArrayType *, n_grains> etas;
+      std::array<const Tensor<1, dim, VectorizedArrayType> *, n_grains>
+        etas_grad;
+
       for (unsigned int q = 0; q < phi.n_q_points; ++q)
         {
-          const auto &val  = nonlinear_values(cell, q);
-          const auto &grad = nonlinear_gradients(cell, q);
+          const auto &val  = nonlinear_values[cell][q];
+          const auto &grad = nonlinear_gradients[cell][q];
 
           const auto &c      = val[0];
           const auto &c_grad = grad[0];
 
-          std::array<const VectorizedArrayType *, this->op.n_grains> etas;
-          std::array<const Tensor<1, dim, VectorizedArrayType> *,
-                     this->op.n_grains>
-            etas_grad;
-
-          for (unsigned int ig = 0; ig < this->op.n_grains; ++ig)
+          for (unsigned int ig = 0; ig < etas.size(); ++ig)
             {
               etas[ig]      = &val[2 + ig];
               etas_grad[ig] = &grad[2 + ig];
@@ -236,39 +276,51 @@ namespace Sintering
         }
     }
 
-    const SinteringOperator<dim, n_components_, Number, VectorizedArrayType>
-      &op;
+  private:
+    const SinteringOperator<dim, Number, VectorizedArrayType> &op;
   };
 
 
 
-  template <int dim,
-            int n_components,
-            int n_components_,
-            typename Number,
-            typename VectorizedArrayType>
+  template <int dim, typename Number, typename VectorizedArrayType>
   class OperatorCahnHilliardC
-    : public OperatorBase<dim, n_components, Number, VectorizedArrayType>
+    : public OperatorBase<
+        dim,
+        Number,
+        VectorizedArrayType,
+        OperatorCahnHilliardC<dim, Number, VectorizedArrayType>>
   {
   public:
-    using FECellIntegrator =
-      FEEvaluation<dim, -1, 0, n_components, Number, VectorizedArrayType>;
-
     OperatorCahnHilliardC(
-      const MatrixFree<dim, Number, VectorizedArrayType> &  matrix_free,
-      const std::vector<const AffineConstraints<Number> *> &constraints,
-      const SinteringOperator<dim, n_components_, Number, VectorizedArrayType>
-        &op)
-      : OperatorBase<dim, n_components, Number, VectorizedArrayType>(
+      const MatrixFree<dim, Number, VectorizedArrayType> &       matrix_free,
+      const std::vector<const AffineConstraints<Number> *> &     constraints,
+      const SinteringOperator<dim, Number, VectorizedArrayType> &op)
+      : OperatorBase<dim,
+                     Number,
+                     VectorizedArrayType,
+                     OperatorCahnHilliardC<dim, Number, VectorizedArrayType>>(
           matrix_free,
           constraints,
           3 /*TODO*/)
       , op(op)
     {}
 
-  protected:
+    unsigned int
+    n_grains() const
+    {
+      return op.n_grains();
+    }
+
+    static constexpr unsigned int
+    n_grains_to_n_components(const unsigned int)
+    {
+      return 1;
+    }
+
+    template <int n_comp, int n_grains>
     void
-    do_vmult_kernel(FECellIntegrator &phi) const
+    do_vmult_kernel(
+      FEEvaluation<dim, -1, 0, n_comp, Number, VectorizedArrayType> &phi) const
     {
       const unsigned int cell = phi.get_current_cell_index();
 
@@ -276,15 +328,16 @@ namespace Sintering
       const auto &kappa_c          = this->op.get_data().kappa_c;
       const auto &nonlinear_values = this->op.get_nonlinear_values();
 
+      // TODO: see above
+      std::array<const VectorizedArrayType *, n_grains> etas;
+
       for (unsigned int q = 0; q < phi.n_q_points; ++q)
         {
-          const auto &val = nonlinear_values(cell, q);
+          const auto &val = nonlinear_values[cell][q];
 
           const auto &c = val[0];
 
-          std::array<const VectorizedArrayType *, this->op.n_grains> etas;
-
-          for (unsigned int ig = 0; ig < this->op.n_grains; ++ig)
+          for (unsigned int ig = 0; ig < etas.size(); ++ig)
             {
               etas[ig] = &val[2 + ig];
             }
@@ -297,39 +350,51 @@ namespace Sintering
         }
     }
 
-    const SinteringOperator<dim, n_components_, Number, VectorizedArrayType>
-      &op;
+  private:
+    const SinteringOperator<dim, Number, VectorizedArrayType> &op;
   };
 
 
 
-  template <int dim,
-            int n_components,
-            int n_components_,
-            typename Number,
-            typename VectorizedArrayType>
+  template <int dim, typename Number, typename VectorizedArrayType>
   class OperatorCahnHilliardD
-    : public OperatorBase<dim, n_components, Number, VectorizedArrayType>
+    : public OperatorBase<
+        dim,
+        Number,
+        VectorizedArrayType,
+        OperatorCahnHilliardD<dim, Number, VectorizedArrayType>>
   {
   public:
-    using FECellIntegrator =
-      FEEvaluation<dim, -1, 0, n_components, Number, VectorizedArrayType>;
-
     OperatorCahnHilliardD(
-      const MatrixFree<dim, Number, VectorizedArrayType> &  matrix_free,
-      const std::vector<const AffineConstraints<Number> *> &constraints,
-      const SinteringOperator<dim, n_components_, Number, VectorizedArrayType>
-        &op)
-      : OperatorBase<dim, n_components, Number, VectorizedArrayType>(
+      const MatrixFree<dim, Number, VectorizedArrayType> &       matrix_free,
+      const std::vector<const AffineConstraints<Number> *> &     constraints,
+      const SinteringOperator<dim, Number, VectorizedArrayType> &op)
+      : OperatorBase<dim,
+                     Number,
+                     VectorizedArrayType,
+                     OperatorCahnHilliardD<dim, Number, VectorizedArrayType>>(
           matrix_free,
           constraints,
           3 /*TODO*/)
       , op(op)
     {}
 
-  protected:
+    unsigned int
+    n_grains() const
+    {
+      return op.n_grains();
+    }
+
+    static constexpr unsigned int
+    n_grains_to_n_components(const unsigned int)
+    {
+      return 1;
+    }
+
+    template <int n_comp, int n_grains>
     void
-    do_vmult_kernel(FECellIntegrator &phi) const
+    do_vmult_kernel(
+      FEEvaluation<dim, -1, 0, n_comp, Number, VectorizedArrayType> &phi) const
     {
       for (unsigned int q = 0; q < phi.n_q_points; ++q)
         {
@@ -341,32 +406,28 @@ namespace Sintering
         }
     }
 
-    const SinteringOperator<dim, n_components_, Number, VectorizedArrayType>
-      &op;
+  private:
+    const SinteringOperator<dim, Number, VectorizedArrayType> &op;
   };
 
 
 
-  template <int dim,
-            int n_components,
-            int n_components_,
-            typename Number,
-            typename VectorizedArrayType>
+  template <int dim, typename Number, typename VectorizedArrayType>
   class OperatorAllenCahn
-    : public OperatorBase<dim, n_components, Number, VectorizedArrayType>
+    : public OperatorBase<dim,
+                          Number,
+                          VectorizedArrayType,
+                          OperatorAllenCahn<dim, Number, VectorizedArrayType>>
   {
   public:
-    using FECellIntegrator =
-      FEEvaluation<dim, -1, 0, n_components, Number, VectorizedArrayType>;
-
-    static const int n_grains = n_components;
-
     OperatorAllenCahn(
-      const MatrixFree<dim, Number, VectorizedArrayType> &  matrix_free,
-      const std::vector<const AffineConstraints<Number> *> &constraints,
-      const SinteringOperator<dim, n_components_, Number, VectorizedArrayType>
-        &op)
-      : OperatorBase<dim, n_components, Number, VectorizedArrayType>(
+      const MatrixFree<dim, Number, VectorizedArrayType> &       matrix_free,
+      const std::vector<const AffineConstraints<Number> *> &     constraints,
+      const SinteringOperator<dim, Number, VectorizedArrayType> &op)
+      : OperatorBase<dim,
+                     Number,
+                     VectorizedArrayType,
+                     OperatorAllenCahn<dim, Number, VectorizedArrayType>>(
           matrix_free,
           constraints,
           2,
@@ -374,10 +435,25 @@ namespace Sintering
       , op(op)
     {}
 
-  private:
-    void
-    do_vmult_kernel(FECellIntegrator &phi) const final
+    unsigned int
+    n_grains() const
     {
+      return op.n_grains();
+    }
+
+    static constexpr unsigned int
+    n_grains_to_n_components(const unsigned int n_grains)
+    {
+      return n_grains;
+    }
+
+    template <int n_comp, int n_grains>
+    void
+    do_vmult_kernel(
+      FEEvaluation<dim, -1, 0, n_comp, Number, VectorizedArrayType> &phi) const
+    {
+      static_assert(n_comp == n_grains);
+
       const unsigned int cell = phi.get_current_cell_index();
 
       const auto &free_energy      = this->op.get_data().free_energy;
@@ -390,7 +466,7 @@ namespace Sintering
 
       for (unsigned int q = 0; q < phi.n_q_points; ++q)
         {
-          const auto &val = nonlinear_values(cell, q);
+          const auto &val = nonlinear_values[cell][q];
 
           const auto &c = val[0];
 
@@ -399,8 +475,8 @@ namespace Sintering
           for (unsigned int ig = 0; ig < n_grains; ++ig)
             etas[ig] = &val[2 + ig];
 
-          Tensor<1, n_components, VectorizedArrayType> value_result;
-          Tensor<1, n_components, Tensor<1, dim, VectorizedArrayType>>
+          Tensor<1, n_comp, VectorizedArrayType> value_result;
+          Tensor<1, n_comp, Tensor<1, dim, VectorizedArrayType>>
             gradient_result;
 
           for (unsigned int ig = 0; ig < n_grains; ++ig)
@@ -427,35 +503,40 @@ namespace Sintering
         }
     }
 
-    const SinteringOperator<dim, n_components_, Number, VectorizedArrayType>
-      &op;
+  private:
+    const SinteringOperator<dim, Number, VectorizedArrayType> &op;
   };
 
 
 
-  template <int dim,
-            int n_components_,
-            typename Number,
-            typename VectorizedArrayType>
+  template <int dim, typename Number, typename VectorizedArrayType>
   class OperatorAllenCahnHelmholtz
-    : public OperatorBase<dim, 1, Number, VectorizedArrayType>
+    : public OperatorBase<
+        dim,
+        Number,
+        VectorizedArrayType,
+        OperatorAllenCahnHelmholtz<dim, Number, VectorizedArrayType>>
   {
   public:
-    using FECellIntegrator =
-      FEEvaluation<dim, -1, 0, 1, Number, VectorizedArrayType>;
-
-    using VectorType =
-      typename OperatorBase<dim, 1, Number, VectorizedArrayType>::VectorType;
+    using VectorType = typename OperatorBase<
+      dim,
+      Number,
+      VectorizedArrayType,
+      OperatorAllenCahnHelmholtz<dim, Number, VectorizedArrayType>>::VectorType;
 
     OperatorAllenCahnHelmholtz(
-      const MatrixFree<dim, Number, VectorizedArrayType> &  matrix_free,
-      const std::vector<const AffineConstraints<Number> *> &constraints,
-      const SinteringOperator<dim, n_components_, Number, VectorizedArrayType>
-        &op)
-      : OperatorBase<dim, 1, Number, VectorizedArrayType>(matrix_free,
-                                                          constraints,
-                                                          3,
-                                                          "helmholtz_op")
+      const MatrixFree<dim, Number, VectorizedArrayType> &       matrix_free,
+      const std::vector<const AffineConstraints<Number> *> &     constraints,
+      const SinteringOperator<dim, Number, VectorizedArrayType> &op)
+      : OperatorBase<
+          dim,
+          Number,
+          VectorizedArrayType,
+          OperatorAllenCahnHelmholtz<dim, Number, VectorizedArrayType>>(
+          matrix_free,
+          constraints,
+          3,
+          "helmholtz_op")
       , op(op)
     {}
 
@@ -491,9 +572,18 @@ namespace Sintering
       }
     }
 
+    template <int n_comp, int>
+    void
+    do_vmult_kernel(
+      FEEvaluation<dim, -1, 0, n_comp, Number, VectorizedArrayType> &) const
+    {
+      AssertThrow(false, ExcNotImplemented());
+    }
+
   private:
     void
-    do_vmult_cell_mass(FECellIntegrator &phi) const
+    do_vmult_cell_mass(
+      FEEvaluation<dim, -1, 0, 1, Number, VectorizedArrayType> &phi) const
     {
       phi.evaluate(EvaluationFlags::EvaluationFlags::values);
 
@@ -503,7 +593,8 @@ namespace Sintering
       phi.integrate(EvaluationFlags::EvaluationFlags::values);
     }
     void
-    do_vmult_cell_laplace(FECellIntegrator &phi) const
+    do_vmult_cell_laplace(
+      FEEvaluation<dim, -1, 0, 1, Number, VectorizedArrayType> &phi) const
     {
       const auto &L       = this->op.get_data().L;
       const auto &kappa_p = this->op.get_data().kappa_p;
@@ -516,33 +607,19 @@ namespace Sintering
       phi.integrate(EvaluationFlags::EvaluationFlags::gradients);
     }
 
-    void
-    do_vmult_kernel(FECellIntegrator &) const final
-    {
-      AssertThrow(false, ExcNotImplemented());
-    }
-
-    const SinteringOperator<dim, n_components_, Number, VectorizedArrayType>
-      &op;
+    const SinteringOperator<dim, Number, VectorizedArrayType> &op;
   };
 
 
 
-  template <int dim,
-            int n_components_,
-            typename Number,
-            typename VectorizedArrayType>
+  template <int dim, typename Number, typename VectorizedArrayType>
   class InverseDiagonalMatrixAllenCahnHelmholtz
     : public Preconditioners::PreconditionerBase<Number>
   {
   public:
-    using Operator   = OperatorAllenCahnHelmholtz<dim,
-                                                n_components_,
-                                                Number,
-                                                VectorizedArrayType>;
+    using Operator =
+      OperatorAllenCahnHelmholtz<dim, Number, VectorizedArrayType>;
     using VectorType = typename Operator::VectorType;
-
-    static constexpr unsigned int n_components = n_components_ - 2;
 
     InverseDiagonalMatrixAllenCahnHelmholtz(const Operator &op)
       : op(op)
@@ -577,9 +654,9 @@ namespace Sintering
 
       DEAL_II_OPENMP_SIMD_PRAGMA
       for (unsigned int i = 0; i < diag.locally_owned_size(); ++i)
-        for (unsigned int c = 0; c < n_components; ++c)
-          dst_ptr[i * n_components + c] =
-            diag_ptr[i] * src_ptr[i * n_components + c];
+        for (unsigned int c = 0; c < op.n_components(); ++c)
+          dst_ptr[i * op.n_components() + c] =
+            diag_ptr[i] * src_ptr[i * op.n_components() + c];
     }
 
     void
@@ -633,10 +710,7 @@ namespace Sintering
 
 
 
-  template <int dim,
-            int n_components,
-            typename Number,
-            typename VectorizedArrayType>
+  template <int dim, typename Number, typename VectorizedArrayType>
   class BlockPreconditioner2
     : public Preconditioners::PreconditionerBase<Number>
   {
@@ -648,11 +722,10 @@ namespace Sintering
     using vector_type = VectorType;
 
     BlockPreconditioner2(
-      const SinteringOperator<dim, n_components, Number, VectorizedArrayType>
-        &                                                   op,
-      const MatrixFree<dim, Number, VectorizedArrayType> &  matrix_free,
-      const std::vector<const AffineConstraints<Number> *> &constraints,
-      const BlockPreconditioner2Data &                      data = {})
+      const SinteringOperator<dim, Number, VectorizedArrayType> &op,
+      const MatrixFree<dim, Number, VectorizedArrayType> &       matrix_free,
+      const std::vector<const AffineConstraints<Number> *> &     constraints,
+      const BlockPreconditioner2Data &                           data = {})
       : matrix_free(matrix_free)
       , operator_0(matrix_free, constraints, op)
       , operator_1(matrix_free, constraints, op)
@@ -670,7 +743,6 @@ namespace Sintering
       else
         preconditioner_1 = std::make_unique<
           InverseDiagonalMatrixAllenCahnHelmholtz<dim,
-                                                  n_components,
                                                   Number,
                                                   VectorizedArrayType>>(
           operator_1_helmholtz);
@@ -705,7 +777,10 @@ namespace Sintering
 
       {
         MyScope scope(timer, "precon::vmult::split_up");
-        VectorTools::split_up_fast(src, src_0, src_1, n_components - 2);
+        VectorTools::split_up_fast(src,
+                                   src_0,
+                                   src_1,
+                                   operator_1.n_components());
 
 #ifdef DEBUG
         VectorType temp_0, temp_1;
@@ -750,7 +825,7 @@ namespace Sintering
 
       {
         MyScope scope(timer, "precon::vmult::merge");
-        VectorTools::merge_fast(dst_0, dst_1, dst, n_components - 2);
+        VectorTools::merge_fast(dst_0, dst_1, dst, operator_1.n_components());
 
 #ifdef DEBUG
         VectorType temp;
@@ -793,15 +868,9 @@ namespace Sintering
   private:
     const MatrixFree<dim, Number, VectorizedArrayType> &matrix_free;
 
-    OperatorCahnHilliard<dim, 2, n_components, Number, VectorizedArrayType>
-      operator_0;
-    OperatorAllenCahn<dim,
-                      n_components - 2,
-                      n_components,
-                      Number,
-                      VectorizedArrayType>
-      operator_1;
-    OperatorAllenCahnHelmholtz<dim, n_components, Number, VectorizedArrayType>
+    OperatorCahnHilliard<dim, Number, VectorizedArrayType> operator_0;
+    OperatorAllenCahn<dim, Number, VectorizedArrayType>    operator_1;
+    OperatorAllenCahnHelmholtz<dim, Number, VectorizedArrayType>
       operator_1_helmholtz;
 
     mutable VectorType dst_0, dst_1;
@@ -831,10 +900,7 @@ namespace Sintering
 
 
 
-  template <int dim,
-            int n_components,
-            typename Number,
-            typename VectorizedArrayType>
+  template <int dim, typename Number, typename VectorizedArrayType>
   class BlockPreconditioner3
     : public Preconditioners::PreconditionerBase<Number>
   {
@@ -846,11 +912,10 @@ namespace Sintering
     using vector_type = VectorType;
 
     BlockPreconditioner3(
-      const SinteringOperator<dim, n_components, Number, VectorizedArrayType>
-        &                                                   op,
-      const MatrixFree<dim, Number, VectorizedArrayType> &  matrix_free,
-      const std::vector<const AffineConstraints<Number> *> &constraints,
-      const BlockPreconditioner3Data &                      data = {})
+      const SinteringOperator<dim, Number, VectorizedArrayType> &op,
+      const MatrixFree<dim, Number, VectorizedArrayType> &       matrix_free,
+      const std::vector<const AffineConstraints<Number> *> &     constraints,
+      const BlockPreconditioner3Data &                           data = {})
       : matrix_free(matrix_free)
       , operator_0(matrix_free, constraints, op)
       , block_ch_b(matrix_free, constraints, op)
@@ -890,7 +955,8 @@ namespace Sintering
     {
       {
         MyScope scope(timer, "vmult::split_up");
-        VectorTools::split_up_fast(src, src_0, src_1, src_2, n_components - 2);
+        VectorTools::split_up_fast(
+          src, src_0, src_1, src_2, operator_2.n_components());
 
 #ifdef DEBUG
         VectorType temp_0, temp_1, temp_2;
@@ -1036,7 +1102,8 @@ namespace Sintering
 
       {
         MyScope scope(timer, "vmult::merge");
-        VectorTools::merge_fast(dst_0, dst_1, dst_2, dst, n_components - 2);
+        VectorTools::merge_fast(
+          dst_0, dst_1, dst_2, dst, operator_2.n_components());
 
 #ifdef DEBUG
         VectorType temp;
@@ -1060,21 +1127,12 @@ namespace Sintering
   private:
     const MatrixFree<dim, Number, VectorizedArrayType> &matrix_free;
 
-    OperatorCahnHilliardA<dim, 1, n_components, Number, VectorizedArrayType>
-      operator_0;
-    OperatorCahnHilliardB<dim, 1, n_components, Number, VectorizedArrayType>
-      block_ch_b;
-    OperatorCahnHilliardC<dim, 1, n_components, Number, VectorizedArrayType>
-      block_ch_c;
-    OperatorCahnHilliardD<dim, 1, n_components, Number, VectorizedArrayType>
-      operator_1;
+    OperatorCahnHilliardA<dim, Number, VectorizedArrayType> operator_0;
+    OperatorCahnHilliardB<dim, Number, VectorizedArrayType> block_ch_b;
+    OperatorCahnHilliardC<dim, Number, VectorizedArrayType> block_ch_c;
+    OperatorCahnHilliardD<dim, Number, VectorizedArrayType> operator_1;
 
-    OperatorAllenCahn<dim,
-                      n_components - 2,
-                      n_components,
-                      Number,
-                      VectorizedArrayType>
-      operator_2;
+    OperatorAllenCahn<dim, Number, VectorizedArrayType> operator_2;
 
     mutable VectorType dst_0, dst_1, dst_2;
     mutable VectorType src_0, src_1, src_2;
@@ -1089,64 +1147,80 @@ namespace Sintering
   };
 
 
-  template <int dim,
-            int n_components,
-            typename Number,
-            typename VectorizedArrayType>
+  template <int dim, typename Number, typename VectorizedArrayType>
   class MassMatrix
-    : public OperatorBase<dim, n_components, Number, VectorizedArrayType>
+    : public OperatorBase<dim,
+                          Number,
+                          VectorizedArrayType,
+                          MassMatrix<dim, Number, VectorizedArrayType>>
   {
   public:
-    using FECellIntegrator =
-      FEEvaluation<dim, -1, 0, n_components, Number, VectorizedArrayType>;
-
     MassMatrix(
       const MatrixFree<dim, Number, VectorizedArrayType> &  matrix_free,
       const std::vector<const AffineConstraints<Number> *> &constraints)
-      : OperatorBase<dim, n_components, Number, VectorizedArrayType>(
+      : OperatorBase<dim,
+                     Number,
+                     VectorizedArrayType,
+                     MassMatrix<dim, Number, VectorizedArrayType>>(
           matrix_free,
           constraints,
           3,
           "mass_matrix_op")
     {}
 
-  private:
+    template <int n_comp, int n_grains>
     void
-    do_vmult_kernel(FECellIntegrator &phi) const final
+    do_vmult_kernel(
+      FEEvaluation<dim, -1, 0, n_comp, Number, VectorizedArrayType> &phi) const
     {
+      static_assert(n_grains == -1);
+
       for (unsigned int q = 0; q < phi.n_q_points; ++q)
         {
           phi.submit_value(phi.get_value(q), q);
-          phi.submit_gradient({}, q);
+          phi.submit_gradient(
+            typename FEEvaluation<dim,
+                                  -1,
+                                  0,
+                                  n_comp,
+                                  Number,
+                                  VectorizedArrayType>::gradient_type(),
+            q);
         }
     }
   };
 
 
 
-  template <int dim,
-            int n_components_,
-            typename Number,
-            typename VectorizedArrayType>
+  template <int dim, typename Number, typename VectorizedArrayType>
   class OperatorCahnHilliardHelmholtz
-    : public OperatorBase<dim, 1, Number, VectorizedArrayType>
+    : public OperatorBase<
+        dim,
+        Number,
+        VectorizedArrayType,
+        OperatorCahnHilliardHelmholtz<dim, Number, VectorizedArrayType>>
   {
   public:
-    using FECellIntegrator =
-      FEEvaluation<dim, -1, 0, 1, Number, VectorizedArrayType>;
-
-    using VectorType =
-      typename OperatorBase<dim, 1, Number, VectorizedArrayType>::VectorType;
+    using VectorType = typename OperatorBase<
+      dim,
+      Number,
+      VectorizedArrayType,
+      OperatorCahnHilliardHelmholtz<dim, Number, VectorizedArrayType>>::
+      VectorType;
 
     OperatorCahnHilliardHelmholtz(
-      const MatrixFree<dim, Number, VectorizedArrayType> &  matrix_free,
-      const std::vector<const AffineConstraints<Number> *> &constraints,
-      const SinteringOperator<dim, n_components_, Number, VectorizedArrayType>
-        &op)
-      : OperatorBase<dim, 1, Number, VectorizedArrayType>(matrix_free,
-                                                          constraints,
-                                                          3,
-                                                          "ch_helmholtz_op")
+      const MatrixFree<dim, Number, VectorizedArrayType> &       matrix_free,
+      const std::vector<const AffineConstraints<Number> *> &     constraints,
+      const SinteringOperator<dim, Number, VectorizedArrayType> &op)
+      : OperatorBase<
+          dim,
+          Number,
+          VectorizedArrayType,
+          OperatorCahnHilliardHelmholtz<dim, Number, VectorizedArrayType>>(
+          matrix_free,
+          constraints,
+          3,
+          "ch_helmholtz_op")
       , op(op)
       , dt(0.0)
     {}
@@ -1225,9 +1299,22 @@ namespace Sintering
       return epsilon;
     }
 
-  private:
+    unsigned int
+    n_grains() const
+    {
+      return op.n_grains();
+    }
+
+    static constexpr unsigned int
+    n_grains_to_n_components(const unsigned int)
+    {
+      return 1;
+    }
+
+    template <int n_comp, int n_grains>
     void
-    do_vmult_kernel(FECellIntegrator &phi) const final
+    do_vmult_kernel(
+      FEEvaluation<dim, -1, 0, n_comp, Number, VectorizedArrayType> &phi) const
     {
       const unsigned int cell = phi.get_current_cell_index();
 
@@ -1238,20 +1325,20 @@ namespace Sintering
       const auto sqrt_delta = this->get_sqrt_delta();
       const auto dt         = get_dt();
 
+      // TODO: see above
+      std::array<const VectorizedArrayType *, n_grains> etas;
+      std::array<const Tensor<1, dim, VectorizedArrayType> *, n_grains>
+        etas_grad;
+
       for (unsigned int q = 0; q < phi.n_q_points; ++q)
         {
-          const auto &val  = nonlinear_values(cell, q);
-          const auto &grad = nonlinear_gradients(cell, q);
+          const auto &val  = nonlinear_values[cell][q];
+          const auto &grad = nonlinear_gradients[cell][q];
 
           const auto &c      = val[0];
           const auto &c_grad = grad[0];
 
-          std::array<const VectorizedArrayType *, this->op.n_grains> etas;
-          std::array<const Tensor<1, dim, VectorizedArrayType> *,
-                     this->op.n_grains>
-            etas_grad;
-
-          for (unsigned int ig = 0; ig < this->op.n_grains; ++ig)
+          for (unsigned int ig = 0; ig < etas.size(); ++ig)
             {
               etas[ig]      = &val[2 + ig];
               etas_grad[ig] = &grad[2 + ig];
@@ -1268,9 +1355,11 @@ namespace Sintering
         }
     }
 
+  private:
     template <bool use_mobility>
     void
-    do_vmult_cell_laplace(FECellIntegrator &phi) const
+    do_vmult_cell_laplace(
+      FEEvaluation<dim, -1, 0, 1, Number, VectorizedArrayType> &phi) const
     {
       phi.evaluate(EvaluationFlags::EvaluationFlags::gradients);
 
@@ -1283,20 +1372,20 @@ namespace Sintering
       const auto sqrt_delta = this->get_sqrt_delta();
       const auto dt         = get_dt();
 
+      // TODO: see above
+      std::vector<const VectorizedArrayType *> etas(this->op.n_grains());
+      std::vector<const Tensor<1, dim, VectorizedArrayType> *> etas_grad(
+        this->op.n_grains());
+
       for (unsigned int q = 0; q < phi.n_q_points; ++q)
         {
-          const auto &val  = nonlinear_values(cell, q);
-          const auto &grad = nonlinear_gradients(cell, q);
+          const auto &val  = nonlinear_values[cell][q];
+          const auto &grad = nonlinear_gradients[cell][q];
 
           const auto &c      = val[0];
           const auto &c_grad = grad[0];
 
-          std::array<const VectorizedArrayType *, this->op.n_grains> etas;
-          std::array<const Tensor<1, dim, VectorizedArrayType> *,
-                     this->op.n_grains>
-            etas_grad;
-
-          for (unsigned int ig = 0; ig < this->op.n_grains; ++ig)
+          for (unsigned int ig = 0; ig < etas.size(); ++ig)
             {
               etas[ig]      = &val[2 + ig];
               etas_grad[ig] = &grad[2 + ig];
@@ -1315,8 +1404,7 @@ namespace Sintering
       phi.integrate(EvaluationFlags::EvaluationFlags::gradients);
     }
 
-    const SinteringOperator<dim, n_components_, Number, VectorizedArrayType>
-      &op;
+    const SinteringOperator<dim, Number, VectorizedArrayType> &op;
 
     mutable VectorType epsilon;
 
@@ -1333,20 +1421,16 @@ namespace Sintering
 
 
 
-  template <int dim,
-            int n_components,
-            typename Number,
-            typename VectorizedArrayType>
+  template <int dim, typename Number, typename VectorizedArrayType>
   class BlockPreconditioner3CHOperator : public Subscriptor
   {
   public:
     using VectorType = LinearAlgebra::distributed::Vector<Number>;
 
     BlockPreconditioner3CHOperator(
-      const MatrixFree<dim, Number, VectorizedArrayType> &  matrix_free,
-      const std::vector<const AffineConstraints<Number> *> &constraints,
-      const SinteringOperator<dim, n_components, Number, VectorizedArrayType>
-        &op)
+      const MatrixFree<dim, Number, VectorizedArrayType> &       matrix_free,
+      const std::vector<const AffineConstraints<Number> *> &     constraints,
+      const SinteringOperator<dim, Number, VectorizedArrayType> &op)
       : operator_a(matrix_free, constraints, op)
       , operator_b(matrix_free, constraints, op)
       , operator_c(matrix_free, constraints, op)
@@ -1370,22 +1454,15 @@ namespace Sintering
     }
 
   private:
-    OperatorCahnHilliardA<dim, 1, n_components, Number, VectorizedArrayType>
-      operator_a;
-    OperatorCahnHilliardB<dim, 1, n_components, Number, VectorizedArrayType>
-      operator_b;
-    OperatorCahnHilliardC<dim, 1, n_components, Number, VectorizedArrayType>
-      operator_c;
-    OperatorCahnHilliardD<dim, 1, n_components, Number, VectorizedArrayType>
-      operator_d;
+    OperatorCahnHilliardA<dim, Number, VectorizedArrayType> operator_a;
+    OperatorCahnHilliardB<dim, Number, VectorizedArrayType> operator_b;
+    OperatorCahnHilliardC<dim, Number, VectorizedArrayType> operator_c;
+    OperatorCahnHilliardD<dim, Number, VectorizedArrayType> operator_d;
   };
 
 
 
-  template <int dim,
-            int n_components,
-            typename Number,
-            typename VectorizedArrayType>
+  template <int dim, typename Number, typename VectorizedArrayType>
   class BlockPreconditioner3CHPreconditioner
   {
   public:
@@ -1393,11 +1470,9 @@ namespace Sintering
 
 
     BlockPreconditioner3CHPreconditioner(
-      const OperatorCahnHilliardHelmholtz<dim,
-                                          n_components,
-                                          Number,
-                                          VectorizedArrayType> &operator_0,
-      const MassMatrix<dim, 1, Number, VectorizedArrayType> &   mass_matrix,
+      const OperatorCahnHilliardHelmholtz<dim, Number, VectorizedArrayType>
+        &                                                 operator_0,
+      const MassMatrix<dim, Number, VectorizedArrayType> &mass_matrix,
       const std::unique_ptr<Preconditioners::PreconditionerBase<Number>>
         &preconditioner_0)
       : operator_0(operator_0)
@@ -1452,21 +1527,16 @@ namespace Sintering
     }
 
   private:
-    const OperatorCahnHilliardHelmholtz<dim,
-                                        n_components,
-                                        Number,
-                                        VectorizedArrayType> &operator_0;
+    const OperatorCahnHilliardHelmholtz<dim, Number, VectorizedArrayType>
+      &operator_0;
 
-    const MassMatrix<dim, 1, Number, VectorizedArrayType> &mass_matrix;
+    const MassMatrix<dim, Number, VectorizedArrayType> &mass_matrix;
 
     const std::unique_ptr<Preconditioners::PreconditionerBase<Number>>
       &preconditioner_0;
   };
 
-  template <int dim,
-            int n_components,
-            typename Number,
-            typename VectorizedArrayType>
+  template <int dim, typename Number, typename VectorizedArrayType>
   class BlockPreconditioner3CH
     : public Preconditioners::PreconditionerBase<Number>
   {
@@ -1478,11 +1548,10 @@ namespace Sintering
     using vector_type = VectorType;
 
     BlockPreconditioner3CH(
-      const SinteringOperator<dim, n_components, Number, VectorizedArrayType>
-        &                                                   op,
-      const MatrixFree<dim, Number, VectorizedArrayType> &  matrix_free,
-      const std::vector<const AffineConstraints<Number> *> &constraints,
-      const BlockPreconditioner3CHData &                    data = {})
+      const SinteringOperator<dim, Number, VectorizedArrayType> &op,
+      const MatrixFree<dim, Number, VectorizedArrayType> &       matrix_free,
+      const std::vector<const AffineConstraints<Number> *> &     constraints,
+      const BlockPreconditioner3CHData &                         data = {})
       : matrix_free(matrix_free)
       , operator_0(matrix_free, constraints, op)
       , mass_matrix(matrix_free, constraints)
@@ -1519,7 +1588,8 @@ namespace Sintering
     {
       {
         MyScope scope(timer, "vmult::split_up");
-        VectorTools::split_up_fast(src, src_0, src_1, src_2, n_components - 2);
+        VectorTools::split_up_fast(
+          src, src_0, src_1, src_2, operator_2.n_components());
 
 #ifdef DEBUG
         VectorType temp_0, temp_1, temp_2;
@@ -1550,7 +1620,6 @@ namespace Sintering
 
         auto precon_inner = std::make_shared<
           BlockPreconditioner3CHPreconditioner<dim,
-                                               n_components,
                                                Number,
                                                VectorizedArrayType>>(
           operator_0, mass_matrix, preconditioner_0);
@@ -1562,12 +1631,8 @@ namespace Sintering
         else if (true)
           {
             using RelaxationType = PreconditionRelaxation<
-              BlockPreconditioner3CHOperator<dim,
-                                             n_components,
-                                             Number,
-                                             VectorizedArrayType>,
+              BlockPreconditioner3CHOperator<dim, Number, VectorizedArrayType>,
               BlockPreconditioner3CHPreconditioner<dim,
-                                                   n_components,
                                                    Number,
                                                    VectorizedArrayType>>;
 
@@ -1608,7 +1673,8 @@ namespace Sintering
 
       {
         MyScope scope(timer, "vmult::merge");
-        VectorTools::merge_fast(dst_0, dst_1, dst_2, dst, n_components - 2);
+        VectorTools::merge_fast(
+          dst_0, dst_1, dst_2, dst, operator_2.n_components());
 
 #ifdef DEBUG
         VectorType temp;
@@ -1631,26 +1697,14 @@ namespace Sintering
   private:
     const MatrixFree<dim, Number, VectorizedArrayType> &matrix_free;
 
-    OperatorCahnHilliardHelmholtz<dim,
-                                  n_components,
-                                  Number,
-                                  VectorizedArrayType>
-      operator_0;
+    OperatorCahnHilliardHelmholtz<dim, Number, VectorizedArrayType> operator_0;
 
-    MassMatrix<dim, 1, Number, VectorizedArrayType> mass_matrix;
+    MassMatrix<dim, Number, VectorizedArrayType> mass_matrix;
 
-    OperatorAllenCahn<dim,
-                      n_components - 2,
-                      n_components,
-                      Number,
-                      VectorizedArrayType>
-      operator_2;
+    OperatorAllenCahn<dim, Number, VectorizedArrayType> operator_2;
 
 
-    const BlockPreconditioner3CHOperator<dim,
-                                         n_components,
-                                         Number,
-                                         VectorizedArrayType>
+    const BlockPreconditioner3CHOperator<dim, Number, VectorizedArrayType>
       op_ch;
 
     mutable VectorType dst_0, dst_1, dst_2;
