@@ -27,7 +27,7 @@ constexpr bool has_n_grains_method =
  * 
  * The function can be used the following way:
  * ```
- * #define OPERATION(c, d) std::cout << a << " " << b << std::endl;
+ * #define OPERATION(c, d) std::cout << c << " " << d << std::endl;
  * EXPAND_OPERATIONS(OPERATION);
  * #undef OPERATION
  * ```
