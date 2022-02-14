@@ -471,6 +471,18 @@ namespace Sintering
           return std::move(a) + std::pow(*b, static_cast<double>(p));
         });
     }
+
+    template <typename T>
+    DEAL_II_ALWAYS_INLINE static T
+    power_sum(const std::vector<T *> &etas)
+    {
+      T initial = 0.0;
+
+      return std::accumulate(
+        etas.begin(), etas.end(), initial, [](auto a, auto b) {
+          return std::move(a) + std::pow(*b, static_cast<double>(p));
+        });
+    }
   };
 
   template <>
