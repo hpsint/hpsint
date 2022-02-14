@@ -6,12 +6,34 @@ template <typename T>
 using n_grains_t = decltype(std::declval<T const>().n_grains());
 
 template <typename T>
-constexpr bool has_n_grains =
-  dealii::internal::is_supported_operation<n_grains_t, T>;
+using n_grains_to_n_components_t =
+  decltype(std::declval<T const>().n_grains_to_n_components(
+    std::declval<const unsigned int>()));
+
+template <typename T>
+constexpr bool has_n_grains_method =
+  dealii::internal::is_supported_operation<n_grains_t, T>
+    &&dealii::internal::is_supported_operation<n_grains_to_n_components_t, T>;
 
 // clang-format off
+/**
+ * Macro that converts a runtime number (n_components() or n_grains())
+ * to constant expressions that can be used for templating and calles
+ * the provided function with the two parameters: 1) number of
+ * components and 2) number of grains (if it makes sence; else -1).
+ *
+ * The relation between number of components and number of grains
+ * is encrypted in the method T::n_grains_to_n_components().
+ * 
+ * The function can be used the following way:
+ * ```
+ * #define OPERATION(c, d) std::cout << a << " " << b << std::endl;
+ * EXPAND_OPERATIONS(OPERATION);
+ * #undef OPERATION
+ * ```
+ */
 #define EXPAND_OPERATIONS(OPERATION)                                                                                  \
-  if constexpr(has_n_grains<T>)                                                                                       \
+  if constexpr(has_n_grains_method<T>)                                                                                       \
     {                                                                                                                 \
       constexpr int max_grains = SINTERING_GRAINS;                                                                    \
       const unsigned int n_grains = static_cast<const T&>(*this).n_grains();                                          \
@@ -1402,12 +1424,12 @@ namespace Sintering
 
       for (unsigned int q = 0; q < phi.n_q_points; ++q)
         {
-          const auto val  = nonlinear_values[cell][q];
-          const auto grad = nonlinear_gradients[cell][q];
+          const auto &val  = nonlinear_values[cell][q];
+          const auto &grad = nonlinear_gradients[cell][q];
 
-          const auto c       = val[0];
-          const auto c_grad  = grad[0];
-          const auto mu_grad = grad[1];
+          const auto &c       = val[0];
+          const auto &c_grad  = grad[0];
+          const auto &mu_grad = grad[1];
 
           std::array<const VectorizedArrayType *, n_grains> etas;
           std::array<const Tensor<1, dim, VectorizedArrayType> *, n_grains>
@@ -1594,12 +1616,12 @@ namespace Sintering
                 }
 
 #ifdef WITH_TRACKER
-              const auto val  = nonlinear_values[cell][q];
-              const auto grad = nonlinear_gradients[cell][q];
+              const auto &val  = nonlinear_values[cell][q];
+              const auto &grad = nonlinear_gradients[cell][q];
 
-              const auto c       = val[0];
-              const auto c_grad  = grad[0];
-              const auto mu_grad = grad[1];
+              const auto &c       = val[0];
+              const auto &c_grad  = grad[0];
+              const auto &mu_grad = grad[1];
 
               std::array<const VectorizedArrayType *, n_grains> etas;
               std::array<const Tensor<1, dim, VectorizedArrayType> *, n_grains>
