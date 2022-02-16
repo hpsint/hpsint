@@ -258,7 +258,7 @@ namespace Sintering
   class Problem
   {
   public:
-    using VectorType = LinearAlgebra::distributed::Vector<Number>;
+    using VectorType = LinearAlgebra::distributed::BlockVector<Number>;
 
     // components number
     static constexpr unsigned int n_components = n_grains + 2;
@@ -538,9 +538,12 @@ namespace Sintering
         IndexSet locally_relevant_dofs;
         DoFTools::extract_locally_relevant_dofs(dof_handler,
                                                 locally_relevant_dofs);
-        VectorType solution_dealii(dof_handler.locally_owned_dofs(),
-                                   locally_relevant_dofs,
-                                   dof_handler.get_communicator());
+        VectorType solution_dealii(1 /*TODO*/);
+        solution_dealii.block(0 /*TODO*/)
+          .reinit(dof_handler.locally_owned_dofs(),
+                  locally_relevant_dofs,
+                  dof_handler.get_communicator());
+        solution_dealii.collect_sizes();
 
         // note: we do not need to apply constraints, since they are
         // are already set by the Newton solver
@@ -717,7 +720,8 @@ namespace Sintering
                   << "\033[31mNon-linear solver did not converge, reducing timestep, dt = "
                   << dt << "\033[0m" << std::endl;
 
-                solution = nonlinear_operator.get_previous_solution();
+                AssertDimension(solution.n_blocks(), 1);
+                solution.block(0) = nonlinear_operator.get_previous_solution();
 
                 AssertThrow(
                   dt > dt_min,
@@ -731,7 +735,8 @@ namespace Sintering
                   << "\033[33mLinear solver did not converge, reducing timestep, dt = "
                   << dt << "\033[0m" << std::endl;
 
-                solution = nonlinear_operator.get_previous_solution();
+                AssertDimension(solution.n_blocks(), 1);
+                solution.block(0) = nonlinear_operator.get_previous_solution();
 
                 AssertThrow(
                   dt > dt_min,
@@ -786,12 +791,15 @@ namespace Sintering
         }
 
         {
+          AssertDimension(dst.n_blocks(), 1);
+          AssertDimension(src.n_blocks(), 1);
+
           const auto &matrix = nonlinear_operator.get_system_matrix();
 
           TimerOutput::Scope scope(timer, "vmult_matrixbased");
 
           for (unsigned int i = 0; i < n_repetitions; ++i)
-            matrix.vmult(dst, src);
+            matrix.vmult(dst.block(0), src.block(0));
         }
 
         timer.print_wall_time_statistics(MPI_COMM_WORLD);
