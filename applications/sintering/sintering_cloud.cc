@@ -23,6 +23,9 @@ static_assert(false, "No dimension has been given!");
 static_assert(false, "No grains number has been given!");
 #endif
 
+#define FE_DEGREE 1
+#define N_Q_POINTS_1D FE_DEGREE + 1
+
 //#define WITH_TIMING
 //#define WITH_TRACKER
 

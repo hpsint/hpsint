@@ -59,6 +59,7 @@
 #include <deal.II/numerics/error_estimator.h>
 #include <deal.II/numerics/vector_tools.h>
 
+#include <pf-applications/base/fe_integrator.h>
 #include <pf-applications/base/timer.h>
 
 #include <pf-applications/lac/solvers_linear.h>
@@ -158,6 +159,14 @@ namespace Sintering
       std::ifstream file;
       file.open(file_name);
       prm.parse_input_from_json(file, true);
+
+#ifdef FE_DEGREE
+      AssertDimension(FE_DEGREE, fe_degree);
+#endif
+
+#ifdef N_Q_POINTS_1D
+      AssertDimension(N_Q_POINTS_1D, n_points_1D);
+#endif
     }
 
     void
