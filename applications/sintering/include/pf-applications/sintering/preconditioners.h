@@ -45,7 +45,7 @@ namespace Sintering
     template <int n_comp, int n_grains>
     void
     do_vmult_kernel(
-      FEEvaluation<dim, -1, 0, n_comp, Number, VectorizedArrayType> &phi) const
+      FECellIntegrator<dim, n_comp, Number, VectorizedArrayType> &phi) const
     {
       static_assert(n_grains != -1);
       const unsigned int cell = phi.get_current_cell_index();
@@ -153,7 +153,7 @@ namespace Sintering
     template <int n_comp, int n_grains>
     void
     do_vmult_kernel(
-      FEEvaluation<dim, -1, 0, n_comp, Number, VectorizedArrayType> &phi) const
+      FECellIntegrator<dim, n_comp, Number, VectorizedArrayType> &phi) const
     {
       static_assert(n_grains != -1);
 
@@ -240,7 +240,7 @@ namespace Sintering
     template <int n_comp, int n_grains>
     void
     do_vmult_kernel(
-      FEEvaluation<dim, -1, 0, n_comp, Number, VectorizedArrayType> &phi) const
+      FECellIntegrator<dim, n_comp, Number, VectorizedArrayType> &phi) const
     {
       const unsigned int cell = phi.get_current_cell_index();
 
@@ -320,7 +320,7 @@ namespace Sintering
     template <int n_comp, int n_grains>
     void
     do_vmult_kernel(
-      FEEvaluation<dim, -1, 0, n_comp, Number, VectorizedArrayType> &phi) const
+      FECellIntegrator<dim, n_comp, Number, VectorizedArrayType> &phi) const
     {
       const unsigned int cell = phi.get_current_cell_index();
 
@@ -394,7 +394,7 @@ namespace Sintering
     template <int n_comp, int n_grains>
     void
     do_vmult_kernel(
-      FEEvaluation<dim, -1, 0, n_comp, Number, VectorizedArrayType> &phi) const
+      FECellIntegrator<dim, n_comp, Number, VectorizedArrayType> &phi) const
     {
       for (unsigned int q = 0; q < phi.n_q_points; ++q)
         {
@@ -450,7 +450,7 @@ namespace Sintering
     template <int n_comp, int n_grains>
     void
     do_vmult_kernel(
-      FEEvaluation<dim, -1, 0, n_comp, Number, VectorizedArrayType> &phi) const
+      FECellIntegrator<dim, n_comp, Number, VectorizedArrayType> &phi) const
     {
       static_assert(n_comp == n_grains);
 
@@ -575,7 +575,7 @@ namespace Sintering
     template <int n_comp, int>
     void
     do_vmult_kernel(
-      FEEvaluation<dim, -1, 0, n_comp, Number, VectorizedArrayType> &) const
+      FECellIntegrator<dim, n_comp, Number, VectorizedArrayType> &) const
     {
       AssertThrow(false, ExcNotImplemented());
     }
@@ -583,7 +583,7 @@ namespace Sintering
   private:
     void
     do_vmult_cell_mass(
-      FEEvaluation<dim, -1, 0, 1, Number, VectorizedArrayType> &phi) const
+      FECellIntegrator<dim, 1, Number, VectorizedArrayType> &phi) const
     {
       phi.evaluate(EvaluationFlags::EvaluationFlags::values);
 
@@ -594,7 +594,7 @@ namespace Sintering
     }
     void
     do_vmult_cell_laplace(
-      FEEvaluation<dim, -1, 0, 1, Number, VectorizedArrayType> &phi) const
+      FECellIntegrator<dim, 1, Number, VectorizedArrayType> &phi) const
     {
       const auto &L       = this->op.get_data().L;
       const auto &kappa_p = this->op.get_data().kappa_p;
@@ -1201,7 +1201,7 @@ namespace Sintering
     template <int n_comp, int n_grains>
     void
     do_vmult_kernel(
-      FEEvaluation<dim, -1, 0, n_comp, Number, VectorizedArrayType> &phi) const
+      FECellIntegrator<dim, n_comp, Number, VectorizedArrayType> &phi) const
     {
       static_assert(n_grains == -1);
 
@@ -1209,12 +1209,10 @@ namespace Sintering
         {
           phi.submit_value(phi.get_value(q), q);
           phi.submit_gradient(
-            typename FEEvaluation<dim,
-                                  -1,
-                                  0,
-                                  n_comp,
-                                  Number,
-                                  VectorizedArrayType>::gradient_type(),
+            typename FECellIntegrator<dim,
+                                      n_comp,
+                                      Number,
+                                      VectorizedArrayType>::gradient_type(),
             q);
         }
     }
@@ -1344,7 +1342,7 @@ namespace Sintering
     template <int n_comp, int n_grains>
     void
     do_vmult_kernel(
-      FEEvaluation<dim, -1, 0, n_comp, Number, VectorizedArrayType> &phi) const
+      FECellIntegrator<dim, n_comp, Number, VectorizedArrayType> &phi) const
     {
       const unsigned int cell = phi.get_current_cell_index();
 
@@ -1389,7 +1387,7 @@ namespace Sintering
     template <bool use_mobility>
     void
     do_vmult_cell_laplace(
-      FEEvaluation<dim, -1, 0, 1, Number, VectorizedArrayType> &phi) const
+      FECellIntegrator<dim, 1, Number, VectorizedArrayType> &phi) const
     {
       phi.evaluate(EvaluationFlags::EvaluationFlags::gradients);
 

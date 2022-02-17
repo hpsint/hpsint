@@ -853,7 +853,7 @@ namespace Sintering
     template <int n_comp, int n_grains>
     void
     do_vmult_cell(
-      FEEvaluation<dim, -1, 0, n_comp, Number, VectorizedArrayType> &phi) const
+      FECellIntegrator<dim, n_comp, Number, VectorizedArrayType> &phi) const
     {
       phi.evaluate(EvaluationFlags::EvaluationFlags::values |
                    EvaluationFlags::EvaluationFlags::gradients);
@@ -873,7 +873,7 @@ namespace Sintering
       const VectorType &                                  src,
       const std::pair<unsigned int, unsigned int> &       range) const
     {
-      FEEvaluation<dim, -1, 0, n_comp, Number, VectorizedArrayType> phi(
+      FECellIntegrator<dim, n_comp, Number, VectorizedArrayType> phi(
         matrix_free, dof_index);
 
       for (auto cell = range.first; cell < range.second; ++cell)
@@ -1320,9 +1320,9 @@ namespace Sintering
       for (auto &data_vector : data_vectors)
         this->matrix_free.initialize_dof_vector(data_vector, 3);
 
-      FEEvaluation<dim, -1, 0, n_comp, Number, VectorizedArrayType> fe_eval_all(
+      FECellIntegrator<dim, n_comp, Number, VectorizedArrayType> fe_eval_all(
         this->matrix_free);
-      FEEvaluation<dim, -1, 0, 1, Number, VectorizedArrayType> fe_eval(
+      FECellIntegrator<dim, 1, Number, VectorizedArrayType> fe_eval(
         this->matrix_free, 3 /*scalar dof index*/);
 
       MatrixFreeOperators::
@@ -1473,7 +1473,7 @@ namespace Sintering
     template <int n_comp, int n_grains>
     void
     do_vmult_kernel(
-      FEEvaluation<dim, -1, 0, n_comp, Number, VectorizedArrayType> &phi) const
+      FECellIntegrator<dim, n_comp, Number, VectorizedArrayType> &phi) const
     {
       AssertDimension(n_comp - 2, n_grains);
 
@@ -1566,9 +1566,9 @@ namespace Sintering
     {
       AssertDimension(n_comp - 2, n_grains);
 
-      FEEvaluation<dim, -1, 0, n_comp, Number, VectorizedArrayType> phi_old(
+      FECellIntegrator<dim, n_comp, Number, VectorizedArrayType> phi_old(
         matrix_free);
-      FEEvaluation<dim, -1, 0, n_comp, Number, VectorizedArrayType> phi(
+      FECellIntegrator<dim, n_comp, Number, VectorizedArrayType> phi(
         matrix_free);
 
       const auto &free_energy = this->data.free_energy;
@@ -1658,7 +1658,7 @@ namespace Sintering
       const auto  dt_inv      = 1.0 / dt;
 #endif
 
-      FEEvaluation<dim, -1, 0, n_comp, Number, VectorizedArrayType> phi(
+      FECellIntegrator<dim, n_comp, Number, VectorizedArrayType> phi(
         matrix_free);
 
       for (auto cell = range.first; cell < range.second; ++cell)
