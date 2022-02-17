@@ -10,12 +10,16 @@ namespace LinearSolvers
   class LinearSolverBase
   {
   public:
-    using VectorType = LinearAlgebra::distributed::Vector<Number>;
+    using VectorType      = LinearAlgebra::distributed::Vector<Number>;
+    using BlockVectorType = LinearAlgebra::distributed::BlockVector<Number>;
 
     virtual ~LinearSolverBase() = default;
 
     virtual unsigned int
     solve(VectorType &dst, const VectorType &src) = 0;
+
+    virtual unsigned int
+    solve(BlockVectorType &dst, const BlockVectorType &src) = 0;
   };
 
 
@@ -25,7 +29,8 @@ namespace LinearSolvers
     : public LinearSolverBase<typename Operator::value_type>
   {
   public:
-    using VectorType = typename Operator::vector_type;
+    using VectorType      = typename Operator::vector_type;
+    using BlockVectorType = typename Operator::BlockVectorType;
 
     SolverGMRESWrapper(const Operator &op, Preconditioner &preconditioner)
       : op(op)
@@ -49,6 +54,19 @@ namespace LinearSolvers
       unsigned int            max_iter = 1000;
       ReductionControl        reduction_control(max_iter, 1.e-10, 1.e-2);
       SolverGMRES<VectorType> solver(reduction_control);
+      solver.solve(op, dst, src, preconditioner);
+
+      return reduction_control.last_step();
+    }
+
+    unsigned int
+    solve(BlockVectorType &dst, const BlockVectorType &src) override
+    {
+      MyScope scope(timer, "gmres::solve");
+
+      unsigned int                 max_iter = 1000;
+      ReductionControl             reduction_control(max_iter, 1.e-10, 1.e-2);
+      SolverGMRES<BlockVectorType> solver(reduction_control);
       solver.solve(op, dst, src, preconditioner);
 
       return reduction_control.last_step();

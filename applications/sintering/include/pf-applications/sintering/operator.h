@@ -668,7 +668,8 @@ namespace Sintering
   class OperatorBase : public Subscriptor
   {
   public:
-    using VectorType = LinearAlgebra::distributed::Vector<Number>;
+    using VectorType      = LinearAlgebra::distributed::Vector<Number>;
+    using BlockVectorType = LinearAlgebra::distributed::BlockVector<Number>;
 
     using value_type  = Number;
     using vector_type = VectorType;
@@ -721,6 +722,14 @@ namespace Sintering
       matrix_free.initialize_dof_vector(dst, dof_index);
     }
 
+    void
+    initialize_dof_vector(BlockVectorType &dst) const
+    {
+      dst.reinit(1); // TODO
+      matrix_free.initialize_dof_vector(dst.block(0), dof_index);
+      dst.collect_sizes();
+    }
+
     types::global_dof_index
     m() const
     {
@@ -755,6 +764,15 @@ namespace Sintering
         {
           system_matrix.vmult(dst, src);
         }
+    }
+
+    void
+    vmult(BlockVectorType &dst, const BlockVectorType &src) const
+    {
+      AssertDimension(dst.n_blocks(), 1);
+      AssertDimension(src.n_blocks(), 1);
+
+      this->vmult(dst.block(0), src.block(0));
     }
 
     void
@@ -1137,7 +1155,8 @@ namespace Sintering
   public:
     using T = SinteringOperator<dim, Number, VectorizedArrayType>;
 
-    using VectorType = LinearAlgebra::distributed::Vector<Number>;
+    using VectorType      = LinearAlgebra::distributed::Vector<Number>;
+    using BlockVectorType = LinearAlgebra::distributed::BlockVector<Number>;
 
     using value_type  = Number;
     using vector_type = VectorType;
@@ -1183,10 +1202,28 @@ namespace Sintering
     }
 
     void
+    evaluate_nonlinear_residual(BlockVectorType &      dst,
+                                const BlockVectorType &src) const
+    {
+      AssertDimension(dst.n_blocks(), 1);
+      AssertDimension(src.n_blocks(), 1);
+
+      this->evaluate_nonlinear_residual(dst.block(0), src.block(0));
+    }
+
+    void
     set_previous_solution(const VectorType &src) const
     {
       this->old_solution = src;
       this->old_solution.update_ghost_values();
+    }
+
+    void
+    set_previous_solution(const BlockVectorType &src) const
+    {
+      AssertDimension(src.n_blocks(), 1);
+
+      set_previous_solution(src.block(0));
     }
 
     const VectorType &
@@ -1230,6 +1267,13 @@ namespace Sintering
 
       if (matrix_based)
         this->get_system_matrix(); // assemble matrix
+    }
+
+    void
+    evaluate_newton_step(const BlockVectorType &newton_step)
+    {
+      AssertDimension(newton_step.n_blocks(), 1);
+      evaluate_newton_step(newton_step.block(0));
     }
 
     void
@@ -1404,6 +1448,14 @@ namespace Sintering
 #define OPERATION(c, d) this->do_add_data_vectors<c, d>(data_out, vec);
       EXPAND_OPERATIONS(OPERATION);
 #undef OPERATION
+    }
+
+    void
+    add_data_vectors(DataOut<dim> &data_out, const BlockVectorType &vec) const
+    {
+      AssertDimension(vec.n_blocks(), 1);
+
+      add_data_vectors(data_out, vec.block(0));
     }
 
     unsigned int

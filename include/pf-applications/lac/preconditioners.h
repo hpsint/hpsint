@@ -12,7 +12,8 @@ namespace Preconditioners
   class PreconditionerBase
   {
   public:
-    using VectorType = LinearAlgebra::distributed::Vector<Number>;
+    using VectorType      = LinearAlgebra::distributed::Vector<Number>;
+    using BlockVectorType = LinearAlgebra::distributed::BlockVector<Number>;
 
     virtual ~PreconditionerBase() = default;
 
@@ -26,6 +27,9 @@ namespace Preconditioners
     vmult(VectorType &dst, const VectorType &src) const = 0;
 
     virtual void
+    vmult(BlockVectorType &dst, const BlockVectorType &src) const = 0;
+
+    virtual void
     do_update() = 0;
   };
 
@@ -36,7 +40,9 @@ namespace Preconditioners
     : public PreconditionerBase<typename Operator::value_type>
   {
   public:
-    using VectorType = typename Operator::VectorType;
+    using VectorType      = typename Operator::VectorType;
+    using BlockVectorType = typename PreconditionerBase<
+      typename Operator::value_type>::BlockVectorType;
 
     InverseDiagonalMatrix(const Operator &op)
       : op(op)
@@ -52,6 +58,15 @@ namespace Preconditioners
     vmult(VectorType &dst, const VectorType &src) const override
     {
       diagonal_matrix.vmult(dst, src);
+    }
+
+    void
+    vmult(BlockVectorType &dst, const BlockVectorType &src) const override
+    {
+      AssertDimension(dst.n_blocks(), 1);
+      AssertDimension(src.n_blocks(), 1);
+
+      this->vmult(dst.block(0), src.block(0));
     }
 
     void
@@ -72,8 +87,10 @@ namespace Preconditioners
     : public PreconditionerBase<typename Operator::value_type>
   {
   public:
-    using Number     = typename Operator::value_type;
-    using VectorType = typename Operator::VectorType;
+    using Number          = typename Operator::value_type;
+    using VectorType      = typename Operator::VectorType;
+    using BlockVectorType = typename PreconditionerBase<
+      typename Operator::value_type>::BlockVectorType;
 
     InverseComponentBlockDiagonalMatrix(const Operator &op)
       : op(op)
@@ -104,6 +121,15 @@ namespace Preconditioners
           for (unsigned int c = 0; c < n_components; ++c)
             dst.local_element(c + cell * n_components) = dst_[c];
         }
+    }
+
+    void
+    vmult(BlockVectorType &dst, const BlockVectorType &src) const override
+    {
+      AssertDimension(dst.n_blocks(), 1);
+      AssertDimension(src.n_blocks(), 1);
+
+      this->vmult(dst.block(0), src.block(0));
     }
 
     void
@@ -143,8 +169,10 @@ namespace Preconditioners
     : public PreconditionerBase<typename Operator::value_type>
   {
   public:
-    using VectorType = typename Operator::VectorType;
-    using Number     = typename VectorType::value_type;
+    using VectorType      = typename Operator::VectorType;
+    using Number          = typename VectorType::value_type;
+    using BlockVectorType = typename PreconditionerBase<
+      typename Operator::value_type>::BlockVectorType;
 
     InverseBlockDiagonalMatrix(const Operator &op)
       : op(op)
@@ -197,6 +225,15 @@ namespace Preconditioners
 
       dst.compress(VectorOperation::values::add);
       src.zero_out_ghost_values();
+    }
+
+    void
+    vmult(BlockVectorType &dst, const BlockVectorType &src) const override
+    {
+      AssertDimension(dst.n_blocks(), 1);
+      AssertDimension(src.n_blocks(), 1);
+
+      this->vmult(dst.block(0), src.block(0));
     }
 
     void
@@ -435,7 +472,9 @@ namespace Preconditioners
   class AMG : public PreconditionerBase<typename Operator::value_type>
   {
   public:
-    using VectorType = typename Operator::VectorType;
+    using VectorType      = typename Operator::VectorType;
+    using BlockVectorType = typename PreconditionerBase<
+      typename Operator::value_type>::BlockVectorType;
 
     AMG(const Operator &op)
       : op(op)
@@ -445,6 +484,15 @@ namespace Preconditioners
     vmult(VectorType &dst, const VectorType &src) const override
     {
       precondition_amg.vmult(dst, src);
+    }
+
+    void
+    vmult(BlockVectorType &dst, const BlockVectorType &src) const override
+    {
+      AssertDimension(dst.n_blocks(), 1);
+      AssertDimension(src.n_blocks(), 1);
+
+      this->vmult(dst.block(0), src.block(0));
     }
 
     void
@@ -466,7 +514,9 @@ namespace Preconditioners
   class ILU : public PreconditionerBase<typename Operator::value_type>
   {
   public:
-    using VectorType = typename Operator::VectorType;
+    using VectorType      = typename Operator::VectorType;
+    using BlockVectorType = typename PreconditionerBase<
+      typename Operator::value_type>::BlockVectorType;
 
     ILU(const Operator &op)
       : op(op)
@@ -497,6 +547,15 @@ namespace Preconditioners
     {
       MyScope scope(timer, "ilu::vmult");
       precondition_ilu.vmult(dst, src);
+    }
+
+    void
+    vmult(BlockVectorType &dst, const BlockVectorType &src) const override
+    {
+      AssertDimension(dst.n_blocks(), 1);
+      AssertDimension(src.n_blocks(), 1);
+
+      this->vmult(dst.block(0), src.block(0));
     }
 
     void
@@ -540,6 +599,9 @@ namespace Preconditioners
     : public PreconditionerBase<typename VectorType::value_type>
   {
   public:
+    using BlockVectorType = typename PreconditionerBase<
+      typename VectorType::value_type>::BlockVectorType;
+
     PreconditionerGMG(
       const DoFHandler<dim> &dof_handler,
       const MGLevelObject<std::shared_ptr<const DoFHandler<dim>>>
@@ -639,6 +701,15 @@ namespace Preconditioners
     vmult(VectorType &dst, const VectorType &src) const override
     {
       preconditioner->vmult(dst, src);
+    }
+
+    void
+    vmult(BlockVectorType &dst, const BlockVectorType &src) const override
+    {
+      AssertDimension(dst.n_blocks(), 1);
+      AssertDimension(src.n_blocks(), 1);
+
+      this->vmult(dst.block(0), src.block(0));
     }
 
   private:

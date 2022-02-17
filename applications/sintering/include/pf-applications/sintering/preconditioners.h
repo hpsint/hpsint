@@ -620,6 +620,8 @@ namespace Sintering
     using Operator =
       OperatorAllenCahnHelmholtz<dim, Number, VectorizedArrayType>;
     using VectorType = typename Operator::VectorType;
+    using BlockVectorType =
+      typename Preconditioners::PreconditionerBase<Number>::BlockVectorType;
 
     InverseDiagonalMatrixAllenCahnHelmholtz(const Operator &op)
       : op(op)
@@ -657,6 +659,15 @@ namespace Sintering
         for (unsigned int c = 0; c < op.n_components(); ++c)
           dst_ptr[i * op.n_components() + c] =
             diag_ptr[i] * src_ptr[i * op.n_components() + c];
+    }
+
+    void
+    vmult(BlockVectorType &dst, const BlockVectorType &src) const override
+    {
+      AssertDimension(dst.n_blocks(), 1);
+      AssertDimension(src.n_blocks(), 1);
+
+      this->vmult(dst.block(0), src.block(0));
     }
 
     void
@@ -717,6 +728,8 @@ namespace Sintering
   public:
     using VectorType =
       typename Preconditioners::PreconditionerBase<Number>::VectorType;
+    using BlockVectorType =
+      typename Preconditioners::PreconditionerBase<Number>::BlockVectorType;
 
     using value_type  = Number;
     using vector_type = VectorType;
@@ -839,6 +852,15 @@ namespace Sintering
     }
 
     void
+    vmult(BlockVectorType &dst, const BlockVectorType &src) const override
+    {
+      AssertDimension(dst.n_blocks(), 1);
+      AssertDimension(src.n_blocks(), 1);
+
+      this->vmult(dst.block(0), src.block(0));
+    }
+
+    void
     do_update() override
     {
       MyScope scope(timer, "precon::update");
@@ -907,6 +929,8 @@ namespace Sintering
   public:
     using VectorType =
       typename Preconditioners::PreconditionerBase<Number>::VectorType;
+    using BlockVectorType =
+      typename Preconditioners::PreconditionerBase<Number>::BlockVectorType;
 
     using value_type  = Number;
     using vector_type = VectorType;
@@ -1114,6 +1138,12 @@ namespace Sintering
         AssertThrow(VectorTools::check_identity(dst, temp), ExcInternalError());
 #endif
       }
+    }
+
+    void
+    vmult(BlockVectorType &, const BlockVectorType &) const override
+    {
+      Assert(false, ExcNotImplemented());
     }
 
     void
@@ -1543,6 +1573,8 @@ namespace Sintering
   public:
     using VectorType =
       typename Preconditioners::PreconditionerBase<Number>::VectorType;
+    using BlockVectorType =
+      typename Preconditioners::PreconditionerBase<Number>::BlockVectorType;
 
     using value_type  = Number;
     using vector_type = VectorType;
@@ -1685,6 +1717,15 @@ namespace Sintering
         AssertThrow(VectorTools::check_identity(dst, temp), ExcInternalError());
 #endif
       }
+    }
+
+    void
+    vmult(BlockVectorType &dst, const BlockVectorType &src) const override
+    {
+      AssertDimension(dst.n_blocks(), 1);
+      AssertDimension(src.n_blocks(), 1);
+
+      this->vmult(dst.block(0), src.block(0));
     }
 
     void
