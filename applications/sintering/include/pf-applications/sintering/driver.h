@@ -580,8 +580,6 @@ namespace Sintering
       const auto execute_coarsening_and_refinement = [&]() {
         pcout << "Execute refinement/coarsening:" << std::endl;
 
-        return; // TODO
-
         // 1) copy solution so that it has the right ghosting
         IndexSet locally_relevant_dofs;
         DoFTools::extract_locally_relevant_dofs(dof_handler,
@@ -595,7 +593,8 @@ namespace Sintering
 
         // note: we do not need to apply constraints, since they are
         // are already set by the Newton solver
-        solution_dealii.copy_locally_owned_data_from(solution);
+        // solution_dealii.copy_locally_owned_data_from(solution);
+        VectorTools::merge_components_fast(solution, solution_dealii);
         solution_dealii.update_ghost_values();
 
         // 2) estimate errors
@@ -668,15 +667,19 @@ namespace Sintering
         nonlinear_operator.clear();
         preconditioner->clear();
 
-        VectorType interpolated_solution;
-        nonlinear_operator.initialize_dof_vector(interpolated_solution);
+        VectorType interpolated_solution(1);
+        matrix_free.initialize_dof_vector(interpolated_solution.block(0), 0);
+        interpolated_solution.collect_sizes();
+
         solution_trans.interpolate(interpolated_solution);
 
         nonlinear_operator.initialize_dof_vector(solution);
-        solution.copy_locally_owned_data_from(interpolated_solution);
+        // solution.copy_locally_owned_data_from(interpolated_solution);
+        VectorTools::split_up_components_fast(interpolated_solution, solution);
 
         // note: apply constraints since the Newton solver expects this
-        constraint.distribute(solution);
+        for (unsigned int b = 0; b < solution.n_blocks(); ++b)
+          constraint_scalar.distribute(solution.block(b));
       };
 
       initialize_solution();
