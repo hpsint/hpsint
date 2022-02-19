@@ -581,38 +581,50 @@ namespace Sintering
         pcout << "Execute refinement/coarsening:" << std::endl;
 
         // 1) copy solution so that it has the right ghosting
-        IndexSet locally_relevant_dofs;
-        DoFTools::extract_locally_relevant_dofs(dof_handler,
-                                                locally_relevant_dofs);
-        VectorType solution_dealii(1 /*TODO*/);
-        solution_dealii.block(0 /*TODO*/)
-          .reinit(dof_handler.locally_owned_dofs(),
-                  locally_relevant_dofs,
-                  dof_handler.get_communicator());
-        solution_dealii.collect_sizes();
+        const auto partitioner = std::make_shared<Utilities::MPI::Partitioner>(
+          dof_handler_scalar.locally_owned_dofs(),
+          DoFTools::extract_locally_relevant_dofs(dof_handler_scalar),
+          dof_handler_scalar.get_communicator());
 
-        // note: we do not need to apply constraints, since they are
-        // are already set by the Newton solver
-        // solution_dealii.copy_locally_owned_data_from(solution);
-        VectorTools::merge_components_fast(solution, solution_dealii);
+        VectorType solution_dealii(solution.n_blocks());
+
+        for (unsigned int b = 0; b < solution_dealii.n_blocks(); ++b)
+          {
+            solution_dealii.block(b).reinit(partitioner);
+
+            // note: we do not need to apply constraints, since they are
+            // are already set by the Newton solver
+            solution_dealii.block(b).copy_locally_owned_data_from(
+              solution.block(b));
+          }
+
         solution_dealii.update_ghost_values();
 
         // 2) estimate errors
         Vector<float> estimated_error_per_cell(tria.n_active_cells());
 
-        std::vector<bool> mask(n_components, true);
-        std::fill(mask.begin(), mask.begin() + 2, false);
+        for (unsigned int b = 2; b < solution_dealii.n_blocks(); ++b)
+          {
+            Vector<float> estimated_error_per_cell_temp(tria.n_active_cells());
 
-        KellyErrorEstimator<dim>::estimate(
-          this->dof_handler,
-          QGauss<dim - 1>(this->dof_handler.get_fe().degree + 1),
-          std::map<types::boundary_id, const Function<dim> *>(),
-          solution_dealii,
-          estimated_error_per_cell,
-          mask,
-          nullptr,
-          0,
-          Utilities::MPI::this_mpi_process(MPI_COMM_WORLD));
+            KellyErrorEstimator<dim>::estimate(
+              this->dof_handler_scalar,
+              QGauss<dim - 1>(this->dof_handler_scalar.get_fe().degree + 1),
+              std::map<types::boundary_id, const Function<dim> *>(),
+              solution_dealii.block(b),
+              estimated_error_per_cell_temp,
+              {},
+              nullptr,
+              0,
+              Utilities::MPI::this_mpi_process(MPI_COMM_WORLD));
+
+            for (unsigned int i = 0; i < estimated_error_per_cell.size(); ++i)
+              estimated_error_per_cell[i] += estimated_error_per_cell_temp[i] *
+                                             estimated_error_per_cell_temp[i];
+          }
+
+        for (unsigned int i = 0; i < estimated_error_per_cell.size(); ++i)
+          estimated_error_per_cell[i] = std::sqrt(estimated_error_per_cell[i]);
 
         // 3) mark automatically cells for coarsening/refinement, ...
         parallel::distributed::GridRefinement::
@@ -622,23 +634,28 @@ namespace Sintering
                                             params.bottom_fraction_of_cells);
 
         // make sure that cells close to the interfaces are refined, ...
-        Vector<Number> values(fe.n_dofs_per_cell());
-        for (const auto &cell : dof_handler.active_cell_iterators())
+        Vector<Number> values(dof_handler_scalar.get_fe().n_dofs_per_cell());
+        for (const auto &cell : dof_handler_scalar.active_cell_iterators())
           {
-            if (cell->is_locally_owned() == false)
+            if (cell->is_locally_owned() == false || cell->refine_flag_set())
               continue;
 
-            cell->get_dof_values(solution_dealii, values);
+            for (unsigned int b = 2; b < solution_dealii.n_blocks(); ++b)
+              {
+                cell->get_dof_values(solution_dealii.block(b), values);
 
-            for (unsigned int i = 0; i < values.size(); ++i)
-              if (fe.system_to_component_index(i).first >= 2)
-                if (0.05 < values[i] && values[i] < 0.95)
-                  {
-                    cell->clear_coarsen_flag();
-                    cell->set_refine_flag();
+                for (unsigned int i = 0; i < values.size(); ++i)
+                  if (0.05 < values[i] && values[i] < 0.95)
+                    {
+                      cell->clear_coarsen_flag();
+                      cell->set_refine_flag();
 
-                    break;
-                  }
+                      break;
+                    }
+
+                if (cell->refine_flag_set())
+                  break;
+              }
           }
 
         // and limit the number of levels
@@ -656,9 +673,17 @@ namespace Sintering
         // 4) perform interpolation and initialize data structures
         tria.prepare_coarsening_and_refinement();
 
-        parallel::distributed::SolutionTransfer<dim, VectorType> solution_trans(
-          dof_handler);
-        solution_trans.prepare_for_coarsening_and_refinement(solution_dealii);
+        parallel::distributed::SolutionTransfer<dim,
+                                                typename VectorType::BlockType>
+          solution_trans(dof_handler_scalar);
+
+        std::vector<const typename VectorType::BlockType *> solution_dealii_ptr(
+          solution_dealii.n_blocks());
+        for (unsigned int b = 0; b < solution.n_blocks(); ++b)
+          solution_dealii_ptr[b] = &solution_dealii.block(b);
+
+        solution_trans.prepare_for_coarsening_and_refinement(
+          solution_dealii_ptr);
 
         tria.execute_coarsening_and_refinement();
 
@@ -667,15 +692,14 @@ namespace Sintering
         nonlinear_operator.clear();
         preconditioner->clear();
 
-        VectorType interpolated_solution(1);
-        matrix_free.initialize_dof_vector(interpolated_solution.block(0), 0);
-        interpolated_solution.collect_sizes();
-
-        solution_trans.interpolate(interpolated_solution);
-
         nonlinear_operator.initialize_dof_vector(solution);
-        // solution.copy_locally_owned_data_from(interpolated_solution);
-        VectorTools::split_up_components_fast(interpolated_solution, solution);
+
+        std::vector<typename VectorType::BlockType *> solution_ptr(
+          solution.n_blocks());
+        for (unsigned int b = 0; b < solution.n_blocks(); ++b)
+          solution_ptr[b] = &solution.block(b);
+
+        solution_trans.interpolate(solution_ptr);
 
         // note: apply constraints since the Newton solver expects this
         for (unsigned int b = 0; b < solution.n_blocks(); ++b)
