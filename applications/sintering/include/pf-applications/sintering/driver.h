@@ -340,10 +340,10 @@ namespace Sintering
     FESystem<dim>                             fe;
     MappingQ<dim>                             mapping;
     QGauss<dim>                               quad;
-    DoFHandler<dim>                           dof_handler;
+    DoFHandler<dim>                           dof_handler_all;
     DoFHandler<dim>                           dof_handler_ch;
     DoFHandler<dim>                           dof_handler_ac;
-    DoFHandler<dim>                           dof_handler_scalar;
+    DoFHandler<dim>                           dof_handler;
 
     AffineConstraints<Number> constraint;
     AffineConstraints<Number> constraint_ch;
@@ -368,10 +368,10 @@ namespace Sintering
       , fe(FE_Q<dim>{params.fe_degree}, n_components)
       , mapping(1)
       , quad(params.n_points_1D)
-      , dof_handler(tria)
+      , dof_handler_all(tria)
       , dof_handler_ch(tria)
       , dof_handler_ac(tria)
-      , dof_handler_scalar(tria)
+      , dof_handler(tria)
       , constraints{&constraint,
                     &constraint_ch,
                     &constraint_ac,
@@ -401,7 +401,7 @@ namespace Sintering
     {
       // setup DoFHandlers, ...
       // a) complete system
-      dof_handler.distribute_dofs(fe);
+      dof_handler_all.distribute_dofs(fe);
       // b) Cahn-Hilliard system
       dof_handler_ch.distribute_dofs(
         FESystem<dim>(FE_Q<dim>{params.fe_degree}, 2));
@@ -409,11 +409,11 @@ namespace Sintering
       dof_handler_ac.distribute_dofs(
         FESystem<dim>(FE_Q<dim>{params.fe_degree}, n_components - 2));
       // d) scalar
-      dof_handler_scalar.distribute_dofs(FE_Q<dim>{params.fe_degree});
+      dof_handler.distribute_dofs(FE_Q<dim>{params.fe_degree});
 
       // ... constraints, and ...
       constraint.clear();
-      DoFTools::make_hanging_node_constraints(dof_handler, constraint);
+      DoFTools::make_hanging_node_constraints(dof_handler_all, constraint);
       constraint.close();
 
       constraint_ch.clear();
@@ -425,8 +425,7 @@ namespace Sintering
       constraint_ac.close();
 
       constraint_scalar.clear();
-      DoFTools::make_hanging_node_constraints(dof_handler_scalar,
-                                              constraint_scalar);
+      DoFTools::make_hanging_node_constraints(dof_handler, constraint_scalar);
       constraint_scalar.close();
 
       // ... MatrixFree
@@ -435,8 +434,10 @@ namespace Sintering
       additional_data.mapping_update_flags = update_values | update_gradients;
       // additional_data.use_fast_hanging_node_algorithm = false; // TODO
 
-      const std::vector<const DoFHandler<dim> *> dof_handlers{
-        &dof_handler, &dof_handler_ch, &dof_handler_ac, &dof_handler_scalar};
+      const std::vector<const DoFHandler<dim> *> dof_handlers{&dof_handler_all,
+                                                              &dof_handler_ch,
+                                                              &dof_handler_ac,
+                                                              &dof_handler};
 
       matrix_free.reinit(
         mapping, dof_handlers, constraints, quad, additional_data);
@@ -445,7 +446,7 @@ namespace Sintering
       pcout_statistics << "System statistics:" << std::endl;
       pcout_statistics << "  - n cell:                    " << tria.n_global_active_cells() << std::endl;
       pcout_statistics << "  - n levels:                  " << tria.n_global_levels() << std::endl;
-      pcout_statistics << "  - n dofs:                    " << dof_handler.n_dofs() << std::endl;
+      pcout_statistics << "  - n dofs:                    " << dof_handler_all.n_dofs() << std::endl;
       pcout_statistics << std::endl;
       // clang-format on
     }
@@ -568,7 +569,7 @@ namespace Sintering
             initial_solution->set_component(c);
 
             VectorTools::interpolate(mapping,
-                                     dof_handler_scalar,
+                                     dof_handler,
                                      *initial_solution,
                                      solution.block(c));
           }
@@ -582,9 +583,9 @@ namespace Sintering
 
         // 1) copy solution so that it has the right ghosting
         const auto partitioner = std::make_shared<Utilities::MPI::Partitioner>(
-          dof_handler_scalar.locally_owned_dofs(),
-          DoFTools::extract_locally_relevant_dofs(dof_handler_scalar),
-          dof_handler_scalar.get_communicator());
+          dof_handler.locally_owned_dofs(),
+          DoFTools::extract_locally_relevant_dofs(dof_handler),
+          dof_handler.get_communicator());
 
         VectorType solution_dealii(solution.n_blocks());
 
@@ -608,8 +609,8 @@ namespace Sintering
             Vector<float> estimated_error_per_cell_temp(tria.n_active_cells());
 
             KellyErrorEstimator<dim>::estimate(
-              this->dof_handler_scalar,
-              QGauss<dim - 1>(this->dof_handler_scalar.get_fe().degree + 1),
+              this->dof_handler,
+              QGauss<dim - 1>(this->dof_handler.get_fe().degree + 1),
               std::map<types::boundary_id, const Function<dim> *>(),
               solution_dealii.block(b),
               estimated_error_per_cell_temp,
@@ -634,8 +635,8 @@ namespace Sintering
                                             params.bottom_fraction_of_cells);
 
         // make sure that cells close to the interfaces are refined, ...
-        Vector<Number> values(dof_handler_scalar.get_fe().n_dofs_per_cell());
-        for (const auto &cell : dof_handler_scalar.active_cell_iterators())
+        Vector<Number> values(dof_handler.get_fe().n_dofs_per_cell());
+        for (const auto &cell : dof_handler.active_cell_iterators())
           {
             if (cell->is_locally_owned() == false || cell->refine_flag_set())
               continue;
@@ -675,7 +676,7 @@ namespace Sintering
 
         parallel::distributed::SolutionTransfer<dim,
                                                 typename VectorType::BlockType>
-          solution_trans(dof_handler_scalar);
+          solution_trans(dof_handler);
 
         std::vector<const typename VectorType::BlockType *> solution_dealii_ptr(
           solution_dealii.n_blocks());
@@ -930,11 +931,11 @@ namespace Sintering
       DataOut<dim> data_out;
       data_out.set_flags(flags);
 
-      data_out.add_data_vector(dof_handler_scalar, solution.block(0), "c");
-      data_out.add_data_vector(dof_handler_scalar, solution.block(1), "mu");
+      data_out.add_data_vector(dof_handler, solution.block(0), "c");
+      data_out.add_data_vector(dof_handler, solution.block(1), "mu");
 
       for (unsigned int ig = 0; ig < n_grains; ++ig)
-        data_out.add_data_vector(dof_handler_scalar,
+        data_out.add_data_vector(dof_handler,
                                  solution.block(2 + ig),
                                  "eta" + std::to_string(ig));
 
