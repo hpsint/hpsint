@@ -611,6 +611,269 @@ namespace Sintering
   };
 
 
+  template <int dim, typename Number, typename VectorizedArrayType>
+  class MassMatrix
+    : public OperatorBase<dim,
+                          Number,
+                          VectorizedArrayType,
+                          MassMatrix<dim, Number, VectorizedArrayType>>
+  {
+  public:
+    MassMatrix(
+      const MatrixFree<dim, Number, VectorizedArrayType> &  matrix_free,
+      const std::vector<const AffineConstraints<Number> *> &constraints)
+      : OperatorBase<dim,
+                     Number,
+                     VectorizedArrayType,
+                     MassMatrix<dim, Number, VectorizedArrayType>>(
+          matrix_free,
+          constraints,
+          3,
+          "mass_matrix_op")
+    {}
+
+    template <int n_comp, int n_grains>
+    void
+    do_vmult_kernel(
+      FECellIntegrator<dim, n_comp, Number, VectorizedArrayType> &phi) const
+    {
+      static_assert(n_grains == -1);
+
+      for (unsigned int q = 0; q < phi.n_q_points; ++q)
+        {
+          phi.submit_value(phi.get_value(q), q);
+          phi.submit_gradient(
+            typename FECellIntegrator<dim,
+                                      n_comp,
+                                      Number,
+                                      VectorizedArrayType>::gradient_type(),
+            q);
+        }
+    }
+  };
+
+
+
+  template <int dim, typename Number, typename VectorizedArrayType>
+  class OperatorCahnHilliardHelmholtz
+    : public OperatorBase<
+        dim,
+        Number,
+        VectorizedArrayType,
+        OperatorCahnHilliardHelmholtz<dim, Number, VectorizedArrayType>>
+  {
+  public:
+    using VectorType = typename OperatorBase<
+      dim,
+      Number,
+      VectorizedArrayType,
+      OperatorCahnHilliardHelmholtz<dim, Number, VectorizedArrayType>>::
+      VectorType;
+
+    OperatorCahnHilliardHelmholtz(
+      const MatrixFree<dim, Number, VectorizedArrayType> &       matrix_free,
+      const std::vector<const AffineConstraints<Number> *> &     constraints,
+      const SinteringOperator<dim, Number, VectorizedArrayType> &op)
+      : OperatorBase<
+          dim,
+          Number,
+          VectorizedArrayType,
+          OperatorCahnHilliardHelmholtz<dim, Number, VectorizedArrayType>>(
+          matrix_free,
+          constraints,
+          3,
+          "ch_helmholtz_op")
+      , op(op)
+      , dt(0.0)
+    {}
+
+    double
+    get_dt() const
+    {
+      return op.get_dt();
+    }
+
+    double
+    get_sqrt_delta() const
+    {
+      return std::sqrt(this->op.get_data().kappa_c);
+    }
+
+    const VectorType &
+    get_epsilon() const
+    {
+      const double new_dt = op.get_dt();
+
+      if (epsilon.size() == 0)
+        {
+          this->initialize_dof_vector(epsilon);
+        }
+
+      if (this->dt != new_dt)
+        {
+          this->dt = new_dt;
+
+          VectorType vec_w_mobility, vec_wo_mobility;
+
+          this->initialize_dof_vector(vec_w_mobility);
+          this->initialize_dof_vector(vec_wo_mobility);
+
+          MatrixFreeTools::compute_diagonal(
+            this->matrix_free,
+            vec_w_mobility,
+            &OperatorCahnHilliardHelmholtz::do_vmult_cell_laplace<true>,
+            this,
+            this->dof_index);
+
+          MatrixFreeTools::compute_diagonal(
+            this->matrix_free,
+            vec_wo_mobility,
+            &OperatorCahnHilliardHelmholtz::do_vmult_cell_laplace<false>,
+            this,
+            this->dof_index);
+
+          for (unsigned int i = 0; i < epsilon.locally_owned_size(); ++i)
+            epsilon.local_element(i) = vec_w_mobility.local_element(i) /
+                                       vec_wo_mobility.local_element(i) *
+                                       std::sqrt(dt);
+
+          if (true /*TODO*/)
+            {
+              // perfom limiting
+              const auto max_value = [this]() {
+                typename VectorType::value_type temp = 0;
+
+                for (const auto i : epsilon)
+                  temp = std::max(temp, i);
+
+                temp = Utilities::MPI::max(temp, MPI_COMM_WORLD);
+
+                return temp;
+              }();
+
+              for (auto &i : epsilon)
+                i = std::max(i,
+                             max_value /
+                               100); // bound smallest entries by the max value
+            }
+        }
+
+      return epsilon;
+    }
+
+    unsigned int
+    n_grains() const
+    {
+      return op.n_grains();
+    }
+
+    static constexpr unsigned int
+    n_grains_to_n_components(const unsigned int)
+    {
+      return 1;
+    }
+
+    template <int n_comp, int n_grains>
+    void
+    do_vmult_kernel(
+      FECellIntegrator<dim, n_comp, Number, VectorizedArrayType> &phi) const
+    {
+      const unsigned int cell = phi.get_current_cell_index();
+
+      const auto &mobility            = this->op.get_data().mobility;
+      const auto &nonlinear_values    = this->op.get_nonlinear_values();
+      const auto &nonlinear_gradients = this->op.get_nonlinear_gradients();
+
+      const auto sqrt_delta = this->get_sqrt_delta();
+      const auto dt         = get_dt();
+
+      // TODO: see above
+      std::array<const VectorizedArrayType *, n_grains> etas;
+      std::array<const Tensor<1, dim, VectorizedArrayType> *, n_grains>
+        etas_grad;
+
+      for (unsigned int q = 0; q < phi.n_q_points; ++q)
+        {
+          const auto &val  = nonlinear_values[cell][q];
+          const auto &grad = nonlinear_gradients[cell][q];
+
+          const auto &c      = val[0];
+          const auto &c_grad = grad[0];
+
+          for (unsigned int ig = 0; ig < etas.size(); ++ig)
+            {
+              etas[ig]      = &val[2 + ig];
+              etas_grad[ig] = &grad[2 + ig];
+            }
+
+          const auto value    = phi.get_value(q);
+          const auto gradient = phi.get_gradient(q);
+          const auto epsilon  = dt * mobility.M(c, etas, c_grad, etas_grad);
+
+          phi.submit_value(value, q);
+          phi.submit_gradient(std::sqrt(std::abs(sqrt_delta * epsilon)) *
+                                gradient,
+                              q);
+        }
+    }
+
+  private:
+    template <bool use_mobility>
+    void
+    do_vmult_cell_laplace(
+      FECellIntegrator<dim, 1, Number, VectorizedArrayType> &phi) const
+    {
+      phi.evaluate(EvaluationFlags::EvaluationFlags::gradients);
+
+      const unsigned int cell = phi.get_current_cell_index();
+
+      const auto &mobility            = this->op.get_data().mobility;
+      const auto &nonlinear_values    = this->op.get_nonlinear_values();
+      const auto &nonlinear_gradients = this->op.get_nonlinear_gradients();
+
+      const auto sqrt_delta = this->get_sqrt_delta();
+      const auto dt         = get_dt();
+
+      // TODO: see above
+      std::vector<const VectorizedArrayType *> etas(this->op.n_grains());
+      std::vector<const Tensor<1, dim, VectorizedArrayType> *> etas_grad(
+        this->op.n_grains());
+
+      for (unsigned int q = 0; q < phi.n_q_points; ++q)
+        {
+          const auto &val  = nonlinear_values[cell][q];
+          const auto &grad = nonlinear_gradients[cell][q];
+
+          const auto &c      = val[0];
+          const auto &c_grad = grad[0];
+
+          for (unsigned int ig = 0; ig < etas.size(); ++ig)
+            {
+              etas[ig]      = &val[2 + ig];
+              etas_grad[ig] = &grad[2 + ig];
+            }
+
+          const auto gradient = phi.get_gradient(q);
+          const auto epsilon =
+            dt * (use_mobility ? mobility.M(c, etas, c_grad, etas_grad) :
+                                 VectorizedArrayType(1.0));
+
+          phi.submit_gradient(std::sqrt(std::abs(sqrt_delta * epsilon)) *
+                                gradient,
+                              q);
+        }
+
+      phi.integrate(EvaluationFlags::EvaluationFlags::gradients);
+    }
+
+    const SinteringOperator<dim, Number, VectorizedArrayType> &op;
+
+    mutable VectorType epsilon;
+
+    mutable double dt;
+  };
+
+
 
   template <int dim, typename Number, typename VectorizedArrayType>
   class InverseDiagonalMatrixAllenCahnHelmholtz
@@ -1178,269 +1441,6 @@ namespace Sintering
     mutable TimerOutput timer;
 
     BlockPreconditioner3Data data;
-  };
-
-
-  template <int dim, typename Number, typename VectorizedArrayType>
-  class MassMatrix
-    : public OperatorBase<dim,
-                          Number,
-                          VectorizedArrayType,
-                          MassMatrix<dim, Number, VectorizedArrayType>>
-  {
-  public:
-    MassMatrix(
-      const MatrixFree<dim, Number, VectorizedArrayType> &  matrix_free,
-      const std::vector<const AffineConstraints<Number> *> &constraints)
-      : OperatorBase<dim,
-                     Number,
-                     VectorizedArrayType,
-                     MassMatrix<dim, Number, VectorizedArrayType>>(
-          matrix_free,
-          constraints,
-          3,
-          "mass_matrix_op")
-    {}
-
-    template <int n_comp, int n_grains>
-    void
-    do_vmult_kernel(
-      FECellIntegrator<dim, n_comp, Number, VectorizedArrayType> &phi) const
-    {
-      static_assert(n_grains == -1);
-
-      for (unsigned int q = 0; q < phi.n_q_points; ++q)
-        {
-          phi.submit_value(phi.get_value(q), q);
-          phi.submit_gradient(
-            typename FECellIntegrator<dim,
-                                      n_comp,
-                                      Number,
-                                      VectorizedArrayType>::gradient_type(),
-            q);
-        }
-    }
-  };
-
-
-
-  template <int dim, typename Number, typename VectorizedArrayType>
-  class OperatorCahnHilliardHelmholtz
-    : public OperatorBase<
-        dim,
-        Number,
-        VectorizedArrayType,
-        OperatorCahnHilliardHelmholtz<dim, Number, VectorizedArrayType>>
-  {
-  public:
-    using VectorType = typename OperatorBase<
-      dim,
-      Number,
-      VectorizedArrayType,
-      OperatorCahnHilliardHelmholtz<dim, Number, VectorizedArrayType>>::
-      VectorType;
-
-    OperatorCahnHilliardHelmholtz(
-      const MatrixFree<dim, Number, VectorizedArrayType> &       matrix_free,
-      const std::vector<const AffineConstraints<Number> *> &     constraints,
-      const SinteringOperator<dim, Number, VectorizedArrayType> &op)
-      : OperatorBase<
-          dim,
-          Number,
-          VectorizedArrayType,
-          OperatorCahnHilliardHelmholtz<dim, Number, VectorizedArrayType>>(
-          matrix_free,
-          constraints,
-          3,
-          "ch_helmholtz_op")
-      , op(op)
-      , dt(0.0)
-    {}
-
-    double
-    get_dt() const
-    {
-      return op.get_dt();
-    }
-
-    double
-    get_sqrt_delta() const
-    {
-      return std::sqrt(this->op.get_data().kappa_c);
-    }
-
-    const VectorType &
-    get_epsilon() const
-    {
-      const double new_dt = op.get_dt();
-
-      if (epsilon.size() == 0)
-        {
-          this->initialize_dof_vector(epsilon);
-        }
-
-      if (this->dt != new_dt)
-        {
-          this->dt = new_dt;
-
-          VectorType vec_w_mobility, vec_wo_mobility;
-
-          this->initialize_dof_vector(vec_w_mobility);
-          this->initialize_dof_vector(vec_wo_mobility);
-
-          MatrixFreeTools::compute_diagonal(
-            this->matrix_free,
-            vec_w_mobility,
-            &OperatorCahnHilliardHelmholtz::do_vmult_cell_laplace<true>,
-            this,
-            this->dof_index);
-
-          MatrixFreeTools::compute_diagonal(
-            this->matrix_free,
-            vec_wo_mobility,
-            &OperatorCahnHilliardHelmholtz::do_vmult_cell_laplace<false>,
-            this,
-            this->dof_index);
-
-          for (unsigned int i = 0; i < epsilon.locally_owned_size(); ++i)
-            epsilon.local_element(i) = vec_w_mobility.local_element(i) /
-                                       vec_wo_mobility.local_element(i) *
-                                       std::sqrt(dt);
-
-          if (true /*TODO*/)
-            {
-              // perfom limiting
-              const auto max_value = [this]() {
-                typename VectorType::value_type temp = 0;
-
-                for (const auto i : epsilon)
-                  temp = std::max(temp, i);
-
-                temp = Utilities::MPI::max(temp, MPI_COMM_WORLD);
-
-                return temp;
-              }();
-
-              for (auto &i : epsilon)
-                i = std::max(i,
-                             max_value /
-                               100); // bound smallest entries by the max value
-            }
-        }
-
-      return epsilon;
-    }
-
-    unsigned int
-    n_grains() const
-    {
-      return op.n_grains();
-    }
-
-    static constexpr unsigned int
-    n_grains_to_n_components(const unsigned int)
-    {
-      return 1;
-    }
-
-    template <int n_comp, int n_grains>
-    void
-    do_vmult_kernel(
-      FECellIntegrator<dim, n_comp, Number, VectorizedArrayType> &phi) const
-    {
-      const unsigned int cell = phi.get_current_cell_index();
-
-      const auto &mobility            = this->op.get_data().mobility;
-      const auto &nonlinear_values    = this->op.get_nonlinear_values();
-      const auto &nonlinear_gradients = this->op.get_nonlinear_gradients();
-
-      const auto sqrt_delta = this->get_sqrt_delta();
-      const auto dt         = get_dt();
-
-      // TODO: see above
-      std::array<const VectorizedArrayType *, n_grains> etas;
-      std::array<const Tensor<1, dim, VectorizedArrayType> *, n_grains>
-        etas_grad;
-
-      for (unsigned int q = 0; q < phi.n_q_points; ++q)
-        {
-          const auto &val  = nonlinear_values[cell][q];
-          const auto &grad = nonlinear_gradients[cell][q];
-
-          const auto &c      = val[0];
-          const auto &c_grad = grad[0];
-
-          for (unsigned int ig = 0; ig < etas.size(); ++ig)
-            {
-              etas[ig]      = &val[2 + ig];
-              etas_grad[ig] = &grad[2 + ig];
-            }
-
-          const auto value    = phi.get_value(q);
-          const auto gradient = phi.get_gradient(q);
-          const auto epsilon  = dt * mobility.M(c, etas, c_grad, etas_grad);
-
-          phi.submit_value(value, q);
-          phi.submit_gradient(std::sqrt(std::abs(sqrt_delta * epsilon)) *
-                                gradient,
-                              q);
-        }
-    }
-
-  private:
-    template <bool use_mobility>
-    void
-    do_vmult_cell_laplace(
-      FECellIntegrator<dim, 1, Number, VectorizedArrayType> &phi) const
-    {
-      phi.evaluate(EvaluationFlags::EvaluationFlags::gradients);
-
-      const unsigned int cell = phi.get_current_cell_index();
-
-      const auto &mobility            = this->op.get_data().mobility;
-      const auto &nonlinear_values    = this->op.get_nonlinear_values();
-      const auto &nonlinear_gradients = this->op.get_nonlinear_gradients();
-
-      const auto sqrt_delta = this->get_sqrt_delta();
-      const auto dt         = get_dt();
-
-      // TODO: see above
-      std::vector<const VectorizedArrayType *> etas(this->op.n_grains());
-      std::vector<const Tensor<1, dim, VectorizedArrayType> *> etas_grad(
-        this->op.n_grains());
-
-      for (unsigned int q = 0; q < phi.n_q_points; ++q)
-        {
-          const auto &val  = nonlinear_values[cell][q];
-          const auto &grad = nonlinear_gradients[cell][q];
-
-          const auto &c      = val[0];
-          const auto &c_grad = grad[0];
-
-          for (unsigned int ig = 0; ig < etas.size(); ++ig)
-            {
-              etas[ig]      = &val[2 + ig];
-              etas_grad[ig] = &grad[2 + ig];
-            }
-
-          const auto gradient = phi.get_gradient(q);
-          const auto epsilon =
-            dt * (use_mobility ? mobility.M(c, etas, c_grad, etas_grad) :
-                                 VectorizedArrayType(1.0));
-
-          phi.submit_gradient(std::sqrt(std::abs(sqrt_delta * epsilon)) *
-                                gradient,
-                              q);
-        }
-
-      phi.integrate(EvaluationFlags::EvaluationFlags::gradients);
-    }
-
-    const SinteringOperator<dim, Number, VectorizedArrayType> &op;
-
-    mutable VectorType epsilon;
-
-    mutable double dt;
   };
 
 
