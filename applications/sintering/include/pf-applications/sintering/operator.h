@@ -1189,23 +1189,20 @@ namespace Sintering
     evaluate_nonlinear_residual(BlockVectorType &      dst_,
                                 const BlockVectorType &src_) const
     {
-      AssertDimension(dst_.n_blocks(), 1);
-      AssertDimension(src_.n_blocks(), 1);
-
       MyScope scope(this->timer, "sintering_op::nonlinear_residual");
 
-
+      // TODO: remove
+      AssertDimension(dst_.n_blocks(), 1);
+      AssertDimension(src_.n_blocks(), 1);
       BlockVectorType src(this->n_components());
       BlockVectorType dst(this->n_components());
-
       for (unsigned int b = 0; b < this->n_components(); ++b)
         {
           this->matrix_free.initialize_dof_vector(src.block(b), 3);
           this->matrix_free.initialize_dof_vector(dst.block(b), 3);
         }
-
-
       VectorTools::split_up_components_fast(src_, src);
+      // TODO: remove
 
 #define OPERATION(c, d)                                       \
   this->matrix_free.cell_loop(                                \
@@ -1243,9 +1240,17 @@ namespace Sintering
     }
 
     void
-    evaluate_newton_step(const VectorType &newton_step)
+    evaluate_newton_step(const BlockVectorType &newton_step_)
     {
       MyScope scope(this->timer, "sintering_op::newton_step");
+
+      // TODO: remove
+      AssertDimension(newton_step_.n_blocks(), 1);
+      BlockVectorType newton_step(this->n_components());
+      for (unsigned int b = 0; b < this->n_components(); ++b)
+        this->matrix_free.initialize_dof_vector(newton_step.block(b), 3);
+      VectorTools::split_up_components_fast(newton_step_, newton_step);
+      // TODO: remove
 
       const unsigned n_cells = this->matrix_free.n_cell_batches();
       const unsigned n_quadrature_points =
@@ -1271,18 +1276,8 @@ namespace Sintering
       tracker.finalize();
 #endif
 
-      this->newton_step = newton_step;
-      this->newton_step.update_ghost_values();
-
       if (matrix_based)
         this->get_system_matrix(); // assemble matrix
-    }
-
-    void
-    evaluate_newton_step(const BlockVectorType &newton_step)
-    {
-      AssertDimension(newton_step.n_blocks(), 1);
-      evaluate_newton_step(newton_step.block(0));
     }
 
     void
@@ -1654,7 +1649,7 @@ namespace Sintering
     do_evaluate_newton_step(
       const MatrixFree<dim, Number, VectorizedArrayType> &matrix_free,
       int &,
-      const VectorType &                           src,
+      const BlockVectorType &                      src,
       const std::pair<unsigned int, unsigned int> &range)
     {
       AssertDimension(n_comp - 2, n_grains);
@@ -1668,7 +1663,7 @@ namespace Sintering
 #endif
 
       FECellIntegrator<dim, n_comp, Number, VectorizedArrayType> phi(
-        matrix_free);
+        matrix_free, 3);
 
       for (auto cell = range.first; cell < range.second; ++cell)
         {
@@ -1751,7 +1746,7 @@ namespace Sintering
 
     double dt;
 
-    mutable VectorType old_solution, newton_step;
+    mutable VectorType old_solution;
 
     Table<3, VectorizedArrayType>                         nonlinear_values;
     Table<3, dealii::Tensor<1, dim, VectorizedArrayType>> nonlinear_gradients;
