@@ -31,6 +31,12 @@ namespace Sintering
     {}
 
     unsigned int
+    n_components() const override
+    {
+      return 2;
+    }
+
+    unsigned int
     n_grains() const
     {
       return op.n_grains();
@@ -139,6 +145,12 @@ namespace Sintering
     {}
 
     unsigned int
+    n_components() const override
+    {
+      return 1;
+    }
+
+    unsigned int
     n_grains() const
     {
       return op.n_grains();
@@ -226,6 +238,12 @@ namespace Sintering
     {}
 
     unsigned int
+    n_components() const override
+    {
+      return 1;
+    }
+
+    unsigned int
     n_grains() const
     {
       return op.n_grains();
@@ -306,6 +324,12 @@ namespace Sintering
     {}
 
     unsigned int
+    n_components() const override
+    {
+      return 1;
+    }
+
+    unsigned int
     n_grains() const
     {
       return op.n_grains();
@@ -380,6 +404,12 @@ namespace Sintering
     {}
 
     unsigned int
+    n_components() const override
+    {
+      return 1;
+    }
+
+    unsigned int
     n_grains() const
     {
       return op.n_grains();
@@ -434,6 +464,12 @@ namespace Sintering
           "allen_cahn_op")
       , op(op)
     {}
+
+    unsigned int
+    n_components() const override
+    {
+      return op.n_grains();
+    }
 
     unsigned int
     n_grains() const
@@ -540,6 +576,12 @@ namespace Sintering
       , op(op)
     {}
 
+    unsigned int
+    n_components() const override
+    {
+      return 1;
+    }
+
     double
     get_dt() const
     {
@@ -631,6 +673,12 @@ namespace Sintering
           3,
           "mass_matrix_op")
     {}
+
+    unsigned int
+    n_components() const override
+    {
+      return 1;
+    }
 
     template <int n_comp, int n_grains>
     void
@@ -759,6 +807,12 @@ namespace Sintering
         }
 
       return epsilon;
+    }
+
+    unsigned int
+    n_components() const override
+    {
+      return 1;
     }
 
     unsigned int
