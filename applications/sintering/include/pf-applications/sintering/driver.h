@@ -337,7 +337,7 @@ namespace Sintering
     ConditionalOStream                        pcout;
     ConditionalOStream                        pcout_statistics;
     parallel::distributed::Triangulation<dim> tria;
-    FESystem<dim>                             fe;
+    FE_Q<dim>                                 fe;
     MappingQ<dim>                             mapping;
     QGauss<dim>                               quad;
     DoFHandler<dim>                           dof_handler_all;
@@ -365,7 +365,7 @@ namespace Sintering
       , pcout_statistics(std::cout,
                          Utilities::MPI::this_mpi_process(MPI_COMM_WORLD) == 0)
       , tria(MPI_COMM_WORLD)
-      , fe(FE_Q<dim>{params.fe_degree}, n_components)
+      , fe(params.fe_degree)
       , mapping(1)
       , quad(params.n_points_1D)
       , dof_handler_all(tria)
@@ -401,15 +401,13 @@ namespace Sintering
     {
       // setup DoFHandlers, ...
       // a) complete system
-      dof_handler_all.distribute_dofs(fe);
+      dof_handler_all.distribute_dofs(FESystem<dim>(fe, n_components));
       // b) Cahn-Hilliard system
-      dof_handler_ch.distribute_dofs(
-        FESystem<dim>(FE_Q<dim>{params.fe_degree}, 2));
+      dof_handler_ch.distribute_dofs(FESystem<dim>(fe, 2));
       // c) Allen-Cahn system
-      dof_handler_ac.distribute_dofs(
-        FESystem<dim>(FE_Q<dim>{params.fe_degree}, n_components - 2));
+      dof_handler_ac.distribute_dofs(FESystem<dim>(fe, n_components - 2));
       // d) scalar
-      dof_handler.distribute_dofs(FE_Q<dim>{params.fe_degree});
+      dof_handler.distribute_dofs(fe);
 
       // ... constraints, and ...
       constraint_all.clear();
