@@ -79,9 +79,21 @@ namespace Sintering
   {
   public:
     InitialValues(unsigned int n_components, double interface_offset = 0)
-      : dealii::Function<dim>(n_components)
+      : dealii::Function<dim>(1)
+      , n_components(n_components)
+      , current_component(numbers::invalid_unsigned_int)
       , interface_offset(interface_offset)
     {}
+
+    double
+    value(const dealii::Point<dim> &p, const unsigned int component) const final
+    {
+      AssertDimension(component, 0);
+
+      (void)component;
+
+      return this->do_value(p, current_component);
+    }
 
     virtual std::pair<dealii::Point<dim>, dealii::Point<dim>>
     get_domain_boundaries() const = 0;
@@ -92,10 +104,26 @@ namespace Sintering
     virtual double
     get_interface_width() const = 0;
 
-  private:
-    double interface_offset;
+    void
+    set_component(const unsigned int current_component)
+    {
+      AssertIndexRange(current_component, n_components);
+      this->current_component = current_component;
+    }
 
   protected:
+    const unsigned int n_components;
+
+  private:
+    unsigned int current_component;
+
+    const double interface_offset;
+
+  protected:
+    virtual double
+    do_value(const dealii::Point<dim> &p,
+             const unsigned int        component) const = 0;
+
     double
     is_in_sphere(const dealii::Point<dim> &point,
                  const dealii::Point<dim> &center,
@@ -309,18 +337,18 @@ namespace Sintering
     ConditionalOStream                        pcout;
     ConditionalOStream                        pcout_statistics;
     parallel::distributed::Triangulation<dim> tria;
-    FESystem<dim>                             fe;
+    FE_Q<dim>                                 fe;
     MappingQ<dim>                             mapping;
     QGauss<dim>                               quad;
-    DoFHandler<dim>                           dof_handler;
+    DoFHandler<dim>                           dof_handler_all;
     DoFHandler<dim>                           dof_handler_ch;
     DoFHandler<dim>                           dof_handler_ac;
-    DoFHandler<dim>                           dof_handler_scalar;
+    DoFHandler<dim>                           dof_handler;
 
-    AffineConstraints<Number> constraint;
+    AffineConstraints<Number> constraint_all;
     AffineConstraints<Number> constraint_ch;
     AffineConstraints<Number> constraint_ac;
-    AffineConstraints<Number> constraint_scalar;
+    AffineConstraints<Number> constraint;
 
     const std::vector<const AffineConstraints<double> *> constraints;
 
@@ -337,17 +365,17 @@ namespace Sintering
       , pcout_statistics(std::cout,
                          Utilities::MPI::this_mpi_process(MPI_COMM_WORLD) == 0)
       , tria(MPI_COMM_WORLD)
-      , fe(FE_Q<dim>{params.fe_degree}, n_components)
+      , fe(params.fe_degree)
       , mapping(1)
       , quad(params.n_points_1D)
-      , dof_handler(tria)
+      , dof_handler_all(tria)
       , dof_handler_ch(tria)
       , dof_handler_ac(tria)
-      , dof_handler_scalar(tria)
-      , constraints{&constraint,
+      , dof_handler(tria)
+      , constraints{&constraint_all,
                     &constraint_ch,
                     &constraint_ac,
-                    &constraint_scalar}
+                    &constraint}
       , initial_solution(initial_solution)
     {
       auto   boundaries = initial_solution->get_domain_boundaries();
@@ -373,20 +401,18 @@ namespace Sintering
     {
       // setup DoFHandlers, ...
       // a) complete system
-      dof_handler.distribute_dofs(fe);
+      dof_handler_all.distribute_dofs(FESystem<dim>(fe, n_components));
       // b) Cahn-Hilliard system
-      dof_handler_ch.distribute_dofs(
-        FESystem<dim>(FE_Q<dim>{params.fe_degree}, 2));
+      dof_handler_ch.distribute_dofs(FESystem<dim>(fe, 2));
       // c) Allen-Cahn system
-      dof_handler_ac.distribute_dofs(
-        FESystem<dim>(FE_Q<dim>{params.fe_degree}, n_components - 2));
+      dof_handler_ac.distribute_dofs(FESystem<dim>(fe, n_components - 2));
       // d) scalar
-      dof_handler_scalar.distribute_dofs(FE_Q<dim>{params.fe_degree});
+      dof_handler.distribute_dofs(fe);
 
       // ... constraints, and ...
-      constraint.clear();
-      DoFTools::make_hanging_node_constraints(dof_handler, constraint);
-      constraint.close();
+      constraint_all.clear();
+      DoFTools::make_hanging_node_constraints(dof_handler_all, constraint_all);
+      constraint_all.close();
 
       constraint_ch.clear();
       DoFTools::make_hanging_node_constraints(dof_handler_ch, constraint_ch);
@@ -396,10 +422,9 @@ namespace Sintering
       DoFTools::make_hanging_node_constraints(dof_handler_ac, constraint_ac);
       constraint_ac.close();
 
-      constraint_scalar.clear();
-      DoFTools::make_hanging_node_constraints(dof_handler_scalar,
-                                              constraint_scalar);
-      constraint_scalar.close();
+      constraint.clear();
+      DoFTools::make_hanging_node_constraints(dof_handler, constraint);
+      constraint.close();
 
       // ... MatrixFree
       typename MatrixFree<dim, Number, VectorizedArrayType>::AdditionalData
@@ -407,8 +432,10 @@ namespace Sintering
       additional_data.mapping_update_flags = update_values | update_gradients;
       // additional_data.use_fast_hanging_node_algorithm = false; // TODO
 
-      const std::vector<const DoFHandler<dim> *> dof_handlers{
-        &dof_handler, &dof_handler_ch, &dof_handler_ac, &dof_handler_scalar};
+      const std::vector<const DoFHandler<dim> *> dof_handlers{&dof_handler_all,
+                                                              &dof_handler_ch,
+                                                              &dof_handler_ac,
+                                                              &dof_handler};
 
       matrix_free.reinit(
         mapping, dof_handlers, constraints, quad, additional_data);
@@ -417,7 +444,7 @@ namespace Sintering
       pcout_statistics << "System statistics:" << std::endl;
       pcout_statistics << "  - n cell:                    " << tria.n_global_active_cells() << std::endl;
       pcout_statistics << "  - n levels:                  " << tria.n_global_levels() << std::endl;
-      pcout_statistics << "  - n dofs:                    " << dof_handler.n_dofs() << std::endl;
+      pcout_statistics << "  - n dofs:                    " << dof_handler_all.n_dofs() << std::endl;
       pcout_statistics << std::endl;
       // clang-format on
     }
@@ -517,9 +544,13 @@ namespace Sintering
 
         // note: we mess with the input here, since we know that Newton does not
         // use the content anymore
-        constraint.set_zero(const_cast<VectorType &>(src));
+        for (unsigned int b = 0; b < src.n_blocks(); ++b)
+          constraint.set_zero(const_cast<VectorType &>(src).block(b));
+
         const unsigned int n_iterations = linear_solver->solve(dst, src);
-        constraint.distribute(dst);
+
+        for (unsigned int b = 0; b < src.n_blocks(); ++b)
+          constraint.distribute(dst.block(b));
 
         return n_iterations;
       };
@@ -531,10 +562,15 @@ namespace Sintering
       nonlinear_operator.initialize_dof_vector(solution);
 
       const auto initialize_solution = [&]() {
-        VectorTools::interpolate(mapping,
-                                 dof_handler,
-                                 *initial_solution,
-                                 solution);
+        for (unsigned int c = 0; c < solution.n_blocks(); ++c)
+          {
+            initial_solution->set_component(c);
+
+            VectorTools::interpolate(mapping,
+                                     dof_handler,
+                                     *initial_solution,
+                                     solution.block(c));
+          }
         solution.zero_out_ghost_values();
       };
 
@@ -544,37 +580,50 @@ namespace Sintering
         pcout << "Execute refinement/coarsening:" << std::endl;
 
         // 1) copy solution so that it has the right ghosting
-        IndexSet locally_relevant_dofs;
-        DoFTools::extract_locally_relevant_dofs(dof_handler,
-                                                locally_relevant_dofs);
-        VectorType solution_dealii(1 /*TODO*/);
-        solution_dealii.block(0 /*TODO*/)
-          .reinit(dof_handler.locally_owned_dofs(),
-                  locally_relevant_dofs,
-                  dof_handler.get_communicator());
-        solution_dealii.collect_sizes();
+        const auto partitioner = std::make_shared<Utilities::MPI::Partitioner>(
+          dof_handler.locally_owned_dofs(),
+          DoFTools::extract_locally_relevant_dofs(dof_handler),
+          dof_handler.get_communicator());
 
-        // note: we do not need to apply constraints, since they are
-        // are already set by the Newton solver
-        solution_dealii.copy_locally_owned_data_from(solution);
+        VectorType solution_dealii(solution.n_blocks());
+
+        for (unsigned int b = 0; b < solution_dealii.n_blocks(); ++b)
+          {
+            solution_dealii.block(b).reinit(partitioner);
+
+            // note: we do not need to apply constraints, since they are
+            // are already set by the Newton solver
+            solution_dealii.block(b).copy_locally_owned_data_from(
+              solution.block(b));
+          }
+
         solution_dealii.update_ghost_values();
 
         // 2) estimate errors
         Vector<float> estimated_error_per_cell(tria.n_active_cells());
 
-        std::vector<bool> mask(n_components, true);
-        std::fill(mask.begin(), mask.begin() + 2, false);
+        for (unsigned int b = 2; b < solution_dealii.n_blocks(); ++b)
+          {
+            Vector<float> estimated_error_per_cell_temp(tria.n_active_cells());
 
-        KellyErrorEstimator<dim>::estimate(
-          this->dof_handler,
-          QGauss<dim - 1>(this->dof_handler.get_fe().degree + 1),
-          std::map<types::boundary_id, const Function<dim> *>(),
-          solution_dealii,
-          estimated_error_per_cell,
-          mask,
-          nullptr,
-          0,
-          Utilities::MPI::this_mpi_process(MPI_COMM_WORLD));
+            KellyErrorEstimator<dim>::estimate(
+              this->dof_handler,
+              QGauss<dim - 1>(this->dof_handler.get_fe().degree + 1),
+              std::map<types::boundary_id, const Function<dim> *>(),
+              solution_dealii.block(b),
+              estimated_error_per_cell_temp,
+              {},
+              nullptr,
+              0,
+              Utilities::MPI::this_mpi_process(MPI_COMM_WORLD));
+
+            for (unsigned int i = 0; i < estimated_error_per_cell.size(); ++i)
+              estimated_error_per_cell[i] += estimated_error_per_cell_temp[i] *
+                                             estimated_error_per_cell_temp[i];
+          }
+
+        for (unsigned int i = 0; i < estimated_error_per_cell.size(); ++i)
+          estimated_error_per_cell[i] = std::sqrt(estimated_error_per_cell[i]);
 
         // 3) mark automatically cells for coarsening/refinement, ...
         parallel::distributed::GridRefinement::
@@ -584,23 +633,28 @@ namespace Sintering
                                             params.bottom_fraction_of_cells);
 
         // make sure that cells close to the interfaces are refined, ...
-        Vector<Number> values(fe.n_dofs_per_cell());
+        Vector<Number> values(dof_handler.get_fe().n_dofs_per_cell());
         for (const auto &cell : dof_handler.active_cell_iterators())
           {
-            if (cell->is_locally_owned() == false)
+            if (cell->is_locally_owned() == false || cell->refine_flag_set())
               continue;
 
-            cell->get_dof_values(solution_dealii, values);
+            for (unsigned int b = 2; b < solution_dealii.n_blocks(); ++b)
+              {
+                cell->get_dof_values(solution_dealii.block(b), values);
 
-            for (unsigned int i = 0; i < values.size(); ++i)
-              if (fe.system_to_component_index(i).first >= 2)
-                if (0.05 < values[i] && values[i] < 0.95)
-                  {
-                    cell->clear_coarsen_flag();
-                    cell->set_refine_flag();
+                for (unsigned int i = 0; i < values.size(); ++i)
+                  if (0.05 < values[i] && values[i] < 0.95)
+                    {
+                      cell->clear_coarsen_flag();
+                      cell->set_refine_flag();
 
-                    break;
-                  }
+                      break;
+                    }
+
+                if (cell->refine_flag_set())
+                  break;
+              }
           }
 
         // and limit the number of levels
@@ -618,9 +672,17 @@ namespace Sintering
         // 4) perform interpolation and initialize data structures
         tria.prepare_coarsening_and_refinement();
 
-        parallel::distributed::SolutionTransfer<dim, VectorType> solution_trans(
-          dof_handler);
-        solution_trans.prepare_for_coarsening_and_refinement(solution_dealii);
+        parallel::distributed::SolutionTransfer<dim,
+                                                typename VectorType::BlockType>
+          solution_trans(dof_handler);
+
+        std::vector<const typename VectorType::BlockType *> solution_dealii_ptr(
+          solution_dealii.n_blocks());
+        for (unsigned int b = 0; b < solution.n_blocks(); ++b)
+          solution_dealii_ptr[b] = &solution_dealii.block(b);
+
+        solution_trans.prepare_for_coarsening_and_refinement(
+          solution_dealii_ptr);
 
         tria.execute_coarsening_and_refinement();
 
@@ -629,15 +691,18 @@ namespace Sintering
         nonlinear_operator.clear();
         preconditioner->clear();
 
-        VectorType interpolated_solution;
-        nonlinear_operator.initialize_dof_vector(interpolated_solution);
-        solution_trans.interpolate(interpolated_solution);
-
         nonlinear_operator.initialize_dof_vector(solution);
-        solution.copy_locally_owned_data_from(interpolated_solution);
+
+        std::vector<typename VectorType::BlockType *> solution_ptr(
+          solution.n_blocks());
+        for (unsigned int b = 0; b < solution.n_blocks(); ++b)
+          solution_ptr[b] = &solution.block(b);
+
+        solution_trans.interpolate(solution_ptr);
 
         // note: apply constraints since the Newton solver expects this
-        constraint.distribute(solution);
+        for (unsigned int b = 0; b < solution.n_blocks(); ++b)
+          constraint.distribute(solution.block(b));
       };
 
       initialize_solution();
@@ -729,8 +794,7 @@ namespace Sintering
                   << "\033[31mNon-linear solver did not converge, reducing timestep, dt = "
                   << dt << "\033[0m" << std::endl;
 
-                AssertDimension(solution.n_blocks(), 1);
-                solution.block(0) = nonlinear_operator.get_previous_solution();
+                solution = nonlinear_operator.get_previous_solution();
 
                 AssertThrow(
                   dt > dt_min,
@@ -744,8 +808,7 @@ namespace Sintering
                   << "\033[33mLinear solver did not converge, reducing timestep, dt = "
                   << dt << "\033[0m" << std::endl;
 
-                AssertDimension(solution.n_blocks(), 1);
-                solution.block(0) = nonlinear_operator.get_previous_solution();
+                solution = nonlinear_operator.get_previous_solution();
 
                 AssertThrow(
                   dt > dt_min,
@@ -865,13 +928,14 @@ namespace Sintering
 
       DataOut<dim> data_out;
       data_out.set_flags(flags);
-      data_out.attach_dof_handler(dof_handler);
-      std::vector<std::string> names{"c", "mu"};
+
+      data_out.add_data_vector(dof_handler, solution.block(0), "c");
+      data_out.add_data_vector(dof_handler, solution.block(1), "mu");
+
       for (unsigned int ig = 0; ig < n_grains; ++ig)
-        {
-          names.push_back("eta" + std::to_string(ig));
-        }
-      data_out.add_data_vector(solution, names);
+        data_out.add_data_vector(dof_handler,
+                                 solution.block(2 + ig),
+                                 "eta" + std::to_string(ig));
 
       sintering_operator.add_data_vectors(data_out, solution);
 
