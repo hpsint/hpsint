@@ -461,6 +461,8 @@ namespace Sintering
                                            sintering_data,
                                            params.matrix_based);
 
+      nonlinear_operator.set_n_components(n_components);
+
       // ... preconditioner
       std::unique_ptr<Preconditioners::PreconditionerBase<Number>>
         preconditioner;

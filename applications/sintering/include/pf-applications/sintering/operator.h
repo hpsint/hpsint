@@ -680,27 +680,10 @@ namespace Sintering
       const MatrixFree<dim, Number, VectorizedArrayType> &  matrix_free,
       const std::vector<const AffineConstraints<Number> *> &constraints,
       const unsigned int                                    dof_index,
-      const unsigned int                                    components_number,
       const std::string                                     label = "")
       : matrix_free(matrix_free)
       , constraints(*constraints[dof_index] /*TODO*/)
       , dof_index(dof_index)
-      , components_number(components_number)
-      , label(label)
-      , pcout(std::cout, Utilities::MPI::this_mpi_process(MPI_COMM_WORLD) == 0)
-      , timer(pcout, TimerOutput::never, TimerOutput::wall_times)
-    {}
-
-    OperatorBase(
-      const MatrixFree<dim, Number, VectorizedArrayType> &  matrix_free,
-      const std::vector<const AffineConstraints<Number> *> &constraints,
-      const unsigned int                                    dof_index,
-      const std::string                                     label = "")
-      : matrix_free(matrix_free)
-      , constraints(*constraints[dof_index])
-      , dof_index(dof_index)
-      , components_number(
-          matrix_free.get_dof_handler(dof_index).get_fe().n_components())
       , label(label)
       , pcout(std::cout, Utilities::MPI::this_mpi_process(MPI_COMM_WORLD) == 0)
       , timer(pcout, TimerOutput::never, TimerOutput::wall_times)
@@ -720,10 +703,7 @@ namespace Sintering
     }
 
     virtual unsigned int
-    n_components() const
-    {
-      return components_number;
-    }
+    n_components() const = 0;
 
     const DoFHandler<dim> &
     get_dof_handler() const
@@ -951,7 +931,6 @@ namespace Sintering
     const AffineConstraints<Number> &                   constraints;
 
     const unsigned int dof_index;
-    const unsigned int components_number;
 
     const std::string label;
 
@@ -1226,11 +1205,11 @@ namespace Sintering
                      SinteringOperator<dim, Number, VectorizedArrayType>>(
           matrix_free,
           constraints,
-          3,                                                      // TODO
-          matrix_free.get_dof_handler(0).get_fe().n_components(), // TODO
+          3, // TODO
           "sintering_op")
       , data(data)
       , matrix_based(matrix_based)
+      , components_number(numbers::invalid_unsigned_int)
     {}
 
     ~SinteringOperator()
@@ -1477,6 +1456,21 @@ namespace Sintering
 #define OPERATION(c, d) this->do_add_data_vectors<c, d>(data_out, vec);
       EXPAND_OPERATIONS(OPERATION);
 #undef OPERATION
+    }
+
+    void
+    set_n_components(const unsigned int components_number)
+    {
+      this->components_number = components_number;
+    }
+
+    unsigned int
+    n_components() const override
+    {
+      Assert(components_number != numbers::invalid_unsigned_int,
+             ExcInternalError());
+
+      return components_number;
     }
 
     unsigned int
@@ -1771,6 +1765,8 @@ namespace Sintering
     ConstantsTracker<Number, VectorizedArrayType> tracker;
 
     const bool matrix_based;
+
+    unsigned int components_number;
   };
 
 } // namespace Sintering
