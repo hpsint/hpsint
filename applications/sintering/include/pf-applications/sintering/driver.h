@@ -345,10 +345,10 @@ namespace Sintering
     DoFHandler<dim>                           dof_handler_ac;
     DoFHandler<dim>                           dof_handler;
 
-    AffineConstraints<Number> constraint;
+    AffineConstraints<Number> constraint_all;
     AffineConstraints<Number> constraint_ch;
     AffineConstraints<Number> constraint_ac;
-    AffineConstraints<Number> constraint_scalar;
+    AffineConstraints<Number> constraint;
 
     const std::vector<const AffineConstraints<double> *> constraints;
 
@@ -372,10 +372,10 @@ namespace Sintering
       , dof_handler_ch(tria)
       , dof_handler_ac(tria)
       , dof_handler(tria)
-      , constraints{&constraint,
+      , constraints{&constraint_all,
                     &constraint_ch,
                     &constraint_ac,
-                    &constraint_scalar}
+                    &constraint}
       , initial_solution(initial_solution)
     {
       auto   boundaries = initial_solution->get_domain_boundaries();
@@ -412,9 +412,9 @@ namespace Sintering
       dof_handler.distribute_dofs(FE_Q<dim>{params.fe_degree});
 
       // ... constraints, and ...
-      constraint.clear();
-      DoFTools::make_hanging_node_constraints(dof_handler_all, constraint);
-      constraint.close();
+      constraint_all.clear();
+      DoFTools::make_hanging_node_constraints(dof_handler_all, constraint_all);
+      constraint_all.close();
 
       constraint_ch.clear();
       DoFTools::make_hanging_node_constraints(dof_handler_ch, constraint_ch);
@@ -424,9 +424,9 @@ namespace Sintering
       DoFTools::make_hanging_node_constraints(dof_handler_ac, constraint_ac);
       constraint_ac.close();
 
-      constraint_scalar.clear();
-      DoFTools::make_hanging_node_constraints(dof_handler, constraint_scalar);
-      constraint_scalar.close();
+      constraint.clear();
+      DoFTools::make_hanging_node_constraints(dof_handler, constraint);
+      constraint.close();
 
       // ... MatrixFree
       typename MatrixFree<dim, Number, VectorizedArrayType>::AdditionalData
@@ -547,12 +547,12 @@ namespace Sintering
         // note: we mess with the input here, since we know that Newton does not
         // use the content anymore
         for (unsigned int b = 0; b < src.n_blocks(); ++b)
-          constraint_scalar.set_zero(const_cast<VectorType &>(src).block(b));
+          constraint.set_zero(const_cast<VectorType &>(src).block(b));
 
         const unsigned int n_iterations = linear_solver->solve(dst, src);
 
         for (unsigned int b = 0; b < src.n_blocks(); ++b)
-          constraint_scalar.distribute(dst.block(b));
+          constraint.distribute(dst.block(b));
 
         return n_iterations;
       };
@@ -704,7 +704,7 @@ namespace Sintering
 
         // note: apply constraints since the Newton solver expects this
         for (unsigned int b = 0; b < solution.n_blocks(); ++b)
-          constraint_scalar.distribute(solution.block(b));
+          constraint.distribute(solution.block(b));
       };
 
       initialize_solution();
