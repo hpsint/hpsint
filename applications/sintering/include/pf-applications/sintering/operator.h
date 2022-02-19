@@ -1186,9 +1186,26 @@ namespace Sintering
     }
 
     void
-    evaluate_nonlinear_residual(VectorType &dst, const VectorType &src) const
+    evaluate_nonlinear_residual(BlockVectorType &      dst_,
+                                const BlockVectorType &src_) const
     {
+      AssertDimension(dst_.n_blocks(), 1);
+      AssertDimension(src_.n_blocks(), 1);
+
       MyScope scope(this->timer, "sintering_op::nonlinear_residual");
+
+
+      BlockVectorType src(this->n_components());
+      BlockVectorType dst(this->n_components());
+
+      for (unsigned int b = 0; b < this->n_components(); ++b)
+        {
+          this->matrix_free.initialize_dof_vector(src.block(b), 3);
+          this->matrix_free.initialize_dof_vector(dst.block(b), 3);
+        }
+
+
+      VectorTools::split_up_components_fast(src_, src);
 
 #define OPERATION(c, d)                                       \
   this->matrix_free.cell_loop(                                \
@@ -1199,16 +1216,8 @@ namespace Sintering
     true);
       EXPAND_OPERATIONS(OPERATION);
 #undef OPERATION
-    }
 
-    void
-    evaluate_nonlinear_residual(BlockVectorType &      dst,
-                                const BlockVectorType &src) const
-    {
-      AssertDimension(dst.n_blocks(), 1);
-      AssertDimension(src.n_blocks(), 1);
-
-      this->evaluate_nonlinear_residual(dst.block(0), src.block(0));
+      VectorTools::merge_components_fast(dst, dst_);
     }
 
     void
@@ -1560,16 +1569,16 @@ namespace Sintering
     void
     do_evaluate_nonlinear_residual(
       const MatrixFree<dim, Number, VectorizedArrayType> &matrix_free,
-      VectorType &                                        dst,
-      const VectorType &                                  src,
+      BlockVectorType &                                   dst,
+      const BlockVectorType &                             src,
       const std::pair<unsigned int, unsigned int> &       range) const
     {
       AssertDimension(n_comp - 2, n_grains);
 
       FECellIntegrator<dim, n_comp, Number, VectorizedArrayType> phi_old(
-        matrix_free);
+        matrix_free, 0 /*TODO*/);
       FECellIntegrator<dim, n_comp, Number, VectorizedArrayType> phi(
-        matrix_free);
+        matrix_free, 3);
 
       const auto &free_energy = this->data.free_energy;
       const auto &L           = this->data.L;
