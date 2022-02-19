@@ -79,9 +79,21 @@ namespace Sintering
   {
   public:
     InitialValues(unsigned int n_components, double interface_offset = 0)
-      : dealii::Function<dim>(n_components)
+      : dealii::Function<dim>(1)
+      , n_components(n_components)
+      , current_component(numbers::invalid_unsigned_int)
       , interface_offset(interface_offset)
     {}
+
+    double
+    value(const dealii::Point<dim> &p, const unsigned int component) const final
+    {
+      AssertDimension(component, 0);
+
+      (void)component;
+
+      return this->do_value(p, current_component);
+    }
 
     virtual std::pair<dealii::Point<dim>, dealii::Point<dim>>
     get_domain_boundaries() const = 0;
@@ -92,10 +104,26 @@ namespace Sintering
     virtual double
     get_interface_width() const = 0;
 
-  private:
-    double interface_offset;
+    void
+    set_component(const unsigned int current_component)
+    {
+      AssertIndexRange(current_component, n_components);
+      this->current_component = current_component;
+    }
 
   protected:
+    const unsigned int n_components;
+
+  private:
+    unsigned int current_component;
+
+    const double interface_offset;
+
+  protected:
+    virtual double
+    do_value(const dealii::Point<dim> &p,
+             const unsigned int        component) const = 0;
+
     double
     is_in_sphere(const dealii::Point<dim> &point,
                  const dealii::Point<dim> &center,
@@ -517,9 +545,13 @@ namespace Sintering
 
         // note: we mess with the input here, since we know that Newton does not
         // use the content anymore
-        constraint.set_zero(const_cast<VectorType &>(src));
+        for (unsigned int b = 0; b < src.n_blocks(); ++b)
+          constraint_scalar.set_zero(const_cast<VectorType &>(src).block(b));
+
         const unsigned int n_iterations = linear_solver->solve(dst, src);
-        constraint.distribute(dst);
+
+        for (unsigned int b = 0; b < src.n_blocks(); ++b)
+          constraint_scalar.distribute(dst.block(b));
 
         return n_iterations;
       };
@@ -531,10 +563,15 @@ namespace Sintering
       nonlinear_operator.initialize_dof_vector(solution);
 
       const auto initialize_solution = [&]() {
-        VectorTools::interpolate(mapping,
-                                 dof_handler,
-                                 *initial_solution,
-                                 solution);
+        for (unsigned int c = 0; c < solution.n_blocks(); ++c)
+          {
+            initial_solution->set_component(c);
+
+            VectorTools::interpolate(mapping,
+                                     dof_handler_scalar,
+                                     *initial_solution,
+                                     solution.block(c));
+          }
         solution.zero_out_ghost_values();
       };
 
@@ -542,6 +579,8 @@ namespace Sintering
 
       const auto execute_coarsening_and_refinement = [&]() {
         pcout << "Execute refinement/coarsening:" << std::endl;
+
+        return; // TODO
 
         // 1) copy solution so that it has the right ghosting
         IndexSet locally_relevant_dofs;
@@ -729,8 +768,7 @@ namespace Sintering
                   << "\033[31mNon-linear solver did not converge, reducing timestep, dt = "
                   << dt << "\033[0m" << std::endl;
 
-                AssertDimension(solution.n_blocks(), 1);
-                solution.block(0) = nonlinear_operator.get_previous_solution();
+                solution = nonlinear_operator.get_previous_solution();
 
                 AssertThrow(
                   dt > dt_min,
@@ -744,8 +782,7 @@ namespace Sintering
                   << "\033[33mLinear solver did not converge, reducing timestep, dt = "
                   << dt << "\033[0m" << std::endl;
 
-                AssertDimension(solution.n_blocks(), 1);
-                solution.block(0) = nonlinear_operator.get_previous_solution();
+                solution = nonlinear_operator.get_previous_solution();
 
                 AssertThrow(
                   dt > dt_min,
@@ -865,13 +902,14 @@ namespace Sintering
 
       DataOut<dim> data_out;
       data_out.set_flags(flags);
-      data_out.attach_dof_handler(dof_handler);
-      std::vector<std::string> names{"c", "mu"};
+
+      data_out.add_data_vector(dof_handler_scalar, solution.block(0), "c");
+      data_out.add_data_vector(dof_handler_scalar, solution.block(1), "mu");
+
       for (unsigned int ig = 0; ig < n_grains; ++ig)
-        {
-          names.push_back("eta" + std::to_string(ig));
-        }
-      data_out.add_data_vector(solution, names);
+        data_out.add_data_vector(dof_handler_scalar,
+                                 solution.block(2 + ig),
+                                 "eta" + std::to_string(ig));
 
       sintering_operator.add_data_vectors(data_out, solution);
 

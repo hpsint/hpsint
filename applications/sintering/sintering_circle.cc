@@ -61,9 +61,9 @@ namespace Sintering
         }
     }
 
-    virtual double
-    value(const dealii::Point<dim> &p,
-          const unsigned int        component = 0) const override
+    double
+    do_value(const dealii::Point<dim> &p,
+             const unsigned int        component) const final
     {
       double ret_val = 0;
 

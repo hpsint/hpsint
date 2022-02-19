@@ -38,6 +38,19 @@ namespace dealii
 
 
 
+    template <typename VectorType, typename BlockVectorType>
+    void
+    split_up_components_fast(const VectorType &src, BlockVectorType &dst)
+    {
+      for (unsigned int i = 0, j = 0;
+           i < src.get_partitioner()->locally_owned_size();
+           ++j)
+        for (unsigned int b = 0; b < dst.n_blocks(); ++b)
+          dst.block(b).local_element(j) = src.local_element(i++);
+    }
+
+
+
     template <typename BlockVectorType>
     void
     merge_components_fast(const BlockVectorType &src, BlockVectorType &dst)
@@ -49,6 +62,19 @@ namespace dealii
            ++j)
         for (unsigned int b = 0; b < src.n_blocks(); ++b)
           dst.block(0).local_element(i++) = src.block(b).local_element(j);
+    }
+
+
+
+    template <typename VectorType, typename BlockVectorType>
+    void
+    merge_components_fast(const BlockVectorType &src, VectorType &dst)
+    {
+      for (unsigned int i = 0, j = 0;
+           i < dst.get_partitioner()->locally_owned_size();
+           ++j)
+        for (unsigned int b = 0; b < src.n_blocks(); ++b)
+          dst.local_element(i++) = src.block(b).local_element(j);
     }
 
 

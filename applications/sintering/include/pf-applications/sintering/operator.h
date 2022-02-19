@@ -680,6 +680,21 @@ namespace Sintering
       const MatrixFree<dim, Number, VectorizedArrayType> &  matrix_free,
       const std::vector<const AffineConstraints<Number> *> &constraints,
       const unsigned int                                    dof_index,
+      const unsigned int                                    components_number,
+      const std::string                                     label = "")
+      : matrix_free(matrix_free)
+      , constraints(*constraints[dof_index] /*TODO*/)
+      , dof_index(dof_index)
+      , components_number(components_number)
+      , label(label)
+      , pcout(std::cout, Utilities::MPI::this_mpi_process(MPI_COMM_WORLD) == 0)
+      , timer(pcout, TimerOutput::never, TimerOutput::wall_times)
+    {}
+
+    OperatorBase(
+      const MatrixFree<dim, Number, VectorizedArrayType> &  matrix_free,
+      const std::vector<const AffineConstraints<Number> *> &constraints,
+      const unsigned int                                    dof_index,
       const std::string                                     label = "")
       : matrix_free(matrix_free)
       , constraints(*constraints[dof_index])
@@ -704,7 +719,7 @@ namespace Sintering
       this->system_matrix.clear();
     }
 
-    unsigned int
+    virtual unsigned int
     n_components() const
     {
       return components_number;
@@ -725,9 +740,9 @@ namespace Sintering
     void
     initialize_dof_vector(BlockVectorType &dst) const
     {
-      dst.reinit(1); // TODO
-      matrix_free.initialize_dof_vector(dst.block(0), dof_index);
-      dst.collect_sizes();
+      dst.reinit(this->n_components());
+      for (unsigned int c = 0; c < this->n_components(); ++c)
+        matrix_free.initialize_dof_vector(dst.block(c), dof_index);
     }
 
     types::global_dof_index
@@ -747,7 +762,6 @@ namespace Sintering
     vmult(VectorType &dst, const VectorType &src) const
     {
       MyScope scope(this->timer, label + "::vmult");
-
 
       const bool system_matrix_is_empty =
         system_matrix.m() == 0 || system_matrix.n() == 0;
@@ -769,10 +783,23 @@ namespace Sintering
     void
     vmult(BlockVectorType &dst, const BlockVectorType &src) const
     {
-      AssertDimension(dst.n_blocks(), 1);
-      AssertDimension(src.n_blocks(), 1);
+      MyScope scope(this->timer, label + "::vmult");
 
-      this->vmult(dst.block(0), src.block(0));
+      const bool system_matrix_is_empty =
+        system_matrix.m() == 0 || system_matrix.n() == 0;
+
+      if (system_matrix_is_empty)
+        {
+#define OPERATION(c, d)        \
+  this->matrix_free.cell_loop( \
+    &OperatorBase::do_vmult_range<c, d>, this, dst, src, true);
+          EXPAND_OPERATIONS(OPERATION);
+#undef OPERATION
+        }
+      else
+        {
+          Assert(false, ExcNotImplemented());
+        }
     }
 
     void
@@ -871,6 +898,33 @@ namespace Sintering
       const MatrixFree<dim, Number, VectorizedArrayType> &matrix_free,
       VectorType &                                        dst,
       const VectorType &                                  src,
+      const std::pair<unsigned int, unsigned int> &       range) const
+    {
+      FECellIntegrator<dim, n_comp, Number, VectorizedArrayType> phi(
+        matrix_free, dof_index);
+
+      for (auto cell = range.first; cell < range.second; ++cell)
+        {
+          phi.reinit(cell);
+          phi.gather_evaluate(src,
+                              EvaluationFlags::EvaluationFlags::values |
+                                EvaluationFlags::EvaluationFlags::gradients);
+
+          static_cast<const T &>(*this)
+            .template do_vmult_kernel<n_comp, n_grains>(phi);
+
+          phi.integrate_scatter(EvaluationFlags::EvaluationFlags::values |
+                                  EvaluationFlags::EvaluationFlags::gradients,
+                                dst);
+        }
+    }
+
+    template <int n_comp, int n_grains>
+    void
+    do_vmult_range(
+      const MatrixFree<dim, Number, VectorizedArrayType> &matrix_free,
+      BlockVectorType &                                   dst,
+      const BlockVectorType &                             src,
       const std::pair<unsigned int, unsigned int> &       range) const
     {
       FECellIntegrator<dim, n_comp, Number, VectorizedArrayType> phi(
@@ -1172,7 +1226,8 @@ namespace Sintering
                      SinteringOperator<dim, Number, VectorizedArrayType>>(
           matrix_free,
           constraints,
-          0,
+          3,                                                      // TODO
+          matrix_free.get_dof_handler(0).get_fe().n_components(), // TODO
           "sintering_op")
       , data(data)
       , matrix_based(matrix_based)
@@ -1186,23 +1241,10 @@ namespace Sintering
     }
 
     void
-    evaluate_nonlinear_residual(BlockVectorType &      dst_,
-                                const BlockVectorType &src_) const
+    evaluate_nonlinear_residual(BlockVectorType &      dst,
+                                const BlockVectorType &src) const
     {
       MyScope scope(this->timer, "sintering_op::nonlinear_residual");
-
-      // TODO: remove
-      AssertDimension(dst_.n_blocks(), 1);
-      AssertDimension(src_.n_blocks(), 1);
-      BlockVectorType src(this->n_components());
-      BlockVectorType dst(this->n_components());
-      for (unsigned int b = 0; b < this->n_components(); ++b)
-        {
-          this->matrix_free.initialize_dof_vector(src.block(b), 3);
-          this->matrix_free.initialize_dof_vector(dst.block(b), 3);
-        }
-      VectorTools::split_up_components_fast(src_, src);
-      // TODO: remove
 
 #define OPERATION(c, d)                                       \
   this->matrix_free.cell_loop(                                \
@@ -1213,26 +1255,16 @@ namespace Sintering
     true);
       EXPAND_OPERATIONS(OPERATION);
 #undef OPERATION
-
-      VectorTools::merge_components_fast(dst, dst_);
-    }
-
-    void
-    set_previous_solution(const VectorType &src) const
-    {
-      this->old_solution = src;
-      this->old_solution.update_ghost_values();
     }
 
     void
     set_previous_solution(const BlockVectorType &src) const
     {
-      AssertDimension(src.n_blocks(), 1);
-
-      set_previous_solution(src.block(0));
+      this->old_solution = src;
+      this->old_solution.update_ghost_values();
     }
 
-    const VectorType &
+    const BlockVectorType &
     get_previous_solution() const
     {
       this->old_solution.zero_out_ghost_values();
@@ -1240,17 +1272,9 @@ namespace Sintering
     }
 
     void
-    evaluate_newton_step(const BlockVectorType &newton_step_)
+    evaluate_newton_step(const BlockVectorType &newton_step)
     {
       MyScope scope(this->timer, "sintering_op::newton_step");
-
-      // TODO: remove
-      AssertDimension(newton_step_.n_blocks(), 1);
-      BlockVectorType newton_step(this->n_components());
-      for (unsigned int b = 0; b < this->n_components(); ++b)
-        this->matrix_free.initialize_dof_vector(newton_step.block(b), 3);
-      VectorTools::split_up_components_fast(newton_step_, newton_step);
-      // TODO: remove
 
       const unsigned n_cells = this->matrix_free.n_cell_batches();
       const unsigned n_quadrature_points =
@@ -1313,7 +1337,8 @@ namespace Sintering
 
     template <int n_comp, int n_grains>
     void
-    do_add_data_vectors(DataOut<dim> &data_out, const VectorType &vec) const
+    do_add_data_vectors(DataOut<dim> &         data_out,
+                        const BlockVectorType &vec) const
     {
       AssertDimension(n_comp - 2, n_grains);
 
@@ -1325,9 +1350,9 @@ namespace Sintering
         this->matrix_free.initialize_dof_vector(data_vector, 3);
 
       FECellIntegrator<dim, n_comp, Number, VectorizedArrayType> fe_eval_all(
-        this->matrix_free);
+        this->matrix_free, 3);
       FECellIntegrator<dim, 1, Number, VectorizedArrayType> fe_eval(
-        this->matrix_free, 3 /*scalar dof index*/);
+        this->matrix_free, 3);
 
       MatrixFreeOperators::
         CellwiseInverseMassMatrix<dim, -1, 1, Number, VectorizedArrayType>
@@ -1447,19 +1472,11 @@ namespace Sintering
     }
 
     void
-    add_data_vectors(DataOut<dim> &data_out, const VectorType &vec) const
+    add_data_vectors(DataOut<dim> &data_out, const BlockVectorType &vec) const
     {
 #define OPERATION(c, d) this->do_add_data_vectors<c, d>(data_out, vec);
       EXPAND_OPERATIONS(OPERATION);
 #undef OPERATION
-    }
-
-    void
-    add_data_vectors(DataOut<dim> &data_out, const BlockVectorType &vec) const
-    {
-      AssertDimension(vec.n_blocks(), 1);
-
-      add_data_vectors(data_out, vec.block(0));
     }
 
     unsigned int
@@ -1571,7 +1588,7 @@ namespace Sintering
       AssertDimension(n_comp - 2, n_grains);
 
       FECellIntegrator<dim, n_comp, Number, VectorizedArrayType> phi_old(
-        matrix_free, 0 /*TODO*/);
+        matrix_free, 3);
       FECellIntegrator<dim, n_comp, Number, VectorizedArrayType> phi(
         matrix_free, 3);
 
@@ -1746,7 +1763,7 @@ namespace Sintering
 
     double dt;
 
-    mutable VectorType old_solution;
+    mutable BlockVectorType old_solution;
 
     Table<3, VectorizedArrayType>                         nonlinear_values;
     Table<3, dealii::Tensor<1, dim, VectorizedArrayType>> nonlinear_gradients;
