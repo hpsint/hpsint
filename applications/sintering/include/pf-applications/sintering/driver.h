@@ -363,7 +363,7 @@ namespace Sintering
       , mapping(1)
       , quad(params.n_points_1D)
       , dof_handler(tria)
-      , constraints{&constraint, &constraint, &constraint, &constraint}
+      , constraints{&constraint}
       , initial_solution(initial_solution)
     {
       auto   boundaries = initial_solution->get_domain_boundaries();
@@ -399,15 +399,9 @@ namespace Sintering
       typename MatrixFree<dim, Number, VectorizedArrayType>::AdditionalData
         additional_data;
       additional_data.mapping_update_flags = update_values | update_gradients;
-      // additional_data.use_fast_hanging_node_algorithm = false; // TODO
-
-      const std::vector<const DoFHandler<dim> *> dof_handlers{&dof_handler,
-                                                              &dof_handler,
-                                                              &dof_handler,
-                                                              &dof_handler};
 
       matrix_free.reinit(
-        mapping, dof_handlers, constraints, quad, additional_data);
+        mapping, dof_handler, constraint, quad, additional_data);
 
       // clang-format off
       pcout_statistics << "System statistics:" << std::endl;

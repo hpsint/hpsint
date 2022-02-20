@@ -1454,7 +1454,7 @@ namespace Sintering
                      SinteringOperator<dim, Number, VectorizedArrayType>>(
           matrix_free,
           constraints,
-          3, // TODO
+          0,
           "sintering_op")
       , data(data)
       , matrix_based(matrix_based)
@@ -1575,12 +1575,12 @@ namespace Sintering
       std::array<VectorType, n_entries> data_vectors;
 
       for (auto &data_vector : data_vectors)
-        this->matrix_free.initialize_dof_vector(data_vector, 3);
+        this->matrix_free.initialize_dof_vector(data_vector, this->dof_index);
 
       FECellIntegrator<dim, n_comp, Number, VectorizedArrayType> fe_eval_all(
-        this->matrix_free, 3);
+        this->matrix_free, this->dof_index);
       FECellIntegrator<dim, 1, Number, VectorizedArrayType> fe_eval(
-        this->matrix_free, 3);
+        this->matrix_free, this->dof_index);
 
       MatrixFreeOperators::
         CellwiseInverseMassMatrix<dim, -1, 1, Number, VectorizedArrayType>
@@ -1693,7 +1693,8 @@ namespace Sintering
           std::ostringstream ss;
           ss << "aux_" << std::setw(2) << std::setfill('0') << c;
 
-          data_out.add_data_vector(this->matrix_free.get_dof_handler(3),
+          data_out.add_data_vector(this->matrix_free.get_dof_handler(
+                                     this->dof_index),
                                    data_vectors[c],
                                    ss.str());
         }
@@ -1831,9 +1832,9 @@ namespace Sintering
       AssertDimension(n_comp - 2, n_grains);
 
       FECellIntegrator<dim, n_comp, Number, VectorizedArrayType> phi_old(
-        matrix_free, 3);
+        matrix_free, this->dof_index);
       FECellIntegrator<dim, n_comp, Number, VectorizedArrayType> phi(
-        matrix_free, 3);
+        matrix_free, this->dof_index);
 
       const auto &free_energy = this->data.free_energy;
       const auto &L           = this->data.L;
@@ -1923,7 +1924,7 @@ namespace Sintering
 #endif
 
       FECellIntegrator<dim, n_comp, Number, VectorizedArrayType> phi(
-        matrix_free, 3);
+        matrix_free, this->dof_index);
 
       for (auto cell = range.first; cell < range.second; ++cell)
         {

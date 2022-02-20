@@ -25,7 +25,7 @@ namespace Sintering
                      OperatorCahnHilliard<dim, Number, VectorizedArrayType>>(
           matrix_free,
           constraints,
-          3,
+          0,
           "cahn_hilliard_op")
       , op(op)
     {}
@@ -460,7 +460,7 @@ namespace Sintering
                      OperatorAllenCahn<dim, Number, VectorizedArrayType>>(
           matrix_free,
           constraints,
-          3,
+          0,
           "allen_cahn_op")
       , op(op)
     {}
@@ -1093,11 +1093,6 @@ namespace Sintering
       operator_1_helmholtz.clear();
       preconditioner_0->clear();
       preconditioner_1->clear();
-
-      dst_0.reinit(0);
-      src_0.reinit(0);
-      dst_1.reinit(0);
-      src_1.reinit(0);
     }
 
     void
@@ -1159,18 +1154,6 @@ namespace Sintering
     {
       MyScope scope(timer, "precon::update");
 
-      if (dst_0.size() == 0)
-        {
-          AssertDimension(src_0.size(), 0);
-          AssertDimension(dst_1.size(), 0);
-          AssertDimension(src_1.size(), 0);
-
-          matrix_free.initialize_dof_vector(dst_0, 1);
-          matrix_free.initialize_dof_vector(src_0, 1);
-          matrix_free.initialize_dof_vector(dst_1, 2);
-          matrix_free.initialize_dof_vector(src_1, 2);
-        }
-
       {
         MyScope scope(timer, "precon::update::precon_0");
         preconditioner_0->do_update();
@@ -1188,9 +1171,6 @@ namespace Sintering
     OperatorAllenCahn<dim, Number, VectorizedArrayType>    operator_1;
     OperatorAllenCahnHelmholtz<dim, Number, VectorizedArrayType>
       operator_1_helmholtz;
-
-    mutable VectorType dst_0, dst_1;
-    mutable VectorType src_0, src_1;
 
     std::unique_ptr<Preconditioners::PreconditionerBase<Number>>
       preconditioner_0, preconditioner_1;
