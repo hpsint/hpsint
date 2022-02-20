@@ -206,12 +206,12 @@ namespace Sintering
         }
       else
         {
-          AssertThrow(component < this->n_components,
+          AssertThrow(component < this->n_components(),
                       ExcMessage(
                         "Incorrect function component " +
                         std::to_string(component) +
                         " requested, but the total number of components is " +
-                        std::to_string(this->n_components)));
+                        std::to_string(this->n_components())));
 
           unsigned int i = component - 2;
 
@@ -507,7 +507,6 @@ main(int argc, char **argv)
     std::make_shared<Sintering::InitialValuesCloud<SINTERING_DIM>>(
       particles, interface_width);
 
-  Sintering::Problem<SINTERING_DIM, SINTERING_GRAINS> runner(params,
-                                                             initial_solution);
+  Sintering::Problem<SINTERING_DIM> runner(params, initial_solution);
   runner.run();
 }

@@ -80,7 +80,7 @@ namespace Sintering
   public:
     InitialValues(unsigned int n_components, double interface_offset = 0)
       : dealii::Function<dim>(1)
-      , n_components(n_components)
+      , component_number(n_components)
       , current_component(numbers::invalid_unsigned_int)
       , interface_offset(interface_offset)
     {}
@@ -107,17 +107,20 @@ namespace Sintering
     void
     set_component(const unsigned int current_component)
     {
-      AssertIndexRange(current_component, n_components);
+      AssertIndexRange(current_component, n_components());
       this->current_component = current_component;
     }
 
-  protected:
-    const unsigned int n_components;
+    unsigned int
+    n_components() const
+    {
+      return component_number;
+    }
 
   private:
-    unsigned int current_component;
-
-    const double interface_offset;
+    const unsigned int component_number;
+    unsigned int       current_component;
+    const double       interface_offset;
 
   protected:
     virtual double
@@ -290,16 +293,12 @@ namespace Sintering
 
 
   template <int dim,
-            int n_grains,
             typename Number              = double,
             typename VectorizedArrayType = VectorizedArray<Number>>
   class Problem
   {
   public:
     using VectorType = LinearAlgebra::distributed::BlockVector<Number>;
-
-    // components number
-    static constexpr unsigned int n_components = n_grains + 2;
 
     using NonLinearOperator =
       SinteringOperator<dim, Number, VectorizedArrayType>;
@@ -431,7 +430,7 @@ namespace Sintering
                                            sintering_data,
                                            params.matrix_based);
 
-      nonlinear_operator.set_n_components(n_components);
+      nonlinear_operator.set_n_components(initial_solution->n_components());
 
       // ... preconditioner
       std::unique_ptr<Preconditioners::PreconditionerBase<Number>>
@@ -923,10 +922,10 @@ namespace Sintering
       data_out.add_data_vector(dof_handler, solution.block(0), "c");
       data_out.add_data_vector(dof_handler, solution.block(1), "mu");
 
-      for (unsigned int ig = 0; ig < n_grains; ++ig)
+      for (unsigned int ig = 2; ig < solution.n_blocks(); ++ig)
         data_out.add_data_vector(dof_handler,
-                                 solution.block(2 + ig),
-                                 "eta" + std::to_string(ig));
+                                 solution.block(ig),
+                                 "eta" + std::to_string(ig - 2));
 
       sintering_operator.add_data_vectors(data_out, solution);
 
