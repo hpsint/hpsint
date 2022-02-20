@@ -19,7 +19,7 @@
 static_assert(false, "No dimension has been given!");
 #endif
 
-#ifndef SINTERING_GRAINS
+#ifndef MAX_SINTERING_GRAINS
 static_assert(false, "No grains number has been given!");
 #endif
 
@@ -495,10 +495,11 @@ main(int argc, char **argv)
 
   const auto particles = Sintering::read_particles<SINTERING_DIM>(fstream);
 
-  AssertThrow(particles.size() == SINTERING_GRAINS,
+  AssertThrow(particles.size() <= MAX_SINTERING_GRAINS,
               ExcMessage("The CSV file contains wrong number of particles: " +
-                         std::to_string(particles.size()) + " but has to be " +
-                         std::to_string(SINTERING_GRAINS)));
+                         std::to_string(particles.size()) +
+                         " but has to be leq" +
+                         std::to_string(MAX_SINTERING_GRAINS)));
 
   // geometry
   static constexpr double interface_width = 2.0;
