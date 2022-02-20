@@ -488,10 +488,15 @@ namespace Preconditioners
     void
     vmult(BlockVectorType &dst, const BlockVectorType &src) const override
     {
-      AssertDimension(dst.n_blocks(), 1);
-      AssertDimension(src.n_blocks(), 1);
+      VectorType dst_;                               // TODO
+      VectorType src_;                               // TODO
+      op.initialize_dof_vector(dst_);                // TODO
+      op.initialize_dof_vector(src_);                // TODO
+      VectorTools::merge_components_fast(src, src_); // TODO
 
-      this->vmult(dst.block(0), src.block(0));
+      precondition_amg.vmult(dst_, src_);
+
+      VectorTools::split_up_components_fast(dst_, dst); // TODO
     }
 
     void
@@ -551,15 +556,17 @@ namespace Preconditioners
     void
     vmult(BlockVectorType &dst, const BlockVectorType &src) const override
     {
-      VectorType dst_;                               // TOOD
-      VectorType src_;                               // TOOD
-      op.initialize_dof_vector(dst_);                // TOOD
-      op.initialize_dof_vector(src_);                // TOOD
-      VectorTools::merge_components_fast(src, src_); // TOOD
+      MyScope scope(timer, "ilu::vmult");
 
-      this->vmult(dst_, src_);
+      VectorType dst_;                               // TODO
+      VectorType src_;                               // TODO
+      op.initialize_dof_vector(dst_);                // TODO
+      op.initialize_dof_vector(src_);                // TODO
+      VectorTools::merge_components_fast(src, src_); // TODO
 
-      VectorTools::split_up_components_fast(dst_, dst); // TOOD
+      precondition_ilu.vmult(dst_, src_);
+
+      VectorTools::split_up_components_fast(dst_, dst); // TODO
     }
 
     void
