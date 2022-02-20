@@ -202,7 +202,7 @@ main(int argc, char **argv)
   AssertIndexRange(n_components, MAX_SINTERING_GRAINS + 1);
 
   if (argc == 3)
-    params.parse(std::string(argv[1]));
+    params.parse(std::string(argv[2]));
 
   // geometry
   static constexpr double r0              = 15.0 / 2.;

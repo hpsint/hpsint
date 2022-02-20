@@ -1032,16 +1032,6 @@ namespace Sintering
         partitioner_scalar->locally_owned_range().tensor_product(is),
         partitioner_scalar->ghost_indices().tensor_product(is),
         partitioner_scalar->get_mpi_communicator());
-
-      /*
-      const unsigned int n_comp = this->n_components();
-
-      std::vector<types::global_dof_index> ghost_indices;
-
-      for(const auto i : partitioner_scalar->ghost_indices ())
-        for(unsigned int c = 0; c < n_comp; ++c)
-          ghost_indices
-      */
     }
 
     const TrilinosWrappers::SparseMatrix &
@@ -1488,6 +1478,9 @@ namespace Sintering
     void
     set_previous_solution(const BlockVectorType &src) const
     {
+      if (this->old_solution.n_blocks() != src.n_blocks())
+        this->old_solution.reinit(0);
+
       this->old_solution = src;
       this->old_solution.update_ghost_values();
     }

@@ -673,12 +673,29 @@ namespace Sintering
       const auto run_grain_tracker = [&]() {
         const unsigned int n_blocks_old = solution.n_blocks();
 
-        // TODO
+        if (true /*TODO: do something more useful */)
+          {
+            VectorType temp(std::min<unsigned int>(n_blocks_old + 1,
+                                                   MAX_SINTERING_GRAINS + 2));
+
+            for (unsigned int i = 0; i < n_blocks_old; ++i)
+              temp.block(i) = solution.block(i);
+
+            for (unsigned int i = n_blocks_old; i < temp.n_blocks(); ++i)
+              temp.block(i).reinit(solution.block(0));
+
+            solution.reinit(0);
+            solution = temp;
+          }
 
         const unsigned int n_blocks_new = solution.n_blocks();
 
         if (n_blocks_old != n_blocks_new)
           {
+            pcout << "\033[34mChanging number of components from "
+                  << n_blocks_old << " to " << n_blocks_new << "\033[0m"
+                  << std::endl;
+
             nonlinear_operator.set_n_components(n_blocks_new);
             nonlinear_operator.clear();
             preconditioner->clear();
