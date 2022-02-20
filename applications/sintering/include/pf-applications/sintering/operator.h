@@ -661,9 +661,171 @@ namespace Sintering
       return 24.0 * B * etai * etaj;
     }
   };
+} // namespace Sintering
 
+namespace dealii
+{
+  namespace MyMatrixFreeTools
+  {
+    template <int dim,
+              int fe_degree,
+              int n_q_points_1d,
+              int n_components,
+              typename Number,
+              typename VectorizedArrayType,
+              typename MatrixType>
+    void
+    compute_matrix(
+      const MatrixFree<dim, Number, VectorizedArrayType> &matrix_free,
+      const AffineConstraints<Number> &                   constraints_in,
+      MatrixType &                                        matrix,
+      const std::function<void(FEEvaluation<dim,
+                                            fe_degree,
+                                            n_q_points_1d,
+                                            n_components,
+                                            Number,
+                                            VectorizedArrayType> &)>
+        &                local_vmult,
+      const unsigned int dof_no                   = 0,
+      const unsigned int quad_no                  = 0,
+      const unsigned int first_selected_component = 0)
+    {
+      std::unique_ptr<AffineConstraints<typename MatrixType::value_type>>
+        constraints_for_matrix;
+      const AffineConstraints<typename MatrixType::value_type> &constraints =
+        dealii::MatrixFreeTools::internal::
+          create_new_affine_constraints_if_needed(matrix,
+                                                  constraints_in,
+                                                  constraints_for_matrix);
 
+      matrix_free.template cell_loop<MatrixType, MatrixType>(
+        [&](const auto &, auto &dst, const auto &, const auto range) {
+          FEEvaluation<dim,
+                       fe_degree,
+                       n_q_points_1d,
+                       n_components,
+                       Number,
+                       VectorizedArrayType>
+            integrator(
+              matrix_free, range, dof_no, quad_no, first_selected_component);
 
+          unsigned int const dofs_per_cell = integrator.dofs_per_cell;
+
+          std::vector<types::global_dof_index> dof_indices(dofs_per_cell);
+          std::vector<types::global_dof_index> dof_indices_mf(dofs_per_cell);
+
+          std::array<FullMatrix<typename MatrixType::value_type>,
+                     VectorizedArrayType::size()>
+            matrices;
+
+          std::fill_n(matrices.begin(),
+                      VectorizedArrayType::size(),
+                      FullMatrix<typename MatrixType::value_type>(
+                        dofs_per_cell, dofs_per_cell));
+
+          const auto lexicographic_numbering =
+            matrix_free
+              .get_shape_info(dof_no,
+                              quad_no,
+                              first_selected_component,
+                              integrator.get_active_fe_index(),
+                              integrator.get_active_quadrature_index())
+              .lexicographic_numbering;
+
+          for (auto cell = range.first; cell < range.second; ++cell)
+            {
+              integrator.reinit(cell);
+
+              const unsigned int n_filled_lanes =
+                matrix_free.n_active_entries_per_cell_batch(cell);
+
+              for (unsigned int v = 0; v < n_filled_lanes; ++v)
+                matrices[v] = 0.0;
+
+              for (unsigned int j = 0; j < dofs_per_cell; ++j)
+                {
+                  for (unsigned int i = 0; i < dofs_per_cell; ++i)
+                    integrator.begin_dof_values()[i] =
+                      static_cast<Number>(i == j);
+
+                  local_vmult(integrator);
+
+                  for (unsigned int i = 0; i < dofs_per_cell; ++i)
+                    for (unsigned int v = 0; v < n_filled_lanes; ++v)
+                      matrices[v](i, j) = integrator.begin_dof_values()[i][v];
+                }
+
+              for (unsigned int v = 0; v < n_filled_lanes; ++v)
+                {
+                  const auto cell_v =
+                    matrix_free.get_cell_iterator(cell, v, dof_no);
+
+                  if (matrix_free.get_mg_level() !=
+                      numbers::invalid_unsigned_int)
+                    cell_v->get_mg_dof_indices(dof_indices);
+                  else
+                    cell_v->get_dof_indices(dof_indices);
+
+                  for (unsigned int j = 0; j < dof_indices.size(); ++j)
+                    dof_indices_mf[j] = dof_indices[lexicographic_numbering[j]];
+
+                  constraints.distribute_local_to_global(matrices[v],
+                                                         dof_indices_mf,
+                                                         dst);
+                }
+            }
+        },
+        matrix,
+        matrix);
+
+      matrix.compress(VectorOperation::add);
+    }
+
+    template <typename CLASS,
+              int dim,
+              int fe_degree,
+              int n_q_points_1d,
+              int n_components,
+              typename Number,
+              typename VectorizedArrayType,
+              typename MatrixType>
+    void
+    compute_matrix(
+      const MatrixFree<dim, Number, VectorizedArrayType> &matrix_free,
+      const AffineConstraints<Number> &                   constraints,
+      MatrixType &                                        matrix,
+      void (CLASS::*cell_operation)(FEEvaluation<dim,
+                                                 fe_degree,
+                                                 n_q_points_1d,
+                                                 n_components,
+                                                 Number,
+                                                 VectorizedArrayType> &) const,
+      const CLASS *      owning_class,
+      const unsigned int dof_no                   = 0,
+      const unsigned int quad_no                  = 0,
+      const unsigned int first_selected_component = 0)
+    {
+      compute_matrix<dim,
+                     fe_degree,
+                     n_q_points_1d,
+                     n_components,
+                     Number,
+                     VectorizedArrayType,
+                     MatrixType>(
+        matrix_free,
+        constraints,
+        matrix,
+        [&](auto &feeval) { (owning_class->*cell_operation)(feeval); },
+        dof_no,
+        quad_no,
+        first_selected_component);
+    }
+
+  } // namespace MyMatrixFreeTools
+} // namespace dealii
+
+namespace Sintering
+{
   template <int dim, typename Number, typename VectorizedArrayType, typename T>
   class OperatorBase : public Subscriptor
   {
@@ -848,10 +1010,21 @@ namespace Sintering
 
           system_matrix.clear();
 
-          const auto &dof_handler =
-            this->matrix_free.get_dof_handler(dof_index);
+          AssertDimension(this->matrix_free.get_dof_handler(dof_index)
+                            .get_fe()
+                            .n_components(),
+                          1);
 
-          constraints_for_matrix.copy_from(constraints);
+          DoFHandler<dim> dof_handler(
+            this->matrix_free.get_dof_handler(dof_index).get_triangulation());
+          dof_handler.distribute_dofs(
+            FESystem<dim>(this->matrix_free.get_dof_handler(dof_index).get_fe(),
+                          this->n_components()));
+
+          constraints_for_matrix.clear();
+          DoFTools::make_hanging_node_constraints(dof_handler,
+                                                  constraints_for_matrix);
+          constraints_for_matrix.close();
 
           TrilinosWrappers::SparsityPattern dsp(
             dof_handler.locally_owned_dofs(), dof_handler.get_communicator());
@@ -871,13 +1044,13 @@ namespace Sintering
             system_matrix = 0.0; // clear existing content
           }
 
-#define OPERATION(c, d)                                               \
-  MatrixFreeTools::compute_matrix(matrix_free,                        \
-                                  constraints_for_matrix,             \
-                                  system_matrix,                      \
-                                  &OperatorBase::do_vmult_cell<c, d>, \
-                                  this,                               \
-                                  dof_index);
+#define OPERATION(c, d)                                                 \
+  MyMatrixFreeTools::compute_matrix(matrix_free,                        \
+                                    constraints_for_matrix,             \
+                                    system_matrix,                      \
+                                    &OperatorBase::do_vmult_cell<c, d>, \
+                                    this,                               \
+                                    dof_index);
         EXPAND_OPERATIONS(OPERATION);
 #undef OPERATION
       }
