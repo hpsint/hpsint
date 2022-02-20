@@ -160,11 +160,12 @@ namespace Sintering
     unsigned int fe_degree   = 1;
     unsigned int n_points_1D = 2;
 
-    double   top_fraction_of_cells    = 0.3;
-    double   bottom_fraction_of_cells = 0.1;
-    unsigned min_refinement_depth     = 3;
-    unsigned max_refinement_depth     = 0;
-    unsigned refinement_frequency     = 10;
+    double       top_fraction_of_cells    = 0.3;
+    double       bottom_fraction_of_cells = 0.1;
+    unsigned int min_refinement_depth     = 3;
+    unsigned int max_refinement_depth     = 0;
+    unsigned int refinement_frequency     = 10;
+    unsigned int grains_tracker_frequency = 0;
 
     bool matrix_based = false;
 
@@ -707,6 +708,21 @@ namespace Sintering
           constraint.distribute(solution.block(b));
       };
 
+      const auto run_grain_tracker = [&]() {
+        const unsigned int n_blocks_old = solution.n_blocks();
+
+        // TODO
+
+        const unsigned int n_blocks_new = solution.n_blocks();
+
+        if (n_blocks_old != n_blocks_new)
+          {
+            nonlinear_operator.set_n_components(n_blocks_new);
+            nonlinear_operator.clear();
+            preconditioner->clear();
+          }
+      };
+
       initialize_solution();
 
       // initial local refinement
@@ -737,6 +753,10 @@ namespace Sintering
             if (n_timestep != 0 && params.refinement_frequency > 0 &&
                 n_timestep % params.refinement_frequency == 0)
               execute_coarsening_and_refinement();
+
+            if (n_timestep != 0 && params.grains_tracker_frequency > 0 &&
+                n_timestep % params.grains_tracker_frequency == 0)
+              run_grain_tracker();
 
             nonlinear_operator.set_timestep(dt);
             nonlinear_operator.set_previous_solution(solution);
