@@ -1101,84 +1101,57 @@ namespace Sintering
     }
 
     void
-    vmult(VectorType &dst, const VectorType &src) const override
+    vmult(VectorType &, const VectorType &) const override
     {
-      MyScope scope(timer, "precon::vmult");
-
-      {
-        MyScope scope(timer, "precon::vmult::split_up");
-        VectorTools::split_up_fast(src,
-                                   src_0,
-                                   src_1,
-                                   operator_1.n_components());
-
-#ifdef DEBUG
-        VectorType temp_0, temp_1;
-        temp_0.reinit(src_0);
-        temp_1.reinit(src_1);
-
-        VectorTools::split_up(this->matrix_free, src, temp_0, temp_1);
-
-        AssertThrow(VectorTools::check_identity(src_0, temp_0),
-                    ExcInternalError());
-        AssertThrow(VectorTools::check_identity(src_1, temp_1),
-                    ExcInternalError());
-#endif
-      }
-
-      if (true)
-        {
-          MyScope scope(timer, "precon::vmult::precon_0");
-          preconditioner_0->vmult(dst_0, src_0);
-        }
-      else
-        {
-          MyScope scope(timer, "precon::vmult::precon_0");
-
-          try
-            {
-              ReductionControl reduction_control(100, 1e-20, 1e-8);
-
-              SolverGMRES<VectorType> solver(reduction_control);
-              solver.solve(operator_0, dst_0, src_0, *preconditioner_0);
-            }
-          catch (const SolverControl::NoConvergence &)
-            {
-              // TODO
-            }
-        }
-
-      {
-        MyScope scope(timer, "precon::vmult::precon_1");
-        preconditioner_1->vmult(dst_1, src_1);
-      }
-
-      {
-        MyScope scope(timer, "precon::vmult::merge");
-        VectorTools::merge_fast(dst_0, dst_1, dst, operator_1.n_components());
-
-#ifdef DEBUG
-        VectorType temp;
-        temp.reinit(dst);
-
-        VectorTools::merge(this->matrix_free, dst_0, dst_1, temp);
-
-        AssertThrow(VectorTools::check_identity(dst, temp), ExcInternalError());
-#endif
-      }
+      Assert(false, ExcNotImplemented());
     }
 
     void
     vmult(BlockVectorType &dst, const BlockVectorType &src) const override
     {
-      VectorType dst_, src_;                         // TODO
-      matrix_free.initialize_dof_vector(dst_, 0);    // TODO
-      matrix_free.initialize_dof_vector(src_, 0);    // TODO
-      VectorTools::merge_components_fast(src, src_); // TODO
+      MyScope scope(timer, "precon::vmult");
 
-      this->vmult(dst_, src_);
+      {
+        MyScope scope(timer, "precon::vmult::precon_0");
 
-      VectorTools::split_up_components_fast(dst_, dst); // TODO
+        const unsigned n_components = 2;
+        const unsigned offset       = 0;
+
+        BlockVectorType dst_(n_components);              //
+        BlockVectorType src_(n_components);              //
+                                                         //
+        for (unsigned int i = 0; i < n_components; ++i)  //
+          {                                              //
+            src_.block(i) = src.block(offset + i);       //
+            dst_.block(i).reinit(dst.block(offset + i)); //
+          }                                              //
+
+        preconditioner_0->vmult(dst_, src_);
+
+        for (unsigned int i = 0; i < n_components; ++i) //
+          dst.block(offset + i) = dst_.block(i);        //
+      }
+
+      {
+        MyScope scope(timer, "precon::vmult::precon_1");
+
+        const unsigned n_components = dst.n_blocks() - 2;
+        const unsigned offset       = 2;
+
+        BlockVectorType dst_(n_components);              //
+        BlockVectorType src_(n_components);              //
+                                                         //
+        for (unsigned int i = 0; i < n_components; ++i)  //
+          {                                              //
+            src_.block(i) = src.block(offset + i);       //
+            dst_.block(i).reinit(dst.block(offset + i)); //
+          }                                              //
+
+        preconditioner_1->vmult(dst_, src_);
+
+        for (unsigned int i = 0; i < n_components; ++i) //
+          dst.block(offset + i) = dst_.block(i);        //
+      }
     }
 
     void
