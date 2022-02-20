@@ -831,8 +831,9 @@ namespace Sintering
       EXPAND_OPERATIONS(OPERATION);
 #undef OPERATION
 
-      for (auto &i : diagonal)
-        i = (std::abs(i) > 1.0e-10) ? (1.0 / i) : 1.0;
+      for (unsigned int b = 0; b < this->n_components(); ++b)
+        for (auto &i : diagonal.block(b))
+          i = (std::abs(i) > 1.0e-10) ? (1.0 / i) : 1.0;
     }
 
     const TrilinosWrappers::SparseMatrix &
