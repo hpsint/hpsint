@@ -33,9 +33,9 @@ constexpr bool has_n_grains_method =
  * ```
  */
 #define EXPAND_OPERATIONS(OPERATION)                                                                                  \
-  if constexpr(has_n_grains_method<T>)                                                                                       \
+  if constexpr(has_n_grains_method<T>)                                                                                \
     {                                                                                                                 \
-      constexpr int max_grains = MAX_SINTERING_GRAINS;                                                                    \
+      constexpr int max_grains = MAX_SINTERING_GRAINS;                                                                \
       const unsigned int n_grains = static_cast<const T&>(*this).n_grains();                                          \
       AssertIndexRange(n_grains, max_grains + 1);                                                                     \
       switch (n_grains)                                                                                               \
@@ -55,7 +55,7 @@ constexpr bool has_n_grains_method =
     }                                                                                                                 \
   else                                                                                                                \
     {                                                                                                                 \
-      constexpr int max_components = MAX_SINTERING_GRAINS +2 ;                                                            \
+      constexpr int max_components = MAX_SINTERING_GRAINS +2 ;                                                        \
       AssertIndexRange(this->n_components(), max_components + 1);                                                     \
       switch (this->n_components())                                                                                   \
         {                                                                                                             \
