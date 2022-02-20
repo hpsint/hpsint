@@ -477,25 +477,38 @@ namespace Preconditioners
 
     AMG(const Operator &op)
       : op(op)
+      , pcout(std::cout, Utilities::MPI::this_mpi_process(MPI_COMM_WORLD) == 0)
+      , timer(pcout, TimerOutput::never, TimerOutput::wall_times)
     {}
+
+    ~AMG()
+    {
+      if (timer.get_summary_data(TimerOutput::OutputData::total_wall_time)
+            .size() > 0)
+        timer.print_wall_time_statistics(MPI_COMM_WORLD);
+    }
 
     void
     vmult(VectorType &dst, const VectorType &src) const override
     {
-      precondition_amg.vmult(dst, src);
+      AssertThrow(false, ExcNotImplemented());
+      (void)dst;
+      (void)src;
     }
 
     void
     vmult(BlockVectorType &dst, const BlockVectorType &src) const override
     {
-      VectorType dst_;                               // TODO
-      VectorType src_;                               // TODO
-      op.initialize_dof_vector(dst_);                // TODO
-      op.initialize_dof_vector(src_);                // TODO
+      if (src_.size() == 0 || dst_.size() == 0)
+        {
+          const auto partitioner = op.get_system_partitioner();
+
+          src_.reinit(partitioner);
+          dst_.reinit(partitioner);
+        }
+
       VectorTools::merge_components_fast(src, src_); // TODO
-
       precondition_amg.vmult(dst_, src_);
-
       VectorTools::split_up_components_fast(dst_, dst); // TODO
     }
 
@@ -510,6 +523,11 @@ namespace Preconditioners
 
     TrilinosWrappers::PreconditionAMG::AdditionalData additional_data;
     TrilinosWrappers::PreconditionAMG                 precondition_amg;
+
+    ConditionalOStream  pcout;
+    mutable TimerOutput timer;
+
+    mutable VectorType src_, dst_;
   };
 
 
@@ -544,13 +562,16 @@ namespace Preconditioners
     clear()
     {
       precondition_ilu.clear();
+      src_.reinit(0);
+      dst_.reinit(0);
     }
 
     void
     vmult(VectorType &dst, const VectorType &src) const override
     {
-      MyScope scope(timer, "ilu::vmult");
-      precondition_ilu.vmult(dst, src);
+      AssertThrow(false, ExcNotImplemented());
+      (void)dst;
+      (void)src;
     }
 
     void
@@ -558,14 +579,16 @@ namespace Preconditioners
     {
       MyScope scope(timer, "ilu::vmult");
 
-      VectorType dst_;                               // TODO
-      VectorType src_;                               // TODO
-      op.initialize_dof_vector(dst_);                // TODO
-      op.initialize_dof_vector(src_);                // TODO
+      if (src_.size() == 0 || dst_.size() == 0)
+        {
+          const auto partitioner = op.get_system_partitioner();
+
+          src_.reinit(partitioner);
+          dst_.reinit(partitioner);
+        }
+
       VectorTools::merge_components_fast(src, src_); // TODO
-
       precondition_ilu.vmult(dst_, src_);
-
       VectorTools::split_up_components_fast(dst_, dst); // TODO
     }
 
@@ -584,6 +607,8 @@ namespace Preconditioners
 
     ConditionalOStream  pcout;
     mutable TimerOutput timer;
+
+    mutable VectorType src_, dst_;
   };
 
 

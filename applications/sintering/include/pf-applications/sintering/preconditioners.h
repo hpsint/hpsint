@@ -25,7 +25,7 @@ namespace Sintering
                      OperatorCahnHilliard<dim, Number, VectorizedArrayType>>(
           matrix_free,
           constraints,
-          1,
+          3,
           "cahn_hilliard_op")
       , op(op)
     {}

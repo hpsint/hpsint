@@ -714,8 +714,8 @@ namespace dealii
               matrix_free, range, dof_no, quad_no, first_selected_component);
 
           // new
-          const unsigned int dofs_per_component = integrator.dofs_per_cell;
-          const unsigned int dofs_per_cell = dofs_per_component * n_components;
+          const unsigned int dofs_per_component = integrator.dofs_per_component;
+          const unsigned int dofs_per_cell      = integrator.dofs_per_cell;
           const unsigned int dofs_per_block =
             matrix_free.get_dof_handler(dof_no).n_dofs();
 
@@ -781,7 +781,7 @@ namespace dealii
                     dof_indices_mf[j] = dof_indices[lexicographic_numbering[j]];
 
                   // new
-                  for (unsigned int b = 0, c; b < n_components; ++b)
+                  for (unsigned int b = 0, c = 0; b < n_components; ++b)
                     for (unsigned int i = 0; i < dofs_per_component; ++i, ++c)
                       if (true)
                         dof_indices_mf_all[c] =
@@ -1017,6 +1017,31 @@ namespace Sintering
       for (unsigned int b = 0; b < this->n_components(); ++b)
         for (auto &i : diagonal.block(b))
           i = (std::abs(i) > 1.0e-10) ? (1.0 / i) : 1.0;
+    }
+
+    std::shared_ptr<Utilities::MPI::Partitioner>
+    get_system_partitioner() const
+    {
+      const auto partitioner_scalar =
+        this->matrix_free.get_vector_partitioner(dof_index);
+
+      IndexSet is(this->n_components());
+      is.add_range(0, this->n_components());
+
+      return std::make_shared<Utilities::MPI::Partitioner>(
+        partitioner_scalar->locally_owned_range().tensor_product(is),
+        partitioner_scalar->ghost_indices().tensor_product(is),
+        partitioner_scalar->get_mpi_communicator());
+
+      /*
+      const unsigned int n_comp = this->n_components();
+
+      std::vector<types::global_dof_index> ghost_indices;
+
+      for(const auto i : partitioner_scalar->ghost_indices ())
+        for(unsigned int c = 0; c < n_comp; ++c)
+          ghost_indices
+      */
     }
 
     const TrilinosWrappers::SparseMatrix &
