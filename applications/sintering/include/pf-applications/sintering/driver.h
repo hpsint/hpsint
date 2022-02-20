@@ -160,11 +160,12 @@ namespace Sintering
     unsigned int fe_degree   = 1;
     unsigned int n_points_1D = 2;
 
-    double   top_fraction_of_cells    = 0.3;
-    double   bottom_fraction_of_cells = 0.1;
-    unsigned min_refinement_depth     = 3;
-    unsigned max_refinement_depth     = 0;
-    unsigned refinement_frequency     = 10;
+    double       top_fraction_of_cells    = 0.3;
+    double       bottom_fraction_of_cells = 0.1;
+    unsigned int min_refinement_depth     = 3;
+    unsigned int max_refinement_depth     = 0;
+    unsigned int refinement_frequency     = 10;
+    unsigned int grains_tracker_frequency = 0;
 
     bool matrix_based = false;
 
@@ -340,14 +341,8 @@ namespace Sintering
     FE_Q<dim>                                 fe;
     MappingQ<dim>                             mapping;
     QGauss<dim>                               quad;
-    DoFHandler<dim>                           dof_handler_all;
-    DoFHandler<dim>                           dof_handler_ch;
-    DoFHandler<dim>                           dof_handler_ac;
     DoFHandler<dim>                           dof_handler;
 
-    AffineConstraints<Number> constraint_all;
-    AffineConstraints<Number> constraint_ch;
-    AffineConstraints<Number> constraint_ac;
     AffineConstraints<Number> constraint;
 
     const std::vector<const AffineConstraints<double> *> constraints;
@@ -368,14 +363,8 @@ namespace Sintering
       , fe(params.fe_degree)
       , mapping(1)
       , quad(params.n_points_1D)
-      , dof_handler_all(tria)
-      , dof_handler_ch(tria)
-      , dof_handler_ac(tria)
       , dof_handler(tria)
-      , constraints{&constraint_all,
-                    &constraint_ch,
-                    &constraint_ac,
-                    &constraint}
+      , constraints{&constraint, &constraint, &constraint, &constraint}
       , initial_solution(initial_solution)
     {
       auto   boundaries = initial_solution->get_domain_boundaries();
@@ -400,28 +389,9 @@ namespace Sintering
     initialize()
     {
       // setup DoFHandlers, ...
-      // a) complete system
-      dof_handler_all.distribute_dofs(FESystem<dim>(fe, n_components));
-      // b) Cahn-Hilliard system
-      dof_handler_ch.distribute_dofs(FESystem<dim>(fe, 2));
-      // c) Allen-Cahn system
-      dof_handler_ac.distribute_dofs(FESystem<dim>(fe, n_components - 2));
-      // d) scalar
       dof_handler.distribute_dofs(fe);
 
       // ... constraints, and ...
-      constraint_all.clear();
-      DoFTools::make_hanging_node_constraints(dof_handler_all, constraint_all);
-      constraint_all.close();
-
-      constraint_ch.clear();
-      DoFTools::make_hanging_node_constraints(dof_handler_ch, constraint_ch);
-      constraint_ch.close();
-
-      constraint_ac.clear();
-      DoFTools::make_hanging_node_constraints(dof_handler_ac, constraint_ac);
-      constraint_ac.close();
-
       constraint.clear();
       DoFTools::make_hanging_node_constraints(dof_handler, constraint);
       constraint.close();
@@ -432,9 +402,9 @@ namespace Sintering
       additional_data.mapping_update_flags = update_values | update_gradients;
       // additional_data.use_fast_hanging_node_algorithm = false; // TODO
 
-      const std::vector<const DoFHandler<dim> *> dof_handlers{&dof_handler_all,
-                                                              &dof_handler_ch,
-                                                              &dof_handler_ac,
+      const std::vector<const DoFHandler<dim> *> dof_handlers{&dof_handler,
+                                                              &dof_handler,
+                                                              &dof_handler,
                                                               &dof_handler};
 
       matrix_free.reinit(
@@ -444,7 +414,7 @@ namespace Sintering
       pcout_statistics << "System statistics:" << std::endl;
       pcout_statistics << "  - n cell:                    " << tria.n_global_active_cells() << std::endl;
       pcout_statistics << "  - n levels:                  " << tria.n_global_levels() << std::endl;
-      pcout_statistics << "  - n dofs:                    " << dof_handler_all.n_dofs() << std::endl;
+      pcout_statistics << "  - n dofs:                    " << dof_handler.n_dofs() << std::endl;
       pcout_statistics << std::endl;
       // clang-format on
     }
@@ -707,6 +677,21 @@ namespace Sintering
           constraint.distribute(solution.block(b));
       };
 
+      const auto run_grain_tracker = [&]() {
+        const unsigned int n_blocks_old = solution.n_blocks();
+
+        // TODO
+
+        const unsigned int n_blocks_new = solution.n_blocks();
+
+        if (n_blocks_old != n_blocks_new)
+          {
+            nonlinear_operator.set_n_components(n_blocks_new);
+            nonlinear_operator.clear();
+            preconditioner->clear();
+          }
+      };
+
       initialize_solution();
 
       // initial local refinement
@@ -737,6 +722,10 @@ namespace Sintering
             if (n_timestep != 0 && params.refinement_frequency > 0 &&
                 n_timestep % params.refinement_frequency == 0)
               execute_coarsening_and_refinement();
+
+            if (n_timestep != 0 && params.grains_tracker_frequency > 0 &&
+                n_timestep % params.grains_tracker_frequency == 0)
+              run_grain_tracker();
 
             nonlinear_operator.set_timestep(dt);
             nonlinear_operator.set_previous_solution(solution);

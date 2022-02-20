@@ -57,16 +57,15 @@ namespace Preconditioners
     void
     vmult(VectorType &dst, const VectorType &src) const override
     {
-      diagonal_matrix.vmult(dst, src);
+      Assert(false, ExcNotImplemented());
+      (void)dst;
+      (void)src;
     }
 
     void
     vmult(BlockVectorType &dst, const BlockVectorType &src) const override
     {
-      AssertDimension(dst.n_blocks(), 1);
-      AssertDimension(src.n_blocks(), 1);
-
-      this->vmult(dst.block(0), src.block(0));
+      diagonal_matrix.vmult(dst, src);
     }
 
     void
@@ -76,8 +75,8 @@ namespace Preconditioners
     }
 
   private:
-    const Operator &           op;
-    DiagonalMatrix<VectorType> diagonal_matrix;
+    const Operator &                op;
+    DiagonalMatrix<BlockVectorType> diagonal_matrix;
   };
 
 
@@ -478,21 +477,39 @@ namespace Preconditioners
 
     AMG(const Operator &op)
       : op(op)
+      , pcout(std::cout, Utilities::MPI::this_mpi_process(MPI_COMM_WORLD) == 0)
+      , timer(pcout, TimerOutput::never, TimerOutput::wall_times)
     {}
+
+    ~AMG()
+    {
+      if (timer.get_summary_data(TimerOutput::OutputData::total_wall_time)
+            .size() > 0)
+        timer.print_wall_time_statistics(MPI_COMM_WORLD);
+    }
 
     void
     vmult(VectorType &dst, const VectorType &src) const override
     {
-      precondition_amg.vmult(dst, src);
+      AssertThrow(false, ExcNotImplemented());
+      (void)dst;
+      (void)src;
     }
 
     void
     vmult(BlockVectorType &dst, const BlockVectorType &src) const override
     {
-      AssertDimension(dst.n_blocks(), 1);
-      AssertDimension(src.n_blocks(), 1);
+      if (src_.size() == 0 || dst_.size() == 0)
+        {
+          const auto partitioner = op.get_system_partitioner();
 
-      this->vmult(dst.block(0), src.block(0));
+          src_.reinit(partitioner);
+          dst_.reinit(partitioner);
+        }
+
+      VectorTools::merge_components_fast(src, src_); // TODO
+      precondition_amg.vmult(dst_, src_);
+      VectorTools::split_up_components_fast(dst_, dst); // TODO
     }
 
     void
@@ -506,6 +523,11 @@ namespace Preconditioners
 
     TrilinosWrappers::PreconditionAMG::AdditionalData additional_data;
     TrilinosWrappers::PreconditionAMG                 precondition_amg;
+
+    ConditionalOStream  pcout;
+    mutable TimerOutput timer;
+
+    mutable VectorType src_, dst_;
   };
 
 
@@ -540,22 +562,34 @@ namespace Preconditioners
     clear()
     {
       precondition_ilu.clear();
+      src_.reinit(0);
+      dst_.reinit(0);
     }
 
     void
     vmult(VectorType &dst, const VectorType &src) const override
     {
-      MyScope scope(timer, "ilu::vmult");
-      precondition_ilu.vmult(dst, src);
+      AssertThrow(false, ExcNotImplemented());
+      (void)dst;
+      (void)src;
     }
 
     void
     vmult(BlockVectorType &dst, const BlockVectorType &src) const override
     {
-      AssertDimension(dst.n_blocks(), 1);
-      AssertDimension(src.n_blocks(), 1);
+      MyScope scope(timer, "ilu::vmult");
 
-      this->vmult(dst.block(0), src.block(0));
+      if (src_.size() == 0 || dst_.size() == 0)
+        {
+          const auto partitioner = op.get_system_partitioner();
+
+          src_.reinit(partitioner);
+          dst_.reinit(partitioner);
+        }
+
+      VectorTools::merge_components_fast(src, src_); // TODO
+      precondition_ilu.vmult(dst_, src_);
+      VectorTools::split_up_components_fast(dst_, dst); // TODO
     }
 
     void
@@ -573,6 +607,8 @@ namespace Preconditioners
 
     ConditionalOStream  pcout;
     mutable TimerOutput timer;
+
+    mutable VectorType src_, dst_;
   };
 
 
