@@ -363,7 +363,7 @@ namespace Sintering
       , mapping(1)
       , quad(params.n_points_1D)
       , dof_handler(tria)
-      , constraints{&constraint, &constraint, &constraint, &constraint}
+      , constraints{&constraint}
       , initial_solution(initial_solution)
     {
       auto   boundaries = initial_solution->get_domain_boundaries();
@@ -399,15 +399,9 @@ namespace Sintering
       typename MatrixFree<dim, Number, VectorizedArrayType>::AdditionalData
         additional_data;
       additional_data.mapping_update_flags = update_values | update_gradients;
-      // additional_data.use_fast_hanging_node_algorithm = false; // TODO
-
-      const std::vector<const DoFHandler<dim> *> dof_handlers{&dof_handler,
-                                                              &dof_handler,
-                                                              &dof_handler,
-                                                              &dof_handler};
 
       matrix_free.reinit(
-        mapping, dof_handlers, constraints, quad, additional_data);
+        mapping, dof_handler, constraint, quad, additional_data);
 
       // clang-format off
       pcout_statistics << "System statistics:" << std::endl;
@@ -679,12 +673,29 @@ namespace Sintering
       const auto run_grain_tracker = [&]() {
         const unsigned int n_blocks_old = solution.n_blocks();
 
-        // TODO
+        if (true /*TODO: do something more useful */)
+          {
+            VectorType temp(std::min<unsigned int>(n_blocks_old + 1,
+                                                   MAX_SINTERING_GRAINS + 2));
+
+            for (unsigned int i = 0; i < n_blocks_old; ++i)
+              temp.block(i) = solution.block(i);
+
+            for (unsigned int i = n_blocks_old; i < temp.n_blocks(); ++i)
+              temp.block(i).reinit(solution.block(0));
+
+            solution.reinit(0);
+            solution = temp;
+          }
 
         const unsigned int n_blocks_new = solution.n_blocks();
 
         if (n_blocks_old != n_blocks_new)
           {
+            pcout << "\033[34mChanging number of components from "
+                  << n_blocks_old << " to " << n_blocks_new << "\033[0m"
+                  << std::endl;
+
             nonlinear_operator.set_n_components(n_blocks_new);
             nonlinear_operator.clear();
             preconditioner->clear();
