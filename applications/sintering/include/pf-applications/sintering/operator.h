@@ -690,6 +690,10 @@ namespace dealii
       const unsigned int quad_no                  = 0,
       const unsigned int first_selected_component = 0)
     {
+      // new
+      AssertDimension(
+        matrix_free.get_dof_handler(dof_no).get_fe().n_components(), 1);
+
       std::unique_ptr<AffineConstraints<typename MatrixType::value_type>>
         constraints_for_matrix;
       const AffineConstraints<typename MatrixType::value_type> &constraints =
@@ -709,10 +713,17 @@ namespace dealii
             integrator(
               matrix_free, range, dof_no, quad_no, first_selected_component);
 
-          unsigned int const dofs_per_cell = integrator.dofs_per_cell;
+          // new
+          const unsigned int dofs_per_component = integrator.dofs_per_cell;
+          const unsigned int dofs_per_cell = dofs_per_component * n_components;
+          const unsigned int dofs_per_block =
+            matrix_free.get_dof_handler(dof_no).n_dofs();
 
-          std::vector<types::global_dof_index> dof_indices(dofs_per_cell);
-          std::vector<types::global_dof_index> dof_indices_mf(dofs_per_cell);
+          std::vector<types::global_dof_index> dof_indices(dofs_per_component);
+          std::vector<types::global_dof_index> dof_indices_mf(
+            dofs_per_component);
+          std::vector<types::global_dof_index> dof_indices_mf_all(
+            dofs_per_cell);
 
           std::array<FullMatrix<typename MatrixType::value_type>,
                      VectorizedArrayType::size()>
@@ -769,8 +780,18 @@ namespace dealii
                   for (unsigned int j = 0; j < dof_indices.size(); ++j)
                     dof_indices_mf[j] = dof_indices[lexicographic_numbering[j]];
 
+                  // new
+                  for (unsigned int b = 0, c; b < n_components; ++b)
+                    for (unsigned int i = 0; i < dofs_per_component; ++i, ++c)
+                      if (true)
+                        dof_indices_mf_all[c] =
+                          dof_indices_mf[i] * n_components + b;
+                      else
+                        dof_indices_mf_all[c] =
+                          dof_indices_mf[i] + b * dofs_per_block;
+
                   constraints.distribute_local_to_global(matrices[v],
-                                                         dof_indices_mf,
+                                                         dof_indices_mf_all,
                                                          dst);
                 }
             }
