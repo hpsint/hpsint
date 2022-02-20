@@ -57,21 +57,15 @@ namespace Preconditioners
     void
     vmult(VectorType &dst, const VectorType &src) const override
     {
-      diagonal_matrix.vmult(dst, src);
+      Assert(false, ExcNotImplemented());
+      (void)dst;
+      (void)src;
     }
 
     void
     vmult(BlockVectorType &dst, const BlockVectorType &src) const override
     {
-      VectorType dst_;                               // TOOD
-      VectorType src_;                               // TOOD
-      op.initialize_dof_vector(dst_);                // TOOD
-      op.initialize_dof_vector(src_);                // TOOD
-      VectorTools::merge_components_fast(src, src_); // TOOD
-
-      this->vmult(dst_, src_);
-
-      VectorTools::split_up_components_fast(dst_, dst); // TOOD
+      diagonal_matrix.vmult(dst, src);
     }
 
     void
@@ -81,8 +75,8 @@ namespace Preconditioners
     }
 
   private:
-    const Operator &           op;
-    DiagonalMatrix<VectorType> diagonal_matrix;
+    const Operator &                op;
+    DiagonalMatrix<BlockVectorType> diagonal_matrix;
   };
 
 

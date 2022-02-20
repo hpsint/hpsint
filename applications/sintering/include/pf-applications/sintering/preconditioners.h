@@ -460,7 +460,7 @@ namespace Sintering
                      OperatorAllenCahn<dim, Number, VectorizedArrayType>>(
           matrix_free,
           constraints,
-          2,
+          3,
           "allen_cahn_op")
       , op(op)
     {}

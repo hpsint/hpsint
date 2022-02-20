@@ -810,6 +810,31 @@ namespace Sintering
         i = (std::abs(i) > 1.0e-10) ? (1.0 / i) : 1.0;
     }
 
+    void
+    compute_inverse_diagonal(BlockVectorType &diagonal) const
+    {
+      MyScope scope(this->timer, label + "::diagonal");
+
+      AssertDimension(
+        matrix_free.get_dof_handler(dof_index).get_fe().n_components(), 1);
+
+      diagonal.reinit(this->n_components());
+      for (unsigned int b = 0; b < this->n_components(); ++b)
+        matrix_free.initialize_dof_vector(diagonal.block(b), dof_index);
+
+#define OPERATION(c, d)                                                 \
+  MatrixFreeTools::compute_diagonal(matrix_free,                        \
+                                    diagonal,                           \
+                                    &OperatorBase::do_vmult_cell<c, d>, \
+                                    this,                               \
+                                    dof_index);
+      EXPAND_OPERATIONS(OPERATION);
+#undef OPERATION
+
+      for (auto &i : diagonal)
+        i = (std::abs(i) > 1.0e-10) ? (1.0 / i) : 1.0;
+    }
+
     const TrilinosWrappers::SparseMatrix &
     get_system_matrix() const
     {
