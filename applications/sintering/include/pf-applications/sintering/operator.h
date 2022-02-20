@@ -851,10 +851,13 @@ namespace Sintering
           const auto &dof_handler =
             this->matrix_free.get_dof_handler(dof_index);
 
+          constraints_for_matrix.copy_from(constraints);
+
           TrilinosWrappers::SparsityPattern dsp(
-            dof_handler.locally_owned_dofs(),
-            dof_handler.get_triangulation().get_communicator());
-          DoFTools::make_sparsity_pattern(dof_handler, dsp, constraints);
+            dof_handler.locally_owned_dofs(), dof_handler.get_communicator());
+          DoFTools::make_sparsity_pattern(dof_handler,
+                                          dsp,
+                                          constraints_for_matrix);
           dsp.compress();
 
           system_matrix.reinit(dsp);
@@ -870,7 +873,7 @@ namespace Sintering
 
 #define OPERATION(c, d)                                               \
   MatrixFreeTools::compute_matrix(matrix_free,                        \
-                                  constraints,                        \
+                                  constraints_for_matrix,             \
                                   system_matrix,                      \
                                   &OperatorBase::do_vmult_cell<c, d>, \
                                   this,                               \
@@ -955,6 +958,7 @@ namespace Sintering
   protected:
     const MatrixFree<dim, Number, VectorizedArrayType> &matrix_free;
     const AffineConstraints<Number> &                   constraints;
+    mutable AffineConstraints<Number>                   constraints_for_matrix;
 
     const unsigned int dof_index;
 
