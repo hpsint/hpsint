@@ -19,7 +19,7 @@
 static_assert(false, "No dimension has been given!");
 #endif
 
-#ifndef SINTERING_GRAINS
+#ifndef MAX_SINTERING_GRAINS
 static_assert(false, "No grains number has been given!");
 #endif
 
@@ -189,18 +189,20 @@ main(int argc, char **argv)
 
   Sintering::Parameters params;
 
-  if (argc == 2)
+  if (argc == 2 && std::string(argv[1]) == "--help")
     {
-      if (std::string(argv[1]) == "--help")
-        {
-          params.print();
-          return 0;
-        }
-      else
-        {
-          params.parse(std::string(argv[1]));
-        }
+      params.print();
+      return 0;
     }
+
+  AssertThrow(2 <= argc && argc <= 3, ExcNotImplemented());
+
+  const unsigned int n_components = atoi(argv[1]);
+
+  AssertIndexRange(n_components, MAX_SINTERING_GRAINS + 1);
+
+  if (argc == 3)
+    params.parse(std::string(argv[1]));
 
   // geometry
   static constexpr double r0              = 15.0 / 2.;
@@ -209,9 +211,8 @@ main(int argc, char **argv)
 
   const auto initial_solution =
     std::make_shared<Sintering::InitialValuesCircle<SINTERING_DIM>>(
-      r0, interface_width, SINTERING_GRAINS, is_accumulative);
+      r0, interface_width, n_components, is_accumulative);
 
-  Sintering::Problem<SINTERING_DIM, SINTERING_GRAINS> runner(params,
-                                                             initial_solution);
+  Sintering::Problem<SINTERING_DIM> runner(params, initial_solution);
   runner.run();
 }

@@ -19,7 +19,7 @@
 static_assert(false, "No dimension has been given!");
 #endif
 
-#ifndef SINTERING_GRAINS
+#ifndef MAX_SINTERING_GRAINS
 static_assert(false, "No grains number has been given!");
 #endif
 
@@ -206,12 +206,12 @@ namespace Sintering
         }
       else
         {
-          AssertThrow(component < this->n_components,
+          AssertThrow(component < this->n_components(),
                       ExcMessage(
                         "Incorrect function component " +
                         std::to_string(component) +
                         " requested, but the total number of components is " +
-                        std::to_string(this->n_components)));
+                        std::to_string(this->n_components())));
 
           unsigned int i = component - 2;
 
@@ -495,10 +495,11 @@ main(int argc, char **argv)
 
   const auto particles = Sintering::read_particles<SINTERING_DIM>(fstream);
 
-  AssertThrow(particles.size() == SINTERING_GRAINS,
+  AssertThrow(particles.size() <= MAX_SINTERING_GRAINS,
               ExcMessage("The CSV file contains wrong number of particles: " +
-                         std::to_string(particles.size()) + " but has to be " +
-                         std::to_string(SINTERING_GRAINS)));
+                         std::to_string(particles.size()) +
+                         " but has to be leq" +
+                         std::to_string(MAX_SINTERING_GRAINS)));
 
   // geometry
   static constexpr double interface_width = 2.0;
@@ -507,7 +508,6 @@ main(int argc, char **argv)
     std::make_shared<Sintering::InitialValuesCloud<SINTERING_DIM>>(
       particles, interface_width);
 
-  Sintering::Problem<SINTERING_DIM, SINTERING_GRAINS> runner(params,
-                                                             initial_solution);
+  Sintering::Problem<SINTERING_DIM> runner(params, initial_solution);
   runner.run();
 }
