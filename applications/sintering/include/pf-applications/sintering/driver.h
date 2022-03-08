@@ -71,6 +71,7 @@
 #include <pf-applications/sintering/preconditioners.h>
 
 // #define DEBUG_PARAVIEW
+#include <pf-applications/grain_tracker/tracker.h>
 
 namespace Sintering
 {
@@ -169,7 +170,7 @@ namespace Sintering
     double       bottom_fraction_of_cells = 0.1;
     unsigned int min_refinement_depth     = 3;
     unsigned int max_refinement_depth     = 0;
-    unsigned int refinement_frequency     = 10;
+    unsigned int refinement_frequency     = 0; // 10
     unsigned int grains_tracker_frequency = 0;
 
     bool matrix_based = false;
@@ -676,7 +677,11 @@ namespace Sintering
         output_result(solution, nonlinear_operator, 0.0, "refinement");
       };
 
+      GrainTracker::Tracker<dim, Number> grain_tracker(dof_handler);
+
       const auto run_grain_tracker = [&]() {
+        // grain_tracker.track(solution);
+
         const unsigned int n_blocks_old = solution.n_blocks();
 
         if (true /*TODO: do something more useful */)
@@ -709,6 +714,40 @@ namespace Sintering
       };
 
       initialize_solution();
+
+      // Grain tracker - first run after we have initial configuration defined
+      const auto [has_reassigned_grains, has_op_number_changed] =
+        grain_tracker.initial_setup(solution);
+
+      // Rebuild data structures if grains have been reassigned
+      if (has_reassigned_grains)
+        {
+          grain_tracker.remap(solution);
+
+          if (has_op_number_changed)
+            {
+              const unsigned int n_components_new =
+                grain_tracker.get_active_order_parameters().size() + 2;
+              const unsigned int n_components_old = solution.n_blocks();
+
+              nonlinear_operator.set_n_components(n_components_new);
+              nonlinear_operator.clear();
+              preconditioner->clear();
+
+              VectorType temp(n_components_new);
+
+              for (unsigned int i = 0;
+                   i < std::min(n_components_new, n_components_old);
+                   ++i)
+                temp.block(i) = solution.block(i);
+
+              for (unsigned int i = n_components_old; i < n_components_new; ++i)
+                temp.block(i).reinit(solution.block(0));
+
+              solution.reinit(0);
+              solution = temp;
+            }
+        }
 
       // initial local refinement
       if (params.refinement_frequency > 0)
