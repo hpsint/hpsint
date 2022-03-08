@@ -170,7 +170,7 @@ namespace Sintering
     double       bottom_fraction_of_cells = 0.1;
     unsigned int min_refinement_depth     = 3;
     unsigned int max_refinement_depth     = 0;
-    unsigned int refinement_frequency     = 0; // 10
+    unsigned int refinement_frequency     = 10;
     unsigned int grains_tracker_frequency = 0;
 
     bool matrix_based = false;
@@ -756,7 +756,6 @@ namespace Sintering
              ++i)
           {
             execute_coarsening_and_refinement();
-            initialize_solution();
           }
 
       double time_last_output = 0;
