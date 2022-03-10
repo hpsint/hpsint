@@ -65,7 +65,8 @@ namespace GrainTracker
       ar &vertices;
     }
 
-    const std::vector<dealii::Point<dim>>& get_vertices() const
+    const std::vector<dealii::Point<dim>> &
+    get_vertices() const
     {
       return vertices;
     }

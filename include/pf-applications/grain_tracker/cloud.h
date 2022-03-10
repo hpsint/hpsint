@@ -2,9 +2,9 @@
 
 #include <deal.II/grid/tria_accessor.h>
 
-#include "cell.h"
-
 #include <vector>
+
+#include "cell.h"
 
 namespace GrainTracker
 {
@@ -55,7 +55,7 @@ namespace GrainTracker
   private:
     unsigned int order_parameter_id;
 
-    //std::vector<dealii::CellAccessor<dim>> cells;
+    // std::vector<dealii::CellAccessor<dim>> cells;
     std::vector<Cell<dim>> cells;
   };
 } // namespace GrainTracker
