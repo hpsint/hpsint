@@ -171,7 +171,7 @@ namespace Sintering
     unsigned int min_refinement_depth     = 3;
     unsigned int max_refinement_depth     = 0;
     unsigned int refinement_frequency     = 10;
-    unsigned int grains_tracker_frequency = 0;
+    unsigned int grains_tracker_frequency = 10;
 
     bool matrix_based = false;
 
@@ -680,36 +680,51 @@ namespace Sintering
       GrainTracker::Tracker<dim, Number> grain_tracker(dof_handler);
 
       const auto run_grain_tracker = [&]() {
-        // grain_tracker.track(solution);
+        pcout << "Execute grain tracker:" << std::endl;
 
-        const unsigned int n_blocks_old = solution.n_blocks();
+        const auto [has_reassigned_grains, has_op_number_changed] =
+          grain_tracker.track(solution);
 
-        if (true /*TODO: do something more useful */)
+        // Rebuild data structures if grains have been reassigned
+        if (has_reassigned_grains)
           {
-            VectorType temp(std::min<unsigned int>(n_blocks_old + 1,
-                                                   MAX_SINTERING_GRAINS + 2));
+            VectorType previous_solution(
+              nonlinear_operator.get_previous_solution());
+            std::vector<VectorType *> solutions{&solution, &previous_solution};
+            grain_tracker.remap(solutions);
 
-            for (unsigned int i = 0; i < n_blocks_old; ++i)
-              temp.block(i) = solution.block(i);
+            if (has_op_number_changed)
+              {
+                const unsigned int n_components_new =
+                  grain_tracker.get_active_order_parameters().size() + 2;
+                const unsigned int n_components_old = solution.n_blocks();
 
-            for (unsigned int i = n_blocks_old; i < temp.n_blocks(); ++i)
-              temp.block(i).reinit(solution.block(0));
+                pcout << "\033[34mChanging number of components from "
+                      << n_components_old << " to " << n_components_new
+                      << "\033[0m" << std::endl;
 
-            solution.reinit(0);
-            solution = temp;
-          }
+                nonlinear_operator.set_n_components(n_components_new);
+                nonlinear_operator.clear();
+                preconditioner->clear();
 
-        const unsigned int n_blocks_new = solution.n_blocks();
+                for (auto ptr_solution : solutions)
+                  {
+                    VectorType temp(n_components_new);
 
-        if (n_blocks_old != n_blocks_new)
-          {
-            pcout << "\033[34mChanging number of components from "
-                  << n_blocks_old << " to " << n_blocks_new << "\033[0m"
-                  << std::endl;
+                    for (unsigned int i = 0;
+                         i < std::min(n_components_new, n_components_old);
+                         ++i)
+                      temp.block(i) = ptr_solution->block(i);
 
-            nonlinear_operator.set_n_components(n_blocks_new);
-            nonlinear_operator.clear();
-            preconditioner->clear();
+                    for (unsigned int i = n_components_old;
+                         i < n_components_new;
+                         ++i)
+                      temp.block(i).reinit(ptr_solution->block(0));
+
+                    ptr_solution->reinit(0);
+                    *ptr_solution = temp;
+                  }
+              }
           }
       };
 

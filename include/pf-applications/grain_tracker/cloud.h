@@ -10,24 +10,14 @@ namespace GrainTracker
   class Cloud
   {
   public:
-    Cloud()
-      : grain_id(0)
+    Cloud(unsigned int oid)
+      : order_parameter_id(oid)
     {}
-
-    Cloud(unsigned int gid)
-      : grain_id(gid)
-    {}
-
-    void
-    set_grain_id(unsigned int gid)
-    {
-      grain_id = gid;
-    }
 
     unsigned int
-    get_grain_id() const
+    get_order_parameter_id() const
     {
-      return grain_id;
+      return order_parameter_id;
     }
 
     void
@@ -43,7 +33,7 @@ namespace GrainTracker
     }
 
   private:
-    unsigned int grain_id;
+    unsigned int order_parameter_id;
 
     std::vector<dealii::CellAccessor<dim>> cells;
   };

@@ -98,7 +98,7 @@ namespace GrainTracker
     }
 
     void
-    add_neighbor(Grain *neighbor)
+    add_neighbor(const Grain *neighbor)
     {
       if (this != neighbor &&
           order_parameter_id == neighbor->get_order_parameter_id())

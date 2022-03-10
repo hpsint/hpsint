@@ -25,18 +25,76 @@ namespace GrainTracker
       : dof_handler(dof_handler)
     {}
 
-    bool
+    std::tuple<bool, bool>
     track(const BlockVectorType &solution)
     {
-      // TODO: dummy yet
-      auto clouds = get_clouds(solution);
+      // Find cells clouds
+      auto clouds = find_clouds(solution);
 
+      // Copy old grains
       auto old_grains = grains;
 
-      (void)clouds;
-      (void)old_grains;
+      grains.clear();
 
-      return true;
+      std::set<unsigned int> grains_indices;
+
+      // Create segments and transfer grain_id's for them
+      for (auto &cloud : clouds)
+        {
+          Segment<dim> current_segment(cloud);
+
+          double       min_distance = std::numeric_limits<double>::max();
+          unsigned int grain_index_at_min_distance =
+            std::numeric_limits<unsigned int>::max();
+
+          for (const auto &[gid, gr] : old_grains)
+            {
+              (void)gid;
+
+              for (const auto &segment : gr.get_segments())
+                {
+                  double distance = current_segment.distance(segment);
+
+                  if (distance < min_distance)
+                    {
+                      min_distance                = distance;
+                      grain_index_at_min_distance = gr.get_grain_id();
+                    }
+                }
+            }
+
+          AssertThrow(
+            grain_index_at_min_distance !=
+              std::numeric_limits<unsigned int>::max(),
+            ExcMessage(
+              "Unable to detect a segment from the previous configuration for the cloud!"));
+          AssertThrow(
+            old_grains.at(grain_index_at_min_distance)
+                .get_order_parameter_id() == cloud.get_order_parameter_id(),
+            ExcMessage(
+              "Something got wrong with the order parameters numbering!"));
+
+          auto insert_result =
+            grains_indices.insert(grain_index_at_min_distance);
+          if (insert_result.second)
+            {
+              grains.try_emplace(grain_index_at_min_distance,
+                                 grain_index_at_min_distance,
+                                 old_grains.at(grain_index_at_min_distance)
+                                   .get_order_parameter_id(),
+                                 old_grains.at(grain_index_at_min_distance)
+                                   .get_order_parameter_id());
+            }
+
+          grains.at(grain_index_at_min_distance).add_segment(current_segment);
+        }
+
+      print_grains();
+
+      // Grains reassignment
+      bool prefer_closest = false;
+
+      return reassign_grains(max_grains, prefer_closest);
     }
 
     std::tuple<bool, bool>
@@ -44,50 +102,32 @@ namespace GrainTracker
     {
       // At this point we imply that we have 1 variable per grain, so we set up
       // indices accordinly
-      auto clouds = get_clouds(solution);
+      auto clouds = find_clouds(solution);
 
       std::set<unsigned int> grains_indices;
       for (const auto &cl : clouds)
         {
-          grains_indices.insert(grains_indices.end(), cl.get_grain_id());
+          grains_indices.insert(cl.get_order_parameter_id());
         }
 
-      // At the moment index correlates the variable number, should be decoupled
-      for (auto id : grains_indices)
+      for (auto gid : grains_indices)
         {
-          grains.emplace_back(id, default_op_id, id);
+          grains.try_emplace(gid, gid, default_op_id, gid);
         }
 
       // Now add segments to each grain representation
       for (const auto &cl : clouds)
         {
           Segment<dim> segment(cl);
-          grains[cl.get_grain_id()].add_segment(segment);
+          grains.at(cl.get_order_parameter_id()).add_segment(segment);
         }
 
-      std::cout << "All assigned to default. Number of grains: "
-                << grains.size() << std::endl;
-      for (const auto &gr : grains)
-        {
-          std::cout << "op_index = " << gr.get_order_parameter_id()
-                    << " | segments = " << gr.get_segments().size()
-                    << " | grain_index = " << gr.get_grain_id() << std::endl;
-          for (const auto &segment : gr.get_segments())
-            {
-              std::cout << "    SEG: center = " << segment.get_center()
-                        << " | radius = " << segment.get_radius() << std::endl;
-            }
-        }
+      print_grains();
 
       // Initial grains reassignment
-      bool prefer_closest        = true;
-      bool has_reassigned_grains = reassign_grains(max_grains, prefer_closest);
+      bool prefer_closest = true;
 
-      active_order_parameters = build_active_op_ids();
-      bool has_op_number_changed =
-        (active_order_parameters != build_old_op_ids());
-
-      return std::make_tuple(has_reassigned_grains, has_op_number_changed);
+      return reassign_grains(max_grains, prefer_closest);
     }
 
     void
@@ -101,8 +141,10 @@ namespace GrainTracker
     {
       Vector<Number> values(dof_handler.get_fe().n_dofs_per_cell());
 
-      for (auto &gr : grains)
+      for (auto &[gid, gr] : grains)
         {
+          (void)gid;
+
           if (gr.get_order_parameter_id() != gr.get_old_order_parameter_id())
             {
               double transfer_buffer =
@@ -189,15 +231,33 @@ namespace GrainTracker
     }
 
   private:
+    void
+    print_grains() const
+    {
+      std::cout << "Number of grains: " << grains.size() << std::endl;
+      for (const auto &[gid, gr] : grains)
+        {
+          (void)gid;
+          std::cout << "op_index = " << gr.get_order_parameter_id()
+                    << " | segments = " << gr.get_segments().size()
+                    << " | grain_index = " << gr.get_grain_id() << std::endl;
+          for (const auto &segment : gr.get_segments())
+            {
+              std::cout << "    segment: center = " << segment.get_center()
+                        << " | radius = " << segment.get_radius() << std::endl;
+            }
+        }
+    }
+
     std::set<unsigned int>
     build_active_op_ids() const
     {
       std::set<unsigned int> active_op_ids;
 
-      for (const auto &gr : grains)
+      for (const auto &[gid, gr] : grains)
         {
-          active_op_ids.insert(active_op_ids.end(),
-                               gr.get_order_parameter_id());
+          (void)gid;
+          active_op_ids.insert(gr.get_order_parameter_id());
         }
 
       return active_op_ids;
@@ -208,16 +268,17 @@ namespace GrainTracker
     {
       std::set<unsigned int> old_op_ids;
 
-      for (const auto &gr : grains)
+      for (const auto &[gid, gr] : grains)
         {
-          old_op_ids.insert(old_op_ids.end(), gr.get_old_order_parameter_id());
+          (void)gid;
+          old_op_ids.insert(gr.get_old_order_parameter_id());
         }
 
       return old_op_ids;
     }
 
     std::vector<Cloud<dim>>
-    get_clouds(const BlockVectorType &solution)
+    find_clouds(const BlockVectorType &solution)
     {
       std::vector<Cloud<dim>> clouds;
 
@@ -226,16 +287,16 @@ namespace GrainTracker
       for (unsigned int current_grain_id = 0; current_grain_id < n_order_params;
            current_grain_id++)
         {
-          detect_clouds(solution, current_grain_id, clouds);
+          find_clouds_for_op(solution, current_grain_id, clouds);
         }
 
       return clouds;
     }
 
     void
-    detect_clouds(const BlockVectorType &  solution,
-                  const unsigned int       order_parameter_id,
-                  std::vector<Cloud<dim>> &clouds)
+    find_clouds_for_op(const BlockVectorType &  solution,
+                       const unsigned int       order_parameter_id,
+                       std::vector<Cloud<dim>> &clouds)
     {
       // Loop through the whole mesh and set the user flags to false (so
       // everything is considered unmarked)
@@ -251,16 +312,21 @@ namespace GrainTracker
       Vector<Number> values(dof_handler.get_fe().n_dofs_per_cell());
 
       // The flood fill loop
-      for (auto &cell : dof_handler.active_cell_iterators())
+      for (auto &cell : dof_handler.cell_iterators_on_level(0))
+        // for (auto &cell : dof_handler.active_cell_iterators())
         {
           bool grain_assigned = false;
-          recursive_flood_fill(
-            cell, solution, order_parameter_id, values, clouds, grain_assigned);
+          recursive_flood_fill(cell,
+                               solution,
+                               order_parameter_id,
+                               values,
+                               clouds.back(),
+                               grain_assigned);
 
           if (grain_assigned)
             {
-              // Get the grain set initialized for the next grain to be found
-              Cloud<dim> new_cloud;
+              // Get a new cloud initialized for the next grain to be found
+              Cloud<dim> new_cloud(order_parameter_id);
               clouds.push_back(new_cloud);
             }
         }
@@ -278,11 +344,22 @@ namespace GrainTracker
       const BlockVectorType &                               solution,
       const unsigned int                                    order_parameter_id,
       Vector<Number> &                                      values,
-      std::vector<Cloud<dim>> &                             clouds,
+      Cloud<dim> &                                          cloud,
       bool &                                                grain_assigned)
     {
-      // Check if the cell has been marked already
-      if (!cell->user_flag_set() && cell->is_locally_owned())
+      if (cell->has_children())
+        {
+          for (unsigned int n = 0; n < cell->n_children(); n++)
+            {
+              recursive_flood_fill(cell->child(n),
+                                   solution,
+                                   order_parameter_id,
+                                   values,
+                                   cloud,
+                                   grain_assigned);
+            }
+        }
+      else if (!cell->user_flag_set() && cell->is_locally_owned())
         {
           cell->set_user_flag();
 
@@ -290,14 +367,14 @@ namespace GrainTracker
 
           double etai = std::accumulate(values.begin(),
                                         values.end(),
-                                        0,
+                                        0.0,
                                         std::plus<double>()) /
                         values.size();
 
           if (etai > threshold_lower && etai < threshold_upper)
             {
               grain_assigned = true;
-              clouds.back().add_cell(*cell);
+              cloud.add_cell(*cell);
 
               // Recursive call for all neighbors
               for (unsigned int n = 0; n < cell->n_faces(); n++)
@@ -308,7 +385,7 @@ namespace GrainTracker
                                            solution,
                                            order_parameter_id,
                                            values,
-                                           clouds,
+                                           cloud,
                                            grain_assigned);
                     }
                 }
@@ -316,27 +393,21 @@ namespace GrainTracker
         }
     }
 
-    bool
+    std::tuple<bool, bool>
     reassign_grains(const unsigned int max_op_num, const bool prefer_closest)
     {
-      bool grains_reassigned = true;
+      bool grains_reassigned = false;
 
       for (int iter = max_op_num; iter >= 0; iter--)
         {
-          for (unsigned int g_base_id = 0; g_base_id < grains.size();
-               g_base_id++)
+          for (auto &[g_base_id, gr_base] : grains)
             {
-              auto &gr_base = grains[g_base_id];
-
               const unsigned int op_base_id = gr_base.get_order_parameter_id();
 
-              for (unsigned int g_other_id = 0; g_other_id < grains.size();
-                   g_other_id++)
+              for (auto &[g_other_id, gr_other] : grains)
                 {
                   if (g_other_id != g_base_id)
                     {
-                      auto &gr_other = grains[g_other_id];
-
                       const unsigned int op_other_id =
                         gr_other.get_order_parameter_id();
 
@@ -360,19 +431,18 @@ namespace GrainTracker
                             max_op_num,
                             std::numeric_limits<Number>::quiet_NaN());
 
-                          for (unsigned int g_candidate_id = 0;
-                               g_candidate_id < grains.size();
-                               g_candidate_id++)
+                          // Find a candidate op for gr_other grain
+                          for (const auto &[g_candidate_id, gr_candidate] :
+                               grains)
                             {
-                              if (g_candidate_id != g_base_id)
+                              if (g_candidate_id != g_base_id &&
+                                  g_candidate_id != g_other_id)
                                 {
-                                  auto &gr_candidate = grains[g_candidate_id];
-
                                   unsigned int op_candidate_id =
                                     gr_candidate.get_order_parameter_id();
 
                                   double spacing =
-                                    gr_base.distance(gr_candidate);
+                                    gr_other.distance(gr_candidate);
 
                                   if (std::isnan(minimum_distance_list
                                                    [op_candidate_id]) ||
@@ -442,9 +512,8 @@ namespace GrainTracker
                           if (new_op_index != op_other_id)
                             {
                               gr_other.set_order_parameter_id(new_op_index);
+                              grains_reassigned = true;
                             }
-
-                          grains_reassigned = true;
                         }
                     }
                 }
@@ -452,15 +521,20 @@ namespace GrainTracker
         }
 
       // Build up neighbors connectivity
-      for (auto &gr_base : grains)
+      for (auto &[g_base_id, gr_base] : grains)
         {
-          for (auto &gr_other : grains)
+          (void)g_base_id;
+          for (const auto &[g_other_id, gr_other] : grains)
             {
+              (void)g_other_id;
               gr_base.add_neighbor(&gr_other);
             }
         }
 
-      return grains_reassigned;
+      active_order_parameters = build_active_op_ids();
+      bool op_number_changed  = (active_order_parameters != build_old_op_ids());
+
+      return std::make_tuple(grains_reassigned, op_number_changed);
     }
 
     const DoFHandler<dim> &dof_handler;
@@ -468,11 +542,11 @@ namespace GrainTracker
     const double       tol{1e-2};
     const double       threshold_lower{0 + tol};
     const double       threshold_upper{1 + tol};
-    const double       buffer_distance{2.8};
+    const double       buffer_distance{0.5};
     const unsigned int default_op_id{0};
 
-    std::vector<Grain<dim>> grains;
-    std::set<unsigned int>  active_order_parameters;
+    std::map<unsigned int, Grain<dim>> grains;
+    std::set<unsigned int>             active_order_parameters;
 
     static constexpr int max_grains = MAX_SINTERING_GRAINS;
   };

@@ -44,6 +44,17 @@ namespace GrainTracker
       return radius;
     }
 
+    double
+    distance(const Segment<dim> &other) const
+    {
+      double distance_centers = get_center().distance(other.get_center());
+      double sum_radii        = get_radius() + other.get_radius();
+
+      double current_distance = distance_centers - sum_radii;
+
+      return current_distance;
+    }
+
   protected:
     dealii::Point<dim> center;
 
