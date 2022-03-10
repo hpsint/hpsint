@@ -8,19 +8,7 @@ namespace GrainTracker
   class Grain
   {
   public:
-    Grain(unsigned int gid)
-      : grain_id{gid}
-      , order_parameter_id{0}
-      , old_order_parameter_id{0}
-    {}
-
-    Grain(unsigned int gid, unsigned int oid)
-      : grain_id{gid}
-      , order_parameter_id{oid}
-      , old_order_parameter_id{0}
-    {}
-
-    Grain(unsigned int gid, unsigned int oid, unsigned int ooid)
+    Grain(unsigned int gid, unsigned int oid = 0, unsigned int ooid = 0)
       : grain_id{gid}
       , order_parameter_id{oid}
       , old_order_parameter_id{ooid}
@@ -50,6 +38,12 @@ namespace GrainTracker
     get_center() const
     {
       return center;
+    }
+
+    double
+    get_max_radius() const
+    {
+      return max_radius;
     }
 
     unsigned int
@@ -95,6 +89,8 @@ namespace GrainTracker
       center_raw += segment.get_center();
       center = center_raw;
       center /= segments.size();
+
+      max_radius = std::max(max_radius, segment.get_radius());
     }
 
     void
@@ -105,12 +101,6 @@ namespace GrainTracker
         {
           neighbors.insert(neighbors.end(), neighbor);
         }
-    }
-
-    void
-    clear_neighbors()
-    {
-      neighbors.clear();
     }
 
     double
@@ -140,5 +130,7 @@ namespace GrainTracker
     std::vector<Segment<dim>> segments;
 
     std::set<const Grain *> neighbors;
+
+    double max_radius{0.0};
   };
 } // namespace GrainTracker

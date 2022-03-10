@@ -412,8 +412,13 @@ namespace GrainTracker
                         gr_other.get_order_parameter_id();
 
                       double min_distance = gr_base.distance(gr_other);
+                      double buffer_distance_base =
+                        buffer_distance_ratio * gr_base.get_max_radius();
+                      double buffer_distance_other =
+                        buffer_distance_ratio * gr_other.get_max_radius();
 
-                      if ((min_distance < 2.0 * buffer_distance) &&
+                      if ((min_distance <
+                           buffer_distance_base + buffer_distance_other) &&
                           (op_other_id == op_base_id))
                         {
                           if (dealii::Utilities::MPI::this_mpi_process(
@@ -542,7 +547,7 @@ namespace GrainTracker
     const double       tol{1e-2};
     const double       threshold_lower{0 + tol};
     const double       threshold_upper{1 + tol};
-    const double       buffer_distance{0.5};
+    const double       buffer_distance_ratio{0.05};
     const unsigned int default_op_id{0};
 
     std::map<unsigned int, Grain<dim>> grains;
