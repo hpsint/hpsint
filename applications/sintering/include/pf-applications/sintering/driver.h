@@ -685,6 +685,8 @@ namespace Sintering
         const auto [has_reassigned_grains, has_op_number_changed] =
           grain_tracker.track(solution);
 
+        grain_tracker.print_grains(pcout);
+
         // Rebuild data structures if grains have been reassigned
         if (has_reassigned_grains)
           {
@@ -733,6 +735,8 @@ namespace Sintering
       // Grain tracker - first run after we have initial configuration defined
       const auto [has_reassigned_grains, has_op_number_changed] =
         grain_tracker.initial_setup(solution);
+
+      grain_tracker.print_grains(pcout);
 
       // Rebuild data structures if grains have been reassigned
       if (has_reassigned_grains)

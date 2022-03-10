@@ -68,11 +68,20 @@ namespace GrainTracker
               std::numeric_limits<unsigned int>::max(),
             ExcMessage(
               "Unable to detect a segment from the previous configuration for the cloud!"));
-          AssertThrow(
-            old_grains.at(grain_index_at_min_distance)
-                .get_order_parameter_id() == cloud.get_order_parameter_id(),
+
+          // clang-format off
+          AssertThrow(old_grains.at(grain_index_at_min_distance).get_order_parameter_id() 
+            == cloud.get_order_parameter_id(),
             ExcMessage(
-              "Something got wrong with the order parameters numbering!"));
+              std::string("Something got wrong with the order parameters numbering:\r\n") +
+              std::string("    grain_index_at_min_distance = ") +
+              std::to_string(grain_index_at_min_distance) + 
+              std::string("    old grain order parameter   = ") +
+              std::to_string(old_grains.at(grain_index_at_min_distance).get_order_parameter_id()) + 
+              std::string("    cloud order parameter       = ") +
+              std::to_string(cloud.get_order_parameter_id())
+          ));
+          // clang-format on
 
           auto insert_result =
             grains_indices.insert(grain_index_at_min_distance);
@@ -88,8 +97,6 @@ namespace GrainTracker
 
           grains.at(grain_index_at_min_distance).add_segment(current_segment);
         }
-
-      print_grains();
 
       // Grains reassignment
       bool prefer_closest = false;
@@ -121,8 +128,6 @@ namespace GrainTracker
           Segment<dim> segment(cl);
           grains.at(cl.get_order_parameter_id()).add_segment(segment);
         }
-
-      print_grains();
 
       // Initial grains reassignment
       bool prefer_closest = true;
@@ -230,25 +235,27 @@ namespace GrainTracker
       return active_order_parameters;
     }
 
-  private:
+    template <typename Stream>
     void
-    print_grains() const
+    print_grains(Stream &out) const
     {
-      std::cout << "Number of grains: " << grains.size() << std::endl;
+      out << "Number of grains: " << grains.size() << std::endl;
       for (const auto &[gid, gr] : grains)
         {
           (void)gid;
-          std::cout << "op_index = " << gr.get_order_parameter_id()
-                    << " | segments = " << gr.get_segments().size()
-                    << " | grain_index = " << gr.get_grain_id() << std::endl;
+          out << "op_index = " << gr.get_order_parameter_id()
+              << " | segments = " << gr.get_segments().size()
+              << " | grain_index = " << gr.get_grain_id() << std::endl;
           for (const auto &segment : gr.get_segments())
             {
-              std::cout << "    segment: center = " << segment.get_center()
-                        << " | radius = " << segment.get_radius() << std::endl;
+              out << "    segment: center = " << segment.get_center()
+                  << " | radius = " << segment.get_radius() << std::endl;
             }
         }
+      out << std::endl;
     }
 
+  private:
     std::set<unsigned int>
     build_active_op_ids() const
     {
@@ -287,17 +294,19 @@ namespace GrainTracker
       for (unsigned int current_grain_id = 0; current_grain_id < n_order_params;
            current_grain_id++)
         {
-          find_clouds_for_op(solution, current_grain_id, clouds);
+          auto op_clouds = find_clouds_for_op(solution, current_grain_id);
+          clouds.insert(clouds.end(), op_clouds.begin(), op_clouds.end());
         }
 
       return clouds;
     }
 
-    void
-    find_clouds_for_op(const BlockVectorType &  solution,
-                       const unsigned int       order_parameter_id,
-                       std::vector<Cloud<dim>> &clouds)
+    std::vector<Cloud<dim>>
+    find_clouds_for_op(const BlockVectorType &solution,
+                       const unsigned int     order_parameter_id)
     {
+      std::vector<Cloud<dim>> clouds;
+
       // Loop through the whole mesh and set the user flags to false (so
       // everything is considered unmarked)
       for (auto &cell : dof_handler.active_cell_iterators())
@@ -336,6 +345,25 @@ namespace GrainTracker
         {
           clouds.pop_back();
         }
+
+      // Merge clouds from multiple processors
+      if (Utilities::MPI::n_mpi_processes(MPI_COMM_WORLD) > 1)
+        {
+          // Get all clouds from other ranks
+          auto global_clouds =
+            Utilities::MPI::all_gather(MPI_COMM_WORLD, clouds);
+
+          clouds.clear();
+          for (const auto &part_cloud : global_clouds)
+            {
+              clouds.insert(clouds.end(), part_cloud.begin(), part_cloud.end());
+            }
+
+          // Merge grains that are split across processors
+          merge_clouds(clouds);
+        }
+
+      return clouds;
     }
 
     void
@@ -540,6 +568,53 @@ namespace GrainTracker
       bool op_number_changed  = (active_order_parameters != build_old_op_ids());
 
       return std::make_tuple(grains_reassigned, op_number_changed);
+    }
+
+    void
+    merge_clouds(std::vector<Cloud<dim>> &clouds) const
+    {
+      for (unsigned int cl_primary = 0; cl_primary < clouds.size();
+           cl_primary++)
+        {
+          const auto &cloud_primary = clouds[cl_primary];
+
+          for (unsigned int cl_secondary = cl_primary + 1;
+               cl_secondary < clouds.size();
+               cl_secondary++)
+            {
+              auto &cloud_secondary = clouds[cl_secondary];
+
+              bool do_stiching = false;
+
+              for (const auto &cell_primary : cloud_primary.get_cells())
+                {
+                  for (const auto &cell_secondary : cloud_secondary.get_cells())
+                    {
+                      if (cell_primary.distance(cell_secondary) < 0)
+                        {
+                          do_stiching = true;
+                          break;
+                        }
+                    }
+
+                  if (do_stiching)
+                    {
+                      break;
+                    }
+                }
+
+              if (do_stiching)
+                {
+                  for (const auto &cell_primary : cloud_primary.get_cells())
+                    {
+                      cloud_secondary.add_cell(cell_primary);
+                    }
+                  clouds.erase(clouds.begin() + cl_primary);
+                  cl_primary--;
+                  break;
+                }
+            }
+        }
     }
 
     const DoFHandler<dim> &dof_handler;
