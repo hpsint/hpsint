@@ -74,12 +74,14 @@ namespace GrainTracker
             == cloud.get_order_parameter_id(),
             ExcMessage(
               std::string("Something got wrong with the order parameters numbering:\r\n") +
-              std::string("    grain_index_at_min_distance = ") +
+              std::string("\r\n    grain_index_at_min_distance = ") +
               std::to_string(grain_index_at_min_distance) + 
-              std::string("    old grain order parameter   = ") +
+              std::string("\r\n    old grain order parameter   = ") +
               std::to_string(old_grains.at(grain_index_at_min_distance).get_order_parameter_id()) + 
-              std::string("    cloud order parameter       = ") +
-              std::to_string(cloud.get_order_parameter_id())
+              std::string("\r\n    cloud order parameter       = ") +
+              std::to_string(cloud.get_order_parameter_id()) + 
+              std::string("\r\n    min_distance                = ") +
+              std::to_string(min_distance)
           ));
           // clang-format on
 
