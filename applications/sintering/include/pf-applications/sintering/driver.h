@@ -682,7 +682,7 @@ namespace Sintering
       const auto run_grain_tracker = [&](bool do_initialize = false) {
         pcout << "Execute grain tracker:" << std::endl;
 
-        const bool[has_reassigned_grains, has_op_number_changed] =
+        const auto [has_reassigned_grains, has_op_number_changed] =
           do_initialize ? grain_tracker.initial_setup(solution) :
                           grain_tracker.track(solution);
 
