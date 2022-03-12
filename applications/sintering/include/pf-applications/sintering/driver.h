@@ -679,21 +679,19 @@ namespace Sintering
 
       GrainTracker::Tracker<dim, Number> grain_tracker(dof_handler);
 
-      const auto run_grain_tracker = [&]() {
+      const auto run_grain_tracker = [&](bool do_initialize = false) {
         pcout << "Execute grain tracker:" << std::endl;
 
-        const auto [has_reassigned_grains, has_op_number_changed] =
-          grain_tracker.track(solution);
+        const bool[has_reassigned_grains, has_op_number_changed] =
+          do_initialize ? grain_tracker.initial_setup(solution) :
+                          grain_tracker.track(solution);
 
         grain_tracker.print_grains(pcout);
 
         // Rebuild data structures if grains have been reassigned
         if (has_reassigned_grains)
           {
-            VectorType previous_solution(
-              nonlinear_operator.get_previous_solution());
-            std::vector<VectorType *> solutions{&solution, &previous_solution};
-            grain_tracker.remap(solutions);
+            grain_tracker.remap(solution);
 
             if (has_op_number_changed)
               {
@@ -709,23 +707,19 @@ namespace Sintering
                 nonlinear_operator.clear();
                 preconditioner->clear();
 
-                for (auto ptr_solution : solutions)
-                  {
-                    VectorType temp(n_components_new);
+                VectorType temp(n_components_new);
 
-                    for (unsigned int i = 0;
-                         i < std::min(n_components_new, n_components_old);
-                         ++i)
-                      temp.block(i) = ptr_solution->block(i);
+                for (unsigned int i = 0;
+                     i < std::min(n_components_new, n_components_old);
+                     ++i)
+                  temp.block(i) = solution.block(i);
 
-                    for (unsigned int i = n_components_old;
-                         i < n_components_new;
-                         ++i)
-                      temp.block(i).reinit(ptr_solution->block(0));
+                for (unsigned int i = n_components_old; i < n_components_new;
+                     ++i)
+                  temp.block(i).reinit(solution.block(0));
 
-                    ptr_solution->reinit(0);
-                    *ptr_solution = temp;
-                  }
+                solution.reinit(0);
+                solution = temp;
               }
           }
       };
@@ -733,40 +727,7 @@ namespace Sintering
       initialize_solution();
 
       // Grain tracker - first run after we have initial configuration defined
-      const auto [has_reassigned_grains, has_op_number_changed] =
-        grain_tracker.initial_setup(solution);
-
-      grain_tracker.print_grains(pcout);
-
-      // Rebuild data structures if grains have been reassigned
-      if (has_reassigned_grains)
-        {
-          grain_tracker.remap(solution);
-
-          if (has_op_number_changed)
-            {
-              const unsigned int n_components_new =
-                grain_tracker.get_active_order_parameters().size() + 2;
-              const unsigned int n_components_old = solution.n_blocks();
-
-              nonlinear_operator.set_n_components(n_components_new);
-              nonlinear_operator.clear();
-              preconditioner->clear();
-
-              VectorType temp(n_components_new);
-
-              for (unsigned int i = 0;
-                   i < std::min(n_components_new, n_components_old);
-                   ++i)
-                temp.block(i) = solution.block(i);
-
-              for (unsigned int i = n_components_old; i < n_components_new; ++i)
-                temp.block(i).reinit(solution.block(0));
-
-              solution.reinit(0);
-              solution = temp;
-            }
-        }
+      run_grain_tracker(/*do_initialize = */ true);
 
       // initial local refinement
       if (params.refinement_frequency > 0)
@@ -798,7 +759,7 @@ namespace Sintering
 
             if (n_timestep != 0 && params.grains_tracker_frequency > 0 &&
                 n_timestep % params.grains_tracker_frequency == 0)
-              run_grain_tracker();
+              run_grain_tracker(/*do_initialize = */ false);
 
             nonlinear_operator.set_timestep(dt);
             nonlinear_operator.set_previous_solution(solution);
