@@ -989,7 +989,7 @@ namespace Sintering
             dof_handler.get_triangulation().locally_owned_subdomain();
         }
       data_out.add_data_vector(subdomain, "subdomain");
-      
+
       data_out.build_patches(mapping, this->fe.tensor_degree());
 
       static std::map<std::string, unsigned int> counters;
