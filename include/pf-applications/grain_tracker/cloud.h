@@ -9,8 +9,9 @@
 namespace GrainTracker
 {
   /* Cloud is nothing by a group of cells that represent a part of a grain.
-   * It works as a candidate for future grain segments. When cloud is being constructed,
-   * it is associated with a certain order parameter provided via its ctor.
+   * It works as a candidate for future grain segments. When cloud is being
+   * constructed, it is associated with a certain order parameter provided via
+   * its ctor.
    */
   template <int dim>
   class Cloud
