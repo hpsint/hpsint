@@ -15,16 +15,30 @@ namespace GrainTracker
 {
   using namespace dealii;
 
+  /* The grain tracker algo itself. */
   template <int dim, typename Number>
   class Tracker
   {
   public:
     using BlockVectorType = LinearAlgebra::distributed::BlockVector<Number>;
 
-    Tracker(const DoFHandler<dim> &dof_handler)
+    Tracker(const DoFHandler<dim> &dof_handler,
+            double                 threshold_lower       = 0.01,
+            double                 threshold_upper       = 1.01,
+            double                 buffer_distance_ratio = 0.05,
+            unsigned int           default_op_id         = 0)
       : dof_handler(dof_handler)
+      , threshold_lower(threshold_lower)
+      , threshold_upper(threshold_upper)
+      , buffer_distance_ratio(buffer_distance_ratio)
+      , default_op_id(default_op_id)
+      , pcout(std::cout)
     {}
 
+    /* Track grains over timesteps. The function returns a tuple of bool
+     * variables which signify if any grains have been reassigned and if the
+     * number of active order parameters has been changed.
+     */
     std::tuple<bool, bool>
     track(const BlockVectorType &solution)
     {
@@ -34,15 +48,18 @@ namespace GrainTracker
       // Copy old grains
       auto old_grains = grains;
 
+      // Clear current grains
       grains.clear();
-
-      std::set<unsigned int> grains_indices;
 
       // Create segments and transfer grain_id's for them
       for (auto &cloud : clouds)
         {
+          // New segment
           Segment<dim> current_segment(cloud);
 
+          /* Search for an old segment closest to the new one and get its grain
+           * id, this will be assigned the new segment.
+           */
           double       min_distance = std::numeric_limits<double>::max();
           unsigned int grain_index_at_min_distance =
             std::numeric_limits<unsigned int>::max();
@@ -62,6 +79,9 @@ namespace GrainTracker
                     }
                 }
             }
+
+          // TODO: limit the maximum value of min_distance to prevent from
+          // assigning the grain to some very distant one
 
           AssertThrow(
             grain_index_at_min_distance !=
@@ -85,66 +105,78 @@ namespace GrainTracker
           ));
           // clang-format on
 
-          auto insert_result =
-            grains_indices.insert(grain_index_at_min_distance);
-          if (insert_result.second)
-            {
-              grains.try_emplace(grain_index_at_min_distance,
-                                 grain_index_at_min_distance,
-                                 old_grains.at(grain_index_at_min_distance)
-                                   .get_order_parameter_id(),
-                                 old_grains.at(grain_index_at_min_distance)
-                                   .get_order_parameter_id());
-            }
+          grains.try_emplace(
+            grain_index_at_min_distance,
+            grain_index_at_min_distance,
+            old_grains.at(grain_index_at_min_distance).get_order_parameter_id(),
+            old_grains.at(grain_index_at_min_distance)
+              .get_order_parameter_id());
 
           grains.at(grain_index_at_min_distance).add_segment(current_segment);
         }
 
-      // Grains reassignment
+      /* For tracking we want the grains assigned to the same order parameter to
+       * be as far from each other as possible to reduce the number of costly
+       * grains reassignment.
+       */
       bool prefer_closest = false;
 
+      // Reassign grains and return the result
       return reassign_grains(max_grains, prefer_closest);
     }
 
+    /* Initialization of grains at the very first step. The function returns a
+     * tuple of bool variables which signify if any grains have been reassigned
+     * and if the number of active order parameters has been changed.
+     */
     std::tuple<bool, bool>
     initial_setup(const BlockVectorType &solution)
     {
-      // At this point we imply that we have 1 variable per grain, so we set up
-      // indices accordinly
+      /* At this point we imply that we have 1 variable per grain, so we set up
+       * grain indices accordinly. The main reason for that is that we may have
+       * periodic boundary conditions defined and thus a certain grain can
+       * contain multiple segments. In the current implementation this
+       * assumption allows to capture and then track such geometry during
+       * analysis. A better approach is to use information regarding periodicity
+       * provided by deal.ii.
+       */
+      // TODO: get rid of this assumption.
       auto clouds = find_clouds(solution);
 
+      // Gather all unique grain ids and create grains
       std::set<unsigned int> grains_indices;
       for (const auto &cl : clouds)
         {
-          grains_indices.insert(cl.get_order_parameter_id());
-        }
-
-      for (auto gid : grains_indices)
-        {
+          unsigned int gid = cl.get_order_parameter_id();
           grains.try_emplace(gid, gid, default_op_id, gid);
         }
 
-      // Now add segments to each grain representation
+      // Now add segments to each grain
       for (const auto &cl : clouds)
         {
           Segment<dim> segment(cl);
           grains.at(cl.get_order_parameter_id()).add_segment(segment);
         }
 
-      // Initial grains reassignment
+      /* Initial grains reassignment, the closest neighbors are allowed as we
+       * want to minimize the number of order parameters in use.
+       */
       bool prefer_closest = true;
 
+      // Reassign grains and return the result
       return reassign_grains(max_grains, prefer_closest);
     }
 
+    // Remap a single state vector
     void
-    remap(BlockVectorType &solution)
+    remap(BlockVectorType &solution) const
     {
       remap({&solution});
     }
 
+    // Remap state vectors
     void
-    remap(std::vector<BlockVectorType *> solutions)
+    remap(std::vector<BlockVectorType *> solutions) const
     {
       Vector<Number> values(dof_handler.get_fe().n_dofs_per_cell());
 
@@ -154,6 +186,10 @@ namespace GrainTracker
 
           if (gr.get_order_parameter_id() != gr.get_old_order_parameter_id())
             {
+              /* Transfer buffer is the extra zone around the grain within which
+               * the order parameters are swapped. Its maximum size is the half
+               * of the distance to the nearest neighbor.
+               */
               double transfer_buffer =
                 std::max(0.0, gr.distance_to_nearest_neighbor() / 2.0);
 
@@ -164,7 +200,9 @@ namespace GrainTracker
                         << " | transfer_buffer = " << transfer_buffer
                         << std::endl;
 
-              // At first we transfer the values
+              /* At first we transfer the values from the dofs related to the
+               * old order parameters to the dofs of the new order parameter.
+               */
               for (auto &cell : dof_handler.active_cell_iterators())
                 {
                   if (cell->is_locally_owned())
@@ -196,6 +234,7 @@ namespace GrainTracker
                     }
                 }
 
+              // Then we iterate again to nullify the old dofs.
               for (auto &cell : dof_handler.active_cell_iterators())
                 {
                   if (cell->is_locally_owned())
@@ -231,12 +270,14 @@ namespace GrainTracker
         }
     }
 
+    // Get active order parameters ids
     std::set<unsigned int>
     get_active_order_parameters() const
     {
       return active_order_parameters;
     }
 
+    // Print current grains
     template <typename Stream>
     void
     print_grains(Stream &out) const
@@ -258,6 +299,7 @@ namespace GrainTracker
     }
 
   private:
+    // Build a set of active order parameters
     std::set<unsigned int>
     build_active_op_ids() const
     {
@@ -272,6 +314,7 @@ namespace GrainTracker
       return active_op_ids;
     }
 
+    // Build a set of old order parameters
     std::set<unsigned int>
     build_old_op_ids() const
     {
@@ -286,6 +329,7 @@ namespace GrainTracker
       return old_op_ids;
     }
 
+    // Find cells clouds
     std::vector<Cloud<dim>>
     find_clouds(const BlockVectorType &solution)
     {
@@ -303,6 +347,7 @@ namespace GrainTracker
       return clouds;
     }
 
+    // Find all clouds for a given order parameter
     std::vector<Cloud<dim>>
     find_clouds_for_op(const BlockVectorType &solution,
                        const unsigned int     order_parameter_id)
@@ -355,19 +400,24 @@ namespace GrainTracker
           auto global_clouds =
             Utilities::MPI::all_gather(MPI_COMM_WORLD, clouds);
 
+          // Now gather all the clouds
           clouds.clear();
           for (const auto &part_cloud : global_clouds)
             {
               clouds.insert(clouds.end(), part_cloud.begin(), part_cloud.end());
             }
 
-          // Merge grains that are split across processors
+          /* When distributed across multiple processors, some clouds may be in
+           * fact parts of a single one, we then merge the touching clouds into
+           * one.
+           */
           merge_clouds(clouds);
         }
 
       return clouds;
     }
 
+    // Recursive flood fill algorithm
     void
     recursive_flood_fill(
       const TriaIterator<DoFCellAccessor<dim, dim, false>> &cell,
@@ -377,6 +427,7 @@ namespace GrainTracker
       Cloud<dim> &                                          cloud,
       bool &                                                grain_assigned)
     {
+      // If a cell has children, then we iterate over them
       if (cell->has_children())
         {
           for (unsigned int n = 0; n < cell->n_children(); n++)
@@ -389,10 +440,12 @@ namespace GrainTracker
                                    grain_assigned);
             }
         }
+      // If this is an active cell, the process it
       else if (!cell->user_flag_set() && cell->is_locally_owned())
         {
           cell->set_user_flag();
 
+          // Get average value of the order parameter for the cell
           cell->get_dof_values(solution.block(order_parameter_id + 2), values);
 
           double etai = std::accumulate(values.begin(),
@@ -401,6 +454,9 @@ namespace GrainTracker
                                         std::plus<double>()) /
                         values.size();
 
+          /* Check if the cell is inside the grain described by the given order
+           * parameter. If so, add the current cell to the current cloud.
+           */
           if (etai > threshold_lower && etai < threshold_upper)
             {
               grain_assigned = true;
@@ -423,17 +479,23 @@ namespace GrainTracker
         }
     }
 
+    // Reassign grains order parameters to prevent collision
     std::tuple<bool, bool>
     reassign_grains(const unsigned int max_op_num, const bool prefer_closest)
     {
       bool grains_reassigned = false;
 
-      for (int iter = max_op_num; iter >= 0; iter--)
+      /* Maximum number of reassignment iterations is equal to the maximum
+       * number of order parameters available
+       */
+      for (unsigned int iter = 0; iter <= max_op_num; iter++)
         {
+          // Base grain to compare with
           for (auto &[g_base_id, gr_base] : grains)
             {
               const unsigned int op_base_id = gr_base.get_order_parameter_id();
 
+              // Secondary grain
               for (auto &[g_other_id, gr_other] : grains)
                 {
                   if (g_other_id != g_base_id)
@@ -441,32 +503,41 @@ namespace GrainTracker
                       const unsigned int op_other_id =
                         gr_other.get_order_parameter_id();
 
+                      // Minimum distance between the two grains
                       double min_distance = gr_base.distance(gr_other);
+
+                      /* Buffer safety zone around the two grains. If an overlap
+                       * is detected, then the old order parameter values of all
+                       * the cells inside the buffer zone are transfered to a
+                       * new one.
+                       */
                       double buffer_distance_base =
                         buffer_distance_ratio * gr_base.get_max_radius();
                       double buffer_distance_other =
                         buffer_distance_ratio * gr_other.get_max_radius();
 
+                      /* If two grains sharing the same order parameter are
+                       * too close to each other, then try to change the
+                       * order parameter of the secondary grain
+                       */
                       if ((min_distance <
                            buffer_distance_base + buffer_distance_other) &&
                           (op_other_id == op_base_id))
                         {
-                          if (dealii::Utilities::MPI::this_mpi_process(
-                                MPI_COMM_WORLD) == 0)
-                            {
-                              std::cout
-                                << "Found overlap between grain "
+                          pcout << "Found overlap between grain "
                                 << gr_base.get_grain_id() << " and grain "
                                 << gr_other.get_grain_id()
                                 << " with order parameter " << op_base_id
                                 << std::endl;
-                            }
 
                           std::vector<Number> minimum_distance_list(
                             max_op_num,
                             std::numeric_limits<Number>::quiet_NaN());
 
-                          // Find a candidate op for gr_other grain
+                          /* Find a candidate op for gr_other grain. To this end
+                           * we measure distance from the secondary grain to the
+                           * other grains except for the current base one.
+                           */
                           for (const auto &[g_candidate_id, gr_candidate] :
                                grains)
                             {
@@ -492,6 +563,17 @@ namespace GrainTracker
 
                           unsigned int new_op_index = op_other_id;
 
+                          /* Now strategies for the order parameters
+                           * reassignment are available: either we pick the
+                           * closest order parameter that does not overlap with
+                           * the secondary grain or we pick the most distant
+                           * one.
+                           */
+
+                          /* The first option works for the very first step to
+                           * minimize the total number of order parameters in
+                           * the system.
+                           */
                           if (prefer_closest)
                             {
                               for (unsigned int op = 0;
@@ -513,6 +595,11 @@ namespace GrainTracker
                                 }
                             }
 
+                          /* The second option is used for regular tracking, in
+                           * this case we choose the most distant order
+                           * parameter to reduce the number of future
+                           * reassignments.
+                           */
                           if (!prefer_closest || new_op_index == op_other_id)
                             {
                               double max_distance =
@@ -572,6 +659,7 @@ namespace GrainTracker
       return std::make_tuple(grains_reassigned, op_number_changed);
     }
 
+    // Merge different parts of clouds if thy touch if MPI distributed
     void
     merge_clouds(std::vector<Cloud<dim>> &clouds) const
     {
@@ -605,6 +693,10 @@ namespace GrainTracker
                     }
                 }
 
+              /* If two clouds touch each other, we then append all the cells of
+               * the primary clouds to the cells of the secondary one and erase
+               * the primary cell.
+               */
               if (do_stiching)
                 {
                   for (const auto &cell_primary : cloud_primary.get_cells())
@@ -619,17 +711,46 @@ namespace GrainTracker
         }
     }
 
+    // Print clouds (mainly for debug)
+    void
+    print_clouds(const std::vector<Cloud<dim>> &clouds) const
+    {
+      unsigned int cloud_id = 0;
+
+      pcout << "Number of clouds = " << clouds.size() << std::endl;
+      for (auto &cloud : clouds)
+        {
+          Segment<dim> current_segment(cloud);
+
+          pcout << "cloud_id = " << cloud_id << " | cloud order parameter = "
+                << cloud.get_order_parameter_id()
+                << " | center = " << current_segment.get_center()
+                << " | radius = " << current_segment.get_radius()
+                << " | number of cells = " << cloud.get_cells().size()
+                << std::endl;
+          cloud_id++;
+        }
+    }
+
     const DoFHandler<dim> &dof_handler;
 
-    const double       tol{1e-2};
-    const double       threshold_lower{0 + tol};
-    const double       threshold_upper{1 + tol};
-    const double       buffer_distance_ratio{0.05};
-    const unsigned int default_op_id{0};
+    // Minimum value of order parameter value
+    const double threshold_lower;
+
+    // Maximum value of order parameter value
+    const double threshold_upper;
+
+    // Buffer zone around the grain
+    const double buffer_distance_ratio;
+
+    // Default order parameter id
+    const unsigned int default_op_id;
 
     std::map<unsigned int, Grain<dim>> grains;
     std::set<unsigned int>             active_order_parameters;
 
     static constexpr int max_grains = MAX_SINTERING_GRAINS;
+
+    ConditionalOStream pcout;
   };
 } // namespace GrainTracker

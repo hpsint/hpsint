@@ -6,6 +6,9 @@
 
 namespace GrainTracker
 {
+  /* Segment is a part of a grain created from the previously detected cloud.
+   * Segments are represented as circles with a given center and radius.
+   */
   template <int dim>
   class Segment
   {

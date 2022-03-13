@@ -9,6 +9,12 @@
 
 namespace GrainTracker
 {
+  /* The very first implementation used dealii::CellAccessor instead of this
+   * class. But then it was observed that dealii::CellAccessor can not be
+   * serialized and thus transferred via MPI calls. So this simplify object
+   * mimics some basic functionality of dealii::CellAccessor used in the grain
+   * tracker implementation.
+   */
   template <int dim>
   class Cell
   {
