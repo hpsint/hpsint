@@ -1480,8 +1480,7 @@ namespace Sintering
     void
     set_previous_solution(const BlockVectorType &src) const
     {
-      if (this->old_solution.n_blocks() != src.n_blocks())
-        this->old_solution.reinit(0);
+      this->old_solution.reinit(0);
 
       this->old_solution = src;
       this->old_solution.update_ghost_values();
