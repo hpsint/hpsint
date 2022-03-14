@@ -70,7 +70,7 @@
 #include <pf-applications/sintering/operator.h>
 #include <pf-applications/sintering/preconditioners.h>
 
-#define DEBUG_PARAVIEW
+// #define DEBUG_PARAVIEW
 
 namespace Sintering
 {
@@ -318,7 +318,7 @@ namespace Sintering
     static constexpr double dt_max               = 1e3 * dt_deseride;
     static constexpr double dt_min               = 1e-2 * dt_deseride;
     static constexpr double dt_increment         = 1.2;
-    static constexpr double output_time_interval = 1e-9; // 0.0 means no output
+    static constexpr double output_time_interval = 10.0; // 0.0 means no output
 
     // desirable number of newton iterations
     static constexpr unsigned int desirable_newton_iterations = 5;
