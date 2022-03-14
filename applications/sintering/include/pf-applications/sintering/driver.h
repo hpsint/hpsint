@@ -70,6 +70,8 @@
 #include <pf-applications/sintering/operator.h>
 #include <pf-applications/sintering/preconditioners.h>
 
+// #define DEBUG_PARAVIEW
+
 namespace Sintering
 {
   using namespace dealii;
@@ -544,6 +546,8 @@ namespace Sintering
       const auto execute_coarsening_and_refinement = [&]() {
         pcout << "Execute refinement/coarsening:" << std::endl;
 
+        output_result(solution, nonlinear_operator, 0.0, "refinement");
+
         // 1) copy solution so that it has the right ghosting
         const auto partitioner = std::make_shared<Utilities::MPI::Partitioner>(
           dof_handler.locally_owned_dofs(),
@@ -668,6 +672,8 @@ namespace Sintering
         // note: apply constraints since the Newton solver expects this
         for (unsigned int b = 0; b < solution.n_blocks(); ++b)
           constraint.distribute(solution.block(b));
+
+        output_result(solution, nonlinear_operator, 0.0, "refinement");
       };
 
       const auto run_grain_tracker = [&]() {
@@ -752,7 +758,8 @@ namespace Sintering
 
                 has_converged = true;
 
-                pcout << "t = " << t << ", dt = " << dt << ":"
+                pcout << "t = " << t << ", t_n = " << n_timestep
+                      << ", dt = " << dt << ":"
                       << " solved in " << statistics.newton_iterations
                       << " Newton iterations and "
                       << statistics.linear_iterations << " linear iterations"
@@ -797,6 +804,11 @@ namespace Sintering
 
                 solution = nonlinear_operator.get_previous_solution();
 
+                output_result(solution,
+                              nonlinear_operator,
+                              time_last_output,
+                              "newton_not_converged");
+
                 AssertThrow(
                   dt > dt_min,
                   ExcMessage(
@@ -810,6 +822,11 @@ namespace Sintering
                   << dt << "\033[0m" << std::endl;
 
                 solution = nonlinear_operator.get_previous_solution();
+
+                output_result(solution,
+                              nonlinear_operator,
+                              time_last_output,
+                              "linear_solver_not_converged");
 
                 AssertThrow(
                   dt > dt_min,
@@ -922,8 +939,14 @@ namespace Sintering
     void
     output_result(const VectorType &       solution,
                   const NonLinearOperator &sintering_operator,
-                  const double             t)
+                  const double             t,
+                  const std::string        label = "solution")
     {
+#ifndef DEBUG_PARAVIEW
+      if (label != "solution")
+        return;
+#endif
+
       DataOutBase::VtkFlags flags;
       flags.write_higher_order_cells = true;
 
@@ -942,11 +965,16 @@ namespace Sintering
 
       data_out.build_patches(mapping, this->fe.tensor_degree());
 
-      static unsigned int counter = 0;
+      static std::map<std::string, unsigned int> counters;
 
-      pcout << "Outputing at t = " << t << std::endl;
+      if (counters.find(label) == counters.end())
+        counters[label] = 0;
 
-      std::string output = "solution." + std::to_string(counter++) + ".vtu";
+      std::string output =
+        label + "." + std::to_string(counters[label]++) + ".vtu";
+
+      pcout << "Outputing at t = " << t << " (" << output << ")" << std::endl;
+
       data_out.write_vtu_in_parallel(output, MPI_COMM_WORLD);
     };
   };
