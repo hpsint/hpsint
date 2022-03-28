@@ -119,9 +119,12 @@ namespace GrainTracker
     void
     add_neighbor(const Grain *neighbor)
     {
-      AssertThrow(this != neighbor, dealii::ExcMessage("Grain can not be added as a neighbot to itself"));
+      AssertThrow(this != neighbor,
+                  dealii::ExcMessage(
+                    "Grain can not be added as a neighbot to itself"));
       AssertThrow(order_parameter_id == neighbor->get_order_parameter_id(),
-             dealii::ExcMessage("Neighbors should have the same order parameter"));
+                  dealii::ExcMessage(
+                    "Neighbors should have the same order parameter"));
 
       neighbors.insert(neighbors.end(), neighbor);
     }
