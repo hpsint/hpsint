@@ -11,20 +11,20 @@ namespace GrainTracker
 {
   /* The very first implementation used dealii::CellAccessor instead of this
    * class. But then it was observed that dealii::CellAccessor can not be
-   * serialized and thus transferred via MPI calls. So this simplify object
+   * serialized and thus transferred via MPI calls. So this simplified object
    * mimics some basic functionality of dealii::CellAccessor used in the grain
-   * tracker implementation.
+   * tracker implementation. Only selected functions are needed for querying the
+   * geometry related data: cell size, center and distance to other cells.
    */
   template <int dim>
   class Cell
   {
   public:
-    Cell()
-    {}
+    Cell() = default;
 
     Cell(const dealii::CellAccessor<dim> &cell_accessor)
     {
-      for (unsigned int v = 0; v < cell_accessor.n_vertices(); v++)
+      for (const unsigned int v : cell_accessor.vertex_indices())
         {
           vertices.push_back(cell_accessor.vertex(v));
         }

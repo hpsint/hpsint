@@ -11,18 +11,18 @@ namespace GrainTracker
   /* Cloud is nothing by a group of cells that represent a part of a grain.
    * It works as a candidate for future grain segments. When cloud is being
    * constructed, it is associated with a certain order parameter provided via
-   * its ctor.
+   * its constructor.
    */
   template <int dim>
   class Cloud
   {
   public:
     Cloud()
-      : order_parameter_id(0)
+      : order_parameter_id(dealii::numbers::invalid_unsigned_int)
     {}
 
-    Cloud(unsigned int oid)
-      : order_parameter_id(oid)
+    Cloud(const unsigned int order_parameter_id)
+      : order_parameter_id(order_parameter_id)
     {}
 
     unsigned int
@@ -31,16 +31,11 @@ namespace GrainTracker
       return order_parameter_id;
     }
 
+    template <typename T>
     void
-    add_cell(const dealii::CellAccessor<dim> &cell_accessor)
+    add_cell(const T &cell_accessor)
     {
       cells.emplace_back(cell_accessor);
-    }
-
-    void
-    add_cell(const Cell<dim> &cell)
-    {
-      cells.push_back(cell);
     }
 
     const std::vector<Cell<dim>> &

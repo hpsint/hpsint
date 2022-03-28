@@ -9,15 +9,30 @@ namespace GrainTracker
    * conditions are imposed over the domain: in this case one may have multiple
    * segments. The grain id is unique but multiple grains can be assigned to the
    * same order parameter, this is the whole idea of the grain tracker feature.
+   *
+   * To be compatible with remapping strategy, a grain has to store:
+   *
+   * - grain_id to identify the grain between timesteps;
+   * - order_parameter_id to know which order parameter the grain belongs to;
+   * - old_order_parameter_id to know which was the previous order parameter
+   * in case it has been changed.
    */
   template <int dim>
   class Grain
   {
   public:
-    Grain(unsigned int gid, unsigned int oid = 0, unsigned int ooid = 0)
-      : grain_id{gid}
-      , order_parameter_id{oid}
-      , old_order_parameter_id{ooid}
+    Grain(const unsigned int grain_id, const unsigned int order_parameter_id)
+      : grain_id(grain_id)
+      , order_parameter_id(order_parameter_id)
+      , old_order_parameter_id(order_parameter_id)
+    {}
+
+    Grain(const unsigned int grain_id,
+          const unsigned int order_parameter_id,
+          const unsigned int old_order_parameter_id)
+      : grain_id(grain_id)
+      , order_parameter_id(order_parameter_id)
+      , old_order_parameter_id(old_order_parameter_id)
     {}
 
     /* This function computes the minimum distance between the segments of the
@@ -31,27 +46,12 @@ namespace GrainTracker
         {
           for (const auto &other_segment : other.get_segments())
             {
-              double distance_centers =
-                this_segment.get_center().distance(other_segment.get_center());
-              double sum_radii =
-                this_segment.get_radius() + other_segment.get_radius();
-              double current_distance = distance_centers - sum_radii;
+              double current_distance = this_segment.distance(other_segment);
               min_distance = std::min(current_distance, min_distance);
             }
         }
 
       return min_distance;
-    }
-
-    /* Center of the grain. It is later used to identify the same grain within
-     * two subsequent timesteps. If the grain consists of multiple segments,
-     * then this function returns a geometric center of all grains which still
-     * can be used to identify a family of segments at different timesteps.
-     */
-    dealii::Point<dim>
-    get_center() const
-    {
-      return center;
     }
 
     /* Radius of the largest segment of the grain. Mainly used as a reference
@@ -77,11 +77,17 @@ namespace GrainTracker
       return order_parameter_id;
     }
 
-    /* Set current order parameter id. */
+    /* Set current order parameter id.
+     *
+     * If this method happens to be called and the new order parameter is
+     * different from the old one, that means that at the later remapping stage
+     * we need to move the nodal dofs values related to the current grain from
+     * the old order parameter to the new one.
+     */
     void
-    set_order_parameter_id(unsigned int oid)
+    set_order_parameter_id(const unsigned int new_order_parameter_id)
     {
-      order_parameter_id = oid;
+      order_parameter_id = new_order_parameter_id;
     }
 
     /* Get previous order parameter id. */
@@ -103,9 +109,6 @@ namespace GrainTracker
     add_segment(const Segment<dim> &segment)
     {
       segments.push_back(segment);
-      center_raw += segment.get_center();
-      center = center_raw;
-      center /= segments.size();
 
       max_radius = std::max(max_radius, segment.get_radius());
     }
@@ -116,11 +119,11 @@ namespace GrainTracker
     void
     add_neighbor(const Grain *neighbor)
     {
-      if (this != neighbor &&
-          order_parameter_id == neighbor->get_order_parameter_id())
-        {
-          neighbors.insert(neighbors.end(), neighbor);
-        }
+      AssertThrow(this != neighbor, dealii::ExcMessage("Grain can not be added as a neighbot to itself"));
+      AssertThrow(order_parameter_id == neighbor->get_order_parameter_id(),
+             dealii::ExcMessage("Neighbors should have the same order parameter"));
+
+      neighbors.insert(neighbors.end(), neighbor);
     }
 
     /* Get distance to the nearest neighbor. This is used to check whether any
@@ -142,10 +145,6 @@ namespace GrainTracker
     }
 
   private:
-    dealii::Point<dim> center;
-
-    dealii::Point<dim> center_raw;
-
     unsigned int grain_id;
 
     unsigned int order_parameter_id;

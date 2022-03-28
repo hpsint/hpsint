@@ -29,7 +29,7 @@ namespace GrainTracker
       radius = 0.0;
       for (const auto &cell : cloud.get_cells())
         {
-          double dist =
+          const double dist =
             center.distance(cell.barycenter()) + cell.diameter() / 2.;
           radius = std::max(radius, dist);
         }
@@ -50,10 +50,10 @@ namespace GrainTracker
     double
     distance(const Segment<dim> &other) const
     {
-      double distance_centers = get_center().distance(other.get_center());
-      double sum_radii        = get_radius() + other.get_radius();
+      const double distance_centers = get_center().distance(other.get_center());
+      const double sum_radii        = get_radius() + other.get_radius();
 
-      double current_distance = distance_centers - sum_radii;
+      const double current_distance = distance_centers - sum_radii;
 
       return current_distance;
     }
