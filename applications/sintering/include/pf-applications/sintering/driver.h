@@ -71,6 +71,7 @@
 #include <pf-applications/sintering/preconditioners.h>
 
 // #define DEBUG_PARAVIEW
+#include <pf-applications/grain_tracker/tracker.h>
 
 namespace Sintering
 {
@@ -170,7 +171,7 @@ namespace Sintering
     unsigned int min_refinement_depth     = 3;
     unsigned int max_refinement_depth     = 0;
     unsigned int refinement_frequency     = 10;
-    unsigned int grains_tracker_frequency = 0;
+    unsigned int grains_tracker_frequency = 10;
 
     bool matrix_based = false;
 
@@ -676,39 +677,57 @@ namespace Sintering
         output_result(solution, nonlinear_operator, 0.0, "refinement");
       };
 
-      const auto run_grain_tracker = [&]() {
-        const unsigned int n_blocks_old = solution.n_blocks();
+      GrainTracker::Tracker<dim, Number> grain_tracker(dof_handler);
 
-        if (true /*TODO: do something more useful */)
+      const auto run_grain_tracker = [&](bool do_initialize = false) {
+        pcout << "Execute grain tracker:" << std::endl;
+
+        const auto [has_reassigned_grains, has_op_number_changed] =
+          do_initialize ? grain_tracker.initial_setup(solution) :
+                          grain_tracker.track(solution);
+
+        grain_tracker.print_grains(pcout);
+
+        // Rebuild data structures if grains have been reassigned
+        if (has_reassigned_grains)
           {
-            VectorType temp(std::min<unsigned int>(n_blocks_old + 1,
-                                                   MAX_SINTERING_GRAINS + 2));
+            grain_tracker.remap(solution);
 
-            for (unsigned int i = 0; i < n_blocks_old; ++i)
-              temp.block(i) = solution.block(i);
+            if (has_op_number_changed)
+              {
+                const unsigned int n_components_new =
+                  grain_tracker.get_active_order_parameters().size() + 2;
+                const unsigned int n_components_old = solution.n_blocks();
 
-            for (unsigned int i = n_blocks_old; i < temp.n_blocks(); ++i)
-              temp.block(i).reinit(solution.block(0));
+                pcout << "\033[34mChanging number of components from "
+                      << n_components_old << " to " << n_components_new
+                      << "\033[0m" << std::endl;
 
-            solution.reinit(0);
-            solution = temp;
-          }
+                nonlinear_operator.set_n_components(n_components_new);
+                nonlinear_operator.clear();
+                preconditioner->clear();
 
-        const unsigned int n_blocks_new = solution.n_blocks();
+                VectorType temp(n_components_new);
 
-        if (n_blocks_old != n_blocks_new)
-          {
-            pcout << "\033[34mChanging number of components from "
-                  << n_blocks_old << " to " << n_blocks_new << "\033[0m"
-                  << std::endl;
+                for (unsigned int i = 0;
+                     i < std::min(n_components_new, n_components_old);
+                     ++i)
+                  temp.block(i) = solution.block(i);
 
-            nonlinear_operator.set_n_components(n_blocks_new);
-            nonlinear_operator.clear();
-            preconditioner->clear();
+                for (unsigned int i = n_components_old; i < n_components_new;
+                     ++i)
+                  temp.block(i).reinit(solution.block(0));
+
+                solution.reinit(0);
+                solution = temp;
+              }
           }
       };
 
       initialize_solution();
+
+      // Grain tracker - first run after we have initial configuration defined
+      run_grain_tracker(/*do_initialize = */ true);
 
       // initial local refinement
       if (params.refinement_frequency > 0)
@@ -717,7 +736,6 @@ namespace Sintering
              ++i)
           {
             execute_coarsening_and_refinement();
-            initialize_solution();
           }
 
       double time_last_output = 0;
@@ -741,7 +759,7 @@ namespace Sintering
 
             if (n_timestep != 0 && params.grains_tracker_frequency > 0 &&
                 n_timestep % params.grains_tracker_frequency == 0)
-              run_grain_tracker();
+              run_grain_tracker(/*do_initialize = */ false);
 
             nonlinear_operator.set_timestep(dt);
             nonlinear_operator.set_previous_solution(solution);
@@ -962,6 +980,15 @@ namespace Sintering
                                  "eta" + std::to_string(ig - 2));
 
       sintering_operator.add_data_vectors(data_out, solution);
+
+      // Output subdomain structure
+      Vector<float> subdomain(dof_handler.get_triangulation().n_active_cells());
+      for (unsigned int i = 0; i < subdomain.size(); ++i)
+        {
+          subdomain[i] =
+            dof_handler.get_triangulation().locally_owned_subdomain();
+        }
+      data_out.add_data_vector(subdomain, "subdomain");
 
       data_out.build_patches(mapping, this->fe.tensor_degree());
 
