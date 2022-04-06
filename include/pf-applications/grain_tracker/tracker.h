@@ -287,7 +287,8 @@ namespace GrainTracker
       for (const auto &[gid, gr] : grains)
         {
           (void)gid;
-          out << "op_index = " << gr.get_order_parameter_id()
+          out << "op_index_current = " << gr.get_order_parameter_id()
+              << " | op_index_old = " << gr.get_old_order_parameter_id()
               << " | segments = " << gr.get_segments().size()
               << " | grain_index = " << gr.get_grain_id() << std::endl;
           for (const auto &segment : gr.get_segments())
@@ -302,7 +303,8 @@ namespace GrainTracker
     void
     dump_last_clouds() const
     {
-      dump_clouds(last_clouds, /*is_merged = */ true);
+      print_clouds(last_clouds, pcout);
+      output_clouds(last_clouds, /*is_merged = */ true);
     }
 
   private:
@@ -763,7 +765,7 @@ namespace GrainTracker
 
     // Output clods (mainly for debug purposes)
     void
-    dump_clouds(const std::vector<Cloud<dim>> &clouds, bool is_merged) const
+    output_clouds(const std::vector<Cloud<dim>> &clouds, bool is_merged) const
     {
       DataOutBase::VtkFlags flags;
       flags.write_higher_order_cells = false;
