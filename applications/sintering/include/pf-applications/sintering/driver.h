@@ -544,10 +544,10 @@ namespace Sintering
 
       const unsigned int init_level = tria.n_global_levels() - 1;
 
-      const auto execute_coarsening_and_refinement = [&]() {
+      const auto execute_coarsening_and_refinement = [&](const double t) {
         pcout << "Execute refinement/coarsening:" << std::endl;
 
-        output_result(solution, nonlinear_operator, 0.0, "refinement");
+        output_result(solution, nonlinear_operator, t, "refinement");
 
         // 1) copy solution so that it has the right ghosting
         const auto partitioner = std::make_shared<Utilities::MPI::Partitioner>(
@@ -674,13 +674,15 @@ namespace Sintering
         for (unsigned int b = 0; b < solution.n_blocks(); ++b)
           constraint.distribute(solution.block(b));
 
-        output_result(solution, nonlinear_operator, 0.0, "refinement");
+        output_result(solution, nonlinear_operator, t, "refinement");
       };
 
       GrainTracker::Tracker<dim, Number> grain_tracker(dof_handler);
 
       const auto run_grain_tracker = [&](bool do_initialize = false) {
         pcout << "Execute grain tracker:" << std::endl;
+
+        solution.update_ghost_values();
 
         const auto [has_reassigned_grains, has_op_number_changed] =
           do_initialize ? grain_tracker.initial_setup(solution) :
@@ -735,7 +737,7 @@ namespace Sintering
                                               params.max_refinement_depth);
              ++i)
           {
-            execute_coarsening_and_refinement();
+            execute_coarsening_and_refinement(0.0);
           }
 
       double time_last_output = 0;
@@ -755,11 +757,27 @@ namespace Sintering
           {
             if (n_timestep != 0 && params.refinement_frequency > 0 &&
                 n_timestep % params.refinement_frequency == 0)
-              execute_coarsening_and_refinement();
+              execute_coarsening_and_refinement(time_last_output);
 
             if (n_timestep != 0 && params.grains_tracker_frequency > 0 &&
                 n_timestep % params.grains_tracker_frequency == 0)
-              run_grain_tracker(/*do_initialize = */ false);
+              {
+                try
+                  {
+                    run_grain_tracker(/*do_initialize = */ false);
+                  }
+                catch (const GrainTracker::ExcCloudsInconsistency &ex)
+                  {
+                    output_result(solution,
+                                  nonlinear_operator,
+                                  time_last_output,
+                                  "clouds_inconsistency");
+
+                    grain_tracker.dump_last_clouds();
+
+                    AssertThrow(false, ExcMessage(ex.what()));
+                  }
+              }
 
             nonlinear_operator.set_timestep(dt);
             nonlinear_operator.set_previous_solution(solution);
