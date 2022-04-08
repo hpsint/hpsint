@@ -193,25 +193,27 @@ namespace GrainTracker
           double transfer_buffer =
             std::max(0.0, grain.distance_to_nearest_neighbor() / 2.0);
 
-          for (auto &cell : dof_handler.active_cell_iterators() |
-                              IteratorFilters::LocallyOwnedCell())
+          for (auto &cell : dof_handler.active_cell_iterators())
             {
-              bool in_grain = false;
-              for (const auto &segment : grain.get_segments())
+              if (cell->is_locally_owned())
                 {
-                  if (cell->barycenter().distance(segment.get_center()) <
-                      segment.get_radius() + transfer_buffer)
+                  bool in_grain = false;
+                  for (const auto &segment : grain.get_segments())
                     {
-                      in_grain = true;
-                      break;
+                      if (cell->barycenter().distance(segment.get_center()) <
+                          segment.get_radius() + transfer_buffer)
+                        {
+                          in_grain = true;
+                          break;
+                        }
                     }
-                }
 
-              if (in_grain)
-                {
-                  for (auto &solution : solutions)
+                  if (in_grain)
                     {
-                      callback(*cell, solution);
+                      for (auto &solution : solutions)
+                        {
+                          callback(*cell, solution);
+                        }
                     }
                 }
             }
@@ -368,10 +370,12 @@ namespace GrainTracker
 
       // Loop through the whole mesh and set the user flags to false (so
       // everything is considered unmarked)
-      for (auto &cell : dof_handler.active_cell_iterators() |
-                          IteratorFilters::LocallyOwnedCell())
+      for (auto &cell : dof_handler.active_cell_iterators())
         {
-          cell->clear_user_flag();
+          if (cell->is_locally_owned())
+            {
+              cell->clear_user_flag();
+            }
         }
 
       clouds.emplace_back(order_parameter_id);
@@ -765,7 +769,8 @@ namespace GrainTracker
 
     // Output clods (mainly for debug purposes)
     void
-    output_clouds(const std::vector<Cloud<dim>> &clouds, bool is_merged) const
+    output_clouds(const std::vector<Cloud<dim>> &clouds,
+                  const bool                     is_merged) const
     {
       DataOutBase::VtkFlags flags;
       flags.write_higher_order_cells = false;
@@ -867,7 +872,7 @@ namespace GrainTracker
     print_log(std::vector<std::string> &log) const
     {
       // Get all log entries
-      auto all_logs = Utilities::MPI::all_gather(MPI_COMM_WORLD, log);
+      auto all_logs = Utilities::MPI::gather(MPI_COMM_WORLD, log);
 
       // Identify unique remappings
       std::set<std::string> unique_events;

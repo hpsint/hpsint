@@ -688,6 +688,8 @@ namespace Sintering
           do_initialize ? grain_tracker.initial_setup(solution) :
                           grain_tracker.track(solution);
 
+        solution.zero_out_ghost_values();
+
         grain_tracker.print_grains(pcout);
 
         // Rebuild data structures if grains have been reassigned
