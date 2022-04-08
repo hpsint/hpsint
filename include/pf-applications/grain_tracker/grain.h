@@ -122,9 +122,11 @@ namespace GrainTracker
       AssertThrow(this != neighbor,
                   dealii::ExcMessage(
                     "Grain can not be added as a neighbot to itself"));
-      AssertThrow(order_parameter_id == neighbor->get_order_parameter_id(),
-                  dealii::ExcMessage(
-                    "Neighbors should have the same order parameter"));
+      AssertThrow(
+        order_parameter_id == neighbor->get_order_parameter_id() ||
+          old_order_parameter_id == neighbor->get_old_order_parameter_id(),
+        dealii::ExcMessage(
+          "Neighbors should have the same order parameter (current or old)."));
 
       neighbors.insert(neighbors.end(), neighbor);
     }
