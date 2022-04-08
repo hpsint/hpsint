@@ -1565,7 +1565,7 @@ namespace Sintering
       AssertDimension(n_comp - 2, n_grains);
 
       constexpr unsigned int n_entries =
-        8 + 3 * n_grains + n_grains * (n_grains - 1) / 2;
+        9 + 3 * n_grains + n_grains * (n_grains - 1) / 2;
       std::array<VectorType, n_entries> data_vectors;
 
       for (auto &data_vector : data_vectors)
@@ -1625,6 +1625,7 @@ namespace Sintering
 
               unsigned int counter = 0;
 
+              temp[counter++] = PowerHelper<n_grains, 2>::power_sum(etas);
               temp[counter++] = VectorizedArrayType(dt_inv);
               temp[counter++] = free_energy.d2f_dc2(c, etas);
 
@@ -1682,15 +1683,51 @@ namespace Sintering
 
       vec.zero_out_ghost_values();
 
+      // Write names of fields
+      std::vector<std::string> names;
+      names.push_back("bnds");
+      names.push_back("dt_inv");
+      names.push_back("d2f_dc2");
+
+      for (unsigned int ig = 0; ig < n_grains; ++ig)
+        {
+          names.push_back("d2f_dcdeta" + std::to_string(ig));
+        }
+
+      for (unsigned int ig = 0; ig < n_grains; ++ig)
+        {
+          names.push_back("d2f_deta" + std::to_string(ig) + "2");
+        }
+
+      for (unsigned int ig = 0; ig < n_grains; ++ig)
+        {
+          for (unsigned int jg = ig + 1; jg < n_grains; ++jg)
+            {
+              names.push_back("d2f_deta" + std::to_string(ig) + "deta" +
+                              std::to_string(jg));
+            }
+        }
+
+      names.push_back("M");
+      names.push_back("nrm_dM_dc_x_mu_grad");
+      names.push_back("nrm_dM_dgrad_c");
+
+      for (unsigned int ig = 0; ig < n_grains; ++ig)
+        {
+          names.push_back("nrm_dM_deta" + std::to_string(ig) + "_x_mu_grad");
+        }
+
+      names.push_back("kappa_c");
+      names.push_back("kappa_p");
+      names.push_back("L");
+
+      // Add data to output
       for (unsigned int c = 0; c < n_entries; ++c)
         {
-          std::ostringstream ss;
-          ss << "aux_" << std::setw(2) << std::setfill('0') << c;
-
           data_out.add_data_vector(this->matrix_free.get_dof_handler(
                                      this->dof_index),
                                    data_vectors[c],
-                                   ss.str());
+                                   names[c]);
         }
     }
 
