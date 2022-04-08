@@ -1,5 +1,6 @@
 #pragma once
 
+#include <pf-applications/lac/dynamic_block_vector.h>
 #include <pf-applications/lac/preconditioners.h>
 
 namespace Sintering
@@ -1477,8 +1478,9 @@ namespace Sintering
     {}
 
     void
-    vmult(LinearAlgebra::distributed::BlockVector<Number> &      dst,
-          const LinearAlgebra::distributed::BlockVector<Number> &src) const
+    vmult(
+      LinearAlgebra::distributed::DynamicBlockVector<Number> &      dst,
+      const LinearAlgebra::distributed::DynamicBlockVector<Number> &src) const
     {
       VectorType temp;
       temp.reinit(src.block(0));
@@ -1520,8 +1522,9 @@ namespace Sintering
     {}
 
     void
-    vmult(LinearAlgebra::distributed::BlockVector<Number> &      dst,
-          const LinearAlgebra::distributed::BlockVector<Number> &src) const
+    vmult(
+      LinearAlgebra::distributed::DynamicBlockVector<Number> &      dst,
+      const LinearAlgebra::distributed::DynamicBlockVector<Number> &src) const
     {
       const auto &src_0 = src.block(0);
       const auto &src_1 = src.block(1);
@@ -1650,8 +1653,8 @@ namespace Sintering
       }
 
       {
-        LinearAlgebra::distributed::BlockVector<Number> src_block(2);
-        LinearAlgebra::distributed::BlockVector<Number> dst_block(2);
+        LinearAlgebra::distributed::DynamicBlockVector<Number> src_block(2);
+        LinearAlgebra::distributed::DynamicBlockVector<Number> dst_block(2);
 
         src_block.block(0) = src_0;
         src_block.block(1) = src_1;
@@ -1693,7 +1696,8 @@ namespace Sintering
               {
                 ReductionControl reduction_control(10, 1e-20, 1e-4);
 
-                SolverGMRES<LinearAlgebra::distributed::BlockVector<Number>>
+                SolverGMRES<
+                  LinearAlgebra::distributed::DynamicBlockVector<Number>>
                   solver(reduction_control);
                 solver.solve(op_ch, dst_block, src_block, *precon_inner);
               }

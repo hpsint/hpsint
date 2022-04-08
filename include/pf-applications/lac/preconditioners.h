@@ -4,6 +4,8 @@
 
 #include <pf-applications/base/timer.h>
 
+#include <pf-applications/lac/dynamic_block_vector.h>
+
 namespace Preconditioners
 {
   using namespace dealii;
@@ -12,8 +14,9 @@ namespace Preconditioners
   class PreconditionerBase
   {
   public:
-    using VectorType      = LinearAlgebra::distributed::Vector<Number>;
-    using BlockVectorType = LinearAlgebra::distributed::BlockVector<Number>;
+    using VectorType = LinearAlgebra::distributed::Vector<Number>;
+    using BlockVectorType =
+      LinearAlgebra::distributed::DynamicBlockVector<Number>;
 
     virtual ~PreconditionerBase() = default;
 

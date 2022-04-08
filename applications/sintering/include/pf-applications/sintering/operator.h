@@ -853,8 +853,9 @@ namespace Sintering
   class OperatorBase : public Subscriptor
   {
   public:
-    using VectorType      = LinearAlgebra::distributed::Vector<Number>;
-    using BlockVectorType = LinearAlgebra::distributed::BlockVector<Number>;
+    using VectorType = LinearAlgebra::distributed::Vector<Number>;
+    using BlockVectorType =
+      LinearAlgebra::distributed::DynamicBlockVector<Number>;
 
     using value_type  = Number;
     using vector_type = VectorType;
@@ -1429,8 +1430,9 @@ namespace Sintering
   public:
     using T = SinteringOperator<dim, Number, VectorizedArrayType>;
 
-    using VectorType      = LinearAlgebra::distributed::Vector<Number>;
-    using BlockVectorType = LinearAlgebra::distributed::BlockVector<Number>;
+    using VectorType = LinearAlgebra::distributed::Vector<Number>;
+    using BlockVectorType =
+      LinearAlgebra::distributed::DynamicBlockVector<Number>;
 
     using value_type  = Number;
     using vector_type = VectorType;
