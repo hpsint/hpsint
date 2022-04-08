@@ -679,7 +679,8 @@ namespace Sintering
 
       GrainTracker::Tracker<dim, Number> grain_tracker(dof_handler);
 
-      const auto run_grain_tracker = [&](bool do_initialize = false) {
+      const auto run_grain_tracker = [&](const double t,
+                                         const bool   do_initialize = false) {
         pcout << "Execute grain tracker:" << std::endl;
 
         solution.update_ghost_values();
@@ -695,13 +696,24 @@ namespace Sintering
         // Rebuild data structures if grains have been reassigned
         if (has_reassigned_grains)
           {
-            grain_tracker.remap(solution);
+            output_result(solution, nonlinear_operator, t, "remap");
 
             if (has_op_number_changed)
               {
                 const unsigned int n_components_new =
                   grain_tracker.get_active_order_parameters().size() + 2;
                 const unsigned int n_components_old = solution.n_blocks();
+
+                /* If the number of components has reduced, then we remap first
+                 * and then alter the number of blocks in the solution vector.
+                 * If the number of components has increased, then we need to
+                 * add new blocks to the solution vector prior to remapping.
+                 */
+
+                if (n_components_new < n_components_old)
+                  {
+                    grain_tracker.remap(solution);
+                  }
 
                 pcout << "\033[34mChanging number of components from "
                       << n_components_old << " to " << n_components_new
@@ -724,14 +736,25 @@ namespace Sintering
 
                 solution.reinit(0);
                 solution = temp;
+
+                if (n_components_new > n_components_old)
+                  {
+                    grain_tracker.remap(solution);
+                  }
               }
+            else
+              {
+                grain_tracker.remap(solution);
+              }
+
+            output_result(solution, nonlinear_operator, t, "remap");
           }
       };
 
       initialize_solution();
 
       // Grain tracker - first run after we have initial configuration defined
-      run_grain_tracker(/*do_initialize = */ true);
+      run_grain_tracker(0.0, /*do_initialize = */ true);
 
       // initial local refinement
       if (params.refinement_frequency > 0)
@@ -766,7 +789,7 @@ namespace Sintering
               {
                 try
                   {
-                    run_grain_tracker(/*do_initialize = */ false);
+                    run_grain_tracker(t, /*do_initialize = */ false);
                   }
                 catch (const GrainTracker::ExcCloudsInconsistency &ex)
                   {
