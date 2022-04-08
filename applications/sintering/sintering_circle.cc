@@ -211,7 +211,8 @@ main(int argc, char **argv)
 
   const auto initial_solution =
     std::make_shared<Sintering::InitialValuesCircle<SINTERING_DIM>>(
-      r0, interface_width, n_components, is_accumulative);
+      r0, params.geometry_data.interface_width, n_components, is_accumulative);
+
 
   Sintering::Problem<SINTERING_DIM> runner(params, initial_solution);
   runner.run();
