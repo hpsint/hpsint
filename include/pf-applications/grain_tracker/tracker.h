@@ -15,6 +15,8 @@ namespace GrainTracker
 {
   using namespace dealii;
 
+  DeclExceptionMsg(ExcCloudsInconsistency, "Clouds inconsistency detected!");
+
   /* The grain tracker algo itself. */
   template <int dim, typename Number>
   class Tracker
@@ -34,7 +36,7 @@ namespace GrainTracker
       , buffer_distance_ratio(buffer_distance_ratio)
       , default_order_parameter_id(default_op_id)
       , order_parameters_offset(op_offset)
-      , pcout(std::cout)
+      , pcout(std::cout, Utilities::MPI::this_mpi_process(MPI_COMM_WORLD) == 0)
     {}
 
     /* Track grains over timesteps. The function returns a tuple of bool
@@ -94,7 +96,7 @@ namespace GrainTracker
           // clang-format off
           AssertThrow(old_grains.at(grain_index_at_min_distance).get_order_parameter_id() 
             == cloud.get_order_parameter_id(),
-            ExcMessage(
+            ExcCloudsInconsistency(
               std::string("Something got wrong with the order parameters numbering:\r\n") +
               std::string("\r\n    grain_index_at_min_distance = ") +
               std::to_string(grain_index_at_min_distance) + 
@@ -191,25 +193,27 @@ namespace GrainTracker
           double transfer_buffer =
             std::max(0.0, grain.distance_to_nearest_neighbor() / 2.0);
 
-          for (auto &cell : dof_handler.active_cell_iterators() |
-                              IteratorFilters::LocallyOwnedCell())
+          for (auto &cell : dof_handler.active_cell_iterators())
             {
-              bool in_grain = false;
-              for (const auto &segment : grain.get_segments())
+              if (cell->is_locally_owned())
                 {
-                  if (cell->barycenter().distance(segment.get_center()) <
-                      segment.get_radius() + transfer_buffer)
+                  bool in_grain = false;
+                  for (const auto &segment : grain.get_segments())
                     {
-                      in_grain = true;
-                      break;
+                      if (cell->barycenter().distance(segment.get_center()) <
+                          segment.get_radius() + transfer_buffer)
+                        {
+                          in_grain = true;
+                          break;
+                        }
                     }
-                }
 
-              if (in_grain)
-                {
-                  for (auto &solution : solutions)
+                  if (in_grain)
                     {
-                      callback(*cell, solution);
+                      for (auto &solution : solutions)
+                        {
+                          callback(*cell, solution);
+                        }
                     }
                 }
             }
@@ -266,17 +270,7 @@ namespace GrainTracker
             }
         }
 
-      // Get all log entries
-      auto all_logs = Utilities::MPI::all_gather(MPI_COMM_WORLD, log);
-
-      // Print remapping stats
-      for (auto &log_rank : all_logs)
-        {
-          for (const auto &entry : log_rank)
-            {
-              pcout << entry;
-            }
-        }
+      print_log(log);
     }
 
     // Get active order parameters ids
@@ -295,7 +289,8 @@ namespace GrainTracker
       for (const auto &[gid, gr] : grains)
         {
           (void)gid;
-          out << "op_index = " << gr.get_order_parameter_id()
+          out << "op_index_current = " << gr.get_order_parameter_id()
+              << " | op_index_old = " << gr.get_old_order_parameter_id()
               << " | segments = " << gr.get_segments().size()
               << " | grain_index = " << gr.get_grain_id() << std::endl;
           for (const auto &segment : gr.get_segments())
@@ -304,7 +299,14 @@ namespace GrainTracker
                   << " | radius = " << segment.get_radius() << std::endl;
             }
         }
-      out << std::endl;
+    }
+
+    // Output last set of clouds
+    void
+    dump_last_clouds() const
+    {
+      print_clouds(last_clouds, pcout);
+      output_clouds(last_clouds, /*is_merged = */ true);
     }
 
   private:
@@ -342,7 +344,7 @@ namespace GrainTracker
     std::vector<Cloud<dim>>
     find_clouds(const BlockVectorType &solution)
     {
-      std::vector<Cloud<dim>> clouds;
+      last_clouds.clear();
 
       const unsigned int n_order_params = solution.n_blocks() - 2;
 
@@ -351,10 +353,12 @@ namespace GrainTracker
         {
           auto op_clouds =
             find_clouds_for_order_parameter(solution, current_grain_id);
-          clouds.insert(clouds.end(), op_clouds.begin(), op_clouds.end());
+          last_clouds.insert(last_clouds.end(),
+                             op_clouds.begin(),
+                             op_clouds.end());
         }
 
-      return clouds;
+      return last_clouds;
     }
 
     // Find all clouds for a given order parameter
@@ -368,7 +372,10 @@ namespace GrainTracker
       // everything is considered unmarked)
       for (auto &cell : dof_handler.active_cell_iterators())
         {
-          cell->clear_user_flag();
+          if (cell->is_locally_owned())
+            {
+              cell->clear_user_flag();
+            }
         }
 
       clouds.emplace_back(order_parameter_id);
@@ -455,7 +462,9 @@ namespace GrainTracker
           cell->set_user_flag();
 
           // Get average value of the order parameter for the cell
-          cell->get_dof_values(solution.block(order_parameter_id + 2), values);
+          cell->get_dof_values(solution.block(order_parameter_id +
+                                              order_parameters_offset),
+                               values);
 
           double etai = std::accumulate(values.begin(),
                                         values.end(),
@@ -494,6 +503,8 @@ namespace GrainTracker
                     const bool         prefer_closest)
     {
       bool grains_reassigned = false;
+
+      std::vector<std::string> log;
 
       /* Maximum number of reassignment iterations is equal to the maximum
        * number of order parameters available
@@ -534,11 +545,14 @@ namespace GrainTracker
                            buffer_distance_base + buffer_distance_other) &&
                           (op_other_id == op_base_id))
                         {
-                          pcout << "Found overlap between grain "
-                                << gr_base.get_grain_id() << " and grain "
-                                << gr_other.get_grain_id()
-                                << " with order parameter " << op_base_id
-                                << std::endl;
+                          std::ostringstream ss;
+                          ss << "Found overlap between grain "
+                             << gr_base.get_grain_id() << " and grain "
+                             << gr_other.get_grain_id()
+                             << " with order parameter " << op_base_id
+                             << std::endl;
+
+                          log.emplace_back(ss.str());
 
                           std::vector<Number> minimum_distance_list(
                             max_order_parameters_num,
@@ -672,6 +686,8 @@ namespace GrainTracker
       bool op_number_changed =
         (active_order_parameters != build_old_order_parameter_ids());
 
+      print_log(log);
+
       return std::make_tuple(grains_reassigned, op_number_changed);
     }
 
@@ -728,23 +744,149 @@ namespace GrainTracker
     }
 
     // Print clouds (mainly for debug)
+    template <typename Stream>
     void
-    print_clouds(const std::vector<Cloud<dim>> &clouds) const
+    print_clouds(const std::vector<Cloud<dim>> &clouds, Stream &out) const
     {
       unsigned int cloud_id = 0;
 
-      pcout << "Number of clouds = " << clouds.size() << std::endl;
+      out << Utilities::MPI::this_mpi_process(MPI_COMM_WORLD)
+          << " Number of clouds = " << clouds.size() << std::endl;
       for (auto &cloud : clouds)
         {
           Segment<dim> current_segment(cloud);
 
-          pcout << "cloud_id = " << cloud_id << " | cloud order parameter = "
-                << cloud.get_order_parameter_id()
-                << " | center = " << current_segment.get_center()
-                << " | radius = " << current_segment.get_radius()
-                << " | number of cells = " << cloud.get_cells().size()
-                << std::endl;
+          out << Utilities::MPI::this_mpi_process(MPI_COMM_WORLD) << " "
+              << "cloud_id = " << cloud_id
+              << " | cloud order parameter = " << cloud.get_order_parameter_id()
+              << " | center = " << current_segment.get_center()
+              << " | radius = " << current_segment.get_radius()
+              << " | number of cells = " << cloud.get_cells().size()
+              << std::endl;
           cloud_id++;
+        }
+    }
+
+    // Output clods (mainly for debug purposes)
+    void
+    output_clouds(const std::vector<Cloud<dim>> &clouds,
+                  const bool                     is_merged) const
+    {
+      DataOutBase::VtkFlags flags;
+      flags.write_higher_order_cells = false;
+
+      DataOut<dim> data_out;
+      data_out.set_flags(flags);
+
+      // Identify all order parameters in use by the given clouds
+      std::set<unsigned int> active_order_parameters;
+      for (const auto &cl : clouds)
+        {
+          active_order_parameters.insert(cl.get_order_parameter_id());
+        }
+
+      // Total number of cells and order parameters
+      const unsigned int n_cells =
+        dof_handler.get_triangulation().n_active_cells();
+
+      std::map<unsigned int, Vector<float>> order_parameter_indicators;
+
+      // Initialize with invalid order parameter (negative)
+      for (const auto &op : active_order_parameters)
+        {
+          order_parameter_indicators.emplace(op, n_cells);
+          order_parameter_indicators.at(op) = -1.;
+        }
+
+      // For each order parameter identify cells contained in its clouds
+      unsigned int counter = 0;
+      for (auto &tria_cell :
+           dof_handler.get_triangulation().active_cell_iterators())
+        {
+          for (const auto &cl : clouds)
+            {
+              for (const auto &cell : cl.get_cells())
+                {
+                  if (cell.barycenter().distance(tria_cell->barycenter()) <
+                      1e-6)
+                    {
+                      order_parameter_indicators.at(
+                        cl.get_order_parameter_id())[counter] =
+                        cl.get_order_parameter_id();
+                    }
+                }
+            }
+          counter++;
+        }
+
+      // Build output
+      data_out.attach_triangulation(dof_handler.get_triangulation());
+      for (const auto &op : active_order_parameters)
+        {
+          data_out.add_data_vector(order_parameter_indicators.at(op),
+                                   "op" + std::to_string(op));
+        }
+      data_out.build_patches();
+
+      pcout << "Outputing clouds..." << std::endl;
+
+      /* This function can be called for global clouds after they have been
+       * indeitifed for each order parameter and populated to each rank or for
+       * local clouds which exist locally only on a given rank. For local calls,
+       * the order parameters may be different for each processor. When calling
+       * write_vtu_in_parallel(), only those order parameter which present at
+       * each processor enter the resultant vtu file. In general, that means
+       * that for local calls the output file in general case will be empty. To
+       * avoid this, we write separate outputs for each of the processor. They
+       * are totally independent from each other and may contain different order
+       * parameters, for this reason a pvtu record is not generated to merge
+       * them all together.
+       */
+      if (is_merged)
+        {
+          static unsigned int counter_merged = 0;
+
+          const std::string filename =
+            "clouds_merged." + std::to_string(counter_merged) + ".vtu";
+          data_out.write_vtu_in_parallel(filename, MPI_COMM_WORLD);
+
+          counter_merged++;
+        }
+      else
+        {
+          static unsigned int counter_split = 0;
+
+          const std::string filename =
+            "clouds_split." + std::to_string(counter_split) + "." +
+            std::to_string(Utilities::MPI::this_mpi_process(MPI_COMM_WORLD)) +
+            ".vtu";
+          std::ofstream output_stream(filename);
+          data_out.write_vtu(output_stream);
+
+          counter_split++;
+        }
+    }
+
+    // Print unique log events merged from multiple ranks
+    void
+    print_log(std::vector<std::string> &log) const
+    {
+      // Get all log entries
+      auto all_logs = Utilities::MPI::gather(MPI_COMM_WORLD, log);
+
+      // Identify unique remappings
+      std::set<std::string> unique_events;
+      for (auto &log_rank : all_logs)
+        {
+          std::copy(log_rank.begin(),
+                    log_rank.end(),
+                    std::inserter(unique_events, unique_events.end()));
+        }
+
+      // Print remapping events
+      for (const auto &event : unique_events)
+        {
+          pcout << event;
         }
     }
 
@@ -769,6 +911,9 @@ namespace GrainTracker
     std::set<unsigned int>             active_order_parameters;
 
     static constexpr int max_grains = MAX_SINTERING_GRAINS;
+
+    // Last set of detected clouds
+    std::vector<Cloud<dim>> last_clouds;
 
     ConditionalOStream pcout;
   };
