@@ -1676,7 +1676,7 @@ namespace Sintering
                 buffer.data() + c * fe_eval.n_q_points,
                 fe_eval.begin_dof_values());
 
-              fe_eval.set_dof_values(data_vectors[c]);
+              fe_eval.set_dof_values_plain(data_vectors[c]);
             }
         }
 
