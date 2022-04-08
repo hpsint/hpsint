@@ -679,7 +679,7 @@ namespace GrainTracker
               (void)g_other_id;
               if (gr_base.get_grain_id() != gr_other.get_grain_id())
                 {
-                  bool are_neighbors =
+                  const bool are_neighbors =
                     prefer_closest ? gr_base.get_order_parameter_id() ==
                                        gr_other.get_order_parameter_id() :
                                      gr_base.get_old_order_parameter_id() ==
