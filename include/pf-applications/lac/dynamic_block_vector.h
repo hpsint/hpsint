@@ -26,8 +26,29 @@ namespace dealii
           reinit(n);
         }
 
+        DynamicBlockVector(const DynamicBlockVector<T> &V)
+        {
+          *this = V;
+        }
+
+        DynamicBlockVector<T> &
+        operator=(const DynamicBlockVector<T> &V)
+        {
+          block_counter = V.n_blocks();
+          blocks.resize(block_counter);
+
+          for (unsigned int b = 0; b < block_counter; ++b)
+            {
+              if (blocks[b] == nullptr)
+                blocks[b] = std::make_shared<BlockType>();
+              block(b) = V.block(b);
+            }
+
+          return *this;
+        }
+
         void
-        reinit(const unsigned int n)
+        reinit(const unsigned int n, const bool omit_zeroing_entries = false)
         {
           block_counter = n;
 
@@ -38,7 +59,13 @@ namespace dealii
               blocks.resize(block_counter);
 
               for (unsigned int b = old_blocks_size; b < block_counter; ++b)
-                blocks[b] = std::make_shared<BlockType>();
+                {
+                  if (blocks[b] == nullptr)
+                    blocks[b] = std::make_shared<BlockType>();
+
+                  if (old_blocks_size != 0)
+                    block(b).reinit(block(0), omit_zeroing_entries);
+                }
             }
         }
 
@@ -47,14 +74,13 @@ namespace dealii
                const bool                   omit_zeroing_entries = false)
         {
           block_counter = V.n_blocks();
-
-          blocks.clear();
           blocks.resize(block_counter);
 
           for (unsigned int b = 0; b < block_counter; ++b)
             {
-              blocks[b] = std::make_shared<BlockType>();
-              blocks[b]->reinit(V.block(b), omit_zeroing_entries);
+              if (blocks[b] == nullptr)
+                blocks[b] = std::make_shared<BlockType>();
+              block(b).reinit(V.block(b), omit_zeroing_entries);
             }
         }
 
@@ -134,6 +160,8 @@ namespace dealii
         void
         sadd(const T s, const DynamicBlockVector<T> &V)
         {
+          AssertDimension(n_blocks(), V.n_blocks());
+
           for (unsigned int b = 0; b < block_counter; ++b)
             block(b).sadd(s, V.block(b));
         }
@@ -141,6 +169,8 @@ namespace dealii
         void
         sadd(const T s, const T a, const DynamicBlockVector<T> &V)
         {
+          AssertDimension(n_blocks(), V.n_blocks());
+
           for (unsigned int b = 0; b < block_counter; ++b)
             block(b).sadd(s, a, V.block(b));
         }
@@ -148,6 +178,8 @@ namespace dealii
         void
         scale(const DynamicBlockVector<T> &V)
         {
+          AssertDimension(n_blocks(), V.n_blocks());
+
           for (unsigned int b = 0; b < block_counter; ++b)
             block(b).scale(V.block(b));
         }
@@ -164,15 +196,27 @@ namespace dealii
                     const DynamicBlockVector<T> &V,
                     const DynamicBlockVector<T> &W)
         {
+          AssertDimension(n_blocks(), V.n_blocks());
+          AssertDimension(n_blocks(), W.n_blocks());
+
           T result = 0.0;
           for (unsigned int b = 0; b < block_counter; ++b)
             result += block(b).add_and_dot(a, V.block(b), W.block(b));
           return result;
         }
 
+        void
+        operator=(const T &v)
+        {
+          for (unsigned int b = 0; b < block_counter; ++b)
+            block(b) = v;
+        }
+
         T
         operator*(const DynamicBlockVector<T> &V)
         {
+          AssertDimension(n_blocks(), V.n_blocks());
+
           T result = 0.0;
           for (unsigned int b = 0; b < block_counter; ++b)
             result += block(b) * V.block(b);
