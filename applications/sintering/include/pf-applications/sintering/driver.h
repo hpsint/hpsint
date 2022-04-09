@@ -18,7 +18,6 @@
 #include <deal.II/base/conditional_ostream.h>
 #include <deal.II/base/geometric_utilities.h>
 #include <deal.II/base/mpi.h>
-#include <deal.II/base/parameter_handler.h>
 #include <deal.II/base/quadrature_lib.h>
 #include <deal.II/base/timer.h>
 
@@ -68,6 +67,7 @@
 #include <pf-applications/numerics/vector_tools.h>
 
 #include <pf-applications/sintering/operator.h>
+#include <pf-applications/sintering/parameters.h>
 #include <pf-applications/sintering/preconditioners.h>
 
 // #define DEBUG_PARAVIEW
@@ -161,140 +161,6 @@ namespace Sintering
     }
   };
 
-  struct Parameters
-  {
-    unsigned int fe_degree   = 1;
-    unsigned int n_points_1D = 2;
-
-    double       top_fraction_of_cells    = 0.3;
-    double       bottom_fraction_of_cells = 0.1;
-    unsigned int min_refinement_depth     = 3;
-    unsigned int max_refinement_depth     = 0;
-    unsigned int refinement_frequency     = 10;
-    unsigned int grains_tracker_frequency = 10;
-
-    bool matrix_based = false;
-
-    std::string outer_preconditioner = "BlockPreconditioner2";
-    // std::string outer_preconditioner = "BlockPreconditioner3CH";
-    // std::string outer_preconditioner = "ILU";
-
-    BlockPreconditioner2Data   block_preconditioner_2_data;
-    BlockPreconditioner3Data   block_preconditioner_3_data;
-    BlockPreconditioner3CHData block_preconditioner_3_ch_data;
-
-    bool print_time_loop = true;
-
-    void
-    parse(const std::string file_name)
-    {
-      dealii::ParameterHandler prm;
-      add_parameters(prm);
-
-      std::ifstream file;
-      file.open(file_name);
-      prm.parse_input_from_json(file, true);
-
-#ifdef FE_DEGREE
-      AssertDimension(FE_DEGREE, fe_degree);
-#endif
-
-#ifdef N_Q_POINTS_1D
-      AssertDimension(N_Q_POINTS_1D, n_points_1D);
-#endif
-    }
-
-    void
-    print()
-    {
-      dealii::ParameterHandler prm;
-      add_parameters(prm);
-
-      ConditionalOStream pcout(
-        std::cout, Utilities::MPI::this_mpi_process(MPI_COMM_WORLD) == 0);
-
-      if (pcout.is_active())
-        prm.print_parameters(
-          pcout.get_stream(),
-          ParameterHandler::OutputStyle::Description |
-            ParameterHandler::OutputStyle::KeepDeclarationOrder);
-    }
-
-  private:
-    void
-    add_parameters(ParameterHandler &prm)
-    {
-      const std::string preconditioner_types =
-        "AMG|InverseBlockDiagonalMatrix|InverseDiagonalMatrix|ILU|InverseComponentBlockDiagonalMatrix";
-
-      prm.add_parameter("FEDegree",
-                        fe_degree,
-                        "Degree of the shape the finite element.");
-      prm.add_parameter("NPoints1D",
-                        n_points_1D,
-                        "Number of quadrature points.");
-      prm.add_parameter(
-        "OuterPreconditioner",
-        outer_preconditioner,
-        "Preconditioner to be used for the outer system.",
-        Patterns::Selection(
-          preconditioner_types +
-          "|BlockPreconditioner2|BlockPreconditioner3|BlockPreconditioner3CH"));
-
-      prm.enter_subsection("BlockPreconditioner2");
-      prm.add_parameter("Block0Preconditioner",
-                        block_preconditioner_2_data.block_0_preconditioner,
-                        "Preconditioner to be used for the first block.",
-                        Patterns::Selection(preconditioner_types));
-      prm.add_parameter("Block1Preconditioner",
-                        block_preconditioner_2_data.block_1_preconditioner,
-                        "Preconditioner to be used for the second block.",
-                        Patterns::Selection(preconditioner_types));
-      prm.leave_subsection();
-
-      prm.enter_subsection("BlockPreconditioner3");
-      prm.add_parameter("Type",
-                        block_preconditioner_3_data.type,
-                        "Type of block preconditioner of CH system.",
-                        Patterns::Selection("D|LD|RD|SYMM"));
-      prm.add_parameter("Block0Preconditioner",
-                        block_preconditioner_3_data.block_0_preconditioner,
-                        "Preconditioner to be used for the first block.",
-                        Patterns::Selection(preconditioner_types));
-      prm.add_parameter("Block0RelativeTolerance",
-                        block_preconditioner_3_data.block_0_relative_tolerance,
-                        "Relative tolerance of the first block.");
-      prm.add_parameter("Block1Preconditioner",
-                        block_preconditioner_3_data.block_1_preconditioner,
-                        "Preconditioner to be used for the second block.",
-                        Patterns::Selection(preconditioner_types));
-      prm.add_parameter("Block1RelativeTolerance",
-                        block_preconditioner_3_data.block_1_relative_tolerance,
-                        "Relative tolerance of the second block.");
-      prm.add_parameter("Block2Preconditioner",
-                        block_preconditioner_3_data.block_2_preconditioner,
-                        "Preconditioner to be used for the thrird block.",
-                        Patterns::Selection(preconditioner_types));
-      prm.add_parameter("Block2RelativeTolerance",
-                        block_preconditioner_3_data.block_2_relative_tolerance,
-                        "Relative tolerance of the third block.");
-      prm.leave_subsection();
-
-      prm.enter_subsection("BlockPreconditioner3CH");
-      prm.add_parameter("Block0Preconditioner",
-                        block_preconditioner_3_ch_data.block_0_preconditioner,
-                        "Preconditioner to be used for the first block.",
-                        Patterns::Selection(preconditioner_types));
-      prm.add_parameter("Block2Preconditioner",
-                        block_preconditioner_3_ch_data.block_2_preconditioner,
-                        "Preconditioner to be used for the second block.",
-                        Patterns::Selection(preconditioner_types));
-      prm.leave_subsection();
-    }
-  };
-
-
-
   template <int dim,
             typename Number              = double,
             typename VectorizedArrayType = VectorizedArray<Number>>
@@ -305,36 +171,6 @@ namespace Sintering
 
     using NonLinearOperator =
       SinteringOperator<dim, Number, VectorizedArrayType>;
-
-    // padding of computational domain
-    static constexpr double boundary_factor = 0.5;
-
-    // mesh
-    static constexpr unsigned int elements_per_interface =
-      8; // 4 - works well with AMR=off
-
-    // time discretization
-    static constexpr double t_end                = 100;
-    static constexpr double dt_deseride          = 0.001;
-    static constexpr double dt_max               = 1e3 * dt_deseride;
-    static constexpr double dt_min               = 1e-2 * dt_deseride;
-    static constexpr double dt_increment         = 1.2;
-    static constexpr double output_time_interval = 10.0; // 0.0 means no output
-
-    // desirable number of newton iterations
-    static constexpr unsigned int desirable_newton_iterations = 5;
-    static constexpr unsigned int desirable_linear_iterations = 100;
-
-    //  model parameters
-    static constexpr double A       = 16;
-    static constexpr double B       = 1;
-    static constexpr double Mvol    = 1e-2;
-    static constexpr double Mvap    = 1e-10;
-    static constexpr double Msurf   = 4;
-    static constexpr double Mgb     = 0.4;
-    static constexpr double L       = 1;
-    static constexpr double kappa_c = 1;
-    static constexpr double kappa_p = 0.5;
 
     const Parameters                          params;
     ConditionalOStream                        pcout;
@@ -362,9 +198,9 @@ namespace Sintering
       , pcout_statistics(std::cout,
                          Utilities::MPI::this_mpi_process(MPI_COMM_WORLD) == 0)
       , tria(MPI_COMM_WORLD)
-      , fe(params.fe_degree)
+      , fe(params.approximation_data.fe_degree)
       , mapping(1)
-      , quad(params.n_points_1D)
+      , quad(params.approximation_data.n_points_1D)
       , dof_handler(tria)
       , constraints{&constraint}
       , initial_solution(initial_solution)
@@ -374,15 +210,15 @@ namespace Sintering
 
       for (unsigned int i = 0; i < dim; i++)
         {
-          boundaries.first[i] -= boundary_factor * rmax;
-          boundaries.second[i] += boundary_factor * rmax;
+          boundaries.first[i] -= params.geometry_data.boundary_factor * rmax;
+          boundaries.second[i] += params.geometry_data.boundary_factor * rmax;
         }
 
       create_mesh(tria,
                   boundaries.first,
                   boundaries.second,
                   initial_solution->get_interface_width(),
-                  elements_per_interface);
+                  params.geometry_data.elements_per_interface);
 
       initialize();
     }
@@ -419,7 +255,15 @@ namespace Sintering
     run()
     {
       SinteringOperatorData<dim, VectorizedArrayType> sintering_data(
-        A, B, Mvol, Mvap, Msurf, Mgb, L, kappa_c, kappa_p);
+        params.energy_data.A,
+        params.energy_data.B,
+        params.mobility_data.Mvol,
+        params.mobility_data.Mvap,
+        params.mobility_data.Msurf,
+        params.mobility_data.Mgb,
+        params.mobility_data.L,
+        params.energy_data.kappa_c,
+        params.energy_data.kappa_p);
 
       // ... non-linear operator
       NonLinearOperator nonlinear_operator(matrix_free,
@@ -437,30 +281,33 @@ namespace Sintering
       MGLevelObject<MatrixFree<dim, Number, VectorizedArrayType>>
         mg_matrixfrees;
 
-      if (params.outer_preconditioner == "BlockPreconditioner2")
+      if (params.preconditioners_data.outer_preconditioner ==
+          "BlockPreconditioner2")
         preconditioner = std::make_unique<
           BlockPreconditioner2<dim, Number, VectorizedArrayType>>(
           nonlinear_operator,
           matrix_free,
           constraints,
-          params.block_preconditioner_2_data);
-      else if (params.outer_preconditioner == "BlockPreconditioner3")
+          params.preconditioners_data.block_preconditioner_2_data);
+      else if (params.preconditioners_data.outer_preconditioner ==
+               "BlockPreconditioner3")
         preconditioner = std::make_unique<
           BlockPreconditioner3<dim, Number, VectorizedArrayType>>(
           nonlinear_operator,
           matrix_free,
           constraints,
-          params.block_preconditioner_3_data);
-      else if (params.outer_preconditioner == "BlockPreconditioner3CH")
+          params.preconditioners_data.block_preconditioner_3_data);
+      else if (params.preconditioners_data.outer_preconditioner ==
+               "BlockPreconditioner3CH")
         preconditioner = std::make_unique<
           BlockPreconditioner3CH<dim, Number, VectorizedArrayType>>(
           nonlinear_operator,
           matrix_free,
           constraints,
-          params.block_preconditioner_3_ch_data);
+          params.preconditioners_data.block_preconditioner_3_ch_data);
       else
-        preconditioner = Preconditioners::create(nonlinear_operator,
-                                                 params.outer_preconditioner);
+        preconditioner = Preconditioners::create(
+          nonlinear_operator, params.preconditioners_data.outer_preconditioner);
 
       // ... linear solver
       std::unique_ptr<LinearSolvers::LinearSolverBase<Number>> linear_solver;
@@ -597,10 +444,11 @@ namespace Sintering
 
         // 3) mark automatically cells for coarsening/refinement, ...
         parallel::distributed::GridRefinement::
-          refine_and_coarsen_fixed_fraction(tria,
-                                            estimated_error_per_cell,
-                                            params.top_fraction_of_cells,
-                                            params.bottom_fraction_of_cells);
+          refine_and_coarsen_fixed_fraction(
+            tria,
+            estimated_error_per_cell,
+            params.adaptivity_data.top_fraction_of_cells,
+            params.adaptivity_data.bottom_fraction_of_cells);
 
         // make sure that cells close to the interfaces are refined, ...
         Vector<Number> values(dof_handler.get_fe().n_dofs_per_cell());
@@ -631,12 +479,13 @@ namespace Sintering
         for (const auto &cell : tria.active_cell_iterators())
           if (cell->refine_flag_set() &&
               (static_cast<unsigned int>(cell->level()) ==
-               (init_level + params.max_refinement_depth)))
+               (init_level + params.adaptivity_data.max_refinement_depth)))
             cell->clear_refine_flag();
           else if (cell->coarsen_flag_set() &&
                    (static_cast<unsigned int>(cell->level()) ==
                     (init_level -
-                     std::min(init_level, params.min_refinement_depth))))
+                     std::min(init_level,
+                              params.adaptivity_data.min_refinement_depth))))
             cell->clear_coarsen_flag();
 
         // 4) perform interpolation and initialize data structures
@@ -677,7 +526,13 @@ namespace Sintering
         output_result(solution, nonlinear_operator, t, "refinement");
       };
 
-      GrainTracker::Tracker<dim, Number> grain_tracker(dof_handler);
+      GrainTracker::Tracker<dim, Number> grain_tracker(
+        dof_handler,
+        params.grain_tracker_data.threshold_lower,
+        params.grain_tracker_data.threshold_upper,
+        params.grain_tracker_data.buffer_distance_ratio,
+        0,
+        2);
 
       const auto run_grain_tracker = [&](const double t,
                                          const bool   do_initialize = false) {
@@ -754,12 +609,16 @@ namespace Sintering
       initialize_solution();
 
       // Grain tracker - first run after we have initial configuration defined
-      run_grain_tracker(0.0, /*do_initialize = */ true);
+      if (params.grain_tracker_data.grain_tracker_frequency > 0)
+        {
+          run_grain_tracker(0.0, /*do_initialize = */ true);
+        }
 
       // initial local refinement
-      if (params.refinement_frequency > 0)
-        for (unsigned int i = 0; i < std::max(params.min_refinement_depth,
-                                              params.max_refinement_depth);
+      if (params.adaptivity_data.refinement_frequency > 0)
+        for (unsigned int i = 0;
+             i < std::max(params.adaptivity_data.min_refinement_depth,
+                          params.adaptivity_data.max_refinement_depth);
              ++i)
           {
             execute_coarsening_and_refinement(0.0);
@@ -767,7 +626,7 @@ namespace Sintering
 
       double time_last_output = 0;
 
-      if (output_time_interval > 0.0)
+      if (params.time_integration_data.output_time_interval > 0.0)
         output_result(solution, nonlinear_operator, time_last_output);
 
       unsigned int n_timestep              = 0;
@@ -778,14 +637,19 @@ namespace Sintering
       // run time loop
       {
         TimerOutput::Scope scope(timer, "time_loop");
-        for (double t = 0, dt = dt_deseride; t <= t_end;)
+        for (double t = 0, dt = params.time_integration_data.time_step_init;
+             t <= params.time_integration_data.time_end;)
           {
-            if (n_timestep != 0 && params.refinement_frequency > 0 &&
-                n_timestep % params.refinement_frequency == 0)
-              execute_coarsening_and_refinement(time_last_output);
+            if (n_timestep != 0 &&
+                params.adaptivity_data.refinement_frequency > 0 &&
+                n_timestep % params.adaptivity_data.refinement_frequency == 0)
+              execute_coarsening_and_refinement(t);
 
-            if (n_timestep != 0 && params.grains_tracker_frequency > 0 &&
-                n_timestep % params.grains_tracker_frequency == 0)
+            if (n_timestep != 0 &&
+                params.grain_tracker_data.grain_tracker_frequency > 0 &&
+                n_timestep %
+                    params.grain_tracker_data.grain_tracker_frequency ==
+                  0)
               {
                 try
                   {
@@ -831,26 +695,28 @@ namespace Sintering
                 n_non_linear_iterations += statistics.newton_iterations;
                 max_reached_dt = std::max(max_reached_dt, dt);
 
-                if (std::abs(t - t_end) > 1e-9)
+                if (std::abs(t - params.time_integration_data.time_end) > 1e-9)
                   {
                     if (statistics.newton_iterations <
-                          desirable_newton_iterations &&
+                          params.time_integration_data
+                            .desirable_newton_iterations &&
                         statistics.linear_iterations <
-                          desirable_linear_iterations)
+                          params.time_integration_data
+                            .desirable_linear_iterations)
                       {
-                        dt *= dt_increment;
+                        dt *= params.time_integration_data.growth_factor;
                         pcout << "\033[32mIncreasing timestep, dt = " << dt
                               << "\033[0m" << std::endl;
 
-                        if (dt > dt_max)
+                        if (dt > params.time_integration_data.time_step_max)
                           {
-                            dt = dt_max;
+                            dt = params.time_integration_data.time_step_max;
                           }
                       }
 
-                    if (t + dt > t_end)
+                    if (t + dt > params.time_integration_data.time_end)
                       {
-                        dt = t_end - t;
+                        dt = params.time_integration_data.time_end - t;
                       }
                   }
 
@@ -871,7 +737,7 @@ namespace Sintering
                               "newton_not_converged");
 
                 AssertThrow(
-                  dt > dt_min,
+                  dt > params.time_integration_data.time_step_min,
                   ExcMessage(
                     "Minimum timestep size exceeded, solution failed!"));
               }
@@ -890,13 +756,15 @@ namespace Sintering
                               "linear_solver_not_converged");
 
                 AssertThrow(
-                  dt > dt_min,
+                  dt > params.time_integration_data.time_step_min,
                   ExcMessage(
                     "Minimum timestep size exceeded, solution failed!"));
               }
 
-            if ((output_time_interval > 0.0) && has_converged &&
-                (t > output_time_interval + time_last_output))
+            if ((params.time_integration_data.output_time_interval > 0.0) &&
+                has_converged &&
+                (t > params.time_integration_data.output_time_interval +
+                       time_last_output))
               {
                 time_last_output = t;
                 output_result(solution, nonlinear_operator, time_last_output);
@@ -919,7 +787,8 @@ namespace Sintering
       timer.print_wall_time_statistics(MPI_COMM_WORLD);
 
       {
-        nonlinear_operator.set_timestep(dt_deseride);
+        nonlinear_operator.set_timestep(
+          params.time_integration_data.time_step_init);
         nonlinear_operator.set_previous_solution(solution);
         nonlinear_operator.evaluate_newton_step(solution);
 

@@ -206,12 +206,12 @@ main(int argc, char **argv)
 
   // geometry
   static constexpr double r0              = 15.0 / 2.;
-  static constexpr double interface_width = 2.0;
   static constexpr bool   is_accumulative = false;
 
   const auto initial_solution =
     std::make_shared<Sintering::InitialValuesCircle<SINTERING_DIM>>(
-      r0, interface_width, n_components, is_accumulative);
+      r0, params.geometry_data.interface_width, n_components, is_accumulative);
+
 
   Sintering::Problem<SINTERING_DIM> runner(params, initial_solution);
   runner.run();
