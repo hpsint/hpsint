@@ -501,9 +501,6 @@ main(int argc, char **argv)
                          " but has to be leq" +
                          std::to_string(MAX_SINTERING_GRAINS)));
 
-  // geometry
-  static constexpr double interface_width = 2.0;
-
   const auto initial_solution =
     std::make_shared<Sintering::InitialValuesCloud<SINTERING_DIM>>(
       particles, params.geometry_data.interface_width);

@@ -206,7 +206,6 @@ main(int argc, char **argv)
 
   // geometry
   static constexpr double r0              = 15.0 / 2.;
-  static constexpr double interface_width = 2.0;
   static constexpr bool   is_accumulative = false;
 
   const auto initial_solution =
