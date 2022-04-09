@@ -21,12 +21,12 @@ namespace dealii
         /**
          * Initialization.
          */
-        DynamicBlockVector(const unsigned int n = 0)
+        explicit DynamicBlockVector(const unsigned int n = 0)
         {
           reinit(n);
         }
 
-        DynamicBlockVector(const DynamicBlockVector<T> &V)
+        explicit DynamicBlockVector(const DynamicBlockVector<T> &V)
         {
           *this = V;
         }
