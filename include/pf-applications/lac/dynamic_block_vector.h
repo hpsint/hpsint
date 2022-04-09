@@ -21,70 +21,167 @@ namespace dealii
         /**
          * Initialization.
          */
-        DynamicBlockVector(const unsigned int n = 0);
+        DynamicBlockVector(const unsigned int n = 0)
+        {
+          reinit(n);
+        }
 
         void
-        reinit(const unsigned int n);
+        reinit(const unsigned int n)
+        {
+          block_counter = n;
+
+          const unsigned int old_blocks_size = blocks.size();
+
+          if (block_counter > old_blocks_size)
+            {
+              blocks.resize(block_counter);
+
+              for (unsigned int b = old_blocks_size; b < block_counter; ++b)
+                blocks[b] = std::make_shared<BlockType>();
+            }
+        }
 
         void
         reinit(const DynamicBlockVector<T> &V,
-               const bool                   omit_zeroing_entries = false);
+               const bool                   omit_zeroing_entries = false)
+        {
+          block_counter = V.n_blocks();
+
+          blocks.clear();
+          blocks.resize(block_counter);
+
+          for (unsigned int b = 0; b < block_counter; ++b)
+            {
+              blocks[b] = std::make_shared<BlockType>();
+              blocks[b]->reinit(V.block(b), omit_zeroing_entries);
+            }
+        }
 
         /**
          * Blocks.
          */
         BlockType &
-        block(const unsigned int i);
+        block(const unsigned int i)
+        {
+          AssertIndexRange(i, block_counter);
+          return *blocks[i];
+        }
 
         const BlockType &
-        block(const unsigned int i) const;
+        block(const unsigned int i) const
+        {
+          AssertIndexRange(i, block_counter);
+          return *blocks[i];
+        }
 
         unsigned int
-        n_blocks() const;
+        n_blocks() const
+        {
+          return block_counter;
+        }
 
         /**
          * Communication.
          */
         void
-        update_ghost_values() const;
+        update_ghost_values() const
+        {
+          for (unsigned int b = 0; b < block_counter; ++b)
+            block(b).update_ghost_values();
+        }
 
         void
-        zero_out_ghost_values() const;
+        zero_out_ghost_values() const
+        {
+          for (unsigned int b = 0; b < block_counter; ++b)
+            block(b).zero_out_ghost_values();
+        }
 
         bool
-        has_ghost_elements() const;
+        has_ghost_elements() const
+        {
+          Assert(block_counter > 0, ExcInternalError());
+          return block(0).has_ghost_elements();
+        }
 
         void
-        compress(VectorOperation::values operation);
+        compress(VectorOperation::values operation)
+        {
+          for (unsigned int b = 0; b < block_counter; ++b)
+            block(b).compress(operation);
+        }
 
         /**
          * Computation.
          */
         T
-        l2_norm() const;
+        l2_norm() const
+        {
+          T result = 0.0;
+          for (unsigned int b = 0; b < block_counter; ++b)
+            result += std::pow(block(b).l2_norm(), 2.0);
+          return std::sqrt(result);
+        }
 
         void
-        add(const T a, const DynamicBlockVector<T> &V);
+        add(const T a, const DynamicBlockVector<T> &V)
+        {
+          for (unsigned int b = 0; b < block_counter; ++b)
+            block(b).add(a, V.block(b));
+        }
 
         void
-        sadd(const T s, const DynamicBlockVector<T> &V);
+        sadd(const T s, const DynamicBlockVector<T> &V)
+        {
+          for (unsigned int b = 0; b < block_counter; ++b)
+            block(b).sadd(s, V.block(b));
+        }
 
         void
-        sadd(const T s, const T a, const DynamicBlockVector<T> &V);
+        sadd(const T s, const T a, const DynamicBlockVector<T> &V)
+        {
+          for (unsigned int b = 0; b < block_counter; ++b)
+            block(b).sadd(s, a, V.block(b));
+        }
 
         void
-        scale(const DynamicBlockVector<T> &V);
+        scale(const DynamicBlockVector<T> &V)
+        {
+          for (unsigned int b = 0; b < block_counter; ++b)
+            block(b).scale(V.block(b));
+        }
 
         void
-        operator*=(const T factor);
+        operator*=(const T factor)
+        {
+          for (unsigned int b = 0; b < block_counter; ++b)
+            block(b) *= factor;
+        }
 
         T
         add_and_dot(const T                      a,
                     const DynamicBlockVector<T> &V,
-                    const DynamicBlockVector<T> &W);
+                    const DynamicBlockVector<T> &W)
+        {
+          T result = 0.0;
+          for (unsigned int b = 0; b < block_counter; ++b)
+            result += block(b).add_and_dot(a, V.block(b), W.block(b));
+          return result;
+        }
 
         T
-        operator*(const DynamicBlockVector<T> &V);
+        operator*(const DynamicBlockVector<T> &V)
+        {
+          T result = 0.0;
+          for (unsigned int b = 0; b < block_counter; ++b)
+            result += block(b) * V.block(b);
+          return result;
+        }
+
+      private:
+        unsigned int                            block_counter;
+        std::vector<std::shared_ptr<BlockType>> blocks;
       };
     } // namespace distributed
   }   // namespace LinearAlgebra
@@ -95,3 +192,5 @@ namespace dealii
   {};
 
 } // namespace dealii
+
+#include <deal.II/lac/vector_memory.templates.h>
