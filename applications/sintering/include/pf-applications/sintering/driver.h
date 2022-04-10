@@ -167,7 +167,7 @@ namespace Sintering
   class Problem
   {
   public:
-    using VectorType = LinearAlgebra::distributed::BlockVector<Number>;
+    using VectorType = LinearAlgebra::distributed::DynamicBlockVector<Number>;
 
     using NonLinearOperator =
       SinteringOperator<dim, Number, VectorizedArrayType>;

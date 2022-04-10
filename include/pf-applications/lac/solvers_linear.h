@@ -2,6 +2,8 @@
 
 #include <pf-applications/base/timer.h>
 
+#include <pf-applications/lac/dynamic_block_vector.h>
+
 namespace LinearSolvers
 {
   using namespace dealii;
@@ -10,8 +12,9 @@ namespace LinearSolvers
   class LinearSolverBase
   {
   public:
-    using VectorType      = LinearAlgebra::distributed::Vector<Number>;
-    using BlockVectorType = LinearAlgebra::distributed::BlockVector<Number>;
+    using VectorType = LinearAlgebra::distributed::Vector<Number>;
+    using BlockVectorType =
+      LinearAlgebra::distributed::DynamicBlockVector<Number>;
 
     virtual ~LinearSolverBase() = default;
 

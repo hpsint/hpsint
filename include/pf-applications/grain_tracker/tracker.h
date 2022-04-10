@@ -5,6 +5,8 @@
 #include <deal.II/matrix_free/fe_evaluation.h>
 #include <deal.II/matrix_free/matrix_free.h>
 
+#include <pf-applications/lac/dynamic_block_vector.h>
+
 #include <functional>
 
 #include "cloud.h"
@@ -22,7 +24,8 @@ namespace GrainTracker
   class Tracker
   {
   public:
-    using BlockVectorType = LinearAlgebra::distributed::BlockVector<Number>;
+    using BlockVectorType =
+      LinearAlgebra::distributed::DynamicBlockVector<Number>;
 
     Tracker(const DoFHandler<dim> &dof_handler,
             const double           threshold_lower       = 0.01,
