@@ -46,7 +46,7 @@ namespace Sintering
   public:
     InitialValuesCloud(const std::vector<Particle<dim>> &particles_in,
                        const double                      interface_width,
-                       const bool                        minimize_order_parameters,
+                       const bool   minimize_order_parameters,
                        const double interface_buffer_ratio = 0.5)
       : InitialValues<dim>()
       , particles(particles_in)
