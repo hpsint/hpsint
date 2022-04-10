@@ -35,9 +35,9 @@ namespace dealii
         operator=(const DynamicBlockVector<T> &V)
         {
           block_counter = V.n_blocks();
-          blocks.resize(block_counter);
+          blocks.resize(n_blocks());
 
-          for (unsigned int b = 0; b < block_counter; ++b)
+          for (unsigned int b = 0; b < n_blocks(); ++b)
             {
               if (blocks[b] == nullptr)
                 blocks[b] = std::make_shared<BlockType>();
@@ -54,11 +54,11 @@ namespace dealii
 
           const unsigned int old_blocks_size = blocks.size();
 
-          if (block_counter > old_blocks_size)
+          if (n_blocks() > old_blocks_size)
             {
-              blocks.resize(block_counter);
+              blocks.resize(n_blocks());
 
-              for (unsigned int b = old_blocks_size; b < block_counter; ++b)
+              for (unsigned int b = old_blocks_size; b < n_blocks(); ++b)
                 {
                   if (blocks[b] == nullptr)
                     blocks[b] = std::make_shared<BlockType>();
@@ -74,9 +74,9 @@ namespace dealii
                const bool                   omit_zeroing_entries = false)
         {
           block_counter = V.n_blocks();
-          blocks.resize(block_counter);
+          blocks.resize(n_blocks());
 
-          for (unsigned int b = 0; b < block_counter; ++b)
+          for (unsigned int b = 0; b < n_blocks(); ++b)
             {
               if (blocks[b] == nullptr)
                 blocks[b] = std::make_shared<BlockType>();
@@ -90,14 +90,14 @@ namespace dealii
         BlockType &
         block(const unsigned int i)
         {
-          AssertIndexRange(i, block_counter);
+          AssertIndexRange(i, n_blocks());
           return *blocks[i];
         }
 
         const BlockType &
         block(const unsigned int i) const
         {
-          AssertIndexRange(i, block_counter);
+          AssertIndexRange(i, n_blocks());
           return *blocks[i];
         }
 
@@ -113,23 +113,23 @@ namespace dealii
         void
         update_ghost_values() const
         {
-          for (unsigned int b = 0; b < block_counter; ++b)
+          for (unsigned int b = 0; b < n_blocks(); ++b)
             block(b).update_ghost_values();
         }
 
         void
         zero_out_ghost_values() const
         {
-          for (unsigned int b = 0; b < block_counter; ++b)
+          for (unsigned int b = 0; b < n_blocks(); ++b)
             block(b).zero_out_ghost_values();
         }
 
         bool
         has_ghost_elements() const
         {
-          Assert(block_counter > 0, ExcInternalError());
+          Assert(n_blocks() > 0, ExcInternalError());
 
-          for (unsigned int b = 1; b < block_counter; ++b)
+          for (unsigned int b = 1; b < n_blocks(); ++b)
             Assert(block(0).has_ghost_elements() ==
                      block(b).has_ghost_elements(),
                    ExcInternalError());
@@ -140,7 +140,7 @@ namespace dealii
         void
         compress(VectorOperation::values operation)
         {
-          for (unsigned int b = 0; b < block_counter; ++b)
+          for (unsigned int b = 0; b < n_blocks(); ++b)
             block(b).compress(operation);
         }
 
@@ -151,7 +151,7 @@ namespace dealii
         l2_norm() const
         {
           T result = 0.0;
-          for (unsigned int b = 0; b < block_counter; ++b)
+          for (unsigned int b = 0; b < n_blocks(); ++b)
             result += std::pow(block(b).l2_norm(), 2.0);
           return std::sqrt(result);
         }
@@ -159,7 +159,7 @@ namespace dealii
         void
         add(const T a, const DynamicBlockVector<T> &V)
         {
-          for (unsigned int b = 0; b < block_counter; ++b)
+          for (unsigned int b = 0; b < n_blocks(); ++b)
             block(b).add(a, V.block(b));
         }
 
@@ -168,7 +168,7 @@ namespace dealii
         {
           AssertDimension(n_blocks(), V.n_blocks());
 
-          for (unsigned int b = 0; b < block_counter; ++b)
+          for (unsigned int b = 0; b < n_blocks(); ++b)
             block(b).sadd(s, V.block(b));
         }
 
@@ -177,7 +177,7 @@ namespace dealii
         {
           AssertDimension(n_blocks(), V.n_blocks());
 
-          for (unsigned int b = 0; b < block_counter; ++b)
+          for (unsigned int b = 0; b < n_blocks(); ++b)
             block(b).sadd(s, a, V.block(b));
         }
 
@@ -186,14 +186,14 @@ namespace dealii
         {
           AssertDimension(n_blocks(), V.n_blocks());
 
-          for (unsigned int b = 0; b < block_counter; ++b)
+          for (unsigned int b = 0; b < n_blocks(); ++b)
             block(b).scale(V.block(b));
         }
 
         void
         operator*=(const T factor)
         {
-          for (unsigned int b = 0; b < block_counter; ++b)
+          for (unsigned int b = 0; b < n_blocks(); ++b)
             block(b) *= factor;
         }
 
@@ -206,7 +206,7 @@ namespace dealii
           AssertDimension(n_blocks(), W.n_blocks());
 
           T result = 0.0;
-          for (unsigned int b = 0; b < block_counter; ++b)
+          for (unsigned int b = 0; b < n_blocks(); ++b)
             result += block(b).add_and_dot(a, V.block(b), W.block(b));
           return result;
         }
@@ -214,7 +214,7 @@ namespace dealii
         void
         operator=(const T &v)
         {
-          for (unsigned int b = 0; b < block_counter; ++b)
+          for (unsigned int b = 0; b < n_blocks(); ++b)
             block(b) = v;
         }
 
@@ -224,7 +224,7 @@ namespace dealii
           AssertDimension(n_blocks(), V.n_blocks());
 
           T result = 0.0;
-          for (unsigned int b = 0; b < block_counter; ++b)
+          for (unsigned int b = 0; b < n_blocks(); ++b)
             result += block(b) * V.block(b);
           return result;
         }
