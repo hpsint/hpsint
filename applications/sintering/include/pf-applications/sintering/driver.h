@@ -66,6 +66,7 @@
 
 #include <pf-applications/numerics/vector_tools.h>
 
+#include <pf-applications/sintering/initial_values.h>
 #include <pf-applications/sintering/operator.h>
 #include <pf-applications/sintering/parameters.h>
 #include <pf-applications/sintering/preconditioners.h>
@@ -77,89 +78,6 @@ namespace Sintering
 {
   using namespace dealii;
 
-  template <int dim>
-  class InitialValues : public dealii::Function<dim>
-  {
-  public:
-    InitialValues(unsigned int n_components, double interface_offset = 0)
-      : dealii::Function<dim>(1)
-      , component_number(n_components)
-      , current_component(numbers::invalid_unsigned_int)
-      , interface_offset(interface_offset)
-    {}
-
-    double
-    value(const dealii::Point<dim> &p, const unsigned int component) const final
-    {
-      AssertDimension(component, 0);
-
-      (void)component;
-
-      return this->do_value(p, current_component);
-    }
-
-    virtual std::pair<dealii::Point<dim>, dealii::Point<dim>>
-    get_domain_boundaries() const = 0;
-
-    virtual double
-    get_r_max() const = 0;
-
-    virtual double
-    get_interface_width() const = 0;
-
-    void
-    set_component(const unsigned int current_component)
-    {
-      AssertIndexRange(current_component, n_components());
-      this->current_component = current_component;
-    }
-
-    unsigned int
-    n_components() const
-    {
-      return component_number;
-    }
-
-  private:
-    const unsigned int component_number;
-    unsigned int       current_component;
-    const double       interface_offset;
-
-  protected:
-    virtual double
-    do_value(const dealii::Point<dim> &p,
-             const unsigned int        component) const = 0;
-
-    double
-    is_in_sphere(const dealii::Point<dim> &point,
-                 const dealii::Point<dim> &center,
-                 double                    rc) const
-    {
-      double c = 0;
-
-      double rm  = rc - interface_offset;
-      double rad = center.distance(point);
-
-      if (rad <= rm - get_interface_width() / 2.0)
-        {
-          c = 1;
-        }
-      else if (rad < rm + get_interface_width() / 2.0)
-        {
-          double outvalue = 0.;
-          double invalue  = 1.;
-          double int_pos =
-            (rad - rm + get_interface_width() / 2.0) / get_interface_width();
-
-          c = outvalue + (invalue - outvalue) *
-                           (1.0 + std::cos(int_pos * numbers::PI)) / 2.0;
-          // c = 0.5 - 0.5 * std::sin(numbers::PI * (rad - rm) /
-          // get_interface_width());
-        }
-
-      return c;
-    }
-  };
 
   template <int dim,
             typename Number              = double,
@@ -528,6 +446,7 @@ namespace Sintering
 
       GrainTracker::Tracker<dim, Number> grain_tracker(
         dof_handler,
+        !params.geometry_data.is_compressed,
         params.grain_tracker_data.threshold_lower,
         params.grain_tracker_data.threshold_upper,
         params.grain_tracker_data.buffer_distance_ratio,

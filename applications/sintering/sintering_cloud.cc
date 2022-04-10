@@ -29,6 +29,8 @@ static_assert(false, "No grains number has been given!");
 //#define WITH_TIMING
 //#define WITH_TRACKER
 
+#include <deal.II/lac/dynamic_sparsity_pattern.h>
+
 #include <pf-applications/sintering/driver.h>
 #include <pf-applications/sintering/particle.h>
 
@@ -43,8 +45,10 @@ namespace Sintering
   {
   public:
     InitialValuesCloud(const std::vector<Particle<dim>> &particles_in,
-                       const double                      interface_width)
-      : InitialValues<dim>(particles_in.size() + 2)
+                       const double                      interface_width,
+                       const bool                        is_compressed,
+                       const double interface_buffer_ratio = 0.5)
+      : InitialValues<dim>()
       , particles(particles_in)
       , interface_width(interface_width)
     {
@@ -91,6 +95,10 @@ namespace Sintering
 
       const unsigned int n_particles = particles.size();
 
+      // DSP for colorization if order parameters are compressed
+      DynamicSparsityPattern dsp(n_particles);
+
+      // Detect contacts
       for (unsigned int i = 0; i < n_particles; i++)
         {
           auto &p1 = particles[i];
@@ -176,9 +184,45 @@ namespace Sintering
                       // Add j-th neighbour for the i-th particle
                       p1.neighbours.push_back(j);
                     }
+
+                  /* We also prepare for colorization if order parameters are
+                   * compressed.
+                   */
+                  if (is_compressed)
+                    {
+                      double buffer = interface_width +
+                                      interface_buffer_ratio * interface_width;
+                      if (distance <= dist_max + buffer)
+                        {
+                          dsp.add(i, j);
+                        }
+                    }
                 }
             }
         }
+
+      // Build colorization if compressed
+      if (is_compressed)
+        {
+          SparsityPattern sp;
+          sp.copy_from(dsp);
+
+          std::vector<unsigned int> color_indices(n_particles);
+          SparsityTools::color_sparsity_pattern(sp, color_indices);
+
+          for (unsigned int i = 0; i < n_particles; i++)
+            {
+              order_parameter_to_grains[color_indices[i] - 1].push_back(i);
+            }
+        }
+      else
+        {
+          for (unsigned int i = 0; i < n_particles; i++)
+            {
+              order_parameter_to_grains[i].push_back(i);
+            }
+        }
+      order_parameters_num = order_parameter_to_grains.size();
     }
 
     double
@@ -213,23 +257,180 @@ namespace Sintering
                         " requested, but the total number of components is " +
                         std::to_string(this->n_components())));
 
-          unsigned int i = component - 2;
+          const unsigned int order_parameter = component - 2;
 
-          AssertThrow(
-            i < particles.size(),
-            ExcMessage(
-              "Incorrect particle i = " + std::to_string(i) +
-              " requested, but the total number of particles in the domain is " +
-              std::to_string(particles.size())));
+          double ret_val = 0;
 
-          const auto &particle_current = particles[i];
+          for (const auto pid : order_parameter_to_grains.at(order_parameter))
+            {
+              const auto &particle_current = particles.at(pid);
+              ret_val = this->value_for_particle(p, particle_current);
 
-          // Concentration value for the i-th particle
-          double c_main = this->is_in_sphere(p,
-                                             particle_current.center,
-                                             particle_current.radius);
+              if (ret_val != 0)
+                {
+                  break;
+                }
+            }
 
+          return ret_val;
+        }
+    }
 
+    std::pair<dealii::Point<dim>, dealii::Point<dim>>
+    get_domain_boundaries() const final
+    {
+      return boundaries;
+    }
+
+    double
+    get_r_max() const final
+    {
+      const auto &pt_rmax = std::max_element(particles.begin(),
+                                             particles.end(),
+                                             [](const auto &a, const auto &b) {
+                                               return a.radius < b.radius;
+                                             });
+      return pt_rmax->radius;
+    }
+
+    double
+    get_interface_width() const final
+    {
+      return interface_width;
+    }
+
+    unsigned int
+    n_order_parameters() const final
+    {
+      return order_parameters_num;
+    }
+
+  private:
+    // A special struct that stores contact infromation for a pair of particles
+    struct Contact
+    {
+      // id of the primary (first) particle
+      unsigned int primary;
+
+      // id of the primary (first) particle
+      unsigned int secondary;
+
+      // Rotation matrix of the local coordinate system.
+      dealii::Tensor<2, dim> rotation_matrix;
+
+      // Coordinate of the central point of the contact edge between the two
+      // particles in the global coordinate system
+      dealii::Point<dim> center;
+    };
+
+    std::vector<Particle<dim>> particles;
+
+    // Oriental point for building z-axis (in case of 3D)
+    dealii::Point<dim> z_axis_orientation;
+
+    // Unitary vectors of the global coordinate system
+    dealii::Point<dim> ex0;
+    dealii::Point<dim> ey0;
+    dealii::Point<dim> ez0;
+
+    std::map<std::pair<unsigned int, unsigned int>, Contact> contacts;
+
+    double interface_width;
+
+    /* Threshold value for detecting the secondary grain at the contact
+     * neighbourhood between the 2 particles. If the value is below the
+     * threshold, then the secondary grain does not contribute to the primary
+     * one any longer. */
+    double c_threshold = 0.5;
+
+    // Domain boundaries
+    std::pair<dealii::Point<dim>, dealii::Point<dim>> boundaries;
+
+    // Number of order parameters in use
+    unsigned int order_parameters_num;
+
+    // Map order parameters to specific grains
+    std::map<unsigned int, std::vector<unsigned int>> order_parameter_to_grains;
+
+    double
+    drand(double dmin, double dmax) const
+    {
+      double val = (double)std::rand() / RAND_MAX;
+      return dmin + val * (dmax - dmin);
+    }
+
+    bool
+    check_orientation_point(
+      const dealii::Point<dim> &origin,
+      const dealii::Point<dim> &ex,
+      const dealii::Point<dim> &candidate_z_orientation) const
+    {
+      const double tol = 1e-12;
+
+      dealii::Point<dim> ez_temp(candidate_z_orientation - origin);
+
+      if (ez_temp.norm() < tol)
+        {
+          return false;
+        }
+
+      ez_temp /= ez_temp.norm();
+
+      if (std::abs(ex * ez_temp - 1) < tol)
+        {
+          return false;
+        }
+
+      return true;
+    }
+
+    dealii::Point<dim>
+    get_orientation_point(const dealii::Point<dim> &origin,
+                          const dealii::Point<dim> &ex) const
+    {
+      /* The default z-axis orientation point is (0,0,0). It may not fit if
+       * either of the particles coincides with this point or it turns out to be
+       * colinear with the x-axis of either of the contact pairs. If such a
+       * situation is detected, we then need to choose another point, randomly
+       * selected within the boundaries of the domain.
+       */
+
+      dealii::Point<dim> current_orientation = z_axis_orientation;
+
+      bool is_valid = check_orientation_point(origin, ex, current_orientation);
+
+      if (!is_valid)
+        {
+          unsigned int iter_max = 100;
+
+          for (unsigned int i = 0; i < iter_max && !is_valid; i++)
+            {
+              for (unsigned int j = 0; j < dim; j++)
+                {
+                  current_orientation[j] =
+                    drand(boundaries.first[j], boundaries.second[j]);
+                }
+              is_valid =
+                check_orientation_point(origin, ex, current_orientation);
+            }
+        }
+
+      AssertThrow(is_valid,
+                  ExcMessage("Failed to generate valid orientation point"));
+
+      return current_orientation;
+    }
+
+    double
+    value_for_particle(const Point<dim> &   p,
+                       const Particle<dim> &particle_current) const
+    {
+      // Concentration value for the i-th particle
+      double c_main =
+        this->is_in_sphere(p, particle_current.center, particle_current.radius);
+
+      if (c_main != 0)
+        {
           /* At the current point 'p' multiple particles may overlap thus they
            * all will have some value of concentration > 0. We go through all
            * the neighbours of the current i-th particle and find the neighbour
@@ -311,142 +512,9 @@ namespace Sintering
                   c_main = 0;
                 }
             }
-
-          return c_main;
-        }
-    }
-
-    virtual std::pair<dealii::Point<dim>, dealii::Point<dim>>
-    get_domain_boundaries() const override
-    {
-      return boundaries;
-    }
-
-    virtual double
-    get_r_max() const override
-    {
-      const auto &pt_rmax = std::max_element(particles.begin(),
-                                             particles.end(),
-                                             [](const auto &a, const auto &b) {
-                                               return a.radius < b.radius;
-                                             });
-      return pt_rmax->radius;
-    }
-
-    virtual double
-    get_interface_width() const override
-    {
-      return interface_width;
-    }
-
-  private:
-    // A special struct that stores contact infromation for a pair of particles
-    struct Contact
-    {
-      // id of the primary (first) particle
-      unsigned int primary;
-
-      // id of the primary (first) particle
-      unsigned int secondary;
-
-      // Rotation matrix of the local coordinate system.
-      dealii::Tensor<2, dim> rotation_matrix;
-
-      // Coordinate of the central point of the contact edge between the two
-      // particles in the global coordinate system
-      dealii::Point<dim> center;
-    };
-
-    std::vector<Particle<dim>> particles;
-
-    // Oriental point for building z-axis (in case of 3D)
-    dealii::Point<dim> z_axis_orientation;
-
-    // Unitary vectors of the global coordinate system
-    dealii::Point<dim> ex0;
-    dealii::Point<dim> ey0;
-    dealii::Point<dim> ez0;
-
-    std::map<std::pair<unsigned int, unsigned int>, Contact> contacts;
-
-    double interface_width;
-
-    /* Threshold value for detecting the secondary grain at the contact
-     * neighbourhood between the 2 particles. If the value is below the
-     * threshold, then the secondary grain does not contribute to the primary
-     * one any longer. */
-    double c_threshold = 0.5;
-
-    // Domain boundaries
-    std::pair<dealii::Point<dim>, dealii::Point<dim>> boundaries;
-
-    double
-    drand(double dmin, double dmax) const
-    {
-      double val = (double)std::rand() / RAND_MAX;
-      return dmin + val * (dmax - dmin);
-    }
-
-    bool
-    check_orientation_point(
-      const dealii::Point<dim> &origin,
-      const dealii::Point<dim> &ex,
-      const dealii::Point<dim> &candidate_z_orientation) const
-    {
-      const double tol = 1e-12;
-
-      dealii::Point<dim> ez_temp(candidate_z_orientation - origin);
-
-      if (ez_temp.norm() < tol)
-        {
-          return false;
         }
 
-      ez_temp /= ez_temp.norm();
-
-      if (std::abs(ex * ez_temp - 1) < tol)
-        {
-          return false;
-        }
-
-      return true;
-    }
-
-    dealii::Point<dim>
-    get_orientation_point(const dealii::Point<dim> &origin,
-                          const dealii::Point<dim> &ex) const
-    {
-      /* The default z-axis orientation point is (0,0,0). It may not fit if
-       * either of the particles coincides with this point or it turns out to be
-       * colinear with the x-axis of either of the contact pairs. If such a
-       * situation is detected, we then need to choose another point, randomly
-       * selected within the boundaries of the domain.
-       */
-
-      dealii::Point<dim> current_orientation = z_axis_orientation;
-
-      bool is_valid = check_orientation_point(origin, ex, current_orientation);
-
-      if (!is_valid)
-        {
-          unsigned int iter_max = 100;
-
-          for (unsigned int i = 0; i < iter_max && !is_valid; i++)
-            {
-              for (unsigned int j = 0; j < dim; j++)
-                {
-                  current_orientation[j] =
-                    drand(boundaries.first[j], boundaries.second[j]);
-                }
-              is_valid =
-                check_orientation_point(origin, ex, current_orientation);
-            }
-        }
-
-      AssertThrow(is_valid,
-                  ExcMessage("Failed to generate valid orientation point"));
-
-      return current_orientation;
+      return c_main;
     }
   };
 } // namespace Sintering
@@ -495,15 +563,21 @@ main(int argc, char **argv)
 
   const auto particles = Sintering::read_particles<SINTERING_DIM>(fstream);
 
-  AssertThrow(particles.size() <= MAX_SINTERING_GRAINS,
-              ExcMessage("The CSV file contains wrong number of particles: " +
-                         std::to_string(particles.size()) +
-                         " but has to be leq" +
-                         std::to_string(MAX_SINTERING_GRAINS)));
+  /* Additional buffer zone when computing distance for colorization. Defined as
+   * ratio of the interface width.
+   */
+  static constexpr double interface_buffer_ratio = 0.5;
 
   const auto initial_solution =
     std::make_shared<Sintering::InitialValuesCloud<SINTERING_DIM>>(
-      particles, params.geometry_data.interface_width);
+      particles,
+      params.geometry_data.interface_width,
+      params.geometry_data.is_compressed,
+      interface_buffer_ratio);
+
+  AssertThrow(initial_solution->n_order_parameters() <= MAX_SINTERING_GRAINS,
+              Sintering::ExcMaxGrainsExceeded(
+                initial_solution->n_order_parameters(), MAX_SINTERING_GRAINS));
 
   Sintering::Problem<SINTERING_DIM> runner(params, initial_solution);
   runner.run();
