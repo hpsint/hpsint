@@ -46,7 +46,7 @@ namespace Sintering
   public:
     InitialValuesCloud(const std::vector<Particle<dim>> &particles_in,
                        const double                      interface_width,
-                       const bool                        is_compressed,
+                       const bool                        minimize_order_parameters,
                        const double interface_buffer_ratio = 0.5)
       : InitialValues<dim>()
       , particles(particles_in)
@@ -188,7 +188,7 @@ namespace Sintering
                   /* We also prepare for colorization if order parameters are
                    * compressed.
                    */
-                  if (is_compressed)
+                  if (minimize_order_parameters)
                     {
                       double buffer = interface_width +
                                       interface_buffer_ratio * interface_width;
@@ -202,7 +202,7 @@ namespace Sintering
         }
 
       // Build colorization if compressed
-      if (is_compressed)
+      if (minimize_order_parameters)
         {
           SparsityPattern sp;
           sp.copy_from(dsp);
@@ -572,7 +572,7 @@ main(int argc, char **argv)
     std::make_shared<Sintering::InitialValuesCloud<SINTERING_DIM>>(
       particles,
       params.geometry_data.interface_width,
-      params.geometry_data.is_compressed,
+      params.geometry_data.minimize_order_parameters,
       interface_buffer_ratio);
 
   AssertThrow(initial_solution->n_order_parameters() <= MAX_SINTERING_GRAINS,

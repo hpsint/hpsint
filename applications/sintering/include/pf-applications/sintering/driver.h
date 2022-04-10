@@ -446,7 +446,7 @@ namespace Sintering
 
       GrainTracker::Tracker<dim, Number> grain_tracker(
         dof_handler,
-        !params.geometry_data.is_compressed,
+        !params.geometry_data.minimize_order_parameters,
         params.grain_tracker_data.threshold_lower,
         params.grain_tracker_data.threshold_upper,
         params.grain_tracker_data.buffer_distance_ratio,

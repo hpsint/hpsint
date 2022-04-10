@@ -93,8 +93,6 @@ namespace Sintering
 
           c = outvalue + (invalue - outvalue) *
                            (1.0 + std::cos(int_pos * numbers::PI)) / 2.0;
-          // c = 0.5 - 0.5 * std::sin(numbers::PI * (rad - rm) /
-          // get_interface_width());
         }
 
       return c;

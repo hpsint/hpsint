@@ -42,7 +42,7 @@ namespace Sintering
     InitialValuesCircle(const double       r0,
                         const double       interface_width,
                         const unsigned int n_grains,
-                        const bool         is_compressed,
+                        const bool         minimize_order_parameters,
                         const bool         is_accumulative)
       : InitialValues<dim>()
       , r0(r0)
@@ -61,7 +61,7 @@ namespace Sintering
               scoords));
         }
 
-      if (is_compressed)
+      if (minimize_order_parameters)
         {
           if (n_grains == 1)
             {
@@ -270,7 +270,7 @@ main(int argc, char **argv)
       r0,
       params.geometry_data.interface_width,
       n_grains,
-      params.geometry_data.is_compressed,
+      params.geometry_data.minimize_order_parameters,
       is_accumulative);
 
   AssertThrow(initial_solution->n_order_parameters() <= MAX_SINTERING_GRAINS,

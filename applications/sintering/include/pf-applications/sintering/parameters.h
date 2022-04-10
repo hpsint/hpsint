@@ -14,10 +14,10 @@ namespace Sintering
 
   struct GeometryData
   {
-    unsigned int elements_per_interface = 8; // 4 - works well with AMR=off
-    double       boundary_factor        = 0.5;
-    double       interface_width        = 2.0;
-    bool         is_compressed          = true;
+    unsigned int elements_per_interface    = 8; // 4 - works well with AMR=off
+    double       boundary_factor           = 0.5;
+    double       interface_width           = 2.0;
+    bool         minimize_order_parameters = true;
   };
 
   struct AdaptivityData
@@ -151,9 +151,9 @@ namespace Sintering
       prm.add_parameter("InterfaceWidth",
                         geometry_data.interface_width,
                         "Phase-field interface width.");
-      prm.add_parameter("Compress",
-                        geometry_data.is_compressed,
-                        "Compress initially defined order parameters.");
+      prm.add_parameter("MinimizeOrderParameters",
+                        geometry_data.minimize_order_parameters,
+                        "Minimize number of initial order parameters.");
       prm.leave_subsection();
 
 
