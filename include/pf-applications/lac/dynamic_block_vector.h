@@ -128,6 +128,12 @@ namespace dealii
         has_ghost_elements() const
         {
           Assert(block_counter > 0, ExcInternalError());
+
+          for (unsigned int b = 1; b < block_counter; ++b)
+            Assert(block(0).has_ghost_elements() ==
+                     block(b).has_ghost_elements(),
+                   ExcInternalError());
+
           return block(0).has_ghost_elements();
         }
 

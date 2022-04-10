@@ -478,17 +478,6 @@ namespace Sintering
                   grain_tracker.get_active_order_parameters().size() + 2;
                 const unsigned int n_components_old = solution.n_blocks();
 
-                /* If the number of components has reduced, then we remap first
-                 * and then alter the number of blocks in the solution vector.
-                 * If the number of components has increased, then we need to
-                 * add new blocks to the solution vector prior to remapping.
-                 */
-
-                if (n_components_new < n_components_old)
-                  {
-                    grain_tracker.remap(solution);
-                  }
-
                 pcout << "\033[34mChanging number of components from "
                       << n_components_old << " to " << n_components_new
                       << "\033[0m" << std::endl;
@@ -497,24 +486,20 @@ namespace Sintering
                 nonlinear_operator.clear();
                 preconditioner->clear();
 
-                VectorType temp(n_components_new);
+                /**
+                 * If the number of components has reduced, then we remap first
+                 * and then alter the number of blocks in the solution vector.
+                 * If the number of components has increased, then we need to
+                 * add new blocks to the solution vector prior to remapping.
+                 */
 
-                for (unsigned int i = 0;
-                     i < std::min(n_components_new, n_components_old);
-                     ++i)
-                  temp.block(i) = solution.block(i);
+                if (n_components_new < n_components_old)
+                  grain_tracker.remap(solution);
 
-                for (unsigned int i = n_components_old; i < n_components_new;
-                     ++i)
-                  temp.block(i).reinit(solution.block(0));
-
-                solution.reinit(0);
-                solution = temp;
+                solution.reinit(n_components_new);
 
                 if (n_components_new > n_components_old)
-                  {
-                    grain_tracker.remap(solution);
-                  }
+                  grain_tracker.remap(solution);
               }
             else
               {
