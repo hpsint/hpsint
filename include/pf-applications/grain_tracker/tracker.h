@@ -28,12 +28,14 @@ namespace GrainTracker
       LinearAlgebra::distributed::DynamicBlockVector<Number>;
 
     Tracker(const DoFHandler<dim> &dof_handler,
+            const bool             greedy_init,
             const double           threshold_lower       = 0.01,
             const double           threshold_upper       = 1.01,
             const double           buffer_distance_ratio = 0.05,
             const unsigned int     default_op_id         = 0,
             const unsigned int     op_offset             = 2)
       : dof_handler(dof_handler)
+      , greedy_init(greedy_init)
       , threshold_lower(threshold_lower)
       , threshold_upper(threshold_upper)
       , buffer_distance_ratio(buffer_distance_ratio)
@@ -137,31 +139,67 @@ namespace GrainTracker
     std::tuple<bool, bool>
     initial_setup(const BlockVectorType &solution)
     {
-      /* At this point we imply that we have 1 variable per grain, so we set up
-       * grain indices accordinly. The main reason for that is that we may have
-       * periodic boundary conditions defined and thus a certain grain can
-       * contain multiple segments. In the current implementation this
-       * assumption allows to capture and then track such geometry during
-       * analysis. A better approach is to use information regarding periodicity
-       * provided by deal.II.
+      /* We can perform initialization in two ways: greedy or not. Both of them
+       * currently have limitations.
+       *
+       * When greedy mode is enabled, we imply that we have 1 variable per
+       * grain, so we set up grain indices accordinly. The main reason for that
+       * is that we may have periodic boundary conditions defined and thus a
+       * certain grain can contain multiple segments. In the current
+       * implementation this assumption allows to capture and then track such
+       * geometry during analysis. A better approach is to use information
+       * regarding periodicity provided by deal.II. This approach has
+       * significant drawback: the initial number of order parameters of the
+       * problem should fit the limit set by MAX_SINTERING_GRAINS.
+       *
+       * If greedy is disabled, then the latter limitation is relieved and we
+       * can supply initial values with order parameters preassigned to multiple
+       * grains. However, within the current implementation, the possibility of
+       * a grain to consist of multiple segments effectively gets lost.
+       *
+       * TODO: improve the latter behavior for the case of PBC.
        */
-      // TODO: get rid of this assumption.
       auto clouds = find_clouds(solution);
 
       // Create grains from clouds and add segments to each grain
-      for (const auto &cl : clouds)
+      if (greedy_init)
         {
-          unsigned int gid = cl.get_order_parameter_id();
-          grains.try_emplace(gid, gid, default_order_parameter_id, gid);
+          for (const auto &cl : clouds)
+            {
+              const unsigned int grain_id = cl.get_order_parameter_id();
+              const unsigned int order_parameter_id =
+                default_order_parameter_id;
+              const unsigned int old_order_parameter_id = grain_id;
+              grains.try_emplace(grain_id,
+                                 grain_id,
+                                 order_parameter_id,
+                                 old_order_parameter_id);
 
-          Segment<dim> segment(cl);
-          grains.at(cl.get_order_parameter_id()).add_segment(segment);
+              Segment<dim> segment(cl);
+              grains.at(cl.get_order_parameter_id()).add_segment(segment);
+            }
+        }
+      else
+        {
+          unsigned int grain_numberer = 0;
+          for (const auto &cl : clouds)
+            {
+              const unsigned int grain_id = grain_numberer;
+              const unsigned int order_parameter_id =
+                cl.get_order_parameter_id();
+              grains.try_emplace(grain_id, grain_id, order_parameter_id);
+
+              Segment<dim> segment(cl);
+              grains.at(grain_numberer).add_segment(segment);
+
+              grain_numberer++;
+            }
         }
 
       /* Initial grains reassignment, the closest neighbors are allowed as we
        * want to minimize the number of order parameters in use.
        */
-      const bool prefer_closest = true;
+      const bool prefer_closest = greedy_init;
 
       // Reassign grains and return the result
       return reassign_grains(max_grains, prefer_closest);
@@ -288,6 +326,8 @@ namespace GrainTracker
     void
     print_grains(Stream &out) const
     {
+      out << "Number of order parameters: "
+          << get_active_order_parameters().size() << std::endl;
       out << "Number of grains: " << grains.size() << std::endl;
       for (const auto &[gid, gr] : grains)
         {
@@ -793,10 +833,10 @@ namespace GrainTracker
       data_out.set_flags(flags);
 
       // Identify all order parameters in use by the given clouds
-      std::set<unsigned int> active_order_parameters;
+      std::set<unsigned int> current_order_parameters;
       for (const auto &cl : clouds)
         {
-          active_order_parameters.insert(cl.get_order_parameter_id());
+          current_order_parameters.insert(cl.get_order_parameter_id());
         }
 
       // Total number of cells and order parameters
@@ -806,7 +846,7 @@ namespace GrainTracker
       std::map<unsigned int, Vector<float>> order_parameter_indicators;
 
       // Initialize with invalid order parameter (negative)
-      for (const auto &op : active_order_parameters)
+      for (const auto &op : current_order_parameters)
         {
           order_parameter_indicators.emplace(op, n_cells);
           order_parameter_indicators.at(op) = -1.;
@@ -835,7 +875,7 @@ namespace GrainTracker
 
       // Build output
       data_out.attach_triangulation(dof_handler.get_triangulation());
-      for (const auto &op : active_order_parameters)
+      for (const auto &op : current_order_parameters)
         {
           data_out.add_data_vector(order_parameter_indicators.at(op),
                                    "op" + std::to_string(op));
@@ -905,6 +945,9 @@ namespace GrainTracker
     }
 
     const DoFHandler<dim> &dof_handler;
+
+    // Perform greedy initialization
+    const bool greedy_init;
 
     // Minimum value of order parameter value
     const double threshold_lower;

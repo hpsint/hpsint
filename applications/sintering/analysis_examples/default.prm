@@ -6,6 +6,7 @@ subsection Geometry
     set ElementsPerInterface = 8
     set BoundaryFactor = 0.5
     set InterfaceWidth = 2.0
+    set MinimizeOrderParameters = true
 end
 subsection Adaptivity
     set TopFractionOfCells = 0.3

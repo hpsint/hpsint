@@ -42,8 +42,9 @@ namespace Sintering
     InitialValuesCircle(const double       r0,
                         const double       interface_width,
                         const unsigned int n_grains,
+                        const bool         minimize_order_parameters,
                         const bool         is_accumulative)
-      : InitialValues<dim>(n_grains + 2)
+      : InitialValues<dim>()
       , r0(r0)
       , interface_width(interface_width)
       , is_accumulative(is_accumulative)
@@ -58,6 +59,45 @@ namespace Sintering
           centers.push_back(
             dealii::GeometricUtilities::Coordinates::from_spherical<dim>(
               scoords));
+        }
+
+      if (minimize_order_parameters)
+        {
+          if (n_grains == 1)
+            {
+              order_parameter_to_grains[0];
+            }
+          else
+            {
+              order_parameter_to_grains[0];
+              order_parameter_to_grains[1];
+
+              for (unsigned int ip = 0; ip < n_grains; ip++)
+                {
+                  const unsigned int current_order_parameter = ip % 2;
+                  order_parameter_to_grains.at(current_order_parameter)
+                    .push_back(ip);
+                }
+
+              /* If the number of particles is odd, then the order parameter of
+               * the last grain has to be changed to 2
+               */
+              if (n_grains % 2)
+                {
+                  const unsigned int last_grain =
+                    order_parameter_to_grains.at(0).back();
+                  order_parameter_to_grains.at(0).pop_back();
+
+                  order_parameter_to_grains[2] = {last_grain};
+                }
+            }
+        }
+      else
+        {
+          for (unsigned int ip = 0; ip < n_grains; ip++)
+            {
+              order_parameter_to_grains[ip] = {ip};
+            }
         }
     }
 
@@ -99,16 +139,25 @@ namespace Sintering
         }
       else
         {
-          const auto &pt = centers[component - 2];
+          const unsigned int order_parameter = component - 2;
 
-          ret_val = this->is_in_sphere(p, pt, r0);
+          for (const auto pid : order_parameter_to_grains.at(order_parameter))
+            {
+              const auto &pt = centers.at(pid);
+              ret_val        = this->is_in_sphere(p, pt, r0);
+
+              if (ret_val != 0)
+                {
+                  break;
+                }
+            }
         }
 
       return ret_val;
     }
 
-    virtual std::pair<dealii::Point<dim>, dealii::Point<dim>>
-    get_domain_boundaries() const override
+    std::pair<dealii::Point<dim>, dealii::Point<dim>>
+    get_domain_boundaries() const final
     {
       const auto pt_xmax = *std::max_element(centers.begin(),
                                              centers.end(),
@@ -165,11 +214,18 @@ namespace Sintering
       return interface_width;
     }
 
+    unsigned int
+    n_order_parameters() const final
+    {
+      return order_parameter_to_grains.size();
+    }
+
   private:
     std::vector<dealii::Point<dim>> centers;
 
     double r0;
     double interface_width;
+
     /* This parameter defines how particles interact within a grain boundary at
      * the initial configuration: whether the particles barely touch each other
      * or proto-necks are built up.
@@ -179,6 +235,9 @@ namespace Sintering
      *    - true  -> eta0 + eta1
      */
     bool is_accumulative;
+
+    // Map order parameters to specific grains
+    std::map<unsigned int, std::vector<unsigned int>> order_parameter_to_grains;
   };
 } // namespace Sintering
 
@@ -197,9 +256,7 @@ main(int argc, char **argv)
 
   AssertThrow(2 <= argc && argc <= 3, ExcNotImplemented());
 
-  const unsigned int n_components = atoi(argv[1]);
-
-  AssertIndexRange(n_components, MAX_SINTERING_GRAINS + 1);
+  const unsigned int n_grains = atoi(argv[1]);
 
   if (argc == 3)
     params.parse(std::string(argv[2]));
@@ -210,8 +267,15 @@ main(int argc, char **argv)
 
   const auto initial_solution =
     std::make_shared<Sintering::InitialValuesCircle<SINTERING_DIM>>(
-      r0, params.geometry_data.interface_width, n_components, is_accumulative);
+      r0,
+      params.geometry_data.interface_width,
+      n_grains,
+      params.geometry_data.minimize_order_parameters,
+      is_accumulative);
 
+  AssertThrow(initial_solution->n_order_parameters() <= MAX_SINTERING_GRAINS,
+              Sintering::ExcMaxGrainsExceeded(
+                initial_solution->n_order_parameters(), MAX_SINTERING_GRAINS));
 
   Sintering::Problem<SINTERING_DIM> runner(params, initial_solution);
   runner.run();
