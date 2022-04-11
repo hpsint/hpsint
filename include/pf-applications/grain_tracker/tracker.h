@@ -79,7 +79,8 @@ namespace GrainTracker
 
               for (const auto &segment : gr.get_segments())
                 {
-                  double distance = current_segment.distance(segment);
+                  const double distance =
+                    current_segment.get_center().distance(segment.get_center());
 
                   if (distance < min_distance)
                     {
