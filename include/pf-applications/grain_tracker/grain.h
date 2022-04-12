@@ -149,6 +149,15 @@ namespace GrainTracker
       return dist;
     }
 
+    /* Get transfer buffer. A zone around the grain which will be moved to
+     * another order parameter if remapping is invoked for this grain.
+     */
+    double
+    transfer_buffer() const
+    {
+      return std::max(0.0, distance_to_nearest_neighbor() / 2.0);
+    }
+
   private:
     unsigned int grain_id;
 

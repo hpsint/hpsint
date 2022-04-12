@@ -2,6 +2,8 @@
 
 #include <deal.II/grid/grid_tools.h>
 
+#include <deal.II/lac/dynamic_sparsity_pattern.h>
+
 #include <deal.II/matrix_free/fe_evaluation.h>
 #include <deal.II/matrix_free/matrix_free.h>
 
@@ -11,6 +13,8 @@
 
 #include "cloud.h"
 #include "grain.h"
+#include "remap_graph.h"
+#include "remapping.h"
 #include "segment.h"
 
 namespace GrainTracker
@@ -130,7 +134,7 @@ namespace GrainTracker
       const bool prefer_closest = false;
 
       // Reassign grains and return the result
-      return reassign_grains(max_grains, prefer_closest);
+      return reassign_grains(prefer_closest);
     }
 
     /* Initialization of grains at the very first step. The function returns a
@@ -203,7 +207,7 @@ namespace GrainTracker
       const bool prefer_closest = greedy_init;
 
       // Reassign grains and return the result
-      return reassign_grains(max_grains, prefer_closest);
+      return reassign_grains(prefer_closest);
     }
 
     // Remap a single state vector
@@ -232,8 +236,7 @@ namespace GrainTracker
             BlockVectorType *solution)> callback) {
           // clang-format on
 
-          double transfer_buffer =
-            std::max(0.0, grain.distance_to_nearest_neighbor() / 2.0);
+          double transfer_buffer = grain.transfer_buffer();
 
           for (auto &cell : dof_handler.active_cell_iterators())
             {
@@ -296,56 +299,144 @@ namespace GrainTracker
             });
         }
 
-      // Now transfer values for the remaining grains
-      for (const auto &[gid, gr] : grains)
+      // Build a sequence of remappings
+      std::list<Remapping> remappings;
+      for (const auto &[gid, grain] : grains)
         {
           (void)gid;
 
-          if (gr.get_order_parameter_id() != gr.get_old_order_parameter_id())
+          if (grain.get_order_parameter_id() !=
+              grain.get_old_order_parameter_id())
             {
-              /* Transfer buffer is the extra zone around the grain within which
-               * the order parameters are swapped. Its maximum size is the half
-               * of the distance to the nearest neighbor.
-               */
-              const unsigned int op_id_dst = gr.get_order_parameter_id();
-              const unsigned int op_id_src = gr.get_old_order_parameter_id();
-
-              std::ostringstream ss;
-              ss << "Remap order parameter for grain id = " << gr.get_grain_id()
-                 << ": from " << op_id_src << " to " << op_id_dst << std::endl;
-              log.emplace_back(ss.str());
-
-              /* At first we transfer the values from the dofs related to the
-               * old order parameters to the dofs of the new order parameter.
-               */
-              alter_dof_values_for_grain(
-                gr,
-                [this, &values, op_id_src, op_id_dst](
-                  const dealii::DoFCellAccessor<dim, dim, false> &cell,
-                  BlockVectorType *                               solution) {
-                  cell.get_dof_values(solution->block(op_id_src +
-                                                      order_parameters_offset),
-                                      values);
-                  cell.set_dof_values(values,
-                                      solution->block(op_id_dst +
-                                                      order_parameters_offset));
-                });
-
-              // Then we iterate again to nullify the old dofs
-              alter_dof_values_for_grain(
-                gr,
-                [this, &values, op_id_src](
-                  const dealii::DoFCellAccessor<dim, dim, false> &cell,
-                  BlockVectorType *                               solution) {
-                  cell.get_dof_values(solution->block(op_id_src +
-                                                      order_parameters_offset),
-                                      values);
-                  values = 0;
-                  cell.set_dof_values(values,
-                                      solution->block(op_id_src +
-                                                      order_parameters_offset));
-                });
+              remappings.emplace(remappings.end(),
+                                 grain.get_grain_id(),
+                                 grain.get_old_order_parameter_id(),
+                                 grain.get_order_parameter_id());
             }
+        }
+
+      // Build graph to resolve overlapping remappings
+      RemapGraph graph;
+
+      // Check for collisions in the remappings
+      for (const auto &ri : remappings)
+        {
+          const auto &grain_i = grains.at(ri.grain_id);
+
+          for (const auto &rj : remappings)
+            {
+              const auto &grain_j = grains.at(rj.grain_id);
+
+              if (ri != rj)
+                {
+                  const double buffer_i = grain_i.transfer_buffer();
+                  const double buffer_j = grain_j.transfer_buffer();
+
+                  const bool has_overlap =
+                    grain_i.distance(grain_j) - buffer_i - buffer_j < 0;
+
+                  /* If the two grains involved in remappings overlap and share
+                   * the same order parameter in the current and previous
+                   * states, then we add them for analysis to the graph.
+                   */
+                  if (has_overlap && ri.to == rj.from)
+                    {
+                      graph.add_remapping(ri.from, ri.to, ri.grain_id);
+
+                      /* Besides that, we need to add also the subsequent
+                       * remapping for the second grain to the graph too.
+                       */
+
+                      auto it_re =
+                        std::find_if(remappings.begin(),
+                                     remappings.end(),
+                                     [target_grain_id =
+                                        rj.grain_id](const auto &a) {
+                                       return a.grain_id == target_grain_id;
+                                     });
+
+                      AssertThrow(it_re != remappings.end(),
+                                  ExcMessage("Particles collision detected!"));
+
+                      graph.add_remapping(it_re->from,
+                                          it_re->to,
+                                          it_re->grain_id);
+                    }
+                }
+            }
+        }
+
+      /* If graph is not empty, then have some dependencies in remapping and
+       * need to perform at first those at the end of the graph in order not to
+       * break the configuration of the domain.
+       */
+      if (!graph.empty())
+        {
+          /* Check if the graph has cycles - these are unlikely situations and
+           * at the moment we do not handle them due to complexity.
+           *
+           * TODO: Resolve cycles in remappings
+           */
+          AssertThrow(graph.has_cycles() == false,
+                      ExcMessage("Cycles detected in remappings!"));
+
+          std::ostringstream ss;
+          ss << "Remapping dependencies have been detected and resolved."
+             << std::endl;
+          graph.print(ss);
+          log.emplace_back(ss.str());
+
+          graph.rearrange(remappings);
+        }
+
+      // Now transfer values for the remaining grains
+      for (const auto &re : remappings)
+        {
+          const auto &grain = grains.at(re.grain_id);
+
+          /* Transfer buffer is the extra zone around the grain within which
+           * the order parameters are swapped. Its maximum size is the half
+           * of the distance to the nearest neighbor.
+           */
+          const unsigned int op_id_src = re.from;
+          const unsigned int op_id_dst = re.to;
+
+          std::ostringstream ss;
+          ss << "Remap order parameter for grain id = " << re.grain_id
+             << ": from " << op_id_src << " to " << op_id_dst << std::endl;
+          log.emplace_back(ss.str());
+
+          /* At first we transfer the values from the dofs related to the
+           * old order parameters to the dofs of the new order parameter.
+           */
+          alter_dof_values_for_grain(
+            grain,
+            [this, &values, op_id_src, op_id_dst](
+              const dealii::DoFCellAccessor<dim, dim, false> &cell,
+              BlockVectorType *                               solution) {
+              cell.get_dof_values(solution->block(op_id_src +
+                                                  order_parameters_offset),
+                                  values);
+              cell.set_dof_values(values,
+                                  solution->block(op_id_dst +
+                                                  order_parameters_offset));
+            });
+
+          // Then we iterate again to nullify the old dofs
+          alter_dof_values_for_grain(
+            grain,
+            [this,
+             &values,
+             op_id_src](const dealii::DoFCellAccessor<dim, dim, false> &cell,
+                        BlockVectorType *solution) {
+              cell.get_dof_values(solution->block(op_id_src +
+                                                  order_parameters_offset),
+                                  values);
+              values = 0;
+              cell.set_dof_values(values,
+                                  solution->block(op_id_src +
+                                                  order_parameters_offset));
+            });
         }
 
       print_log(log);
@@ -579,169 +670,88 @@ namespace GrainTracker
 
     // Reassign grains order parameters to prevent collision
     std::tuple<bool, bool>
-    reassign_grains(const unsigned int max_order_parameters_num,
-                    const bool         prefer_closest)
+    reassign_grains(const bool prefer_closest)
     {
       bool grains_reassigned = false;
 
       std::vector<std::string> log;
 
-      /* Maximum number of reassignment iterations is equal to the maximum
-       * number of order parameters available
-       */
-      for (unsigned int iter = 0; iter <= max_order_parameters_num; iter++)
+      // DSP for colorization if order parameters are compressed
+      const unsigned int     n_grains = grains.size();
+      DynamicSparsityPattern dsp(n_grains);
+
+      bool overlap_detected = false;
+
+      // Base grain to compare with
+      for (auto &[g_base_id, gr_base] : grains)
         {
-          // Base grain to compare with
-          for (auto &[g_base_id, gr_base] : grains)
+          // Secondary grain
+          for (auto &[g_other_id, gr_other] : grains)
             {
-              const unsigned int op_base_id = gr_base.get_order_parameter_id();
-
-              // Secondary grain
-              for (auto &[g_other_id, gr_other] : grains)
+              if (g_other_id != g_base_id)
                 {
-                  if (g_other_id != g_base_id)
+                  // Minimum distance between the two grains
+                  double min_distance = gr_base.distance(gr_other);
+
+                  /* Buffer safety zone around the two grains. If an overlap
+                   * is detected, then the old order parameter values of all
+                   * the cells inside the buffer zone are transfered to a
+                   * new one.
+                   */
+                  double buffer_distance_base =
+                    buffer_distance_ratio * gr_base.get_max_radius();
+                  double buffer_distance_other =
+                    buffer_distance_ratio * gr_other.get_max_radius();
+
+                  /* If two grains sharing the same order parameter are
+                   * too close to each other, then try to change the
+                   * order parameter of the secondary grain
+                   */
+                  if (min_distance <
+                      buffer_distance_base + buffer_distance_other)
                     {
-                      const unsigned int op_other_id =
-                        gr_other.get_order_parameter_id();
+                      dsp.add(g_base_id, g_other_id);
 
-                      // Minimum distance between the two grains
-                      double min_distance = gr_base.distance(gr_other);
-
-                      /* Buffer safety zone around the two grains. If an overlap
-                       * is detected, then the old order parameter values of all
-                       * the cells inside the buffer zone are transfered to a
-                       * new one.
-                       */
-                      double buffer_distance_base =
-                        buffer_distance_ratio * gr_base.get_max_radius();
-                      double buffer_distance_other =
-                        buffer_distance_ratio * gr_other.get_max_radius();
-
-                      /* If two grains sharing the same order parameter are
-                       * too close to each other, then try to change the
-                       * order parameter of the secondary grain
-                       */
-                      if ((min_distance <
-                           buffer_distance_base + buffer_distance_other) &&
-                          (op_other_id == op_base_id))
+                      if (gr_other.get_order_parameter_id() ==
+                          gr_base.get_order_parameter_id())
                         {
                           std::ostringstream ss;
-                          ss << "Found overlap between grain "
+                          ss << "Found an overlap between grain "
                              << gr_base.get_grain_id() << " and grain "
                              << gr_other.get_grain_id()
-                             << " with order parameter " << op_base_id
-                             << std::endl;
+                             << " with order parameter "
+                             << gr_base.get_order_parameter_id() << std::endl;
 
                           log.emplace_back(ss.str());
 
-                          std::vector<Number> minimum_distance_list(
-                            max_order_parameters_num,
-                            std::numeric_limits<Number>::quiet_NaN());
-
-                          /* Find a candidate op for gr_other grain. To this end
-                           * we measure distance from the secondary grain to the
-                           * other grains except for the current base one.
-                           */
-                          for (const auto &[g_candidate_id, gr_candidate] :
-                               grains)
-                            {
-                              if (g_candidate_id != g_base_id &&
-                                  g_candidate_id != g_other_id)
-                                {
-                                  const unsigned int op_candidate_id =
-                                    gr_candidate.get_order_parameter_id();
-
-                                  const double spacing =
-                                    gr_other.distance(gr_candidate);
-
-                                  if (std::isnan(minimum_distance_list
-                                                   [op_candidate_id]) ||
-                                      spacing <
-                                        minimum_distance_list[op_candidate_id])
-                                    {
-                                      minimum_distance_list[op_candidate_id] =
-                                        spacing;
-                                    }
-                                }
-                            }
-
-                          unsigned int new_op_index = op_other_id;
-
-                          /* Now strategies for the order parameters
-                           * reassignment are available: either we pick the
-                           * closest order parameter that does not overlap with
-                           * the secondary grain or we pick the most distant
-                           * one.
-                           */
-
-                          /* The first option works for the very first step to
-                           * minimize the total number of order parameters in
-                           * the system.
-                           */
-                          if (prefer_closest)
-                            {
-                              for (unsigned int op = 0;
-                                   op < minimum_distance_list.size();
-                                   op++)
-                                {
-                                  if (op != op_other_id)
-                                    {
-                                      double current_distance =
-                                        minimum_distance_list[op];
-
-                                      if (!std::isnan(current_distance) &&
-                                          minimum_distance_list[op] > 0)
-                                        {
-                                          new_op_index = op;
-                                          break;
-                                        }
-                                    }
-                                }
-                            }
-
-                          /* The second option is used for regular tracking, in
-                           * this case we choose the most distant order
-                           * parameter to reduce the number of future
-                           * reassignments.
-                           */
-                          if (!prefer_closest || new_op_index == op_other_id)
-                            {
-                              double max_distance =
-                                std::numeric_limits<double>::min();
-
-                              for (unsigned int op = 0;
-                                   op < minimum_distance_list.size();
-                                   op++)
-                                {
-                                  if (op != op_other_id)
-                                    {
-                                      double current_distance =
-                                        minimum_distance_list[op];
-
-                                      if (!std::isnan(current_distance) &&
-                                          minimum_distance_list[op] >
-                                            max_distance)
-                                        {
-                                          max_distance =
-                                            minimum_distance_list[op];
-                                          new_op_index = op;
-                                        }
-                                      else if (std::isnan(current_distance))
-                                        {
-                                          new_op_index = op;
-                                          break;
-                                        }
-                                    }
-                                }
-                            }
-
-                          if (new_op_index != op_other_id)
-                            {
-                              gr_other.set_order_parameter_id(new_op_index);
-                              grains_reassigned = true;
-                            }
+                          overlap_detected = true;
                         }
                     }
+                }
+            }
+        }
+
+      if (overlap_detected)
+        {
+          SparsityPattern sp;
+          sp.copy_from(dsp);
+
+          std::vector<unsigned int> color_indices(n_grains);
+
+          unsigned n_colors =
+            SparsityTools::color_sparsity_pattern(sp, color_indices);
+          AssertThrow(n_colors <= max_order_parameters_num,
+                      ExcMessage(
+                        "Maximum number of order parameters exceeded!"));
+
+          for (auto &[gid, grain] : grains)
+            {
+              const unsigned int new_order_parmeter = color_indices[gid] - 1;
+
+              if (grain.get_order_parameter_id() != new_order_parmeter)
+                {
+                  grain.set_order_parameter_id(new_order_parmeter);
+                  grains_reassigned = true;
                 }
             }
         }
@@ -1050,7 +1060,7 @@ namespace GrainTracker
     std::map<unsigned int, Grain<dim>> old_grains;
     std::set<unsigned int>             active_order_parameters;
 
-    static constexpr int max_grains = MAX_SINTERING_GRAINS;
+    static constexpr int max_order_parameters_num = MAX_SINTERING_GRAINS;
 
     // Last set of detected clouds
     std::vector<Cloud<dim>> last_clouds;
