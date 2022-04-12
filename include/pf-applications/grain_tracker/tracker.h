@@ -55,7 +55,7 @@ namespace GrainTracker
       const auto clouds = find_clouds(solution);
 
       // Copy old grains
-      const auto old_grains = grains;
+      old_grains = grains;
 
       // Clear current grains
       grains.clear();
@@ -261,6 +261,42 @@ namespace GrainTracker
             }
         };
 
+      // At first let us clean up those grains which disappered completely
+      std::map<unsigned int, Grain<dim>> disappered_grains;
+      std::set_difference(
+        old_grains.begin(),
+        old_grains.end(),
+        grains.begin(),
+        grains.end(),
+        std::inserter(disappered_grains, disappered_grains.end()),
+        [](const auto &a, const auto &b) { return a.first < b.first; });
+
+      for (const auto &[gid, gr] : disappered_grains)
+        {
+          const unsigned int op_id = gr.get_order_parameter_id();
+
+          std::ostringstream ss;
+          ss << "Grain " << gr.get_grain_id() << " having order parameter "
+             << op_id << " has disappered" << std::endl;
+          log.emplace_back(ss.str());
+
+          alter_dof_values_for_grain(
+            gr,
+            [this,
+             &values,
+             op_id](const dealii::DoFCellAccessor<dim, dim, false> &cell,
+                    BlockVectorType *                               solution) {
+              cell.get_dof_values(solution->block(op_id +
+                                                  order_parameters_offset),
+                                  values);
+              values = 0;
+              cell.set_dof_values(values,
+                                  solution->block(op_id +
+                                                  order_parameters_offset));
+            });
+        }
+
+      // Now transfer values for the remaining grains
       for (const auto &[gid, gr] : grains)
         {
           (void)gid;
@@ -737,7 +773,52 @@ namespace GrainTracker
             }
         }
 
+      // Build active order parameters
       active_order_parameters = build_active_order_parameter_ids();
+
+      // Remove dangling order parameters if any
+      const unsigned int n_order_parameters = active_order_parameters.size();
+      const unsigned int max_order_parameter_id =
+        *active_order_parameters.rbegin();
+      const int mismatch = max_order_parameter_id - (n_order_parameters - 1);
+      AssertThrow(mismatch >= 0,
+                  ExcMessage("Error in active order parameters numbering!"));
+
+      if (mismatch > 0)
+        {
+          std::map<unsigned int, int> ids_offsets;
+
+          auto it = active_order_parameters.begin();
+
+          for (unsigned int id = 0; id < n_order_parameters; ++id)
+            {
+              ids_offsets.emplace(*it, (*it) - id);
+              it++;
+            }
+
+          for (auto &[gid, grain] : grains)
+            {
+              (void)gid;
+
+              const unsigned int current_order_parameter_id =
+                grain.get_order_parameter_id();
+
+              if (ids_offsets.at(current_order_parameter_id) > 0)
+                {
+                  grain.set_order_parameter_id(
+                    current_order_parameter_id -
+                    ids_offsets.at(current_order_parameter_id));
+                }
+            }
+
+          // If we are here, then for sure grains has been reassigned
+          grains_reassigned = true;
+
+          // Rebuild active order parameters
+          active_order_parameters = build_active_order_parameter_ids();
+        }
+
+      // Check if number of order parameters has changed
       bool op_number_changed =
         (active_order_parameters != build_old_order_parameter_ids());
 
@@ -966,6 +1047,7 @@ namespace GrainTracker
     const unsigned int order_parameters_offset;
 
     std::map<unsigned int, Grain<dim>> grains;
+    std::map<unsigned int, Grain<dim>> old_grains;
     std::set<unsigned int>             active_order_parameters;
 
     static constexpr int max_grains = MAX_SINTERING_GRAINS;
