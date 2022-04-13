@@ -653,6 +653,16 @@ namespace GrainTracker
               grain_assigned = true;
               cloud.add_cell(*cell);
 
+              // Check if this cell is at the interface with another rank
+              for (unsigned int n = 0; n < cell->n_faces(); n++)
+                {
+                  if (!cell->at_boundary(n) && cell->neighbor(n)->is_ghost())
+                    {
+                      cloud.add_edge_cell(*cell);
+                      break;
+                    }
+                }
+
               // Recursive call for all neighbors
               for (unsigned int n = 0; n < cell->n_faces(); n++)
                 {
@@ -871,9 +881,10 @@ namespace GrainTracker
 
               bool do_stiching = false;
 
-              for (const auto &cell_primary : cloud_primary.get_cells())
+              for (const auto &cell_primary : cloud_primary.get_edge_cells())
                 {
-                  for (const auto &cell_secondary : cloud_secondary.get_cells())
+                  for (const auto &cell_secondary :
+                       cloud_secondary.get_edge_cells())
                     {
                       if (cell_primary.distance(cell_secondary) < 0.0)
                         {
@@ -894,10 +905,7 @@ namespace GrainTracker
                */
               if (do_stiching)
                 {
-                  for (const auto &cell_primary : cloud_primary.get_cells())
-                    {
-                      cloud_secondary.add_cell(cell_primary);
-                    }
+                  cloud_secondary.stitch(cloud_primary);
                   clouds.erase(clouds.begin() + cl_primary);
                   cl_primary--;
                   break;

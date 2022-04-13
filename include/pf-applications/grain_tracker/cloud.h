@@ -38,10 +38,23 @@ namespace GrainTracker
       cells.emplace_back(cell_accessor);
     }
 
+    template <typename T>
+    void
+    add_edge_cell(const T &cell_accessor)
+    {
+      edge_cells.emplace_back(cell_accessor);
+    }
+
     const std::vector<Cell<dim>> &
     get_cells() const
     {
       return cells;
+    }
+
+    const std::vector<Cell<dim>> &
+    get_edge_cells() const
+    {
+      return edge_cells;
     }
 
     template <class Archive>
@@ -49,12 +62,30 @@ namespace GrainTracker
     serialize(Archive &ar, const unsigned int /*version*/)
     {
       ar &cells;
+      ar &edge_cells;
       ar &order_parameter_id;
+    }
+
+    void
+    stitch(const Cloud &cloud)
+    {
+      // Append inner cells
+      for (const auto &cell : cloud.get_cells())
+        {
+          add_cell(cell);
+        }
+
+      // Append edge cells
+      for (const auto &cell : cloud.get_edge_cells())
+        {
+          add_edge_cell(cell);
+        }
     }
 
   private:
     unsigned int order_parameter_id;
 
     std::vector<Cell<dim>> cells;
+    std::vector<Cell<dim>> edge_cells;
   };
 } // namespace GrainTracker
