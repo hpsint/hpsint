@@ -468,7 +468,7 @@ namespace Sintering
         grain_tracker.print_grains(pcout);
 
         // Rebuild data structures if grains have been reassigned
-        if (has_reassigned_grains)
+        if (has_reassigned_grains || has_op_number_changed)
           {
             output_result(solution, nonlinear_operator, t, "remap");
 
@@ -493,15 +493,17 @@ namespace Sintering
                  * add new blocks to the solution vector prior to remapping.
                  */
 
-                if (n_components_new < n_components_old)
+                if (has_reassigned_grains &&
+                    n_components_new < n_components_old)
                   grain_tracker.remap(solution);
 
                 solution.reinit(n_components_new);
 
-                if (n_components_new > n_components_old)
+                if (has_reassigned_grains &&
+                    n_components_new > n_components_old)
                   grain_tracker.remap(solution);
               }
-            else
+            else if (has_reassigned_grains)
               {
                 grain_tracker.remap(solution);
               }

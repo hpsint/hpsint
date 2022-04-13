@@ -483,11 +483,12 @@ namespace GrainTracker
   private:
     // Build a set of active order parameters
     std::set<unsigned int>
-    build_active_order_parameter_ids() const
+    build_active_order_parameter_ids(
+      const std::map<unsigned int, Grain<dim>> &all_grains) const
     {
       std::set<unsigned int> active_op_ids;
 
-      for (const auto &[gid, gr] : grains)
+      for (const auto &[gid, gr] : all_grains)
         {
           (void)gid;
           active_op_ids.insert(gr.get_order_parameter_id());
@@ -498,11 +499,12 @@ namespace GrainTracker
 
     // Build a set of old order parameters
     std::set<unsigned int>
-    build_old_order_parameter_ids() const
+    build_old_order_parameter_ids(
+      const std::map<unsigned int, Grain<dim>> &all_grains) const
     {
       std::set<unsigned int> old_op_ids;
 
-      for (const auto &[gid, gr] : grains)
+      for (const auto &[gid, gr] : all_grains)
         {
           (void)gid;
           old_op_ids.insert(gr.get_old_order_parameter_id());
@@ -784,7 +786,7 @@ namespace GrainTracker
         }
 
       // Build active order parameters
-      active_order_parameters = build_active_order_parameter_ids();
+      active_order_parameters = build_active_order_parameter_ids(grains);
 
       // Remove dangling order parameters if any
       const unsigned int n_order_parameters = active_order_parameters.size();
@@ -825,12 +827,15 @@ namespace GrainTracker
           grains_reassigned = true;
 
           // Rebuild active order parameters
-          active_order_parameters = build_active_order_parameter_ids();
+          active_order_parameters = build_active_order_parameter_ids(grains);
         }
 
       // Check if number of order parameters has changed
       bool op_number_changed =
-        (active_order_parameters != build_old_order_parameter_ids());
+        (active_order_parameters.size() !=
+           build_old_order_parameter_ids(grains).size() ||
+         active_order_parameters.size() !=
+           build_active_order_parameter_ids(old_grains).size());
 
       print_log(log);
 
