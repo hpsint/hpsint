@@ -679,8 +679,18 @@ namespace GrainTracker
       std::vector<std::string> log;
 
       // DSP for colorization if order parameters are compressed
-      const unsigned int     n_grains = grains.size();
-      DynamicSparsityPattern dsp(n_grains);
+      const unsigned int                   n_grains = grains.size();
+      DynamicSparsityPattern               dsp(n_grains);
+      std::map<unsigned int, unsigned int> grains_to_sparsity;
+
+      unsigned int id_counter = 0;
+      std::transform(grains.begin(),
+                     grains.end(),
+                     std::inserter(grains_to_sparsity,
+                                   grains_to_sparsity.end()),
+                     [&id_counter](const auto &a) {
+                       return std::make_pair(a.first, id_counter++);
+                     });
 
       bool overlap_detected = false;
 
@@ -712,7 +722,8 @@ namespace GrainTracker
                   if (min_distance <
                       buffer_distance_base + buffer_distance_other)
                     {
-                      dsp.add(g_base_id, g_other_id);
+                      dsp.add(grains_to_sparsity.at(g_base_id),
+                              grains_to_sparsity.at(g_other_id));
 
                       if (gr_other.get_order_parameter_id() ==
                           gr_base.get_order_parameter_id())
@@ -748,7 +759,8 @@ namespace GrainTracker
 
           for (auto &[gid, grain] : grains)
             {
-              const unsigned int new_order_parmeter = color_indices[gid] - 1;
+              const unsigned int new_order_parmeter =
+                color_indices[grains_to_sparsity.at(gid)] - 1;
 
               if (grain.get_order_parameter_id() != new_order_parmeter)
                 {
