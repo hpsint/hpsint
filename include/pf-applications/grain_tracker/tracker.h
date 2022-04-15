@@ -56,7 +56,7 @@ namespace GrainTracker
     track(const BlockVectorType &solution)
     {
       // Find cells clouds
-      const auto clouds = find_clouds(solution);
+      last_clouds = std::move(find_clouds(solution));
 
       // Copy old grains
       old_grains = grains;
@@ -65,7 +65,7 @@ namespace GrainTracker
       grains.clear();
 
       // Create segments and transfer grain_id's for them
-      for (auto &cloud : clouds)
+      for (auto &cloud : last_clouds)
         {
           // New segment
           Segment<dim> current_segment(cloud);
@@ -164,40 +164,29 @@ namespace GrainTracker
        *
        * TODO: improve the latter behavior for the case of PBC.
        */
-      auto clouds = find_clouds(solution);
 
-      // Create grains from clouds and add segments to each grain
-      if (greedy_init)
-        {
-          for (const auto &cl : clouds)
-            {
-              const unsigned int grain_id = cl.get_order_parameter_id();
-              const unsigned int order_parameter_id =
-                default_order_parameter_id;
-              const unsigned int old_order_parameter_id = grain_id;
-              grains.try_emplace(grain_id,
-                                 grain_id,
-                                 order_parameter_id,
-                                 old_order_parameter_id);
+      // Store last clouds state while iterating over groups
+      last_clouds.clear();
 
-              Segment<dim> segment(cl);
-              grains.at(cl.get_order_parameter_id()).add_segment(segment);
-            }
-        }
-      else
+      const auto grouped_clouds = find_grouped_clouds(solution);
+
+      unsigned int grain_numberer = 0;
+      for (const auto &group : grouped_clouds)
         {
-          unsigned int grain_numberer = 0;
-          for (const auto &cl : clouds)
+          const unsigned int grain_id = grain_numberer;
+
+          for (const auto &cloud : group)
             {
-              const unsigned int grain_id = grain_numberer;
               const unsigned int order_parameter_id =
-                cl.get_order_parameter_id();
+                cloud.get_order_parameter_id();
               grains.try_emplace(grain_id, grain_id, order_parameter_id);
 
-              Segment<dim> segment(cl);
+              Segment<dim> segment(cloud);
               grains.at(grain_numberer).add_segment(segment);
 
               grain_numberer++;
+
+              last_clouds.push_back(cloud); // std::move
             }
         }
 
@@ -449,33 +438,27 @@ namespace GrainTracker
       return active_order_parameters;
     }
 
-    // Print current grains
+    // Print last grains
     template <typename Stream>
     void
-    print_grains(Stream &out) const
+    print_current_grains(Stream &out) const
     {
-      out << "Number of order parameters: "
-          << get_active_order_parameters().size() << std::endl;
-      out << "Number of grains: " << grains.size() << std::endl;
-      for (const auto &[gid, gr] : grains)
-        {
-          (void)gid;
-          out << "op_index_current = " << gr.get_order_parameter_id()
-              << " | op_index_old = " << gr.get_old_order_parameter_id()
-              << " | segments = " << gr.get_segments().size()
-              << " | grain_index = " << gr.get_grain_id() << std::endl;
-          for (const auto &segment : gr.get_segments())
-            {
-              out << "    segment: center = " << segment.get_center()
-                  << " | radius = " << segment.get_radius() << std::endl;
-            }
-        }
+      print_grains(grains, out);
+    }
+
+    // Print last grains
+    template <typename Stream>
+    void
+    print_old_grains(Stream &out) const
+    {
+      print_grains(old_grains, out);
     }
 
     // Output last set of clouds
     void
     dump_last_clouds() const
     {
+      print_old_grains(pcout);
       print_clouds(last_clouds, pcout);
       output_clouds(last_clouds, /*is_merged = */ true);
     }
@@ -517,21 +500,79 @@ namespace GrainTracker
     std::vector<Cloud<dim>>
     find_clouds(const BlockVectorType &solution)
     {
-      last_clouds.clear();
+      std::vector<Cloud<dim>> clouds;
 
-      const unsigned int n_order_params = solution.n_blocks() - 2;
+      const unsigned int n_order_params =
+        solution.n_blocks() - order_parameters_offset;
 
       for (unsigned int current_grain_id = 0; current_grain_id < n_order_params;
            ++current_grain_id)
         {
           auto op_clouds =
             find_clouds_for_order_parameter(solution, current_grain_id);
-          last_clouds.insert(last_clouds.end(),
-                             op_clouds.begin(),
-                             op_clouds.end());
+          clouds.insert(clouds.end(), op_clouds.begin(), op_clouds.end());
         }
 
-      return last_clouds;
+      return clouds;
+    }
+
+    // Find cells clouds
+    std::vector<std::vector<Cloud<dim>>>
+    find_grouped_clouds(const BlockVectorType &solution)
+    {
+      std::vector<std::vector<Cloud<dim>>> clouds_groups;
+
+      const unsigned int n_order_params =
+        solution.n_blocks() - order_parameters_offset;
+
+      for (unsigned int current_grain_id = 0; current_grain_id < n_order_params;
+           ++current_grain_id)
+        {
+          auto op_clouds =
+            find_clouds_for_order_parameter(solution, current_grain_id);
+
+          /* Split into grains and also detect periodicity */
+          std::vector<std::vector<Cloud<dim>>> op_clouds_groups;
+          for (; !op_clouds.empty(); op_clouds.pop_back())
+            {
+              const auto &cloud_current = op_clouds.back();
+
+              if (cloud_current.has_periodic_boundary())
+                {
+                  for (auto &group : op_clouds_groups)
+                    {
+                      bool periodic_found = false;
+                      for (const auto &cloud_secondary : group)
+                        {
+                          if (cloud_secondary.has_periodic_boundary() &&
+                              cloud_secondary.is_periodic_with(cloud_current))
+                            {
+                              group.emplace_back(cloud_current); // std::move
+                              periodic_found = true;
+                              break;
+                            }
+                        }
+
+                      if (periodic_found)
+                        {
+                          break;
+                        }
+                    }
+                }
+              else
+                {
+                  op_clouds_groups.emplace_back(std::vector<Cloud<dim>>());
+                  op_clouds_groups.back().emplace_back(
+                    cloud_current); // std::move
+                }
+            }
+
+          clouds_groups.insert(clouds_groups.end(),
+                               op_clouds_groups.begin(),
+                               op_clouds_groups.end());
+        }
+
+      return clouds_groups;
     }
 
     // Find all clouds for a given order parameter
@@ -654,14 +695,22 @@ namespace GrainTracker
               cloud.add_cell(*cell);
 
               // Check if this cell is at the interface with another rank
+              bool is_stitchable = false;
               for (unsigned int n = 0; n < cell->n_faces(); n++)
                 {
                   if (!cell->at_boundary(n) && cell->neighbor(n)->is_ghost())
                     {
-                      cloud.add_edge_cell(*cell);
-                      break;
+                      cloud.add_edge_cell(*cell->neighbor(n));
+                      is_stitchable = true;
                     }
                 }
+
+              if (is_stitchable)
+              {
+                cloud.add_edge_cell(*cell);
+              }
+
+              bool is_periodic_primary = false;
 
               // Recursive call for all neighbors
               for (unsigned int n = 0; n < cell->n_faces(); n++)
@@ -675,6 +724,18 @@ namespace GrainTracker
                                            cloud,
                                            grain_assigned);
                     }
+                  else if (cell->has_periodic_neighbor(n))
+                    {
+                      cloud.add_periodic_secondary_cell(
+                        *cell->periodic_neighbor(n));
+                      is_periodic_primary = true;
+                    }
+                }
+
+              // Check if cell is periodic primary
+              if (is_periodic_primary)
+                {
+                  cloud.add_periodic_primary_cell(*cell);
                 }
             }
         }
@@ -879,31 +940,11 @@ namespace GrainTracker
             {
               auto &cloud_secondary = clouds[cl_secondary];
 
-              bool do_stiching = false;
-
-              for (const auto &cell_primary : cloud_primary.get_edge_cells())
-                {
-                  for (const auto &cell_secondary :
-                       cloud_secondary.get_edge_cells())
-                    {
-                      if (cell_primary.distance(cell_secondary) < 0.0)
-                        {
-                          do_stiching = true;
-                          break;
-                        }
-                    }
-
-                  if (do_stiching)
-                    {
-                      break;
-                    }
-                }
-
               /* If two clouds touch each other, we then append all the cells of
                * the primary clouds to the cells of the secondary one and erase
                * the primary cell.
                */
-              if (do_stiching)
+              if (cloud_primary.is_stitchable_with(cloud_secondary))
                 {
                   cloud_secondary.stitch(cloud_primary);
                   clouds.erase(clouds.begin() + cl_primary);
@@ -1035,6 +1076,31 @@ namespace GrainTracker
           data_out.write_vtu(output_stream);
 
           counter_split++;
+        }
+    }
+
+    // Print current grains
+    template <typename Stream>
+    void
+    print_grains(const std::map<unsigned int, Grain<dim>> &current_grains,
+                 Stream &                                  out) const
+    {
+      out << "Number of order parameters: "
+          << build_active_order_parameter_ids(current_grains).size()
+          << std::endl;
+      out << "Number of grains: " << current_grains.size() << std::endl;
+      for (const auto &[gid, gr] : current_grains)
+        {
+          (void)gid;
+          out << "op_index_current = " << gr.get_order_parameter_id()
+              << " | op_index_old = " << gr.get_old_order_parameter_id()
+              << " | segments = " << gr.get_segments().size()
+              << " | grain_index = " << gr.get_grain_id() << std::endl;
+          for (const auto &segment : gr.get_segments())
+            {
+              out << "    segment: center = " << segment.get_center()
+                  << " | radius = " << segment.get_radius() << std::endl;
+            }
         }
     }
 

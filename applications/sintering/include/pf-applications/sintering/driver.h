@@ -465,7 +465,7 @@ namespace Sintering
 
         solution.zero_out_ghost_values();
 
-        grain_tracker.print_grains(pcout);
+        grain_tracker.print_current_grains(pcout);
 
         // Rebuild data structures if grains have been reassigned
         if (has_reassigned_grains || has_op_number_changed)
