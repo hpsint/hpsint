@@ -1483,6 +1483,7 @@ namespace Sintering
     set_previous_solution(const BlockVectorType &src) const
     {
       Assert(src.has_ghost_elements() == false, ExcInternalError());
+      this->old_solution.reinit(0);
 
       this->old_solution = src;
       this->old_solution.update_ghost_values();
