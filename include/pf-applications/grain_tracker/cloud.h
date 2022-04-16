@@ -126,8 +126,7 @@ namespace GrainTracker
     bool
     is_stitchable_with(const Cloud &cloud) const
     {
-      return find_overlap(get_cells(), cloud.get_cells());
-      //return find_overlap(get_edge_cells(), cloud.get_edge_cells());
+      return find_overlap(get_edge_cells(), cloud.get_edge_cells());
     }
 
     bool
