@@ -41,6 +41,7 @@ namespace dealii
             {
               if (blocks[b] == nullptr)
                 blocks[b] = std::make_shared<BlockType>();
+              block(b).reinit(V.block(b), true);
               block(b) = V.block(b);
             }
 
