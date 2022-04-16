@@ -123,20 +123,52 @@ namespace Sintering
       , constraints{&constraint}
       , initial_solution(initial_solution)
     {
-      auto   boundaries = initial_solution->get_domain_boundaries();
-      double rmax       = initial_solution->get_r_max();
+      std::pair<dealii::Point<dim>, dealii::Point<dim>> boundaries;
 
-      for (unsigned int i = 0; i < dim; i++)
+      if (!params.geometry_data.custom_bounding_box)
         {
-          boundaries.first[i] -= params.geometry_data.boundary_factor * rmax;
-          boundaries.second[i] += params.geometry_data.boundary_factor * rmax;
+          boundaries  = initial_solution->get_domain_boundaries();
+          double rmax = initial_solution->get_r_max();
+
+          for (unsigned int i = 0; i < dim; i++)
+            {
+              boundaries.first[i] -=
+                params.geometry_data.boundary_factor * rmax;
+              boundaries.second[i] +=
+                params.geometry_data.boundary_factor * rmax;
+            }
+        }
+      else
+        {
+          if (dim >= 1)
+            {
+              boundaries.first[0] =
+                params.geometry_data.bounding_box_data.x_min;
+              boundaries.second[0] =
+                params.geometry_data.bounding_box_data.x_max;
+            }
+          if (dim >= 2)
+            {
+              boundaries.first[1] =
+                params.geometry_data.bounding_box_data.y_min;
+              boundaries.second[1] =
+                params.geometry_data.bounding_box_data.y_max;
+            }
+          if (dim == 3)
+            {
+              boundaries.first[2] =
+                params.geometry_data.bounding_box_data.z_min;
+              boundaries.second[2] =
+                params.geometry_data.bounding_box_data.z_max;
+            }
         }
 
       create_mesh(tria,
                   boundaries.first,
                   boundaries.second,
                   initial_solution->get_interface_width(),
-                  params.geometry_data.elements_per_interface);
+                  params.geometry_data.elements_per_interface,
+                  params.geometry_data.periodic);
 
       initialize();
     }
@@ -150,6 +182,23 @@ namespace Sintering
       // ... constraints, and ...
       constraint.clear();
       DoFTools::make_hanging_node_constraints(dof_handler, constraint);
+
+      if (params.geometry_data.periodic)
+        {
+          std::vector<GridTools::PeriodicFacePair<
+            typename dealii::DoFHandler<dim>::cell_iterator>>
+            periodicity_vector;
+
+          for (unsigned int d = 0; d < dim; d++)
+            {
+              GridTools::collect_periodic_faces(
+                dof_handler, 2 * d, 2 * d + 1, d, periodicity_vector);
+
+              DoFTools::make_periodicity_constraints<dim, dim>(
+                periodicity_vector, constraint);
+            }
+        }
+
       constraint.close();
 
       // ... MatrixFree
@@ -738,7 +787,8 @@ namespace Sintering
                 const dealii::Point<dim> &                 bottom_left,
                 const dealii::Point<dim> &                 top_right,
                 const double                               interface_width,
-                const unsigned int elements_per_interface)
+                const unsigned int elements_per_interface,
+                const bool         periodic)
     {
       const auto   domain_size   = top_right - bottom_left;
       const double domain_width  = domain_size[0];
@@ -763,13 +813,31 @@ namespace Sintering
           subdivisions[2] = initial_nz;
         }
 
-      dealii::GridGenerator::subdivided_hyper_rectangle(tria,
-                                                        subdivisions,
-                                                        bottom_left,
-                                                        top_right);
+      dealii::GridGenerator::subdivided_hyper_rectangle(
+        tria, subdivisions, bottom_left, top_right, true);
+
+      if (periodic)
+        make_periodic(tria);
 
       if (n_refinements > 0)
         tria.refine_global(n_refinements);
+    }
+
+    void
+    make_periodic(parallel::distributed::Triangulation<dim> &tria) const
+    {
+      // Need to work with triangulation here
+      std::vector<GridTools::PeriodicFacePair<
+        typename parallel::distributed::Triangulation<dim>::cell_iterator>>
+        periodicity_vector;
+
+      for (unsigned int d = 0; d < dim; d++)
+        {
+          GridTools::collect_periodic_faces(
+            tria, 2 * d, 2 * d + 1, d, periodicity_vector);
+        }
+
+      tria.add_periodicity(periodicity_vector);
     }
 
     void
