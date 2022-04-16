@@ -57,7 +57,7 @@ namespace Sintering
   struct TimeIntegrationData
   {
     double       time_start                  = 0;
-    double       time_end                    = 1e4;
+    double       time_end                    = 1e3;
     double       time_step_init              = 1e-3;
     double       time_step_min               = 1e-5;
     double       time_step_max               = 1e2;
