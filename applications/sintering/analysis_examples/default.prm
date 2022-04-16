@@ -36,7 +36,7 @@ subsection Mobility
 end
 subsection TimeIntegration
     set TimeStart = 0
-    set TimeEnd = 1e4
+    set TimeEnd = 1e3
     set TimeStepInit = 1e-3
     set TimeStepMin = 1e-5
     set TimeStepMax = 1e2
