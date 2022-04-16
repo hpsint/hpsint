@@ -128,22 +128,34 @@ namespace GrainTracker
     {
       ar &cells;
       ar &edge_cells;
+      ar &periodic_primary_cells;
+      ar &periodic_secondary_cells;
       ar &order_parameter_id;
     }
 
     void
-    stitch(const Cloud &cloud)
+    stitch(Cloud &cloud)
     {
       // Append inner cells
-      for (const auto &cell : cloud.get_cells())
+      for (auto &cell : cloud.get_cells())
         {
-          add_cell(cell);
+          add_cell(std::move(cell));
         }
 
       // Append edge cells
-      for (const auto &cell : cloud.get_edge_cells())
+      for (auto &cell : cloud.get_edge_cells())
         {
-          add_edge_cell(cell);
+          add_edge_cell(std::move(cell));
+        }
+
+      // Append periodic cells
+      for (auto &cell : cloud.get_periodic_primary_cells())
+        {
+          add_periodic_primary_cell(std::move(cell));
+        }
+      for (auto &cell : cloud.get_periodic_secondary_cells())
+        {
+          add_periodic_secondary_cell(std::move(cell));
         }
     }
 
