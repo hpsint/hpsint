@@ -53,20 +53,29 @@ namespace dealii
           block_counter = n;
 
           const unsigned int old_blocks_size = blocks.size();
+          const unsigned int new_blocks_size = n;
 
-          if (n_blocks() > old_blocks_size)
+          std::vector<std::shared_ptr<BlockType>> new_blocks(n, nullptr);
+
+          for (unsigned int b = 0; b < new_blocks_size; ++b)
             {
-              blocks.resize(n_blocks());
-
-              for (unsigned int b = old_blocks_size; b < n_blocks(); ++b)
-                {
-                  if (blocks[b] == nullptr)
-                    blocks[b] = std::make_shared<BlockType>();
-
-                  if (old_blocks_size != 0)
-                    block(b).reinit(block(0), omit_zeroing_entries);
-                }
+              new_blocks[b] = std::make_shared<BlockType>();
             }
+
+          for (unsigned int b = 0;
+               b < std::min(new_blocks_size, old_blocks_size);
+               ++b)
+            {
+              *new_blocks[b] = *blocks[b];
+            }
+
+          for (unsigned int b = old_blocks_size; b < new_blocks_size; ++b)
+            {
+              if (old_blocks_size != 0)
+                new_blocks[b]->reinit(block(0), omit_zeroing_entries);
+            }
+
+          blocks = new_blocks;
         }
 
         void
