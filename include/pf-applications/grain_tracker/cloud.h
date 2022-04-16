@@ -9,7 +9,7 @@
 namespace GrainTracker
 {
   using namespace dealii;
-  
+
   /* Cloud is nothing by a group of cells that represent a part of a grain.
    * It works as a candidate for future grain segments. When cloud is being
    * constructed, it is associated with a certain order parameter provided via
@@ -69,7 +69,7 @@ namespace GrainTracker
                     (periodic_primary_cells.empty() &&
                      periodic_secondary_cells.empty()),
                   ExcMessage("Periodic boundary information is inconsistent"));
-                  
+
       return !periodic_primary_cells.empty() &&
              !periodic_secondary_cells.empty();
     }
