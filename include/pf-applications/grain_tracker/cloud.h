@@ -35,30 +35,30 @@ namespace GrainTracker
 
     template <typename T>
     void
-    add_cell(const T &cell_accessor)
+    add_cell(T &&cell_accessor)
     {
-      cells.emplace_back(cell_accessor);
+      cells.emplace_back(std::forward<T>(cell_accessor));
     }
 
     template <typename T>
     void
-    add_edge_cell(const T &cell_accessor)
+    add_edge_cell(T &&cell_accessor)
     {
-      edge_cells.emplace_back(cell_accessor);
+      edge_cells.emplace_back(std::forward<T>(cell_accessor));
     }
 
     template <typename T>
     void
-    add_periodic_primary_cell(const T &cell_accessor)
+    add_periodic_primary_cell(T &&cell_accessor)
     {
-      periodic_primary_cells.emplace_back(cell_accessor);
+      periodic_primary_cells.emplace_back(std::forward<T>(cell_accessor));
     }
 
     template <typename T>
     void
-    add_periodic_secondary_cell(const T &cell_accessor)
+    add_periodic_secondary_cell(T &&cell_accessor)
     {
-      periodic_secondary_cells.emplace_back(cell_accessor);
+      periodic_secondary_cells.emplace_back(std::forward<T>(cell_accessor));
     }
 
     bool
@@ -94,6 +94,30 @@ namespace GrainTracker
 
     const std::vector<Cell<dim>> &
     get_periodic_secondary_cells() const
+    {
+      return periodic_secondary_cells;
+    }
+
+    std::vector<Cell<dim>> &
+    get_cells()
+    {
+      return cells;
+    }
+
+    std::vector<Cell<dim>> &
+    get_edge_cells()
+    {
+      return edge_cells;
+    }
+
+    std::vector<Cell<dim>> &
+    get_periodic_primary_cells()
+    {
+      return periodic_primary_cells;
+    }
+
+    std::vector<Cell<dim>> &
+    get_periodic_secondary_cells()
     {
       return periodic_secondary_cells;
     }
