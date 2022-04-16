@@ -131,10 +131,19 @@ namespace GrainTracker
        * be as far from each other as possible to reduce the number of costly
        * grains reassignment.
        */
-      const bool prefer_closest = false;
+      const bool force_reassignment = false;
 
-      // Reassign grains and return the result
-      return reassign_grains(prefer_closest);
+      // Reassign grains
+      const bool grains_reassigned = reassign_grains(force_reassignment);
+
+      // Check if number of order parameters has changed
+      bool op_number_changed =
+        (active_order_parameters.size() !=
+           build_old_order_parameter_ids(grains).size() ||
+         active_order_parameters.size() !=
+           build_active_order_parameter_ids(old_grains).size());
+
+      return std::make_tuple(grains_reassigned, op_number_changed);
     }
 
     /* Initialization of grains at the very first step. The function returns a
@@ -144,25 +153,10 @@ namespace GrainTracker
     std::tuple<bool, bool>
     initial_setup(const BlockVectorType &solution)
     {
-      /* We can perform initialization in two ways: greedy or not. Both of them
-       * currently have limitations.
-       *
-       * When greedy mode is enabled, we imply that we have 1 variable per
-       * grain, so we set up grain indices accordinly. The main reason for that
-       * is that we may have periodic boundary conditions defined and thus a
-       * certain grain can contain multiple segments. In the current
-       * implementation this assumption allows to capture and then track such
-       * geometry during analysis. A better approach is to use information
-       * regarding periodicity provided by deal.II. This approach has
-       * significant drawback: the initial number of order parameters of the
-       * problem should fit the limit set by MAX_SINTERING_GRAINS.
-       *
-       * If greedy is disabled, then the latter limitation is relieved and we
-       * can supply initial values with order parameters preassigned to multiple
-       * grains. However, within the current implementation, the possibility of
-       * a grain to consist of multiple segments effectively gets lost.
-       *
-       * TODO: improve the latter behavior for the case of PBC.
+      /* We can perform initialization in two ways: greedy or not. Greedy
+       * initialization signals that we have to reassign grains in optimal way
+       * regardless on how they were defined by the initial conditions. PBC
+       * information is used to identify grains consisting of multiple segments.
        */
 
       // Store last clouds state while iterating over groups
@@ -171,32 +165,39 @@ namespace GrainTracker
       const auto grouped_clouds = find_grouped_clouds(solution);
 
       unsigned int grain_numberer = 0;
-      for (const auto &group : grouped_clouds)
+      for (auto &group : grouped_clouds)
         {
           const unsigned int grain_id = grain_numberer;
 
-          for (const auto &cloud : group)
+          for (auto &cloud : group)
             {
               const unsigned int order_parameter_id =
                 cloud.get_order_parameter_id();
               grains.try_emplace(grain_id, grain_id, order_parameter_id);
 
               Segment<dim> segment(cloud);
-              grains.at(grain_numberer).add_segment(segment);
+              grains.at(grain_id).add_segment(segment);
 
-              grain_numberer++;
-
-              last_clouds.push_back(cloud); // std::move
+              last_clouds.emplace_back(std::move(cloud));
             }
+
+          grain_numberer++;
         }
 
       /* Initial grains reassignment, the closest neighbors are allowed as we
        * want to minimize the number of order parameters in use.
        */
-      const bool prefer_closest = greedy_init;
+      const bool force_reassignment = greedy_init;
 
-      // Reassign grains and return the result
-      return reassign_grains(prefer_closest);
+      // Reassign grains
+      const bool grains_reassigned = reassign_grains(force_reassignment);
+
+      // Check if number of order parameters has changed
+      const bool op_number_changed =
+        (active_order_parameters.size() !=
+         build_old_order_parameter_ids(grains).size());
+
+      return std::make_tuple(grains_reassigned, op_number_changed);
     }
 
     // Remap a single state vector
@@ -505,11 +506,13 @@ namespace GrainTracker
       const unsigned int n_order_params =
         solution.n_blocks() - order_parameters_offset;
 
-      for (unsigned int current_grain_id = 0; current_grain_id < n_order_params;
-           ++current_grain_id)
+      for (unsigned int current_order_parameter_id = 0;
+           current_order_parameter_id < n_order_params;
+           ++current_order_parameter_id)
         {
           auto op_clouds =
-            find_clouds_for_order_parameter(solution, current_grain_id);
+            find_clouds_for_order_parameter(solution,
+                                            current_order_parameter_id);
           clouds.insert(clouds.end(), op_clouds.begin(), op_clouds.end());
         }
 
@@ -525,29 +528,32 @@ namespace GrainTracker
       const unsigned int n_order_params =
         solution.n_blocks() - order_parameters_offset;
 
-      for (unsigned int current_grain_id = 0; current_grain_id < n_order_params;
-           ++current_grain_id)
+      for (unsigned int current_order_parameter_id = 0;
+           current_order_parameter_id < n_order_params;
+           ++current_order_parameter_id)
         {
           auto op_clouds =
-            find_clouds_for_order_parameter(solution, current_grain_id);
+            find_clouds_for_order_parameter(solution,
+                                            current_order_parameter_id);
 
           /* Split into grains and also detect periodicity */
           std::vector<std::vector<Cloud<dim>>> op_clouds_groups;
           for (; !op_clouds.empty(); op_clouds.pop_back())
             {
-              const auto &cloud_current = op_clouds.back();
+              auto &cloud_current = op_clouds.back();
 
               if (cloud_current.has_periodic_boundary())
                 {
+                  bool periodic_found = false;
+
                   for (auto &group : op_clouds_groups)
                     {
-                      bool periodic_found = false;
                       for (const auto &cloud_secondary : group)
                         {
                           if (cloud_secondary.has_periodic_boundary() &&
                               cloud_secondary.is_periodic_with(cloud_current))
                             {
-                              group.emplace_back(cloud_current); // std::move
+                              group.emplace_back(std::move(cloud_current));
                               periodic_found = true;
                               break;
                             }
@@ -558,12 +564,19 @@ namespace GrainTracker
                           break;
                         }
                     }
+
+                  if (!periodic_found)
+                    {
+                      op_clouds_groups.emplace_back(std::vector<Cloud<dim>>());
+                      op_clouds_groups.back().emplace_back(
+                        std::move(cloud_current));
+                    }
                 }
               else
                 {
                   op_clouds_groups.emplace_back(std::vector<Cloud<dim>>());
                   op_clouds_groups.back().emplace_back(
-                    cloud_current); // std::move
+                    std::move(cloud_current));
                 }
             }
 
@@ -641,7 +654,7 @@ namespace GrainTracker
            * fact parts of a single one, we then merge the touching clouds into
            * one.
            */
-          merge_clouds(clouds);
+          stitch_clouds(clouds);
         }
 
       return clouds;
@@ -695,20 +708,14 @@ namespace GrainTracker
               cloud.add_cell(*cell);
 
               // Check if this cell is at the interface with another rank
-              bool is_stitchable = false;
               for (unsigned int n = 0; n < cell->n_faces(); n++)
                 {
                   if (!cell->at_boundary(n) && cell->neighbor(n)->is_ghost())
                     {
-                      cloud.add_edge_cell(*cell->neighbor(n));
-                      is_stitchable = true;
+                      cloud.add_edge_cell(*cell);
+                      break;
                     }
                 }
-
-              if (is_stitchable)
-              {
-                cloud.add_edge_cell(*cell);
-              }
 
               bool is_periodic_primary = false;
 
@@ -742,8 +749,8 @@ namespace GrainTracker
     }
 
     // Reassign grains order parameters to prevent collision
-    std::tuple<bool, bool>
-    reassign_grains(const bool prefer_closest)
+    bool
+    reassign_grains(const bool force_reassignment)
     {
       bool grains_reassigned = false;
 
@@ -763,7 +770,10 @@ namespace GrainTracker
                        return std::make_pair(a.first, id_counter++);
                      });
 
-      bool overlap_detected = false;
+      /* If we force grains reassignment, then we set up this flag so the
+       * colorization algorithm is forced to be executed
+       */
+      bool overlap_detected = force_reassignment;
 
       // Base grain to compare with
       for (auto &[g_base_id, gr_base] : grains)
@@ -855,10 +865,11 @@ namespace GrainTracker
               if (gr_base.get_grain_id() != gr_other.get_grain_id())
                 {
                   const bool are_neighbors =
-                    prefer_closest ? gr_base.get_order_parameter_id() ==
-                                       gr_other.get_order_parameter_id() :
-                                     gr_base.get_old_order_parameter_id() ==
-                                       gr_other.get_old_order_parameter_id();
+                    force_reassignment ?
+                      gr_base.get_order_parameter_id() ==
+                        gr_other.get_order_parameter_id() :
+                      gr_base.get_old_order_parameter_id() ==
+                        gr_other.get_old_order_parameter_id();
 
                   if (are_neighbors)
                     {
@@ -913,26 +924,19 @@ namespace GrainTracker
           active_order_parameters = build_active_order_parameter_ids(grains);
         }
 
-      // Check if number of order parameters has changed
-      bool op_number_changed =
-        (active_order_parameters.size() !=
-           build_old_order_parameter_ids(grains).size() ||
-         active_order_parameters.size() !=
-           build_active_order_parameter_ids(old_grains).size());
-
       print_log(log);
 
-      return std::make_tuple(grains_reassigned, op_number_changed);
+      return grains_reassigned;
     }
 
     // Merge different parts of clouds if they touch if MPI distributed
     void
-    merge_clouds(std::vector<Cloud<dim>> &clouds) const
+    stitch_clouds(std::vector<Cloud<dim>> &clouds) const
     {
       for (unsigned int cl_primary = 0; cl_primary < clouds.size();
            ++cl_primary)
         {
-          const auto &cloud_primary = clouds[cl_primary];
+          auto &cloud_primary = clouds[cl_primary];
 
           for (unsigned int cl_secondary = cl_primary + 1;
                cl_secondary < clouds.size();
