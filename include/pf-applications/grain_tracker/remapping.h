@@ -8,6 +8,14 @@ namespace GrainTracker
     unsigned int from;
     unsigned int to;
 
+    Remapping(const unsigned int grain_id,
+              const unsigned int from,
+              const unsigned int to)
+      : grain_id(grain_id)
+      , from(from)
+      , to(to)
+    {}
+
     bool
     operator==(const Remapping &rhs) const
     {
