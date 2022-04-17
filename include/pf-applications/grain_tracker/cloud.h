@@ -80,46 +80,10 @@ namespace GrainTracker
       return cells;
     }
 
-    const std::vector<Cell<dim>> &
-    get_edge_cells() const
-    {
-      return edge_cells;
-    }
-
-    const std::vector<Cell<dim>> &
-    get_periodic_primary_cells() const
-    {
-      return periodic_primary_cells;
-    }
-
-    const std::vector<Cell<dim>> &
-    get_periodic_secondary_cells() const
-    {
-      return periodic_secondary_cells;
-    }
-
     std::vector<Cell<dim>> &
     get_cells()
     {
       return cells;
-    }
-
-    std::vector<Cell<dim>> &
-    get_edge_cells()
-    {
-      return edge_cells;
-    }
-
-    std::vector<Cell<dim>> &
-    get_periodic_primary_cells()
-    {
-      return periodic_primary_cells;
-    }
-
-    std::vector<Cell<dim>> &
-    get_periodic_secondary_cells()
-    {
-      return periodic_secondary_cells;
     }
 
     template <class Archive>
@@ -173,30 +137,58 @@ namespace GrainTracker
     }
 
   private:
+    const std::vector<Cell<dim>> &
+    get_edge_cells() const
+    {
+      return edge_cells;
+    }
+
+    const std::vector<Cell<dim>> &
+    get_periodic_primary_cells() const
+    {
+      return periodic_primary_cells;
+    }
+
+    const std::vector<Cell<dim>> &
+    get_periodic_secondary_cells() const
+    {
+      return periodic_secondary_cells;
+    }
+
+    std::vector<Cell<dim>> &
+    get_edge_cells()
+    {
+      return edge_cells;
+    }
+
+    std::vector<Cell<dim>> &
+    get_periodic_primary_cells()
+    {
+      return periodic_primary_cells;
+    }
+
+    std::vector<Cell<dim>> &
+    get_periodic_secondary_cells()
+    {
+      return periodic_secondary_cells;
+    }
+
     bool
     find_overlap(const std::vector<Cell<dim>> &first,
                  const std::vector<Cell<dim>> &second) const
     {
-      bool overlap_found = false;
-
       for (const auto &cell_first : first)
         {
           for (const auto &cell_second : second)
             {
               if (cell_first.distance(cell_second) < 0.0)
                 {
-                  overlap_found = true;
-                  break;
+                  return true;
                 }
-            }
-
-          if (overlap_found)
-            {
-              break;
             }
         }
 
-      return overlap_found;
+      return false;
     }
 
     unsigned int order_parameter_id;

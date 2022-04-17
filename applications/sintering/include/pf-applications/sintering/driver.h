@@ -189,14 +189,14 @@ namespace Sintering
             typename dealii::DoFHandler<dim>::cell_iterator>>
             periodicity_vector;
 
-          for (unsigned int d = 0; d < dim; d++)
+          for (unsigned int d = 0; d < dim; ++d)
             {
               GridTools::collect_periodic_faces(
                 dof_handler, 2 * d, 2 * d + 1, d, periodicity_vector);
-
-              DoFTools::make_periodicity_constraints<dim, dim>(
-                periodicity_vector, constraint);
             }
+
+          DoFTools::make_periodicity_constraints<dim, dim>(periodicity_vector,
+                                                           constraint);
         }
 
       constraint.close();
@@ -824,14 +824,14 @@ namespace Sintering
     }
 
     void
-    make_periodic(parallel::distributed::Triangulation<dim> &tria) const
+    make_periodic(Triangulation<dim> &tria) const
     {
       // Need to work with triangulation here
       std::vector<GridTools::PeriodicFacePair<
         typename parallel::distributed::Triangulation<dim>::cell_iterator>>
         periodicity_vector;
 
-      for (unsigned int d = 0; d < dim; d++)
+      for (unsigned int d = 0; d < dim; ++d)
         {
           GridTools::collect_periodic_faces(
             tria, 2 * d, 2 * d + 1, d, periodicity_vector);

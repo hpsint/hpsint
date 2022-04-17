@@ -708,9 +708,10 @@ namespace GrainTracker
               cloud.add_cell(*cell);
 
               // Check if this cell is at the interface with another rank
-              for (unsigned int n = 0; n < cell->n_faces(); n++)
+              for (const auto f : cell->face_indices())
                 {
-                  if (!cell->at_boundary(n) && cell->neighbor(n)->is_ghost())
+                  if (!cell->at_boundary(f) && cell->neighbor(f)->is_active() &&
+                      cell->neighbor(f)->is_ghost())
                     {
                       cloud.add_edge_cell(*cell);
                       break;
@@ -720,21 +721,21 @@ namespace GrainTracker
               bool is_periodic_primary = false;
 
               // Recursive call for all neighbors
-              for (unsigned int n = 0; n < cell->n_faces(); n++)
+              for (const auto f : cell->face_indices())
                 {
-                  if (!cell->at_boundary(n))
+                  if (!cell->at_boundary(f))
                     {
-                      recursive_flood_fill(cell->neighbor(n),
+                      recursive_flood_fill(cell->neighbor(f),
                                            solution,
                                            order_parameter_id,
                                            values,
                                            cloud,
                                            grain_assigned);
                     }
-                  else if (cell->has_periodic_neighbor(n))
+                  else if (cell->has_periodic_neighbor(f))
                     {
                       cloud.add_periodic_secondary_cell(
-                        *cell->periodic_neighbor(n));
+                        *cell->periodic_neighbor(f));
                       is_periodic_primary = true;
                     }
                 }
