@@ -1683,6 +1683,11 @@ namespace Sintering
             }
         }
 
+      // TODO: remove once FEEvaluation::set_dof_values_plain()
+      // sets the values of constrainging DoFs in the case of PBC
+      for (unsigned int c = 0; c < n_entries; ++c)
+        this->constraints.distribute(data_vectors[c]);
+
       vec.zero_out_ghost_values();
 
       // Write names of fields
