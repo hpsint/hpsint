@@ -629,7 +629,7 @@ namespace GrainTracker
         }
 
       // If the last grain was initialized but empty, delete it
-      if (clouds.back().get_cells().size() == 0)
+      if (clouds.back().empty())
         {
           clouds.pop_back();
         }

@@ -27,6 +27,12 @@ namespace GrainTracker
       : order_parameter_id(order_parameter_id)
     {}
 
+    bool
+    empty() const
+    {
+      return get_cells().size() == 0;
+    }
+
     unsigned int
     get_order_parameter_id() const
     {
@@ -76,12 +82,6 @@ namespace GrainTracker
 
     const std::vector<Cell<dim>> &
     get_cells() const
-    {
-      return cells;
-    }
-
-    std::vector<Cell<dim>> &
-    get_cells()
     {
       return cells;
     }
@@ -153,6 +153,12 @@ namespace GrainTracker
     get_periodic_secondary_cells() const
     {
       return periodic_secondary_cells;
+    }
+
+    std::vector<Cell<dim>> &
+    get_cells()
+    {
+      return cells;
     }
 
     std::vector<Cell<dim>> &
