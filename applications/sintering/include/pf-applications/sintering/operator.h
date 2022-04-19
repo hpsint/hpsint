@@ -1451,6 +1451,7 @@ namespace Sintering
           0,
           "sintering_op")
       , data(data)
+      , dt(0.0)
       , matrix_based(matrix_based)
       , components_number(numbers::invalid_unsigned_int)
     {}
@@ -1589,7 +1590,6 @@ namespace Sintering
       const auto &mobility    = this->data.mobility;
       const auto &kappa_c     = this->data.kappa_c;
       const auto &kappa_p     = this->data.kappa_p;
-      const auto  dt_inv      = 1.0 / dt;
 
       vec.update_ghost_values();
 
@@ -1628,7 +1628,7 @@ namespace Sintering
               unsigned int counter = 0;
 
               temp[counter++] = PowerHelper<n_grains, 2>::power_sum(etas);
-              temp[counter++] = VectorizedArrayType(dt_inv);
+              temp[counter++] = VectorizedArrayType(dt);
               temp[counter++] = free_energy.d2f_dc2(c, etas);
 
               for (unsigned int ig = 0; ig < n_grains; ++ig)
@@ -1693,7 +1693,7 @@ namespace Sintering
       // Write names of fields
       std::vector<std::string> names;
       names.push_back("bnds");
-      names.push_back("dt_inv");
+      names.push_back("dt");
       names.push_back("d2f_dc2");
 
       for (unsigned int ig = 0; ig < n_grains; ++ig)
