@@ -12,12 +12,25 @@ namespace Sintering
     unsigned int n_points_1D = 2;
   };
 
+  struct BoundingBoxData
+  {
+    double x_min = 0;
+    double x_max = 0;
+    double y_min = 0;
+    double y_max = 0;
+    double z_min = 0;
+    double z_max = 0;
+  };
+
   struct GeometryData
   {
-    unsigned int elements_per_interface    = 8; // 4 - works well with AMR=off
-    double       boundary_factor           = 0.5;
-    double       interface_width           = 2.0;
-    bool         minimize_order_parameters = true;
+    unsigned int    elements_per_interface = 8; // 4 - works well with AMR=off
+    double          boundary_factor        = 0.5;
+    double          interface_width        = 2.0;
+    bool            minimize_order_parameters = true;
+    bool            periodic                  = false;
+    bool            custom_bounding_box       = false;
+    BoundingBoxData bounding_box_data;
   };
 
   struct AdaptivityData
@@ -154,6 +167,34 @@ namespace Sintering
       prm.add_parameter("MinimizeOrderParameters",
                         geometry_data.minimize_order_parameters,
                         "Minimize number of initial order parameters.");
+      prm.add_parameter("Periodic",
+                        geometry_data.periodic,
+                        "Is domain periodic.");
+      prm.add_parameter("CustomBoundingBox",
+                        geometry_data.custom_bounding_box,
+                        "Is custom bounding box specified.");
+
+      prm.enter_subsection("BoundingBox");
+      prm.add_parameter("Xmin",
+                        geometry_data.bounding_box_data.x_min,
+                        "x min.");
+      prm.add_parameter("Xmax",
+                        geometry_data.bounding_box_data.x_max,
+                        "x max.");
+      prm.add_parameter("Ymin",
+                        geometry_data.bounding_box_data.y_min,
+                        "y min.");
+      prm.add_parameter("Ymax",
+                        geometry_data.bounding_box_data.y_max,
+                        "y max.");
+      prm.add_parameter("Zmin",
+                        geometry_data.bounding_box_data.z_min,
+                        "z min.");
+      prm.add_parameter("Zmax",
+                        geometry_data.bounding_box_data.z_max,
+                        "z max.");
+      prm.leave_subsection();
+
       prm.leave_subsection();
 
 
