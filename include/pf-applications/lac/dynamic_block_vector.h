@@ -145,6 +145,18 @@ namespace dealii
             block(b).compress(operation);
         }
 
+        bool
+        is_globally_compatible(
+          const std::shared_ptr<const Utilities::MPI::Partitioner> &partitioner)
+          const
+        {
+          for (unsigned int b = 0; b < n_blocks(); ++b)
+            if (block(b).get_partitioner().get() != partitioner.get())
+              return false;
+
+          return true;
+        }
+
         /**
          * Computation.
          */

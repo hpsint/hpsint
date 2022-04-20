@@ -1485,13 +1485,25 @@ namespace Sintering
     {
       Assert(src.has_ghost_elements() == false, ExcInternalError());
 
+      AssertThrow(src.is_globally_compatible(
+                    this->matrix_free.get_vector_partitioner()),
+                  ExcInternalError());
+
       this->old_solution = src;
       this->old_solution.update_ghost_values();
+
+      AssertThrow(this->old_solution.is_globally_compatible(
+                    this->matrix_free.get_vector_partitioner()),
+                  ExcInternalError());
     }
 
     const BlockVectorType &
     get_previous_solution() const
     {
+      AssertThrow(this->old_solution.is_globally_compatible(
+                    this->matrix_free.get_vector_partitioner()),
+                  ExcInternalError());
+
       this->old_solution.zero_out_ghost_values();
       return this->old_solution;
     }
