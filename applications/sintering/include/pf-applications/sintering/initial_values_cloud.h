@@ -1,6 +1,11 @@
 #pragma once
 
+#include <deal.II/lac/dynamic_sparsity_pattern.h>
+#include <deal.II/lac/sparsity_pattern.h>
+#include <deal.II/lac/sparsity_tools.h>
+
 #include "initial_values.h"
+#include "particle.h"
 
 namespace Sintering
 {

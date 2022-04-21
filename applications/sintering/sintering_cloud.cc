@@ -29,10 +29,7 @@ static_assert(false, "No grains number has been given!");
 //#define WITH_TIMING
 //#define WITH_TRACKER
 
-#include <deal.II/lac/dynamic_sparsity_pattern.h>
-
 #include <pf-applications/sintering/driver.h>
-#include <pf-applications/sintering/particle.h>
 #include <pf-applications/sintering/initial_values_cloud.h>
 
 #include <cstdlib>
