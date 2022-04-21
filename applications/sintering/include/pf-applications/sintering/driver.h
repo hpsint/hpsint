@@ -374,11 +374,9 @@ namespace Sintering
         for (unsigned int b = 0; b < solution_dealii.n_blocks(); ++b)
           {
             solution_dealii.block(b).reinit(partitioner);
-
-            // note: we do not need to apply constraints, since they are
-            // are already set by the Newton solver
             solution_dealii.block(b).copy_locally_owned_data_from(
               solution.block(b));
+            constraint.distribute(solution_dealii.block(b));
           }
 
         solution_dealii.update_ghost_values();
