@@ -33,12 +33,14 @@ namespace GrainTracker
 
     Tracker(const DoFHandler<dim> &dof_handler,
             const bool             greedy_init,
+            const unsigned int     max_order_parameters_num,
             const double           threshold_lower       = 0.01,
             const double           threshold_upper       = 1.01,
             const double           buffer_distance_ratio = 0.05,
             const unsigned int     op_offset             = 2)
       : dof_handler(dof_handler)
       , greedy_init(greedy_init)
+      , max_order_parameters_num(max_order_parameters_num)
       , threshold_lower(threshold_lower)
       , threshold_upper(threshold_upper)
       , buffer_distance_ratio(buffer_distance_ratio)
@@ -1135,6 +1137,9 @@ namespace GrainTracker
     // Perform greedy initialization
     const bool greedy_init;
 
+    // Maximum number of order parameters available
+    const unsigned int max_order_parameters_num;
+
     // Minimum value of order parameter value
     const double threshold_lower;
 
@@ -1150,8 +1155,6 @@ namespace GrainTracker
     std::map<unsigned int, Grain<dim>> grains;
     std::map<unsigned int, Grain<dim>> old_grains;
     std::set<unsigned int>             active_order_parameters;
-
-    static constexpr int max_order_parameters_num = MAX_SINTERING_GRAINS;
 
     // Last set of detected clouds
     std::vector<Cloud<dim>> last_clouds;
