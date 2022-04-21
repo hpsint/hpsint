@@ -36,14 +36,12 @@ namespace GrainTracker
             const double           threshold_lower       = 0.01,
             const double           threshold_upper       = 1.01,
             const double           buffer_distance_ratio = 0.05,
-            const unsigned int     default_op_id         = 0,
             const unsigned int     op_offset             = 2)
       : dof_handler(dof_handler)
       , greedy_init(greedy_init)
       , threshold_lower(threshold_lower)
       , threshold_upper(threshold_upper)
       , buffer_distance_ratio(buffer_distance_ratio)
-      , default_order_parameter_id(default_op_id)
       , order_parameters_offset(op_offset)
       , pcout(std::cout, Utilities::MPI::this_mpi_process(MPI_COMM_WORLD) == 0)
     {}
@@ -1145,9 +1143,6 @@ namespace GrainTracker
 
     // Buffer zone around the grain
     const double buffer_distance_ratio;
-
-    // Default order parameter id
-    const unsigned int default_order_parameter_id;
 
     // Order parameters offset in FESystem
     const unsigned int order_parameters_offset;

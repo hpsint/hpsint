@@ -499,7 +499,6 @@ namespace Sintering
         params.grain_tracker_data.threshold_lower,
         params.grain_tracker_data.threshold_upper,
         params.grain_tracker_data.buffer_distance_ratio,
-        0,
         2);
 
       const auto run_grain_tracker = [&](const double t,
