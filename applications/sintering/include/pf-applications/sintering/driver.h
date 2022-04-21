@@ -352,6 +352,8 @@ namespace Sintering
                                      dof_handler,
                                      *initial_solution,
                                      solution.block(c));
+
+            constraint.distribute(solution.block(c));
           }
         solution.zero_out_ghost_values();
       };
