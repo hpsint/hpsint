@@ -124,7 +124,7 @@ namespace GrainTracker
                   // Check if we have found anything
                   AssertThrow(
                     new_grain_id != std::numeric_limits<unsigned int>::max(),
-                    ExcMessage(
+                    ExcCloudsInconsistency(
                       "Unable to detect a segment from the previous configuration for the cloud!"));
                 }
             }
