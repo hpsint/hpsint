@@ -495,9 +495,13 @@ namespace Sintering
         output_result(solution, nonlinear_operator, t, "refinement");
       };
 
+      // New grains can not appear in current sintering simulations
+      const bool allow_new_grains = false;
+
       GrainTracker::Tracker<dim, Number> grain_tracker(
         dof_handler,
         !params.geometry_data.minimize_order_parameters,
+        allow_new_grains,
         MAX_SINTERING_GRAINS,
         params.grain_tracker_data.threshold_lower,
         params.grain_tracker_data.threshold_upper,

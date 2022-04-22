@@ -33,6 +33,7 @@ namespace GrainTracker
 
     Tracker(const DoFHandler<dim> &dof_handler,
             const bool             greedy_init,
+            const bool             allow_new_grains,
             const unsigned int     max_order_parameters_num,
             const double           threshold_lower       = 0.01,
             const double           threshold_upper       = 1.01,
@@ -40,6 +41,7 @@ namespace GrainTracker
             const unsigned int     op_offset             = 2)
       : dof_handler(dof_handler)
       , greedy_init(greedy_init)
+      , allow_new_grains(allow_new_grains)
       , max_order_parameters_num(max_order_parameters_num)
       , threshold_lower(threshold_lower)
       , threshold_upper(threshold_upper)
@@ -64,6 +66,15 @@ namespace GrainTracker
       // Clear current grains
       grains.clear();
 
+      // Numberer for new grains
+      unsigned int grain_numberer = old_grains.rbegin()->first + 1;
+
+      // Vector of new periodic segments
+      std::map<const Cloud<dim> *, Segment<dim>> new_periodic_segments;
+
+      // Map of clouds to grains, only for periodic
+      std::map<const Cloud<dim> *, unsigned int> periodic_clouds_to_grains;
+
       // Create segments and transfer grain_id's for them
       for (auto &cloud : last_clouds)
         {
@@ -74,8 +85,7 @@ namespace GrainTracker
            * id, this will be assigned the new segment.
            */
           double       min_distance = std::numeric_limits<double>::max();
-          unsigned int grain_index_at_min_distance =
-            std::numeric_limits<unsigned int>::max();
+          unsigned int new_grain_id = std::numeric_limits<unsigned int>::max();
 
           for (const auto &[gid, gr] : old_grains)
             {
@@ -86,45 +96,126 @@ namespace GrainTracker
                   const double distance =
                     current_segment.get_center().distance(segment.get_center());
 
-                  if (distance < min_distance)
+                  if (distance < segment.get_radius() &&
+                      distance < min_distance)
                     {
-                      min_distance                = distance;
-                      grain_index_at_min_distance = gr.get_grain_id();
+                      min_distance = distance;
+                      new_grain_id = gr.get_grain_id();
                     }
                 }
             }
 
-          // TODO: limit the maximum value of min_distance to prevent from
-          // assigning the grain to some very distant one
+          // Set up the grain number
+          if (new_grain_id == std::numeric_limits<unsigned int>::max())
+            {
+              if (cloud.has_periodic_boundary())
+                {
+                  new_periodic_segments.emplace(&cloud, std::move(current_segment));
+                }
+              else if (allow_new_grains)
+                {
+                  new_grain_id = grain_numberer++;
+                }
+              else
+                {
+                  // Check if we have found anything
+                  AssertThrow(
+                    new_grain_id != std::numeric_limits<unsigned int>::max(),
+                    ExcMessage(
+                      "Unable to detect a segment from the previous configuration for the cloud!"));
+                }
+            }
+          else
+            {
+              // clang-format off
+              AssertThrow(old_grains.at(new_grain_id).get_order_parameter_id() 
+                == cloud.get_order_parameter_id(),
+                ExcCloudsInconsistency(
+                  std::string("Something got wrong with the order parameters numbering:\r\n") +
+                  std::string("\r\n    new_grain_id = ") +
+                  std::to_string(new_grain_id) + 
+                  std::string("\r\n    old grain order parameter   = ") +
+                  std::to_string(old_grains.at(new_grain_id).get_order_parameter_id()) + 
+                  std::string("\r\n    cloud order parameter       = ") +
+                  std::to_string(cloud.get_order_parameter_id()) + 
+                  std::string("\r\n    min_distance                = ") +
+                  std::to_string(min_distance) +
+                  std::string("\r\n    segment radius              = ") +
+                  std::to_string(current_segment.get_radius())
+              ));
+              // clang-format on
+            }
 
-          AssertThrow(
-            grain_index_at_min_distance !=
-              std::numeric_limits<unsigned int>::max(),
-            ExcMessage(
-              "Unable to detect a segment from the previous configuration for the cloud!"));
+          if (new_grain_id != std::numeric_limits<unsigned int>::max())
+            {
+              grains.try_emplace(new_grain_id,
+                                 new_grain_id,
+                                 cloud.get_order_parameter_id());
 
-          // clang-format off
-          AssertThrow(old_grains.at(grain_index_at_min_distance).get_order_parameter_id() 
-            == cloud.get_order_parameter_id(),
-            ExcCloudsInconsistency(
-              std::string("Something got wrong with the order parameters numbering:\r\n") +
-              std::string("\r\n    grain_index_at_min_distance = ") +
-              std::to_string(grain_index_at_min_distance) + 
-              std::string("\r\n    old grain order parameter   = ") +
-              std::to_string(old_grains.at(grain_index_at_min_distance).get_order_parameter_id()) + 
-              std::string("\r\n    cloud order parameter       = ") +
-              std::to_string(cloud.get_order_parameter_id()) + 
-              std::string("\r\n    min_distance                = ") +
-              std::to_string(min_distance)
-          ));
-          // clang-format on
+              grains.at(new_grain_id).add_segment(current_segment);
 
-          grains.try_emplace(grain_index_at_min_distance,
-                             grain_index_at_min_distance,
-                             old_grains.at(grain_index_at_min_distance)
-                               .get_order_parameter_id());
+              if (cloud.has_periodic_boundary())
+                {
+                  periodic_clouds_to_grains.insert({&cloud, new_grain_id});
+                }
+            }
+        }
 
-          grains.at(grain_index_at_min_distance).add_segment(current_segment);
+      // Now try to identify pairs of new periodic segments
+      for (const auto &[ptr_cloud_current, segment] : new_periodic_segments)
+        {
+          for (const auto &[ptr_cloud_candidate, grain_id] :
+               periodic_clouds_to_grains)
+            {
+              if (ptr_cloud_candidate->is_periodic_with(*ptr_cloud_current))
+                {
+                  grains.at(grain_id).add_segment(segment);
+
+                  break;
+                }
+            }
+        }
+
+      /* The remaining segments (if any left) should be new periodic with each
+       * other
+       */
+      if (allow_new_grains)
+        {
+          for (const auto &[ptr_cloud_primary, segment_primary] :
+               new_periodic_segments)
+            {
+              const unsigned int grain_id = grain_numberer++;
+
+              grains.try_emplace(grain_id,
+                                 grain_id,
+                                 ptr_cloud_primary->get_order_parameter_id());
+              grains.at(grain_id).add_segment(segment_primary);
+
+              for (auto it_secondary = new_periodic_segments.cbegin();
+                   it_secondary != new_periodic_segments.cend();)
+                {
+                  const auto ptr_cloud_secondary = it_secondary->first;
+
+                  if (ptr_cloud_primary != ptr_cloud_secondary &&
+                      ptr_cloud_secondary->is_periodic_with(*ptr_cloud_primary))
+                    {
+                      grains.at(grain_id).add_segment(it_secondary->second);
+
+                      it_secondary = new_periodic_segments.erase(it_secondary);
+                    }
+                  else
+                    {
+                      ++it_secondary;
+                    }
+                }
+            }
+        }
+      else
+        {
+          // Check if we found anything
+          AssertThrow(new_periodic_segments.empty(),
+                      ExcMessage(std::to_string(new_periodic_segments.size()) +
+                                 " unidentified periodic clouds left!"));
         }
 
       /* For tracking we want the grains assigned to the same order parameter to
@@ -1136,6 +1227,9 @@ namespace GrainTracker
 
     // Perform greedy initialization
     const bool greedy_init;
+
+    // Are new grains allowed to emerge
+    const bool allow_new_grains;
 
     // Maximum number of order parameters available
     const unsigned int max_order_parameters_num;
