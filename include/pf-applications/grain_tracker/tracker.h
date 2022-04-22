@@ -7,6 +7,8 @@
 #include <deal.II/matrix_free/fe_evaluation.h>
 #include <deal.II/matrix_free/matrix_free.h>
 
+#include <deal.II/numerics/data_out.h>
+
 #include <pf-applications/lac/dynamic_block_vector.h>
 
 #include <functional>
@@ -96,7 +98,7 @@ namespace GrainTracker
                   const double distance =
                     current_segment.get_center().distance(segment.get_center());
 
-                  if (distance < segment.get_radius() &&
+                  if (distance < current_segment.get_radius() &&
                       distance < min_distance)
                     {
                       min_distance = distance;
@@ -110,7 +112,8 @@ namespace GrainTracker
             {
               if (cloud.has_periodic_boundary())
                 {
-                  new_periodic_segments.emplace(&cloud, std::move(current_segment));
+                  new_periodic_segments.emplace(&cloud,
+                                                std::move(current_segment));
                 }
               else if (allow_new_grains)
                 {
@@ -162,17 +165,34 @@ namespace GrainTracker
         }
 
       // Now try to identify pairs of new periodic segments
-      for (const auto &[ptr_cloud_current, segment] : new_periodic_segments)
+      for (auto it = new_periodic_segments.cbegin();
+           it != new_periodic_segments.cend();)
         {
+          const auto ptr_cloud_current = it->first;
+
+          bool periodic_found = false;
+
           for (const auto &[ptr_cloud_candidate, grain_id] :
                periodic_clouds_to_grains)
             {
-              if (ptr_cloud_candidate->is_periodic_with(*ptr_cloud_current))
+              if (ptr_cloud_current->get_order_parameter_id() ==
+                    ptr_cloud_candidate->get_order_parameter_id() &&
+                  ptr_cloud_candidate->is_periodic_with(*ptr_cloud_current))
                 {
-                  grains.at(grain_id).add_segment(segment);
+                  grains.at(grain_id).add_segment(it->second);
+                  periodic_found = true;
 
                   break;
                 }
+            }
+
+          if (periodic_found)
+            {
+              it = new_periodic_segments.erase(it);
+            }
+          else
+            {
+              ++it;
             }
         }
 
