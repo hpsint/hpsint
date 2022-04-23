@@ -70,6 +70,7 @@
 #include <pf-applications/sintering/operator.h>
 #include <pf-applications/sintering/parameters.h>
 #include <pf-applications/sintering/preconditioners.h>
+#include <pf-applications/sintering/tools.h>
 
 // #define DEBUG_PARAVIEW
 #include <pf-applications/grain_tracker/tracker.h>
@@ -493,9 +494,14 @@ namespace Sintering
         output_result(solution, nonlinear_operator, t, "refinement");
       };
 
+      // New grains can not appear in current sintering simulations
+      const bool allow_new_grains = false;
+
       GrainTracker::Tracker<dim, Number> grain_tracker(
         dof_handler,
         !params.geometry_data.minimize_order_parameters,
+        allow_new_grains,
+        MAX_SINTERING_GRAINS,
         params.grain_tracker_data.threshold_lower,
         params.grain_tracker_data.threshold_upper,
         params.grain_tracker_data.buffer_distance_ratio,
@@ -781,64 +787,6 @@ namespace Sintering
     }
 
   private:
-    void
-    create_mesh(parallel::distributed::Triangulation<dim> &tria,
-                const dealii::Point<dim> &                 bottom_left,
-                const dealii::Point<dim> &                 top_right,
-                const double                               interface_width,
-                const unsigned int elements_per_interface,
-                const bool         periodic)
-    {
-      const auto   domain_size   = top_right - bottom_left;
-      const double domain_width  = domain_size[0];
-      const double domain_height = domain_size[1];
-
-      const unsigned int initial_ny = 10;
-      const unsigned int initial_nx =
-        static_cast<unsigned int>(domain_width / domain_height * initial_ny);
-
-      const unsigned int n_refinements = static_cast<unsigned int>(
-        std::round(std::log2(elements_per_interface / interface_width *
-                             domain_height / initial_ny)));
-
-      std::vector<unsigned int> subdivisions(dim);
-      subdivisions[0] = initial_nx;
-      subdivisions[1] = initial_ny;
-      if (dim == 3)
-        {
-          const double       domain_depth = domain_size[2];
-          const unsigned int initial_nz   = static_cast<unsigned int>(
-            domain_depth / domain_height * initial_ny);
-          subdivisions[2] = initial_nz;
-        }
-
-      dealii::GridGenerator::subdivided_hyper_rectangle(
-        tria, subdivisions, bottom_left, top_right, true);
-
-      if (periodic)
-        make_periodic(tria);
-
-      if (n_refinements > 0)
-        tria.refine_global(n_refinements);
-    }
-
-    void
-    make_periodic(Triangulation<dim> &tria) const
-    {
-      // Need to work with triangulation here
-      std::vector<GridTools::PeriodicFacePair<
-        typename parallel::distributed::Triangulation<dim>::cell_iterator>>
-        periodicity_vector;
-
-      for (unsigned int d = 0; d < dim; ++d)
-        {
-          GridTools::collect_periodic_faces(
-            tria, 2 * d, 2 * d + 1, d, periodicity_vector);
-        }
-
-      tria.add_periodicity(periodicity_vector);
-    }
-
     void
     output_result(const VectorType &       solution,
                   const NonLinearOperator &sintering_operator,
