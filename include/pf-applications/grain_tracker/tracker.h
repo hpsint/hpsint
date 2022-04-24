@@ -1,5 +1,6 @@
 #pragma once
 
+#include <deal.II/grid/filtered_iterator.h>
 #include <deal.II/grid/grid_tools.h>
 
 #include <deal.II/lac/dynamic_sparsity_pattern.h>
@@ -8,6 +9,9 @@
 #include <deal.II/matrix_free/matrix_free.h>
 
 #include <deal.II/numerics/data_out.h>
+
+#include <deal.II/particles/data_out.h>
+#include <deal.II/particles/particle_handler.h>
 
 #include <pf-applications/lac/dynamic_block_vector.h>
 
@@ -568,11 +572,19 @@ namespace GrainTracker
 
     // Output last set of clouds
     void
-    dump_last_clouds() const
+    dump_last_clouds(bool as_particles = false) const
     {
       print_old_grains(pcout);
       print_clouds(last_clouds, pcout);
-      output_clouds(last_clouds, /*is_merged = */ true);
+
+      if (as_particles)
+        {
+          output_clouds_as_particles(last_clouds);
+        }
+      else
+        {
+          output_clouds_as_continuum(last_clouds, /*is_merged = */ true);
+        }
     }
 
   private:
@@ -1095,10 +1107,10 @@ namespace GrainTracker
         }
     }
 
-    // Output clods (mainly for debug purposes)
+    // Output clouds as continuum (slow)
     void
-    output_clouds(const std::vector<Cloud<dim>> &clouds,
-                  const bool                     is_merged) const
+    output_clouds_as_continuum(const std::vector<Cloud<dim>> &clouds,
+                               const bool                     is_merged) const
     {
       DataOutBase::VtkFlags flags;
       flags.write_higher_order_cells = false;
@@ -1156,7 +1168,7 @@ namespace GrainTracker
         }
       data_out.build_patches();
 
-      pcout << "Outputing clouds..." << std::endl;
+      pcout << "Outputing clouds as continuum..." << std::endl;
 
       /* This function can be called for global clouds after they have been
        * indeitifed for each order parameter and populated to each rank or for
@@ -1193,6 +1205,62 @@ namespace GrainTracker
 
           counter_split++;
         }
+    }
+
+    // Output clouds as particles (fast)
+    void
+    output_clouds_as_particles(const std::vector<Cloud<dim>> &clouds) const
+    {
+      /* The simplest mapping is provided since it is not employed by the
+       * functionality used in this function. So we do not need here the
+       * original mapping of the problem we are working with.
+       */
+      MappingQ<dim> mapping(1);
+
+      const unsigned int n_properties = 2;
+
+      Particles::ParticleHandler particles_handler(
+        dof_handler.get_triangulation(), mapping, n_properties);
+      particles_handler.reserve(clouds.size());
+
+      auto local_boxes = GridTools::compute_mesh_predicate_bounding_box(
+        dof_handler.get_triangulation(), IteratorFilters::LocallyOwnedCell());
+      auto global_bounding_boxes =
+        Utilities::MPI::all_gather(MPI_COMM_WORLD, local_boxes);
+
+      std::vector<Point<dim>>          positions;
+      std::vector<std::vector<double>> properties;
+
+      // Append each cloud to the particle handler
+      for (const auto &cl : clouds)
+        {
+          Segment<dim> segment(cl);
+
+          positions.push_back(segment.get_center());
+
+          const unsigned int order_parameter_id = cl.get_order_parameter_id();
+          properties.push_back(std::vector<double>(
+            {segment.get_radius(), static_cast<double>(order_parameter_id)}));
+        }
+
+      particles_handler.insert_global_particles(positions,
+                                                global_bounding_boxes,
+                                                properties);
+
+      Particles::DataOut<dim>  particles_out;
+      std::vector<std::string> data_component_names{"radius",
+                                                    "order_parameter"};
+      particles_out.build_patches(particles_handler, data_component_names);
+
+      pcout << "Outputing clouds as particles..." << std::endl;
+
+      static unsigned int counter = 0;
+
+      const std::string filename =
+        "clouds_as_particles." + std::to_string(counter) + ".vtu";
+      particles_out.write_vtu_in_parallel(filename, MPI_COMM_WORLD);
+
+      counter++;
     }
 
     // Print current grains
