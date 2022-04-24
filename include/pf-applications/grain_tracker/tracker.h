@@ -570,21 +570,20 @@ namespace GrainTracker
       print_grains(old_grains, out);
     }
 
+    // Output last grains
+    void
+    output_current_grains(std::string prefix = std::string("grains")) const
+    {
+      output_grains(grains, prefix);
+    }
+
     // Output last set of clouds
     void
-    dump_last_clouds(bool as_particles = false) const
+    dump_last_clouds() const
     {
       print_old_grains(pcout);
       print_clouds(last_clouds, pcout);
-
-      if (as_particles)
-        {
-          output_clouds_as_particles(last_clouds);
-        }
-      else
-        {
-          output_clouds_as_continuum(last_clouds, /*is_merged = */ true);
-        }
+      output_clouds(last_clouds, /*is_merged = */ true);
     }
 
   private:
@@ -1107,10 +1106,10 @@ namespace GrainTracker
         }
     }
 
-    // Output clouds as continuum (slow)
+    // Output clouds
     void
-    output_clouds_as_continuum(const std::vector<Cloud<dim>> &clouds,
-                               const bool                     is_merged) const
+    output_clouds(const std::vector<Cloud<dim>> &clouds,
+                  const bool                     is_merged) const
     {
       DataOutBase::VtkFlags flags;
       flags.write_higher_order_cells = false;
@@ -1168,7 +1167,7 @@ namespace GrainTracker
         }
       data_out.build_patches();
 
-      pcout << "Outputing clouds as continuum..." << std::endl;
+      pcout << "Outputing clouds..." << std::endl;
 
       /* This function can be called for global clouds after they have been
        * indeitifed for each order parameter and populated to each rank or for
@@ -1209,38 +1208,43 @@ namespace GrainTracker
 
     // Output clouds as particles (fast)
     void
-    output_clouds_as_particles(const std::vector<Cloud<dim>> &clouds) const
+    output_grains(const std::map<unsigned int, Grain<dim>> &current_grains,
+                  const std::string &                       prefix) const
     {
       /* The simplest mapping is provided since it is not employed by the
        * functionality used in this function. So we do not need here the
        * original mapping of the problem we are working with.
        */
-      MappingQ<dim> mapping(1);
+      const MappingQ<dim> mapping(1);
 
-      const unsigned int n_properties = 2;
+      const unsigned int n_properties = 3;
 
       Particles::ParticleHandler particles_handler(
         dof_handler.get_triangulation(), mapping, n_properties);
-      particles_handler.reserve(clouds.size());
+      particles_handler.reserve(current_grains.size());
 
-      auto local_boxes = GridTools::compute_mesh_predicate_bounding_box(
+      const auto local_boxes = GridTools::compute_mesh_predicate_bounding_box(
         dof_handler.get_triangulation(), IteratorFilters::LocallyOwnedCell());
-      auto global_bounding_boxes =
+      const auto global_bounding_boxes =
         Utilities::MPI::all_gather(MPI_COMM_WORLD, local_boxes);
 
       std::vector<Point<dim>>          positions;
       std::vector<std::vector<double>> properties;
 
       // Append each cloud to the particle handler
-      for (const auto &cl : clouds)
+      for (const auto &[gid, grain] : current_grains)
         {
-          Segment<dim> segment(cl);
+          for (const auto &segment : grain.get_segments())
+            {
+              positions.push_back(segment.get_center());
 
-          positions.push_back(segment.get_center());
-
-          const unsigned int order_parameter_id = cl.get_order_parameter_id();
-          properties.push_back(std::vector<double>(
-            {segment.get_radius(), static_cast<double>(order_parameter_id)}));
+              const unsigned int order_parameter_id =
+                grain.get_order_parameter_id();
+              properties.push_back(
+                std::vector<double>({static_cast<double>(gid),
+                                     segment.get_radius(),
+                                     static_cast<double>(order_parameter_id)}));
+            }
         }
 
       particles_handler.insert_global_particles(positions,
@@ -1248,16 +1252,17 @@ namespace GrainTracker
                                                 properties);
 
       Particles::DataOut<dim>  particles_out;
-      std::vector<std::string> data_component_names{"radius",
+      std::vector<std::string> data_component_names{"grain_id",
+                                                    "radius",
                                                     "order_parameter"};
       particles_out.build_patches(particles_handler, data_component_names);
 
-      pcout << "Outputing clouds as particles..." << std::endl;
+      pcout << "Outputing grains..." << std::endl;
 
       static unsigned int counter = 0;
 
       const std::string filename =
-        "clouds_as_particles." + std::to_string(counter) + ".vtu";
+        prefix + "." + std::to_string(counter) + ".vtu";
       particles_out.write_vtu_in_parallel(filename, MPI_COMM_WORLD);
 
       counter++;
