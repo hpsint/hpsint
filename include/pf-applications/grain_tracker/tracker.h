@@ -832,8 +832,7 @@ namespace GrainTracker
               // Check if this cell is at the interface with another rank
               for (const auto f : cell->face_indices())
                 {
-                  if (!cell->at_boundary(f) && cell->neighbor(f)->is_active() &&
-                      cell->neighbor(f)->is_ghost())
+                  if (!cell->at_boundary(f) && has_ghost(cell->neighbor(f)))
                     {
                       cloud.add_edge_cell(*cell);
                       break;
@@ -1082,6 +1081,30 @@ namespace GrainTracker
         }
     }
 
+    bool
+    has_ghost(const TriaIterator<DoFCellAccessor<dim, dim, false>> &cell)
+    {
+      bool status = false;
+
+      if (cell->is_active())
+        {
+          status = cell->is_ghost();
+        }
+      else
+        {
+          for (unsigned int n = 0; n < cell->n_children(); n++)
+            {
+              if (has_ghost(cell->child(n)))
+                {
+                  status = true;
+                  break;
+                }
+            }
+        }
+
+      return status;
+    }
+
     // Print clouds (mainly for debug)
     template <typename Stream>
     void
@@ -1101,7 +1124,9 @@ namespace GrainTracker
               << " | center = " << current_segment.get_center()
               << " | radius = " << current_segment.get_radius()
               << " | number of cells = " << cloud.get_cells().size()
-              << std::endl;
+              << " | has_edges = " << (cloud.has_edges() ? "yes" : "no")
+              << " | periodic = "
+              << (cloud.has_periodic_boundary() ? "yes" : "no") << std::endl;
           cloud_id++;
         }
     }

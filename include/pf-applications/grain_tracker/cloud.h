@@ -68,6 +68,12 @@ namespace GrainTracker
     }
 
     bool
+    has_edges() const
+    {
+      return !edge_cells.empty();
+    }
+
+    bool
     has_periodic_boundary() const
     {
       AssertThrow((!periodic_primary_cells.empty() &&
