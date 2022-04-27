@@ -1143,10 +1143,26 @@ namespace GrainTracker
       data_out.set_flags(flags);
 
       // Identify all order parameters in use by the given clouds
-      std::set<unsigned int> current_order_parameters;
+      std::map<unsigned int, unsigned int> current_order_parameters;
       for (const auto &cl : clouds)
         {
-          current_order_parameters.insert(cl.get_order_parameter_id());
+          current_order_parameters.try_emplace(cl.get_order_parameter_id(), 0);
+          current_order_parameters.at(cl.get_order_parameter_id())++;
+        }
+
+      // Compute offsets for better clouds numbering
+      for (auto it = current_order_parameters.rbegin();
+           it != current_order_parameters.rend();
+           ++it)
+        {
+          auto it_sum_start = it;
+          ++it_sum_start;
+          it->second = std::accumulate(it_sum_start,
+                                       current_order_parameters.rend(),
+                                       0,
+                                       [](auto total, const auto &p) {
+                                         return total + p.second;
+                                       });
         }
 
       // Total number of cells and order parameters
@@ -1156,8 +1172,10 @@ namespace GrainTracker
       std::map<unsigned int, Vector<float>> order_parameter_indicators;
 
       // Initialize with invalid order parameter (negative)
-      for (const auto &op : current_order_parameters)
+      for (const auto &[op, offset] : current_order_parameters)
         {
+          (void)offset;
+
           order_parameter_indicators.emplace(op, n_cells);
           order_parameter_indicators.at(op) = -1.;
         }
@@ -1167,29 +1185,46 @@ namespace GrainTracker
       for (auto &tria_cell :
            dof_handler.get_triangulation().active_cell_iterators())
         {
-          for (const auto &cl : clouds)
+          for (unsigned int ic = 0; ic < clouds.size(); ++ic)
             {
+              const auto &cl = clouds[ic];
+
               for (const auto &cell : cl.get_cells())
                 {
                   if (cell.barycenter().distance(tria_cell->barycenter()) <
                       1e-6)
                     {
+                      const unsigned int cloud_number =
+                        ic - current_order_parameters.at(
+                               cl.get_order_parameter_id());
+
                       order_parameter_indicators.at(
-                        cl.get_order_parameter_id())[counter] =
-                        cl.get_order_parameter_id();
+                        cl.get_order_parameter_id())[counter] = cloud_number;
                     }
                 }
             }
           counter++;
         }
 
-      // Build output
+      // Append clouds assigned to order parameters
       data_out.attach_triangulation(dof_handler.get_triangulation());
-      for (const auto &op : current_order_parameters)
+      for (const auto &[op, offset] : current_order_parameters)
         {
+          (void)offset;
+
           data_out.add_data_vector(order_parameter_indicators.at(op),
                                    "op" + std::to_string(op));
         }
+
+      // Output subdomain structure for diagnostic
+      Vector<float> subdomain(dof_handler.get_triangulation().n_active_cells());
+      for (unsigned int i = 0; i < subdomain.size(); ++i)
+        {
+          subdomain[i] =
+            dof_handler.get_triangulation().locally_owned_subdomain();
+        }
+      data_out.add_data_vector(subdomain, "subdomain");
+
       data_out.build_patches();
 
       pcout << "Outputing clouds..." << std::endl;
