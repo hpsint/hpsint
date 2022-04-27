@@ -733,7 +733,7 @@ namespace GrainTracker
       Vector<Number> values(dof_handler.get_fe().n_dofs_per_cell());
 
       // The flood fill loop
-      for (auto &cell : dof_handler.cell_iterators_on_level(0))
+      for (auto &cell : dof_handler.active_cell_iterators())
         {
           bool grain_assigned = false;
           recursive_flood_fill(cell,
