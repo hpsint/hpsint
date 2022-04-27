@@ -844,6 +844,40 @@ namespace dealii
         first_selected_component);
     }
 
+    /* This is a special wrapper to overcome a bug in Intel Compiler existing at
+     * least in version 2021.2.0. For some reason, compiler can not choose
+     * between the 2 native deal.II versions of MatrixFree::cell_loop() for
+     * const and non-const object pointers if the pointer is 'this'. Inside the
+     * wrapper, when the initially provided 'this' pointer has a distinct name,
+     * the problem disappears.
+     *
+     * This bug also appears for class OperatorBase while for class Sintering
+     * there is no conflict, that's why the wrapper is not used there. It seems,
+     * the bug has something to do with inheritance.
+     */
+    template <int dim,
+              typename Number,
+              typename VectorizedArrayType,
+              typename CLASS,
+              typename OutVector,
+              typename InVector>
+    void
+    cell_loop_wrapper(
+      const MatrixFree<dim, Number, VectorizedArrayType> &matrix_free,
+      void (CLASS::*cell_operation)(
+        const MatrixFree<dim, Number, VectorizedArrayType> &,
+        OutVector &,
+        const InVector &,
+        const std::pair<unsigned int, unsigned int> &) const,
+      const CLASS *   owning_class,
+      OutVector &     dst,
+      const InVector &src,
+      const bool      zero_dst_vector = false)
+    {
+      matrix_free.cell_loop(
+        cell_operation, owning_class, dst, src, zero_dst_vector);
+    }
+
   } // namespace MyMatrixFreeTools
 } // namespace dealii
 
@@ -934,9 +968,13 @@ namespace Sintering
 
       if (system_matrix_is_empty)
         {
-#define OPERATION(c, d)        \
-  this->matrix_free.cell_loop( \
-    &OperatorBase::do_vmult_range<c, d>, this, dst, src, true);
+#define OPERATION(c, d)                                                     \
+  MyMatrixFreeTools::cell_loop_wrapper(this->matrix_free,                   \
+                                       &OperatorBase::do_vmult_range<c, d>, \
+                                       this,                                \
+                                       dst,                                 \
+                                       src,                                 \
+                                       true);
           EXPAND_OPERATIONS(OPERATION);
 #undef OPERATION
         }
@@ -956,9 +994,13 @@ namespace Sintering
 
       if (system_matrix_is_empty)
         {
-#define OPERATION(c, d)        \
-  this->matrix_free.cell_loop( \
-    &OperatorBase::do_vmult_range<c, d>, this, dst, src, true);
+#define OPERATION(c, d)                                                     \
+  MyMatrixFreeTools::cell_loop_wrapper(this->matrix_free,                   \
+                                       &OperatorBase::do_vmult_range<c, d>, \
+                                       this,                                \
+                                       dst,                                 \
+                                       src,                                 \
+                                       true);
           EXPAND_OPERATIONS(OPERATION);
 #undef OPERATION
         }
