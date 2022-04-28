@@ -1084,25 +1084,14 @@ namespace GrainTracker
     bool
     has_ghost(const TriaIterator<DoFCellAccessor<dim, dim, false>> &cell)
     {
-      bool status = false;
-
       if (cell->is_active())
-        {
-          status = cell->is_ghost();
-        }
-      else
-        {
-          for (unsigned int n = 0; n < cell->n_children(); n++)
-            {
-              if (has_ghost(cell->child(n)))
-                {
-                  status = true;
-                  break;
-                }
-            }
-        }
+        return cell->is_ghost();
 
-      return status;
+      for (unsigned int n = 0; n < cell->n_children(); n++)
+        if (has_ghost(cell->child(n)))
+          return true;
+
+      return false;
     }
 
     // Print clouds (mainly for debug)
