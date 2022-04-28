@@ -128,13 +128,13 @@ namespace Sintering
                       // Build up the rotation matrix of the local coordinate
                       // system
                       dealii::Tensor<2, dim> rotation_matrix =
-                        dealii::outer_product(ex, ex0) +
-                        dealii::outer_product(ey, ey0);
+                        dealii::outer_product(ex0, ex) +
+                        dealii::outer_product(ey0, ey);
                       if (dim == 3)
                         {
                           const dealii::Point<dim> ez(
                             dealii::cross_product_3d(ex, ey));
-                          rotation_matrix += dealii::outer_product(ez, ez0);
+                          rotation_matrix += dealii::outer_product(ez0, ez);
                         }
 
                       // Coordinate of the central contact point in global
@@ -486,6 +486,19 @@ namespace Sintering
         }
 
       return c_main;
+    }
+
+    template <typename Stream>
+    print_contacts(Stream &stream)
+    {
+      for (const auto &[from_to, contact] : contacts)
+        {
+          stream << from_to.first << "->" << from_to.second << ": "
+                 << "primary = " << contact.primary
+                 << ", secondary = " << contact.secondary
+                 << ", center = " << contact.center
+                 << ", rotation = " << contact.rotation_matrix << std::endl;
+        }
     }
   };
 } // namespace Sintering
