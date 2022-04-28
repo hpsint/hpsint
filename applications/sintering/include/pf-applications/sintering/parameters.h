@@ -309,17 +309,18 @@ namespace Sintering
       prm.add_parameter("HigherOrderCells",
                         output_data.higher_order_cells,
                         "Use higher order cells.");
-      prm.add_parameter("OutputTimeInterval", output_data.output_time_interval, "Output time interval.");
+      prm.add_parameter("OutputTimeInterval",
+                        output_data.output_time_interval,
+                        "Output time interval.");
       prm.add_parameter("VtkPath",
                         output_data.vtk_path,
                         "Path to write VTK files.");
       const std::string output_fields_options =
         "vars|bnds|dt|d2f|M|dM|kappa|L|subdomain";
-      prm.add_parameter(
-        "Data",
-        output_data.fields,
-        "Data to output.",
-        Patterns::MultipleSelection(output_fields_options));
+      prm.add_parameter("Data",
+                        output_data.fields,
+                        "Data to output.",
+                        Patterns::MultipleSelection(output_fields_options));
       prm.leave_subsection();
 
       prm.enter_subsection("Preconditioners");
