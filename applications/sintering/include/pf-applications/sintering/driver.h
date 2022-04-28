@@ -72,7 +72,6 @@
 #include <pf-applications/sintering/preconditioners.h>
 #include <pf-applications/sintering/tools.h>
 
-// #define DEBUG_PARAVIEW
 #include <pf-applications/grain_tracker/tracker.h>
 
 namespace Sintering
@@ -586,7 +585,7 @@ namespace Sintering
 
       double time_last_output = 0;
 
-      if (params.time_integration_data.output_time_interval > 0.0)
+      if (params.output_data.output_time_interval > 0.0)
         output_result(solution, nonlinear_operator, time_last_output);
 
       unsigned int n_timestep              = 0;
@@ -721,10 +720,10 @@ namespace Sintering
                     "Minimum timestep size exceeded, solution failed!"));
               }
 
-            if ((params.time_integration_data.output_time_interval > 0.0) &&
+            if ((params.output_data.output_time_interval > 0.0) &&
                 has_converged &&
-                (t > params.time_integration_data.output_time_interval +
-                       time_last_output))
+                (t >
+                 params.output_data.output_time_interval + time_last_output))
               {
                 time_last_output = t;
                 output_result(solution, nonlinear_operator, time_last_output);
@@ -793,35 +792,45 @@ namespace Sintering
                   const double             t,
                   const std::string        label = "solution")
     {
-#ifndef DEBUG_PARAVIEW
-      if (label != "solution")
+      if (!params.output_data.regular && label == "solution")
         return;
-#endif
+
+      if (!params.output_data.debug && label != "solution")
+        return;
 
       DataOutBase::VtkFlags flags;
-      flags.write_higher_order_cells = true;
+      flags.write_higher_order_cells = params.output_data.higher_order_cells;
 
       DataOut<dim> data_out;
       data_out.set_flags(flags);
 
-      data_out.add_data_vector(dof_handler, solution.block(0), "c");
-      data_out.add_data_vector(dof_handler, solution.block(1), "mu");
+      if (params.output_data.fields.find("vars") != std::string::npos)
+        {
+          data_out.add_data_vector(dof_handler, solution.block(0), "c");
+          data_out.add_data_vector(dof_handler, solution.block(1), "mu");
 
-      for (unsigned int ig = 2; ig < solution.n_blocks(); ++ig)
-        data_out.add_data_vector(dof_handler,
-                                 solution.block(ig),
-                                 "eta" + std::to_string(ig - 2));
+          for (unsigned int ig = 2; ig < solution.n_blocks(); ++ig)
+            data_out.add_data_vector(dof_handler,
+                                     solution.block(ig),
+                                     "eta" + std::to_string(ig - 2));
+        }
 
-      sintering_operator.add_data_vectors(data_out, solution);
+      sintering_operator.add_data_vectors(data_out,
+                                          solution,
+                                          params.output_data.fields);
 
       // Output subdomain structure
-      Vector<float> subdomain(dof_handler.get_triangulation().n_active_cells());
-      for (unsigned int i = 0; i < subdomain.size(); ++i)
+      if (params.output_data.fields.find("subdomain") != std::string::npos)
         {
-          subdomain[i] =
-            dof_handler.get_triangulation().locally_owned_subdomain();
+          Vector<float> subdomain(
+            dof_handler.get_triangulation().n_active_cells());
+          for (unsigned int i = 0; i < subdomain.size(); ++i)
+            {
+              subdomain[i] =
+                dof_handler.get_triangulation().locally_owned_subdomain();
+            }
+          data_out.add_data_vector(subdomain, "subdomain");
         }
-      data_out.add_data_vector(subdomain, "subdomain");
 
       data_out.build_patches(mapping, this->fe.tensor_degree());
 
@@ -830,8 +839,8 @@ namespace Sintering
       if (counters.find(label) == counters.end())
         counters[label] = 0;
 
-      std::string output =
-        label + "." + std::to_string(counters[label]++) + ".vtu";
+      std::string output = params.output_data.vtk_path + "/" + label + "." +
+                           std::to_string(counters[label]++) + ".vtu";
 
       pcout << "Outputing at t = " << t << " (" << output << ")" << std::endl;
 

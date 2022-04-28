@@ -3,7 +3,7 @@ subsection Approximation
     set NPoints1D = 2
 end
 subsection Geometry
-    set ElementsPerInterface = 8
+    set ElementsPerInterface = 4
     set BoundaryFactor = 0.5
     set InterfaceWidth = 2.0
     set MinimizeOrderParameters = true
@@ -12,7 +12,7 @@ subsection Adaptivity
     set TopFractionOfCells = 0.3
     set BottomFractionOfCells = 0.1
     set MinRefinementDepth = 3
-    set MaxRefinementDepth = 0
+    set MaxRefinementDepth = 1
     set RefinementFrequency = 10
 end
 subsection GrainTracker
@@ -41,9 +41,16 @@ subsection TimeIntegration
     set TimeStepMin = 1e-5
     set TimeStepMax = 1e2
     set GrowthFactor = 1.2
-    set OutputTimeInterval = 10
     set DesirableNewtonIterations = 5
     set DesirableLinearIterations = 100
+end
+subsection Output
+    set Regular = true
+    set Debug = false
+    set HigherOrderCells = false
+    set OutputTimeInterval = 10
+    set VtkPath = .
+    set Data = vars,bnds,dt,d2f,M,dM,kappa,L,subdomain
 end
 subsection Preconditioners
     set OuterPreconditioner = BlockPreconditioner2

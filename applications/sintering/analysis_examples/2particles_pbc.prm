@@ -51,9 +51,16 @@ subsection TimeIntegration
     set TimeStepMin = 1e-5
     set TimeStepMax = 1e2
     set GrowthFactor = 1.2
-    set OutputTimeInterval = 5
     set DesirableNewtonIterations = 5
     set DesirableLinearIterations = 100
+end
+subsection Output
+    set Regular = true
+    set Debug = false
+    set HigherOrderCells = true
+    set OutputTimeInterval = 5
+    set VtkPath = .
+    set Data = vars,bnds,dt,d2f,M,dM,kappa,L,subdomain
 end
 subsection Preconditioners
     set OuterPreconditioner = BlockPreconditioner2
