@@ -490,7 +490,7 @@ namespace Sintering
 
     template <typename Stream>
     void
-    print_contacts(Stream &stream)
+    print_contacts(Stream &stream) const
     {
       for (const auto &[from_to, contact] : contacts)
         {
