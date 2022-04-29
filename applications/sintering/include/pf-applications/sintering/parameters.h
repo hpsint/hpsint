@@ -75,9 +75,19 @@ namespace Sintering
     double       time_step_min               = 1e-5;
     double       time_step_max               = 1e2;
     double       growth_factor               = 1.2;
-    double       output_time_interval        = 10;
     unsigned int desirable_newton_iterations = 5;
     unsigned int desirable_linear_iterations = 100;
+  };
+
+  struct OutputData
+  {
+    bool                  regular              = true;
+    bool                  debug                = false;
+    bool                  higher_order_cells   = false;
+    double                output_time_interval = 10;
+    std::string           vtk_path             = ".";
+    std::set<std::string> fields =
+      {"CH", "AC", "bnds", "dt", "d2f", "M", "dM", "kappa", "L", "subdomain"};
   };
 
   struct PreconditionersData
@@ -101,6 +111,7 @@ namespace Sintering
     EnergyData          energy_data;
     MobilityData        mobility_data;
     TimeIntegrationData time_integration_data;
+    OutputData          output_data;
     PreconditionersData preconditioners_data;
 
     bool matrix_based = false;
@@ -281,9 +292,6 @@ namespace Sintering
       prm.add_parameter("GrowthFactor",
                         time_integration_data.growth_factor,
                         "Timestep growth factor.");
-      prm.add_parameter("OutputTimeInterval",
-                        time_integration_data.output_time_interval,
-                        "Output time interval.");
       prm.add_parameter("DesirableNewtonIterations",
                         time_integration_data.desirable_newton_iterations,
                         "Desirable Newton iterations.");
@@ -292,6 +300,30 @@ namespace Sintering
                         "Desirable linear iterations.");
       prm.leave_subsection();
 
+      prm.enter_subsection("Output");
+      prm.add_parameter("Regular",
+                        output_data.regular,
+                        "Whether regular output is enabled.");
+      prm.add_parameter("Debug",
+                        output_data.debug,
+                        "Whether debug output is enabled.");
+      prm.add_parameter("HigherOrderCells",
+                        output_data.higher_order_cells,
+                        "Use higher order cells.");
+      prm.add_parameter("OutputTimeInterval",
+                        output_data.output_time_interval,
+                        "Output time interval.");
+      prm.add_parameter("VtkPath",
+                        output_data.vtk_path,
+                        "Path to write VTK files.");
+      const std::string output_fields_options =
+        "CH|AC|bnds|dt|d2f|M|dM|kappa|L|subdomain";
+      prm.add_parameter("Fields",
+                        output_data.fields,
+                        "Fields to output.",
+                        Patterns::List(
+                          Patterns::MultipleSelection(output_fields_options)));
+      prm.leave_subsection();
 
       prm.enter_subsection("Preconditioners");
       const std::string preconditioner_types =

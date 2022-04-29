@@ -1616,14 +1616,54 @@ namespace Sintering
 
     template <int n_comp, int n_grains>
     void
-    do_add_data_vectors(DataOut<dim> &         data_out,
-                        const BlockVectorType &vec) const
+    do_add_data_vectors(DataOut<dim> &               data_out,
+                        const BlockVectorType &      vec,
+                        const std::set<std::string> &fields_list) const
     {
       AssertDimension(n_comp - 2, n_grains);
 
-      constexpr unsigned int n_entries =
-        9 + 3 * n_grains + n_grains * (n_grains - 1) / 2;
-      std::array<VectorType, n_entries> data_vectors;
+      // Possible output options
+      enum OutputFields
+      {
+        FieldBnds,
+        FieldDt,
+        FieldD2f,
+        FieldM,
+        FieldDM,
+        FieldKappa,
+        FieldL
+      };
+
+      const std::array<std::tuple<std::string, OutputFields, unsigned int>, 7>
+        possible_entries = {
+          {{"bnds", FieldBnds, 1},
+           {"dt", FieldDt, 1},
+           {"d2f", FieldD2f, 1 + 2 * n_grains + n_grains * (n_grains - 1) / 2},
+           {"M", FieldM, 1},
+           {"dM", FieldDM, 2 + n_grains},
+           {"kappa", FieldKappa, 2},
+           {"L", FieldL, 1}}};
+
+      // A better design is possible, but at the moment this is sufficient
+      std::array<bool, 7> entries_mask;
+      entries_mask.fill(false);
+
+      unsigned int n_entries = 0;
+
+      for (unsigned int i = 0; i < possible_entries.size(); i++)
+        {
+          const auto &entry = possible_entries[i];
+          if (fields_list.count(std::get<0>(entry)))
+            {
+              entries_mask[std::get<1>(entry)] = true;
+              n_entries += std::get<2>(entry);
+            }
+        }
+
+      if (n_entries == 0)
+        return;
+
+      std::vector<VectorType> data_vectors(n_entries);
 
       for (auto &data_vector : data_vectors)
         this->matrix_free.initialize_dof_vector(data_vector, this->dof_index);
@@ -1646,6 +1686,8 @@ namespace Sintering
       const auto &kappa_p     = this->data.kappa_p;
 
       vec.update_ghost_values();
+
+      std::vector<VectorizedArrayType> temp(n_entries);
 
       for (unsigned int cell = 0; cell < this->matrix_free.n_cell_batches();
            ++cell)
@@ -1677,50 +1719,74 @@ namespace Sintering
                   etas_grad[ig] = &grad[2 + ig];
                 }
 
-              std::array<VectorizedArrayType, n_entries> temp;
-
               unsigned int counter = 0;
 
-              temp[counter++] = PowerHelper<n_grains, 2>::power_sum(etas);
-              temp[counter++] = VectorizedArrayType(dt);
-              temp[counter++] = free_energy.d2f_dc2(c, etas);
-
-              for (unsigned int ig = 0; ig < n_grains; ++ig)
+              if (entries_mask[FieldBnds])
                 {
-                  temp[counter++] = free_energy.d2f_dcdetai(c, etas, ig);
+                  temp[counter++] = PowerHelper<n_grains, 2>::power_sum(etas);
                 }
 
-              for (unsigned int ig = 0; ig < n_grains; ++ig)
+              if (entries_mask[FieldDt])
                 {
-                  temp[counter++] = free_energy.d2f_detai2(c, etas, ig);
+                  temp[counter++] = VectorizedArrayType(dt);
                 }
 
-              for (unsigned int ig = 0; ig < n_grains; ++ig)
+              if (entries_mask[FieldD2f])
                 {
-                  for (unsigned int jg = ig + 1; jg < n_grains; ++jg)
+                  temp[counter++] = free_energy.d2f_dc2(c, etas);
+
+                  for (unsigned int ig = 0; ig < n_grains; ++ig)
                     {
-                      temp[counter++] =
-                        free_energy.d2f_detaidetaj(c, etas, ig, jg);
+                      temp[counter++] = free_energy.d2f_dcdetai(c, etas, ig);
+                    }
+
+                  for (unsigned int ig = 0; ig < n_grains; ++ig)
+                    {
+                      temp[counter++] = free_energy.d2f_detai2(c, etas, ig);
+                    }
+
+                  for (unsigned int ig = 0; ig < n_grains; ++ig)
+                    {
+                      for (unsigned int jg = ig + 1; jg < n_grains; ++jg)
+                        {
+                          temp[counter++] =
+                            free_energy.d2f_detaidetaj(c, etas, ig, jg);
+                        }
                     }
                 }
 
-              temp[counter++] = mobility.M(c, etas, c_grad, etas_grad);
-              temp[counter++] =
-                (mobility.dM_dc(c, etas, c_grad, etas_grad) * mu_grad).norm();
-              temp[counter++] =
-                (mobility.dM_dgrad_c(c, c_grad, mu_grad)).norm();
-
-              for (unsigned int ig = 0; ig < n_grains; ++ig)
+              if (entries_mask[FieldM])
                 {
-                  temp[counter++] =
-                    (mobility.dM_detai(c, etas, c_grad, etas_grad, ig) *
-                     mu_grad)
-                      .norm();
+                  temp[counter++] = mobility.M(c, etas, c_grad, etas_grad);
                 }
 
-              temp[counter++] = VectorizedArrayType(kappa_c);
-              temp[counter++] = VectorizedArrayType(kappa_p);
-              temp[counter++] = VectorizedArrayType(L);
+              if (entries_mask[FieldDM])
+                {
+                  temp[counter++] =
+                    (mobility.dM_dc(c, etas, c_grad, etas_grad) * mu_grad)
+                      .norm();
+                  temp[counter++] =
+                    (mobility.dM_dgrad_c(c, c_grad, mu_grad)).norm();
+
+                  for (unsigned int ig = 0; ig < n_grains; ++ig)
+                    {
+                      temp[counter++] =
+                        (mobility.dM_detai(c, etas, c_grad, etas_grad, ig) *
+                         mu_grad)
+                          .norm();
+                    }
+                }
+
+              if (entries_mask[FieldKappa])
+                {
+                  temp[counter++] = VectorizedArrayType(kappa_c);
+                  temp[counter++] = VectorizedArrayType(kappa_p);
+                }
+
+              if (entries_mask[FieldL])
+                {
+                  temp[counter++] = VectorizedArrayType(L);
+                }
 
               for (unsigned int c = 0; c < n_entries; ++c)
                 buffer[c * fe_eval.n_q_points + q] = temp[c];
@@ -1746,41 +1812,67 @@ namespace Sintering
 
       // Write names of fields
       std::vector<std::string> names;
-      names.push_back("bnds");
-      names.push_back("dt");
-      names.push_back("d2f_dc2");
-
-      for (unsigned int ig = 0; ig < n_grains; ++ig)
+      if (entries_mask[FieldBnds])
         {
-          names.push_back("d2f_dcdeta" + std::to_string(ig));
+          names.push_back("bnds");
         }
 
-      for (unsigned int ig = 0; ig < n_grains; ++ig)
+      if (entries_mask[FieldDt])
         {
-          names.push_back("d2f_deta" + std::to_string(ig) + "2");
+          names.push_back("dt");
         }
 
-      for (unsigned int ig = 0; ig < n_grains; ++ig)
+      if (entries_mask[FieldD2f])
         {
-          for (unsigned int jg = ig + 1; jg < n_grains; ++jg)
+          names.push_back("d2f_dc2");
+
+          for (unsigned int ig = 0; ig < n_grains; ++ig)
             {
-              names.push_back("d2f_deta" + std::to_string(ig) + "deta" +
-                              std::to_string(jg));
+              names.push_back("d2f_dcdeta" + std::to_string(ig));
+            }
+
+          for (unsigned int ig = 0; ig < n_grains; ++ig)
+            {
+              names.push_back("d2f_deta" + std::to_string(ig) + "2");
+            }
+
+          for (unsigned int ig = 0; ig < n_grains; ++ig)
+            {
+              for (unsigned int jg = ig + 1; jg < n_grains; ++jg)
+                {
+                  names.push_back("d2f_deta" + std::to_string(ig) + "deta" +
+                                  std::to_string(jg));
+                }
             }
         }
 
-      names.push_back("M");
-      names.push_back("nrm_dM_dc_x_mu_grad");
-      names.push_back("nrm_dM_dgrad_c");
-
-      for (unsigned int ig = 0; ig < n_grains; ++ig)
+      if (entries_mask[FieldM])
         {
-          names.push_back("nrm_dM_deta" + std::to_string(ig) + "_x_mu_grad");
+          names.push_back("M");
         }
 
-      names.push_back("kappa_c");
-      names.push_back("kappa_p");
-      names.push_back("L");
+      if (entries_mask[FieldDM])
+        {
+          names.push_back("nrm_dM_dc_x_mu_grad");
+          names.push_back("nrm_dM_dgrad_c");
+
+          for (unsigned int ig = 0; ig < n_grains; ++ig)
+            {
+              names.push_back("nrm_dM_deta" + std::to_string(ig) +
+                              "_x_mu_grad");
+            }
+        }
+
+      if (entries_mask[FieldKappa])
+        {
+          names.push_back("kappa_c");
+          names.push_back("kappa_p");
+        }
+
+      if (entries_mask[FieldL])
+        {
+          names.push_back("L");
+        }
 
       // Add data to output
       for (unsigned int c = 0; c < n_entries; ++c)
@@ -1793,9 +1885,12 @@ namespace Sintering
     }
 
     void
-    add_data_vectors(DataOut<dim> &data_out, const BlockVectorType &vec) const
+    add_data_vectors(DataOut<dim> &               data_out,
+                     const BlockVectorType &      vec,
+                     const std::set<std::string> &fields_list) const
     {
-#define OPERATION(c, d) this->do_add_data_vectors<c, d>(data_out, vec);
+#define OPERATION(c, d) \
+  this->do_add_data_vectors<c, d>(data_out, vec, fields_list);
       EXPAND_OPERATIONS(OPERATION);
 #undef OPERATION
     }
