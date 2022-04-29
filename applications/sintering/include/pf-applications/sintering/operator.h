@@ -1616,9 +1616,9 @@ namespace Sintering
 
     template <int n_comp, int n_grains>
     void
-    do_add_data_vectors(DataOut<dim> &         data_out,
-                        const BlockVectorType &vec,
-                        const std::string &    fields_list) const
+    do_add_data_vectors(DataOut<dim> &               data_out,
+                        const BlockVectorType &      vec,
+                        const std::set<std::string> &fields_list) const
     {
       AssertDimension(n_comp - 2, n_grains);
 
@@ -1653,7 +1653,7 @@ namespace Sintering
       for (unsigned int i = 0; i < possible_entries.size(); i++)
         {
           const auto &entry = possible_entries[i];
-          if (fields_list.find(std::get<0>(entry)) != std::string::npos)
+          if (fields_list.count(std::get<0>(entry)))
             {
               entries_mask[std::get<1>(entry)] = true;
               n_entries += std::get<2>(entry);
@@ -1885,9 +1885,9 @@ namespace Sintering
     }
 
     void
-    add_data_vectors(DataOut<dim> &         data_out,
-                     const BlockVectorType &vec,
-                     const std::string &    fields_list) const
+    add_data_vectors(DataOut<dim> &               data_out,
+                     const BlockVectorType &      vec,
+                     const std::set<std::string> &fields_list) const
     {
 #define OPERATION(c, d) \
   this->do_add_data_vectors<c, d>(data_out, vec, fields_list);

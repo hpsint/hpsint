@@ -81,12 +81,13 @@ namespace Sintering
 
   struct OutputData
   {
-    bool        regular              = true;
-    bool        debug                = false;
-    bool        higher_order_cells   = false;
-    double      output_time_interval = 10;
-    std::string vtk_path             = ".";
-    std::string fields = "CH,AC,bnds,dt,d2f,M,dM,kappa,L,subdomain";
+    bool                  regular              = true;
+    bool                  debug                = false;
+    bool                  higher_order_cells   = false;
+    double                output_time_interval = 10;
+    std::string           vtk_path             = ".";
+    std::set<std::string> fields =
+      {"CH", "AC", "bnds", "dt", "d2f", "M", "dM", "kappa", "L", "subdomain"};
   };
 
   struct PreconditionersData
@@ -320,7 +321,8 @@ namespace Sintering
       prm.add_parameter("Fields",
                         output_data.fields,
                         "Fields to output.",
-                        Patterns::MultipleSelection(output_fields_options));
+                        Patterns::List(
+                          Patterns::MultipleSelection(output_fields_options)));
       prm.leave_subsection();
 
       prm.enter_subsection("Preconditioners");

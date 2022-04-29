@@ -804,13 +804,13 @@ namespace Sintering
       DataOut<dim> data_out;
       data_out.set_flags(flags);
 
-      if (params.output_data.fields.find("CH") != std::string::npos)
+      if (params.output_data.fields.count("CH"))
         {
           data_out.add_data_vector(dof_handler, solution.block(0), "c");
           data_out.add_data_vector(dof_handler, solution.block(1), "mu");
         }
 
-      if (params.output_data.fields.find("AC") != std::string::npos)
+      if (params.output_data.fields.count("AC"))
         {
           for (unsigned int ig = 2; ig < solution.n_blocks(); ++ig)
             data_out.add_data_vector(dof_handler,
@@ -823,7 +823,7 @@ namespace Sintering
                                           params.output_data.fields);
 
       // Output subdomain structure
-      if (params.output_data.fields.find("subdomain") != std::string::npos)
+      if (params.output_data.fields.count("subdomain"))
         {
           Vector<float> subdomain(
             dof_handler.get_triangulation().n_active_cells());
