@@ -49,10 +49,18 @@ namespace GrainTracker
                   const unsigned int order_parameter_id_to,
                   const unsigned int grain_id)
     {
-      boost::add_edge(vertex(order_parameter_id_from),
-                      vertex(order_parameter_id_to),
-                      EdgeProp{grain_id},
-                      graph);
+      const auto& vertex_src = vertex(order_parameter_id_from);
+      const auto& vertex_dst = vertex(order_parameter_id_to);
+      
+      const auto edge = boost::edge(vertex_src, vertex_dst, graph);
+
+      if (edge.second == false || graph[edge.first].grain != grain_id) 
+      {
+        boost::add_edge(vertex_src,
+                        vertex_dst,
+                        EdgeProp{grain_id},
+                        graph);
+      }
     }
 
     // Check if graph has cycles
@@ -145,7 +153,7 @@ namespace GrainTracker
                     std::find(old_remappings.begin(), old_remappings.end(), r);
 
                   AssertThrow(
-                    it_remap != remappings.end(),
+                    it_remap != old_remappings.end(),
                     ExcMessage(
                       "Inconsistency between graph and remappings list detected!"));
 
