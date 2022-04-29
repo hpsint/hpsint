@@ -86,7 +86,7 @@ namespace Sintering
     bool        higher_order_cells   = false;
     double      output_time_interval = 10;
     std::string vtk_path             = ".";
-    std::string fields = "vars,bnds,dt,d2f,M,dM,kappa,L,subdomain";
+    std::string fields = "CH,AC,bnds,dt,d2f,M,dM,kappa,L,subdomain";
   };
 
   struct PreconditionersData
@@ -316,10 +316,10 @@ namespace Sintering
                         output_data.vtk_path,
                         "Path to write VTK files.");
       const std::string output_fields_options =
-        "vars|bnds|dt|d2f|M|dM|kappa|L|subdomain";
-      prm.add_parameter("Data",
+        "CH|AC|bnds|dt|d2f|M|dM|kappa|L|subdomain";
+      prm.add_parameter("Fields",
                         output_data.fields,
-                        "Data to output.",
+                        "Fields to output.",
                         Patterns::MultipleSelection(output_fields_options));
       prm.leave_subsection();
 

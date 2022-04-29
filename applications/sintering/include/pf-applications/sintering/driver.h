@@ -804,11 +804,14 @@ namespace Sintering
       DataOut<dim> data_out;
       data_out.set_flags(flags);
 
-      if (params.output_data.fields.find("vars") != std::string::npos)
+      if (params.output_data.fields.find("CH") != std::string::npos)
         {
           data_out.add_data_vector(dof_handler, solution.block(0), "c");
           data_out.add_data_vector(dof_handler, solution.block(1), "mu");
+        }
 
+      if (params.output_data.fields.find("AC") != std::string::npos)
+        {
           for (unsigned int ig = 2; ig < solution.n_blocks(); ++ig)
             data_out.add_data_vector(dof_handler,
                                      solution.block(ig),

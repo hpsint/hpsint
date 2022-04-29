@@ -60,7 +60,7 @@ subsection Output
     set HigherOrderCells = true
     set OutputTimeInterval = 5
     set VtkPath = .
-    set Data = vars,bnds,dt,d2f,M,dM,kappa,L,subdomain
+    set Fields = CH,AC,bnds,dt,d2f,M,dM,kappa,L,subdomain
 end
 subsection Preconditioners
     set OuterPreconditioner = BlockPreconditioner2
