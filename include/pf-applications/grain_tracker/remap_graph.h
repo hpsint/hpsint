@@ -49,18 +49,15 @@ namespace GrainTracker
                   const unsigned int order_parameter_id_to,
                   const unsigned int grain_id)
     {
-      const auto& vertex_src = vertex(order_parameter_id_from);
-      const auto& vertex_dst = vertex(order_parameter_id_to);
-      
+      const auto &vertex_src = vertex(order_parameter_id_from);
+      const auto &vertex_dst = vertex(order_parameter_id_to);
+
       const auto edge = boost::edge(vertex_src, vertex_dst, graph);
 
-      if (edge.second == false || graph[edge.first].grain != grain_id) 
-      {
-        boost::add_edge(vertex_src,
-                        vertex_dst,
-                        EdgeProp{grain_id},
-                        graph);
-      }
+      if (edge.second == false || graph[edge.first].grain != grain_id)
+        {
+          boost::add_edge(vertex_src, vertex_dst, EdgeProp{grain_id}, graph);
+        }
     }
 
     // Check if graph has cycles
