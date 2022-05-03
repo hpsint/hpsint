@@ -1078,19 +1078,13 @@ namespace GrainTracker
           for (const auto &[g_other_id, gr_other] : grains)
             {
               (void)g_other_id;
-              if (gr_base.get_grain_id() != gr_other.get_grain_id())
+              if (gr_base.get_grain_id() != gr_other.get_grain_id() &&
+                  (gr_base.get_order_parameter_id() ==
+                     gr_other.get_order_parameter_id() ||
+                   gr_base.get_old_order_parameter_id() ==
+                     gr_other.get_old_order_parameter_id()))
                 {
-                  const bool are_neighbors =
-                    force_reassignment ?
-                      gr_base.get_order_parameter_id() ==
-                        gr_other.get_order_parameter_id() :
-                      gr_base.get_old_order_parameter_id() ==
-                        gr_other.get_old_order_parameter_id();
-
-                  if (are_neighbors)
-                    {
-                      gr_base.add_neighbor(&gr_other);
-                    }
+                  gr_base.add_neighbor(&gr_other);
                 }
             }
         }
