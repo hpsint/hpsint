@@ -29,7 +29,7 @@ namespace GrainTracker
     };
 
     // Internal graph
-    using Graph = boost::adjacency_list<boost::listS,
+    using Graph = boost::adjacency_list<boost::multisetS,
                                         boost::listS,
                                         boost::bidirectionalS,
                                         VertexProp,
@@ -52,18 +52,23 @@ namespace GrainTracker
       const auto &vertex_src = vertex(order_parameter_id_from);
       const auto &vertex_dst = vertex(order_parameter_id_to);
 
-      const auto edge = boost::edge(vertex_src, vertex_dst, graph);
-
-      if (edge.second == false || graph[edge.first].grain != grain_id)
+      if (!remapping_exists(vertex_src, vertex_dst, grain_id))
         {
           boost::add_edge(vertex_src, vertex_dst, EdgeProp{grain_id}, graph);
         }
     }
 
-    // Check if graph has cycles
-    bool
-    has_cycles() const
+    /* Resolve cyclic remappings. Any remapping cycles if performed as is, will
+     * result in damaging either of the grains involved. To resolve it, a
+     * temporary vector has to be used. In this case a pair of remappings is
+     * returned. The first remaps a grain to a temporary vector, an then the
+     * second remaps from the temporary vector to a new order parameter.
+     */
+    std::vector<std::pair<Remapping, Remapping>>
+    resolve_cycles(std::list<Remapping> &remappings)
     {
+      std::vector<std::pair<Remapping, Remapping>> remappings_via_temp;
+
       // Create index map
       std::map<Vertex, size_t> i_map;
       for (auto v : boost::make_iterator_range(boost::vertices(graph)))
@@ -77,13 +82,39 @@ namespace GrainTracker
       std::vector<boost::default_color_type> c_map(boost::num_vertices(graph));
       auto cpmap = boost::make_iterator_property_map(c_map.begin(), ipmap);
 
-      bool has_cycle = false;
+      std::vector<Edge> cycle_edges;
 
-      CycleDetector vis(has_cycle);
+      CycleDetector vis(cycle_edges);
       boost::depth_first_search(
         graph, boost::visitor(vis).vertex_index_map(ipmap).color_map(cpmap));
 
-      return has_cycle;
+      for (const auto &e : cycle_edges)
+        {
+          auto source = boost::source(e, graph);
+          auto target = boost::target(e, graph);
+
+          const unsigned int from     = graph[source].order_parameter;
+          const unsigned int to       = graph[target].order_parameter;
+          const unsigned int grain_id = graph[e].grain;
+
+          Remapping r{grain_id, from, to};
+
+          auto it_split = std::find(remappings.begin(), remappings.end(), r);
+
+          AssertThrow(
+            it_split != remappings.end(),
+            ExcMessage(
+              "Inconsistency between graph and remappings list detected!"));
+
+          Remapping r1{grain_id, from, numbers::invalid_unsigned_int};
+          Remapping r2{grain_id, numbers::invalid_unsigned_int, to};
+          remappings_via_temp.push_back(std::make_pair(r1, r2));
+
+          remappings.erase(it_split);
+          boost::remove_edge(e, graph);
+        }
+
+      return remappings_via_temp;
     }
 
     // Check if graph empty
@@ -208,6 +239,20 @@ namespace GrainTracker
       return order_parameter_to_vertex.at(order_parameter_id);
     };
 
+    /* Check if a given remapping exists in the graph. */
+    bool
+    remapping_exists(const Vertex &     vertex_src,
+                     const Vertex &     vertex_dst,
+                     const unsigned int grain_id) const
+    {
+      for (auto e : boost::make_iterator_range(
+             boost::edge_range(vertex_src, vertex_dst, graph)))
+        if (graph[e].grain == grain_id)
+          return true;
+
+      return false;
+    }
+
     // Internal boost graph
     Graph graph;
 
@@ -219,19 +264,19 @@ namespace GrainTracker
     // Special visitor for cycles checking
     struct CycleDetector : public boost::dfs_visitor<>
     {
-      CycleDetector(bool &has_cycle)
-        : has_cycle(has_cycle)
+      CycleDetector(std::vector<Edge> &edges)
+        : edges(edges)
       {}
 
       template <typename Edge, typename Graph>
       void
-      back_edge(Edge, Graph &)
+      back_edge(Edge e, Graph &)
       {
-        has_cycle = true;
+        edges.push_back(e);
       }
 
     protected:
-      bool &has_cycle;
+      std::vector<Edge> &edges;
     };
   };
 } // namespace GrainTracker

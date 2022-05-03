@@ -381,7 +381,8 @@ namespace GrainTracker
 
       for (const auto &[gid, gr] : disappered_grains)
         {
-          const unsigned int op_id = gr.get_order_parameter_id();
+          const unsigned int op_id =
+            gr.get_order_parameter_id() + order_parameters_offset;
 
           std::ostringstream ss;
           ss << "Grain " << gr.get_grain_id() << " having order parameter "
@@ -394,13 +395,9 @@ namespace GrainTracker
              &values,
              op_id](const dealii::DoFCellAccessor<dim, dim, false> &cell,
                     BlockVectorType *                               solution) {
-              cell.get_dof_values(solution->block(op_id +
-                                                  order_parameters_offset),
-                                  values);
+              cell.get_dof_values(solution->block(op_id), values);
               values = 0;
-              cell.set_dof_values(values,
-                                  solution->block(op_id +
-                                                  order_parameters_offset));
+              cell.set_dof_values(values, solution->block(op_id));
             });
         }
 
@@ -471,6 +468,9 @@ namespace GrainTracker
             }
         }
 
+      // Transfer cycled grains to temporary vectors
+      std::vector<std::pair<Remapping, Remapping>> remappings_via_temp;
+
       /* If graph is not empty, then have some dependencies in remapping and
        * need to perform at first those at the end of the graph in order not to
        * break the configuration of the domain.
@@ -479,11 +479,7 @@ namespace GrainTracker
         {
           /* Check if the graph has cycles - these are unlikely situations and
            * at the moment we do not handle them due to complexity.
-           *
-           * TODO: Resolve cycles in remappings
            */
-          AssertThrow(graph.has_cycles() == false,
-                      ExcMessage("Cycles detected in remappings!"));
 
           std::ostringstream ss;
           ss << "Remapping dependencies have been detected and resolved."
@@ -491,7 +487,79 @@ namespace GrainTracker
           graph.print(ss);
           log.emplace_back(ss.str());
 
+          // At frist resolve cyclic remappings
+          remappings_via_temp = graph.resolve_cycles(remappings);
+
+          // Then rearrange the rest
           graph.rearrange(remappings);
+        }
+
+      // Create temporary vectors for grain transfers
+      std::map<const BlockVectorType *, std::shared_ptr<BlockVectorType>>
+        solutions_to_temps;
+
+      if (!remappings_via_temp.empty())
+        {
+          const auto partitioner =
+            std::make_shared<Utilities::MPI::Partitioner>(
+              dof_handler.locally_owned_dofs(),
+              DoFTools::extract_locally_relevant_dofs(dof_handler),
+              dof_handler.get_communicator());
+
+          for (const auto &solution : solutions)
+            {
+              auto temp =
+                std::make_shared<BlockVectorType>(remappings_via_temp.size());
+              for (unsigned int b = 0; b < temp->n_blocks(); ++b)
+                {
+                  temp->block(b).reinit(partitioner);
+                  temp->block(b).update_ghost_values();
+                }
+
+              solutions_to_temps.emplace(solution, temp);
+            }
+        }
+
+      // Transfer some grains to temp vectors to break the cycles
+      for (auto it = remappings_via_temp.cbegin();
+           it != remappings_via_temp.cend();
+           ++it)
+        {
+          const auto &re    = it->first;
+          const auto &grain = grains.at(re.grain_id);
+
+          std::ostringstream ss;
+          ss << "Remap order parameter for grain id = " << re.grain_id
+             << ": from " << re.from << " to temp" << std::endl;
+          log.emplace_back(ss.str());
+
+          const unsigned int op_id_src = re.from + order_parameters_offset;
+          const unsigned int op_id_dst = it - remappings_via_temp.begin();
+
+          /* At first we transfer the values from the dofs related to the
+           * old order parameters to the temporary blocks.
+           */
+          alter_dof_values_for_grain(
+            grain,
+            [this, &values, op_id_src, op_id_dst, &solutions_to_temps](
+              const dealii::DoFCellAccessor<dim, dim, false> &cell,
+              BlockVectorType *                               solution) {
+              cell.get_dof_values(solution->block(op_id_src), values);
+              cell.set_dof_values(
+                values, solutions_to_temps.at(solution)->block(op_id_dst));
+            });
+
+          // Then we iterate again to nullify the old dofs
+          alter_dof_values_for_grain(
+            grain,
+            [this,
+             &values,
+             op_id_src](const dealii::DoFCellAccessor<dim, dim, false> &cell,
+                        BlockVectorType *solution) {
+              cell.get_dof_values(solution->block(op_id_src), values);
+              values = 0;
+              cell.set_dof_values(values, solution->block(op_id_src));
+            });
         }
 
       // Now transfer values for the remaining grains
@@ -503,12 +571,12 @@ namespace GrainTracker
            * the order parameters are swapped. Its maximum size is the half
            * of the distance to the nearest neighbor.
            */
-          const unsigned int op_id_src = re.from;
-          const unsigned int op_id_dst = re.to;
+          const unsigned int op_id_src = re.from + order_parameters_offset;
+          const unsigned int op_id_dst = re.to + order_parameters_offset;
 
           std::ostringstream ss;
           ss << "Remap order parameter for grain id = " << re.grain_id
-             << ": from " << op_id_src << " to " << op_id_dst << std::endl;
+             << ": from " << re.from << " to " << re.to << std::endl;
           log.emplace_back(ss.str());
 
           /* At first we transfer the values from the dofs related to the
@@ -519,12 +587,8 @@ namespace GrainTracker
             [this, &values, op_id_src, op_id_dst](
               const dealii::DoFCellAccessor<dim, dim, false> &cell,
               BlockVectorType *                               solution) {
-              cell.get_dof_values(solution->block(op_id_src +
-                                                  order_parameters_offset),
-                                  values);
-              cell.set_dof_values(values,
-                                  solution->block(op_id_dst +
-                                                  order_parameters_offset));
+              cell.get_dof_values(solution->block(op_id_src), values);
+              cell.set_dof_values(values, solution->block(op_id_dst));
             });
 
           // Then we iterate again to nullify the old dofs
@@ -534,14 +598,44 @@ namespace GrainTracker
              &values,
              op_id_src](const dealii::DoFCellAccessor<dim, dim, false> &cell,
                         BlockVectorType *solution) {
-              cell.get_dof_values(solution->block(op_id_src +
-                                                  order_parameters_offset),
-                                  values);
+              cell.get_dof_values(solution->block(op_id_src), values);
               values = 0;
-              cell.set_dof_values(values,
-                                  solution->block(op_id_src +
-                                                  order_parameters_offset));
+              cell.set_dof_values(values, solution->block(op_id_src));
             });
+        }
+
+      // Transfer the grains from temp to where they had to be
+      for (auto it = remappings_via_temp.cbegin();
+           it != remappings_via_temp.cend();
+           ++it)
+        {
+          const auto &re    = it->second;
+          const auto &grain = grains.at(re.grain_id);
+
+          std::ostringstream ss;
+          ss << "Remap order parameter for grain id = " << re.grain_id
+             << ": from temp to " << re.to << std::endl;
+          log.emplace_back(ss.str());
+
+          const unsigned int op_id_src = it - remappings_via_temp.begin();
+          const unsigned int op_id_dst = re.to + order_parameters_offset;
+
+          /* At first we transfer the values from the dofs related to the
+           * old order parameters to the temporary blocks.
+           */
+          alter_dof_values_for_grain(
+            grain,
+            [this, &values, op_id_src, op_id_dst, &solutions_to_temps](
+              const dealii::DoFCellAccessor<dim, dim, false> &cell,
+              BlockVectorType *                               solution) {
+              cell.get_dof_values(
+                solutions_to_temps.at(solution)->block(op_id_src), values);
+              cell.set_dof_values(values, solution->block(op_id_dst));
+            });
+
+          /* We do not need to iterate again to nullify the old dofs since the
+           * temporary vectors will get deleted
+           */
         }
 
       print_log(log);
