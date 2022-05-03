@@ -29,7 +29,7 @@ namespace GrainTracker
     };
 
     // Internal graph
-    using Graph = boost::adjacency_list<boost::listS,
+    using Graph = boost::adjacency_list<boost::multisetS,
                                         boost::listS,
                                         boost::bidirectionalS,
                                         VertexProp,
@@ -52,9 +52,7 @@ namespace GrainTracker
       const auto &vertex_src = vertex(order_parameter_id_from);
       const auto &vertex_dst = vertex(order_parameter_id_to);
 
-      const auto edge = boost::edge(vertex_src, vertex_dst, graph);
-
-      if (edge.second == false || graph[edge.first].grain != grain_id)
+      if (!remapping_exists(vertex_src, vertex_dst, grain_id))
         {
           boost::add_edge(vertex_src, vertex_dst, EdgeProp{grain_id}, graph);
         }
@@ -240,6 +238,20 @@ namespace GrainTracker
 
       return order_parameter_to_vertex.at(order_parameter_id);
     };
+
+    /* Check if a given remapping exists in the graph. */
+    bool
+    remapping_exists(const Vertex &     vertex_src,
+                     const Vertex &     vertex_dst,
+                     const unsigned int grain_id) const
+    {
+      for (auto e : boost::make_iterator_range(
+             boost::edge_range(vertex_src, vertex_dst, graph)))
+        if (graph[e].grain == grain_id)
+          return true;
+
+      return false;
+    }
 
     // Internal boost graph
     Graph graph;
