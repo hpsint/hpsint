@@ -854,103 +854,101 @@ namespace GrainTracker
           clouds.pop_back();
         }
 
-      pcout << "Output clouds before MPI part, op = " << order_parameter_id
-            << std::endl;
+      //
+      std::cout << "Neighbor ranks before merge: ";
+      for(const auto& r : neighbor_ranks_set) {
+        std::cout << r << " ";
+      }
+      std::cout << std::endl;
+
       output_clouds(clouds, false);
 
       // Merge clouds from multiple processors
-      if (Utilities::MPI::n_mpi_processes(dof_handler.get_communicator()) > 1)
+      if (Utilities::MPI::n_mpi_processes(MPI_COMM_WORLD) > 1)
         {
+          // Get all clouds from other ranks
+          auto t1 = std::chrono::high_resolution_clock::now();
+
           // Convert set to vector
-          std::vector<int> neighbor_ranks(neighbor_ranks_set.cbegin(),
-                                          neighbor_ranks_set.cend());
+          std::vector<int> neighbor_ranks(neighbor_ranks_set.cbegin(), neighbor_ranks_set.cend());
 
           // Gather all neighbors relevant for the current order parameter
           auto global_neighbor_ranks =
-            Utilities::MPI::all_gather(dof_handler.get_communicator(),
-                                       neighbor_ranks);
+            Utilities::MPI::all_gather(MPI_COMM_WORLD, neighbor_ranks);
 
           neighbor_ranks.clear();
-          for (const auto &ranks : global_neighbor_ranks)
-            {
-              for (const auto &r : ranks)
-                {
-                  if (std::find(neighbor_ranks.begin(),
-                                neighbor_ranks.end(),
-                                r) == neighbor_ranks.end())
-                    {
-                      neighbor_ranks.push_back(r);
-                    }
-                }
+          for(const auto& ranks : global_neighbor_ranks) {
+            for(const auto& r : ranks) {
+              if (std::find(neighbor_ranks.begin(), neighbor_ranks.end(), r) == neighbor_ranks.end()) {
+                neighbor_ranks.push_back(r);
+              }
             }
-          std::sort(neighbor_ranks.begin(), neighbor_ranks.end());
+          }
 
-          pcout << "# of ranks to communicate with = " << neighbor_ranks.size()
-                << ", op = " << order_parameter_id << std::endl;
+          //
+          std::cout << "Neighbor ranks after merge: ";
+          for(const auto& r : neighbor_ranks) {
+            std::cout << r << " ";
+          }
+          std::cout << std::endl;
 
-          /*
+          //AssertThrow(false, ExcMessage("STOP"));
+
           // Construct a group of rank to commnunicate with
           MPI_Group world_group;
-          int       ierr = MPI_Comm_group(MPI_COMM_WORLD, &world_group);
+          int ierr = MPI_Comm_group(MPI_COMM_WORLD, &world_group);
           AssertThrowMPI(ierr);
 
           // Extract ranks from the global ones
           MPI_Group mpi_group;
-          ierr = MPI_Group_incl(world_group,
-                                neighbor_ranks.size(),
-                                neighbor_ranks.data(),
-                                &mpi_group);
+          ierr = MPI_Group_incl(world_group, neighbor_ranks.size(), neighbor_ranks.data(), &mpi_group);
           AssertThrowMPI(ierr);
 
           // Create a corresponding communicator
           MPI_Comm group_comm;
-          ierr = Utilities::MPI::create_group(MPI_COMM_WORLD,
-                                              mpi_group,
-                                              42,
-                                              &group_comm);
+          ierr = Utilities::MPI::create_group(MPI_COMM_WORLD, mpi_group, 42, &group_comm);
           AssertThrowMPI(ierr);
 
           MPI_Group_free(&world_group);
           MPI_Group_free(&mpi_group);
-          */
-
-          auto it = std::find(neighbor_ranks.cbegin(),
-                              neighbor_ranks.cend(),
-                              Utilities::MPI::this_mpi_process(MPI_COMM_WORLD));
-
-          const int color = (it != neighbor_ranks.cend()) ? 1 : MPI_UNDEFINED;
-          const int key   = (it != neighbor_ranks.cend()) ?
-                            std::distance(neighbor_ranks.cbegin(), it) :
-                            0;
-
-          MPI_Comm group_comm = NULL;
-          MPI_Comm_split(dof_handler.get_communicator(),
-                         color,
-                         key,
-                         &group_comm);
 
           if (group_comm != MPI_COMM_NULL)
+          {
+
+
+            /*
+            for(unsigned int i = 0; i < 100; i++)
             {
-              auto global_clouds =
+              auto global_clouds_test =
                 Utilities::MPI::all_gather(group_comm, clouds);
-              // Utilities::MPI::all_gather(MPI_COMM_WORLD, clouds);
-
-              // Now gather all the clouds
-              clouds.clear();
-              for (auto &part_cloud : global_clouds)
-                {
-                  std::move(part_cloud.begin(),
-                            part_cloud.end(),
-                            std::back_inserter(clouds));
-                }
-
-              std::cout << Utilities::MPI::this_mpi_process(group_comm)
-                        << " Subcomm = " << group_comm << " n_processors = "
-                        << Utilities::MPI::n_mpi_processes(group_comm)
-                        << std::endl;
-
-              Utilities::MPI::free_communicator(group_comm);
             }
+            */
+
+            auto global_clouds =
+              Utilities::MPI::all_gather(group_comm, clouds);
+
+            // Now gather all the clouds
+            clouds.clear();
+            for (auto &part_cloud : global_clouds)
+              {
+                std::move(part_cloud.begin(),
+                          part_cloud.end(),
+                          std::back_inserter(clouds));
+              }
+          }
+
+
+
+          if (group_comm != MPI_COMM_NULL)
+            Utilities::MPI::free_communicator(group_comm);
+
+          //ierr = MPI_Barrier(MPI_COMM_WORLD);
+          //AssertThrowMPI(ierr);
+
+          auto t2 = std::chrono::high_resolution_clock::now();
+
+          auto ms_int = std::chrono::duration_cast<std::chrono::milliseconds>(t2 - t1);
+          std::cout << ms_int.count() << "ms\n";
 
           /* When distributed across multiple processors, some clouds may be in
            * fact parts of a single one, we then merge the touching clouds into
@@ -959,18 +957,9 @@ namespace GrainTracker
           stitch_clouds(clouds);
         }
 
-      std::cout
-        << Utilities::MPI::this_mpi_process(dof_handler.get_communicator())
-        << " In GT comm = " << dof_handler.get_communicator()
-        << " n_processors = "
-        << Utilities::MPI::n_mpi_processes(dof_handler.get_communicator())
-        << std::endl;
-
-      pcout << "Output clouds after MPI part, op = " << order_parameter_id
-            << std::endl;
       output_clouds(clouds, /*is_merged = */ true);
 
-      // AssertThrow(false, ExcMessage("STOP"));
+      //AssertThrow(false, ExcMessage("STOP"));
 
       return clouds;
     }
@@ -1029,8 +1018,7 @@ namespace GrainTracker
               // Check if this cell is at the interface with another rank
               for (const auto f : cell->face_indices())
                 {
-                  if (!cell->at_boundary(f) &&
-                      has_ghost(cell->neighbor(f), neighbor_rank))
+                  if (!cell->at_boundary(f) && has_ghost(cell->neighbor(f), neighbor_rank))
                     {
                       cloud.add_edge_cell(*cell);
                       ranks.insert(neighbor_rank);
@@ -1276,16 +1264,15 @@ namespace GrainTracker
     }
 
     bool
-    has_ghost(const TriaIterator<DoFCellAccessor<dim, dim, false>> &cell,
-              unsigned int &                                        rank)
+    has_ghost(const TriaIterator<DoFCellAccessor<dim, dim, false>> &cell, unsigned int& rank)
     {
       rank = numbers::invalid_unsigned_int;
 
       if (cell->is_active())
-        {
-          rank = cell->subdomain_id();
-          return cell->is_ghost();
-        }
+      {
+        rank = cell->subdomain_id();
+        return cell->is_ghost();
+      }
 
       for (unsigned int n = 0; n < cell->n_children(); n++)
         return has_ghost(cell->child(n), rank);
