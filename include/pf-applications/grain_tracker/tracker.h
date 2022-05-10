@@ -826,6 +826,9 @@ namespace GrainTracker
       // Vector to evaluate nodal values
       Vector<Number> values(dof_handler.get_fe().n_dofs_per_cell());
 
+      // Vector of ranks which we need to communicate with
+      std::set<int> neighbor_ranks_set;
+
       // The flood fill loop
       for (auto &cell : dof_handler.active_cell_iterators())
         {
@@ -835,6 +838,7 @@ namespace GrainTracker
                                order_parameter_id,
                                values,
                                clouds.back(),
+                               neighbor_ranks_set,
                                grain_assigned);
 
           if (grain_assigned)
@@ -850,21 +854,101 @@ namespace GrainTracker
           clouds.pop_back();
         }
 
+      //
+      std::cout << "Neighbor ranks before merge: ";
+      for(const auto& r : neighbor_ranks_set) {
+        std::cout << r << " ";
+      }
+      std::cout << std::endl;
+
+      output_clouds(clouds, false);
+
       // Merge clouds from multiple processors
       if (Utilities::MPI::n_mpi_processes(MPI_COMM_WORLD) > 1)
         {
           // Get all clouds from other ranks
-          auto global_clouds =
-            Utilities::MPI::all_gather(MPI_COMM_WORLD, clouds);
+          auto t1 = std::chrono::high_resolution_clock::now();
 
-          // Now gather all the clouds
-          clouds.clear();
-          for (auto &part_cloud : global_clouds)
-            {
-              std::move(part_cloud.begin(),
-                        part_cloud.end(),
-                        std::back_inserter(clouds));
+          // Convert set to vector
+          std::vector<int> neighbor_ranks(neighbor_ranks_set.cbegin(), neighbor_ranks_set.cend());
+
+          // Gather all neighbors relevant for the current order parameter
+          auto global_neighbor_ranks =
+            Utilities::MPI::all_gather(MPI_COMM_WORLD, neighbor_ranks);
+
+          neighbor_ranks.clear();
+          for(const auto& ranks : global_neighbor_ranks) {
+            for(const auto& r : ranks) {
+              if (std::find(neighbor_ranks.begin(), neighbor_ranks.end(), r) == neighbor_ranks.end()) {
+                neighbor_ranks.push_back(r);
+              }
             }
+          }
+
+          //
+          std::cout << "Neighbor ranks after merge: ";
+          for(const auto& r : neighbor_ranks) {
+            std::cout << r << " ";
+          }
+          std::cout << std::endl;
+
+          //AssertThrow(false, ExcMessage("STOP"));
+
+          // Construct a group of rank to commnunicate with
+          MPI_Group world_group;
+          int ierr = MPI_Comm_group(MPI_COMM_WORLD, &world_group);
+          AssertThrowMPI(ierr);
+
+          // Extract ranks from the global ones
+          MPI_Group mpi_group;
+          ierr = MPI_Group_incl(world_group, neighbor_ranks.size(), neighbor_ranks.data(), &mpi_group);
+          AssertThrowMPI(ierr);
+
+          // Create a corresponding communicator
+          MPI_Comm group_comm;
+          ierr = Utilities::MPI::create_group(MPI_COMM_WORLD, mpi_group, 42, &group_comm);
+          AssertThrowMPI(ierr);
+
+          MPI_Group_free(&world_group);
+          MPI_Group_free(&mpi_group);
+
+          if (group_comm != MPI_COMM_NULL)
+          {
+
+
+            /*
+            for(unsigned int i = 0; i < 100; i++)
+            {
+              auto global_clouds_test =
+                Utilities::MPI::all_gather(group_comm, clouds);
+            }
+            */
+
+            auto global_clouds =
+              Utilities::MPI::all_gather(group_comm, clouds);
+
+            // Now gather all the clouds
+            clouds.clear();
+            for (auto &part_cloud : global_clouds)
+              {
+                std::move(part_cloud.begin(),
+                          part_cloud.end(),
+                          std::back_inserter(clouds));
+              }
+          }
+
+
+
+          if (group_comm != MPI_COMM_NULL)
+            Utilities::MPI::free_communicator(group_comm);
+
+          //ierr = MPI_Barrier(MPI_COMM_WORLD);
+          //AssertThrowMPI(ierr);
+
+          auto t2 = std::chrono::high_resolution_clock::now();
+
+          auto ms_int = std::chrono::duration_cast<std::chrono::milliseconds>(t2 - t1);
+          std::cout << ms_int.count() << "ms\n";
 
           /* When distributed across multiple processors, some clouds may be in
            * fact parts of a single one, we then merge the touching clouds into
@@ -872,6 +956,10 @@ namespace GrainTracker
            */
           stitch_clouds(clouds);
         }
+
+      output_clouds(clouds, /*is_merged = */ true);
+
+      //AssertThrow(false, ExcMessage("STOP"));
 
       return clouds;
     }
@@ -884,6 +972,7 @@ namespace GrainTracker
       const unsigned int                                    order_parameter_id,
       Vector<Number> &                                      values,
       Cloud<dim> &                                          cloud,
+      std::set<int> &                                       ranks,
       bool &                                                grain_assigned)
     {
       // If a cell has children, then we iterate over them
@@ -896,6 +985,7 @@ namespace GrainTracker
                                    order_parameter_id,
                                    values,
                                    cloud,
+                                   ranks,
                                    grain_assigned);
             }
         }
@@ -923,12 +1013,15 @@ namespace GrainTracker
               grain_assigned = true;
               cloud.add_cell(*cell);
 
+              unsigned int neighbor_rank = numbers::invalid_unsigned_int;
+
               // Check if this cell is at the interface with another rank
               for (const auto f : cell->face_indices())
                 {
-                  if (!cell->at_boundary(f) && has_ghost(cell->neighbor(f)))
+                  if (!cell->at_boundary(f) && has_ghost(cell->neighbor(f), neighbor_rank))
                     {
                       cloud.add_edge_cell(*cell);
+                      ranks.insert(neighbor_rank);
                       break;
                     }
                 }
@@ -945,6 +1038,7 @@ namespace GrainTracker
                                            order_parameter_id,
                                            values,
                                            cloud,
+                                           ranks,
                                            grain_assigned);
                     }
                   else if (cell->has_periodic_neighbor(f))
@@ -1170,14 +1264,18 @@ namespace GrainTracker
     }
 
     bool
-    has_ghost(const TriaIterator<DoFCellAccessor<dim, dim, false>> &cell)
+    has_ghost(const TriaIterator<DoFCellAccessor<dim, dim, false>> &cell, unsigned int& rank)
     {
+      rank = numbers::invalid_unsigned_int;
+
       if (cell->is_active())
+      {
+        rank = cell->subdomain_id();
         return cell->is_ghost();
+      }
 
       for (unsigned int n = 0; n < cell->n_children(); n++)
-        if (has_ghost(cell->child(n)))
-          return true;
+        return has_ghost(cell->child(n), rank);
 
       return false;
     }
