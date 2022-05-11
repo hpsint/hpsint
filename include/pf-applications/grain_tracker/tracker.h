@@ -882,11 +882,10 @@ namespace GrainTracker
                 }
             }
           std::sort(neighbor_ranks.begin(), neighbor_ranks.end());
-
+          /*
           // Construct a group of rank to commnunicate with
           MPI_Group world_group;
-          int       ierr = MPI_Comm_group(MPI_COMM_WORLD, &world_group);
-          AssertThrowMPI(ierr);
+          int       ierr = MPI_Comm_group(MPI_COMM_WORLD, &world_group); AssertThrowMPI(ierr);
 
           // Extract ranks from the global ones
           MPI_Group mpi_group;
@@ -906,11 +905,25 @@ namespace GrainTracker
 
           MPI_Group_free(&world_group);
           MPI_Group_free(&mpi_group);
+          */
+
+          auto it = std::find(neighbor_ranks.cbegin(),
+                              neighbor_ranks.cend(),
+                              Utilities::MPI::this_mpi_process(MPI_COMM_WORLD));
+
+          const int color = (it != neighbor_ranks.cend()) ? 1 : MPI_UNDEFINED;
+          const int key   = (it != neighbor_ranks.cend()) ?
+                            std::distance(neighbor_ranks.cbegin(), it) :
+                            0;
+
+          MPI_Comm group_comm;
+          MPI_Comm_split(MPI_COMM_WORLD, color, key, &group_comm);
 
           if (group_comm != MPI_COMM_NULL)
             {
               auto global_clouds =
                 Utilities::MPI::all_gather(group_comm, clouds);
+              // Utilities::MPI::all_gather(MPI_COMM_WORLD, clouds);
 
               // Now gather all the clouds
               clouds.clear();
