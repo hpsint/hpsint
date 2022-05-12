@@ -854,11 +854,12 @@ namespace GrainTracker
           clouds.pop_back();
         }
 
-      pcout << "Output clouds before MPI part" << std::endl;
+      pcout << "Output clouds before MPI part, op = " << order_parameter_id
+            << std::endl;
       output_clouds(clouds, false);
 
       // Merge clouds from multiple processors
-      if (Utilities::MPI::n_mpi_processes(MPI_COMM_WORLD) > 1)
+      if (Utilities::MPI::n_mpi_processes(dof_handler.get_communicator()) > 1)
         {
           // Convert set to vector
           std::vector<int> neighbor_ranks(neighbor_ranks_set.cbegin(),
@@ -866,7 +867,8 @@ namespace GrainTracker
 
           // Gather all neighbors relevant for the current order parameter
           auto global_neighbor_ranks =
-            Utilities::MPI::all_gather(MPI_COMM_WORLD, neighbor_ranks);
+            Utilities::MPI::all_gather(dof_handler.get_communicator(),
+                                       neighbor_ranks);
 
           neighbor_ranks.clear();
           for (const auto &ranks : global_neighbor_ranks)
@@ -882,10 +884,15 @@ namespace GrainTracker
                 }
             }
           std::sort(neighbor_ranks.begin(), neighbor_ranks.end());
+
+          pcout << "# of ranks to communicate with = " << neighbor_ranks.size()
+                << ", op = " << order_parameter_id << std::endl;
+
           /*
           // Construct a group of rank to commnunicate with
           MPI_Group world_group;
-          int       ierr = MPI_Comm_group(MPI_COMM_WORLD, &world_group); AssertThrowMPI(ierr);
+          int       ierr = MPI_Comm_group(MPI_COMM_WORLD, &world_group);
+          AssertThrowMPI(ierr);
 
           // Extract ranks from the global ones
           MPI_Group mpi_group;
@@ -916,8 +923,11 @@ namespace GrainTracker
                             std::distance(neighbor_ranks.cbegin(), it) :
                             0;
 
-          MPI_Comm group_comm;
-          MPI_Comm_split(MPI_COMM_WORLD, color, key, &group_comm);
+          MPI_Comm group_comm = NULL;
+          MPI_Comm_split(dof_handler.get_communicator(),
+                         color,
+                         key,
+                         &group_comm);
 
           if (group_comm != MPI_COMM_NULL)
             {
@@ -934,6 +944,11 @@ namespace GrainTracker
                             std::back_inserter(clouds));
                 }
 
+              std::cout << Utilities::MPI::this_mpi_process(group_comm)
+                        << " Subcomm = " << group_comm << " n_processors = "
+                        << Utilities::MPI::n_mpi_processes(group_comm)
+                        << std::endl;
+
               Utilities::MPI::free_communicator(group_comm);
             }
 
@@ -944,7 +959,15 @@ namespace GrainTracker
           stitch_clouds(clouds);
         }
 
-      pcout << "Output clouds after MPI part" << std::endl;
+      std::cout
+        << Utilities::MPI::this_mpi_process(dof_handler.get_communicator())
+        << " In GT comm = " << dof_handler.get_communicator()
+        << " n_processors = "
+        << Utilities::MPI::n_mpi_processes(dof_handler.get_communicator())
+        << std::endl;
+
+      pcout << "Output clouds after MPI part, op = " << order_parameter_id
+            << std::endl;
       output_clouds(clouds, /*is_merged = */ true);
 
       // AssertThrow(false, ExcMessage("STOP"));
