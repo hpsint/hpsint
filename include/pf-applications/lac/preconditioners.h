@@ -1,6 +1,7 @@
 #pragma once
 
 #include <deal.II/base/mpi_compute_index_owner_internal.h>
+#include <deal.II/base/mpi_consensus_algorithms.templates.h>
 
 #include <pf-applications/base/timer.h>
 
@@ -283,13 +284,16 @@ namespace Preconditioners
         process(locally_owned_dofs, locally_active_dofs, comm, dummy, true);
 
       Utilities::MPI::ConsensusAlgorithms::Selector<
-        std::pair<types::global_dof_index, types::global_dof_index>,
-        unsigned int>
+        std::vector<
+          std::pair<types::global_dof_index, types::global_dof_index>>,
+        std::vector<unsigned int>>
         consensus_algorithm;
       consensus_algorithm.run(process, comm);
 
-      using T1 = char;
-      using T2 = char;
+      using T1 = std::vector<
+        std::pair<types::global_dof_index,
+                  std::vector<std::pair<types::global_dof_index, Number>>>>;
+      using T2 = std::vector<char>;
 
       auto requesters = process.get_requesters();
 
@@ -306,12 +310,7 @@ namespace Preconditioners
 
             return ranks;
           },
-          [&](const unsigned int other_rank, std::vector<T1> &send_buffer) {
-            std::vector<std::pair<
-              types::global_dof_index,
-              std::vector<std::pair<types::global_dof_index, Number>>>>
-              temp;
-
+          [&](const unsigned int other_rank, T1 &send_buffer) {
             for (auto index : requesters[other_rank])
               {
                 std::vector<std::pair<types::global_dof_index, Number>> t;
@@ -321,20 +320,11 @@ namespace Preconditioners
                      ++entry)
                   t.emplace_back(entry->column(), entry->value());
 
-                temp.emplace_back(index, t);
+                send_buffer.emplace_back(index, t);
               }
-
-            send_buffer = Utilities::pack(temp, false);
           },
-          [&](const unsigned int &,
-              const std::vector<T1> &buffer_recv,
-              std::vector<T2> &) {
-            const auto temp = Utilities::unpack<std::vector<std::pair<
-              types::global_dof_index,
-              std::vector<std::pair<types::global_dof_index, Number>>>>>(
-              buffer_recv, false);
-
-            for (const auto &i : temp)
+          [&](const unsigned int &, const T1 &buffer_recv, T2 &) {
+            for (const auto &i : buffer_recv)
               {
                 auto &dst =
                   locally_relevant_matrix_entries[locally_active_dofs
@@ -348,7 +338,7 @@ namespace Preconditioners
               }
           });
 
-      dealii::Utilities::MPI::ConsensusAlgorithms::Selector<char, char>().run(
+      dealii::Utilities::MPI::ConsensusAlgorithms::Selector<T1, T2>().run(
         process_, comm);
 
 #if false
