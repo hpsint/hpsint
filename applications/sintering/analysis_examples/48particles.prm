@@ -1,0 +1,77 @@
+subsection Approximation
+    set FEDegree = 1
+    set NPoints1D = 2
+end
+subsection Geometry
+    set ElementsPerInterface = 2
+    set BoundaryFactor = 0.5
+    set InterfaceWidth = 5.0
+    set MinimizeOrderParameters = true
+end
+subsection Adaptivity
+    set TopFractionOfCells = 0.3
+    set BottomFractionOfCells = 0.1
+    set MinRefinementDepth = 3
+    set MaxRefinementDepth = 1
+    set RefinementFrequency = 10
+end
+subsection GrainTracker
+    set ThresholdLower = 0.01
+    set ThresholdUpper = 1.01
+    set BufferDistanceRatio = 0.05
+    set GrainTrackerFrequency = 25
+end
+subsection Energy
+    set A = 16
+    set B = 1
+    set KappaC = 1
+    set KappaP = 0.5
+end
+subsection Mobility
+    set Mvol = 1e-2
+    set Mvap = 1e-10
+    set Msurf = 4
+    set Mgb = 0.4
+    set L = 1
+end
+subsection TimeIntegration
+    set TimeStart = 0
+    set TimeEnd = 1e3
+    set TimeStepInit = 1e-3
+    set TimeStepMin = 1e-5
+    set TimeStepMax = 1e2
+    set GrowthFactor = 1.2
+    set DesirableNewtonIterations = 5
+    set DesirableLinearIterations = 100
+end
+subsection Output
+    set Regular = true
+    set Debug = false
+    set HigherOrderCells = false
+    set OutputTimeInterval = 1
+    set VtkPath = .
+    set Fields = bnds
+end
+subsection Preconditioners
+    set OuterPreconditioner = BlockPreconditioner2
+
+    subsection BlockPreconditioner2
+        set Block0Preconditioner = ILU
+        set Block1Preconditioner = InverseDiagonalMatrix
+    end
+
+    subsection BlockPreconditioner3
+        set Type = LD
+        set Block0Preconditioner = ILU
+        set Block0RelativeTolerance = 0.0
+        set Block1Preconditioner = ILU
+        set Block1RelativeToleranceexite = 0.0
+        set Block2PreconditionerBlock2RelativeTolerance = InverseDiagonalMatrix
+        set Block2RelativeTolerance = 0.0
+    end
+
+    subsection BlockPreconditioner3CH
+        set Block0Preconditioner = AMG
+        set Block2Preconditioner = InverseDiagonalMatrix
+    end
+end
