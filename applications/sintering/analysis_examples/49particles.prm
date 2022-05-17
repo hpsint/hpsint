@@ -3,9 +3,9 @@ subsection Approximation
     set NPoints1D = 2
 end
 subsection Geometry
-    set ElementsPerInterface = 2
+    set ElementsPerInterface = 3
     set BoundaryFactor = 0.5
-    set InterfaceWidth = 5.0
+    set InterfaceWidth = 4.0
     set MinimizeOrderParameters = true
 end
 subsection Adaptivity
@@ -23,9 +23,9 @@ subsection GrainTracker
 end
 subsection Energy
     set A = 16
-    set B = 1
-    set KappaC = 1
-    set KappaP = 0.5
+    set B = 0.5
+    set KappaC = 4
+    set KappaP = 1
 end
 subsection Mobility
     set Mvol = 1e-2
