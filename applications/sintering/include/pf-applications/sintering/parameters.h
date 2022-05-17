@@ -28,6 +28,7 @@ namespace Sintering
     double          boundary_factor        = 0.5;
     double          interface_width        = 2.0;
     bool            minimize_order_parameters = true;
+    double          interface_buffer_ratio    = 1.0;
     bool            periodic                  = false;
     bool            custom_bounding_box       = false;
     BoundingBoxData bounding_box_data;
@@ -178,6 +179,9 @@ namespace Sintering
       prm.add_parameter("MinimizeOrderParameters",
                         geometry_data.minimize_order_parameters,
                         "Minimize number of initial order parameters.");
+      prm.add_parameter("InterfaceBufferRatio",
+                        geometry_data.interface_buffer_ratio,
+                        "Interface buffer ratio.");
       prm.add_parameter("Periodic",
                         geometry_data.periodic,
                         "Is domain periodic.");

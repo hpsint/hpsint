@@ -80,17 +80,12 @@ main(int argc, char **argv)
 
   const auto particles = Sintering::read_particles<SINTERING_DIM>(fstream);
 
-  /* Additional buffer zone when computing distance for colorization. Defined as
-   * ratio of the interface width.
-   */
-  static constexpr double interface_buffer_ratio = 0.5;
-
   const auto initial_solution =
     std::make_shared<Sintering::InitialValuesCloud<SINTERING_DIM>>(
       particles,
       params.geometry_data.interface_width,
       params.geometry_data.minimize_order_parameters,
-      interface_buffer_ratio);
+      params.geometry_data.interface_buffer_ratio);
 
   AssertThrow(initial_solution->n_order_parameters() <= MAX_SINTERING_GRAINS,
               Sintering::ExcMaxGrainsExceeded(
