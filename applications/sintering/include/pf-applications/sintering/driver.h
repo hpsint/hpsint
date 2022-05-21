@@ -174,7 +174,7 @@ namespace Sintering
     }
 
     void
-    initialize()
+    initialize(const unsigned int n_components = 0)
     {
       // setup DoFHandlers, ...
       dof_handler.distribute_dofs(fe);
@@ -214,6 +214,8 @@ namespace Sintering
       pcout_statistics << "  - n cell:                    " << tria.n_global_active_cells() << std::endl;
       pcout_statistics << "  - n levels:                  " << tria.n_global_levels() << std::endl;
       pcout_statistics << "  - n dofs:                    " << dof_handler.n_dofs() << std::endl;
+      if(n_components > 0)
+        pcout_statistics << "  - n components:              " << n_components << std::endl;
       pcout_statistics << std::endl;
       // clang-format on
     }
@@ -472,7 +474,7 @@ namespace Sintering
 
         tria.execute_coarsening_and_refinement();
 
-        initialize();
+        initialize(solution_dealii.n_blocks());
 
         nonlinear_operator.clear();
         preconditioner->clear();
@@ -769,17 +771,18 @@ namespace Sintering
             nonlinear_operator.vmult(dst, src);
         }
 
-        {
-          AssertDimension(dst.n_blocks(), 1);
-          AssertDimension(src.n_blocks(), 1);
+        if (false /*TODO: not working since we work on block vectors*/)
+          {
+            AssertDimension(dst.n_blocks(), 1);
+            AssertDimension(src.n_blocks(), 1);
 
-          const auto &matrix = nonlinear_operator.get_system_matrix();
+            const auto &matrix = nonlinear_operator.get_system_matrix();
 
-          TimerOutput::Scope scope(timer, "vmult_matrixbased");
+            TimerOutput::Scope scope(timer, "vmult_matrixbased");
 
-          for (unsigned int i = 0; i < n_repetitions; ++i)
-            matrix.vmult(dst.block(0), src.block(0));
-        }
+            for (unsigned int i = 0; i < n_repetitions; ++i)
+              matrix.vmult(dst.block(0), src.block(0));
+          }
 
         timer.print_wall_time_statistics(MPI_COMM_WORLD);
       }
