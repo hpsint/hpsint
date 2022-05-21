@@ -163,6 +163,14 @@ namespace Sintering
             }
         }
 
+      tria.signals.weight.connect(
+        [](const auto &cell_iterator, const auto cell_status) -> unsigned int {
+          (void)cell_iterator;
+          (void)cell_status;
+
+          return 1.0;
+        });
+
       create_mesh(tria,
                   boundaries.first,
                   boundaries.second,
