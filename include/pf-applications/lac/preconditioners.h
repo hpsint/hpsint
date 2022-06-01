@@ -1,7 +1,6 @@
 #pragma once
 
 #include <deal.II/base/mpi_compute_index_owner_internal.h>
-#include <deal.II/base/mpi_consensus_algorithms.templates.h>
 
 #include <pf-applications/base/timer.h>
 
@@ -293,53 +292,52 @@ namespace Preconditioners
       using T1 = std::vector<
         std::pair<types::global_dof_index,
                   std::vector<std::pair<types::global_dof_index, Number>>>>;
-      using T2 = std::vector<char>;
 
       auto requesters = process.get_requesters();
 
       std::vector<std::vector<std::pair<types::global_dof_index, Number>>>
         locally_relevant_matrix_entries(locally_active_dofs.n_elements());
 
-      dealii::Utilities::MPI::ConsensusAlgorithms::AnonymousProcess<T1, T2>
-        process_(
-          [&]() {
-            std::vector<unsigned int> ranks;
 
-            for (const auto &i : requesters)
-              ranks.push_back(i.first);
+      std::vector<unsigned int> ranks;
 
-            return ranks;
-          },
-          [&](const unsigned int other_rank, T1 &send_buffer) {
-            for (auto index : requesters[other_rank])
-              {
-                std::vector<std::pair<types::global_dof_index, Number>> t;
+      for (const auto &i : requesters)
+        ranks.push_back(i.first);
 
-                for (auto entry = system_matrix_0.begin(index);
-                     entry != system_matrix_0.end(index);
-                     ++entry)
-                  t.emplace_back(entry->column(), entry->value());
+      dealii::Utilities::MPI::ConsensusAlgorithms::selector<T1>(
+        ranks,
+        [&](const unsigned int other_rank) {
+          T1 send_buffer;
 
-                send_buffer.emplace_back(index, t);
-              }
-          },
-          [&](const unsigned int &, const T1 &buffer_recv, T2 &) {
-            for (const auto &i : buffer_recv)
-              {
-                auto &dst =
-                  locally_relevant_matrix_entries[locally_active_dofs
-                                                    .index_within_set(i.first)];
-                dst = i.second;
-                std::sort(dst.begin(),
-                          dst.end(),
-                          [](const auto &a, const auto &b) {
-                            return a.first < b.first;
-                          });
-              }
-          });
+          for (auto index : requesters[other_rank])
+            {
+              std::vector<std::pair<types::global_dof_index, Number>> t;
 
-      dealii::Utilities::MPI::ConsensusAlgorithms::Selector<T1, T2>().run(
-        process_, comm);
+              for (auto entry = system_matrix_0.begin(index);
+                   entry != system_matrix_0.end(index);
+                   ++entry)
+                t.emplace_back(entry->column(), entry->value());
+
+              send_buffer.emplace_back(index, t);
+            }
+
+          return send_buffer;
+        },
+        [&](const unsigned int &, const T1 &buffer_recv) {
+          for (const auto &i : buffer_recv)
+            {
+              auto &dst =
+                locally_relevant_matrix_entries[locally_active_dofs
+                                                  .index_within_set(i.first)];
+              dst = i.second;
+              std::sort(dst.begin(),
+                        dst.end(),
+                        [](const auto &a, const auto &b) {
+                          return a.first < b.first;
+                        });
+            }
+        },
+        comm);
 
 #if false
       using T = std::pair<CellId, FullMatrix<Number>>;
