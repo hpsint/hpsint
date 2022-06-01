@@ -73,6 +73,7 @@
 #include <pf-applications/sintering/tools.h>
 
 #include <pf-applications/grain_tracker/tracker.h>
+#include <pf-applications/grid/constraint_helper.h>
 
 namespace Sintering
 {
@@ -98,6 +99,8 @@ namespace Sintering
     MappingQ<dim>                             mapping;
     QGauss<dim>                               quad;
     DoFHandler<dim>                           dof_handler;
+
+    std::unique_ptr<dealii::parallel::Helper<dim>> helper;
 
     AffineConstraints<Number> constraint;
 
@@ -163,20 +166,19 @@ namespace Sintering
             }
         }
 
-      tria.signals.weight.connect(
-        [](const auto &cell_iterator, const auto cell_status) -> unsigned int {
-          (void)cell_iterator;
-          (void)cell_status;
-
-          return 1.0;
-        });
-
       create_mesh(tria,
                   boundaries.first,
                   boundaries.second,
                   initial_solution->get_interface_width(),
                   params.geometry_data.elements_per_interface,
                   params.geometry_data.periodic);
+
+      helper = std::make_unique<dealii::parallel::Helper<dim>>(tria);
+
+      const auto weight_function = parallel::hanging_nodes_weighting<dim>(
+        *helper, params.geometry_data.hanging_node_weight);
+      tria.signals.weight.connect(weight_function);
+      tria.repartition();
 
       initialize();
     }
@@ -217,9 +219,51 @@ namespace Sintering
       matrix_free.reinit(
         mapping, dof_handler, constraint, quad, additional_data);
 
+      types::global_cell_index n_cells_w_hn  = 0;
+      types::global_cell_index n_cells_wo_hn = 0;
+
+      for (const auto &cell : tria.active_cell_iterators())
+        if (cell->is_locally_owned())
+          {
+            if (helper->is_constrained(cell))
+              n_cells_w_hn++;
+            else
+              n_cells_wo_hn++;
+          }
+
+      const auto min_max_avg_n_cells_w_hn =
+        Utilities::MPI::min_max_avg(n_cells_w_hn, MPI_COMM_WORLD);
+      const auto min_max_avg_n_cells_wo_hn =
+        Utilities::MPI::min_max_avg(n_cells_wo_hn, MPI_COMM_WORLD);
+      const auto min_max_avg_n_cells =
+        Utilities::MPI::min_max_avg(n_cells_w_hn + n_cells_wo_hn,
+                                    MPI_COMM_WORLD);
+
+      AssertDimension(
+        static_cast<types::global_cell_index>(min_max_avg_n_cells_w_hn.sum) +
+          static_cast<types::global_cell_index>(min_max_avg_n_cells_wo_hn.sum),
+        tria.n_global_active_cells());
+
       // clang-format off
       pcout_statistics << "System statistics:" << std::endl;
-      pcout_statistics << "  - n cell:                    " << tria.n_global_active_cells() << std::endl;
+      pcout_statistics << "  - n cell:                    " << static_cast<types::global_cell_index>(min_max_avg_n_cells.sum) 
+                                                            << " (min: " 
+                                                            << static_cast<types::global_cell_index>(min_max_avg_n_cells.min) 
+                                                            << ", max: " 
+                                                            << static_cast<types::global_cell_index>(min_max_avg_n_cells.max) 
+                                                            << ")" << std::endl;
+      pcout_statistics << "  - n cell w hanging nodes:    " << static_cast<types::global_cell_index>(min_max_avg_n_cells_w_hn.sum) 
+                                                            << " (min: " 
+                                                            << static_cast<types::global_cell_index>(min_max_avg_n_cells_w_hn.min) 
+                                                            << ", max: " 
+                                                            << static_cast<types::global_cell_index>(min_max_avg_n_cells_w_hn.max) 
+                                                            << ")" << std::endl;
+      pcout_statistics << "  - n cell wo hanging nodes:   " << static_cast<types::global_cell_index>(min_max_avg_n_cells_wo_hn.sum) 
+                                                            << " (min: " 
+                                                            << static_cast<types::global_cell_index>(min_max_avg_n_cells_wo_hn.min) 
+                                                            << ", max: " 
+                                                            << static_cast<types::global_cell_index>(min_max_avg_n_cells_wo_hn.max) 
+                                                            << ")" << std::endl;
       pcout_statistics << "  - n levels:                  " << tria.n_global_levels() << std::endl;
       pcout_statistics << "  - n dofs:                    " << dof_handler.n_dofs() << std::endl;
       if(n_components > 0)
