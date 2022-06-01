@@ -32,6 +32,8 @@ namespace Sintering
     bool            periodic                  = false;
     bool            custom_bounding_box       = false;
     BoundingBoxData bounding_box_data;
+
+    double hanging_node_weight = 1.0;
   };
 
   struct AdaptivityData
@@ -209,6 +211,10 @@ namespace Sintering
                         geometry_data.bounding_box_data.z_max,
                         "z max.");
       prm.leave_subsection();
+
+      prm.add_parameter("HangingNodeWeight",
+                        geometry_data.hanging_node_weight,
+                        "Factor to weight cells with hanging nodes with.");
 
       prm.leave_subsection();
 
