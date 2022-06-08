@@ -77,6 +77,28 @@ constexpr bool has_n_grains_method =
   }
 // clang-format on
 
+template <typename Number, typename VectorizedArrayType>
+bool
+any_nonzero(const VectorizedArrayType &vec, const Number tol)
+{
+  return std::find_if(vec.begin(), vec.end(), [tol](const auto &entry) {
+           return entry > tol;
+         }) != vec.end();
+}
+
+template <typename Number, typename VectorizedArrayType>
+bool
+any_in_range(const VectorizedArrayType &vec,
+             const Number               lower,
+             const Number               upper)
+{
+  return std::find_if(vec.begin(),
+                      vec.end(),
+                      [lower, upper](const auto &entry) {
+                        return entry > lower && entry < upper;
+                      }) != vec.end();
+}
+
 namespace Sintering
 {
   using namespace dealii;
@@ -641,8 +663,23 @@ namespace Sintering
 
       const auto &etai = *etas[index_i];
 
-      return B * (12.0 - 12.0 * c + 2.0 * etai * (12.0 * c - 24.0) +
-                  24.0 * (etai * etai) + 12.0 * etaPower2Sum);
+      return 12.0 * B *
+             (1.0 - c + 2.0 * etai * (c - 2.0) + 2.0 * (etai * etai) +
+              etaPower2Sum);
+    }
+
+    template <typename VectorType>
+    DEAL_II_ALWAYS_INLINE VectorizedArrayType
+    d2f_detai2_0(const VectorizedArrayType &c, const VectorType &etas) const
+    {
+      static_assert(std::is_same<typename VectorType::value_type,
+                                 const VectorizedArrayType *>::value);
+
+      const std::size_t n = SizeHelper<VectorType>::size;
+
+      const auto etaPower2Sum = PowerHelper<n, 2>::power_sum(etas);
+
+      return 12.0 * B * (1.0 - c + etaPower2Sum);
     }
 
     template <typename VectorType>
@@ -1975,30 +2012,41 @@ namespace Sintering
 
           for (unsigned int ig = 0; ig < n_grains; ++ig)
             {
-              value_result[1] +=
-                free_energy.d2f_dcdetai(c, etas, ig) * phi.get_value(q)[ig + 2];
+              value_result[ig + 2] = phi.get_value(q)[ig + 2] * dt_inv;
 
-              value_result[ig + 2] =
-                phi.get_value(q)[ig + 2] * dt_inv +
-                L * free_energy.d2f_dcdetai(c, etas, ig) * phi.get_value(q)[0] +
-                L * free_energy.d2f_detai2(c, etas, ig) *
-                  phi.get_value(q)[ig + 2];
-
-              gradient_result[0] +=
-                mobility.dM_detai(c, etas, c_grad, etas_grad, ig) * mu_grad *
-                phi.get_value(q)[ig + 2];
-
-              gradient_result[ig + 2] =
-                L * kappa_p * phi.get_gradient(q)[ig + 2];
-
-              for (unsigned int jg = 0; jg < n_grains; ++jg)
+              if (any_nonzero(*etas[ig], 0.001))
                 {
-                  if (ig != jg)
+                  value_result[1] += free_energy.d2f_dcdetai(c, etas, ig) *
+                                     phi.get_value(q)[ig + 2];
+
+                  value_result[ig + 2] +=
+                    L * free_energy.d2f_dcdetai(c, etas, ig) *
+                      phi.get_value(q)[0] +
+                    L * free_energy.d2f_detai2(c, etas, ig) *
+                      phi.get_value(q)[ig + 2];
+
+                  gradient_result[ig + 2] =
+                    L * kappa_p * phi.get_gradient(q)[ig + 2];
+
+                  for (unsigned int jg = 0; jg < n_grains; ++jg)
                     {
-                      value_result[ig + 2] +=
-                        L * free_energy.d2f_detaidetaj(c, etas, ig, jg) *
-                        phi.get_value(q)[jg + 2];
+                      if (ig != jg)
+                        {
+                          value_result[ig + 2] +=
+                            L * free_energy.d2f_detaidetaj(c, etas, ig, jg) *
+                            phi.get_value(q)[jg + 2];
+                        }
                     }
+                }
+              else
+                {
+                  gradient_result[0] +=
+                    mobility.dM_detai(c, etas, c_grad, etas_grad, ig) *
+                    mu_grad * phi.get_value(q)[ig + 2];
+
+                  value_result[ig + 2] += L *
+                                          free_energy.d2f_detai2_0(c, etas) *
+                                          phi.get_value(q)[ig + 2];
                 }
             }
 
