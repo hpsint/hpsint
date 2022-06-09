@@ -2030,7 +2030,7 @@ namespace Sintering
 
                   for (unsigned int jg = 0; jg < n_grains; ++jg)
                     {
-                      if (ig != jg)
+                      if (ig != jg && any_nonzero(*etas[jg], 0.001))
                         {
                           value_result[ig + 2] +=
                             L * free_energy.d2f_detaidetaj(c, etas, ig, jg) *
@@ -2047,6 +2047,9 @@ namespace Sintering
                   value_result[ig + 2] += L *
                                           free_energy.d2f_detai2_0(c, etas) *
                                           phi.get_value(q)[ig + 2];
+
+                  gradient_result[ig + 2] =
+                    L * kappa_p * phi.get_gradient(q)[ig + 2];
                 }
             }
 
