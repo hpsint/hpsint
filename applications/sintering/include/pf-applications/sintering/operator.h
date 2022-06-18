@@ -912,8 +912,9 @@ namespace Sintering
 
     virtual ~OperatorBase()
     {
-      if (timer.get_summary_data(TimerOutput::OutputData::total_wall_time)
-            .size() > 0)
+      if (label != "" &&
+          timer.get_summary_data(TimerOutput::OutputData::total_wall_time)
+              .size() > 0)
         timer.print_wall_time_statistics(MPI_COMM_WORLD);
     }
 
@@ -1112,6 +1113,8 @@ namespace Sintering
                           this->n_components()));
 
           constraints_for_matrix.clear();
+          constraints_for_matrix.reinit(
+            DoFTools::extract_locally_relevant_dofs(dof_handler));
           DoFTools::make_hanging_node_constraints(dof_handler,
                                                   constraints_for_matrix);
           constraints_for_matrix.close();
@@ -1148,6 +1151,12 @@ namespace Sintering
       }
 
       return system_matrix;
+    }
+
+    void
+    clear_system_matrix() const
+    {
+      system_matrix.clear();
     }
 
   protected:

@@ -724,17 +724,56 @@ namespace Sintering
                       nonlinear_operator.vmult(dst, src);
                   }
 
-                if (false /*TODO: not working since we work on block vectors*/)
+                if (true)
                   {
-                    AssertDimension(dst.n_blocks(), 1);
-                    AssertDimension(src.n_blocks(), 1);
+                    TimerOutput::Scope scope(timer, "vmult_helmholtz");
 
-                    const auto &matrix = nonlinear_operator.get_system_matrix();
-
-                    TimerOutput::Scope scope(timer, "vmult_matrixbased");
+                    HelmholtzOperator<dim, Number, VectorizedArrayType>
+                      helmholtz_operator(matrix_free, constraints, 1);
 
                     for (unsigned int i = 0; i < n_repetitions; ++i)
-                      matrix.vmult(dst.block(0), src.block(0));
+                      for (unsigned int b = 0; b < src.n_blocks(); ++b)
+                        helmholtz_operator.vmult(dst.block(b), src.block(b));
+                  }
+
+                if (true)
+                  {
+                    TimerOutput::Scope scope(timer, "vmult_vector_helmholtz");
+
+                    HelmholtzOperator<dim, Number, VectorizedArrayType>
+                      helmholtz_operator(matrix_free,
+                                         constraints,
+                                         src.n_blocks());
+
+                    for (unsigned int i = 0; i < n_repetitions; ++i)
+                      helmholtz_operator.vmult(dst, src);
+                  }
+
+                if (true)
+                  {
+                    const auto &matrix = nonlinear_operator.get_system_matrix();
+
+                    typename VectorType::BlockType src_, dst_;
+
+                    const auto partitioner =
+                      nonlinear_operator.get_system_partitioner();
+
+                    src_.reinit(partitioner);
+                    dst_.reinit(partitioner);
+
+                    VectorTools::merge_components_fast(src, src_);
+
+                    {
+                      TimerOutput::Scope scope(timer, "vmult_matrixbased");
+
+                      for (unsigned int i = 0; i < n_repetitions; ++i)
+                        matrix.vmult(dst_, src_);
+                    }
+
+                    VectorTools::split_up_components_fast(dst_, dst);
+
+                    if (params.matrix_based == false)
+                      nonlinear_operator.clear_system_matrix();
                   }
 
                 timer.print_wall_time_statistics(MPI_COMM_WORLD);
