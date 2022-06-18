@@ -696,11 +696,12 @@ namespace Sintering
             nonlinear_operator.set_timestep(dt);
             nonlinear_operator.set_previous_solution(solution);
 
-            if(params.profiling_data.run_vmults && system_has_changed)
+            if (params.profiling_data.run_vmults && system_has_changed)
               {
                 MyScope scope(timer, "time_loop::profiling_vmult");
 
-                const bool old_timing_state = nonlinear_operator.set_timing(false);
+                const bool old_timing_state =
+                  nonlinear_operator.set_timing(false);
 
                 nonlinear_operator.evaluate_newton_step(solution);
 

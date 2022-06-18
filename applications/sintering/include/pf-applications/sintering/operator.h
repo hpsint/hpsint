@@ -962,7 +962,7 @@ namespace Sintering
     bool
     set_timing(const bool do_timing) const
     {
-      const bool old = this->do_timing;
+      const bool old  = this->do_timing;
       this->do_timing = do_timing;
       return old;
     }
@@ -1127,7 +1127,9 @@ namespace Sintering
         }
 
       {
-        MyScope scope(this->timer, label + "::matrix::compute", this->do_timing);
+        MyScope scope(this->timer,
+                      label + "::matrix::compute",
+                      this->do_timing);
 
         if (system_matrix_is_empty == false)
           {
@@ -1231,7 +1233,7 @@ namespace Sintering
 
     ConditionalOStream  pcout;
     mutable TimerOutput timer;
-    mutable bool do_timing;
+    mutable bool        do_timing;
   };
 
 
@@ -1519,7 +1521,9 @@ namespace Sintering
     evaluate_nonlinear_residual(BlockVectorType &      dst,
                                 const BlockVectorType &src) const
     {
-      MyScope scope(this->timer, "sintering_op::nonlinear_residual", this->do_timing);
+      MyScope scope(this->timer,
+                    "sintering_op::nonlinear_residual",
+                    this->do_timing);
 
 #define OPERATION(c, d)                                       \
   this->matrix_free.cell_loop(                                \
