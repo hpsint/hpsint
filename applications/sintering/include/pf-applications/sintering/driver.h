@@ -414,12 +414,16 @@ namespace Sintering
         solution.zero_out_ghost_values();
       };
 
+      bool system_has_changed = true;
+
       const unsigned int init_level = tria.n_global_levels() - 1;
 
       const auto execute_coarsening_and_refinement = [&](const double t) {
         MyScope scope(timer, "execute_coarsening_and_refinement");
 
         pcout << "Execute refinement/coarsening:" << std::endl;
+
+        system_has_changed = true;
 
         output_result(solution, nonlinear_operator, t, "refinement");
 
@@ -570,6 +574,8 @@ namespace Sintering
 
         pcout << "Execute grain tracker:" << std::endl;
 
+        system_has_changed = true;
+
         solution.update_ghost_values();
 
         const auto [has_reassigned_grains, has_op_number_changed] =
@@ -690,6 +696,49 @@ namespace Sintering
             nonlinear_operator.set_timestep(dt);
             nonlinear_operator.set_previous_solution(solution);
 
+            if(params.profiling_data.run_vmults && system_has_changed)
+              {
+                MyScope scope(timer, "time_loop::profiling_vmult");
+
+                nonlinear_operator.evaluate_newton_step(solution);
+
+                VectorType dst, src;
+
+                nonlinear_operator.initialize_dof_vector(dst);
+                nonlinear_operator.initialize_dof_vector(src);
+
+                const unsigned int n_repetitions = 100;
+
+                TimerOutput timer(pcout_statistics,
+                                  TimerOutput::never,
+                                  TimerOutput::wall_times);
+
+                if (true)
+                  {
+                    TimerOutput::Scope scope(timer, "vmult_matrixfree");
+
+                    for (unsigned int i = 0; i < n_repetitions; ++i)
+                      nonlinear_operator.vmult(dst, src);
+                  }
+
+                if (false /*TODO: not working since we work on block vectors*/)
+                  {
+                    AssertDimension(dst.n_blocks(), 1);
+                    AssertDimension(src.n_blocks(), 1);
+
+                    const auto &matrix = nonlinear_operator.get_system_matrix();
+
+                    TimerOutput::Scope scope(timer, "vmult_matrixbased");
+
+                    for (unsigned int i = 0; i < n_repetitions; ++i)
+                      matrix.vmult(dst.block(0), src.block(0));
+                  }
+
+                timer.print_wall_time_statistics(MPI_COMM_WORLD);
+
+                system_has_changed = false;
+              }
+
             bool has_converged = false;
 
             try
@@ -804,46 +853,6 @@ namespace Sintering
       // clang-format on
 
       timer.print_wall_time_statistics(MPI_COMM_WORLD);
-
-      {
-        nonlinear_operator.set_timestep(
-          params.time_integration_data.time_step_init);
-        nonlinear_operator.set_previous_solution(solution);
-        nonlinear_operator.evaluate_newton_step(solution);
-
-        VectorType dst, src;
-
-        nonlinear_operator.initialize_dof_vector(dst);
-        nonlinear_operator.initialize_dof_vector(src);
-
-        const unsigned int n_repetitions = 1000;
-
-        TimerOutput timer(pcout_statistics,
-                          TimerOutput::never,
-                          TimerOutput::wall_times);
-
-        {
-          TimerOutput::Scope scope(timer, "vmult_matrixfree");
-
-          for (unsigned int i = 0; i < n_repetitions; ++i)
-            nonlinear_operator.vmult(dst, src);
-        }
-
-        if (false /*TODO: not working since we work on block vectors*/)
-          {
-            AssertDimension(dst.n_blocks(), 1);
-            AssertDimension(src.n_blocks(), 1);
-
-            const auto &matrix = nonlinear_operator.get_system_matrix();
-
-            TimerOutput::Scope scope(timer, "vmult_matrixbased");
-
-            for (unsigned int i = 0; i < n_repetitions; ++i)
-              matrix.vmult(dst.block(0), src.block(0));
-          }
-
-        timer.print_wall_time_statistics(MPI_COMM_WORLD);
-      }
     }
 
   private:
