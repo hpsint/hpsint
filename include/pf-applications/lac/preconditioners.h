@@ -479,6 +479,14 @@ namespace Preconditioners
         timer.print_wall_time_statistics(MPI_COMM_WORLD);
     }
 
+    virtual void
+    clear()
+    {
+      precondition_amg.clear();
+      src_.reinit(0);
+      dst_.reinit(0);
+    }
+
     void
     vmult(VectorType &dst, const VectorType &src) const override
     {
