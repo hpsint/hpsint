@@ -912,8 +912,9 @@ namespace Sintering
 
     virtual ~OperatorBase()
     {
-      if (timer.get_summary_data(TimerOutput::OutputData::total_wall_time)
-            .size() > 0)
+      if (label != "" &&
+          timer.get_summary_data(TimerOutput::OutputData::total_wall_time)
+              .size() > 0)
         timer.print_wall_time_statistics(MPI_COMM_WORLD);
     }
 

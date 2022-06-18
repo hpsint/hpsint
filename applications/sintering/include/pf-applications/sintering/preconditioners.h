@@ -1773,4 +1773,53 @@ namespace Sintering
     BlockPreconditioner3CHData data;
   };
 
+
+
+  template <int dim, typename Number, typename VectorizedArrayType>
+  class HelmholtzOperator
+    : public OperatorBase<dim,
+                          Number,
+                          VectorizedArrayType,
+                          HelmholtzOperator<dim, Number, VectorizedArrayType>>
+  {
+  public:
+    HelmholtzOperator(
+      const MatrixFree<dim, Number, VectorizedArrayType> &  matrix_free,
+      const std::vector<const AffineConstraints<Number> *> &constraints,
+      const unsigned int                                    n_components_)
+      : OperatorBase<dim,
+                     Number,
+                     VectorizedArrayType,
+                     HelmholtzOperator<dim, Number, VectorizedArrayType>>(
+          matrix_free,
+          constraints,
+          0,
+          "")
+      , n_components_(n_components_)
+    {}
+
+    unsigned int
+    n_components() const override
+    {
+      return n_components_;
+    }
+
+    template <int n_comp, int n_grains>
+    void
+    do_vmult_kernel(
+      FECellIntegrator<dim, n_comp, Number, VectorizedArrayType> &phi) const
+    {
+      static_assert(n_grains == -1);
+
+      for (unsigned int q = 0; q < phi.n_q_points; ++q)
+        {
+          phi.submit_value(phi.get_value(q), q);
+          phi.submit_gradient(phi.get_gradient(q), q);
+        }
+    }
+
+  private:
+    const unsigned int n_components_;
+  };
+
 } // namespace Sintering

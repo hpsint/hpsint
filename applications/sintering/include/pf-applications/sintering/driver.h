@@ -724,6 +724,31 @@ namespace Sintering
                       nonlinear_operator.vmult(dst, src);
                   }
 
+                if (true)
+                  {
+                    TimerOutput::Scope scope(timer, "vmult_helmholtz");
+
+                    HelmholtzOperator<dim, Number, VectorizedArrayType>
+                      helmholtz_operator(matrix_free, constraints, 1);
+
+                    for (unsigned int i = 0; i < n_repetitions; ++i)
+                      for (unsigned int b = 0; b < src.n_blocks(); ++b)
+                        helmholtz_operator.vmult(dst.block(b), src.block(b));
+                  }
+
+                if (true)
+                  {
+                    TimerOutput::Scope scope(timer, "vmult_vector_helmholtz");
+
+                    HelmholtzOperator<dim, Number, VectorizedArrayType>
+                      helmholtz_operator(matrix_free,
+                                         constraints,
+                                         src.n_blocks());
+
+                    for (unsigned int i = 0; i < n_repetitions; ++i)
+                      helmholtz_operator.vmult(dst, src);
+                  }
+
                 if (false /*TODO: not working since we work on block vectors*/)
                   {
                     AssertDimension(dst.n_blocks(), 1);
