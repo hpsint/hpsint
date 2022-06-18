@@ -398,6 +398,8 @@ namespace Sintering
       nonlinear_operator.initialize_dof_vector(solution);
 
       const auto initialize_solution = [&]() {
+        MyScope scope(timer, "initialize_solution");
+
         for (unsigned int c = 0; c < solution.n_blocks(); ++c)
           {
             initial_solution->set_component(c);
@@ -415,6 +417,8 @@ namespace Sintering
       const unsigned int init_level = tria.n_global_levels() - 1;
 
       const auto execute_coarsening_and_refinement = [&](const double t) {
+        MyScope scope(timer, "execute_coarsening_and_refinement");
+
         pcout << "Execute refinement/coarsening:" << std::endl;
 
         output_result(solution, nonlinear_operator, t, "refinement");
@@ -562,6 +566,8 @@ namespace Sintering
 
       const auto run_grain_tracker = [&](const double t,
                                          const bool   do_initialize = false) {
+        MyScope scope(timer, "run_grain_tracker");
+
         pcout << "Execute grain tracker:" << std::endl;
 
         solution.update_ghost_values();
