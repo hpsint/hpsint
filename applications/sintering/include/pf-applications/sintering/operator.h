@@ -52,7 +52,7 @@ constexpr bool has_n_grains_method =
           case  9: OPERATION(T::n_grains_to_n_components(std::min(max_grains,  9)), std::min(max_grains,  9)); break; \
           case 10: OPERATION(T::n_grains_to_n_components(std::min(max_grains, 10)), std::min(max_grains, 10)); break; \
           default:                                                                                                    \
-            Assert(false, ExcNotImplemented());                                                                       \
+            AssertThrow(false, ExcNotImplemented());                                                                  \
         }                                                                                                             \
     }                                                                                                                 \
   else                                                                                                                \
@@ -72,7 +72,7 @@ constexpr bool has_n_grains_method =
           case  9: OPERATION(std::min(max_components,  9), -1); break;                                                \
           case 10: OPERATION(std::min(max_components, 10), -1); break;                                                \
           default:                                                                                                    \
-            Assert(false, ExcNotImplemented());                                                                       \
+            AssertThrow(false, ExcNotImplemented());                                                                  \
         }                                                                                                             \
   }
 // clang-format on
