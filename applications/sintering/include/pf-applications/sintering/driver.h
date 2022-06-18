@@ -700,6 +700,8 @@ namespace Sintering
               {
                 MyScope scope(timer, "time_loop::profiling_vmult");
 
+                const bool old_timing_state = nonlinear_operator.set_timing(false);
+
                 nonlinear_operator.evaluate_newton_step(solution);
 
                 VectorType dst, src;
@@ -737,6 +739,8 @@ namespace Sintering
                 timer.print_wall_time_statistics(MPI_COMM_WORLD);
 
                 system_has_changed = false;
+
+                nonlinear_operator.set_timing(old_timing_state);
               }
 
             bool has_converged = false;
