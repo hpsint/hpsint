@@ -749,17 +749,31 @@ namespace Sintering
                       helmholtz_operator.vmult(dst, src);
                   }
 
-                if (false /*TODO: not working since we work on block vectors*/)
+                if (true)
                   {
-                    AssertDimension(dst.n_blocks(), 1);
-                    AssertDimension(src.n_blocks(), 1);
-
                     const auto &matrix = nonlinear_operator.get_system_matrix();
 
-                    TimerOutput::Scope scope(timer, "vmult_matrixbased");
+                    typename VectorType::BlockType src_, dst_;
 
-                    for (unsigned int i = 0; i < n_repetitions; ++i)
-                      matrix.vmult(dst.block(0), src.block(0));
+                    const auto partitioner =
+                      nonlinear_operator.get_system_partitioner();
+
+                    src_.reinit(partitioner);
+                    dst_.reinit(partitioner);
+
+                    VectorTools::merge_components_fast(src, src_);
+
+                    {
+                      TimerOutput::Scope scope(timer, "vmult_matrixbased");
+
+                      for (unsigned int i = 0; i < n_repetitions; ++i)
+                        matrix.vmult(dst_, src_);
+                    }
+
+                    VectorTools::split_up_components_fast(dst_, dst);
+
+                    if (params.matrix_based == false)
+                      nonlinear_operator.clear_system_matrix();
                   }
 
                 timer.print_wall_time_statistics(MPI_COMM_WORLD);
