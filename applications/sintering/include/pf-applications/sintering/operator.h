@@ -907,6 +907,7 @@ namespace Sintering
       , label(label)
       , pcout(std::cout, Utilities::MPI::this_mpi_process(MPI_COMM_WORLD) == 0)
       , timer(pcout, TimerOutput::never, TimerOutput::wall_times)
+      , do_timing(true)
     {}
 
     virtual ~OperatorBase()
@@ -958,10 +959,18 @@ namespace Sintering
       return 0.0;
     }
 
+    bool
+    set_timing(const bool do_timing) const
+    {
+      const bool old  = this->do_timing;
+      this->do_timing = do_timing;
+      return old;
+    }
+
     void
     vmult(VectorType &dst, const VectorType &src) const
     {
-      MyScope scope(this->timer, label + "::vmult");
+      MyScope scope(this->timer, label + "::vmult", this->do_timing);
 
       const bool system_matrix_is_empty =
         system_matrix.m() == 0 || system_matrix.n() == 0;
@@ -987,7 +996,7 @@ namespace Sintering
     void
     vmult(BlockVectorType &dst, const BlockVectorType &src) const
     {
-      MyScope scope(this->timer, label + "::vmult");
+      MyScope scope(this->timer, label + "::vmult", this->do_timing);
 
       const bool system_matrix_is_empty =
         system_matrix.m() == 0 || system_matrix.n() == 0;
@@ -1021,7 +1030,7 @@ namespace Sintering
     void
     compute_inverse_diagonal(VectorType &diagonal) const
     {
-      MyScope scope(this->timer, label + "::diagonal");
+      MyScope scope(this->timer, label + "::diagonal", this->do_timing);
 
       matrix_free.initialize_dof_vector(diagonal, dof_index);
 
@@ -1041,7 +1050,7 @@ namespace Sintering
     void
     compute_inverse_diagonal(BlockVectorType &diagonal) const
     {
-      MyScope scope(this->timer, label + "::diagonal");
+      MyScope scope(this->timer, label + "::diagonal", this->do_timing);
 
       AssertDimension(
         matrix_free.get_dof_handler(dof_index).get_fe().n_components(), 1);
@@ -1087,7 +1096,7 @@ namespace Sintering
 
       if (system_matrix_is_empty)
         {
-          MyScope scope(this->timer, label + "::matrix::sp");
+          MyScope scope(this->timer, label + "::matrix::sp", this->do_timing);
 
           system_matrix.clear();
 
@@ -1118,7 +1127,9 @@ namespace Sintering
         }
 
       {
-        MyScope scope(this->timer, label + "::matrix::compute");
+        MyScope scope(this->timer,
+                      label + "::matrix::compute",
+                      this->do_timing);
 
         if (system_matrix_is_empty == false)
           {
@@ -1222,6 +1233,7 @@ namespace Sintering
 
     ConditionalOStream  pcout;
     mutable TimerOutput timer;
+    mutable bool        do_timing;
   };
 
 
@@ -1509,7 +1521,9 @@ namespace Sintering
     evaluate_nonlinear_residual(BlockVectorType &      dst,
                                 const BlockVectorType &src) const
     {
-      MyScope scope(this->timer, "sintering_op::nonlinear_residual");
+      MyScope scope(this->timer,
+                    "sintering_op::nonlinear_residual",
+                    this->do_timing);
 
 #define OPERATION(c, d)                                       \
   this->matrix_free.cell_loop(                                \
@@ -1553,7 +1567,7 @@ namespace Sintering
     void
     evaluate_newton_step(const BlockVectorType &newton_step)
     {
-      MyScope scope(this->timer, "sintering_op::newton_step");
+      MyScope scope(this->timer, "sintering_op::newton_step", this->do_timing);
 
       const unsigned n_cells = this->matrix_free.n_cell_batches();
       const unsigned n_quadrature_points =

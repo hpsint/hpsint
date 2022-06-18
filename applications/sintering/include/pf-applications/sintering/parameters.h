@@ -104,6 +104,11 @@ namespace Sintering
     BlockPreconditioner3CHData block_preconditioner_3_ch_data;
   };
 
+  struct ProfilingData
+  {
+    bool run_vmults = false;
+  };
+
 
   struct Parameters
   {
@@ -116,6 +121,7 @@ namespace Sintering
     TimeIntegrationData time_integration_data;
     OutputData          output_data;
     PreconditionersData preconditioners_data;
+    ProfilingData       profiling_data;
 
     bool matrix_based = false;
 
@@ -406,6 +412,12 @@ namespace Sintering
                         Patterns::Selection(preconditioner_types));
       prm.leave_subsection();
 
+      prm.leave_subsection();
+
+      prm.enter_subsection("Profiling");
+      prm.add_parameter("RunVmults",
+                        profiling_data.run_vmults,
+                        "Run vmults standalone.");
       prm.leave_subsection();
     }
   };
