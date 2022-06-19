@@ -85,6 +85,7 @@ namespace Sintering
   struct OutputData
   {
     bool                  regular              = true;
+    bool                  contours             = true;
     bool                  debug                = false;
     bool                  higher_order_cells   = false;
     double                output_time_interval = 10;
@@ -320,6 +321,9 @@ namespace Sintering
       prm.add_parameter("Regular",
                         output_data.regular,
                         "Whether regular output is enabled.");
+      prm.add_parameter("Contour",
+                        output_data.contours,
+                        "Whether contour output is enabled.");
       prm.add_parameter("Debug",
                         output_data.debug,
                         "Whether debug output is enabled.");

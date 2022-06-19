@@ -69,6 +69,7 @@
 #include <pf-applications/sintering/initial_values.h>
 #include <pf-applications/sintering/operator.h>
 #include <pf-applications/sintering/parameters.h>
+#include <pf-applications/sintering/postprocessors.h>
 #include <pf-applications/sintering/preconditioners.h>
 #include <pf-applications/sintering/tools.h>
 
@@ -906,62 +907,79 @@ namespace Sintering
                   const double             t,
                   const std::string        label = "solution")
     {
-      if (!params.output_data.regular && label == "solution")
-        return;
-
       if (!params.output_data.debug && label != "solution")
-        return;
-
-      DataOutBase::VtkFlags flags;
-      flags.write_higher_order_cells = params.output_data.higher_order_cells;
-
-      DataOut<dim> data_out;
-      data_out.set_flags(flags);
-
-      if (params.output_data.fields.count("CH"))
-        {
-          data_out.add_data_vector(dof_handler, solution.block(0), "c");
-          data_out.add_data_vector(dof_handler, solution.block(1), "mu");
-        }
-
-      if (params.output_data.fields.count("AC"))
-        {
-          for (unsigned int ig = 2; ig < solution.n_blocks(); ++ig)
-            data_out.add_data_vector(dof_handler,
-                                     solution.block(ig),
-                                     "eta" + std::to_string(ig - 2));
-        }
-
-      sintering_operator.add_data_vectors(data_out,
-                                          solution,
-                                          params.output_data.fields);
-
-      // Output subdomain structure
-      if (params.output_data.fields.count("subdomain"))
-        {
-          Vector<float> subdomain(
-            dof_handler.get_triangulation().n_active_cells());
-          for (unsigned int i = 0; i < subdomain.size(); ++i)
-            {
-              subdomain[i] =
-                dof_handler.get_triangulation().locally_owned_subdomain();
-            }
-          data_out.add_data_vector(subdomain, "subdomain");
-        }
-
-      data_out.build_patches(mapping, this->fe.tensor_degree());
+        return; // nothing to do for debug for non-solution
 
       static std::map<std::string, unsigned int> counters;
 
       if (counters.find(label) == counters.end())
         counters[label] = 0;
 
-      std::string output = params.output_data.vtk_path + "/" + label + "." +
-                           std::to_string(counters[label]++) + ".vtu";
+      if (params.output_data.regular || label != "solution")
+        {
+          DataOutBase::VtkFlags flags;
+          flags.write_higher_order_cells =
+            params.output_data.higher_order_cells;
 
-      pcout << "Outputing at t = " << t << " (" << output << ")" << std::endl;
+          DataOut<dim> data_out;
+          data_out.set_flags(flags);
 
-      data_out.write_vtu_in_parallel(output, MPI_COMM_WORLD);
+          if (params.output_data.fields.count("CH"))
+            {
+              data_out.add_data_vector(dof_handler, solution.block(0), "c");
+              data_out.add_data_vector(dof_handler, solution.block(1), "mu");
+            }
+
+          if (params.output_data.fields.count("AC"))
+            {
+              for (unsigned int ig = 2; ig < solution.n_blocks(); ++ig)
+                data_out.add_data_vector(dof_handler,
+                                         solution.block(ig),
+                                         "eta" + std::to_string(ig - 2));
+            }
+
+          sintering_operator.add_data_vectors(data_out,
+                                              solution,
+                                              params.output_data.fields);
+
+          // Output subdomain structure
+          if (params.output_data.fields.count("subdomain"))
+            {
+              Vector<float> subdomain(
+                dof_handler.get_triangulation().n_active_cells());
+              for (unsigned int i = 0; i < subdomain.size(); ++i)
+                {
+                  subdomain[i] =
+                    dof_handler.get_triangulation().locally_owned_subdomain();
+                }
+              data_out.add_data_vector(subdomain, "subdomain");
+            }
+
+          data_out.build_patches(mapping, this->fe.tensor_degree());
+
+          std::string output = params.output_data.vtk_path + "/" + label + "." +
+                               std::to_string(counters[label]) + ".vtu";
+
+          pcout << "Outputing data at t = " << t << " (" << output << ")"
+                << std::endl;
+
+          data_out.write_vtu_in_parallel(output, MPI_COMM_WORLD);
+        }
+
+      if (params.output_data.contours || label != "solution")
+        {
+          std::string output = params.output_data.vtk_path + "/contour_" +
+                               label + "." + std::to_string(counters[label]) +
+                               ".vtu";
+
+          pcout << "Outputing data at t = " << t << " (" << output << ")"
+                << std::endl;
+
+          Postprocessors::output_grain_contours(
+            mapping, dof_handler, solution, 0.5, output);
+
+          counters[label]++;
+        }
     };
   };
 } // namespace Sintering
