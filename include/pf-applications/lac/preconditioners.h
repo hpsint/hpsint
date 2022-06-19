@@ -498,6 +498,8 @@ namespace Preconditioners
     void
     vmult(BlockVectorType &dst, const BlockVectorType &src) const override
     {
+      MyScope scope(timer, "amg::vmult");
+
       if (src_.size() == 0 || dst_.size() == 0)
         {
           const auto partitioner = op.get_system_partitioner();
@@ -514,6 +516,8 @@ namespace Preconditioners
     void
     do_update() override
     {
+      MyScope scope(timer, "amg::setup");
+
       precondition_amg.initialize(op.get_system_matrix(), additional_data);
     }
 
