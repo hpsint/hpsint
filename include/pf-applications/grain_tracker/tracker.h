@@ -858,71 +858,50 @@ namespace GrainTracker
       output_clouds(clouds, false);
 
       // Merge clouds from multiple processors
-      if (Utilities::MPI::n_mpi_processes(MPI_COMM_WORLD) > 1)
+      if (Utilities::MPI::n_mpi_processes(MPI_COMM_WORLD) == 1)
+        {
+          // nothing to do
+        }
+      else if (true)
+        {
+          auto global_clouds =
+            Utilities::MPI::all_gather(MPI_COMM_WORLD, clouds);
+
+          clouds.clear();
+
+          for (const auto &part_cloud : global_clouds)
+            {
+              std::move(part_cloud.begin(),
+                        part_cloud.end(),
+                        std::back_inserter(clouds));
+            }
+
+          /* When distributed across multiple processors, some clouds may be in
+           * fact parts of a single one, we then merge the touching clouds into
+           * one.
+           */
+          stitch_clouds(clouds);
+        }
+      else
         {
           // Convert set to vector
-          std::vector<int> neighbor_ranks(neighbor_ranks_set.cbegin(),
-                                          neighbor_ranks_set.cend());
+          std::vector<unsigned int> neighbor_ranks(neighbor_ranks_set.cbegin(),
+                                                   neighbor_ranks_set.cend());
 
-          // Gather all neighbors relevant for the current order parameter
-          auto global_neighbor_ranks =
-            Utilities::MPI::all_gather(MPI_COMM_WORLD, neighbor_ranks);
-
-          neighbor_ranks.clear();
-          for (const auto &ranks : global_neighbor_ranks)
-            {
-              for (const auto &r : ranks)
-                {
-                  if (std::find(neighbor_ranks.begin(),
-                                neighbor_ranks.end(),
-                                r) == neighbor_ranks.end())
-                    {
-                      neighbor_ranks.push_back(r);
-                    }
-                }
-            }
-          std::sort(neighbor_ranks.begin(), neighbor_ranks.end());
-
-          // Construct a group of rank to commnunicate with
-          MPI_Group world_group;
-          int       ierr = MPI_Comm_group(MPI_COMM_WORLD, &world_group);
-          AssertThrowMPI(ierr);
-
-          // Extract ranks from the global ones
-          MPI_Group mpi_group;
-          ierr = MPI_Group_incl(world_group,
-                                neighbor_ranks.size(),
-                                neighbor_ranks.data(),
-                                &mpi_group);
-          AssertThrowMPI(ierr);
-
-          // Create a corresponding communicator
-          MPI_Comm group_comm;
-          ierr = Utilities::MPI::create_group(MPI_COMM_WORLD,
-                                              mpi_group,
-                                              42,
-                                              &group_comm);
-          AssertThrowMPI(ierr);
-
-          MPI_Group_free(&world_group);
-          MPI_Group_free(&mpi_group);
-
-          if (group_comm != MPI_COMM_NULL)
-            {
-              auto global_clouds =
-                Utilities::MPI::all_gather(group_comm, clouds);
-
-              // Now gather all the clouds
-              clouds.clear();
-              for (auto &part_cloud : global_clouds)
-                {
-                  std::move(part_cloud.begin(),
-                            part_cloud.end(),
-                            std::back_inserter(clouds));
-                }
-
-              Utilities::MPI::free_communicator(group_comm);
-            }
+          dealii::Utilities::MPI::ConsensusAlgorithms::selector<
+            std::vector<Cloud<dim>>>(
+            neighbor_ranks,
+            [&](const unsigned int other_rank) {
+              (void)other_rank;
+              return clouds;
+            },
+            [&](const unsigned int &,
+                const std::vector<Cloud<dim>> &part_cloud) {
+              std::move(part_cloud.begin(),
+                        part_cloud.end(),
+                        std::back_inserter(clouds));
+            },
+            MPI_COMM_WORLD);
 
           /* When distributed across multiple processors, some clouds may be in
            * fact parts of a single one, we then merge the touching clouds into
