@@ -1127,6 +1127,13 @@ namespace Sintering
           dsp.compress();
 
           system_matrix.reinit(dsp);
+
+          this->pcout << std::endl;
+          this->pcout << "Create sparsity pattern (" << this->label
+                      << ") with:" << std::endl;
+          this->pcout << " - NNZ: " << system_matrix.n_nonzero_elements()
+                      << std::endl;
+          this->pcout << std::endl;
         }
 
       {
