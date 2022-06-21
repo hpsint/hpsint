@@ -1166,6 +1166,9 @@ namespace Sintering
       system_matrix.clear();
     }
 
+    const std::vector<std::unique_ptr<TrilinosWrappers::SparseMatrix>> &
+    get_block_system_matrix() const;
+
   protected:
     template <int n_comp, int n_grains>
     void

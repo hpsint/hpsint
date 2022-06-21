@@ -630,6 +630,81 @@ namespace Preconditioners
 
 
 
+  template <typename Operator>
+  class BlockILU : public PreconditionerBase<typename Operator::value_type>
+  {
+  public:
+    using VectorType      = typename Operator::VectorType;
+    using BlockVectorType = typename PreconditionerBase<
+      typename Operator::value_type>::BlockVectorType;
+
+    BlockILU(const Operator &op)
+      : op(op)
+      , pcout(std::cout, Utilities::MPI::this_mpi_process(MPI_COMM_WORLD) == 0)
+      , timer(pcout, TimerOutput::never, TimerOutput::wall_times)
+    {
+      additional_data.ilu_fill = 0;
+      additional_data.ilu_atol = 0.0;
+      additional_data.ilu_rtol = 1.0;
+      additional_data.overlap  = 0;
+    }
+
+    ~BlockILU()
+    {
+      if (timer.get_summary_data(TimerOutput::OutputData::total_wall_time)
+            .size() > 0)
+        timer.print_wall_time_statistics(MPI_COMM_WORLD);
+    }
+
+    virtual void
+    clear()
+    {
+      precondition_ilu.clear();
+    }
+
+    void
+    vmult(VectorType &dst, const VectorType &src) const override
+    {
+      AssertThrow(false, ExcNotImplemented());
+      (void)dst;
+      (void)src;
+    }
+
+    void
+    vmult(BlockVectorType &dst, const BlockVectorType &src) const override
+    {
+      MyScope scope(timer, "block_ilu::vmult");
+
+      for(unsigned int b = 0; b < src.n_blocks(); ++b)
+        precondition_ilu[b]->vmult(dst.block(b), src.block(b));
+    }
+
+    void
+    do_update() override
+    {
+      MyScope scope(timer, "block_ilu::setup");
+      
+      const auto & block_matrix = op.get_block_system_matrix();
+
+      for(unsigned int b = 0; b < block_matrix.size(); ++b)
+        {
+          precondition_ilu[b] = std::make_shared<TrilinosWrappers::PreconditionILU>();
+          precondition_ilu[b]->initialize(*block_matrix[b], additional_data);
+        }
+    }
+
+  private:
+    const Operator &op;
+
+    TrilinosWrappers::PreconditionILU::AdditionalData additional_data;
+    std::vector<std::shared_ptr<TrilinosWrappers::PreconditionILU>>                 precondition_ilu;
+
+    ConditionalOStream  pcout;
+    mutable TimerOutput timer;
+  };
+
+
+
   template <typename T>
   std::unique_ptr<PreconditionerBase<typename T::value_type>>
   create(const T &op, const std::string &label)
@@ -644,6 +719,8 @@ namespace Preconditioners
       return std::make_unique<AMG<T>>(op);
     else if (label == "ILU")
       return std::make_unique<ILU<T>>(op);
+    else if (label == "BlockILU")
+      return std::make_unique<BlockILU<T>>(op);
 
     AssertThrow(false,
                 ExcMessage("Preconditioner << " + label + " >> not known!"));
