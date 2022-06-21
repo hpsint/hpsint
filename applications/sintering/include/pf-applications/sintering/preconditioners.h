@@ -547,6 +547,250 @@ namespace Sintering
 
 
   template <int dim, typename Number, typename VectorizedArrayType>
+  class OperatorAllenCahnBlocked
+    : public OperatorBase<
+        dim,
+        Number,
+        VectorizedArrayType,
+        OperatorAllenCahnBlocked<dim, Number, VectorizedArrayType>>
+  {
+  public:
+    OperatorAllenCahnBlocked(
+      const MatrixFree<dim, Number, VectorizedArrayType> &       matrix_free,
+      const std::vector<const AffineConstraints<Number> *> &     constraints,
+      const SinteringOperator<dim, Number, VectorizedArrayType> &op)
+      : OperatorBase<
+          dim,
+          Number,
+          VectorizedArrayType,
+          OperatorAllenCahnBlocked<dim, Number, VectorizedArrayType>>(
+          matrix_free,
+          constraints,
+          0,
+          "allen_cahn_op")
+      , op(op)
+    {}
+
+    unsigned int
+    n_components() const override
+    {
+      return op.n_grains();
+    }
+
+    unsigned int
+    n_grains() const
+    {
+      return op.n_grains();
+    }
+
+    static constexpr unsigned int
+    n_grains_to_n_components(const unsigned int n_grains)
+    {
+      return n_grains;
+    }
+
+    template <int n_comp, int n_grains>
+    void
+    do_vmult_kernel(
+      FECellIntegrator<dim, n_comp, Number, VectorizedArrayType> &) const
+    {
+      AssertThrow(false, ExcNotImplemented());
+    }
+
+    const std::vector<std::shared_ptr<TrilinosWrappers::SparseMatrix>> &
+    get_block_system_matrix() const
+    {
+      const bool system_matrix_is_empty = this->block_system_matrix.size() == 0;
+
+      if (system_matrix_is_empty)
+        {
+          MyScope scope(this->timer,
+                        this->label + "::block_matrix::sp",
+                        this->do_timing);
+
+          AssertDimension(this->matrix_free.get_dof_handler(this->dof_index)
+                            .get_fe()
+                            .n_components(),
+                          1);
+
+          const auto &dof_handler =
+            this->matrix_free.get_dof_handler(this->dof_index);
+
+          this->constraints_for_block_matrix.clear();
+          this->constraints_for_block_matrix.reinit(
+            DoFTools::extract_locally_relevant_dofs(dof_handler));
+          DoFTools::make_hanging_node_constraints(
+            dof_handler, this->constraints_for_block_matrix);
+          this->constraints_for_block_matrix.close();
+
+          TrilinosWrappers::SparsityPattern dsp(
+            dof_handler.locally_owned_dofs(), dof_handler.get_communicator());
+          DoFTools::make_sparsity_pattern(dof_handler,
+                                          dsp,
+                                          this->constraints_for_block_matrix);
+          dsp.compress();
+
+          this->block_system_matrix.resize(this->n_components());
+          for (unsigned int b = 0; b < this->n_components(); ++b)
+            {
+              this->block_system_matrix[b] =
+                std::make_shared<TrilinosWrappers::SparseMatrix>();
+              this->block_system_matrix[b]->reinit(dsp);
+            }
+
+          this->pcout << std::endl;
+          this->pcout << "Create block sparsity pattern (" << this->label
+                      << ") with:" << std::endl;
+          this->pcout << " - number of blocks: " << this->n_components()
+                      << std::endl;
+          this->pcout << " - NNZ:              "
+                      << this->block_system_matrix[0]->n_nonzero_elements()
+                      << std::endl;
+          this->pcout << std::endl;
+        }
+
+      {
+        MyScope scope(this->timer,
+                      this->label + "::block_matrix::compute",
+                      this->do_timing);
+
+        if (system_matrix_is_empty == false)
+          for (unsigned int b = 0; b < this->n_components(); ++b)
+            *this->block_system_matrix[b] = 0.0; // clear existing content
+
+        const unsigned int dof_no                   = 0;
+        const unsigned int quad_no                  = 0;
+        const unsigned int first_selected_component = 0;
+
+        FECellIntegrator<dim, 1, Number, VectorizedArrayType> integrator(
+          this->matrix_free, dof_no, quad_no);
+
+        const unsigned int dofs_per_cell = integrator.dofs_per_cell;
+
+        using MatrixType = TrilinosWrappers::SparseMatrix;
+
+        std::vector<types::global_dof_index> dof_indices(dofs_per_cell);
+        std::array<std::vector<types::global_dof_index>,
+                   VectorizedArrayType::size()>
+          dof_indices_mf;
+        dof_indices_mf.fill(
+          std::vector<types::global_dof_index>(dofs_per_cell));
+
+        std::array<FullMatrix<typename MatrixType::value_type>,
+                   VectorizedArrayType::size()>
+          matrices;
+
+        std::fill_n(matrices.begin(),
+                    VectorizedArrayType::size(),
+                    FullMatrix<typename MatrixType::value_type>(dofs_per_cell,
+                                                                dofs_per_cell));
+
+        const auto lexicographic_numbering =
+          this->matrix_free
+            .get_shape_info(dof_no,
+                            quad_no,
+                            first_selected_component,
+                            integrator.get_active_fe_index(),
+                            integrator.get_active_quadrature_index())
+            .lexicographic_numbering;
+
+        const auto &free_energy      = this->op.get_data().free_energy;
+        const auto &L                = this->op.get_data().L;
+        const auto &kappa_p          = this->op.get_data().kappa_p;
+        const auto &dt               = this->op.get_dt();
+        const auto &nonlinear_values = this->op.get_nonlinear_values();
+
+        const auto dt_inv = 1.0 / dt;
+
+        std::vector<const VectorizedArrayType *> etas(this->n_grains());
+
+        for (unsigned int cell = 0; cell < this->matrix_free.n_cell_batches();
+             ++cell)
+          {
+            integrator.reinit(cell);
+
+            const unsigned int n_filled_lanes =
+              this->matrix_free.n_active_entries_per_cell_batch(cell);
+
+            // 1) get indices
+            for (unsigned int v = 0; v < n_filled_lanes; ++v)
+              {
+                const auto cell_v =
+                  this->matrix_free.get_cell_iterator(cell, v, dof_no);
+
+                if (this->matrix_free.get_mg_level() !=
+                    numbers::invalid_unsigned_int)
+                  cell_v->get_mg_dof_indices(dof_indices);
+                else
+                  cell_v->get_dof_indices(dof_indices);
+
+                for (unsigned int j = 0; j < dof_indices.size(); ++j)
+                  dof_indices_mf[v][j] =
+                    dof_indices[lexicographic_numbering[j]];
+              }
+
+            // 2) loop over all blocks
+            for (unsigned int b = 0; b < this->n_components(); ++b)
+              {
+                // 2a) compute columns of blocks
+                for (unsigned int j = 0; j < dofs_per_cell; ++j)
+                  {
+                    for (unsigned int i = 0; i < dofs_per_cell; ++i)
+                      integrator.begin_dof_values()[i] =
+                        static_cast<Number>(i == j);
+
+                    integrator.evaluate(EvaluationFlags::values |
+                                        EvaluationFlags::gradients);
+
+                    for (unsigned int q = 0; q < integrator.n_q_points; ++q)
+                      {
+                        const auto &val = nonlinear_values[cell][q];
+                        const auto &c   = val[0];
+
+                        for (unsigned int ig = 0; ig < this->n_grains(); ++ig)
+                          etas[ig] = &val[2 + ig];
+
+                        const auto value_result =
+                          integrator.get_value(q) * dt_inv +
+                          L * free_energy.d2f_detai2(c, etas, b) *
+                            integrator.get_value(q);
+
+                        const auto gradient_result =
+                          L * kappa_p * integrator.get_gradient(q);
+
+                        integrator.submit_value(value_result, q);
+                        integrator.submit_gradient(gradient_result, q);
+                      }
+
+                    integrator.integrate(
+                      EvaluationFlags::EvaluationFlags::values |
+                      EvaluationFlags::EvaluationFlags::gradients);
+
+                    for (unsigned int i = 0; i < dofs_per_cell; ++i)
+                      for (unsigned int v = 0; v < n_filled_lanes; ++v)
+                        matrices[v](i, j) = integrator.begin_dof_values()[i][v];
+                  }
+
+                // 2b) compute columns of blocks
+                for (unsigned int v = 0; v < n_filled_lanes; ++v)
+                  this->constraints_for_block_matrix.distribute_local_to_global(
+                    matrices[v],
+                    dof_indices_mf[v],
+                    *this->block_system_matrix[b]);
+              }
+          }
+      }
+
+      return this->block_system_matrix;
+    }
+
+  private:
+    const SinteringOperator<dim, Number, VectorizedArrayType> &op;
+  };
+
+
+
+  template <int dim, typename Number, typename VectorizedArrayType>
   class OperatorAllenCahnHelmholtz
     : public OperatorBase<
         dim,
@@ -1061,6 +1305,7 @@ namespace Sintering
       , operator_0(matrix_free, constraints, op)
       , operator_1(matrix_free, constraints, op)
       , operator_1_helmholtz(matrix_free, constraints, op)
+      , operator_1_blocked(matrix_free, constraints, op)
       , pcout(std::cout, Utilities::MPI::this_mpi_process(MPI_COMM_WORLD) == 0)
       , timer(pcout, TimerOutput::never, TimerOutput::wall_times)
       , data(data)
@@ -1068,9 +1313,12 @@ namespace Sintering
       preconditioner_0 =
         Preconditioners::create(operator_0, data.block_0_preconditioner);
 
-      if (true /*TODO*/)
+      if (false /*TODO*/)
         preconditioner_1 =
           Preconditioners::create(operator_1, data.block_1_preconditioner);
+      else if (true /*TODO*/)
+        preconditioner_1 = Preconditioners::create(operator_1_blocked,
+                                                   data.block_1_preconditioner);
       else
         preconditioner_1 = std::make_unique<
           InverseDiagonalMatrixAllenCahnHelmholtz<dim,
@@ -1146,6 +1394,8 @@ namespace Sintering
     OperatorAllenCahn<dim, Number, VectorizedArrayType>    operator_1;
     OperatorAllenCahnHelmholtz<dim, Number, VectorizedArrayType>
       operator_1_helmholtz;
+    OperatorAllenCahnBlocked<dim, Number, VectorizedArrayType>
+      operator_1_blocked;
 
     std::unique_ptr<Preconditioners::PreconditionerBase<Number>>
       preconditioner_0, preconditioner_1;
