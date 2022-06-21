@@ -251,6 +251,17 @@ namespace GrainTracker
       // Reassign grains
       const bool grains_reassigned = reassign_grains(force_reassignment);
 
+      {
+        const auto s     = active_order_parameters.size();
+        const auto s_min = Utilities::MPI::min(s, MPI_COMM_WORLD);
+        const auto s_max = Utilities::MPI::max(s, MPI_COMM_WORLD);
+        AssertThrow(
+          s_min == s_max,
+          ExcMessage(
+            "The number of order parameter do not match accorss processes (" +
+            std::to_string(s_min) + " vs. " + std::to_string(s_max) + ")"));
+      }
+
       // Check if number of order parameters has changed
       bool op_number_changed =
         (active_order_parameters.size() !=
@@ -311,6 +322,17 @@ namespace GrainTracker
       const bool op_number_changed =
         (active_order_parameters.size() !=
          build_old_order_parameter_ids(grains).size());
+
+      {
+        const auto s     = active_order_parameters.size();
+        const auto s_min = Utilities::MPI::min(s, MPI_COMM_WORLD);
+        const auto s_max = Utilities::MPI::max(s, MPI_COMM_WORLD);
+        AssertThrow(
+          s_min == s_max,
+          ExcMessage(
+            "The number of order parameter do not match accorss processes (" +
+            std::to_string(s_min) + " vs. " + std::to_string(s_max) + ")"));
+      }
 
       return std::make_tuple(grains_reassigned, op_number_changed);
     }
@@ -862,7 +884,7 @@ namespace GrainTracker
         {
           // nothing to do
         }
-      else if (true)
+      else if (false)
         {
           auto global_clouds =
             Utilities::MPI::all_gather(MPI_COMM_WORLD, clouds);
