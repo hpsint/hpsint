@@ -675,7 +675,7 @@ namespace Preconditioners
     {
       MyScope scope(timer, "block_ilu::vmult");
 
-      for(unsigned int b = 0; b < src.n_blocks(); ++b)
+      for (unsigned int b = 0; b < src.n_blocks(); ++b)
         precondition_ilu[b]->vmult(dst.block(b), src.block(b));
     }
 
@@ -683,12 +683,14 @@ namespace Preconditioners
     do_update() override
     {
       MyScope scope(timer, "block_ilu::setup");
-      
-      const auto & block_matrix = op.get_block_system_matrix();
 
-      for(unsigned int b = 0; b < block_matrix.size(); ++b)
+      const auto &block_matrix = op.get_block_system_matrix();
+
+      precondition_ilu.resize(block_matrix.size());
+      for (unsigned int b = 0; b < block_matrix.size(); ++b)
         {
-          precondition_ilu[b] = std::make_shared<TrilinosWrappers::PreconditionILU>();
+          precondition_ilu[b] =
+            std::make_shared<TrilinosWrappers::PreconditionILU>();
           precondition_ilu[b]->initialize(*block_matrix[b], additional_data);
         }
     }
@@ -697,7 +699,8 @@ namespace Preconditioners
     const Operator &op;
 
     TrilinosWrappers::PreconditionILU::AdditionalData additional_data;
-    std::vector<std::shared_ptr<TrilinosWrappers::PreconditionILU>>                 precondition_ilu;
+    std::vector<std::shared_ptr<TrilinosWrappers::PreconditionILU>>
+      precondition_ilu;
 
     ConditionalOStream  pcout;
     mutable TimerOutput timer;
