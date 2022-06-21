@@ -1108,45 +1108,19 @@ namespace Sintering
       MyScope scope(timer, "precon::vmult");
 
       {
-        MyScope scope(timer, "precon::vmult::precon_0");
+        MyScope    scope(timer, "precon::vmult::precon_0");
+        const auto dst_view = dst.create_view(0, 2);
+        const auto src_view = src.create_view(0, 2);
 
-        const unsigned n_components = 2;
-        const unsigned offset       = 0;
-
-        BlockVectorType dst_(n_components);              //
-        BlockVectorType src_(n_components);              //
-                                                         //
-        for (unsigned int i = 0; i < n_components; ++i)  //
-          {                                              //
-            src_.block(i) = src.block(offset + i);       //
-            dst_.block(i).reinit(dst.block(offset + i)); //
-          }                                              //
-
-        preconditioner_0->vmult(dst_, src_);
-
-        for (unsigned int i = 0; i < n_components; ++i) //
-          dst.block(offset + i) = dst_.block(i);        //
+        preconditioner_0->vmult(*dst_view, *src_view);
       }
 
       {
-        MyScope scope(timer, "precon::vmult::precon_1");
+        MyScope    scope(timer, "precon::vmult::precon_1");
+        const auto dst_view = dst.create_view(2, dst.n_blocks());
+        const auto src_view = src.create_view(2, src.n_blocks());
 
-        const unsigned n_components = dst.n_blocks() - 2;
-        const unsigned offset       = 2;
-
-        BlockVectorType dst_(n_components);              //
-        BlockVectorType src_(n_components);              //
-                                                         //
-        for (unsigned int i = 0; i < n_components; ++i)  //
-          {                                              //
-            src_.block(i) = src.block(offset + i);       //
-            dst_.block(i).reinit(dst.block(offset + i)); //
-          }                                              //
-
-        preconditioner_1->vmult(dst_, src_);
-
-        for (unsigned int i = 0; i < n_components; ++i) //
-          dst.block(offset + i) = dst_.block(i);        //
+        preconditioner_1->vmult(*dst_view, *src_view);
       }
     }
 

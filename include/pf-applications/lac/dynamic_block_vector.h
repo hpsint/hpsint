@@ -86,6 +86,43 @@ namespace dealii
         }
 
         /**
+         * Create view.
+         */
+        std::unique_ptr<const DynamicBlockVector<T>>
+        create_view(unsigned int start, unsigned end) const
+        {
+          AssertIndexRange(start, end + 1);
+          AssertIndexRange(end, n_blocks() + 1);
+
+          auto view = std::make_unique<const DynamicBlockVector<T>>();
+
+          for (unsigned int i = start; i < end; ++i)
+            const_cast<DynamicBlockVector<T> *>(view.get())
+              ->blocks.push_back(blocks[i]);
+
+          const_cast<DynamicBlockVector<T> *>(view.get())->block_counter =
+            view->blocks.size();
+
+          return view;
+        }
+
+        std::unique_ptr<DynamicBlockVector<T>>
+        create_view(unsigned int start, unsigned end)
+        {
+          AssertIndexRange(start, end + 1);
+          AssertIndexRange(end, n_blocks() + 1);
+
+          auto view = std::make_unique<DynamicBlockVector>();
+
+          for (unsigned int i = start; i < end; ++i)
+            view->blocks.push_back(blocks[i]);
+
+          view->block_counter = view->blocks.size();
+
+          return view;
+        }
+
+        /**
          * Blocks.
          */
         BlockType &
