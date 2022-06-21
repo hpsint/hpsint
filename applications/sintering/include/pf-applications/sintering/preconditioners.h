@@ -781,6 +781,9 @@ namespace Sintering
           }
       }
 
+      for (unsigned int b = 0; b < this->n_components(); ++b)
+        this->block_system_matrix[b]->compress(VectorOperation::add);
+
       return this->block_system_matrix;
     }
 
@@ -1313,18 +1316,19 @@ namespace Sintering
       preconditioner_0 =
         Preconditioners::create(operator_0, data.block_0_preconditioner);
 
-      if (false /*TODO*/)
+      if (data.block_1_preconditioner == "AMG" ||
+          data.block_1_preconditioner == "ILU" ||
+          data.block_1_preconditioner == "InverseDiagonalMatrix")
         preconditioner_1 =
           Preconditioners::create(operator_1, data.block_1_preconditioner);
-      else if (true /*TODO*/)
+      else if (data.block_1_preconditioner == "BlockAMG" ||
+               data.block_1_preconditioner == "BlockILU")
         preconditioner_1 = Preconditioners::create(operator_1_blocked,
                                                    data.block_1_preconditioner);
       else
-        preconditioner_1 = std::make_unique<
-          InverseDiagonalMatrixAllenCahnHelmholtz<dim,
-                                                  Number,
-                                                  VectorizedArrayType>>(
-          operator_1_helmholtz);
+        {
+          AssertThrow(false, ExcNotImplemented());
+        }
     }
 
     ~BlockPreconditioner2()
@@ -1340,6 +1344,7 @@ namespace Sintering
       operator_0.clear();
       operator_1.clear();
       operator_1_helmholtz.clear();
+      operator_1_blocked.clear();
       preconditioner_0->clear();
       preconditioner_1->clear();
     }
