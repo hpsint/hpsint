@@ -550,6 +550,79 @@ namespace Preconditioners
 
 
   template <typename Operator>
+  class BlockAMG : public PreconditionerBase<typename Operator::value_type>
+  {
+  public:
+    using VectorType      = typename Operator::VectorType;
+    using BlockVectorType = typename PreconditionerBase<
+      typename Operator::value_type>::BlockVectorType;
+
+    BlockAMG(const Operator &op)
+      : op(op)
+      , pcout(std::cout, Utilities::MPI::this_mpi_process(MPI_COMM_WORLD) == 0)
+      , timer(pcout, TimerOutput::never, TimerOutput::wall_times)
+    {}
+
+    ~BlockAMG()
+    {
+      if (timer.get_summary_data(TimerOutput::OutputData::total_wall_time)
+            .size() > 0)
+        timer.print_wall_time_statistics(MPI_COMM_WORLD);
+    }
+
+    virtual void
+    clear()
+    {
+      precondition_amg.clear();
+    }
+
+    void
+    vmult(VectorType &dst, const VectorType &src) const override
+    {
+      AssertThrow(false, ExcNotImplemented());
+      (void)dst;
+      (void)src;
+    }
+
+    void
+    vmult(BlockVectorType &dst, const BlockVectorType &src) const override
+    {
+      MyScope scope(timer, "block_amg::vmult");
+
+      for (unsigned int b = 0; b < src.n_blocks(); ++b)
+        precondition_amg[b]->vmult(dst.block(b), src.block(b));
+    }
+
+    void
+    do_update() override
+    {
+      MyScope scope(timer, "block_amg::setup");
+
+      const auto &block_matrix = op.get_block_system_matrix();
+
+      precondition_amg.resize(block_matrix.size());
+      for (unsigned int b = 0; b < block_matrix.size(); ++b)
+        {
+          precondition_amg[b] =
+            std::make_shared<TrilinosWrappers::PreconditionAMG>();
+          precondition_amg[b]->initialize(*block_matrix[b], additional_data);
+        }
+    }
+
+  private:
+    const Operator &op;
+
+    TrilinosWrappers::PreconditionAMG::AdditionalData additional_data;
+    std::vector<std::shared_ptr<TrilinosWrappers::PreconditionAMG>>
+      precondition_amg;
+
+    ConditionalOStream  pcout;
+    mutable TimerOutput timer;
+  };
+
+
+
+  template <typename Operator>
   class ILU : public PreconditionerBase<typename Operator::value_type>
   {
   public:
@@ -720,6 +793,8 @@ namespace Preconditioners
       return std::make_unique<InverseBlockDiagonalMatrix<T, T::dimension>>(op);
     else if (label == "AMG")
       return std::make_unique<AMG<T>>(op);
+    else if (label == "BlockAMG")
+      return std::make_unique<BlockAMG<T>>(op);
     else if (label == "ILU")
       return std::make_unique<ILU<T>>(op);
     else if (label == "BlockILU")
