@@ -128,15 +128,27 @@ namespace Preconditioners
     void
     vmult(BlockVectorType &dst, const BlockVectorType &src) const override
     {
-      AssertDimension(dst.n_blocks(), 1);
-      AssertDimension(src.n_blocks(), 1);
+      // MyScope scope(timer, "invsers_component_block_diagonal::vmult");
 
-      this->vmult(dst.block(0), src.block(0));
+      if (src_.size() == 0 || dst_.size() == 0)
+        {
+          const auto partitioner = op.get_system_partitioner();
+
+          src_.reinit(partitioner);
+          dst_.reinit(partitioner);
+        }
+
+      VectorTools::merge_components_fast(src, src_); // TODO
+      this->vmult(dst_, src_);
+      VectorTools::split_up_components_fast(dst_, dst); // TODO
     }
 
     void
     do_update() override
     {
+      src_.reinit(0);
+      dst_.reinit(0);
+
       const auto &matrix = op.get_system_matrix();
 
       const unsigned int n_components =
@@ -162,6 +174,8 @@ namespace Preconditioners
   private:
     const Operator &                op;
     std::vector<FullMatrix<Number>> diagonal_matrix;
+
+    mutable VectorType src_, dst_;
   };
 
 
