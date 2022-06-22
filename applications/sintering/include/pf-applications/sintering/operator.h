@@ -1103,6 +1103,8 @@ namespace Sintering
     {
       this->system_matrix.clear();
       this->block_system_matrix.clear();
+      src_.reinit(0);
+      dst_.reinit(0);
     }
 
     virtual unsigned int
@@ -1197,7 +1199,17 @@ namespace Sintering
         }
       else
         {
-          Assert(false, ExcNotImplemented());
+          if (src_.size() == 0 || dst_.size() == 0)
+            {
+              const auto partitioner = get_system_partitioner();
+
+              src_.reinit(partitioner);
+              dst_.reinit(partitioner);
+            }
+
+          VectorTools::merge_components_fast(src, src_); // TODO
+          this->vmult(dst_, src_);
+          VectorTools::split_up_components_fast(dst_, dst); // TODO
         }
     }
 
@@ -1346,6 +1358,8 @@ namespace Sintering
     {
       system_matrix.clear();
       block_system_matrix.clear();
+      src_.reinit(0);
+      dst_.reinit(0);
     }
 
     const std::vector<std::shared_ptr<TrilinosWrappers::SparseMatrix>> &
@@ -1510,6 +1524,8 @@ namespace Sintering
     ConditionalOStream  pcout;
     mutable TimerOutput timer;
     mutable bool        do_timing;
+
+    mutable VectorType src_, dst_;
   };
 
 
