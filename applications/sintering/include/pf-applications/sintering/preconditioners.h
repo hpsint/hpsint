@@ -279,7 +279,7 @@ namespace Sintering
     virtual unsigned int
     n_unique_components() const
     {
-      return 1;
+      return single_block ? 1 : n_components();
     }
 
     unsigned int
