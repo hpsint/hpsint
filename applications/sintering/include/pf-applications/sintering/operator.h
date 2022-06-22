@@ -1356,7 +1356,7 @@ namespace Sintering
       if (system_matrix_is_empty)
         {
           MyScope scope(this->timer,
-                        label + "::block_matrix::sp",
+                        this->label + "::block_matrix::sp",
                         this->do_timing);
 
           AssertDimension(this->matrix_free.get_dof_handler(dof_index)
@@ -1419,8 +1419,6 @@ namespace Sintering
         EXPAND_OPERATIONS(OPERATION);
 #undef OPERATION
       }
-
-
 
       return block_system_matrix;
     }
