@@ -713,6 +713,7 @@ namespace Preconditioners
 
     BlockILU(const Operator &op)
       : op(op)
+      , single_block(op.n_unique_components() == 1)
       , pcout(std::cout, Utilities::MPI::this_mpi_process(MPI_COMM_WORLD) == 0)
       , timer(pcout, TimerOutput::never, TimerOutput::wall_times)
     {
@@ -748,8 +749,11 @@ namespace Preconditioners
     {
       MyScope scope(timer, "block_ilu::vmult");
 
+      AssertThrow(src.n_blocks() == dst.n_blocks(), ExcNotImplemented());
+
       for (unsigned int b = 0; b < src.n_blocks(); ++b)
-        precondition_ilu[b]->vmult(dst.block(b), src.block(b));
+        precondition_ilu[single_block ? 0 : b]->vmult(dst.block(b),
+                                                      src.block(b));
     }
 
     void
@@ -758,6 +762,9 @@ namespace Preconditioners
       MyScope scope(timer, "block_ilu::setup");
 
       const auto &block_matrix = op.get_block_system_matrix();
+
+      AssertThrow(single_block == false || block_matrix.size() == 1,
+                  ExcNotImplemented());
 
       precondition_ilu.resize(block_matrix.size());
       for (unsigned int b = 0; b < block_matrix.size(); ++b)
@@ -770,6 +777,7 @@ namespace Preconditioners
 
   private:
     const Operator &op;
+    const bool      single_block;
 
     TrilinosWrappers::PreconditionILU::AdditionalData additional_data;
     std::vector<std::shared_ptr<TrilinosWrappers::PreconditionILU>>
