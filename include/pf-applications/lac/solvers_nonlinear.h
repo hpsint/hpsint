@@ -27,13 +27,15 @@ namespace NonLinearSolvers
                      const double       rel_tol               = 1.e-5,
                      const bool         do_update             = true,
                      const unsigned int threshold_newton_iter = 10,
-                     const unsigned int threshold_linear_iter = 20)
+                     const unsigned int threshold_linear_iter = 20,
+                     const bool         reuse_preconditioner  = true)
       : max_iter(max_iter)
       , abs_tol(abs_tol)
       , rel_tol(rel_tol)
       , do_update(do_update)
       , threshold_newton_iter(threshold_newton_iter)
       , threshold_linear_iter(threshold_linear_iter)
+      , reuse_preconditioner(reuse_preconditioner)
     {}
 
     const unsigned int max_iter;
@@ -42,6 +44,7 @@ namespace NonLinearSolvers
     const bool         do_update;
     const unsigned int threshold_newton_iter;
     const unsigned int threshold_linear_iter;
+    const bool         reuse_preconditioner;
   };
 
 
@@ -62,6 +65,9 @@ namespace NonLinearSolvers
       reinit_vector(increment);
       reinit_vector(tmp);
 
+      if (this->solver_data.reuse_preconditioner == false)
+        clear();
+
       // evaluate residual using the given estimate of the solution
       residual(dst, vec_residual);
 
@@ -70,8 +76,6 @@ namespace NonLinearSolvers
 
       // Accumulated linear iterations
       NonLinearSolverStatistics statistics;
-
-      unsigned int linear_iterations_last = 0;
 
       while (norm_r > this->solver_data.abs_tol &&
              norm_r / norm_r_0 > solver_data.rel_tol &&
@@ -85,16 +89,18 @@ namespace NonLinearSolvers
           vec_residual *= -1.0;
 
           // solve linear problem
-          bool const threshold_exceeded =
-            (statistics.newton_iterations % solver_data.threshold_newton_iter ==
+          const bool threshold_exceeded =
+            (history_newton_iterations % solver_data.threshold_newton_iter ==
              0) ||
-            (linear_iterations_last > solver_data.threshold_linear_iter);
+            (history_linear_iterations_last >
+             solver_data.threshold_linear_iter);
 
           setup_jacobian(dst, solver_data.do_update && threshold_exceeded);
 
-          linear_iterations_last = solve_with_jacobian(vec_residual, increment);
+          history_linear_iterations_last =
+            solve_with_jacobian(vec_residual, increment);
 
-          statistics.linear_iterations += linear_iterations_last;
+          statistics.linear_iterations += history_linear_iterations_last;
 
           // damped Newton scheme
           const double tau =
@@ -135,6 +141,7 @@ namespace NonLinearSolvers
 
           // increment iteration counter
           ++statistics.newton_iterations;
+          ++history_newton_iterations;
         }
 
       AssertThrow(norm_r <= this->solver_data.abs_tol ||
@@ -144,9 +151,19 @@ namespace NonLinearSolvers
       return statistics;
     }
 
+    void
+    clear() const
+    {
+      history_linear_iterations_last = 0;
+      history_newton_iterations      = 0;
+    }
+
 
   private:
     const NewtonSolverData solver_data;
+
+    mutable unsigned int history_linear_iterations_last = 0;
+    mutable unsigned int history_newton_iterations      = 0;
 
   public:
     std::function<void(VectorType &)>                     reinit_vector  = {};
