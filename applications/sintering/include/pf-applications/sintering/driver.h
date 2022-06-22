@@ -311,22 +311,6 @@ namespace Sintering
           matrix_free,
           constraints,
           params.preconditioners_data.block_preconditioner_2_data);
-      else if (params.preconditioners_data.outer_preconditioner ==
-               "BlockPreconditioner3")
-        preconditioner = std::make_unique<
-          BlockPreconditioner3<dim, Number, VectorizedArrayType>>(
-          nonlinear_operator,
-          matrix_free,
-          constraints,
-          params.preconditioners_data.block_preconditioner_3_data);
-      else if (params.preconditioners_data.outer_preconditioner ==
-               "BlockPreconditioner3CH")
-        preconditioner = std::make_unique<
-          BlockPreconditioner3CH<dim, Number, VectorizedArrayType>>(
-          nonlinear_operator,
-          matrix_free,
-          constraints,
-          params.preconditioners_data.block_preconditioner_3_ch_data);
       else
         preconditioner = Preconditioners::create(
           nonlinear_operator, params.preconditioners_data.outer_preconditioner);
