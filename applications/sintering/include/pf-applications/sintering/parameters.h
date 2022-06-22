@@ -97,12 +97,9 @@ namespace Sintering
   struct PreconditionersData
   {
     std::string outer_preconditioner = "BlockPreconditioner2";
-    // std::string outer_preconditioner = "BlockPreconditioner3CH";
     // std::string outer_preconditioner = "ILU";
 
-    BlockPreconditioner2Data   block_preconditioner_2_data;
-    BlockPreconditioner3Data   block_preconditioner_3_data;
-    BlockPreconditioner3CHData block_preconditioner_3_ch_data;
+    BlockPreconditioner2Data block_preconditioner_2_data;
   };
 
   struct ProfilingData
@@ -357,13 +354,11 @@ namespace Sintering
       prm.enter_subsection("Preconditioners");
       const std::string preconditioner_types =
         "AMG|BlockAMG|BlockILU|InverseBlockDiagonalMatrix|InverseDiagonalMatrix|ILU|InverseComponentBlockDiagonalMatrix";
-      prm.add_parameter(
-        "OuterPreconditioner",
-        preconditioners_data.outer_preconditioner,
-        "Preconditioner to be used for the outer system.",
-        Patterns::Selection(
-          preconditioner_types +
-          "|BlockPreconditioner2|BlockPreconditioner3|BlockPreconditioner3CH"));
+      prm.add_parameter("OuterPreconditioner",
+                        preconditioners_data.outer_preconditioner,
+                        "Preconditioner to be used for the outer system.",
+                        Patterns::Selection(preconditioner_types +
+                                            "|BlockPreconditioner2"));
 
       prm.enter_subsection("BlockPreconditioner2");
       prm.add_parameter(
@@ -376,53 +371,6 @@ namespace Sintering
         preconditioners_data.block_preconditioner_2_data.block_1_preconditioner,
         "Preconditioner to be used for the second block.",
         Patterns::Selection(preconditioner_types));
-      prm.leave_subsection();
-
-      prm.enter_subsection("BlockPreconditioner3");
-      prm.add_parameter("Type",
-                        preconditioners_data.block_preconditioner_3_data.type,
-                        "Type of block preconditioner of CH system.",
-                        Patterns::Selection("D|LD|RD|SYMM"));
-      prm.add_parameter(
-        "Block0Preconditioner",
-        preconditioners_data.block_preconditioner_3_data.block_0_preconditioner,
-        "Preconditioner to be used for the first block.",
-        Patterns::Selection(preconditioner_types));
-      prm.add_parameter("Block0RelativeTolerance",
-                        preconditioners_data.block_preconditioner_3_data
-                          .block_0_relative_tolerance,
-                        "Relative tolerance of the first block.");
-      prm.add_parameter(
-        "Block1Preconditioner",
-        preconditioners_data.block_preconditioner_3_data.block_1_preconditioner,
-        "Preconditioner to be used for the second block.",
-        Patterns::Selection(preconditioner_types));
-      prm.add_parameter("Block1RelativeTolerance",
-                        preconditioners_data.block_preconditioner_3_data
-                          .block_1_relative_tolerance,
-                        "Relative tolerance of the second block.");
-      prm.add_parameter(
-        "Block2Preconditioner",
-        preconditioners_data.block_preconditioner_3_data.block_2_preconditioner,
-        "Preconditioner to be used for the thrird block.",
-        Patterns::Selection(preconditioner_types));
-      prm.add_parameter("Block2RelativeTolerance",
-                        preconditioners_data.block_preconditioner_3_data
-                          .block_2_relative_tolerance,
-                        "Relative tolerance of the third block.");
-      prm.leave_subsection();
-
-      prm.enter_subsection("BlockPreconditioner3CH");
-      prm.add_parameter("Block0Preconditioner",
-                        preconditioners_data.block_preconditioner_3_ch_data
-                          .block_0_preconditioner,
-                        "Preconditioner to be used for the first block.",
-                        Patterns::Selection(preconditioner_types));
-      prm.add_parameter("Block2Preconditioner",
-                        preconditioners_data.block_preconditioner_3_ch_data
-                          .block_2_preconditioner,
-                        "Preconditioner to be used for the second block.",
-                        Patterns::Selection(preconditioner_types));
       prm.leave_subsection();
 
       prm.leave_subsection();
