@@ -109,6 +109,9 @@ namespace Sintering
 
     MatrixFree<dim, Number, VectorizedArrayType> matrix_free;
 
+    // multigrid
+    std::vector<std::shared_ptr<const Triangulation<dim>>> mg_triangulations;
+
     std::shared_ptr<InitialValues<dim>> initial_solution;
 
     Problem(const Parameters &                  params,
@@ -219,6 +222,20 @@ namespace Sintering
 
       matrix_free.reinit(
         mapping, dof_handler, constraint, quad, additional_data);
+
+      if (true /*TODO*/)
+        {
+          mg_triangulations = MGTransferGlobalCoarseningTools::
+            create_geometric_coarsening_sequence(tria);
+
+          const unsigned int min_level = 0;
+          const unsigned int max_level = mg_triangulations.size() - 1;
+
+          for (unsigned int l = min_level; l <= max_level; ++l)
+            {
+              /*TODO*/
+            }
+        }
 
       types::global_cell_index n_cells_w_hn  = 0;
       types::global_cell_index n_cells_wo_hn = 0;
