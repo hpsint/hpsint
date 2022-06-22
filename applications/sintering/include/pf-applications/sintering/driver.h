@@ -522,6 +522,7 @@ namespace Sintering
         initialize(solution_dealii.n_blocks());
 
         nonlinear_operator.clear();
+        non_linear_solver->clear();
         preconditioner->clear();
 
         nonlinear_operator.initialize_dof_vector(solution);
@@ -586,6 +587,7 @@ namespace Sintering
 
                 nonlinear_operator.set_n_components(n_components_new);
                 nonlinear_operator.clear();
+                non_linear_solver->clear();
                 preconditioner->clear();
 
                 /**
