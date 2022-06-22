@@ -295,18 +295,9 @@ namespace Sintering
           const auto &dof_handler =
             this->matrix_free.get_dof_handler(this->dof_index);
 
-          this->constraints_for_block_matrix.clear();
-          this->constraints_for_block_matrix.reinit(
-            DoFTools::extract_locally_relevant_dofs(dof_handler));
-          DoFTools::make_hanging_node_constraints(
-            dof_handler, this->constraints_for_block_matrix);
-          this->constraints_for_block_matrix.close();
-
           TrilinosWrappers::SparsityPattern dsp(
             dof_handler.locally_owned_dofs(), dof_handler.get_communicator());
-          DoFTools::make_sparsity_pattern(dof_handler,
-                                          dsp,
-                                          this->constraints_for_block_matrix);
+          DoFTools::make_sparsity_pattern(dof_handler, dsp, this->constraints);
           dsp.compress();
 
           this->block_system_matrix.resize(this->n_components());
@@ -452,7 +443,7 @@ namespace Sintering
 
                 // 2b) compute columns of blocks
                 for (unsigned int v = 0; v < n_filled_lanes; ++v)
-                  this->constraints_for_block_matrix.distribute_local_to_global(
+                  this->constraints.distribute_local_to_global(
                     matrices[v],
                     dof_indices_mf[v],
                     *this->block_system_matrix[b]);

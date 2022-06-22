@@ -987,18 +987,9 @@ namespace Sintering
           const auto &dof_handler =
             this->matrix_free.get_dof_handler(dof_index);
 
-          constraints_for_block_matrix.clear();
-          constraints_for_block_matrix.reinit(
-            DoFTools::extract_locally_relevant_dofs(dof_handler));
-          DoFTools::make_hanging_node_constraints(dof_handler,
-                                                  constraints_for_block_matrix);
-          constraints_for_block_matrix.close();
-
           TrilinosWrappers::SparsityPattern dsp(
             dof_handler.locally_owned_dofs(), dof_handler.get_communicator());
-          DoFTools::make_sparsity_pattern(dof_handler,
-                                          dsp,
-                                          constraints_for_block_matrix);
+          DoFTools::make_sparsity_pattern(dof_handler, dsp, this->constraints);
           dsp.compress();
 
           block_system_matrix.resize(this->n_components());
@@ -1031,7 +1022,7 @@ namespace Sintering
 
 #define OPERATION(c, d)                                                 \
   MyMatrixFreeTools::compute_matrix(matrix_free,                        \
-                                    constraints_for_block_matrix,       \
+                                    this->constraints,                  \
                                     block_system_matrix,                \
                                     &OperatorBase::do_vmult_cell<c, d>, \
                                     this,                               \
@@ -1117,7 +1108,6 @@ namespace Sintering
     const MatrixFree<dim, Number, VectorizedArrayType> &matrix_free;
     const AffineConstraints<Number> &                   constraints;
     mutable AffineConstraints<Number>                   constraints_for_matrix;
-    mutable AffineConstraints<Number> constraints_for_block_matrix;
 
     const unsigned int dof_index;
 
