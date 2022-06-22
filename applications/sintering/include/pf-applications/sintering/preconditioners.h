@@ -237,7 +237,8 @@ namespace Sintering
     OperatorAllenCahnBlocked(
       const MatrixFree<dim, Number, VectorizedArrayType> &       matrix_free,
       const std::vector<const AffineConstraints<Number> *> &     constraints,
-      const SinteringOperator<dim, Number, VectorizedArrayType> &op)
+      const SinteringOperator<dim, Number, VectorizedArrayType> &op,
+      const std::string free_energy_approximation_string = "all")
       : OperatorBase<
           dim,
           Number,
@@ -248,12 +249,37 @@ namespace Sintering
           0,
           "allen_cahn_op")
       , op(op)
+      , free_energy_approximation(to_value(free_energy_approximation_string))
+      , single_block(free_energy_approximation > 0)
     {}
+
+    static unsigned int
+    to_value(const std::string label)
+    {
+      if (label == "all")
+        return 0;
+      if (label == "const")
+        return 1;
+      if (label == "max")
+        return 2;
+      if (label == "avg")
+        return 3;
+
+      AssertThrow(false, ExcNotImplemented());
+
+      return numbers::invalid_unsigned_int;
+    }
 
     unsigned int
     n_components() const override
     {
       return op.n_grains();
+    }
+
+    virtual unsigned int
+    n_unique_components() const
+    {
+      return 1;
     }
 
     unsigned int
@@ -300,8 +326,8 @@ namespace Sintering
           DoFTools::make_sparsity_pattern(dof_handler, dsp, this->constraints);
           dsp.compress();
 
-          this->block_system_matrix.resize(this->n_components());
-          for (unsigned int b = 0; b < this->n_components(); ++b)
+          this->block_system_matrix.resize(this->n_unique_components());
+          for (unsigned int b = 0; b < this->n_unique_components(); ++b)
             {
               this->block_system_matrix[b] =
                 std::make_shared<TrilinosWrappers::SparseMatrix>();
@@ -311,7 +337,7 @@ namespace Sintering
           this->pcout << std::endl;
           this->pcout << "Create block sparsity pattern (" << this->label
                       << ") with:" << std::endl;
-          this->pcout << " - number of blocks: " << this->n_components()
+          this->pcout << " - number of blocks: " << this->n_unique_components()
                       << std::endl;
           this->pcout << " - NNZ:              "
                       << this->block_system_matrix[0]->n_nonzero_elements()
@@ -325,7 +351,7 @@ namespace Sintering
                       this->do_timing);
 
         if (system_matrix_is_empty == false)
-          for (unsigned int b = 0; b < this->n_components(); ++b)
+          for (unsigned int b = 0; b < this->n_unique_components(); ++b)
             *this->block_system_matrix[b] = 0.0; // clear existing content
 
         const unsigned int dof_no                   = 0;
@@ -400,7 +426,7 @@ namespace Sintering
               }
 
             // 2) loop over all blocks
-            for (unsigned int b = 0; b < this->n_components(); ++b)
+            for (unsigned int b = 0; b < this->n_unique_components(); ++b)
               {
                 // 2a) compute columns of blocks
                 for (unsigned int j = 0; j < dofs_per_cell; ++j)
@@ -420,10 +446,46 @@ namespace Sintering
                         for (unsigned int ig = 0; ig < this->n_grains(); ++ig)
                           etas[ig] = &val[2 + ig];
 
+                        VectorizedArrayType scaling = 0.0;
+
+                        switch (free_energy_approximation)
+                          {
+                            case 0:
+                              scaling = free_energy.d2f_detai2(c, etas, b);
+                              break;
+                            case 1:
+                              // nothing to do
+                              break;
+                            case 2:
+                              for (unsigned int b = 0; b < this->n_components();
+                                   ++b)
+                                scaling =
+                                  scaling + free_energy.d2f_detai2(c, etas, b);
+                              scaling = scaling / static_cast<Number>(
+                                                    this->n_components());
+                              break;
+                            case 3:
+                              for (unsigned int b = 0; b < this->n_components();
+                                   ++b)
+                                for (unsigned int v = 0;
+                                     v < VectorizedArrayType::size();
+                                     ++v)
+                                  {
+                                    const auto temp =
+                                      free_energy.d2f_detai2(c, etas, b)[v];
+                                    scaling[v] =
+                                      std::abs(scaling[v]) > std::abs(temp) ?
+                                        scaling[v] :
+                                        temp;
+                                  }
+                              break;
+                            default:
+                              AssertThrow(false, ExcNotImplemented());
+                          }
+
                         const auto value_result =
                           integrator.get_value(q) * dt_inv +
-                          L * free_energy.d2f_detai2(c, etas, b) *
-                            integrator.get_value(q);
+                          L * scaling * integrator.get_value(q);
 
                         const auto gradient_result =
                           L * kappa_p * integrator.get_gradient(q);
@@ -451,7 +513,7 @@ namespace Sintering
           }
       }
 
-      for (unsigned int b = 0; b < this->n_components(); ++b)
+      for (unsigned int b = 0; b < this->n_unique_components(); ++b)
         this->block_system_matrix[b]->compress(VectorOperation::add);
 
       return this->block_system_matrix;
@@ -459,6 +521,8 @@ namespace Sintering
 
   private:
     const SinteringOperator<dim, Number, VectorizedArrayType> &op;
+    const unsigned int free_energy_approximation;
+    const bool         single_block;
   };
 
 
@@ -515,6 +579,8 @@ namespace Sintering
   {
     std::string block_0_preconditioner = "ILU";
     std::string block_1_preconditioner = "InverseDiagonalMatrix";
+
+    std::string block_1_approximation = "all";
   };
 
 
@@ -540,7 +606,10 @@ namespace Sintering
       : matrix_free(matrix_free)
       , operator_0(matrix_free, constraints, op)
       , operator_1(matrix_free, constraints, op)
-      , operator_1_blocked(matrix_free, constraints, op)
+      , operator_1_blocked(matrix_free,
+                           constraints,
+                           op,
+                           data.block_1_approximation)
       , pcout(std::cout, Utilities::MPI::this_mpi_process(MPI_COMM_WORLD) == 0)
       , timer(pcout, TimerOutput::never, TimerOutput::wall_times)
       , data(data)

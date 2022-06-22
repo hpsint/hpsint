@@ -716,6 +716,12 @@ namespace Sintering
     virtual unsigned int
     n_components() const = 0;
 
+    virtual unsigned int
+    n_unique_components() const
+    {
+      return n_components();
+    }
+
     const DoFHandler<dim> &
     get_dof_handler() const
     {
