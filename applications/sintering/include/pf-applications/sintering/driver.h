@@ -350,6 +350,9 @@ namespace Sintering
             {
               MyScope scope(timer, "time_loop::newton::setup_jacobian");
 
+              // sintering_data.fill_quadrature_point_values(matrix_free,
+              // current_u);
+
               nonlinear_operator.evaluate_newton_step(current_u);
               nonlinear_operator.do_update();
             }

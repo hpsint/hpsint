@@ -1302,9 +1302,11 @@ namespace Sintering
     }
 
     void
-    evaluate_newton_step(const BlockVectorType &newton_step)
+    evaluate_newton_step(const BlockVectorType &src)
     {
       MyScope scope(this->timer, "sintering_op::newton_step", this->do_timing);
+
+      Assert(src.n_blocks(), this->n_components());
 
       const unsigned n_cells = this->matrix_free.n_cell_batches();
       const unsigned n_quadrature_points =
@@ -1315,16 +1317,33 @@ namespace Sintering
       this->data.get_nonlinear_gradients().reinit(
         {n_cells, n_quadrature_points, this->n_components()});
 
-      int dummy = 0;
+      FECellIntegrator<dim, 1, Number, VectorizedArrayType> phi(
+        this->matrix_free, this->dof_index);
 
-#define OPERATION(c, d)                                \
-  this->matrix_free.cell_loop(                         \
-    &SinteringOperator::do_evaluate_newton_step<c, d>, \
-    this,                                              \
-    dummy,                                             \
-    newton_step);
-      EXPAND_OPERATIONS(OPERATION);
-#undef OPERATION
+      auto &nonlinear_values    = this->data.get_nonlinear_values();
+      auto &nonlinear_gradients = this->data.get_nonlinear_gradients();
+
+      src.update_ghost_values();
+
+      for (unsigned int cell = 0; cell < n_cells; ++cell)
+        {
+          phi.reinit(cell);
+
+          for (unsigned int c = 0; c < this->n_components(); ++c)
+            {
+              phi.read_dof_values_plain(src.block(c));
+              phi.evaluate(EvaluationFlags::values |
+                           EvaluationFlags::gradients);
+
+              for (unsigned int q = 0; q < phi.n_q_points; ++q)
+                {
+                  nonlinear_values(cell, q, c)    = phi.get_value(q);
+                  nonlinear_gradients(cell, q, c) = phi.get_gradient(q);
+                }
+            }
+        }
+
+      src.zero_out_ghost_values();
     }
 
     void
@@ -1811,39 +1830,6 @@ namespace Sintering
           phi.integrate_scatter(EvaluationFlags::EvaluationFlags::values |
                                   EvaluationFlags::EvaluationFlags::gradients,
                                 dst);
-        }
-    }
-
-    template <int n_comp, int n_grains>
-    void
-    do_evaluate_newton_step(
-      const MatrixFree<dim, Number, VectorizedArrayType> &matrix_free,
-      int &,
-      const BlockVectorType &                      src,
-      const std::pair<unsigned int, unsigned int> &range)
-    {
-      AssertDimension(n_comp - 2, n_grains);
-
-      FECellIntegrator<dim, n_comp, Number, VectorizedArrayType> phi(
-        matrix_free, this->dof_index);
-
-      auto &nonlinear_values    = this->data.get_nonlinear_values();
-      auto &nonlinear_gradients = this->data.get_nonlinear_gradients();
-
-      for (auto cell = range.first; cell < range.second; ++cell)
-        {
-          phi.reinit(cell);
-          phi.read_dof_values_plain(src);
-          phi.evaluate(EvaluationFlags::values | EvaluationFlags::gradients);
-
-          for (unsigned int q = 0; q < phi.n_q_points; ++q)
-            {
-              for (unsigned int c = 0; c < n_comp; ++c)
-                {
-                  nonlinear_values(cell, q, c)    = phi.get_value(q)[c];
-                  nonlinear_gradients(cell, q, c) = phi.get_gradient(q)[c];
-                }
-            }
         }
     }
 
