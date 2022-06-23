@@ -112,6 +112,16 @@ namespace Sintering
     // multigrid
     std::vector<std::shared_ptr<const Triangulation<dim>>> mg_triangulations;
 
+    MGLevelObject<DoFHandler<dim>>           mg_dof_handlers;
+    MGLevelObject<AffineConstraints<Number>> mg_constraints;
+    MGLevelObject<MGTwoLevelTransfer<dim, typename VectorType::BlockType>>
+                                                                transfers;
+    MGLevelObject<MatrixFree<dim, Number, VectorizedArrayType>> mg_matrix_free;
+
+    std::shared_ptr<
+      MGTransferGlobalCoarsening<dim, typename VectorType::BlockType>>
+      transfer;
+
     std::shared_ptr<InitialValues<dim>> initial_solution;
 
     Problem(const Parameters &                  params,
@@ -231,10 +241,41 @@ namespace Sintering
           const unsigned int min_level = 0;
           const unsigned int max_level = mg_triangulations.size() - 1;
 
+          mg_dof_handlers.resize(min_level, max_level);
+          mg_constraints.resize(min_level, max_level);
+          transfers.resize(min_level, max_level);
+          mg_matrix_free.resize(min_level, max_level);
+
           for (unsigned int l = min_level; l <= max_level; ++l)
             {
-              /*TODO*/
+              auto &dof_handler = mg_dof_handlers[l];
+              auto &constraint  = mg_constraints[l];
+              auto &matrix_free = mg_matrix_free[l];
+
+              dof_handler.reinit(*mg_triangulations[l]);
+              dof_handler.distribute_dofs(fe);
+
+              constraint.clear();
+              DoFTools::make_hanging_node_constraints(dof_handler, constraint);
+              Assert(params.geometry_data.periodic == false,
+                     ExcNotImplemented());
+              constraint.close();
+
+              matrix_free.reinit(
+                mapping, dof_handler, constraint, quad, additional_data);
             }
+
+          for (auto l = min_level; l < max_level; ++l)
+            transfers[l + 1].reinit(mg_dof_handlers[l + 1],
+                                    mg_dof_handlers[l],
+                                    mg_constraints[l + 1],
+                                    mg_constraints[l]);
+
+          transfer = std::make_shared<
+            MGTransferGlobalCoarsening<dim, typename VectorType::BlockType>>(
+            transfers, [&](const auto l, auto &vec) {
+              mg_matrix_free[l].initialize_dof_vector(vec);
+            });
         }
 
       types::global_cell_index n_cells_w_hn  = 0;
