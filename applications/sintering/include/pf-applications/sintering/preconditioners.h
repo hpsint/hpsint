@@ -17,9 +17,9 @@ namespace Sintering
   {
   public:
     OperatorCahnHilliard(
-      const MatrixFree<dim, Number, VectorizedArrayType> &       matrix_free,
-      const std::vector<const AffineConstraints<Number> *> &     constraints,
-      const SinteringOperator<dim, Number, VectorizedArrayType> &op)
+      const MatrixFree<dim, Number, VectorizedArrayType> &   matrix_free,
+      const std::vector<const AffineConstraints<Number> *> & constraints,
+      const SinteringOperatorData<dim, VectorizedArrayType> &data)
       : OperatorBase<dim,
                      Number,
                      VectorizedArrayType,
@@ -28,7 +28,7 @@ namespace Sintering
           constraints,
           0,
           "cahn_hilliard_op")
-      , op(op)
+      , data(data)
     {}
 
     unsigned int
@@ -40,7 +40,7 @@ namespace Sintering
     unsigned int
     n_grains() const
     {
-      return op.n_grains();
+      return data.n_grains();
     }
 
     static constexpr unsigned int
@@ -57,12 +57,12 @@ namespace Sintering
       static_assert(n_grains != -1);
       const unsigned int cell = phi.get_current_cell_index();
 
-      const auto &free_energy         = this->op.get_data().free_energy;
-      const auto &mobility            = this->op.get_data().mobility;
-      const auto &kappa_c             = this->op.get_data().kappa_c;
-      const auto &dt                  = this->op.get_dt();
-      const auto &nonlinear_values    = this->op.get_nonlinear_values();
-      const auto &nonlinear_gradients = this->op.get_nonlinear_gradients();
+      const auto &free_energy         = data.free_energy;
+      const auto &mobility            = data.mobility;
+      const auto &kappa_c             = data.kappa_c;
+      const auto &dt                  = data.dt;
+      const auto &nonlinear_values    = data.get_nonlinear_values();
+      const auto &nonlinear_gradients = data.get_nonlinear_gradients();
 
       // TODO: 1) allow std::array again and 2) allocate less often in the
       // case of std::vector
@@ -117,7 +117,7 @@ namespace Sintering
     }
 
   private:
-    const SinteringOperator<dim, Number, VectorizedArrayType> &op;
+    const SinteringOperatorData<dim, VectorizedArrayType> &data;
   };
 
 
@@ -131,9 +131,9 @@ namespace Sintering
   {
   public:
     OperatorAllenCahn(
-      const MatrixFree<dim, Number, VectorizedArrayType> &       matrix_free,
-      const std::vector<const AffineConstraints<Number> *> &     constraints,
-      const SinteringOperator<dim, Number, VectorizedArrayType> &op)
+      const MatrixFree<dim, Number, VectorizedArrayType> &   matrix_free,
+      const std::vector<const AffineConstraints<Number> *> & constraints,
+      const SinteringOperatorData<dim, VectorizedArrayType> &data)
       : OperatorBase<dim,
                      Number,
                      VectorizedArrayType,
@@ -142,19 +142,19 @@ namespace Sintering
           constraints,
           0,
           "allen_cahn_op")
-      , op(op)
+      , data(data)
     {}
 
     unsigned int
     n_components() const override
     {
-      return op.n_grains();
+      return data.n_grains();
     }
 
     unsigned int
     n_grains() const
     {
-      return op.n_grains();
+      return data.n_grains();
     }
 
     static constexpr unsigned int
@@ -172,11 +172,11 @@ namespace Sintering
 
       const unsigned int cell = phi.get_current_cell_index();
 
-      const auto &free_energy      = this->op.get_data().free_energy;
-      const auto &L                = this->op.get_data().L;
-      const auto &kappa_p          = this->op.get_data().kappa_p;
-      const auto &dt               = this->op.get_dt();
-      const auto &nonlinear_values = this->op.get_nonlinear_values();
+      const auto &free_energy      = data.free_energy;
+      const auto &L                = data.L;
+      const auto &kappa_p          = data.kappa_p;
+      const auto &dt               = data.dt;
+      const auto &nonlinear_values = data.get_nonlinear_values();
 
       const auto dt_inv = 1.0 / dt;
 
@@ -220,7 +220,7 @@ namespace Sintering
     }
 
   private:
-    const SinteringOperator<dim, Number, VectorizedArrayType> &op;
+    const SinteringOperatorData<dim, VectorizedArrayType> &data;
   };
 
 
@@ -235,9 +235,9 @@ namespace Sintering
   {
   public:
     OperatorAllenCahnBlocked(
-      const MatrixFree<dim, Number, VectorizedArrayType> &       matrix_free,
-      const std::vector<const AffineConstraints<Number> *> &     constraints,
-      const SinteringOperator<dim, Number, VectorizedArrayType> &op,
+      const MatrixFree<dim, Number, VectorizedArrayType> &   matrix_free,
+      const std::vector<const AffineConstraints<Number> *> & constraints,
+      const SinteringOperatorData<dim, VectorizedArrayType> &data,
       const std::string free_energy_approximation_string = "all")
       : OperatorBase<
           dim,
@@ -248,7 +248,7 @@ namespace Sintering
           constraints,
           0,
           "allen_cahn_op")
-      , op(op)
+      , data(data)
       , free_energy_approximation(to_value(free_energy_approximation_string))
       , single_block(free_energy_approximation > 0)
     {}
@@ -273,7 +273,7 @@ namespace Sintering
     unsigned int
     n_components() const override
     {
-      return op.n_grains();
+      return data.n_grains();
     }
 
     virtual unsigned int
@@ -285,7 +285,7 @@ namespace Sintering
     unsigned int
     n_grains() const
     {
-      return op.n_grains();
+      return data.n_grains();
     }
 
     static constexpr unsigned int
@@ -390,11 +390,11 @@ namespace Sintering
                             integrator.get_active_quadrature_index())
             .lexicographic_numbering;
 
-        const auto &free_energy      = this->op.get_data().free_energy;
-        const auto &L                = this->op.get_data().L;
-        const auto &kappa_p          = this->op.get_data().kappa_p;
-        const auto &dt               = this->op.get_dt();
-        const auto &nonlinear_values = this->op.get_nonlinear_values();
+        const auto &free_energy      = data.free_energy;
+        const auto &L                = data.L;
+        const auto &kappa_p          = data.kappa_p;
+        const auto &dt               = data.dt;
+        const auto &nonlinear_values = data.get_nonlinear_values();
 
         const auto dt_inv = 1.0 / dt;
 
@@ -520,7 +520,7 @@ namespace Sintering
     }
 
   private:
-    const SinteringOperator<dim, Number, VectorizedArrayType> &op;
+    const SinteringOperatorData<dim, VectorizedArrayType> &data;
     const unsigned int free_energy_approximation;
     const bool         single_block;
   };
@@ -599,16 +599,16 @@ namespace Sintering
     using vector_type = VectorType;
 
     BlockPreconditioner2(
-      const SinteringOperator<dim, Number, VectorizedArrayType> &op,
-      const MatrixFree<dim, Number, VectorizedArrayType> &       matrix_free,
-      const std::vector<const AffineConstraints<Number> *> &     constraints,
-      const BlockPreconditioner2Data &                           data = {})
+      const SinteringOperatorData<dim, VectorizedArrayType> &sintering_data,
+      const MatrixFree<dim, Number, VectorizedArrayType> &   matrix_free,
+      const std::vector<const AffineConstraints<Number> *> & constraints,
+      const BlockPreconditioner2Data &                       data = {})
       : matrix_free(matrix_free)
-      , operator_0(matrix_free, constraints, op)
-      , operator_1(matrix_free, constraints, op)
+      , operator_0(matrix_free, constraints, sintering_data)
+      , operator_1(matrix_free, constraints, sintering_data)
       , operator_1_blocked(matrix_free,
                            constraints,
-                           op,
+                           sintering_data,
                            data.block_1_approximation)
       , pcout(std::cout, Utilities::MPI::this_mpi_process(MPI_COMM_WORLD) == 0)
       , timer(pcout, TimerOutput::never, TimerOutput::wall_times)

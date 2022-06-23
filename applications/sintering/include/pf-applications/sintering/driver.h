@@ -287,13 +287,13 @@ namespace Sintering
         params.energy_data.kappa_c,
         params.energy_data.kappa_p);
 
+      sintering_data.set_n_components(initial_solution->n_components());
+
       // ... non-linear operator
       NonLinearOperator nonlinear_operator(matrix_free,
                                            constraints,
                                            sintering_data,
                                            params.matrix_based);
-
-      nonlinear_operator.set_n_components(initial_solution->n_components());
 
       // ... preconditioner
       std::unique_ptr<Preconditioners::PreconditionerBase<Number>>
@@ -307,7 +307,7 @@ namespace Sintering
           "BlockPreconditioner2")
         preconditioner = std::make_unique<
           BlockPreconditioner2<dim, Number, VectorizedArrayType>>(
-          nonlinear_operator,
+          sintering_data,
           matrix_free,
           constraints,
           params.preconditioners_data.block_preconditioner_2_data);
@@ -350,12 +350,16 @@ namespace Sintering
             {
               MyScope scope(timer, "time_loop::newton::setup_jacobian");
 
-              nonlinear_operator.evaluate_newton_step(current_u);
+              sintering_data.fill_quadrature_point_values(matrix_free,
+                                                          current_u);
+
+              nonlinear_operator.do_update();
             }
 
           if (do_update_preconditioner)
             {
               MyScope scope(timer, "time_loop::newton::setup_preconditioner");
+
               preconditioner->do_update();
             }
         };
@@ -585,7 +589,8 @@ namespace Sintering
                       << n_components_old << " to " << n_components_new
                       << "\033[0m" << std::endl;
 
-                nonlinear_operator.set_n_components(n_components_new);
+                sintering_data.set_n_components(n_components_new);
+
                 nonlinear_operator.clear();
                 non_linear_solver->clear();
                 preconditioner->clear();
@@ -680,7 +685,7 @@ namespace Sintering
                   }
               }
 
-            nonlinear_operator.set_timestep(dt);
+            sintering_data.dt = dt;
             nonlinear_operator.set_previous_solution(solution);
 
             if (params.profiling_data.run_vmults && system_has_changed)
@@ -690,7 +695,8 @@ namespace Sintering
                 const bool old_timing_state =
                   nonlinear_operator.set_timing(false);
 
-                nonlinear_operator.evaluate_newton_step(solution);
+                sintering_data.fill_quadrature_point_values(matrix_free,
+                                                            solution);
 
                 VectorType dst, src;
 

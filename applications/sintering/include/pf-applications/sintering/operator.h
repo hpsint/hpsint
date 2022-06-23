@@ -1162,6 +1162,97 @@ namespace Sintering
     const Number L;
     const Number kappa_c;
     const Number kappa_p;
+
+    Number dt;
+
+    Table<3, VectorizedArrayType> &
+    get_nonlinear_values()
+    {
+      return nonlinear_values;
+    }
+
+    Table<3, VectorizedArrayType> &
+    get_nonlinear_values() const
+    {
+      return nonlinear_values;
+    }
+
+    Table<3, dealii::Tensor<1, dim, VectorizedArrayType>> &
+    get_nonlinear_gradients()
+    {
+      return nonlinear_gradients;
+    }
+
+    Table<3, dealii::Tensor<1, dim, VectorizedArrayType>> &
+    get_nonlinear_gradients() const
+    {
+      return nonlinear_gradients;
+    }
+
+    void
+    set_n_components(const unsigned int number_of_components)
+    {
+      this->number_of_components = number_of_components;
+    }
+
+    unsigned int
+    n_components() const
+    {
+      return number_of_components;
+    }
+
+    unsigned int
+    n_grains() const
+    {
+      return number_of_components - 2;
+    }
+
+    void
+    fill_quadrature_point_values(
+      const MatrixFree<dim, Number, VectorizedArrayType> &          matrix_free,
+      const LinearAlgebra::distributed::DynamicBlockVector<Number> &src)
+    {
+      Assert(src.n_blocks(), this->n_components());
+
+      const unsigned n_cells             = matrix_free.n_cell_batches();
+      const unsigned n_quadrature_points = matrix_free.get_quadrature().size();
+
+      nonlinear_values.reinit(
+        {n_cells, n_quadrature_points, this->n_components()});
+      nonlinear_gradients.reinit(
+        {n_cells, n_quadrature_points, this->n_components()});
+
+      FECellIntegrator<dim, 1, Number, VectorizedArrayType> phi(matrix_free);
+
+      src.update_ghost_values();
+
+      for (unsigned int cell = 0; cell < n_cells; ++cell)
+        {
+          phi.reinit(cell);
+
+          for (unsigned int c = 0; c < this->n_components(); ++c)
+            {
+              phi.read_dof_values_plain(src.block(c));
+              phi.evaluate(EvaluationFlags::values |
+                           EvaluationFlags::gradients);
+
+              for (unsigned int q = 0; q < phi.n_q_points; ++q)
+                {
+                  nonlinear_values(cell, q, c)    = phi.get_value(q);
+                  nonlinear_gradients(cell, q, c) = phi.get_gradient(q);
+                }
+            }
+        }
+
+      src.zero_out_ghost_values();
+    }
+
+  private:
+    mutable Table<3, VectorizedArrayType> nonlinear_values;
+    mutable Table<3, dealii::Tensor<1, dim, VectorizedArrayType>>
+      nonlinear_gradients;
+
+    unsigned int number_of_components;
   };
 
 
@@ -1197,9 +1288,7 @@ namespace Sintering
           0,
           "sintering_op")
       , data(data)
-      , dt(0.0)
       , matrix_based(matrix_based)
-      , components_number(numbers::invalid_unsigned_int)
     {}
 
     ~SinteringOperator()
@@ -1253,63 +1342,16 @@ namespace Sintering
     }
 
     void
-    evaluate_newton_step(const BlockVectorType &newton_step)
+    do_update()
     {
-      MyScope scope(this->timer, "sintering_op::newton_step", this->do_timing);
-
-      const unsigned n_cells = this->matrix_free.n_cell_batches();
-      const unsigned n_quadrature_points =
-        this->matrix_free.get_quadrature().size();
-
-      nonlinear_values.reinit(
-        {n_cells, n_quadrature_points, this->n_components()});
-      nonlinear_gradients.reinit(
-        {n_cells, n_quadrature_points, this->n_components()});
-
-      int dummy = 0;
-
-#define OPERATION(c, d)                                \
-  this->matrix_free.cell_loop(                         \
-    &SinteringOperator::do_evaluate_newton_step<c, d>, \
-    this,                                              \
-    dummy,                                             \
-    newton_step);
-      EXPAND_OPERATIONS(OPERATION);
-#undef OPERATION
-
       if (matrix_based)
         this->get_system_matrix(); // assemble matrix
-    }
-
-    void
-    set_timestep(double dt_new)
-    {
-      this->dt = dt_new;
     }
 
     const SinteringOperatorData<dim, VectorizedArrayType> &
     get_data() const
     {
       return data;
-    }
-
-    const double &
-    get_dt() const
-    {
-      return this->dt;
-    }
-
-    const Table<3, VectorizedArrayType> &
-    get_nonlinear_values() const
-    {
-      return nonlinear_values;
-    }
-
-
-    const Table<3, dealii::Tensor<1, dim, VectorizedArrayType>> &
-    get_nonlinear_gradients() const
-    {
-      return nonlinear_gradients;
     }
 
     template <int n_comp, int n_grains>
@@ -1426,7 +1468,7 @@ namespace Sintering
 
               if (entries_mask[FieldDt])
                 {
-                  temp[counter++] = VectorizedArrayType(dt);
+                  temp[counter++] = VectorizedArrayType(data.dt);
                 }
 
               if (entries_mask[FieldD2f])
@@ -1593,19 +1635,10 @@ namespace Sintering
 #undef OPERATION
     }
 
-    void
-    set_n_components(const unsigned int components_number)
-    {
-      this->components_number = components_number;
-    }
-
     unsigned int
     n_components() const override
     {
-      Assert(components_number != numbers::invalid_unsigned_int,
-             ExcInternalError());
-
-      return components_number;
+      return data.n_components();
     }
 
     unsigned int
@@ -1629,12 +1662,15 @@ namespace Sintering
 
       const unsigned int cell = phi.get_current_cell_index();
 
+      const auto &nonlinear_values    = this->data.get_nonlinear_values();
+      const auto &nonlinear_gradients = this->data.get_nonlinear_gradients();
+
       const auto &free_energy = this->data.free_energy;
       const auto &L           = this->data.L;
       const auto &mobility    = this->data.mobility;
       const auto &kappa_c     = this->data.kappa_c;
       const auto &kappa_p     = this->data.kappa_p;
-      const auto  dt_inv      = 1.0 / dt;
+      const auto  dt_inv      = 1.0 / this->data.dt;
 
       for (unsigned int q = 0; q < phi.n_q_points; ++q)
         {
@@ -1726,6 +1762,7 @@ namespace Sintering
       const auto &mobility    = this->data.mobility;
       const auto &kappa_c     = this->data.kappa_c;
       const auto &kappa_p     = this->data.kappa_p;
+      const auto  dt_inv      = 1.0 / this->data.dt;
 
       for (auto cell = range.first; cell < range.second; ++cell)
         {
@@ -1766,7 +1803,7 @@ namespace Sintering
                 gradient_result;
 
               // CH equations
-              value_result[0] = (c - c_old) / dt;
+              value_result[0] = (c - c_old) * dt_inv;
               value_result[1] = -mu + free_energy.df_dc(c, etas);
               gradient_result[0] =
                 mobility.M(c, etas, c_grad, etas_grad) * grad[1];
@@ -1775,8 +1812,9 @@ namespace Sintering
               // AC equations
               for (unsigned int ig = 0; ig < n_grains; ++ig)
                 {
-                  value_result[2 + ig] = (val[2 + ig] - val_old[2 + ig]) / dt +
-                                         L * free_energy.df_detai(c, etas, ig);
+                  value_result[2 + ig] =
+                    (val[2 + ig] - val_old[2 + ig]) * dt_inv +
+                    L * free_energy.df_detai(c, etas, ig);
 
                   gradient_result[2 + ig] = L * kappa_p * grad[2 + ig];
                 }
@@ -1790,48 +1828,11 @@ namespace Sintering
         }
     }
 
-    template <int n_comp, int n_grains>
-    void
-    do_evaluate_newton_step(
-      const MatrixFree<dim, Number, VectorizedArrayType> &matrix_free,
-      int &,
-      const BlockVectorType &                      src,
-      const std::pair<unsigned int, unsigned int> &range)
-    {
-      AssertDimension(n_comp - 2, n_grains);
-
-      FECellIntegrator<dim, n_comp, Number, VectorizedArrayType> phi(
-        matrix_free, this->dof_index);
-
-      for (auto cell = range.first; cell < range.second; ++cell)
-        {
-          phi.reinit(cell);
-          phi.read_dof_values_plain(src);
-          phi.evaluate(EvaluationFlags::values | EvaluationFlags::gradients);
-
-          for (unsigned int q = 0; q < phi.n_q_points; ++q)
-            {
-              for (unsigned int c = 0; c < n_comp; ++c)
-                {
-                  nonlinear_values(cell, q, c)    = phi.get_value(q)[c];
-                  nonlinear_gradients(cell, q, c) = phi.get_gradient(q)[c];
-                }
-            }
-        }
-    }
-
-    SinteringOperatorData<dim, VectorizedArrayType> data;
-
-    double dt;
+    const SinteringOperatorData<dim, VectorizedArrayType> &data;
 
     mutable BlockVectorType old_solution;
 
-    Table<3, VectorizedArrayType>                         nonlinear_values;
-    Table<3, dealii::Tensor<1, dim, VectorizedArrayType>> nonlinear_gradients;
-
     const bool matrix_based;
-
-    unsigned int components_number;
   };
 
 } // namespace Sintering
