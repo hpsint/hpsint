@@ -57,12 +57,13 @@ namespace Sintering
       static_assert(n_grains != -1);
       const unsigned int cell = phi.get_current_cell_index();
 
-      const auto &free_energy         = this->op.get_data().free_energy;
-      const auto &mobility            = this->op.get_data().mobility;
-      const auto &kappa_c             = this->op.get_data().kappa_c;
-      const auto &dt                  = this->op.get_dt();
-      const auto &nonlinear_values    = this->op.get_data().get_nonlinear_values();
-      const auto &nonlinear_gradients = this->op.get_data().get_nonlinear_gradients();
+      const auto &free_energy      = this->op.get_data().free_energy;
+      const auto &mobility         = this->op.get_data().mobility;
+      const auto &kappa_c          = this->op.get_data().kappa_c;
+      const auto &dt               = this->op.get_data().dt;
+      const auto &nonlinear_values = this->op.get_data().get_nonlinear_values();
+      const auto &nonlinear_gradients =
+        this->op.get_data().get_nonlinear_gradients();
 
       // TODO: 1) allow std::array again and 2) allocate less often in the
       // case of std::vector
@@ -175,7 +176,7 @@ namespace Sintering
       const auto &free_energy      = this->op.get_data().free_energy;
       const auto &L                = this->op.get_data().L;
       const auto &kappa_p          = this->op.get_data().kappa_p;
-      const auto &dt               = this->op.get_dt();
+      const auto &dt               = this->op.get_data().dt;
       const auto &nonlinear_values = this->op.get_data().get_nonlinear_values();
 
       const auto dt_inv = 1.0 / dt;
@@ -390,11 +391,12 @@ namespace Sintering
                             integrator.get_active_quadrature_index())
             .lexicographic_numbering;
 
-        const auto &free_energy      = this->op.get_data().free_energy;
-        const auto &L                = this->op.get_data().L;
-        const auto &kappa_p          = this->op.get_data().kappa_p;
-        const auto &dt               = this->op.get_dt();
-        const auto &nonlinear_values = this->op.get_data().get_nonlinear_values();
+        const auto &free_energy = this->op.get_data().free_energy;
+        const auto &L           = this->op.get_data().L;
+        const auto &kappa_p     = this->op.get_data().kappa_p;
+        const auto &dt          = this->op.get_data().dt;
+        const auto &nonlinear_values =
+          this->op.get_data().get_nonlinear_values();
 
         const auto dt_inv = 1.0 / dt;
 

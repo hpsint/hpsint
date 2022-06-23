@@ -681,7 +681,7 @@ namespace Sintering
                   }
               }
 
-            nonlinear_operator.set_timestep(dt);
+            sintering_data.dt = dt;
             nonlinear_operator.set_previous_solution(solution);
 
             if (params.profiling_data.run_vmults && system_has_changed)

@@ -1163,6 +1163,8 @@ namespace Sintering
     const Number kappa_c;
     const Number kappa_p;
 
+    Number dt;
+
     Table<3, VectorizedArrayType> &
     get_nonlinear_values()
     {
@@ -1225,7 +1227,6 @@ namespace Sintering
           0,
           "sintering_op")
       , data(data)
-      , dt(0.0)
       , matrix_based(matrix_based)
       , components_number(numbers::invalid_unsigned_int)
     {}
@@ -1313,22 +1314,10 @@ namespace Sintering
         this->get_system_matrix(); // assemble matrix
     }
 
-    void
-    set_timestep(double dt_new)
-    {
-      this->dt = dt_new;
-    }
-
     const SinteringOperatorData<dim, VectorizedArrayType> &
     get_data() const
     {
       return data;
-    }
-
-    const double &
-    get_dt() const
-    {
-      return this->dt;
     }
 
     template <int n_comp, int n_grains>
@@ -1445,7 +1434,7 @@ namespace Sintering
 
               if (entries_mask[FieldDt])
                 {
-                  temp[counter++] = VectorizedArrayType(dt);
+                  temp[counter++] = VectorizedArrayType(data.dt);
                 }
 
               if (entries_mask[FieldD2f])
@@ -1656,7 +1645,7 @@ namespace Sintering
       const auto &mobility    = this->data.mobility;
       const auto &kappa_c     = this->data.kappa_c;
       const auto &kappa_p     = this->data.kappa_p;
-      const auto  dt_inv      = 1.0 / dt;
+      const auto  dt_inv      = 1.0 / this->data.dt;
 
       for (unsigned int q = 0; q < phi.n_q_points; ++q)
         {
@@ -1748,6 +1737,7 @@ namespace Sintering
       const auto &mobility    = this->data.mobility;
       const auto &kappa_c     = this->data.kappa_c;
       const auto &kappa_p     = this->data.kappa_p;
+      const auto  dt_inv      = 1.0 / this->data.dt;
 
       for (auto cell = range.first; cell < range.second; ++cell)
         {
@@ -1788,7 +1778,7 @@ namespace Sintering
                 gradient_result;
 
               // CH equations
-              value_result[0] = (c - c_old) / dt;
+              value_result[0] = (c - c_old) * dt_inv;
               value_result[1] = -mu + free_energy.df_dc(c, etas);
               gradient_result[0] =
                 mobility.M(c, etas, c_grad, etas_grad) * grad[1];
@@ -1797,8 +1787,9 @@ namespace Sintering
               // AC equations
               for (unsigned int ig = 0; ig < n_grains; ++ig)
                 {
-                  value_result[2 + ig] = (val[2 + ig] - val_old[2 + ig]) / dt +
-                                         L * free_energy.df_detai(c, etas, ig);
+                  value_result[2 + ig] =
+                    (val[2 + ig] - val_old[2 + ig]) * dt_inv +
+                    L * free_energy.df_detai(c, etas, ig);
 
                   gradient_result[2 + ig] = L * kappa_p * grad[2 + ig];
                 }
@@ -1846,8 +1837,6 @@ namespace Sintering
     }
 
     SinteringOperatorData<dim, VectorizedArrayType> data;
-
-    double dt;
 
     mutable BlockVectorType old_solution;
 
