@@ -287,13 +287,13 @@ namespace Sintering
         params.energy_data.kappa_c,
         params.energy_data.kappa_p);
 
+      sintering_data.set_n_components(initial_solution->n_components());
+
       // ... non-linear operator
       NonLinearOperator nonlinear_operator(matrix_free,
                                            constraints,
                                            sintering_data,
                                            params.matrix_based);
-
-      nonlinear_operator.set_n_components(initial_solution->n_components());
 
       // ... preconditioner
       std::unique_ptr<Preconditioners::PreconditionerBase<Number>>
@@ -307,7 +307,7 @@ namespace Sintering
           "BlockPreconditioner2")
         preconditioner = std::make_unique<
           BlockPreconditioner2<dim, Number, VectorizedArrayType>>(
-          nonlinear_operator,
+          sintering_data,
           matrix_free,
           constraints,
           params.preconditioners_data.block_preconditioner_2_data);
@@ -586,7 +586,8 @@ namespace Sintering
                       << n_components_old << " to " << n_components_new
                       << "\033[0m" << std::endl;
 
-                nonlinear_operator.set_n_components(n_components_new);
+                sintering_data.set_n_components(n_components_new);
+
                 nonlinear_operator.clear();
                 non_linear_solver->clear();
                 preconditioner->clear();

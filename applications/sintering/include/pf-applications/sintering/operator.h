@@ -1183,6 +1183,12 @@ namespace Sintering
       return nonlinear_gradients;
     }
 
+    void
+    set_n_components(const unsigned int number_of_components)
+    {
+      this->number_of_components = number_of_components;
+    }
+
     const Table<3, dealii::Tensor<1, dim, VectorizedArrayType>> &
     get_nonlinear_gradients() const
     {
@@ -1190,14 +1196,22 @@ namespace Sintering
     }
 
     unsigned int
+    n_components() const
+    {
+      return number_of_components;
+    }
+
+    unsigned int
     n_grains() const
     {
-      return nonlinear_values.size(2);
+      return number_of_components - 2;
     }
 
   private:
     Table<3, VectorizedArrayType>                         nonlinear_values;
     Table<3, dealii::Tensor<1, dim, VectorizedArrayType>> nonlinear_gradients;
+
+    unsigned int number_of_components;
   };
 
 
@@ -1234,7 +1248,6 @@ namespace Sintering
           "sintering_op")
       , data(data)
       , matrix_based(matrix_based)
-      , components_number(numbers::invalid_unsigned_int)
     {}
 
     ~SinteringOperator()
@@ -1607,19 +1620,10 @@ namespace Sintering
 #undef OPERATION
     }
 
-    void
-    set_n_components(const unsigned int components_number)
-    {
-      this->components_number = components_number;
-    }
-
     unsigned int
     n_components() const override
     {
-      Assert(components_number != numbers::invalid_unsigned_int,
-             ExcInternalError());
-
-      return components_number;
+      return data.n_components();
     }
 
     unsigned int
@@ -1847,8 +1851,6 @@ namespace Sintering
     mutable BlockVectorType old_solution;
 
     const bool matrix_based;
-
-    unsigned int components_number;
   };
 
 } // namespace Sintering
