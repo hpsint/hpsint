@@ -1276,7 +1276,11 @@ namespace Sintering
     newton_step);
       EXPAND_OPERATIONS(OPERATION);
 #undef OPERATION
+    }
 
+    void
+    do_update()
+    {
       if (matrix_based)
         this->get_system_matrix(); // assemble matrix
     }

@@ -351,6 +351,7 @@ namespace Sintering
               MyScope scope(timer, "time_loop::newton::setup_jacobian");
 
               nonlinear_operator.evaluate_newton_step(current_u);
+              nonlinear_operator.do_update();
             }
 
           if (do_update_preconditioner)
