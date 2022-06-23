@@ -324,6 +324,15 @@ namespace Sintering
                                                             << static_cast<types::global_cell_index>(min_max_avg_n_cells_wo_hn.max) 
                                                             << ")" << std::endl;
       pcout_statistics << "  - n levels:                  " << tria.n_global_levels() << std::endl;
+
+      if(transfer)
+      {
+      pcout_statistics << "  - n cells on levels:         ";
+      for(const auto & tria : mg_triangulations)
+        pcout_statistics << tria->n_global_active_cells () << " ";
+      pcout_statistics << std::endl;
+      }
+
       pcout_statistics << "  - n dofs:                    " << dof_handler.n_dofs() << std::endl;
       if(n_components > 0)
         pcout_statistics << "  - n components:              " << n_components << std::endl;
