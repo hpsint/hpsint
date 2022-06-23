@@ -350,16 +350,16 @@ namespace Sintering
             {
               MyScope scope(timer, "time_loop::newton::setup_jacobian");
 
-              // sintering_data.fill_quadrature_point_values(matrix_free,
-              // current_u);
+              sintering_data.fill_quadrature_point_values(matrix_free,
+                                                          current_u);
 
-              nonlinear_operator.evaluate_newton_step(current_u);
               nonlinear_operator.do_update();
             }
 
           if (do_update_preconditioner)
             {
               MyScope scope(timer, "time_loop::newton::setup_preconditioner");
+
               preconditioner->do_update();
             }
         };
@@ -695,7 +695,8 @@ namespace Sintering
                 const bool old_timing_state =
                   nonlinear_operator.set_timing(false);
 
-                nonlinear_operator.evaluate_newton_step(solution);
+                sintering_data.fill_quadrature_point_values(matrix_free,
+                                                            solution);
 
                 VectorType dst, src;
 
