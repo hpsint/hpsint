@@ -40,7 +40,7 @@ namespace Sintering
     unsigned int
     n_grains() const
     {
-      return op.n_grains();
+      return op.get_data().n_grains();
     }
 
     static constexpr unsigned int
@@ -149,13 +149,13 @@ namespace Sintering
     unsigned int
     n_components() const override
     {
-      return op.n_grains();
+      return op.get_data().n_grains();
     }
 
     unsigned int
     n_grains() const
     {
-      return op.n_grains();
+      return op.get_data().n_grains();
     }
 
     static constexpr unsigned int
@@ -274,7 +274,7 @@ namespace Sintering
     unsigned int
     n_components() const override
     {
-      return op.n_grains();
+      return op.get_data().n_grains();
     }
 
     virtual unsigned int
@@ -286,7 +286,7 @@ namespace Sintering
     unsigned int
     n_grains() const
     {
-      return op.n_grains();
+      return op.get_data().n_grains();
     }
 
     static constexpr unsigned int

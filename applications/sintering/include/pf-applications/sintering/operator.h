@@ -1189,6 +1189,12 @@ namespace Sintering
       return nonlinear_gradients;
     }
 
+    unsigned int
+    n_grains() const
+    {
+      return nonlinear_values.size(2);
+    }
+
   private:
     Table<3, VectorizedArrayType>                         nonlinear_values;
     Table<3, dealii::Tensor<1, dim, VectorizedArrayType>> nonlinear_gradients;
