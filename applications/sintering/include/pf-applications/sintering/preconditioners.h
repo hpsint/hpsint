@@ -61,8 +61,8 @@ namespace Sintering
       const auto &mobility            = this->op.get_data().mobility;
       const auto &kappa_c             = this->op.get_data().kappa_c;
       const auto &dt                  = this->op.get_dt();
-      const auto &nonlinear_values    = this->op.get_nonlinear_values();
-      const auto &nonlinear_gradients = this->op.get_nonlinear_gradients();
+      const auto &nonlinear_values    = this->op.get_data().get_nonlinear_values();
+      const auto &nonlinear_gradients = this->op.get_data().get_nonlinear_gradients();
 
       // TODO: 1) allow std::array again and 2) allocate less often in the
       // case of std::vector
@@ -176,7 +176,7 @@ namespace Sintering
       const auto &L                = this->op.get_data().L;
       const auto &kappa_p          = this->op.get_data().kappa_p;
       const auto &dt               = this->op.get_dt();
-      const auto &nonlinear_values = this->op.get_nonlinear_values();
+      const auto &nonlinear_values = this->op.get_data().get_nonlinear_values();
 
       const auto dt_inv = 1.0 / dt;
 
@@ -394,7 +394,7 @@ namespace Sintering
         const auto &L                = this->op.get_data().L;
         const auto &kappa_p          = this->op.get_data().kappa_p;
         const auto &dt               = this->op.get_dt();
-        const auto &nonlinear_values = this->op.get_nonlinear_values();
+        const auto &nonlinear_values = this->op.get_data().get_nonlinear_values();
 
         const auto dt_inv = 1.0 / dt;
 

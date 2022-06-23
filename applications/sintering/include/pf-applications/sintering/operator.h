@@ -1162,6 +1162,34 @@ namespace Sintering
     const Number L;
     const Number kappa_c;
     const Number kappa_p;
+
+    Table<3, VectorizedArrayType> &
+    get_nonlinear_values()
+    {
+      return nonlinear_values;
+    }
+
+    const Table<3, VectorizedArrayType> &
+    get_nonlinear_values() const
+    {
+      return nonlinear_values;
+    }
+
+    Table<3, dealii::Tensor<1, dim, VectorizedArrayType>> &
+    get_nonlinear_gradients()
+    {
+      return nonlinear_gradients;
+    }
+
+    const Table<3, dealii::Tensor<1, dim, VectorizedArrayType>> &
+    get_nonlinear_gradients() const
+    {
+      return nonlinear_gradients;
+    }
+
+  private:
+    Table<3, VectorizedArrayType>                         nonlinear_values;
+    Table<3, dealii::Tensor<1, dim, VectorizedArrayType>> nonlinear_gradients;
   };
 
 
@@ -1261,9 +1289,9 @@ namespace Sintering
       const unsigned n_quadrature_points =
         this->matrix_free.get_quadrature().size();
 
-      nonlinear_values.reinit(
+      this->data.get_nonlinear_values().reinit(
         {n_cells, n_quadrature_points, this->n_components()});
-      nonlinear_gradients.reinit(
+      this->data.get_nonlinear_gradients().reinit(
         {n_cells, n_quadrature_points, this->n_components()});
 
       int dummy = 0;
@@ -1301,19 +1329,6 @@ namespace Sintering
     get_dt() const
     {
       return this->dt;
-    }
-
-    const Table<3, VectorizedArrayType> &
-    get_nonlinear_values() const
-    {
-      return nonlinear_values;
-    }
-
-
-    const Table<3, dealii::Tensor<1, dim, VectorizedArrayType>> &
-    get_nonlinear_gradients() const
-    {
-      return nonlinear_gradients;
     }
 
     template <int n_comp, int n_grains>
@@ -1633,6 +1648,9 @@ namespace Sintering
 
       const unsigned int cell = phi.get_current_cell_index();
 
+      const auto &nonlinear_values    = this->data.get_nonlinear_values();
+      const auto &nonlinear_gradients = this->data.get_nonlinear_gradients();
+
       const auto &free_energy = this->data.free_energy;
       const auto &L           = this->data.L;
       const auto &mobility    = this->data.mobility;
@@ -1807,6 +1825,9 @@ namespace Sintering
       FECellIntegrator<dim, n_comp, Number, VectorizedArrayType> phi(
         matrix_free, this->dof_index);
 
+      auto &nonlinear_values    = this->data.get_nonlinear_values();
+      auto &nonlinear_gradients = this->data.get_nonlinear_gradients();
+
       for (auto cell = range.first; cell < range.second; ++cell)
         {
           phi.reinit(cell);
@@ -1829,9 +1850,6 @@ namespace Sintering
     double dt;
 
     mutable BlockVectorType old_solution;
-
-    Table<3, VectorizedArrayType>                         nonlinear_values;
-    Table<3, dealii::Tensor<1, dim, VectorizedArrayType>> nonlinear_gradients;
 
     const bool matrix_based;
 
