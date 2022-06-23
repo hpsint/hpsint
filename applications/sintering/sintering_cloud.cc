@@ -27,7 +27,6 @@ static_assert(false, "No grains number has been given!");
 #define N_Q_POINTS_1D FE_DEGREE + 1
 
 #define WITH_TIMING
-//#define WITH_TRACKER
 
 #include <pf-applications/sintering/driver.h>
 #include <pf-applications/sintering/initial_values_cloud.h>
