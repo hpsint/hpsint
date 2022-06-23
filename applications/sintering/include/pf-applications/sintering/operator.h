@@ -1171,7 +1171,7 @@ namespace Sintering
       return nonlinear_values;
     }
 
-    const Table<3, VectorizedArrayType> &
+    Table<3, VectorizedArrayType> &
     get_nonlinear_values() const
     {
       return nonlinear_values;
@@ -1183,16 +1183,16 @@ namespace Sintering
       return nonlinear_gradients;
     }
 
+    Table<3, dealii::Tensor<1, dim, VectorizedArrayType>> &
+    get_nonlinear_gradients() const
+    {
+      return nonlinear_gradients;
+    }
+
     void
     set_n_components(const unsigned int number_of_components)
     {
       this->number_of_components = number_of_components;
-    }
-
-    const Table<3, dealii::Tensor<1, dim, VectorizedArrayType>> &
-    get_nonlinear_gradients() const
-    {
-      return nonlinear_gradients;
     }
 
     unsigned int
@@ -1208,8 +1208,9 @@ namespace Sintering
     }
 
   private:
-    Table<3, VectorizedArrayType>                         nonlinear_values;
-    Table<3, dealii::Tensor<1, dim, VectorizedArrayType>> nonlinear_gradients;
+    mutable Table<3, VectorizedArrayType> nonlinear_values;
+    mutable Table<3, dealii::Tensor<1, dim, VectorizedArrayType>>
+      nonlinear_gradients;
 
     unsigned int number_of_components;
   };
@@ -1846,7 +1847,7 @@ namespace Sintering
         }
     }
 
-    SinteringOperatorData<dim, VectorizedArrayType> data;
+    const SinteringOperatorData<dim, VectorizedArrayType> &data;
 
     mutable BlockVectorType old_solution;
 
