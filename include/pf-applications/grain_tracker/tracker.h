@@ -346,10 +346,6 @@ namespace GrainTracker
             }
         }
 
-      std::cout << "GRAINS START" << std::endl;
-      print_grains(grains, std::cout);
-      std::cout << "GRAINS END" << std::endl;
-
       /* Initial grains reassignment, the closest neighbors are allowed as we
        * want to minimize the number of order parameters in use.
        */
@@ -916,20 +912,6 @@ namespace GrainTracker
           clouds.pop_back();
         }
 
-      pcout << "Output clouds before MPI part" << std::endl;
-      output_clouds(clouds, false);
-
-      pcout << "Clouds before gather" << std::endl;
-      print_clouds(clouds, std::cout);
-
-      std::cout << Utilities::MPI::this_mpi_process(MPI_COMM_WORLD)
-                << " neighbor_ranks_set: ";
-      for (const auto &nei : neighbor_ranks_set)
-        {
-          std::cout << nei;
-        }
-      std::cout << std::endl;
-
       // Merge clouds from multiple processors
       if (Utilities::MPI::n_mpi_processes(MPI_COMM_WORLD) == 1)
         {
@@ -949,8 +931,6 @@ namespace GrainTracker
                         std::back_inserter(clouds));
             }
 
-          pcout << "Clouds after all_gather" << std::endl;
-          print_clouds(clouds, std::cout);
           /* When distributed across multiple processors, some clouds may be in
            * fact parts of a single one, we then merge the touching clouds into
            * one.
@@ -987,14 +967,7 @@ namespace GrainTracker
             },
             MPI_COMM_WORLD);
 
-          std::cout << Utilities::MPI::this_mpi_process(MPI_COMM_WORLD)
-                    << " valid_neighbors: ";
-          for (const auto &nei : valid_neighbors)
-            {
-              std::cout << nei;
-            }
-          std::cout << std::endl;
-
+          // Set up connectivity between ranks
           std::vector<std::pair<unsigned int, unsigned int>> connectivity;
           for (const auto &nei : valid_neighbors)
             {
@@ -1024,13 +997,9 @@ namespace GrainTracker
 
           // Check number of connected components
           std::vector<int> component(boost::num_vertices(g));
-          unsigned int     num_components =
-            boost::connected_components(g, &component[0]);
+          boost::connected_components(g, &component[0]);
 
-          std::cout << this_rank << " graph_num_components = " << num_components
-                    << std::endl;
-
-          // Populate neighbors for all the grains related to a particular grain
+          // Create subcommunicator
           const int color =
             (all_connected_ranks.find(this_rank) != all_connected_ranks.end()) ?
               component[this_rank] :
@@ -1040,8 +1009,6 @@ namespace GrainTracker
               this_rank :
               0;
 
-          std::cout << this_rank << " this_color = " << color << std::endl;
-
           MPI_Comm group_comm;
           MPI_Comm_split(MPI_COMM_WORLD, color, key, &group_comm);
 
@@ -1049,7 +1016,6 @@ namespace GrainTracker
             {
               auto global_clouds =
                 Utilities::MPI::all_gather(group_comm, clouds);
-              // Utilities::MPI::all_gather(MPI_COMM_WORLD, clouds);
 
               // Now gather all the clouds
               clouds.clear();
@@ -1063,69 +1029,12 @@ namespace GrainTracker
               Utilities::MPI::free_communicator(group_comm);
             }
 
-          /*
-                    std::set<unsigned int>
-             related_neighbors_set(valid_neighbors.cbegin(),
-             valid_neighbors.cend());
-                    dealii::Utilities::MPI::ConsensusAlgorithms::selector<
-                      std::vector<unsigned int>>(
-                      valid_neighbors,
-                      [&](const unsigned int other_rank) {
-                        (void)other_rank;
-                        return valid_neighbors;
-                      },
-                      [&](const unsigned int &,
-                          const std::vector<unsigned int> &part_neighbors) {
-                            for(const auto& nei : part_neighbors) {
-                              if (nei != this_rank) {
-                                related_neighbors_set.insert(nei);
-                              }
-                            }
-                      },
-                      MPI_COMM_WORLD);
-
-                    // Convert set to vector
-                    std::vector<unsigned int>
-             related_neighbors(related_neighbors_set.cbegin(),
-                                                             related_neighbors_set.cend());
-
-                    std::cout << this_rank << " related_neighbors: ";
-                    for(const auto& nei : related_neighbors) {
-                      std::cout << nei;
-                    }
-                    std::cout << std::endl;
-
-                    dealii::Utilities::MPI::ConsensusAlgorithms::selector<
-                      std::vector<Cloud<dim>>>(
-                      related_neighbors,
-                      [&](const unsigned int other_rank) {
-                        (void)other_rank;
-                        return clouds;
-                      },
-                      [&](const unsigned int &,
-                          const std::vector<Cloud<dim>> &part_cloud) {
-                        std::move(part_cloud.begin(),
-                                  part_cloud.end(),
-                                  std::back_inserter(clouds));
-                      },
-                      MPI_COMM_WORLD);
-          */
-          pcout << "Clouds after ConsensusAlgorithms::selector" << std::endl;
-          print_clouds(clouds, std::cout);
-
           /* When distributed across multiple processors, some clouds may be in
            * fact parts of a single one, we then merge the touching clouds into
            * one.
            */
           stitch_clouds(clouds);
         }
-
-      pcout << "Output clouds after MPI part" << std::endl;
-      output_clouds(clouds, /*is_merged = */ true);
-
-      print_clouds(clouds, std::cout);
-
-      // AssertThrow(false, ExcMessage("STOP"));
 
       return clouds;
     }
