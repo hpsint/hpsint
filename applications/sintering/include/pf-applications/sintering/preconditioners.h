@@ -601,27 +601,37 @@ namespace Sintering
       const SinteringOperatorData<dim, VectorizedArrayType> &sintering_data,
       const MatrixFree<dim, Number, VectorizedArrayType> &   matrix_free,
       const AffineConstraints<Number> &                      constraints,
-      const BlockPreconditioner2Data &                       data = {})
+      const BlockPreconditioner2Data &                       data)
       : matrix_free(matrix_free)
-      , operator_0(matrix_free, constraints, sintering_data)
-      , operator_1(matrix_free, constraints, sintering_data)
-      , operator_1_blocked(matrix_free,
-                           constraints,
-                           sintering_data,
-                           data.block_1_approximation)
       , data(data)
     {
+      // create operators
+      operator_0 = std::make_unique<
+        OperatorCahnHilliard<dim, Number, VectorizedArrayType>>(matrix_free,
+                                                                constraints,
+                                                                sintering_data);
+      operator_1 =
+        std::make_unique<OperatorAllenCahn<dim, Number, VectorizedArrayType>>(
+          matrix_free, constraints, sintering_data);
+      operator_1_blocked = std::make_unique<
+        OperatorAllenCahnBlocked<dim, Number, VectorizedArrayType>>(
+        matrix_free, constraints, sintering_data, data.block_1_approximation);
+
+      // create preconditioners
       preconditioner_0 =
-        Preconditioners::create(operator_0, data.block_0_preconditioner);
+        Preconditioners::create(*operator_0, data.block_0_preconditioner);
+
+      AssertThrow(data.block_1_preconditioner != "GMG",
+                  ExcMessage("Use the other constructor!"));
 
       if (data.block_1_preconditioner == "AMG" ||
           data.block_1_preconditioner == "ILU" ||
           data.block_1_preconditioner == "InverseDiagonalMatrix")
         preconditioner_1 =
-          Preconditioners::create(operator_1, data.block_1_preconditioner);
+          Preconditioners::create(*operator_1, data.block_1_preconditioner);
       else if (data.block_1_preconditioner == "BlockAMG" ||
                data.block_1_preconditioner == "BlockILU")
-        preconditioner_1 = Preconditioners::create(operator_1_blocked,
+        preconditioner_1 = Preconditioners::create(*operator_1_blocked,
                                                    data.block_1_preconditioner);
       else
         {
@@ -629,12 +639,37 @@ namespace Sintering
         }
     }
 
+    BlockPreconditioner2(
+      const SinteringOperatorData<dim, VectorizedArrayType> &sintering_data,
+      const MatrixFree<dim, Number, VectorizedArrayType> &   matrix_free,
+      const AffineConstraints<Number> &                      constraints,
+      const MGLevelObject<SinteringOperatorData<dim, VectorizedArrayType>>
+        &mg_sintering_data,
+      const MGLevelObject<MatrixFree<dim, Number, VectorizedArrayType>>
+        &                                             mg_matrix_free,
+      const MGLevelObject<AffineConstraints<Number>> &mg_constraints,
+      const BlockPreconditioner2Data &                data)
+      : matrix_free(matrix_free)
+      , data(data)
+    {
+      AssertThrow(false, ExcNotImplemented());
+
+      (void)sintering_data;
+      (void)matrix_free;
+      (void)constraints;
+      (void)mg_sintering_data;
+      (void)mg_matrix_free;
+      (void)mg_constraints;
+      (void)data;
+    }
+
     virtual void
     clear()
     {
-      operator_0.clear();
-      operator_1.clear();
-      operator_1_blocked.clear();
+      operator_0->clear();
+      operator_1->clear();
+      operator_1_blocked->clear();
+
       preconditioner_0->clear();
       preconditioner_1->clear();
     }
@@ -685,9 +720,11 @@ namespace Sintering
   private:
     const MatrixFree<dim, Number, VectorizedArrayType> &matrix_free;
 
-    OperatorCahnHilliard<dim, Number, VectorizedArrayType> operator_0;
-    OperatorAllenCahn<dim, Number, VectorizedArrayType>    operator_1;
-    OperatorAllenCahnBlocked<dim, Number, VectorizedArrayType>
+    std::unique_ptr<OperatorCahnHilliard<dim, Number, VectorizedArrayType>>
+      operator_0;
+    std::unique_ptr<OperatorAllenCahn<dim, Number, VectorizedArrayType>>
+      operator_1;
+    std::unique_ptr<OperatorAllenCahnBlocked<dim, Number, VectorizedArrayType>>
       operator_1_blocked;
 
     std::unique_ptr<Preconditioners::PreconditionerBase<Number>>

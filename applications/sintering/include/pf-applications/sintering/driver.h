@@ -374,7 +374,20 @@ namespace Sintering
         mg_matrixfrees;
 
       if (params.preconditioners_data.outer_preconditioner ==
-          "BlockPreconditioner2")
+            "BlockPreconditioner2" &&
+          params.preconditioners_data.block_preconditioner_2_data
+              .block_1_preconditioner == "GMG")
+        preconditioner = std::make_unique<
+          BlockPreconditioner2<dim, Number, VectorizedArrayType>>(
+          sintering_data,
+          matrix_free,
+          constraints,
+          mg_sintering_data,
+          mg_matrix_free,
+          mg_constraints,
+          params.preconditioners_data.block_preconditioner_2_data);
+      else if (params.preconditioners_data.outer_preconditioner ==
+               "BlockPreconditioner2")
         preconditioner = std::make_unique<
           BlockPreconditioner2<dim, Number, VectorizedArrayType>>(
           sintering_data,
