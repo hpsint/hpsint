@@ -54,7 +54,15 @@ namespace GrainTracker
       , buffer_distance_ratio(buffer_distance_ratio)
       , order_parameters_offset(op_offset)
       , pcout(std::cout, Utilities::MPI::this_mpi_process(MPI_COMM_WORLD) == 0)
+      , timer(pcout, TimerOutput::never, TimerOutput::wall_times)
     {}
+
+    ~Tracker()
+    {
+      if (timer.get_summary_data(TimerOutput::OutputData::total_wall_time)
+            .size() > 0)
+        timer.print_wall_time_statistics(MPI_COMM_WORLD);
+    }
 
     /* Track grains over timesteps. The function returns a tuple of bool
      * variables which signify if any grains have been reassigned and if the
@@ -284,6 +292,8 @@ namespace GrainTracker
        * regardless on how they were defined by the initial conditions. PBC
        * information is used to identify grains consisting of multiple segments.
        */
+
+      MyScope scope(timer, "grain_tracker::initial_setup");
 
       // Store last clouds state while iterating over groups
       last_clouds.clear();
@@ -797,6 +807,8 @@ namespace GrainTracker
     std::vector<std::vector<Cloud<dim>>>
     find_grouped_clouds(const BlockVectorType &solution)
     {
+      MyScope scope(timer, "grain_tracker::find_grouped_clouds");
+
       std::vector<std::vector<Cloud<dim>>> clouds_groups;
 
       const unsigned int n_order_params =
@@ -867,6 +879,10 @@ namespace GrainTracker
     find_clouds_for_order_parameter(const BlockVectorType &solution,
                                     const unsigned int     order_parameter_id)
     {
+      MyScope scope(
+        timer,
+        "grain_tracker::find_grouped_clouds::find_clouds_for_order_parameter");
+
       std::vector<Cloud<dim>> clouds;
 
       // Loop through the whole mesh and set the user flags to false (so
@@ -911,6 +927,120 @@ namespace GrainTracker
         {
           clouds.pop_back();
         }
+
+      // Merge clouds from multiple processors
+      stitch_clouds_for_order_parameter(clouds, neighbor_ranks_set);
+
+      return clouds;
+    }
+
+    // Recursive flood fill algorithm
+    void
+    recursive_flood_fill(
+      const TriaIterator<DoFCellAccessor<dim, dim, false>> &cell,
+      const BlockVectorType &                               solution,
+      const unsigned int                                    order_parameter_id,
+      Vector<Number> &                                      values,
+      Cloud<dim> &                                          cloud,
+      std::set<int> &                                       ranks,
+      bool &                                                grain_assigned)
+    {
+      MyScope scope(
+        timer,
+        "grain_tracker::find_grouped_clouds::find_clouds_for_order_parameter::recursive_flood_fill");
+
+      // If a cell has children, then we iterate over them
+      if (cell->has_children())
+        {
+          for (unsigned int n = 0; n < cell->n_children(); n++)
+            {
+              recursive_flood_fill(cell->child(n),
+                                   solution,
+                                   order_parameter_id,
+                                   values,
+                                   cloud,
+                                   ranks,
+                                   grain_assigned);
+            }
+        }
+      // If this is an active cell, the process it
+      else if (!cell->user_flag_set() && cell->is_locally_owned())
+        {
+          cell->set_user_flag();
+
+          // Get average value of the order parameter for the cell
+          cell->get_dof_values(solution.block(order_parameter_id +
+                                              order_parameters_offset),
+                               values);
+
+          double etai = std::accumulate(values.begin(),
+                                        values.end(),
+                                        0.0,
+                                        std::plus<double>()) /
+                        values.size();
+
+          /* Check if the cell is inside the grain described by the given order
+           * parameter. If so, add the current cell to the current cloud.
+           */
+          if (etai > threshold_lower && etai < threshold_upper)
+            {
+              grain_assigned = true;
+              cloud.add_cell(*cell);
+
+              unsigned int neighbor_rank = numbers::invalid_unsigned_int;
+
+              // Check if this cell is at the interface with another rank
+              for (const auto f : cell->face_indices())
+                {
+                  if (!cell->at_boundary(f) &&
+                      has_ghost(cell->neighbor(f), neighbor_rank))
+                    {
+                      cloud.add_edge_cell(*cell);
+                      ranks.insert(neighbor_rank);
+                      break;
+                    }
+                }
+
+              bool is_periodic_primary = false;
+
+              // Recursive call for all neighbors
+              for (const auto f : cell->face_indices())
+                {
+                  if (!cell->at_boundary(f))
+                    {
+                      recursive_flood_fill(cell->neighbor(f),
+                                           solution,
+                                           order_parameter_id,
+                                           values,
+                                           cloud,
+                                           ranks,
+                                           grain_assigned);
+                    }
+                  else if (cell->has_periodic_neighbor(f))
+                    {
+                      cloud.add_periodic_secondary_cell(
+                        *cell->periodic_neighbor(f));
+                      is_periodic_primary = true;
+                    }
+                }
+
+              // Check if cell is periodic primary
+              if (is_periodic_primary)
+                {
+                  cloud.add_periodic_primary_cell(*cell);
+                }
+            }
+        }
+    }
+
+    void
+    stitch_clouds_for_order_parameter(
+      std::vector<Cloud<dim>> &clouds,
+      const std::set<int> &    neighbor_ranks_set) const
+    {
+      MyScope scope(
+        timer,
+        "grain_tracker::find_grouped_clouds::find_clouds_for_order_parameter::stitch_clouds_for_order_parameter");
 
       // Merge clouds from multiple processors
       if (Utilities::MPI::n_mpi_processes(MPI_COMM_WORLD) == 1)
@@ -1034,103 +1164,6 @@ namespace GrainTracker
            * one.
            */
           stitch_clouds(clouds);
-        }
-
-      return clouds;
-    }
-
-    // Recursive flood fill algorithm
-    void
-    recursive_flood_fill(
-      const TriaIterator<DoFCellAccessor<dim, dim, false>> &cell,
-      const BlockVectorType &                               solution,
-      const unsigned int                                    order_parameter_id,
-      Vector<Number> &                                      values,
-      Cloud<dim> &                                          cloud,
-      std::set<int> &                                       ranks,
-      bool &                                                grain_assigned)
-    {
-      // If a cell has children, then we iterate over them
-      if (cell->has_children())
-        {
-          for (unsigned int n = 0; n < cell->n_children(); n++)
-            {
-              recursive_flood_fill(cell->child(n),
-                                   solution,
-                                   order_parameter_id,
-                                   values,
-                                   cloud,
-                                   ranks,
-                                   grain_assigned);
-            }
-        }
-      // If this is an active cell, the process it
-      else if (!cell->user_flag_set() && cell->is_locally_owned())
-        {
-          cell->set_user_flag();
-
-          // Get average value of the order parameter for the cell
-          cell->get_dof_values(solution.block(order_parameter_id +
-                                              order_parameters_offset),
-                               values);
-
-          double etai = std::accumulate(values.begin(),
-                                        values.end(),
-                                        0.0,
-                                        std::plus<double>()) /
-                        values.size();
-
-          /* Check if the cell is inside the grain described by the given order
-           * parameter. If so, add the current cell to the current cloud.
-           */
-          if (etai > threshold_lower && etai < threshold_upper)
-            {
-              grain_assigned = true;
-              cloud.add_cell(*cell);
-
-              unsigned int neighbor_rank = numbers::invalid_unsigned_int;
-
-              // Check if this cell is at the interface with another rank
-              for (const auto f : cell->face_indices())
-                {
-                  if (!cell->at_boundary(f) &&
-                      has_ghost(cell->neighbor(f), neighbor_rank))
-                    {
-                      cloud.add_edge_cell(*cell);
-                      ranks.insert(neighbor_rank);
-                      break;
-                    }
-                }
-
-              bool is_periodic_primary = false;
-
-              // Recursive call for all neighbors
-              for (const auto f : cell->face_indices())
-                {
-                  if (!cell->at_boundary(f))
-                    {
-                      recursive_flood_fill(cell->neighbor(f),
-                                           solution,
-                                           order_parameter_id,
-                                           values,
-                                           cloud,
-                                           ranks,
-                                           grain_assigned);
-                    }
-                  else if (cell->has_periodic_neighbor(f))
-                    {
-                      cloud.add_periodic_secondary_cell(
-                        *cell->periodic_neighbor(f));
-                      is_periodic_primary = true;
-                    }
-                }
-
-              // Check if cell is periodic primary
-              if (is_periodic_primary)
-                {
-                  cloud.add_periodic_primary_cell(*cell);
-                }
-            }
         }
     }
 
@@ -1313,6 +1346,10 @@ namespace GrainTracker
     void
     stitch_clouds(std::vector<Cloud<dim>> &clouds) const
     {
+      MyScope scope(
+        timer,
+        "grain_tracker::find_grouped_clouds::find_clouds_for_order_parameter::stitch_clouds_for_order_parameter::stitch_clouds");
+
       for (unsigned int cl_primary = 0; cl_primary < clouds.size();
            ++cl_primary)
         {
@@ -1659,5 +1696,7 @@ namespace GrainTracker
     std::vector<Cloud<dim>> last_clouds;
 
     ConditionalOStream pcout;
+
+    mutable TimerOutput timer;
   };
 } // namespace GrainTracker
