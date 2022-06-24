@@ -602,8 +602,7 @@ namespace Sintering
       const MatrixFree<dim, Number, VectorizedArrayType> &   matrix_free,
       const AffineConstraints<Number> &                      constraints,
       const BlockPreconditioner2Data &                       data)
-      : matrix_free(matrix_free)
-      , data(data)
+      : data(data)
     {
       // create operators
       operator_0 = std::make_unique<
@@ -651,24 +650,37 @@ namespace Sintering
       const std::shared_ptr<MGTransferGlobalCoarsening<dim, VectorType>>
         &                             transfer,
       const BlockPreconditioner2Data &data)
-      : matrix_free(matrix_free)
-      , data(data)
+      : data(data)
     {
-      AssertThrow(false, ExcNotImplemented());
+      const unsigned int min_level = mg_sintering_data.min_level();
+      const unsigned int max_level = mg_sintering_data.max_level();
 
-      (void)sintering_data;
-      (void)matrix_free;
-      (void)constraints;
-      (void)mg_sintering_data;
-      (void)mg_matrix_free;
-      (void)mg_constraints;
-      (void)data;
+      AssertDimension(min_level, mg_matrix_free.min_level());
+      AssertDimension(max_level, mg_matrix_free.max_level());
+      AssertDimension(min_level, mg_constraints.min_level());
+      AssertDimension(max_level, mg_constraints.max_level());
 
-      MGLevelObject<std::shared_ptr<
-        OperatorAllenCahnBlocked<dim, Number, VectorizedArrayType>>>
-        mg_operator_1;
+      // create operators
+      operator_0 = std::make_unique<
+        OperatorCahnHilliard<dim, Number, VectorizedArrayType>>(matrix_free,
+                                                                constraints,
+                                                                sintering_data);
 
-      preconditioner_1 = Preconditioners::create(mg_operator_1,
+      mg_operator_blocked_1.resize(min_level, max_level);
+      for (unsigned int l = min_level; l <= max_level; ++l)
+        mg_operator_blocked_1[l] = std::make_shared<
+          OperatorAllenCahnBlocked<dim, Number, VectorizedArrayType>>(
+          mg_matrix_free[l],
+          mg_constraints[l],
+          mg_sintering_data[l],
+          data.block_1_approximation);
+
+
+      // create preconditioners
+      preconditioner_0 =
+        Preconditioners::create(*operator_0, data.block_0_preconditioner);
+
+      preconditioner_1 = Preconditioners::create(mg_operator_blocked_1,
                                                  transfer,
                                                  data.block_1_preconditioner);
     }
@@ -676,10 +688,17 @@ namespace Sintering
     virtual void
     clear()
     {
+      // clear operators
       operator_0->clear();
       operator_1->clear();
       operator_1_blocked->clear();
 
+      for (unsigned int l = mg_operator_blocked_1.min_level();
+           l <= mg_operator_blocked_1.max_level();
+           ++l)
+        mg_operator_blocked_1[l]->clear();
+
+      // clear preconditioners
       preconditioner_0->clear();
       preconditioner_1->clear();
     }
@@ -728,18 +747,24 @@ namespace Sintering
     }
 
   private:
-    const MatrixFree<dim, Number, VectorizedArrayType> &matrix_free;
-
+    // operator CH
     std::unique_ptr<OperatorCahnHilliard<dim, Number, VectorizedArrayType>>
       operator_0;
+
+    // operator AC
     std::unique_ptr<OperatorAllenCahn<dim, Number, VectorizedArrayType>>
       operator_1;
     std::unique_ptr<OperatorAllenCahnBlocked<dim, Number, VectorizedArrayType>>
       operator_1_blocked;
+    MGLevelObject<std::shared_ptr<
+      OperatorAllenCahnBlocked<dim, Number, VectorizedArrayType>>>
+      mg_operator_blocked_1;
 
+    // preconditioners
     std::unique_ptr<Preconditioners::PreconditionerBase<Number>>
       preconditioner_0, preconditioner_1;
 
+    // utility
     mutable MyTimerOutput timer;
 
     const BlockPreconditioner2Data data;
