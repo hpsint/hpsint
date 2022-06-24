@@ -753,6 +753,22 @@ namespace Preconditioners
   class GMG : public PreconditionerBase<typename Operator::value_type>
   {
   public:
+    struct PreconditionerGMGAdditionalData
+    {
+      double       smoothing_range               = 20;
+      unsigned int smoothing_degree              = 5;
+      unsigned int smoothing_eig_cg_n_iterations = 20;
+
+      unsigned int coarse_grid_smoother_sweeps = 1;
+      unsigned int coarse_grid_n_cycles        = 1;
+      std::string  coarse_grid_smoother_type   = "ILU";
+
+      unsigned int coarse_grid_maxiter = 1000;
+      double       coarse_grid_abstol  = 1e-20;
+      double       coarse_grid_reltol  = 1e-4;
+      std::string  coarse_grid_type    = "cg_with_chebyshev";
+    };
+
     using VectorType      = typename Operator::VectorType;
     using BlockVectorType = typename PreconditionerBase<
       typename Operator::value_type>::BlockVectorType;
@@ -812,7 +828,87 @@ namespace Preconditioners
     void
     do_update() override
     {
-      AssertThrow(false, ExcNotImplemented());
+      PreconditionerGMGAdditionalData additional_data;
+
+      const unsigned int min_level = 0;
+      const unsigned int max_level = 0;
+
+      // wrap level operators
+      mg_matrix = std::make_unique<mg::Matrix<DealiiBlockVectorType>>(op);
+
+      // setup smoothers on each level
+      MGLevelObject<typename SmootherType::AdditionalData> smoother_data(
+        min_level, max_level);
+
+      for (unsigned int level = min_level; level <= max_level; ++level)
+        {
+          smoother_data[level].preconditioner =
+            std::make_shared<SmootherPreconditionerType>();
+          // op[level]->compute_inverse_diagonal(
+          //  smoother_data[level].preconditioner->get_vector()); // TODO
+          smoother_data[level].smoothing_range =
+            additional_data.smoothing_range;
+          smoother_data[level].degree = additional_data.smoothing_degree;
+          smoother_data[level].eig_cg_n_iterations =
+            additional_data.smoothing_eig_cg_n_iterations;
+        }
+
+      mg_smoother.initialize(op, smoother_data);
+
+      for (unsigned int level = min_level; level <= max_level; ++level)
+        {
+          DealiiBlockVectorType vec;
+          // op[level]->initialize_dof_vector(vec); // TODO
+          mg_smoother.smoothers[level].estimate_eigenvalues(vec);
+        }
+
+      coarse_grid_solver_control =
+        std::make_unique<ReductionControl>(additional_data.coarse_grid_maxiter,
+                                           additional_data.coarse_grid_abstol,
+                                           additional_data.coarse_grid_reltol,
+                                           false,
+                                           false);
+      coarse_grid_solver = std::make_unique<SolverCG<DealiiBlockVectorType>>(
+        *coarse_grid_solver_control);
+
+      if (additional_data.coarse_grid_type == "cg_with_chebyshev")
+        {
+          typename SmootherType::AdditionalData smoother_data;
+
+          smoother_data.preconditioner =
+            std::make_shared<DiagonalMatrix<DealiiBlockVectorType>>();
+          // op[min_level].compute_inverse_diagonal(
+          //  smoother_data.preconditioner->get_vector()); // TODO
+          smoother_data.smoothing_range = additional_data.smoothing_range;
+          smoother_data.degree          = additional_data.smoothing_degree;
+          smoother_data.eig_cg_n_iterations =
+            additional_data.smoothing_eig_cg_n_iterations;
+
+          precondition_chebyshev.initialize(*op[min_level], smoother_data);
+
+          mg_coarse = std::make_unique<
+            MGCoarseGridIterativeSolver<DealiiBlockVectorType,
+                                        SolverCG<DealiiBlockVectorType>,
+                                        LevelMatrixType,
+                                        decltype(precondition_chebyshev)>>(
+            *coarse_grid_solver, *op[min_level], precondition_chebyshev);
+        }
+      else
+        {
+          AssertThrow(false, ExcNotImplemented());
+        }
+
+      mg = std::make_unique<Multigrid<DealiiBlockVectorType>>(*mg_matrix,
+                                                              *mg_coarse,
+                                                              *transfer_block,
+                                                              mg_smoother,
+                                                              mg_smoother,
+                                                              min_level,
+                                                              max_level);
+
+      preconditioner = std::make_unique<
+        PreconditionMG<dim, DealiiBlockVectorType, MGTransferType>>(
+        dof_handler_dummy, *mg, *transfer_block);
     }
 
   private:
@@ -820,6 +916,8 @@ namespace Preconditioners
     const std::shared_ptr<MGTransferTypeScalar> &   transfer;
     ConditionalOStream                              pcout;
     mutable TimerOutput                             timer;
+
+    DoFHandler<dim> dof_handler_dummy;
 
     std::unique_ptr<MGTransferType> transfer_block;
 
@@ -831,6 +929,14 @@ namespace Preconditioners
       mg_smoother;
 
     mutable std::unique_ptr<TrilinosWrappers::PreconditionAMG> precondition_amg;
+
+    mutable std::unique_ptr<ReductionControl> coarse_grid_solver_control;
+    mutable std::unique_ptr<SolverCG<DealiiBlockVectorType>> coarse_grid_solver;
+
+    PreconditionChebyshev<LevelMatrixType,
+                          DealiiBlockVectorType,
+                          DiagonalMatrix<DealiiBlockVectorType>>
+      precondition_chebyshev;
 
     mutable std::unique_ptr<MGCoarseGridBase<DealiiBlockVectorType>> mg_coarse;
 
