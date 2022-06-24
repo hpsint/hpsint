@@ -35,7 +35,8 @@ namespace GrainTracker
         }
     }
 
-    Segment() : radius(0.0)
+    Segment()
+      : radius(0.0)
     {}
 
     dealii::Point<dim>
