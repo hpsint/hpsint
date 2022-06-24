@@ -648,7 +648,9 @@ namespace Sintering
       const MGLevelObject<MatrixFree<dim, Number, VectorizedArrayType>>
         &                                             mg_matrix_free,
       const MGLevelObject<AffineConstraints<Number>> &mg_constraints,
-      const BlockPreconditioner2Data &                data)
+      const std::shared_ptr<MGTransferGlobalCoarsening<dim, VectorType>>
+        &                             transfer,
+      const BlockPreconditioner2Data &data)
       : matrix_free(matrix_free)
       , data(data)
     {
@@ -661,6 +663,14 @@ namespace Sintering
       (void)mg_matrix_free;
       (void)mg_constraints;
       (void)data;
+
+      MGLevelObject<std::shared_ptr<
+        OperatorAllenCahnBlocked<dim, Number, VectorizedArrayType>>>
+        mg_operator_1;
+
+      preconditioner_1 = Preconditioners::create(mg_operator_1,
+                                                 transfer,
+                                                 data.block_1_preconditioner);
     }
 
     virtual void

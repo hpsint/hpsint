@@ -389,6 +389,7 @@ namespace Sintering
           mg_sintering_data,
           mg_matrix_free,
           mg_constraints,
+          transfer,
           params.preconditioners_data.block_preconditioner_2_data);
       else if (params.preconditioners_data.outer_preconditioner ==
                "BlockPreconditioner2")

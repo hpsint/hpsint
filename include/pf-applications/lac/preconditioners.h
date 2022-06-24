@@ -749,6 +749,72 @@ namespace Preconditioners
 
 
 
+  template <typename Operator>
+  class GMG : public PreconditionerBase<typename Operator::value_type>
+  {
+  public:
+    using VectorType      = typename Operator::VectorType;
+    using BlockVectorType = typename PreconditionerBase<
+      typename Operator::value_type>::BlockVectorType;
+
+    static constexpr int dim = Operator::dimension;
+
+    GMG(const MGLevelObject<std::shared_ptr<Operator>> &op,
+        const std::shared_ptr<MGTransferGlobalCoarsening<dim, VectorType>>
+          &transfer)
+      : op(op)
+      , transfer(transfer)
+      , pcout(std::cout, Utilities::MPI::this_mpi_process(MPI_COMM_WORLD) == 0)
+      , timer(pcout, TimerOutput::never, TimerOutput::wall_times)
+    {}
+
+    ~GMG()
+    {
+      if (timer.get_summary_data(TimerOutput::OutputData::total_wall_time)
+            .size() > 0)
+        timer.print_wall_time_statistics(MPI_COMM_WORLD);
+    }
+
+    virtual void
+    clear()
+    {
+      AssertThrow(false, ExcNotImplemented());
+    }
+
+    void
+    vmult(VectorType &dst, const VectorType &src) const override
+    {
+      AssertThrow(false, ExcNotImplemented());
+      (void)dst;
+      (void)src;
+    }
+
+    void
+    vmult(BlockVectorType &dst, const BlockVectorType &src) const override
+    {
+      AssertThrow(false, ExcNotImplemented());
+      (void)dst;
+      (void)src;
+    }
+
+    void
+    do_update() override
+    {
+      AssertThrow(false, ExcNotImplemented());
+    }
+
+  private:
+    const MGLevelObject<std::shared_ptr<Operator>> &op;
+
+    const std::shared_ptr<MGTransferGlobalCoarsening<dim, VectorType>>
+      &transfer;
+
+    ConditionalOStream  pcout;
+    mutable TimerOutput timer;
+  };
+
+
+
   template <typename T>
   std::unique_ptr<PreconditionerBase<typename T::value_type>>
   create(const T &op, const std::string &label)
@@ -767,6 +833,25 @@ namespace Preconditioners
       return std::make_unique<ILU<T>>(op);
     else if (label == "BlockILU")
       return std::make_unique<BlockILU<T>>(op);
+
+    AssertThrow(false,
+                ExcMessage("Preconditioner << " + label + " >> not known!"));
+
+    return {};
+  }
+
+
+
+  template <typename T>
+  std::unique_ptr<PreconditionerBase<typename T::value_type>>
+  create(const MGLevelObject<std::shared_ptr<T>> &op,
+         const std::shared_ptr<
+           MGTransferGlobalCoarsening<T::dimension, typename T::VectorType>>
+           &                transfer,
+         const std::string &label)
+  {
+    if (label == "GMG")
+      return std::make_unique<GMG<T>>(op, transfer);
 
     AssertThrow(false,
                 ExcMessage("Preconditioner << " + label + " >> not known!"));
