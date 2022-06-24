@@ -1586,24 +1586,20 @@ namespace GrainTracker
     print_grains(const std::map<unsigned int, Grain<dim>> &current_grains,
                  Stream &                                  out) const
     {
-      out << Utilities::MPI::this_mpi_process(MPI_COMM_WORLD) << " "
-          << "Number of order parameters: "
+      out << "Number of order parameters: "
           << build_active_order_parameter_ids(current_grains).size()
           << std::endl;
-      out << Utilities::MPI::this_mpi_process(MPI_COMM_WORLD) << " "
-          << "Number of grains: " << current_grains.size() << std::endl;
+      out << "Number of grains: " << current_grains.size() << std::endl;
       for (const auto &[gid, gr] : current_grains)
         {
           (void)gid;
-          out << Utilities::MPI::this_mpi_process(MPI_COMM_WORLD) << " "
-              << "op_index_current = " << gr.get_order_parameter_id()
+          out << "op_index_current = " << gr.get_order_parameter_id()
               << " | op_index_old = " << gr.get_old_order_parameter_id()
               << " | segments = " << gr.get_segments().size()
               << " | grain_index = " << gr.get_grain_id() << std::endl;
           for (const auto &segment : gr.get_segments())
             {
-              out << Utilities::MPI::this_mpi_process(MPI_COMM_WORLD) << " "
-                  << "    segment: center = " << segment.get_center()
+              out << "    segment: center = " << segment.get_center()
                   << " | radius = " << segment.get_radius() << std::endl;
             }
         }
