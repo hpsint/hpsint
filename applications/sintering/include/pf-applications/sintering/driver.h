@@ -230,7 +230,11 @@ namespace Sintering
       matrix_free.reinit(
         mapping, dof_handler, constraints, quad, additional_data);
 
-      if (true /*TODO*/)
+      if ((params.preconditioners_data.outer_preconditioner == "GMG") ||
+          (params.preconditioners_data.outer_preconditioner ==
+             "BlockPreconditioner2" &&
+           params.preconditioners_data.block_preconditioner_2_data
+               .block_1_preconditioner == "GMG"))
         {
           mg_triangulations = MGTransferGlobalCoarseningTools::
             create_geometric_coarsening_sequence(tria);
