@@ -54,6 +54,42 @@ namespace GrainTracker
       return min_distance;
     }
 
+    /* Check if two grains match */
+    bool
+    is_equal(const Grain<dim> &other) const
+    {
+      if (n_segments() != other.n_segments())
+        {
+          return false;
+        }
+
+      if (get_order_parameter_id() != other.get_order_parameter_id())
+        {
+          return false;
+        }
+
+      double tol_distance = 1e-10;
+
+      for (const auto &this_segment : segments)
+        {
+          double min_distance = std::numeric_limits<double>::max();
+
+          for (const auto &other_segment : other.get_segments())
+            {
+              double centers_distance =
+                this_segment.get_center().distance(other_segment.get_center());
+              min_distance = std::min(centers_distance, min_distance);
+            }
+
+          if (min_distance > tol_distance)
+            {
+              return false;
+            }
+        }
+
+      return true;
+    }
+
     /* Radius of the largest segment of the grain. Mainly used as a reference
      * value to determine the buffer zone for the grain reassignment.
      */
@@ -156,6 +192,13 @@ namespace GrainTracker
     transfer_buffer() const
     {
       return std::max(0.0, distance_to_nearest_neighbor() / 2.0);
+    }
+
+    /* Get number of segments contributing to the grain */
+    unsigned int
+    n_segments() const
+    {
+      return segments.size();
     }
 
   private:
