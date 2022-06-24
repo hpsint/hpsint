@@ -35,6 +35,12 @@ namespace GrainTracker
       , old_order_parameter_id(old_order_parameter_id)
     {}
 
+    Grain()
+      : grain_id(numbers::invalid_unsigned_int)
+      , order_parameter_id(numbers::invalid_unsigned_int)
+      , old_order_parameter_id(numbers::invalid_unsigned_int)
+    {}
+
     /* This function computes the minimum distance between the segments of the
      * two grains.
      */
@@ -206,6 +212,19 @@ namespace GrainTracker
     n_segments() const
     {
       return segments.size();
+    }
+
+    template <class Archive>
+    void
+    serialize(Archive &ar, const unsigned int /*version*/)
+    {
+      ar &grain_id;
+      ar &order_parameter_id;
+      ar &old_order_parameter_id;
+      ar &segments;
+      ar &max_radius;
+
+      // Neighbors are not serialized and transferred
     }
 
   private:

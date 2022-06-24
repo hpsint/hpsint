@@ -35,6 +35,9 @@ namespace GrainTracker
         }
     }
 
+    Segment() : radius(0.0)
+    {}
+
     dealii::Point<dim>
     get_center() const
     {
@@ -56,6 +59,14 @@ namespace GrainTracker
       const double current_distance = distance_centers - sum_radii;
 
       return current_distance;
+    }
+
+    template <class Archive>
+    void
+    serialize(Archive &ar, const unsigned int /*version*/)
+    {
+      ar &center;
+      ar &radius;
     }
 
   protected:
