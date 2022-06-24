@@ -356,6 +356,12 @@ namespace Sintering
 
       sintering_data.set_n_components(initial_solution->n_components());
 
+      MGLevelObject<SinteringOperatorData<dim, VectorizedArrayType>>
+        mg_sintering_data(0,
+                          tria.n_global_levels() +
+                            params.adaptivity_data.max_refinement_depth,
+                          sintering_data);
+
       // ... non-linear operator
       NonLinearOperator nonlinear_operator(matrix_free,
                                            constraints,
@@ -440,6 +446,44 @@ namespace Sintering
           if (do_update_preconditioner)
             {
               MyScope scope(timer, "time_loop::newton::setup_preconditioner");
+
+              if (transfer) // update multigrid levels
+                {
+                  const unsigned int min_level = transfers.min_level();
+                  const unsigned int max_level = transfers.max_level();
+                  const unsigned int n_blocks  = current_u.n_blocks();
+
+                  MGLevelObject<VectorType> mg_current_u(min_level, max_level);
+
+                  // acitve level
+                  mg_current_u[max_level].reinit(n_blocks);
+                  for (unsigned int b = 0; b < n_blocks; ++b)
+                    mg_matrix_free[max_level].initialize_dof_vector(
+                      mg_current_u[max_level].block(b));
+                  mg_current_u[max_level].copy_locally_owned_data_from(
+                    current_u);
+
+                  // coarser levels
+                  for (unsigned int l = max_level; l > min_level; --l)
+                    {
+                      mg_current_u[l - 1].reinit(n_blocks);
+                      for (unsigned int b = 0; b < n_blocks; ++b)
+                        mg_matrix_free[l - 1].initialize_dof_vector(
+                          mg_current_u[l - 1].block(b));
+
+                      for (unsigned int b = 0; b < n_blocks; ++b)
+                        transfers[l].interpolate(mg_current_u[l - 1].block(b),
+                                                 mg_current_u[l].block(b));
+                    }
+
+                  for (unsigned int l = min_level; l <= max_level; ++l)
+                    {
+                      mg_sintering_data[l].set_n_components(
+                        sintering_data.n_components());
+                      mg_sintering_data[l].fill_quadrature_point_values(
+                        mg_matrix_free[l], mg_current_u[l]);
+                    }
+                }
 
               preconditioner->do_update();
             }

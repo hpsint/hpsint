@@ -279,6 +279,14 @@ namespace dealii
           return result;
         }
 
+        void
+        copy_locally_owned_data_from(const DynamicBlockVector<T> &V)
+        {
+          AssertDimension(n_blocks(), V.n_blocks());
+          for (unsigned int b = 0; b < n_blocks(); ++b)
+            block(b).copy_locally_owned_data_from(V.block(b));
+        }
+
       private:
         unsigned int                            block_counter;
         std::vector<std::shared_ptr<BlockType>> blocks;
