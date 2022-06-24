@@ -783,8 +783,9 @@ namespace Sintering
         }
     }
 
+    template <typename BlockVectorType_>
     void
-    vmult(BlockVectorType &dst, const BlockVectorType &src) const
+    vmult(BlockVectorType_ &dst, const BlockVectorType_ &src) const
     {
       MyScope scope(this->timer, label + "::vmult", this->do_timing);
 
@@ -819,8 +820,9 @@ namespace Sintering
         }
     }
 
+    template <typename VectorType_>
     void
-    Tvmult(VectorType &dst, const VectorType &src) const
+    Tvmult(VectorType_ &dst, const VectorType_ &src) const
     {
       AssertThrow(false, ExcNotImplemented());
 
@@ -1084,6 +1086,33 @@ namespace Sintering
       BlockVectorType &                                   dst,
       const BlockVectorType &                             src,
       const std::pair<unsigned int, unsigned int> &       range) const
+    {
+      FECellIntegrator<dim, n_comp, Number, VectorizedArrayType> phi(
+        matrix_free, dof_index);
+
+      for (auto cell = range.first; cell < range.second; ++cell)
+        {
+          phi.reinit(cell);
+          phi.gather_evaluate(src,
+                              EvaluationFlags::EvaluationFlags::values |
+                                EvaluationFlags::EvaluationFlags::gradients);
+
+          static_cast<const T &>(*this)
+            .template do_vmult_kernel<n_comp, n_grains>(phi);
+
+          phi.integrate_scatter(EvaluationFlags::EvaluationFlags::values |
+                                  EvaluationFlags::EvaluationFlags::gradients,
+                                dst);
+        }
+    }
+
+    template <int n_comp, int n_grains>
+    void
+    do_vmult_range(
+      const MatrixFree<dim, Number, VectorizedArrayType> &   matrix_free,
+      LinearAlgebra::distributed::BlockVector<Number> &      dst,
+      const LinearAlgebra::distributed::BlockVector<Number> &src,
+      const std::pair<unsigned int, unsigned int> &          range) const
     {
       FECellIntegrator<dim, n_comp, Number, VectorizedArrayType> phi(
         matrix_free, dof_index);

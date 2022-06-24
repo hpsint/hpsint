@@ -756,8 +756,20 @@ namespace Preconditioners
     using VectorType      = typename Operator::VectorType;
     using BlockVectorType = typename PreconditionerBase<
       typename Operator::value_type>::BlockVectorType;
+    using DealiiBlockVectorType =
+      LinearAlgebra::distributed::BlockVector<typename Operator::value_type>;
+
+    using LevelMatrixType = Operator;
+
+    using SmootherPreconditionerType = DiagonalMatrix<DealiiBlockVectorType>;
+    using SmootherType               = PreconditionChebyshev<LevelMatrixType,
+                                               DealiiBlockVectorType,
+                                               SmootherPreconditionerType>;
 
     static constexpr int dim = Operator::dimension;
+
+    using MGTransferTypeScalar = MGTransferGlobalCoarsening<dim, VectorType>;
+    using MGTransferType = MGTransferBlockGlobalCoarsening<dim, VectorType>;
 
     GMG(const MGLevelObject<std::shared_ptr<Operator>> &op,
         const std::shared_ptr<MGTransferGlobalCoarsening<dim, VectorType>>
@@ -792,9 +804,9 @@ namespace Preconditioners
     void
     vmult(BlockVectorType &dst, const BlockVectorType &src) const override
     {
-      AssertThrow(false, ExcNotImplemented());
-      (void)dst;
-      (void)src;
+      Assert(preconditioner, ExcInternalError());
+
+      preconditioner->vmult(dst, src);
     }
 
     void
@@ -805,12 +817,28 @@ namespace Preconditioners
 
   private:
     const MGLevelObject<std::shared_ptr<Operator>> &op;
+    const std::shared_ptr<MGTransferTypeScalar> &   transfer;
+    ConditionalOStream                              pcout;
+    mutable TimerOutput                             timer;
 
-    const std::shared_ptr<MGTransferGlobalCoarsening<dim, VectorType>>
-      &transfer;
+    std::unique_ptr<MGTransferType> transfer_block;
 
-    ConditionalOStream  pcout;
-    mutable TimerOutput timer;
+    mutable std::unique_ptr<mg::Matrix<DealiiBlockVectorType>> mg_matrix;
+
+    mutable MGSmootherPrecondition<LevelMatrixType,
+                                   SmootherType,
+                                   DealiiBlockVectorType>
+      mg_smoother;
+
+    mutable std::unique_ptr<TrilinosWrappers::PreconditionAMG> precondition_amg;
+
+    mutable std::unique_ptr<MGCoarseGridBase<DealiiBlockVectorType>> mg_coarse;
+
+    mutable std::unique_ptr<Multigrid<DealiiBlockVectorType>> mg;
+
+    mutable std::unique_ptr<
+      PreconditionMG<dim, DealiiBlockVectorType, MGTransferType>>
+      preconditioner;
   };
 
 
