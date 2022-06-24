@@ -18,7 +18,7 @@ namespace Sintering
   public:
     OperatorCahnHilliard(
       const MatrixFree<dim, Number, VectorizedArrayType> &   matrix_free,
-      const std::vector<const AffineConstraints<Number> *> & constraints,
+      const AffineConstraints<Number> &                      constraints,
       const SinteringOperatorData<dim, VectorizedArrayType> &data)
       : OperatorBase<dim,
                      Number,
@@ -132,7 +132,7 @@ namespace Sintering
   public:
     OperatorAllenCahn(
       const MatrixFree<dim, Number, VectorizedArrayType> &   matrix_free,
-      const std::vector<const AffineConstraints<Number> *> & constraints,
+      const AffineConstraints<Number> &                      constraints,
       const SinteringOperatorData<dim, VectorizedArrayType> &data)
       : OperatorBase<dim,
                      Number,
@@ -236,7 +236,7 @@ namespace Sintering
   public:
     OperatorAllenCahnBlocked(
       const MatrixFree<dim, Number, VectorizedArrayType> &   matrix_free,
-      const std::vector<const AffineConstraints<Number> *> & constraints,
+      const AffineConstraints<Number> &                      constraints,
       const SinteringOperatorData<dim, VectorizedArrayType> &data,
       const std::string free_energy_approximation_string = "all")
       : OperatorBase<
@@ -534,9 +534,8 @@ namespace Sintering
                           MassMatrix<dim, Number, VectorizedArrayType>>
   {
   public:
-    MassMatrix(
-      const MatrixFree<dim, Number, VectorizedArrayType> &  matrix_free,
-      const std::vector<const AffineConstraints<Number> *> &constraints)
+    MassMatrix(const MatrixFree<dim, Number, VectorizedArrayType> &matrix_free,
+               const AffineConstraints<Number> &                   constraints)
       : OperatorBase<dim,
                      Number,
                      VectorizedArrayType,
@@ -601,7 +600,7 @@ namespace Sintering
     BlockPreconditioner2(
       const SinteringOperatorData<dim, VectorizedArrayType> &sintering_data,
       const MatrixFree<dim, Number, VectorizedArrayType> &   matrix_free,
-      const std::vector<const AffineConstraints<Number> *> & constraints,
+      const AffineConstraints<Number> &                      constraints,
       const BlockPreconditioner2Data &                       data = {})
       : matrix_free(matrix_free)
       , operator_0(matrix_free, constraints, sintering_data)
@@ -710,9 +709,9 @@ namespace Sintering
   {
   public:
     HelmholtzOperator(
-      const MatrixFree<dim, Number, VectorizedArrayType> &  matrix_free,
-      const std::vector<const AffineConstraints<Number> *> &constraints,
-      const unsigned int                                    n_components_)
+      const MatrixFree<dim, Number, VectorizedArrayType> &matrix_free,
+      const AffineConstraints<Number> &                   constraints,
+      const unsigned int                                  n_components_)
       : OperatorBase<dim,
                      Number,
                      VectorizedArrayType,

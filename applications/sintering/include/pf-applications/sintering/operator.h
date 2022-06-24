@@ -683,12 +683,12 @@ namespace Sintering
     static const int dimension = dim;
 
     OperatorBase(
-      const MatrixFree<dim, Number, VectorizedArrayType> &  matrix_free,
-      const std::vector<const AffineConstraints<Number> *> &constraints,
-      const unsigned int                                    dof_index,
-      const std::string                                     label = "")
+      const MatrixFree<dim, Number, VectorizedArrayType> &matrix_free,
+      const AffineConstraints<Number> &                   constraints,
+      const unsigned int                                  dof_index,
+      const std::string                                   label = "")
       : matrix_free(matrix_free)
-      , constraints(*constraints[dof_index] /*TODO*/)
+      , constraints(constraints)
       , dof_index(dof_index)
       , label(label)
       , pcout(std::cout, Utilities::MPI::this_mpi_process(MPI_COMM_WORLD) == 0)
@@ -1270,7 +1270,7 @@ namespace Sintering
 
     SinteringOperator(
       const MatrixFree<dim, Number, VectorizedArrayType> &   matrix_free,
-      const std::vector<const AffineConstraints<Number> *> & constraints,
+      const AffineConstraints<Number> &                      constraints,
       const SinteringOperatorData<dim, VectorizedArrayType> &data,
       const bool                                             matrix_based)
       : OperatorBase<dim,

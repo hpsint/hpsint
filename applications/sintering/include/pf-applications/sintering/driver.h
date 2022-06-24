@@ -103,9 +103,7 @@ namespace Sintering
 
     std::unique_ptr<dealii::parallel::Helper<dim>> helper;
 
-    AffineConstraints<Number> constraint;
-
-    const std::vector<const AffineConstraints<double> *> constraints;
+    AffineConstraints<Number> constraints;
 
     MatrixFree<dim, Number, VectorizedArrayType> matrix_free;
 
@@ -137,7 +135,6 @@ namespace Sintering
       , mapping(1)
       , quad(params.approximation_data.n_points_1D)
       , dof_handler(tria)
-      , constraints{&constraint}
       , initial_solution(initial_solution)
     {
       std::pair<dealii::Point<dim>, dealii::Point<dim>> boundaries;
@@ -204,8 +201,8 @@ namespace Sintering
       dof_handler.distribute_dofs(fe);
 
       // ... constraints, and ...
-      constraint.clear();
-      DoFTools::make_hanging_node_constraints(dof_handler, constraint);
+      constraints.clear();
+      DoFTools::make_hanging_node_constraints(dof_handler, constraints);
 
       if (params.geometry_data.periodic)
         {
@@ -220,10 +217,10 @@ namespace Sintering
             }
 
           DoFTools::make_periodicity_constraints<dim, dim>(periodicity_vector,
-                                                           constraint);
+                                                           constraints);
         }
 
-      constraint.close();
+      constraints.close();
 
       // ... MatrixFree
       typename MatrixFree<dim, Number, VectorizedArrayType>::AdditionalData
@@ -231,7 +228,7 @@ namespace Sintering
       additional_data.mapping_update_flags = update_values | update_gradients;
 
       matrix_free.reinit(
-        mapping, dof_handler, constraint, quad, additional_data);
+        mapping, dof_handler, constraints, quad, additional_data);
 
       if (true /*TODO*/)
         {
@@ -249,20 +246,20 @@ namespace Sintering
           for (unsigned int l = min_level; l <= max_level; ++l)
             {
               auto &dof_handler = mg_dof_handlers[l];
-              auto &constraint  = mg_constraints[l];
+              auto &constraints = mg_constraints[l];
               auto &matrix_free = mg_matrix_free[l];
 
               dof_handler.reinit(*mg_triangulations[l]);
               dof_handler.distribute_dofs(fe);
 
-              constraint.clear();
-              DoFTools::make_hanging_node_constraints(dof_handler, constraint);
+              constraints.clear();
+              DoFTools::make_hanging_node_constraints(dof_handler, constraints);
               Assert(params.geometry_data.periodic == false,
                      ExcNotImplemented());
-              constraint.close();
+              constraints.close();
 
               matrix_free.reinit(
-                mapping, dof_handler, constraint, quad, additional_data);
+                mapping, dof_handler, constraints, quad, additional_data);
             }
 
           for (auto l = min_level; l < max_level; ++l)
@@ -495,12 +492,12 @@ namespace Sintering
         // note: we mess with the input here, since we know that Newton does not
         // use the content anymore
         for (unsigned int b = 0; b < src.n_blocks(); ++b)
-          constraint.set_zero(const_cast<VectorType &>(src).block(b));
+          constraints.set_zero(const_cast<VectorType &>(src).block(b));
 
         const unsigned int n_iterations = linear_solver->solve(dst, src);
 
         for (unsigned int b = 0; b < src.n_blocks(); ++b)
-          constraint.distribute(dst.block(b));
+          constraints.distribute(dst.block(b));
 
         return n_iterations;
       };
@@ -523,7 +520,7 @@ namespace Sintering
                                      *initial_solution,
                                      solution.block(c));
 
-            constraint.distribute(solution.block(c));
+            constraints.distribute(solution.block(c));
           }
         solution.zero_out_ghost_values();
       };
@@ -554,7 +551,7 @@ namespace Sintering
             solution_dealii.block(b).reinit(partitioner);
             solution_dealii.block(b).copy_locally_owned_data_from(
               solution.block(b));
-            constraint.distribute(solution_dealii.block(b));
+            constraints.distribute(solution_dealii.block(b));
           }
 
         solution_dealii.update_ghost_values();
@@ -665,7 +662,7 @@ namespace Sintering
 
         // note: apply constraints since the Newton solver expects this
         for (unsigned int b = 0; b < solution.n_blocks(); ++b)
-          constraint.distribute(solution.block(b));
+          constraints.distribute(solution.block(b));
 
         output_result(solution, nonlinear_operator, t, "refinement");
       };
