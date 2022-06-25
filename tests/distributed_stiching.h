@@ -10,6 +10,8 @@ perform_distributed_stitching(
 {
   const unsigned int my_rank = Utilities::MPI::this_mpi_process(comm);
 
+  // step 1) determine - via fixed-point iteration - the clique of
+  // each particle
   const unsigned int local_size = input.size();
   unsigned int       offset     = 0;
 
@@ -79,10 +81,11 @@ perform_distributed_stitching(
         },
         comm);
 
-      if (finished)
+      if (finished) // run as long as no clique has changed
         break;
     }
 
+  // step 2) give each clique a unique id
   std::vector<std::vector<std::tuple<unsigned int, unsigned int>>> input_valid;
 
   for (unsigned int i = 0; i < input.size(); ++i)
@@ -108,6 +111,7 @@ perform_distributed_stitching(
         }
     }
 
+  // step 3) notify each particle of the id of its clique
   const unsigned int local_size_p = input_valid.size();
   unsigned int       offset_p     = 0;
 
