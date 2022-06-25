@@ -140,6 +140,7 @@ main(int argc, char **argv)
 
   solution.update_ghost_values();
 
+  // step 1) run flooding and determine local particles and give them local ids
   LinearAlgebra::distributed::Vector<double> particle_ids(
     tria.global_active_cell_index_partitioner().lock());
   particle_ids = invalid_particle_id;
@@ -154,11 +155,16 @@ main(int argc, char **argv)
         (run_flooding<dim, double>(cell, solution, particle_ids, counter) > 0))
       counter++;
 
+  // step 2) determine the global number of locally determined particles and
+  // give each one an unique id by shifting the ids
   MPI_Exscan(&counter, &offset, 1, MPI_UNSIGNED, MPI_SUM, comm);
 
   for (auto &particle_id : particle_ids)
     if (particle_id != invalid_particle_id)
       particle_id += offset;
+
+  // step 3) get particle ids on ghost cells and figure out if local particles
+  // and ghost particles might be one particle
   particle_ids.update_ghost_values();
 
   std::vector<std::vector<std::tuple<unsigned int, unsigned int>>>
@@ -191,11 +197,17 @@ main(int argc, char **argv)
             }
       }
 
+  // step 4) based on the local-ghost information, figure out all particles
+  // on all processes that belong togher (unification -> clique), give each
+  // clique an unique id, and return mapping from the global non-unique
+  // ids to the global ids
   const auto local_to_global_particle_ids =
     perform_distributed_stitching(comm, local_connectiviy);
 
+  // step 5) determine properties of particles (volume, radius, center)
   unsigned int n_particles = 0;
 
+  // ... determine the number of particles
   if (Utilities::MPI::sum(local_to_global_particle_ids.size(), comm) == 0)
     n_particles = 0;
   else
@@ -209,6 +221,7 @@ main(int argc, char **argv)
 
   std::vector<double> particle_info(n_particles * (1 + dim));
 
+  // ... compute local information
   for (const auto &cell : tria.active_cell_iterators())
     if (cell->is_locally_owned())
       {
@@ -230,6 +243,7 @@ main(int argc, char **argv)
             cell->center()[d] * cell->measure();
       }
 
+  // ... reduce information
   MPI_Reduce(MPI_IN_PLACE,
              particle_info.data(),
              particle_info.size(),
