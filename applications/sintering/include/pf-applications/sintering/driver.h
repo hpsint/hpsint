@@ -329,8 +329,10 @@ namespace Sintering
                         TimerOutput::wall_times);
 
       // ... non-linear Newton solver
-      auto non_linear_solver =
-        std::make_unique<NonLinearSolvers::NewtonSolver<VectorType>>();
+      NonLinearSolvers::NonLinearSolverStatistics statistics;
+      auto                                        non_linear_solver =
+        std::make_unique<NonLinearSolvers::NewtonSolver<VectorType>>(
+          statistics);
 
       non_linear_solver->reinit_vector = [&](auto &vector) {
         MyScope scope(timer, "time_loop::newton::reinit_vector");
@@ -646,10 +648,15 @@ namespace Sintering
       if (params.output_data.output_time_interval > 0.0)
         output_result(solution, nonlinear_operator, time_last_output);
 
-      unsigned int n_timestep              = 0;
-      unsigned int n_linear_iterations     = 0;
-      unsigned int n_non_linear_iterations = 0;
-      double       max_reached_dt          = 0.0;
+      unsigned int n_timestep                     = 0;
+      unsigned int n_linear_iterations            = 0;
+      unsigned int n_non_linear_iterations        = 0;
+      unsigned int n_residual_evaluations         = 0;
+      unsigned int n_failed_tries                 = 0;
+      unsigned int n_failed_linear_iterations     = 0;
+      unsigned int n_failed_non_linear_iterations = 0;
+      unsigned int n_failed_residual_evaluations  = 0;
+      double       max_reached_dt                 = 0.0;
 
       // run time loop
       {
@@ -784,7 +791,7 @@ namespace Sintering
 
                 // note: input/output (solution) needs/has the right
                 // constraints applied
-                const auto statistics = non_linear_solver->solve(solution);
+                non_linear_solver->solve(solution);
 
                 has_converged = true;
 
@@ -798,6 +805,7 @@ namespace Sintering
                 n_timestep += 1;
                 n_linear_iterations += statistics.linear_iterations;
                 n_non_linear_iterations += statistics.newton_iterations;
+                n_residual_evaluations += statistics.residual_evaluations;
                 max_reached_dt = std::max(max_reached_dt, dt);
 
                 if (std::abs(t - params.time_integration_data.time_end) > 1e-9)
@@ -827,12 +835,18 @@ namespace Sintering
 
                 t += dt;
               }
-            catch (const NonLinearSolvers::ExcNewtonDidNotConverge &)
+            catch (const NonLinearSolvers::ExcNewtonDidNotConverge &e)
               {
                 dt *= 0.5;
-                pcout
-                  << "\033[31mNon-linear solver did not converge, reducing timestep, dt = "
-                  << dt << "\033[0m" << std::endl;
+                pcout << "\033[31m" << e.what()
+                      << "  Reducing timestep, dt = " << dt << "\033[0m"
+                      << std::endl;
+
+                n_failed_tries += 1;
+                n_failed_linear_iterations += statistics.linear_iterations;
+                n_failed_non_linear_iterations += statistics.newton_iterations;
+                n_failed_residual_evaluations +=
+                  statistics.residual_evaluations;
 
                 solution = nonlinear_operator.get_previous_solution();
 
@@ -852,6 +866,12 @@ namespace Sintering
                 pcout
                   << "\033[33mLinear solver did not converge, reducing timestep, dt = "
                   << dt << "\033[0m" << std::endl;
+
+                n_failed_tries += 1;
+                n_failed_linear_iterations += statistics.linear_iterations;
+                n_failed_non_linear_iterations += statistics.newton_iterations;
+                n_failed_residual_evaluations +=
+                  statistics.residual_evaluations;
 
                 solution = nonlinear_operator.get_previous_solution();
 
@@ -883,9 +903,15 @@ namespace Sintering
       pcout_statistics << "  - n timesteps:               " << n_timestep << std::endl;
       pcout_statistics << "  - n non-linear iterations:   " << n_non_linear_iterations << std::endl;
       pcout_statistics << "  - n linear iterations:       " << n_linear_iterations << std::endl;
+      pcout_statistics << "  - n residual evaluations:    " << n_residual_evaluations << std::endl;
       pcout_statistics << "  - avg non-linear iterations: " << static_cast<double>(n_non_linear_iterations) / n_timestep << std::endl;
       pcout_statistics << "  - avg linear iterations:     " << static_cast<double>(n_linear_iterations) / n_non_linear_iterations << std::endl;
       pcout_statistics << "  - max dt:                    " << max_reached_dt << std::endl;
+      pcout_statistics << std::endl;
+      pcout_statistics << "  - n failed tries:                   " << n_failed_tries << std::endl;
+      pcout_statistics << "  - n failed non-linear iterations:   " << n_failed_non_linear_iterations << std::endl;
+      pcout_statistics << "  - n failed linear iterations:       " << n_failed_linear_iterations << std::endl;
+      pcout_statistics << "  - n failed residual evaluations:    " << n_failed_residual_evaluations << std::endl;      
       pcout_statistics << std::endl;
       // clang-format on
 

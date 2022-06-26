@@ -8,21 +8,23 @@ namespace NonLinearSolvers
 
   struct NonLinearSolverStatistics
   {
-    unsigned int newton_iterations = 0;
-    unsigned int linear_iterations = 0;
+    unsigned int newton_iterations    = 0;
+    unsigned int linear_iterations    = 0;
+    unsigned int residual_evaluations = 0;
   };
 
 
 
-  DeclExceptionMsg(
+  DeclException1(
     ExcNewtonDidNotConverge,
-    "Damped Newton iteration did not converge. Maximum number of iterations exceed!");
-
+    std::string,
+    << "Damped Newton iteration did not converge. Maximum number of " << arg1
+    << " iterations exceed!");
 
 
   struct NewtonSolverData
   {
-    NewtonSolverData(const unsigned int max_iter              = 100,
+    NewtonSolverData(const unsigned int max_iter              = 10,
                      const double       abs_tol               = 1.e-20,
                      const double       rel_tol               = 1.e-5,
                      const bool         do_update             = true,
@@ -53,11 +55,13 @@ namespace NonLinearSolvers
   class NewtonSolver
   {
   public:
-    NewtonSolver(const NewtonSolverData &solver_data_in = NewtonSolverData())
-      : solver_data(solver_data_in)
+    NewtonSolver(NonLinearSolverStatistics &statistics,
+                 const NewtonSolverData &   solver_data_in = NewtonSolverData())
+      : statistics(statistics)
+      , solver_data(solver_data_in)
     {}
 
-    NonLinearSolverStatistics
+    void
     solve(VectorType &dst) const
     {
       VectorType vec_residual, increment, tmp;
@@ -68,14 +72,15 @@ namespace NonLinearSolvers
       if (this->solver_data.reuse_preconditioner == false)
         clear();
 
+      // Accumulated linear iterations
+      this->statistics = NonLinearSolverStatistics();
+
       // evaluate residual using the given estimate of the solution
       residual(dst, vec_residual);
+      ++statistics.residual_evaluations;
 
       double norm_r   = vec_residual.l2_norm();
       double norm_r_0 = norm_r;
-
-      // Accumulated linear iterations
-      NonLinearSolverStatistics statistics;
 
       while (norm_r > this->solver_data.abs_tol &&
              norm_r / norm_r_0 > solver_data.rel_tol &&
@@ -119,6 +124,7 @@ namespace NonLinearSolvers
 
               // evaluate residual using the temporary solution
               residual(tmp, vec_residual);
+              ++statistics.residual_evaluations;
 
               // calculate norm of residual (for temporary solution)
               norm_r_tmp = vec_residual.l2_norm();
@@ -133,7 +139,7 @@ namespace NonLinearSolvers
                  n_iter_tmp < N_ITER_TMP_MAX);
 
           AssertThrow(norm_r_tmp < (1.0 - tau * omega) * norm_r,
-                      ExcNewtonDidNotConverge());
+                      ExcNewtonDidNotConverge("damping"));
 
           // update solution and residual
           dst    = tmp;
@@ -146,9 +152,7 @@ namespace NonLinearSolvers
 
       AssertThrow(norm_r <= this->solver_data.abs_tol ||
                     norm_r / norm_r_0 <= solver_data.rel_tol,
-                  ExcNewtonDidNotConverge());
-
-      return statistics;
+                  ExcNewtonDidNotConverge("Newton"));
     }
 
     void
@@ -160,7 +164,8 @@ namespace NonLinearSolvers
 
 
   private:
-    const NewtonSolverData solver_data;
+    NonLinearSolverStatistics &statistics;
+    const NewtonSolverData     solver_data;
 
     mutable unsigned int history_linear_iterations_last = 0;
     mutable unsigned int history_newton_iterations      = 0;
