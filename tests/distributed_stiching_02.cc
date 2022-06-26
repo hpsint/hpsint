@@ -46,6 +46,19 @@ run_flooding(const typename DoFHandler<dim>::cell_iterator &   cell,
              LinearAlgebra::distributed::Vector<Number> &      particle_ids,
              const unsigned int                                id)
 {
+  if (cell->has_children())
+    {
+      unsigned int counter = 1;
+
+      for (const auto &child : cell->child_iterators())
+        counter += run_flooding<dim, Number>(child, solution, particle_ids, id);
+
+      return counter;
+    }
+
+  if (cell->is_locally_owned() == false)
+    return 0;
+
   const auto particle_id = particle_ids[cell->global_active_cell_index()];
 
   if (particle_id != invalid_particle_id)
@@ -63,8 +76,7 @@ run_flooding(const typename DoFHandler<dim>::cell_iterator &   cell,
   unsigned int counter = 1;
 
   for (const auto face : cell->face_indices())
-    if (cell->at_boundary(face) == false &&
-        cell->neighbor(face)->is_locally_owned())
+    if (cell->at_boundary(face) == false)
       counter += run_flooding<dim, Number>(cell->neighbor(face),
                                            solution,
                                            particle_ids,
@@ -148,11 +160,8 @@ main(int argc, char **argv)
   unsigned int counter = 0;
   unsigned int offset  = 0;
 
-  for (const auto &cell :
-       dof_handler
-         .active_cell_iterators()) // TODO: extend for locally refined meshes
-    if (cell->is_locally_owned() &&
-        (run_flooding<dim, double>(cell, solution, particle_ids, counter) > 0))
+  for (const auto &cell : dof_handler.active_cell_iterators())
+    if (run_flooding<dim, double>(cell, solution, particle_ids, counter) > 0)
       counter++;
 
   // step 2) determine the global number of locally determined particles and
@@ -170,31 +179,49 @@ main(int argc, char **argv)
   std::vector<std::vector<std::tuple<unsigned int, unsigned int>>>
     local_connectiviy(counter);
 
-  for (const auto &cell : tria.active_cell_iterators())
-    if (cell->is_ghost())
+  for (const auto &ghost_cell : tria.active_cell_iterators())
+    if (ghost_cell->is_ghost())
       {
-        const auto particle_id = particle_ids[cell->global_active_cell_index()];
+        const auto particle_id =
+          particle_ids[ghost_cell->global_active_cell_index()];
 
         if (particle_id == invalid_particle_id)
           continue;
 
-        for (const auto face :
-             cell->face_indices()) // TODO: extend for locally refined meshes
-          if (cell->at_boundary(face) == false &&
-              cell->neighbor(face)->is_locally_owned())
-            {
+        for (const auto face : ghost_cell->face_indices())
+          {
+            if (ghost_cell->at_boundary(face))
+              continue;
+
+            const auto add = [&](const auto &ghost_cell,
+                                 const auto &local_cell) {
+              if (local_cell->is_locally_owned() == false)
+                return;
+
               const auto neighbor_particle_id =
-                particle_ids[cell->neighbor(face)->global_active_cell_index()];
+                particle_ids[local_cell->global_active_cell_index()];
 
               if (neighbor_particle_id == invalid_particle_id)
-                continue;
+                return;
 
               auto &temp = local_connectiviy[neighbor_particle_id - offset];
-              temp.emplace_back(cell->subdomain_id(), particle_id);
-
+              temp.emplace_back(ghost_cell->subdomain_id(), particle_id);
               std::sort(temp.begin(), temp.end());
               temp.erase(std::unique(temp.begin(), temp.end()), temp.end());
-            }
+            };
+
+            if (ghost_cell->neighbor(face)->has_children())
+              {
+                for (unsigned int subface = 0;
+                     subface < GeometryInfo<dim>::n_subfaces(
+                                 internal::SubfaceCase<dim>::case_isotropic);
+                     ++subface)
+                  add(ghost_cell,
+                      ghost_cell->neighbor_child_on_subface(face, subface));
+              }
+            else
+              add(ghost_cell, ghost_cell->neighbor(face));
+          }
       }
 
   // step 4) based on the local-ghost information, figure out all particles

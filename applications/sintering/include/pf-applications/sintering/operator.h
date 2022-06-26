@@ -1212,7 +1212,7 @@ namespace Sintering
       const MatrixFree<dim, Number, VectorizedArrayType> &          matrix_free,
       const LinearAlgebra::distributed::DynamicBlockVector<Number> &src)
     {
-      Assert(src.n_blocks(), this->n_components());
+      AssertDimension(src.n_blocks(), this->n_components());
 
       const unsigned n_cells             = matrix_free.n_cell_batches();
       const unsigned n_quadrature_points = matrix_free.get_quadrature().size();
