@@ -236,16 +236,21 @@ namespace Sintering
            params.preconditioners_data.block_preconditioner_2_data
                .block_1_preconditioner == "GMG"))
         {
+          std::cout << "initialize::A" << std::endl;
           mg_triangulations = MGTransferGlobalCoarseningTools::
             create_geometric_coarsening_sequence(tria);
 
           const unsigned int min_level = 0;
           const unsigned int max_level = mg_triangulations.size() - 1;
 
+          const unsigned int max_max_level =
+            tria.n_global_levels() +
+            params.adaptivity_data.max_refinement_depth;
+
           mg_dof_handlers.resize(min_level, max_level);
-          mg_constraints.resize(min_level, max_level);
+          mg_constraints.resize(min_level, max_max_level);
           transfers.resize(min_level, max_level);
-          mg_matrix_free.resize(min_level, max_level);
+          mg_matrix_free.resize(min_level, max_max_level);
 
           for (unsigned int l = min_level; l <= max_level; ++l)
             {
@@ -277,6 +282,7 @@ namespace Sintering
             transfers, [&](const auto l, auto &vec) {
               mg_matrix_free[l].initialize_dof_vector(vec);
             });
+          std::cout << "initialize::B" << std::endl;
         }
 
       types::global_cell_index n_cells_w_hn  = 0;
@@ -665,9 +671,13 @@ namespace Sintering
 
         initialize(solution_dealii.n_blocks());
 
+        std::cout << "AA" << std::endl;
+
         nonlinear_operator.clear();
         non_linear_solver->clear();
         preconditioner->clear();
+
+        std::cout << "AB" << std::endl;
 
         nonlinear_operator.initialize_dof_vector(solution);
 
