@@ -86,6 +86,7 @@ namespace Sintering
   {
     bool                  regular              = true;
     bool                  contours             = true;
+    unsigned int          n_coarsening_steps   = 0;
     bool                  debug                = false;
     bool                  higher_order_cells   = false;
     double                output_time_interval = 10;
@@ -329,6 +330,9 @@ namespace Sintering
                         "Whether regular output is enabled.");
       prm.add_parameter("Contour",
                         output_data.contours,
+                        "Whether contour output is enabled.");
+      prm.add_parameter("ContourNCoarseningSteps",
+                        output_data.n_coarsening_steps,
                         "Whether contour output is enabled.");
       prm.add_parameter("Debug",
                         output_data.debug,

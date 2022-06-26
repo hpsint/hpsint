@@ -968,7 +968,12 @@ namespace Sintering
                 << std::endl;
 
           Postprocessors::output_grain_contours(
-            mapping, dof_handler, solution, 0.5, output);
+            mapping,
+            dof_handler,
+            solution,
+            0.5,
+            output,
+            params.output_data.n_coarsening_steps);
 
           counters[label]++;
         }
