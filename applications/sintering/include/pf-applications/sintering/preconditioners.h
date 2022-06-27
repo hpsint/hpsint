@@ -610,8 +610,6 @@ namespace Sintering
                            constraints,
                            sintering_data,
                            data.block_1_approximation)
-      , pcout(std::cout, Utilities::MPI::this_mpi_process(MPI_COMM_WORLD) == 0)
-      , timer(pcout, TimerOutput::never, TimerOutput::wall_times)
       , data(data)
     {
       preconditioner_0 =
@@ -630,13 +628,6 @@ namespace Sintering
         {
           AssertThrow(false, ExcNotImplemented());
         }
-    }
-
-    ~BlockPreconditioner2()
-    {
-      if (timer.get_summary_data(TimerOutput::OutputData::total_wall_time)
-            .size() > 0)
-        timer.print_wall_time_statistics(MPI_COMM_WORLD);
     }
 
     virtual void
@@ -703,8 +694,7 @@ namespace Sintering
     std::unique_ptr<Preconditioners::PreconditionerBase<Number>>
       preconditioner_0, preconditioner_1;
 
-    ConditionalOStream  pcout;
-    mutable TimerOutput timer;
+    mutable MyTimerOutput timer;
 
     const BlockPreconditioner2Data data;
   };

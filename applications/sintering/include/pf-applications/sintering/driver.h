@@ -328,9 +328,8 @@ namespace Sintering
                                                         *preconditioner,
                                                         solver_control_l);
 
-      TimerOutput timer(pcout_statistics,
-                        TimerOutput::never,
-                        TimerOutput::wall_times);
+      MyTimerOutput timer;
+      TimerCollection::configure(params.profiling_data.output_time_interval);
 
       // ... non-linear Newton solver
       NonLinearSolvers::NewtonSolverSolverControl statistics(
@@ -673,10 +672,11 @@ namespace Sintering
 
       // run time loop
       {
-        TimerOutput::Scope scope(timer, "time_loop");
         for (double t = 0, dt = params.time_integration_data.time_step_init;
              t <= params.time_integration_data.time_end;)
           {
+            TimerOutput::Scope scope(timer(), "time_loop");
+
             if (n_timestep != 0 &&
                 params.adaptivity_data.refinement_frequency > 0 &&
                 n_timestep % params.adaptivity_data.refinement_frequency == 0)
@@ -909,6 +909,8 @@ namespace Sintering
                 time_last_output = t;
                 output_result(solution, nonlinear_operator, time_last_output);
               }
+
+            TimerCollection::print_all_wall_time_statistics();
           }
       }
 
@@ -930,7 +932,7 @@ namespace Sintering
       pcout_statistics << std::endl;
       // clang-format on
 
-      timer.print_wall_time_statistics(MPI_COMM_WORLD);
+      TimerCollection::print_all_wall_time_statistics(true);
     }
 
   private:

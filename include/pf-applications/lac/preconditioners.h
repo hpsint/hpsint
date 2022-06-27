@@ -482,16 +482,7 @@ namespace Preconditioners
 
     AMG(const Operator &op)
       : op(op)
-      , pcout(std::cout, Utilities::MPI::this_mpi_process(MPI_COMM_WORLD) == 0)
-      , timer(pcout, TimerOutput::never, TimerOutput::wall_times)
     {}
-
-    ~AMG()
-    {
-      if (timer.get_summary_data(TimerOutput::OutputData::total_wall_time)
-            .size() > 0)
-        timer.print_wall_time_statistics(MPI_COMM_WORLD);
-    }
 
     virtual void
     clear()
@@ -541,8 +532,7 @@ namespace Preconditioners
     TrilinosWrappers::PreconditionAMG::AdditionalData additional_data;
     TrilinosWrappers::PreconditionAMG                 precondition_amg;
 
-    ConditionalOStream  pcout;
-    mutable TimerOutput timer;
+    mutable MyTimerOutput timer;
 
     mutable VectorType src_, dst_;
   };
@@ -559,16 +549,7 @@ namespace Preconditioners
 
     BlockAMG(const Operator &op)
       : op(op)
-      , pcout(std::cout, Utilities::MPI::this_mpi_process(MPI_COMM_WORLD) == 0)
-      , timer(pcout, TimerOutput::never, TimerOutput::wall_times)
     {}
-
-    ~BlockAMG()
-    {
-      if (timer.get_summary_data(TimerOutput::OutputData::total_wall_time)
-            .size() > 0)
-        timer.print_wall_time_statistics(MPI_COMM_WORLD);
-    }
 
     virtual void
     clear()
@@ -616,8 +597,7 @@ namespace Preconditioners
     std::vector<std::shared_ptr<TrilinosWrappers::PreconditionAMG>>
       precondition_amg;
 
-    ConditionalOStream  pcout;
-    mutable TimerOutput timer;
+    mutable MyTimerOutput timer;
   };
 
 
@@ -632,20 +612,11 @@ namespace Preconditioners
 
     ILU(const Operator &op)
       : op(op)
-      , pcout(std::cout, Utilities::MPI::this_mpi_process(MPI_COMM_WORLD) == 0)
-      , timer(pcout, TimerOutput::never, TimerOutput::wall_times)
     {
       additional_data.ilu_fill = 0;
       additional_data.ilu_atol = 0.0;
       additional_data.ilu_rtol = 1.0;
       additional_data.overlap  = 0;
-    }
-
-    ~ILU()
-    {
-      if (timer.get_summary_data(TimerOutput::OutputData::total_wall_time)
-            .size() > 0)
-        timer.print_wall_time_statistics(MPI_COMM_WORLD);
     }
 
     virtual void
@@ -695,8 +666,7 @@ namespace Preconditioners
     TrilinosWrappers::PreconditionILU::AdditionalData additional_data;
     TrilinosWrappers::PreconditionILU                 precondition_ilu;
 
-    ConditionalOStream  pcout;
-    mutable TimerOutput timer;
+    mutable MyTimerOutput timer;
 
     mutable VectorType src_, dst_;
   };
@@ -714,20 +684,11 @@ namespace Preconditioners
     BlockILU(const Operator &op)
       : op(op)
       , single_block(op.n_unique_components() == 1)
-      , pcout(std::cout, Utilities::MPI::this_mpi_process(MPI_COMM_WORLD) == 0)
-      , timer(pcout, TimerOutput::never, TimerOutput::wall_times)
     {
       additional_data.ilu_fill = 0;
       additional_data.ilu_atol = 0.0;
       additional_data.ilu_rtol = 1.0;
       additional_data.overlap  = 0;
-    }
-
-    ~BlockILU()
-    {
-      if (timer.get_summary_data(TimerOutput::OutputData::total_wall_time)
-            .size() > 0)
-        timer.print_wall_time_statistics(MPI_COMM_WORLD);
     }
 
     virtual void
@@ -783,8 +744,7 @@ namespace Preconditioners
     std::vector<std::shared_ptr<TrilinosWrappers::PreconditionILU>>
       precondition_ilu;
 
-    ConditionalOStream  pcout;
-    mutable TimerOutput timer;
+    mutable MyTimerOutput timer;
   };
 
 
