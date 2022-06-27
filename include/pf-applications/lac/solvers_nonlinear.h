@@ -11,6 +11,14 @@ namespace NonLinearSolvers
 
   struct NewtonSolverSolverControl
   {
+  public:
+    enum State
+    {
+      iterate,
+      success,
+      failure
+    };
+
     NewtonSolverSolverControl(const unsigned int max_iter = 10,
                               const double       abs_tol  = 1.e-20,
                               const double       rel_tol  = 1.e-5)
@@ -45,10 +53,30 @@ namespace NonLinearSolvers
       return residual_evaluations;
     }
 
+    State
+    check(const unsigned int step, const double check_value)
+    {
+      if (step == 0)
+        this->check_value_0 = check_value;
+
+      this->newton_iterations = step;
+
+      if (check_value > abs_tol && check_value / check_value_0 > rel_tol &&
+          newton_iterations < max_iter)
+        return iterate;
+
+      if (check_value <= abs_tol || check_value / check_value_0 <= rel_tol)
+        return success;
+
+      return failure;
+    }
+
   private:
     const unsigned int max_iter;
     const double       abs_tol;
     const double       rel_tol;
+
+    double check_value_0 = 0.0;
 
     unsigned int newton_iterations    = 0;
     unsigned int linear_iterations    = 0;
@@ -116,12 +144,10 @@ namespace NonLinearSolvers
       residual(dst, vec_residual);
       ++statistics.residual_evaluations;
 
-      double norm_r   = vec_residual.l2_norm();
-      double norm_r_0 = norm_r;
+      double   norm_r = vec_residual.l2_norm();
+      unsigned it     = 0;
 
-      while (norm_r > this->statistics.abs_tol &&
-             norm_r / norm_r_0 > statistics.rel_tol &&
-             statistics.newton_iterations < statistics.max_iter)
+      while (statistics.check(it, norm_r) == NewtonSolverSolverControl::iterate)
         {
           // reset increment
           increment = 0.0;
@@ -183,12 +209,12 @@ namespace NonLinearSolvers
           norm_r = norm_r_tmp;
 
           // increment iteration counter
-          ++statistics.newton_iterations;
+          ++it;
           ++history_newton_iterations;
         }
 
-      AssertThrow(norm_r <= this->statistics.abs_tol ||
-                    norm_r / norm_r_0 <= statistics.rel_tol,
+      AssertThrow(statistics.check(it, norm_r) ==
+                    NewtonSolverSolverControl::success,
                   ExcNewtonDidNotConverge("Newton"));
     }
 
