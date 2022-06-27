@@ -321,6 +321,7 @@ namespace GrainTracker
       const MPI_Comm                                                   comm,
       std::vector<std::vector<std::tuple<unsigned int, unsigned int>>> input)
     {
+      const unsigned int n_ranks = Utilities::MPI::n_mpi_processes(comm);
       const unsigned int my_rank = Utilities::MPI::this_mpi_process(comm);
 
       // step 1) determine - via fixed-point iteration - the clique of
@@ -396,7 +397,8 @@ namespace GrainTracker
             },
             comm);
 
-          if (finished) // run as long as no clique has changed
+          if (Utilities::MPI::sum(static_cast<unsigned int>(finished), comm) ==
+              n_ranks) // run as long as no clique has changed
             break;
         }
 
@@ -465,6 +467,8 @@ namespace GrainTracker
             }
         },
         comm);
+
+      MPI_Barrier(comm);
 
       return result;
     }
