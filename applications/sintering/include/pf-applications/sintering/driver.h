@@ -910,9 +910,20 @@ namespace Sintering
 
         solution.update_ghost_values();
 
+        const auto time_total = std::chrono::system_clock::now();
+
         const auto [has_reassigned_grains, has_op_number_changed] =
           do_initialize ? grain_tracker.initial_setup(solution) :
                           grain_tracker.track(solution);
+
+        const double time_total_double =
+          std::chrono::duration_cast<std::chrono::nanoseconds>(
+            std::chrono::system_clock::now() - time_total)
+            .count() /
+          1e9;
+
+        pcout << Utilities::MPI::max(time_total_double, MPI_COMM_WORLD);
+
 
         grain_tracker.print_current_grains(pcout);
 
