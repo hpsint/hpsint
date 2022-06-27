@@ -6,6 +6,9 @@ namespace NonLinearSolvers
 {
   using namespace dealii;
 
+  template <typename VectorType>
+  class NewtonSolver;
+
   struct NewtonSolverSolverControl
   {
     NewtonSolverSolverControl(const unsigned int max_iter = 10,
@@ -24,6 +27,25 @@ namespace NonLinearSolvers
       residual_evaluations = 0;
     }
 
+    unsigned int
+    n_newton_iterations() const
+    {
+      return newton_iterations;
+    }
+
+    unsigned int
+    n_linear_iterations() const
+    {
+      return linear_iterations;
+    }
+
+    unsigned int
+    n_residual_evaluations() const
+    {
+      return residual_evaluations;
+    }
+
+  private:
     const unsigned int max_iter;
     const double       abs_tol;
     const double       rel_tol;
@@ -31,6 +53,9 @@ namespace NonLinearSolvers
     unsigned int newton_iterations    = 0;
     unsigned int linear_iterations    = 0;
     unsigned int residual_evaluations = 0;
+
+    template <typename>
+    friend class NewtonSolver;
   };
 
 

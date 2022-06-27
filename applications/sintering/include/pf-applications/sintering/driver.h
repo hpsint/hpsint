@@ -330,7 +330,8 @@ namespace Sintering
 
       // ... non-linear Newton solver
       NonLinearSolvers::NewtonSolverSolverControl statistics;
-      auto                                        non_linear_solver =
+
+      auto non_linear_solver =
         std::make_unique<NonLinearSolvers::NewtonSolver<VectorType>>(
           statistics);
 
@@ -797,23 +798,23 @@ namespace Sintering
 
                 pcout << "t = " << t << ", t_n = " << n_timestep
                       << ", dt = " << dt << ":"
-                      << " solved in " << statistics.newton_iterations
+                      << " solved in " << statistics.n_newton_iterations()
                       << " Newton iterations and "
-                      << statistics.linear_iterations << " linear iterations"
-                      << std::endl;
+                      << statistics.n_linear_iterations()
+                      << " linear iterations" << std::endl;
 
                 n_timestep += 1;
-                n_linear_iterations += statistics.linear_iterations;
-                n_non_linear_iterations += statistics.newton_iterations;
-                n_residual_evaluations += statistics.residual_evaluations;
+                n_linear_iterations += statistics.n_linear_iterations();
+                n_non_linear_iterations += statistics.n_newton_iterations();
+                n_residual_evaluations += statistics.n_residual_evaluations();
                 max_reached_dt = std::max(max_reached_dt, dt);
 
                 if (std::abs(t - params.time_integration_data.time_end) > 1e-9)
                   {
-                    if (statistics.newton_iterations <
+                    if (statistics.n_newton_iterations() <
                           params.time_integration_data
                             .desirable_newton_iterations &&
-                        statistics.linear_iterations <
+                        statistics.n_linear_iterations() <
                           params.time_integration_data
                             .desirable_linear_iterations)
                       {
@@ -843,10 +844,11 @@ namespace Sintering
                       << std::endl;
 
                 n_failed_tries += 1;
-                n_failed_linear_iterations += statistics.linear_iterations;
-                n_failed_non_linear_iterations += statistics.newton_iterations;
+                n_failed_linear_iterations += statistics.n_linear_iterations();
+                n_failed_non_linear_iterations +=
+                  statistics.n_newton_iterations();
                 n_failed_residual_evaluations +=
-                  statistics.residual_evaluations;
+                  statistics.n_residual_evaluations();
 
                 solution = nonlinear_operator.get_previous_solution();
 
@@ -868,10 +870,11 @@ namespace Sintering
                   << dt << "\033[0m" << std::endl;
 
                 n_failed_tries += 1;
-                n_failed_linear_iterations += statistics.linear_iterations;
-                n_failed_non_linear_iterations += statistics.newton_iterations;
+                n_failed_linear_iterations += statistics.n_linear_iterations();
+                n_failed_non_linear_iterations +=
+                  statistics.n_newton_iterations();
                 n_failed_residual_evaluations +=
-                  statistics.residual_evaluations;
+                  statistics.n_residual_evaluations();
 
                 solution = nonlinear_operator.get_previous_solution();
 
