@@ -891,6 +891,7 @@ namespace Sintering
       // New grains can not appear in current sintering simulations
       GrainTracker::Tracker<dim, Number> grain_tracker(
         dof_handler,
+        tria,
         !params.geometry_data.minimize_order_parameters,
         /*allow_new_grains*/ false,
         MAX_SINTERING_GRAINS,

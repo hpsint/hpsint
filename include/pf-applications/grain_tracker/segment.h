@@ -35,6 +35,11 @@ namespace GrainTracker
         }
     }
 
+    Segment(const dealii::Point<dim> &center_in, const double radius_in)
+      : center(center_in)
+      , radius(radius_in)
+    {}
+
     dealii::Point<dim>
     get_center() const
     {
