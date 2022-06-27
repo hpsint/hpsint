@@ -9,6 +9,8 @@ namespace NonLinearSolvers
   template <typename VectorType>
   class NewtonSolver;
 
+
+
   struct NewtonSolverSolverControl
   {
   public:
@@ -88,13 +90,6 @@ namespace NonLinearSolvers
 
 
 
-  DeclException1(
-    ExcNewtonDidNotConverge,
-    std::string,
-    << "Damped Newton iteration did not converge. Maximum number of " << arg1
-    << " iterations exceed!");
-
-
   struct NewtonSolverAdditionalData
   {
     NewtonSolverAdditionalData(const bool         do_update             = true,
@@ -111,6 +106,34 @@ namespace NonLinearSolvers
     const unsigned int threshold_newton_iter;
     const unsigned int threshold_linear_iter;
     const bool         reuse_preconditioner;
+  };
+
+
+
+  class ExcNewtonDidNotConverge : public dealii::ExceptionBase
+  {
+  public:
+    ExcNewtonDidNotConverge(const std::string &label)
+      : label(label)
+    {}
+
+    virtual ~ExcNewtonDidNotConverge() noexcept override = default;
+
+    virtual void
+    print_info(std::ostream &out) const override
+    {
+      out << message() << std::endl;
+    }
+
+    std::string
+    message() const
+    {
+      return "Maximum number of " + this->label +
+             " iterations of damp Netwon exceeded!";
+    }
+
+  private:
+    const std::string label;
   };
 
 

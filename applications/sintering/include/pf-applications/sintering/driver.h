@@ -839,8 +839,8 @@ namespace Sintering
             catch (const NonLinearSolvers::ExcNewtonDidNotConverge &e)
               {
                 dt *= 0.5;
-                pcout << "\033[31m" << e.what()
-                      << "  Reducing timestep, dt = " << dt << "\033[0m"
+                pcout << "\033[31m" << e.message()
+                      << " Reducing timestep, dt = " << dt << "\033[0m"
                       << std::endl;
 
                 n_failed_tries += 1;
