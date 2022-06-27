@@ -692,17 +692,11 @@ namespace Sintering
       , dof_index(dof_index)
       , label(label)
       , pcout(std::cout, Utilities::MPI::this_mpi_process(MPI_COMM_WORLD) == 0)
-      , timer(pcout, TimerOutput::never, TimerOutput::wall_times)
+      , timer(label != "")
       , do_timing(true)
     {}
 
-    virtual ~OperatorBase()
-    {
-      if (label != "" &&
-          timer.get_summary_data(TimerOutput::OutputData::total_wall_time)
-              .size() > 0)
-        timer.print_wall_time_statistics(MPI_COMM_WORLD);
-    }
+    virtual ~OperatorBase() = default;
 
     virtual void
     clear()
@@ -1123,9 +1117,9 @@ namespace Sintering
     mutable std::vector<std::shared_ptr<TrilinosWrappers::SparseMatrix>>
       block_system_matrix;
 
-    ConditionalOStream  pcout;
-    mutable TimerOutput timer;
-    mutable bool        do_timing;
+    ConditionalOStream    pcout;
+    mutable MyTimerOutput timer;
+    mutable bool          do_timing;
 
     mutable VectorType src_, dst_;
   };

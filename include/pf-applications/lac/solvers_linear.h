@@ -41,16 +41,7 @@ namespace LinearSolvers
       : op(op)
       , preconditioner(preconditioner)
       , solver_control(solver_control)
-      , pcout(std::cout, Utilities::MPI::this_mpi_process(MPI_COMM_WORLD) == 0)
-      , timer(pcout, TimerOutput::never, TimerOutput::wall_times)
     {}
-
-    ~SolverGMRESWrapper()
-    {
-      if (timer.get_summary_data(TimerOutput::OutputData::total_wall_time)
-            .size() > 0)
-        timer.print_wall_time_statistics(MPI_COMM_WORLD);
-    }
 
     unsigned int
     solve(VectorType &dst, const VectorType &src) override
@@ -78,7 +69,6 @@ namespace LinearSolvers
     Preconditioner &preconditioner;
     SolverControl & solver_control;
 
-    ConditionalOStream  pcout;
-    mutable TimerOutput timer;
+    mutable MyTimerOutput timer;
   };
 } // namespace LinearSolvers
