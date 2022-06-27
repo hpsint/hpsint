@@ -6,41 +6,102 @@ namespace NonLinearSolvers
 {
   using namespace dealii;
 
-  struct NonLinearSolverStatistics
+  template <typename VectorType>
+  class NewtonSolver;
+
+
+
+  struct NewtonSolverSolverControl
   {
-    unsigned int newton_iterations = 0;
-    unsigned int linear_iterations = 0;
+  public:
+    enum State
+    {
+      iterate,
+      success,
+      failure
+    };
+
+    NewtonSolverSolverControl(const unsigned int max_iter = 10,
+                              const double       abs_tol  = 1.e-20,
+                              const double       rel_tol  = 1.e-5)
+      : max_iter(max_iter)
+      , abs_tol(abs_tol)
+      , rel_tol(rel_tol)
+    {}
+
+    void
+    clear()
+    {
+      newton_iterations    = 0;
+      linear_iterations    = 0;
+      residual_evaluations = 0;
+    }
+
+    unsigned int
+    n_newton_iterations() const
+    {
+      return newton_iterations;
+    }
+
+    unsigned int
+    n_linear_iterations() const
+    {
+      return linear_iterations;
+    }
+
+    unsigned int
+    n_residual_evaluations() const
+    {
+      return residual_evaluations;
+    }
+
+    State
+    check(const unsigned int step, const double check_value)
+    {
+      if (step == 0)
+        this->check_value_0 = check_value;
+
+      this->newton_iterations = step;
+
+      if (check_value > abs_tol && check_value / check_value_0 > rel_tol &&
+          newton_iterations < max_iter)
+        return iterate;
+
+      if (check_value <= abs_tol || check_value / check_value_0 <= rel_tol)
+        return success;
+
+      return failure;
+    }
+
+  private:
+    const unsigned int max_iter;
+    const double       abs_tol;
+    const double       rel_tol;
+
+    double check_value_0 = 0.0;
+
+    unsigned int newton_iterations    = 0;
+    unsigned int linear_iterations    = 0;
+    unsigned int residual_evaluations = 0;
+
+    template <typename>
+    friend class NewtonSolver;
   };
 
 
 
-  DeclExceptionMsg(
-    ExcNewtonDidNotConverge,
-    "Damped Newton iteration did not converge. Maximum number of iterations exceed!");
-
-
-
-  struct NewtonSolverData
+  struct NewtonSolverAdditionalData
   {
-    NewtonSolverData(const unsigned int max_iter              = 100,
-                     const double       abs_tol               = 1.e-20,
-                     const double       rel_tol               = 1.e-5,
-                     const bool         do_update             = true,
-                     const unsigned int threshold_newton_iter = 10,
-                     const unsigned int threshold_linear_iter = 20,
-                     const bool         reuse_preconditioner  = true)
-      : max_iter(max_iter)
-      , abs_tol(abs_tol)
-      , rel_tol(rel_tol)
-      , do_update(do_update)
+    NewtonSolverAdditionalData(const bool         do_update             = true,
+                               const unsigned int threshold_newton_iter = 10,
+                               const unsigned int threshold_linear_iter = 20,
+                               const bool         reuse_preconditioner  = true)
+      : do_update(do_update)
       , threshold_newton_iter(threshold_newton_iter)
       , threshold_linear_iter(threshold_linear_iter)
       , reuse_preconditioner(reuse_preconditioner)
     {}
 
-    const unsigned int max_iter;
-    const double       abs_tol;
-    const double       rel_tol;
     const bool         do_update;
     const unsigned int threshold_newton_iter;
     const unsigned int threshold_linear_iter;
@@ -49,15 +110,46 @@ namespace NonLinearSolvers
 
 
 
+  class ExcNewtonDidNotConverge : public dealii::ExceptionBase
+  {
+  public:
+    ExcNewtonDidNotConverge(const std::string &label)
+      : label(label)
+    {}
+
+    virtual ~ExcNewtonDidNotConverge() noexcept override = default;
+
+    virtual void
+    print_info(std::ostream &out) const override
+    {
+      out << message() << std::endl;
+    }
+
+    std::string
+    message() const
+    {
+      return "Maximum number of " + this->label +
+             " iterations of damp Netwon exceeded!";
+    }
+
+  private:
+    const std::string label;
+  };
+
+
+
   template <typename VectorType>
   class NewtonSolver
   {
   public:
-    NewtonSolver(const NewtonSolverData &solver_data_in = NewtonSolverData())
-      : solver_data(solver_data_in)
+    NewtonSolver(NewtonSolverSolverControl &       statistics,
+                 const NewtonSolverAdditionalData &solver_data_in =
+                   NewtonSolverAdditionalData())
+      : statistics(statistics)
+      , solver_data(solver_data_in)
     {}
 
-    NonLinearSolverStatistics
+    void
     solve(VectorType &dst) const
     {
       VectorType vec_residual, increment, tmp;
@@ -68,18 +160,17 @@ namespace NonLinearSolvers
       if (this->solver_data.reuse_preconditioner == false)
         clear();
 
+      // Accumulated linear iterations
+      this->statistics.clear();
+
       // evaluate residual using the given estimate of the solution
       residual(dst, vec_residual);
+      ++statistics.residual_evaluations;
 
-      double norm_r   = vec_residual.l2_norm();
-      double norm_r_0 = norm_r;
+      double   norm_r = vec_residual.l2_norm();
+      unsigned it     = 0;
 
-      // Accumulated linear iterations
-      NonLinearSolverStatistics statistics;
-
-      while (norm_r > this->solver_data.abs_tol &&
-             norm_r / norm_r_0 > solver_data.rel_tol &&
-             statistics.newton_iterations < solver_data.max_iter)
+      while (statistics.check(it, norm_r) == NewtonSolverSolverControl::iterate)
         {
           // reset increment
           increment = 0.0;
@@ -119,6 +210,7 @@ namespace NonLinearSolvers
 
               // evaluate residual using the temporary solution
               residual(tmp, vec_residual);
+              ++statistics.residual_evaluations;
 
               // calculate norm of residual (for temporary solution)
               norm_r_tmp = vec_residual.l2_norm();
@@ -133,22 +225,20 @@ namespace NonLinearSolvers
                  n_iter_tmp < N_ITER_TMP_MAX);
 
           AssertThrow(norm_r_tmp < (1.0 - tau * omega) * norm_r,
-                      ExcNewtonDidNotConverge());
+                      ExcNewtonDidNotConverge("damping"));
 
           // update solution and residual
           dst    = tmp;
           norm_r = norm_r_tmp;
 
           // increment iteration counter
-          ++statistics.newton_iterations;
+          ++it;
           ++history_newton_iterations;
         }
 
-      AssertThrow(norm_r <= this->solver_data.abs_tol ||
-                    norm_r / norm_r_0 <= solver_data.rel_tol,
-                  ExcNewtonDidNotConverge());
-
-      return statistics;
+      AssertThrow(statistics.check(it, norm_r) ==
+                    NewtonSolverSolverControl::success,
+                  ExcNewtonDidNotConverge("Newton"));
     }
 
     void
@@ -160,7 +250,8 @@ namespace NonLinearSolvers
 
 
   private:
-    const NewtonSolverData solver_data;
+    NewtonSolverSolverControl &      statistics;
+    const NewtonSolverAdditionalData solver_data;
 
     mutable unsigned int history_linear_iterations_last = 0;
     mutable unsigned int history_newton_iterations      = 0;

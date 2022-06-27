@@ -108,6 +108,22 @@ namespace Sintering
     bool run_vmults = false;
   };
 
+  struct NonLinearData
+  {
+    int    nl_max_iter = 10;
+    double nl_abs_tol  = 1.e-20;
+    double nl_rel_tol  = 1.e-5;
+
+    int    l_max_iter = 1000;
+    double l_abs_tol  = 1.e-10;
+    double l_rel_tol  = 1.e-2;
+
+    bool         newton_do_update             = true;
+    unsigned int newton_threshold_newton_iter = 100;
+    unsigned int newton_threshold_linear_iter = 20;
+    bool         newton_reuse_preconditioner  = true;
+  };
+
 
   struct Parameters
   {
@@ -121,6 +137,7 @@ namespace Sintering
     OutputData          output_data;
     PreconditionersData preconditioners_data;
     ProfilingData       profiling_data;
+    NonLinearData       nonlinear_data;
 
     bool matrix_based = false;
 

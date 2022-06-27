@@ -35,9 +35,12 @@ namespace LinearSolvers
     using VectorType      = typename Operator::vector_type;
     using BlockVectorType = typename Operator::BlockVectorType;
 
-    SolverGMRESWrapper(const Operator &op, Preconditioner &preconditioner)
+    SolverGMRESWrapper(const Operator &op,
+                       Preconditioner &preconditioner,
+                       SolverControl & solver_control)
       : op(op)
       , preconditioner(preconditioner)
+      , solver_control(solver_control)
       , pcout(std::cout, Utilities::MPI::this_mpi_process(MPI_COMM_WORLD) == 0)
       , timer(pcout, TimerOutput::never, TimerOutput::wall_times)
     {}
@@ -54,12 +57,10 @@ namespace LinearSolvers
     {
       MyScope scope(timer, "gmres::solve");
 
-      unsigned int            max_iter = 1000;
-      ReductionControl        reduction_control(max_iter, 1.e-10, 1.e-2);
-      SolverGMRES<VectorType> solver(reduction_control);
+      SolverGMRES<VectorType> solver(solver_control);
       solver.solve(op, dst, src, preconditioner);
 
-      return reduction_control.last_step();
+      return solver_control.last_step();
     }
 
     unsigned int
@@ -67,16 +68,15 @@ namespace LinearSolvers
     {
       MyScope scope(timer, "gmres::solve");
 
-      unsigned int                 max_iter = 1000;
-      ReductionControl             reduction_control(max_iter, 1.e-10, 1.e-2);
-      SolverGMRES<BlockVectorType> solver(reduction_control);
+      SolverGMRES<BlockVectorType> solver(solver_control);
       solver.solve(op, dst, src, preconditioner);
 
-      return reduction_control.last_step();
+      return solver_control.last_step();
     }
 
     const Operator &op;
     Preconditioner &preconditioner;
+    SolverControl & solver_control;
 
     ConditionalOStream  pcout;
     mutable TimerOutput timer;
