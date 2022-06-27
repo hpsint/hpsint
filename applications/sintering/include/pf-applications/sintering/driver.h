@@ -316,24 +316,36 @@ namespace Sintering
           nonlinear_operator, params.preconditioners_data.outer_preconditioner);
 
       // ... linear solver
+      ReductionControl solver_control_l(params.nonlinear_data.l_max_iter,
+                                        params.nonlinear_data.l_abs_tol,
+                                        params.nonlinear_data.l_rel_tol);
       std::unique_ptr<LinearSolvers::LinearSolverBase<Number>> linear_solver;
 
       if (true)
         linear_solver = std::make_unique<LinearSolvers::SolverGMRESWrapper<
           NonLinearOperator,
           Preconditioners::PreconditionerBase<Number>>>(nonlinear_operator,
-                                                        *preconditioner);
+                                                        *preconditioner,
+                                                        solver_control_l);
 
       TimerOutput timer(pcout_statistics,
                         TimerOutput::never,
                         TimerOutput::wall_times);
 
       // ... non-linear Newton solver
-      NonLinearSolvers::NewtonSolverSolverControl statistics;
+      NonLinearSolvers::NewtonSolverSolverControl statistics(
+        params.nonlinear_data.nl_max_iter,
+        params.nonlinear_data.nl_abs_tol,
+        params.nonlinear_data.nl_rel_tol);
 
       auto non_linear_solver =
         std::make_unique<NonLinearSolvers::NewtonSolver<VectorType>>(
-          statistics);
+          statistics,
+          NonLinearSolvers::NewtonSolverAdditionalData(
+            params.nonlinear_data.newton_do_update,
+            params.nonlinear_data.newton_threshold_newton_iter,
+            params.nonlinear_data.newton_threshold_linear_iter,
+            params.nonlinear_data.newton_reuse_preconditioner));
 
       non_linear_solver->reinit_vector = [&](auto &vector) {
         MyScope scope(timer, "time_loop::newton::reinit_vector");
