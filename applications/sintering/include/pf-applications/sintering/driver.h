@@ -329,7 +329,7 @@ namespace Sintering
                         TimerOutput::wall_times);
 
       // ... non-linear Newton solver
-      NonLinearSolvers::NonLinearSolverStatistics statistics;
+      NonLinearSolvers::NewtonSolverSolverControl statistics;
       auto                                        non_linear_solver =
         std::make_unique<NonLinearSolvers::NewtonSolver<VectorType>>(
           statistics);

@@ -6,8 +6,28 @@ namespace NonLinearSolvers
 {
   using namespace dealii;
 
-  struct NonLinearSolverStatistics
+  struct NewtonSolverSolverControl
   {
+    NewtonSolverSolverControl(const unsigned int max_iter = 10,
+                              const double       abs_tol  = 1.e-20,
+                              const double       rel_tol  = 1.e-5)
+      : max_iter(max_iter)
+      , abs_tol(abs_tol)
+      , rel_tol(rel_tol)
+    {}
+
+    void
+    clear()
+    {
+      newton_iterations    = 0;
+      linear_iterations    = 0;
+      residual_evaluations = 0;
+    }
+
+    const unsigned int max_iter;
+    const double       abs_tol;
+    const double       rel_tol;
+
     unsigned int newton_iterations    = 0;
     unsigned int linear_iterations    = 0;
     unsigned int residual_evaluations = 0;
@@ -22,27 +42,18 @@ namespace NonLinearSolvers
     << " iterations exceed!");
 
 
-  struct NewtonSolverData
+  struct NewtonSolverAdditionalData
   {
-    NewtonSolverData(const unsigned int max_iter              = 10,
-                     const double       abs_tol               = 1.e-20,
-                     const double       rel_tol               = 1.e-5,
-                     const bool         do_update             = true,
-                     const unsigned int threshold_newton_iter = 10,
-                     const unsigned int threshold_linear_iter = 20,
-                     const bool         reuse_preconditioner  = true)
-      : max_iter(max_iter)
-      , abs_tol(abs_tol)
-      , rel_tol(rel_tol)
-      , do_update(do_update)
+    NewtonSolverAdditionalData(const bool         do_update             = true,
+                               const unsigned int threshold_newton_iter = 10,
+                               const unsigned int threshold_linear_iter = 20,
+                               const bool         reuse_preconditioner  = true)
+      : do_update(do_update)
       , threshold_newton_iter(threshold_newton_iter)
       , threshold_linear_iter(threshold_linear_iter)
       , reuse_preconditioner(reuse_preconditioner)
     {}
 
-    const unsigned int max_iter;
-    const double       abs_tol;
-    const double       rel_tol;
     const bool         do_update;
     const unsigned int threshold_newton_iter;
     const unsigned int threshold_linear_iter;
@@ -55,8 +66,9 @@ namespace NonLinearSolvers
   class NewtonSolver
   {
   public:
-    NewtonSolver(NonLinearSolverStatistics &statistics,
-                 const NewtonSolverData &   solver_data_in = NewtonSolverData())
+    NewtonSolver(NewtonSolverSolverControl &       statistics,
+                 const NewtonSolverAdditionalData &solver_data_in =
+                   NewtonSolverAdditionalData())
       : statistics(statistics)
       , solver_data(solver_data_in)
     {}
@@ -73,7 +85,7 @@ namespace NonLinearSolvers
         clear();
 
       // Accumulated linear iterations
-      this->statistics = NonLinearSolverStatistics();
+      this->statistics.clear();
 
       // evaluate residual using the given estimate of the solution
       residual(dst, vec_residual);
@@ -82,9 +94,9 @@ namespace NonLinearSolvers
       double norm_r   = vec_residual.l2_norm();
       double norm_r_0 = norm_r;
 
-      while (norm_r > this->solver_data.abs_tol &&
-             norm_r / norm_r_0 > solver_data.rel_tol &&
-             statistics.newton_iterations < solver_data.max_iter)
+      while (norm_r > this->statistics.abs_tol &&
+             norm_r / norm_r_0 > statistics.rel_tol &&
+             statistics.newton_iterations < statistics.max_iter)
         {
           // reset increment
           increment = 0.0;
@@ -150,8 +162,8 @@ namespace NonLinearSolvers
           ++history_newton_iterations;
         }
 
-      AssertThrow(norm_r <= this->solver_data.abs_tol ||
-                    norm_r / norm_r_0 <= solver_data.rel_tol,
+      AssertThrow(norm_r <= this->statistics.abs_tol ||
+                    norm_r / norm_r_0 <= statistics.rel_tol,
                   ExcNewtonDidNotConverge("Newton"));
     }
 
@@ -164,8 +176,8 @@ namespace NonLinearSolvers
 
 
   private:
-    NonLinearSolverStatistics &statistics;
-    const NewtonSolverData     solver_data;
+    NewtonSolverSolverControl &      statistics;
+    const NewtonSolverAdditionalData solver_data;
 
     mutable unsigned int history_linear_iterations_last = 0;
     mutable unsigned int history_newton_iterations      = 0;
