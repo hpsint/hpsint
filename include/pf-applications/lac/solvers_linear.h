@@ -35,7 +35,9 @@ namespace LinearSolvers
     using VectorType      = typename Operator::vector_type;
     using BlockVectorType = typename Operator::BlockVectorType;
 
-    SolverGMRESWrapper(const Operator &op, Preconditioner &preconditioner, SolverControl & solver_control)
+    SolverGMRESWrapper(const Operator &op,
+                       Preconditioner &preconditioner,
+                       SolverControl & solver_control)
       : op(op)
       , preconditioner(preconditioner)
       , solver_control(solver_control)
@@ -65,7 +67,7 @@ namespace LinearSolvers
     solve(BlockVectorType &dst, const BlockVectorType &src) override
     {
       MyScope scope(timer, "gmres::solve");
-      
+
       SolverGMRES<BlockVectorType> solver(solver_control);
       solver.solve(op, dst, src, preconditioner);
 
