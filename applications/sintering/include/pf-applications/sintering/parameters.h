@@ -118,7 +118,7 @@ namespace Sintering
     double l_rel_tol  = 1.e-2;
 
     bool         newton_do_update             = true;
-    unsigned int newton_threshold_newton_iter = 10;
+    unsigned int newton_threshold_newton_iter = 100;
     unsigned int newton_threshold_linear_iter = 20;
     bool         newton_reuse_preconditioner  = true;
   };
