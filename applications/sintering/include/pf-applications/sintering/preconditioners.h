@@ -297,9 +297,47 @@ namespace Sintering
     template <int n_comp, int n_grains>
     void
     do_vmult_kernel(
-      FECellIntegrator<dim, n_comp, Number, VectorizedArrayType> &) const
+      FECellIntegrator<dim, n_comp, Number, VectorizedArrayType> &phi) const
     {
-      AssertThrow(false, ExcNotImplemented());
+      static_assert(n_comp == n_grains);
+
+      const unsigned int cell = phi.get_current_cell_index();
+
+      const auto &free_energy      = data.free_energy;
+      const auto &L                = data.L;
+      const auto &kappa_p          = data.kappa_p;
+      const auto &dt               = data.dt;
+      const auto &nonlinear_values = data.get_nonlinear_values();
+
+      const auto dt_inv = 1.0 / dt;
+
+      for (unsigned int q = 0; q < phi.n_q_points; ++q)
+        {
+          const auto &val = nonlinear_values[cell][q];
+
+          const auto &c = val[0];
+
+          std::array<const VectorizedArrayType *, n_grains> etas;
+
+          for (unsigned int ig = 0; ig < n_grains; ++ig)
+            etas[ig] = &val[2 + ig];
+
+          Tensor<1, n_comp, VectorizedArrayType> value_result;
+          Tensor<1, n_comp, Tensor<1, dim, VectorizedArrayType>>
+            gradient_result;
+
+          for (unsigned int ig = 0; ig < n_grains; ++ig)
+            {
+              value_result[ig] =
+                phi.get_value(q)[ig] * dt_inv +
+                L * free_energy.d2f_detai2(c, etas, ig) * phi.get_value(q)[ig];
+
+              gradient_result[ig] = L * kappa_p * phi.get_gradient(q)[ig];
+            }
+
+          phi.submit_value(value_result, q);
+          phi.submit_gradient(gradient_result, q);
+        }
     }
 
     const std::vector<std::shared_ptr<TrilinosWrappers::SparseMatrix>> &

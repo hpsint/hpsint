@@ -838,8 +838,13 @@ namespace Preconditioners
     {
       PreconditionerGMGAdditionalData additional_data;
 
-      const unsigned int min_level = 0;
-      const unsigned int max_level = 0;
+      const unsigned int min_level = transfer->min_level();
+      const unsigned int max_level = transfer->max_level();
+
+      MGLevelObject<std::shared_ptr<Operator>> op(min_level, max_level);
+
+      for (unsigned int l = min_level; l <= max_level; ++l)
+        op[l] = this->op[l];
 
       // create transfer operator for block vector
       transfer_block = std::make_unique<MGTransferType>(*transfer);
@@ -853,6 +858,7 @@ namespace Preconditioners
 
       for (unsigned int level = min_level; level <= max_level; ++level)
         {
+          std::cout << level << " of " << max_level << std::endl;
           smoother_data[level].preconditioner =
             std::make_shared<SmootherPreconditionerType>();
           op[level]->compute_inverse_diagonal(

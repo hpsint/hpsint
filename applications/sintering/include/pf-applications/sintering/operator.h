@@ -755,6 +755,9 @@ namespace Sintering
       this->block_system_matrix.clear();
       src_.reinit(0);
       dst_.reinit(0);
+
+      constrained_indices.clear();
+      constrained_values_src.clear();
     }
 
     virtual unsigned int
@@ -793,12 +796,18 @@ namespace Sintering
       dst.reinit(this->n_components());
       for (unsigned int c = 0; c < this->n_components(); ++c)
         matrix_free.initialize_dof_vector(dst.block(c), dof_index);
+      dst.collect_sizes();
     }
 
     types::global_dof_index
     m() const
     {
-      return matrix_free.get_dof_handler(dof_index).n_dofs();
+      const auto &dof_handler = matrix_free.get_dof_handler(dof_index);
+
+      if (dof_handler.get_fe().n_components() == 1)
+        return dof_handler.n_dofs() * n_components();
+      else
+        return dof_handler.n_dofs();
     }
 
     Number
@@ -826,6 +835,31 @@ namespace Sintering
 
       if (system_matrix_is_empty)
         {
+          if (constrained_indices.empty())
+            {
+              const auto &constrained_dofs =
+                this->matrix_free.get_constrained_dofs(this->dof_index);
+
+              constrained_indices.resize(constrained_dofs.size());
+              for (unsigned int i = 0; i < constrained_dofs.size(); ++i)
+                constrained_indices[i] = constrained_dofs[i];
+              constrained_values_src.resize(this->m());
+            }
+
+          const bool is_scalar_dof_handler =
+            this->matrix_free.get_dof_handler().get_fe().n_components() == 1;
+          const unsigned int user_comp =
+            is_scalar_dof_handler ? n_components() : 1;
+
+          for (unsigned int i = 0; i < constrained_indices.size(); ++i)
+            for (unsigned int b = 0; b < user_comp; ++b)
+              {
+                constrained_values_src[i * user_comp + b] =
+                  src.local_element(constrained_indices[i] * user_comp + b);
+                const_cast<VectorType &>(src).local_element(
+                  constrained_indices[i] * user_comp + b) = 0.;
+              }
+
 #define OPERATION(c, d)                                                     \
   MyMatrixFreeTools::cell_loop_wrapper(this->matrix_free,                   \
                                        &OperatorBase::do_vmult_range<c, d>, \
@@ -835,6 +869,24 @@ namespace Sintering
                                        true);
           EXPAND_OPERATIONS(OPERATION);
 #undef OPERATION
+
+          for (unsigned int i = 0; i < constrained_indices.size(); ++i)
+            for (unsigned int b = 0; b < user_comp; ++b)
+              {
+                const_cast<VectorType &>(src).local_element(
+                  constrained_indices[i] * user_comp + b) =
+                  constrained_values_src[i * user_comp + b];
+                dst.local_element(constrained_indices[i] * user_comp + b) =
+                  src.local_element(constrained_indices[i] * user_comp + b);
+              }
+
+          for (unsigned int i = 0; i < constrained_indices.size(); ++i)
+            {
+              const_cast<VectorType &>(src).local_element(
+                constrained_indices[i]) = constrained_values_src[i];
+              dst.local_element(constrained_indices[i]) =
+                constrained_values_src[i];
+            }
         }
       else
         {
@@ -853,6 +905,26 @@ namespace Sintering
 
       if (system_matrix_is_empty)
         {
+          if (constrained_indices.empty())
+            {
+              const auto &constrained_dofs =
+                this->matrix_free.get_constrained_dofs(this->dof_index);
+
+              constrained_indices.resize(constrained_dofs.size());
+              for (unsigned int i = 0; i < constrained_dofs.size(); ++i)
+                constrained_indices[i] = constrained_dofs[i];
+              constrained_values_src.resize(this->m());
+            }
+
+          for (unsigned int b = 0; b < this->n_components(); ++b)
+            for (unsigned int i = 0; i < constrained_indices.size(); ++i)
+              {
+                constrained_values_src[i + b * constrained_indices.size()] =
+                  src.block(b).local_element(constrained_indices[i]);
+                const_cast<BlockVectorType_ &>(src).block(b).local_element(
+                  constrained_indices[i]) = 0.;
+              }
+
 #define OPERATION(c, d)                                                     \
   MyMatrixFreeTools::cell_loop_wrapper(this->matrix_free,                   \
                                        &OperatorBase::do_vmult_range<c, d>, \
@@ -862,6 +934,16 @@ namespace Sintering
                                        true);
           EXPAND_OPERATIONS(OPERATION);
 #undef OPERATION
+
+          for (unsigned int b = 0; b < this->n_components(); ++b)
+            for (unsigned int i = 0; i < constrained_indices.size(); ++i)
+              {
+                const_cast<BlockVectorType_ &>(src).block(b).local_element(
+                  constrained_indices[i]) =
+                  constrained_values_src[i + b * constrained_indices.size()];
+                dst.block(b).local_element(constrained_indices[i]) =
+                  src.block(b).local_element(constrained_indices[i]);
+              }
         }
       else
         {
@@ -1191,6 +1273,9 @@ namespace Sintering
     mutable bool          do_timing;
 
     mutable VectorType src_, dst_;
+
+    mutable std::vector<unsigned int> constrained_indices;
+    mutable std::vector<Number>       constrained_values_src;
   };
 
 

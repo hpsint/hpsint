@@ -122,6 +122,8 @@ namespace Sintering
 
     std::shared_ptr<InitialValues<dim>> initial_solution;
 
+    unsigned int n_global_levels_0 = 0;
+
     Problem(const Parameters &                  params,
             std::shared_ptr<InitialValues<dim>> initial_solution)
       : params(params)
@@ -183,6 +185,7 @@ namespace Sintering
                   initial_solution->get_interface_width(),
                   params.geometry_data.elements_per_interface,
                   params.geometry_data.periodic);
+      this->n_global_levels_0 = tria.n_global_levels();
 
       helper = std::make_unique<dealii::parallel::Helper<dim>>(tria);
 
@@ -244,13 +247,21 @@ namespace Sintering
           const unsigned int max_level = mg_triangulations.size() - 1;
 
           const unsigned int max_max_level =
-            tria.n_global_levels() +
-            params.adaptivity_data.max_refinement_depth;
+            n_global_levels_0 + params.adaptivity_data.max_refinement_depth;
+
+          std::cout << "max_level: " << max_level << " " << max_max_level
+                    << std::endl;
 
           mg_dof_handlers.resize(min_level, max_level);
-          mg_constraints.resize(min_level, max_max_level);
           transfers.resize(min_level, max_level);
-          mg_matrix_free.resize(min_level, max_max_level);
+
+          if (min_level != mg_constraints.min_level() ||
+              max_max_level != mg_constraints.max_level())
+            mg_constraints.resize(min_level, max_max_level);
+
+          if (min_level != mg_matrix_free.min_level() ||
+              max_max_level != mg_matrix_free.max_level())
+            mg_matrix_free.resize(min_level, max_max_level);
 
           for (unsigned int l = min_level; l <= max_level; ++l)
             {
@@ -365,7 +376,7 @@ namespace Sintering
 
       MGLevelObject<SinteringOperatorData<dim, VectorizedArrayType>>
         mg_sintering_data(0,
-                          tria.n_global_levels() +
+                          n_global_levels_0 +
                             params.adaptivity_data.max_refinement_depth,
                           sintering_data);
 
