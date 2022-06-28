@@ -4,6 +4,61 @@
 
 #include <deal.II/numerics/data_out.h>
 
+namespace dealii
+{
+  template <int dim, int spacedim>
+  class MyDataOut : public DataOut<dim, spacedim>
+  {
+  public:
+    void
+    write_vtu_in_parallel(
+      const std::string &         filename,
+      const MPI_Comm &            comm,
+      const DataOutBase::VtkFlags vtk_flags = DataOutBase::VtkFlags()) const
+    {
+      const unsigned int myrank = Utilities::MPI::this_mpi_process(comm);
+
+      std::ofstream ss_out(filename);
+
+      if (myrank == 0) // header
+        {
+          std::stringstream ss;
+          DataOutBase::write_vtu_header(ss, vtk_flags);
+          ss_out << ss.rdbuf();
+        }
+
+      if (true) // main
+        {
+          const auto &                  patches      = this->get_patches();
+          const types::global_dof_index my_n_patches = patches.size();
+          const types::global_dof_index global_n_patches =
+            Utilities::MPI::sum(my_n_patches, comm);
+
+          std::stringstream ss;
+          if (my_n_patches > 0 || (global_n_patches == 0 && myrank == 0))
+            DataOutBase::write_vtu_main(patches,
+                                        this->get_dataset_names(),
+                                        this->get_nonscalar_data_ranges(),
+                                        vtk_flags,
+                                        ss);
+
+          const auto temp = Utilities::MPI::gather(comm, ss.str(), 0);
+
+          if (myrank == 0)
+            for (const auto &i : temp)
+              ss_out << i;
+        }
+
+      if (myrank == 0) // footer
+        {
+          std::stringstream ss;
+          DataOutBase::write_vtu_footer(ss);
+          ss_out << ss.rdbuf();
+        }
+    }
+  };
+} // namespace dealii
+
 namespace Sintering
 {
   namespace Postprocessors
@@ -156,7 +211,7 @@ namespace Sintering
         background_dof_handler.get_communicator());
 
       // step 2) output mesh
-      DataOut<dim - 1, dim> data_out;
+      MyDataOut<dim - 1, dim> data_out;
       data_out.attach_triangulation(tria);
       data_out.add_data_vector(vector_grain_id, "grain_id");
       data_out.add_data_vector(vector_rank, "subdomain");
