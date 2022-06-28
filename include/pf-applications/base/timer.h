@@ -91,7 +91,7 @@ public:
   void
   print_wall_time_statistics() const
   {
-    Assert(enabled, ExcInternalError());
+    Assert(enabled, dealii::ExcInternalError());
 
     if (timer.get_summary_data(dealii::TimerOutput::OutputData::total_wall_time)
           .size() > 0)
@@ -122,7 +122,7 @@ TimerCollection::print_all_wall_time_statistics(const bool force_output)
                   1e9 >
                 get_instance().interval;
 
-  if (do_output == false)
+  if (dealii::Utilities::MPI::sum<unsigned int>(do_output, MPI_COMM_WORLD) == 0)
     return;
 
   get_instance().last_time = std::chrono::system_clock::now();
