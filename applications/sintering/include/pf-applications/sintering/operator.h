@@ -669,6 +669,56 @@ namespace Sintering
 
 namespace Sintering
 {
+  namespace internal
+  {
+    template <typename Number>
+    unsigned int
+    n_blocks(const LinearAlgebra::distributed::Vector<Number> &)
+    {
+      return 1;
+    }
+
+    template <typename Number>
+    unsigned int
+    n_blocks(const LinearAlgebra::distributed::BlockVector<Number> &vector)
+    {
+      return vector.n_blocks();
+    }
+
+    template <typename Number>
+    unsigned int
+    n_blocks(
+      const LinearAlgebra::distributed::DynamicBlockVector<Number> &vector)
+    {
+      return vector.n_blocks();
+    }
+
+    template <typename Number>
+    LinearAlgebra::distributed::Vector<Number> &
+    block(LinearAlgebra::distributed::Vector<Number> &vector,
+          const unsigned int                          b)
+    {
+      AssertThrow(b == 1, ExcInternalError());
+      return vector;
+    }
+
+    template <typename Number>
+    LinearAlgebra::distributed::Vector<Number> &
+    block(LinearAlgebra::distributed::BlockVector<Number> &vector,
+          const unsigned int                               b)
+    {
+      return vector.block(b);
+    }
+
+    template <typename Number>
+    LinearAlgebra::distributed::Vector<Number> &
+    block(LinearAlgebra::distributed::DynamicBlockVector<Number> &vector,
+          const unsigned int                                      b)
+    {
+      return vector.block(b);
+    }
+  } // namespace internal
+
   template <int dim, typename Number, typename VectorizedArrayType, typename T>
   class OperatorBase : public Subscriptor
   {
@@ -730,6 +780,15 @@ namespace Sintering
 
     void
     initialize_dof_vector(BlockVectorType &dst) const
+    {
+      dst.reinit(this->n_components());
+      for (unsigned int c = 0; c < this->n_components(); ++c)
+        matrix_free.initialize_dof_vector(dst.block(c), dof_index);
+    }
+
+    void
+    initialize_dof_vector(
+      LinearAlgebra::distributed::BlockVector<Number> &dst) const
     {
       dst.reinit(this->n_components());
       for (unsigned int c = 0; c < this->n_components(); ++c)
@@ -829,12 +888,18 @@ namespace Sintering
       this->vmult(dst, src);
     }
 
+    template <typename VectorType>
     void
     compute_inverse_diagonal(VectorType &diagonal) const
     {
       MyScope scope(this->timer, label + "::diagonal", this->do_timing);
 
-      matrix_free.initialize_dof_vector(diagonal, dof_index);
+      initialize_dof_vector(diagonal);
+
+      Assert(internal::n_blocks(diagonal) == 1 ||
+               matrix_free.get_dof_handler(dof_index).get_fe().n_components() ==
+                 1,
+             ExcInternalError());
 
 #define OPERATION(c, d)                                                 \
   MatrixFreeTools::compute_diagonal(matrix_free,                        \
@@ -845,33 +910,8 @@ namespace Sintering
       EXPAND_OPERATIONS(OPERATION);
 #undef OPERATION
 
-      for (auto &i : diagonal)
-        i = (std::abs(i) > 1.0e-10) ? (1.0 / i) : 1.0;
-    }
-
-    void
-    compute_inverse_diagonal(BlockVectorType &diagonal) const
-    {
-      MyScope scope(this->timer, label + "::diagonal", this->do_timing);
-
-      AssertDimension(
-        matrix_free.get_dof_handler(dof_index).get_fe().n_components(), 1);
-
-      diagonal.reinit(this->n_components());
-      for (unsigned int b = 0; b < this->n_components(); ++b)
-        matrix_free.initialize_dof_vector(diagonal.block(b), dof_index);
-
-#define OPERATION(c, d)                                                 \
-  MatrixFreeTools::compute_diagonal(matrix_free,                        \
-                                    diagonal,                           \
-                                    &OperatorBase::do_vmult_cell<c, d>, \
-                                    this,                               \
-                                    dof_index);
-      EXPAND_OPERATIONS(OPERATION);
-#undef OPERATION
-
-      for (unsigned int b = 0; b < this->n_components(); ++b)
-        for (auto &i : diagonal.block(b))
+      for (unsigned int b = 0; b < internal::n_blocks(diagonal); ++b)
+        for (auto &i : internal::block(diagonal, b))
           i = (std::abs(i) > 1.0e-10) ? (1.0 / i) : 1.0;
     }
 
