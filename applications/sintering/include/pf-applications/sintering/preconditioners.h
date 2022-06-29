@@ -704,8 +704,6 @@ namespace Sintering
                                                                 constraints,
                                                                 sintering_data);
 
-      std::cout << "BlockPreconditioner2::A" << std::endl;
-
       mg_operator_blocked_1.resize(min_level, max_level);
       for (unsigned int l = min_level; l <= max_level; ++l)
         mg_operator_blocked_1[l] = std::make_shared<
@@ -715,6 +713,9 @@ namespace Sintering
           mg_sintering_data[l],
           data.block_1_approximation);
 
+      for (unsigned int l = min_level; l <= max_level; ++l)
+        mg_operator_blocked_1[l]->set_timing(false);
+
 
       // create preconditioners
       preconditioner_0 =
@@ -723,8 +724,6 @@ namespace Sintering
       preconditioner_1 = Preconditioners::create(mg_operator_blocked_1,
                                                  transfer,
                                                  data.block_1_preconditioner);
-
-      std::cout << "BlockPreconditioner2::B" << std::endl;
     }
 
     virtual void
@@ -790,9 +789,7 @@ namespace Sintering
       }
       {
         MyScope scope(timer, "precon::update::precon_1");
-        std::cout << "do_update::A" << std::endl;
         preconditioner_1->do_update();
-        std::cout << "do_update::B" << std::endl;
       }
     }
 

@@ -756,7 +756,7 @@ namespace Preconditioners
     struct PreconditionerGMGAdditionalData
     {
       double       smoothing_range               = 20;
-      unsigned int smoothing_degree              = 5;
+      unsigned int smoothing_degree              = 1;
       unsigned int smoothing_eig_cg_n_iterations = 20;
 
       unsigned int coarse_grid_smoother_sweeps = 1;
@@ -792,16 +792,7 @@ namespace Preconditioners
           &transfer)
       : op(op)
       , transfer(transfer)
-      , pcout(std::cout, Utilities::MPI::this_mpi_process(MPI_COMM_WORLD) == 0)
-      , timer(pcout, TimerOutput::never, TimerOutput::wall_times)
     {}
-
-    ~GMG()
-    {
-      if (timer.get_summary_data(TimerOutput::OutputData::total_wall_time)
-            .size() > 0)
-        timer.print_wall_time_statistics(MPI_COMM_WORLD);
-    }
 
     virtual void
     clear()
@@ -829,6 +820,8 @@ namespace Preconditioners
     void
     vmult(BlockVectorType &dst, const BlockVectorType &src) const override
     {
+      MyScope scope(timer, "gmg::vmult");
+
       Assert(preconditioner, ExcInternalError());
       preconditioner->vmult(dst, src);
     }
@@ -836,6 +829,8 @@ namespace Preconditioners
     void
     do_update() override
     {
+      MyScope scope(timer, "gmg::setup");
+
       PreconditionerGMGAdditionalData additional_data;
 
       const unsigned int min_level = transfer->min_level();
@@ -858,7 +853,6 @@ namespace Preconditioners
 
       for (unsigned int level = min_level; level <= max_level; ++level)
         {
-          std::cout << level << " of " << max_level << std::endl;
           smoother_data[level].preconditioner =
             std::make_shared<SmootherPreconditionerType>();
           op[level]->compute_inverse_diagonal(
@@ -898,7 +892,6 @@ namespace Preconditioners
 
           smoother_data.preconditioner =
             std::make_shared<DiagonalMatrix<DealiiBlockVectorType>>();
-          AssertThrow(false, ExcNotImplemented());
           op[min_level]->compute_inverse_diagonal(
             smoother_data.preconditioner->get_vector());
           smoother_data.smoothing_range = additional_data.smoothing_range;
@@ -943,8 +936,7 @@ namespace Preconditioners
   private:
     const MGLevelObject<std::shared_ptr<Operator>> &op;
     const std::shared_ptr<MGTransferTypeScalar> &   transfer;
-    ConditionalOStream                              pcout;
-    mutable TimerOutput                             timer;
+    mutable MyTimerOutput                           timer;
 
     DoFHandler<dim> dof_handler_dummy;
 
