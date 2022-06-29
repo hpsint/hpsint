@@ -197,6 +197,23 @@ namespace Sintering
       initialize();
     }
 
+    Problem(const Parameters &params, const std::string &restart_path)
+      : params(params)
+      , pcout(std::cout,
+              (Utilities::MPI::this_mpi_process(MPI_COMM_WORLD) == 0) &&
+                params.print_time_loop)
+      , pcout_statistics(std::cout,
+                         Utilities::MPI::this_mpi_process(MPI_COMM_WORLD) == 0)
+      , tria(MPI_COMM_WORLD)
+      , fe(params.approximation_data.fe_degree)
+      , mapping(1)
+      , quad(params.approximation_data.n_points_1D)
+      , dof_handler(tria)
+    {
+      AssertThrow(false, ExcNotImplemented());
+      (void)restart_path;
+    }
+
     void
     initialize(const unsigned int n_components = 0)
     {
