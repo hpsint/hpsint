@@ -102,6 +102,24 @@ public:
   }
 
   void
+  enter_subsection(const std::string label)
+  {
+    (void)label;
+#ifdef WITH_TIMING
+    timer.enter_subsection(label);
+#endif
+  }
+
+  void
+  leave_subsection(const std::string label)
+  {
+    (void)label;
+#ifdef WITH_TIMING
+    timer.leave_subsection(label);
+#endif
+  }
+
+  void
   print_wall_time_statistics() const
   {
     Assert(enabled, dealii::ExcInternalError());

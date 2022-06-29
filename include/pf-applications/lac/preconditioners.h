@@ -931,6 +931,55 @@ namespace Preconditioners
       preconditioner = std::make_unique<
         PreconditionMG<dim, DealiiBlockVectorType, MGTransferType>>(
         dof_handler_dummy, *mg, *transfer_block);
+
+      mg->connect_pre_smoother_step([this](const bool         flag,
+                                           const unsigned int level) {
+        const std::string label = "gmg::vmult::level_" + std::to_string(level);
+        if (flag)
+          timer.enter_subsection(label);
+      });
+      mg->connect_restriction([this](const bool         flag,
+                                     const unsigned int level) {
+        const std::string label = "gmg::vmult::level_" + std::to_string(level);
+        if (flag == false)
+          timer.leave_subsection(label);
+      });
+      mg->connect_coarse_solve([this](const bool         flag,
+                                      const unsigned int level) {
+        const std::string label = "gmg::vmult::level_" + std::to_string(level);
+        if (flag)
+          timer.enter_subsection(label);
+        else
+          timer.leave_subsection(label);
+      });
+      mg->connect_prolongation([this](const bool         flag,
+                                      const unsigned int level) {
+        const std::string label = "gmg::vmult::level_" + std::to_string(level);
+        if (flag)
+          timer.enter_subsection(label);
+      });
+      mg->connect_post_smoother_step([this](const bool         flag,
+                                            const unsigned int level) {
+        const std::string label = "gmg::vmult::level_" + std::to_string(level);
+        if (flag == false)
+          timer.leave_subsection(label);
+      });
+
+      preconditioner->connect_transfer_to_mg([this](const bool flag) {
+        const std::string label = "gmg::vmult::transfer_to_mg";
+        if (flag)
+          timer.enter_subsection(label);
+        else
+          timer.leave_subsection(label);
+      });
+
+      preconditioner->connect_transfer_to_global([this](const bool flag) {
+        const std::string label = "gmg::vmult::transfer_to_global";
+        if (flag)
+          timer.enter_subsection(label);
+        else
+          timer.leave_subsection(label);
+      });
     }
 
   private:

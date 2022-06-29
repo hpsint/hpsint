@@ -716,7 +716,6 @@ namespace Sintering
       for (unsigned int l = min_level; l <= max_level; ++l)
         mg_operator_blocked_1[l]->set_timing(false);
 
-
       // create preconditioners
       preconditioner_0 =
         Preconditioners::create(*operator_0, data.block_0_preconditioner);
