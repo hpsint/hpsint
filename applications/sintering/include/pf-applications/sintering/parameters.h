@@ -375,7 +375,7 @@ namespace Sintering
 
       prm.enter_subsection("Preconditioners");
       const std::string preconditioner_types =
-        "AMG|BlockAMG|BlockILU|InverseBlockDiagonalMatrix|InverseDiagonalMatrix|ILU|InverseComponentBlockDiagonalMatrix";
+        "AMG|BlockAMG|BlockILU|InverseBlockDiagonalMatrix|InverseDiagonalMatrix|ILU|InverseComponentBlockDiagonalMatrix|BlockGMG|GMG";
       prm.add_parameter("OuterPreconditioner",
                         preconditioners_data.outer_preconditioner,
                         "Preconditioner to be used for the outer system.",
