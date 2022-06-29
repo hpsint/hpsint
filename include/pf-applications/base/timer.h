@@ -26,7 +26,8 @@ public:
       });
 
     Assert(ptr != set.end(),
-           ExcMessage("Timer could not be found! Have you attached it?"));
+           dealii::ExcMessage(
+             "Timer could not be found! Have you attached it?"));
 
     set.erase(ptr);
   }
