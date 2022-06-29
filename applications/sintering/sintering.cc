@@ -75,7 +75,6 @@ main(int argc, char **argv)
                                         MAX_SINTERING_GRAINS));
 
       Sintering::Problem<SINTERING_DIM> runner(params, initial_solution);
-      runner.run();
     }
   else if (std::string(argv[1]) == "--cloud")
     {
@@ -102,7 +101,6 @@ main(int argc, char **argv)
                                         MAX_SINTERING_GRAINS));
 
       Sintering::Problem<SINTERING_DIM> runner(params, initial_solution);
-      runner.run();
     }
   else if (std::string(argv[1]) == "--restart")
     {
@@ -114,7 +112,6 @@ main(int argc, char **argv)
         params.parse(std::string(argv[3]));
 
       Sintering::Problem<SINTERING_DIM> runner(params, restart_path);
-      runner.run();
     }
   else
     {

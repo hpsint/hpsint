@@ -11,7 +11,8 @@ namespace Sintering
               const Point<dim> & top_right,
               const double       interface_width,
               const unsigned int elements_per_interface,
-              const bool         periodic)
+              const bool         periodic,
+              const bool         with_initial_refinement)
   {
     const auto   domain_size   = top_right - bottom_left;
     const double domain_width  = domain_size[0];
@@ -55,7 +56,7 @@ namespace Sintering
         tria.add_periodicity(periodicity_vector);
       }
 
-    if (n_refinements > 0)
+    if (with_initial_refinement && (n_refinements > 0))
       {
         tria.refine_global(n_refinements);
       }

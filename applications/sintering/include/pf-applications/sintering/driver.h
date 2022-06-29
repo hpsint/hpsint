@@ -139,6 +139,72 @@ namespace Sintering
       , dof_handler(tria)
       , initial_solution(initial_solution)
     {
+      create_grid(true);
+
+      initialize();
+
+      const auto initialize_solution = [&](VectorType &   solution,
+                                           MyTimerOutput &timer) {
+        MyScope scope(timer, "initialize_solution");
+
+        for (unsigned int c = 0; c < solution.n_blocks(); ++c)
+          {
+            initial_solution->set_component(c);
+
+            VectorTools::interpolate(mapping,
+                                     dof_handler,
+                                     *initial_solution,
+                                     solution.block(c));
+
+            constraints.distribute(solution.block(c));
+          }
+        solution.zero_out_ghost_values();
+      };
+
+      run(initialize_solution);
+    }
+
+    Problem(const Parameters &params, const std::string &restart_path)
+      : params(params)
+      , pcout(std::cout,
+              (Utilities::MPI::this_mpi_process(MPI_COMM_WORLD) == 0) &&
+                params.print_time_loop)
+      , pcout_statistics(std::cout,
+                         Utilities::MPI::this_mpi_process(MPI_COMM_WORLD) == 0)
+      , tria(MPI_COMM_WORLD)
+      , fe(params.approximation_data.fe_degree)
+      , mapping(1)
+      , quad(params.approximation_data.n_points_1D)
+      , dof_handler(tria)
+    {
+      create_grid(false);
+
+      tria.load(restart_path + "tria");
+
+      initialize();
+
+      const auto initialize_solution = [&](VectorType &   solution,
+                                           MyTimerOutput &timer) {
+        MyScope scope(timer, "deserialize_solution");
+
+        parallel::distributed::SolutionTransfer<dim,
+                                                typename VectorType::BlockType>
+          solution_transfer(dof_handler);
+
+        std::vector<typename VectorType::BlockType *> solution_ptr(
+          solution.n_blocks());
+        for (unsigned int b = 0; b < solution.n_blocks(); ++b)
+          solution_ptr[b] = &solution.block(b);
+
+        solution_transfer.deserialize(solution_ptr);
+      };
+
+      run(initialize_solution);
+    }
+
+    void
+    create_grid(const bool with_initial_refinement)
+    {
       std::pair<dealii::Point<dim>, dealii::Point<dim>> boundaries;
 
       if (!params.geometry_data.custom_bounding_box)
@@ -184,7 +250,8 @@ namespace Sintering
                   boundaries.second,
                   initial_solution->get_interface_width(),
                   params.geometry_data.elements_per_interface,
-                  params.geometry_data.periodic);
+                  params.geometry_data.periodic,
+                  with_initial_refinement);
       this->n_global_levels_0 = tria.n_global_levels();
 
       helper = std::make_unique<dealii::parallel::Helper<dim>>(tria);
@@ -193,25 +260,6 @@ namespace Sintering
         *helper, params.geometry_data.hanging_node_weight);
       tria.signals.weight.connect(weight_function);
       tria.repartition();
-
-      initialize();
-    }
-
-    Problem(const Parameters &params, const std::string &restart_path)
-      : params(params)
-      , pcout(std::cout,
-              (Utilities::MPI::this_mpi_process(MPI_COMM_WORLD) == 0) &&
-                params.print_time_loop)
-      , pcout_statistics(std::cout,
-                         Utilities::MPI::this_mpi_process(MPI_COMM_WORLD) == 0)
-      , tria(MPI_COMM_WORLD)
-      , fe(params.approximation_data.fe_degree)
-      , mapping(1)
-      , quad(params.approximation_data.n_points_1D)
-      , dof_handler(tria)
-    {
-      AssertThrow(false, ExcNotImplemented());
-      (void)restart_path;
     }
 
     void
@@ -374,7 +422,8 @@ namespace Sintering
     }
 
     void
-    run()
+    run(const std::function<void(VectorType &, MyTimerOutput &)>
+          &initialize_solution)
     {
       SinteringOperatorData<dim, VectorizedArrayType> sintering_data(
         params.energy_data.A,
@@ -557,23 +606,6 @@ namespace Sintering
       VectorType solution;
 
       nonlinear_operator.initialize_dof_vector(solution);
-
-      const auto initialize_solution = [&]() {
-        MyScope scope(timer, "initialize_solution");
-
-        for (unsigned int c = 0; c < solution.n_blocks(); ++c)
-          {
-            initial_solution->set_component(c);
-
-            VectorTools::interpolate(mapping,
-                                     dof_handler,
-                                     *initial_solution,
-                                     solution.block(c));
-
-            constraints.distribute(solution.block(c));
-          }
-        solution.zero_out_ghost_values();
-      };
 
       bool system_has_changed = true;
 
@@ -795,7 +827,7 @@ namespace Sintering
         solution.zero_out_ghost_values();
       };
 
-      initialize_solution();
+      initialize_solution(solution, timer);
 
       // Grain tracker - first run after we have initial configuration defined
       if (params.grain_tracker_data.grain_tracker_frequency > 0)
