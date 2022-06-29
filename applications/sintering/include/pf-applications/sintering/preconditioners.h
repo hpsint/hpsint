@@ -741,7 +741,8 @@ namespace Sintering
       for (unsigned int l = mg_operator_blocked_1.min_level();
            l <= mg_operator_blocked_1.max_level();
            ++l)
-        mg_operator_blocked_1[l]->clear();
+        if (mg_operator_blocked_1[l])
+          mg_operator_blocked_1[l]->clear();
 
       // clear preconditioners
       if (preconditioner_0)
