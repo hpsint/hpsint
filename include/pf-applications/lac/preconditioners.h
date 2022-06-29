@@ -1054,7 +1054,7 @@ namespace Preconditioners
            &                transfer,
          const std::string &label)
   {
-    if (label == "GMG")
+    if (label == "BlockGMG")
       return std::make_unique<GMG<T>>(op, transfer);
 
     AssertThrow(false,

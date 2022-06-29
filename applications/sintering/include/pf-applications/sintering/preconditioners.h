@@ -658,7 +658,7 @@ namespace Sintering
       preconditioner_0 =
         Preconditioners::create(*operator_0, data.block_0_preconditioner);
 
-      AssertThrow(data.block_1_preconditioner != "GMG",
+      AssertThrow(data.block_1_preconditioner != "BlockGMG",
                   ExcMessage("Use the other constructor!"));
 
       if (data.block_1_preconditioner == "AMG" ||

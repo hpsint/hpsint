@@ -233,11 +233,11 @@ namespace Sintering
       matrix_free.reinit(
         mapping, dof_handler, constraints, quad, additional_data);
 
-      if ((params.preconditioners_data.outer_preconditioner == "GMG") ||
+      if ((params.preconditioners_data.outer_preconditioner == "BlockGMG") ||
           (params.preconditioners_data.outer_preconditioner ==
              "BlockPreconditioner2" &&
            params.preconditioners_data.block_preconditioner_2_data
-               .block_1_preconditioner == "GMG"))
+               .block_1_preconditioner == "BlockGMG"))
         {
           mg_triangulations = MGTransferGlobalCoarseningTools::
             create_geometric_coarsening_sequence(tria);
@@ -392,7 +392,7 @@ namespace Sintering
       if (params.preconditioners_data.outer_preconditioner ==
             "BlockPreconditioner2" &&
           params.preconditioners_data.block_preconditioner_2_data
-              .block_1_preconditioner == "GMG")
+              .block_1_preconditioner == "BlockGMG")
         preconditioner = std::make_unique<
           BlockPreconditioner2<dim, Number, VectorizedArrayType>>(
           sintering_data,
