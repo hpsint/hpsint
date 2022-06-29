@@ -8,15 +8,27 @@ class TimerCollection
 {
 public:
   static void
-  attach(const class MyTimerOutput &timer)
+  attach(const MyTimerOutput &timer)
   {
-    get_instance().timers.insert(&timer);
+    static int counter = 0;
+
+    get_instance().timers.emplace(counter++, &timer);
   }
 
   static void
-  detach(const class MyTimerOutput &timer)
+  detach(const MyTimerOutput &timer)
   {
-    get_instance().timers.erase(&timer);
+    auto &set = get_instance().timers;
+
+    const auto ptr =
+      std::find_if(set.begin(), set.end(), [&timer](const auto &p) {
+        return p.second == &timer;
+      });
+
+    Assert(ptr != set.end(),
+           ExcMessage("Timer could not be found! Have you attached it?"));
+
+    set.erase(ptr);
   }
 
   static void
@@ -43,7 +55,7 @@ private:
   {}
 
 
-  std::set<const MyTimerOutput *> timers;
+  std::set<std::pair<unsigned int, const MyTimerOutput *>> timers;
 
   double                                interval;
   std::chrono::system_clock::time_point last_time;
@@ -128,7 +140,7 @@ TimerCollection::print_all_wall_time_statistics(const bool force_output)
   get_instance().last_time = std::chrono::system_clock::now();
 
   for (const auto &timer : get_instance().timers)
-    timer->print_wall_time_statistics();
+    timer.second->print_wall_time_statistics();
 }
 
 
