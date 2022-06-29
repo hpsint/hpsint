@@ -658,7 +658,8 @@ namespace Sintering
       preconditioner_0 =
         Preconditioners::create(*operator_0, data.block_0_preconditioner);
 
-      AssertThrow(data.block_1_preconditioner != "BlockGMG",
+      AssertThrow((data.block_1_preconditioner != "GMG") &&
+                    (data.block_1_preconditioner != "BlockGMG"),
                   ExcMessage("Use the other constructor!"));
 
       if (data.block_1_preconditioner == "AMG" ||
@@ -704,25 +705,42 @@ namespace Sintering
                                                                 constraints,
                                                                 sintering_data);
 
-      mg_operator_blocked_1.resize(min_level, max_level);
-      for (unsigned int l = min_level; l <= max_level; ++l)
-        mg_operator_blocked_1[l] = std::make_shared<
-          OperatorAllenCahnBlocked<dim, Number, VectorizedArrayType>>(
-          mg_matrix_free[l],
-          mg_constraints[l],
-          mg_sintering_data[l],
-          data.block_1_approximation);
-
-      for (unsigned int l = min_level; l <= max_level; ++l)
-        mg_operator_blocked_1[l]->set_timing(false);
+      if (data.block_1_preconditioner == "GMG")
+        {
+          mg_operator_1.resize(min_level, max_level);
+          for (unsigned int l = min_level; l <= max_level; ++l)
+            mg_operator_1[l] = std::make_shared<
+              OperatorAllenCahn<dim, Number, VectorizedArrayType>>(
+              mg_matrix_free[l], mg_constraints[l], mg_sintering_data[l]);
+          for (unsigned int l = min_level; l <= max_level; ++l)
+            mg_operator_1[l]->set_timing(false);
+        }
+      else
+        {
+          mg_operator_blocked_1.resize(min_level, max_level);
+          for (unsigned int l = min_level; l <= max_level; ++l)
+            mg_operator_blocked_1[l] = std::make_shared<
+              OperatorAllenCahnBlocked<dim, Number, VectorizedArrayType>>(
+              mg_matrix_free[l],
+              mg_constraints[l],
+              mg_sintering_data[l],
+              data.block_1_approximation);
+          for (unsigned int l = min_level; l <= max_level; ++l)
+            mg_operator_blocked_1[l]->set_timing(false);
+        }
 
       // create preconditioners
       preconditioner_0 =
         Preconditioners::create(*operator_0, data.block_0_preconditioner);
 
-      preconditioner_1 = Preconditioners::create(mg_operator_blocked_1,
-                                                 transfer,
-                                                 data.block_1_preconditioner);
+      if (data.block_1_preconditioner == "GMG")
+        preconditioner_1 = Preconditioners::create(mg_operator_1,
+                                                   transfer,
+                                                   data.block_1_preconditioner);
+      else
+        preconditioner_1 = Preconditioners::create(mg_operator_blocked_1,
+                                                   transfer,
+                                                   data.block_1_preconditioner);
     }
 
     virtual void
@@ -735,6 +753,12 @@ namespace Sintering
         operator_1->clear();
       if (operator_1_blocked)
         operator_1_blocked->clear();
+
+      for (unsigned int l = mg_operator_1.min_level();
+           l <= mg_operator_1.max_level();
+           ++l)
+        if (mg_operator_1[l])
+          mg_operator_1[l]->clear();
 
       for (unsigned int l = mg_operator_blocked_1.min_level();
            l <= mg_operator_blocked_1.max_level();
@@ -802,6 +826,10 @@ namespace Sintering
       operator_1;
     std::unique_ptr<OperatorAllenCahnBlocked<dim, Number, VectorizedArrayType>>
       operator_1_blocked;
+
+    MGLevelObject<
+      std::shared_ptr<OperatorAllenCahn<dim, Number, VectorizedArrayType>>>
+      mg_operator_1;
     MGLevelObject<std::shared_ptr<
       OperatorAllenCahnBlocked<dim, Number, VectorizedArrayType>>>
       mg_operator_blocked_1;
