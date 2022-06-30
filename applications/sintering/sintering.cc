@@ -54,7 +54,7 @@ main(int argc, char **argv)
 
       const unsigned int n_grains = atoi(argv[2]);
 
-      if (argc == 3)
+      if (argc >= 4)
         params.parse(std::string(argv[3]));
 
       // geometry
