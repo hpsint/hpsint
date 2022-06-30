@@ -4,6 +4,111 @@
 
 class MyTimerOutput;
 
+class TimerPredicate
+{
+public:
+  enum Type
+  {
+    never,
+    n_calls,
+    real_time,
+    simulation_time
+  };
+
+  TimerPredicate(const Type   type     = Type::never,
+                 const double start    = 0.0,
+                 const double interval = 0.0)
+  {
+    reinit(type, start, interval);
+  }
+
+  void
+  reinit(const Type type, const double start, const double interval = 0.0)
+  {
+    this->type = type;
+
+    if (type == Type::never)
+      {
+        // nothing to do
+      }
+    else if (type == Type::n_calls)
+      {
+        this->counter  = static_cast<unsigned int>(start);
+        this->interval = interval;
+      }
+    else if (type == Type::simulation_time)
+      {
+        this->last_simulation_time = start;
+        this->interval             = interval;
+      }
+    else if (type == Type::real_time)
+      {
+        this->last_real_time = std::chrono::system_clock::now();
+        this->interval       = interval;
+      }
+    else
+      {
+        Assert(false, dealii::ExcNotImplemented());
+      }
+  }
+
+  bool
+  now(const double time = 0.0)
+  {
+    if (type == Type::never)
+      {
+        return false;
+      }
+    else if (type == Type::n_calls)
+      {
+        if (interval <= 0.0)
+          return false;
+
+        return (counter % static_cast<unsigned int>(interval)) == 0;
+      }
+    else if (type == Type::simulation_time)
+      {
+        if (interval <= 0.0)
+          return false;
+
+        if ((time - last_simulation_time - interval) < -1e-10)
+          last_simulation_time = time;
+        return last_simulation_time == time;
+      }
+    else if (type == Type::real_time)
+      {
+        if (interval <= 0.0)
+          return false;
+
+        const bool do_output =
+          std::chrono::duration_cast<std::chrono::nanoseconds>(
+            std::chrono::system_clock::now() - last_real_time)
+              .count() /
+            1e9 >
+          interval;
+
+        if (dealii::Utilities::MPI::sum<unsigned int>(do_output,
+                                                      MPI_COMM_WORLD) == 0)
+          return false;
+
+        last_real_time = std::chrono::system_clock::now();
+        return true;
+      }
+    else
+      {
+        Assert(false, dealii::ExcNotImplemented());
+        return false;
+      }
+  }
+
+private:
+  Type                                  type;
+  unsigned int                          counter              = 0;
+  double                                interval             = 0;
+  double                                last_simulation_time = 0;
+  std::chrono::system_clock::time_point last_real_time;
+};
+
 class TimerCollection
 {
 public:
@@ -46,9 +151,9 @@ public:
   static void
   configure(const double interval)
   {
-    auto &instance     = get_instance();
-    instance.interval  = interval;
-    instance.last_time = std::chrono::system_clock::now();
+    get_instance().predicate.reinit(TimerPredicate::real_time,
+                                    0.0 /*dummy value*/,
+                                    interval);
   }
 
 private:
@@ -57,9 +162,7 @@ private:
 
 
   std::set<std::pair<unsigned int, const MyTimerOutput *>> timers;
-
-  double                                interval;
-  std::chrono::system_clock::time_point last_time;
+  TimerPredicate                                           predicate;
 
 public:
   TimerCollection(TimerCollection const &) = delete;
@@ -141,25 +244,9 @@ private:
 void
 TimerCollection::print_all_wall_time_statistics(const bool force_output)
 {
-  bool do_output = force_output;
-
-  if (do_output == false)
-    do_output = get_instance().interval == 0.0;
-
-  if (do_output == false && (get_instance().interval != -1.0))
-    do_output = std::chrono::duration_cast<std::chrono::nanoseconds>(
-                  std::chrono::system_clock::now() - get_instance().last_time)
-                    .count() /
-                  1e9 >
-                get_instance().interval;
-
-  if (dealii::Utilities::MPI::sum<unsigned int>(do_output, MPI_COMM_WORLD) == 0)
-    return;
-
-  get_instance().last_time = std::chrono::system_clock::now();
-
-  for (const auto &timer : get_instance().timers)
-    timer.second->print_wall_time_statistics();
+  if (force_output || get_instance().predicate.now())
+    for (const auto &timer : get_instance().timers)
+      timer.second->print_wall_time_statistics();
 }
 
 
