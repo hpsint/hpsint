@@ -122,7 +122,22 @@ namespace Sintering
 
     std::shared_ptr<InitialValues<dim>> initial_solution;
 
-    unsigned int n_global_levels_0 = 0;
+    unsigned int n_global_levels_0;
+    double       time_last_output;
+    unsigned int n_timestep;
+    unsigned int n_linear_iterations;
+    unsigned int n_non_linear_iterations;
+    unsigned int n_residual_evaluations;
+    unsigned int n_failed_tries;
+    unsigned int n_failed_linear_iterations;
+    unsigned int n_failed_non_linear_iterations;
+    unsigned int n_failed_residual_evaluations;
+    double       max_reached_dt;
+    unsigned int restart_counter;
+    double       t;
+    double       dt;
+
+    std::map<std::string, unsigned int> counters;
 
     Problem(const Parameters &                  params,
             std::shared_ptr<InitialValues<dim>> initial_solution)
@@ -143,6 +158,22 @@ namespace Sintering
 
       initialize();
 
+      this->n_global_levels_0              = tria.n_global_levels();
+      this->time_last_output               = 0;
+      this->n_timestep                     = 0;
+      this->n_linear_iterations            = 0;
+      this->n_non_linear_iterations        = 0;
+      this->n_residual_evaluations         = 0;
+      this->n_failed_tries                 = 0;
+      this->n_failed_linear_iterations     = 0;
+      this->n_failed_non_linear_iterations = 0;
+      this->n_failed_residual_evaluations  = 0;
+      this->max_reached_dt                 = 0.0;
+      this->restart_counter                = 0;
+      this->t                              = 0;
+      this->dt       = params.time_integration_data.time_step_init;
+      this->counters = {};
+
       const auto initialize_solution = [&](VectorType &   solution,
                                            MyTimerOutput &timer) {
         MyScope scope(timer, "initialize_solution");
@@ -161,7 +192,7 @@ namespace Sintering
         solution.zero_out_ghost_values();
       };
 
-      run(initialize_solution);
+      run(initial_solution->n_components(), initialize_solution);
     }
 
     Problem(const Parameters &params, const std::string &restart_path)
@@ -177,12 +208,23 @@ namespace Sintering
       , quad(params.approximation_data.n_points_1D)
       , dof_handler(tria)
     {
+      // 1) create coarse mesh
       create_grid(false);
 
+      // 2) load mesh refinement (incl. vectors)
       tria.load(restart_path + "_tria");
 
+      // 3) initialize data structures
       initialize();
 
+      // 4) load internal state of driver
+      unsigned int                    n_components = 0;
+      std::ifstream                   in_stream(restart_path + "_driver");
+      boost::archive::binary_iarchive fisb(in_stream);
+      fisb >> n_components;
+      fisb >> *this;
+
+      // 5) helper function to initialize solution vector
       const auto initialize_solution = [&](VectorType &   solution,
                                            MyTimerOutput &timer) {
         MyScope scope(timer, "deserialize_solution");
@@ -199,7 +241,29 @@ namespace Sintering
         solution_transfer.deserialize(solution_ptr);
       };
 
-      run(initialize_solution);
+      // 6) run time loop
+      run(n_components, initialize_solution);
+    }
+
+    template <class Archive>
+    void
+    serialize(Archive &ar, const unsigned int /*version*/)
+    {
+      ar &n_global_levels_0;
+      ar &time_last_output;
+      ar &n_timestep;
+      ar &n_linear_iterations;
+      ar &n_non_linear_iterations;
+      ar &n_residual_evaluations;
+      ar &n_failed_tries;
+      ar &n_failed_linear_iterations;
+      ar &n_failed_non_linear_iterations;
+      ar &n_failed_residual_evaluations;
+      ar &max_reached_dt;
+      ar &restart_counter;
+      ar &t;
+      ar &dt;
+      ar &counters;
     }
 
     void
@@ -252,7 +316,6 @@ namespace Sintering
                   params.geometry_data.elements_per_interface,
                   params.geometry_data.periodic,
                   with_initial_refinement);
-      this->n_global_levels_0 = tria.n_global_levels();
 
       helper = std::make_unique<dealii::parallel::Helper<dim>>(tria);
 
@@ -422,7 +485,8 @@ namespace Sintering
     }
 
     void
-    run(const std::function<void(VectorType &, MyTimerOutput &)>
+    run(const unsigned int n_intial_components,
+        const std::function<void(VectorType &, MyTimerOutput &)>
           &initialize_solution)
     {
       SinteringOperatorData<dim, VectorizedArrayType> sintering_data(
@@ -436,7 +500,7 @@ namespace Sintering
         params.energy_data.kappa_c,
         params.energy_data.kappa_p);
 
-      sintering_data.set_n_components(initial_solution->n_components());
+      sintering_data.set_n_components(n_intial_components);
 
       MGLevelObject<SinteringOperatorData<dim, VectorizedArrayType>>
         mg_sintering_data(0,
@@ -609,8 +673,6 @@ namespace Sintering
 
       bool system_has_changed = true;
 
-      const unsigned int init_level = tria.n_global_levels() - 1;
-
       const auto execute_coarsening_and_refinement = [&](const double t) {
         MyScope scope(timer, "execute_coarsening_and_refinement");
 
@@ -701,12 +763,13 @@ namespace Sintering
         for (const auto &cell : tria.active_cell_iterators())
           if (cell->refine_flag_set() &&
               (static_cast<unsigned int>(cell->level()) ==
-               (init_level + params.adaptivity_data.max_refinement_depth)))
+               ((this->n_global_levels_0 - 1) +
+                params.adaptivity_data.max_refinement_depth)))
             cell->clear_refine_flag();
           else if (cell->coarsen_flag_set() &&
                    (static_cast<unsigned int>(cell->level()) ==
-                    (init_level -
-                     std::min(init_level,
+                    ((this->n_global_levels_0 - 1) -
+                     std::min((this->n_global_levels_0 - 1),
                               params.adaptivity_data.min_refinement_depth))))
             cell->clear_coarsen_flag();
 
@@ -829,40 +892,22 @@ namespace Sintering
 
       // Grain tracker - first run after we have initial configuration defined
       if (params.grain_tracker_data.grain_tracker_frequency > 0)
-        {
-          run_grain_tracker(0.0, /*do_initialize = */ true);
-        }
+        run_grain_tracker(t, /*do_initialize = */ true);
 
       // initial local refinement
-      if (params.adaptivity_data.refinement_frequency > 0)
+      if (t == 0.0 && params.adaptivity_data.refinement_frequency > 0)
         for (unsigned int i = 0;
              i < std::max(params.adaptivity_data.min_refinement_depth,
                           params.adaptivity_data.max_refinement_depth);
              ++i)
-          {
-            execute_coarsening_and_refinement(0.0);
-          }
-
-      double time_last_output = 0;
+          execute_coarsening_and_refinement(t);
 
       if (params.output_data.output_time_interval > 0.0)
         output_result(solution, nonlinear_operator, time_last_output);
 
-      unsigned int n_timestep                     = 0;
-      unsigned int n_linear_iterations            = 0;
-      unsigned int n_non_linear_iterations        = 0;
-      unsigned int n_residual_evaluations         = 0;
-      unsigned int n_failed_tries                 = 0;
-      unsigned int n_failed_linear_iterations     = 0;
-      unsigned int n_failed_non_linear_iterations = 0;
-      unsigned int n_failed_residual_evaluations  = 0;
-      double       max_reached_dt                 = 0.0;
-      unsigned int restart_counter                = 0;
-
       // run time loop
       {
-        for (double t = 0, dt = params.time_integration_data.time_step_init;
-             t <= params.time_integration_data.time_end;)
+        while (t <= params.time_integration_data.time_end)
           {
             TimerOutput::Scope scope(timer(), "time_loop");
 
@@ -1153,8 +1198,6 @@ namespace Sintering
     {
       if (!params.output_data.debug && label != "solution")
         return; // nothing to do for debug for non-solution
-
-      static std::map<std::string, unsigned int> counters;
 
       if (counters.find(label) == counters.end())
         counters[label] = 0;
