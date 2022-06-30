@@ -81,7 +81,7 @@ main(int argc, char **argv)
       AssertThrow(3 <= argc && argc <= 4,
                   ExcMessage("Argument cloud_file has to be provided!"));
 
-      std::string   file_cloud = std::string(argv[3]);
+      std::string   file_cloud = std::string(argv[2]);
       std::ifstream fstream(file_cloud.c_str());
       const auto particles = Sintering::read_particles<SINTERING_DIM>(fstream);
 
