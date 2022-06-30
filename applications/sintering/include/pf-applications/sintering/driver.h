@@ -179,7 +179,7 @@ namespace Sintering
     {
       create_grid(false);
 
-      tria.load(restart_path + "tria");
+      tria.load(restart_path + "_tria");
 
       initialize();
 
@@ -750,12 +750,10 @@ namespace Sintering
       };
 
       // New grains can not appear in current sintering simulations
-      const bool allow_new_grains = false;
-
       GrainTracker::Tracker<dim, Number> grain_tracker(
         dof_handler,
         !params.geometry_data.minimize_order_parameters,
-        allow_new_grains,
+        /*allow_new_grains*/ false,
         MAX_SINTERING_GRAINS,
         params.grain_tracker_data.threshold_lower,
         params.grain_tracker_data.threshold_upper,
@@ -859,6 +857,7 @@ namespace Sintering
       unsigned int n_failed_non_linear_iterations = 0;
       unsigned int n_failed_residual_evaluations  = 0;
       double       max_reached_dt                 = 0.0;
+      unsigned int restart_counter                = 0;
 
       // run time loop
       {
@@ -1098,6 +1097,26 @@ namespace Sintering
               {
                 time_last_output = t;
                 output_result(solution, nonlinear_operator, time_last_output);
+              }
+
+            if ((n_timestep %
+                 static_cast<unsigned int>(params.restart_data.interval)) == 0)
+              {
+                parallel::distributed::
+                  SolutionTransfer<dim, typename VectorType::BlockType>
+                    solution_transfer(dof_handler);
+
+                std::vector<const typename VectorType::BlockType *>
+                  solution_ptr(solution.n_blocks());
+                for (unsigned int b = 0; b < solution.n_blocks(); ++b)
+                  solution_ptr[b] = &solution.block(b);
+
+                solution_transfer.prepare_for_serialization(solution_ptr);
+
+                const std::string prefix = params.restart_data.prefix + "_" +
+                                           std::to_string(restart_counter++);
+
+                tria.save(prefix + "_tria");
               }
 
             TimerCollection::print_all_wall_time_statistics();

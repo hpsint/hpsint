@@ -95,6 +95,12 @@ namespace Sintering
       {"CH", "AC", "bnds", "dt", "d2f", "M", "dM", "kappa", "L", "subdomain"};
   };
 
+  struct RestartData
+  {
+    std::string prefix   = "./restart";
+    double      interval = 10.0;
+  };
+
   struct PreconditionersData
   {
     std::string outer_preconditioner = "BlockPreconditioner2";
@@ -136,6 +142,7 @@ namespace Sintering
     MobilityData        mobility_data;
     TimeIntegrationData time_integration_data;
     OutputData          output_data;
+    RestartData         restart_data;
     PreconditionersData preconditioners_data;
     ProfilingData       profiling_data;
     NonLinearData       nonlinear_data;
