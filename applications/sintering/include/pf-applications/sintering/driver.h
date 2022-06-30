@@ -915,7 +915,7 @@ namespace Sintering
              ++i)
           execute_coarsening_and_refinement(t);
 
-      if (params.output_data.output_time_interval > 0.0)
+      if (t == 0.0 && params.output_data.output_time_interval > 0.0)
         output_result(solution, nonlinear_operator, time_last_output);
 
       // run time loop
