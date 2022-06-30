@@ -157,17 +157,15 @@ namespace Sintering
       , quad(params.approximation_data.n_points_1D)
       , dof_handler(tria)
     {
-      geometry_domain_boundaries = initial_solution->get_domain_boundaries();
-      geometry_r_max             = initial_solution->get_r_max();
-      geometry_interface_width   = initial_solution->get_interface_width();
-
-      this->n_global_levels_0              = tria.n_global_levels();
-      this->time_last_output               = 0;
-      this->n_timestep                     = 0;
-      this->n_linear_iterations            = 0;
-      this->n_non_linear_iterations        = 0;
-      this->n_residual_evaluations         = 0;
-      this->n_failed_tries                 = 0;
+      geometry_domain_boundaries    = initial_solution->get_domain_boundaries();
+      geometry_r_max                = initial_solution->get_r_max();
+      geometry_interface_width      = initial_solution->get_interface_width();
+      this->time_last_output        = 0;
+      this->n_timestep              = 0;
+      this->n_linear_iterations     = 0;
+      this->n_non_linear_iterations = 0;
+      this->n_residual_evaluations  = 0;
+      this->n_failed_tries          = 0;
       this->n_failed_linear_iterations     = 0;
       this->n_failed_non_linear_iterations = 0;
       this->n_failed_residual_evaluations  = 0;
@@ -178,6 +176,8 @@ namespace Sintering
       this->counters = {};
 
       create_grid(true);
+
+      this->n_global_levels_0 = tria.n_global_levels();
 
       initialize();
 
