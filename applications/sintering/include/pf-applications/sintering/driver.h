@@ -120,7 +120,11 @@ namespace Sintering
       MGTransferGlobalCoarsening<dim, typename VectorType::BlockType>>
       transfer;
 
-    std::shared_ptr<InitialValues<dim>> initial_solution;
+
+    std::pair<dealii::Point<dim>, dealii::Point<dim>>
+           geometry_domain_boundaries;
+    double geometry_r_max;
+    double geometry_interface_width;
 
     unsigned int n_global_levels_0;
     double       time_last_output;
@@ -152,11 +156,10 @@ namespace Sintering
       , mapping(1)
       , quad(params.approximation_data.n_points_1D)
       , dof_handler(tria)
-      , initial_solution(initial_solution)
     {
-      create_grid(true);
-
-      initialize();
+      geometry_domain_boundaries = initial_solution->get_domain_boundaries();
+      geometry_r_max             = initial_solution->get_r_max();
+      geometry_interface_width   = initial_solution->get_interface_width();
 
       this->n_global_levels_0              = tria.n_global_levels();
       this->time_last_output               = 0;
@@ -173,6 +176,10 @@ namespace Sintering
       this->t                              = 0;
       this->dt       = params.time_integration_data.time_step_init;
       this->counters = {};
+
+      create_grid(true);
+
+      initialize();
 
       const auto initialize_solution = [&](VectorType &   solution,
                                            MyTimerOutput &timer) {
@@ -208,6 +215,13 @@ namespace Sintering
       , quad(params.approximation_data.n_points_1D)
       , dof_handler(tria)
     {
+      // 0) load internal state
+      unsigned int                    n_components = 0;
+      std::ifstream                   in_stream(restart_path + "_driver");
+      boost::archive::binary_iarchive fisb(in_stream);
+      fisb >> n_components;
+      fisb >> *this;
+
       // 1) create coarse mesh
       create_grid(false);
 
@@ -217,14 +231,7 @@ namespace Sintering
       // 3) initialize data structures
       initialize();
 
-      // 4) load internal state of driver
-      unsigned int                    n_components = 0;
-      std::ifstream                   in_stream(restart_path + "_driver");
-      boost::archive::binary_iarchive fisb(in_stream);
-      fisb >> n_components;
-      fisb >> *this;
-
-      // 5) helper function to initialize solution vector
+      // 4) helper function to initialize solution vector
       const auto initialize_solution = [&](VectorType &   solution,
                                            MyTimerOutput &timer) {
         MyScope scope(timer, "deserialize_solution");
@@ -241,7 +248,7 @@ namespace Sintering
         solution_transfer.deserialize(solution_ptr);
       };
 
-      // 6) run time loop
+      // 5) run time loop
       run(n_components, initialize_solution);
     }
 
@@ -249,6 +256,12 @@ namespace Sintering
     void
     serialize(Archive &ar, const unsigned int /*version*/)
     {
+      // geometry
+      ar &geometry_domain_boundaries;
+      ar &geometry_r_max;
+      ar &geometry_interface_width;
+
+      // counters
       ar &n_global_levels_0;
       ar &time_last_output;
       ar &n_timestep;
@@ -273,8 +286,8 @@ namespace Sintering
 
       if (!params.geometry_data.custom_bounding_box)
         {
-          boundaries  = initial_solution->get_domain_boundaries();
-          double rmax = initial_solution->get_r_max();
+          boundaries  = geometry_domain_boundaries;
+          double rmax = geometry_r_max;
 
           for (unsigned int i = 0; i < dim; i++)
             {
@@ -312,7 +325,7 @@ namespace Sintering
       create_mesh(tria,
                   boundaries.first,
                   boundaries.second,
-                  initial_solution->get_interface_width(),
+                  geometry_interface_width,
                   params.geometry_data.elements_per_interface,
                   params.geometry_data.periodic,
                   with_initial_refinement);
@@ -1147,6 +1160,11 @@ namespace Sintering
             if ((n_timestep %
                  static_cast<unsigned int>(params.restart_data.interval)) == 0)
               {
+                const bool solution_is_ghosted = solution.has_ghost_elements();
+
+                if (solution_is_ghosted == false)
+                  solution.update_ghost_values();
+
                 parallel::distributed::
                   SolutionTransfer<dim, typename VectorType::BlockType>
                     solution_transfer(dof_handler);
@@ -1162,6 +1180,14 @@ namespace Sintering
                                            std::to_string(restart_counter++);
 
                 tria.save(prefix + "_tria");
+
+                std::ofstream                   out_stream(prefix + "_driver");
+                boost::archive::binary_oarchive fosb(out_stream);
+                fosb << solution.n_blocks();
+                fosb << *this;
+
+                if (solution_is_ghosted == false)
+                  solution.zero_out_ghost_values();
               }
 
             TimerCollection::print_all_wall_time_statistics();
