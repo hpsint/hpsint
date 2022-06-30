@@ -98,6 +98,7 @@ namespace Sintering
   struct RestartData
   {
     std::string prefix   = "./restart";
+    std::string type     = "never";
     double      interval = 10.0;
   };
 
@@ -378,6 +379,20 @@ namespace Sintering
                         "Fields to output.",
                         Patterns::List(
                           Patterns::MultipleSelection(output_fields_options)));
+      prm.leave_subsection();
+
+      prm.enter_subsection("Restart");
+      prm.add_parameter("Prefix",
+                        restart_data.prefix,
+                        "Prefix of restart files to create.");
+      prm.add_parameter("Type",
+                        restart_data.type,
+                        "Type of restart output.",
+                        Patterns::Selection(
+                          "never|n_calls|real_time|simulation_time"));
+      prm.add_parameter("Interval",
+                        restart_data.interval,
+                        "Interal of restart output.");
       prm.leave_subsection();
 
       prm.enter_subsection("Preconditioners");

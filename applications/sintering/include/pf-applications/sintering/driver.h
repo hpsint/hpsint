@@ -502,6 +502,12 @@ namespace Sintering
         const std::function<void(VectorType &, MyTimerOutput &)>
           &initialize_solution)
     {
+      TimerPredicate restart_predicate(params.restart_data.type,
+                                       params.restart_data.type == "n_calls" ?
+                                         n_timestep :
+                                         t,
+                                       params.restart_data.interval);
+
       SinteringOperatorData<dim, VectorizedArrayType> sintering_data(
         params.energy_data.A,
         params.energy_data.B,
@@ -1148,6 +1154,10 @@ namespace Sintering
                     "Minimum timestep size exceeded, solution failed!"));
               }
 
+            const bool is_last_time_step =
+              has_converged &&
+              (std::abs(t - params.time_integration_data.time_end) < 1e-8);
+
             if ((params.output_data.output_time_interval > 0.0) &&
                 has_converged &&
                 (t >
@@ -1157,8 +1167,7 @@ namespace Sintering
                 output_result(solution, nonlinear_operator, time_last_output);
               }
 
-            if ((n_timestep %
-                 static_cast<unsigned int>(params.restart_data.interval)) == 0)
+            if (is_last_time_step || restart_predicate.now(t))
               {
                 const bool solution_is_ghosted = solution.has_ghost_elements();
 
