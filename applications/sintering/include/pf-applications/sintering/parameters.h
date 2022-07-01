@@ -95,6 +95,14 @@ namespace Sintering
       {"CH", "AC", "bnds", "dt", "d2f", "M", "dM", "kappa", "L", "subdomain"};
   };
 
+  struct RestartData
+  {
+    std::string  prefix     = "./restart";
+    std::string  type       = "never";
+    double       interval   = 10.0;
+    unsigned int max_output = 0;
+  };
+
   struct PreconditionersData
   {
     std::string outer_preconditioner = "BlockPreconditioner2";
@@ -136,6 +144,7 @@ namespace Sintering
     MobilityData        mobility_data;
     TimeIntegrationData time_integration_data;
     OutputData          output_data;
+    RestartData         restart_data;
     PreconditionersData preconditioners_data;
     ProfilingData       profiling_data;
     NonLinearData       nonlinear_data;
@@ -371,6 +380,24 @@ namespace Sintering
                         "Fields to output.",
                         Patterns::List(
                           Patterns::MultipleSelection(output_fields_options)));
+      prm.leave_subsection();
+
+      prm.enter_subsection("Restart");
+      prm.add_parameter("Prefix",
+                        restart_data.prefix,
+                        "Prefix of restart files to create.");
+      prm.add_parameter("Type",
+                        restart_data.type,
+                        "Type of restart output.",
+                        Patterns::Selection(
+                          "never|n_calls|real_time|simulation_time"));
+      prm.add_parameter("Interval",
+                        restart_data.interval,
+                        "Interval of restart output.");
+      prm.add_parameter(
+        "MaximalOutput",
+        restart_data.max_output,
+        "Maximal number of restart outputs. The value 0 means no limit.");
       prm.leave_subsection();
 
       prm.enter_subsection("Preconditioners");

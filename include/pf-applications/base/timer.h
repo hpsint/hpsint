@@ -15,6 +15,32 @@ public:
     simulation_time
   };
 
+private:
+  Type
+  string_to_enum(const std::string label)
+  {
+    if (label == "never")
+      return never;
+    if (label == "n_calls")
+      return n_calls;
+    if (label == "real_time")
+      return real_time;
+    if (label == "simulation_time")
+      return simulation_time;
+
+    AssertThrow(false, dealii::ExcNotImplemented());
+
+    return never;
+  }
+
+public:
+  TimerPredicate(const std::string label,
+                 const double      start    = 0.0,
+                 const double      interval = 0.0)
+  {
+    reinit(string_to_enum(label), start, interval);
+  }
+
   TimerPredicate(const Type   type     = Type::never,
                  const double start    = 0.0,
                  const double interval = 0.0)

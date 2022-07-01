@@ -75,12 +75,11 @@ main(int argc, char **argv)
                                         MAX_SINTERING_GRAINS));
 
       Sintering::Problem<SINTERING_DIM> runner(params, initial_solution);
-      runner.run();
     }
   else if (std::string(argv[1]) == "--cloud")
     {
       AssertThrow(3 <= argc && argc <= 4,
-                  ExcMessage("Argument cloud_file has to be provided"));
+                  ExcMessage("Argument cloud_file has to be provided!"));
 
       std::string   file_cloud = std::string(argv[2]);
       std::ifstream fstream(file_cloud.c_str());
@@ -102,11 +101,17 @@ main(int argc, char **argv)
                                         MAX_SINTERING_GRAINS));
 
       Sintering::Problem<SINTERING_DIM> runner(params, initial_solution);
-      runner.run();
     }
   else if (std::string(argv[1]) == "--restart")
     {
-      AssertThrow(false, ExcNotImplemented());
+      AssertThrow(3 <= argc && argc <= 4, ExcNotImplemented());
+
+      const std::string restart_path = std::string(argv[2]);
+
+      if (argc >= 4)
+        params.parse(std::string(argv[3]));
+
+      Sintering::Problem<SINTERING_DIM> runner(params, restart_path);
     }
   else
     {
