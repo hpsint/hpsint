@@ -1185,8 +1185,15 @@ namespace Sintering
 
                 solution_transfer.prepare_for_serialization(solution_ptr);
 
-                const std::string prefix = params.restart_data.prefix + "_" +
-                                           std::to_string(restart_counter++);
+                unsigned int current_restart_count = restart_counter++;
+
+                if (params.restart_data.max_output != 0)
+                  current_restart_count =
+                    current_restart_count % params.restart_data.max_output;
+
+                const std::string prefix =
+                  params.restart_data.prefix + "_" +
+                  std::to_string(current_restart_count);
 
                 tria.save(prefix + "_tria");
 
