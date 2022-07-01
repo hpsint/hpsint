@@ -216,10 +216,10 @@ namespace Sintering
       , dof_handler(tria)
     {
       // 0) load internal state
-      unsigned int                    n_components = 0;
+      unsigned int                    n_initial_components = 0;
       std::ifstream                   in_stream(restart_path + "_driver");
       boost::archive::binary_iarchive fisb(in_stream);
-      fisb >> n_components;
+      fisb >> n_initial_components;
       fisb >> *this;
 
       // 1) create coarse mesh
@@ -249,7 +249,7 @@ namespace Sintering
       };
 
       // 5) run time loop
-      run(n_components, initialize_solution);
+      run(n_initial_components, initialize_solution);
     }
 
     template <class Archive>
@@ -498,7 +498,7 @@ namespace Sintering
     }
 
     void
-    run(const unsigned int n_intial_components,
+    run(const unsigned int n_initial_components,
         const std::function<void(VectorType &, MyTimerOutput &)>
           &initialize_solution)
     {
@@ -519,7 +519,7 @@ namespace Sintering
         params.energy_data.kappa_c,
         params.energy_data.kappa_p);
 
-      sintering_data.set_n_components(n_intial_components);
+      sintering_data.set_n_components(n_initial_components);
 
       MGLevelObject<SinteringOperatorData<dim, VectorizedArrayType>>
         mg_sintering_data(0,

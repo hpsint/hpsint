@@ -392,7 +392,7 @@ namespace Sintering
                           "never|n_calls|real_time|simulation_time"));
       prm.add_parameter("Interval",
                         restart_data.interval,
-                        "Interal of restart output.");
+                        "Interval of restart output.");
       prm.leave_subsection();
 
       prm.enter_subsection("Preconditioners");
