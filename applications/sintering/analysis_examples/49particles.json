@@ -73,7 +73,7 @@
     "Restart": {
         "Interval": "10",
         "MaximalOutput": "0",
-        "Prefix": ".\/restart",
+        "Prefix": "./restart",
         "Type": "never"
     },
     "TimeIntegration": {
