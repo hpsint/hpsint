@@ -1,0 +1,89 @@
+{
+    "MatrixBased": "false",
+    "Adaptivity": {
+        "BottomFractionOfCells": "0.1",
+        "MaxRefinementDepth": "0",
+        "MinRefinementDepth": "3",
+        "RefinementFrequency": "10",
+        "TopFractionOfCells": "0.3"
+    },
+    "Approximation": {
+        "FEDegree": "1",
+        "NPoints1D": "2"
+    },
+    "Energy": {
+        "A": "16",
+        "B": "1",
+        "KappaC": "1",
+        "KappaP": "0.5"
+    },
+    "Geometry": {
+        "BoundaryFactor": "0",
+        "CustomBoundingBox": "true",
+        "ElementsPerInterface": "8",
+        "HangingNodeWeight": "1",
+        "InterfaceBufferRatio": "1",
+        "InterfaceWidth": "2",
+        "MinimizeOrderParameters": "true",
+        "Periodic": "true",
+        "BoundingBox": {
+            "Xmax": "37.5",
+            "Xmin": "0",
+            "Ymax": "22.5",
+            "Ymin": "0",
+            "Zmax": "22.5",
+            "Zmin": "0"
+        }
+    },
+    "GrainTracker": {
+        "BufferDistanceRatio": "0.05",
+        "GrainTrackerFrequency": "10",
+        "ThresholdLower": "0.01",
+        "ThresholdUpper": "1.01"
+    },
+    "Mobility": {
+        "L": "1",
+        "Mgb": "0.4",
+        "Msurf": "4",
+        "Mvap": "1e-10",
+        "Mvol": "0.01"
+    },
+    "Output": {
+        "Contour": "true",
+        "ContourNCoarseningSteps": "0",
+        "Debug": "false",
+        "Fields": "AC, CH, L, M, bnds, d2f, dM, dt, kappa, subdomain",
+        "HigherOrderCells": "true",
+        "OutputTimeInterval": "5",
+        "Regular": "true",
+        "VtkPath": "."
+    },
+    "Preconditioners": {
+        "OuterPreconditioner": "BlockPreconditioner2",
+        "BlockPreconditioner2": {
+            "Block0Preconditioner": "ILU",
+            "Block1Approximation": "all",
+            "Block1Preconditioner": "InverseDiagonalMatrix"
+        }
+    },
+    "Profiling": {
+        "OutputTimeInterval": "-1",
+        "RunVmults": "false"
+    },
+    "Restart": {
+        "Interval": "10",
+        "MaximalOutput": "0",
+        "Prefix": ".\/restart",
+        "Type": "never"
+    },
+    "TimeIntegration": {
+        "DesirableLinearIterations": "100",
+        "DesirableNewtonIterations": "5",
+        "GrowthFactor": "1.2",
+        "TimeEnd": "1000",
+        "TimeStart": "0",
+        "TimeStepInit": "0.001",
+        "TimeStepMax": "100",
+        "TimeStepMin": "1e-05"
+    }
+}
