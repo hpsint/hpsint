@@ -736,11 +736,13 @@ namespace Sintering
       const MatrixFree<dim, Number, VectorizedArrayType> &matrix_free,
       const AffineConstraints<Number> &                   constraints,
       const unsigned int                                  dof_index,
-      const std::string                                   label = "")
+      const std::string                                   label        = "",
+      const bool                                          matrix_based = false)
       : matrix_free(matrix_free)
       , constraints(constraints)
       , dof_index(dof_index)
       , label(label)
+      , matrix_based(matrix_based)
       , pcout(std::cout, Utilities::MPI::this_mpi_process(MPI_COMM_WORLD) == 0)
       , timer(label != "")
       , do_timing(true)
@@ -830,10 +832,7 @@ namespace Sintering
     {
       MyScope scope(this->timer, label + "::vmult", this->do_timing);
 
-      const bool system_matrix_is_empty =
-        system_matrix.m() == 0 || system_matrix.n() == 0;
-
-      if (system_matrix_is_empty)
+      if (matrix_based == false)
         {
           if (constrained_indices.empty())
             {
@@ -900,10 +899,7 @@ namespace Sintering
     {
       MyScope scope(this->timer, label + "::vmult", this->do_timing);
 
-      const bool system_matrix_is_empty =
-        system_matrix.m() == 0 || system_matrix.n() == 0;
-
-      if (system_matrix_is_empty)
+      if (matrix_based == false)
         {
           if (constrained_indices.empty())
             {
@@ -1263,6 +1259,7 @@ namespace Sintering
     const unsigned int dof_index;
 
     const std::string label;
+    const bool        matrix_based;
 
     mutable TrilinosWrappers::SparseMatrix system_matrix;
     mutable std::vector<std::shared_ptr<TrilinosWrappers::SparseMatrix>>
@@ -1434,9 +1431,9 @@ namespace Sintering
           matrix_free,
           constraints,
           0,
-          "sintering_op")
+          "sintering_op",
+          matrix_based)
       , data(data)
-      , matrix_based(matrix_based)
     {}
 
     ~SinteringOperator()
@@ -1492,7 +1489,7 @@ namespace Sintering
     void
     do_update()
     {
-      if (matrix_based)
+      if (this->matrix_based)
         this->get_system_matrix(); // assemble matrix
     }
 
@@ -1979,8 +1976,6 @@ namespace Sintering
     const SinteringOperatorData<dim, VectorizedArrayType> &data;
 
     mutable BlockVectorType old_solution;
-
-    const bool matrix_based;
   };
 
 } // namespace Sintering
