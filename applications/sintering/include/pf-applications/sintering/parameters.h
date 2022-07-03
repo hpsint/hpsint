@@ -168,11 +168,6 @@ namespace Sintering
 #ifdef N_Q_POINTS_1D
       AssertDimension(N_Q_POINTS_1D, approximation_data.n_points_1D);
 #endif
-
-      AssertThrow(preconditioners_data.outer_preconditioner ==
-                      "BlockPreconditioner2" ||
-                    matrix_based,
-                  ExcNotImplemented());
     }
 
     void
