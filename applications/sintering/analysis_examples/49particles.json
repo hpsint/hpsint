@@ -4,7 +4,7 @@
         "BottomFractionOfCells": "0.1",
         "MaxRefinementDepth": "1",
         "MinRefinementDepth": "3",
-        "RefinementFrequency": "10",
+        "RefinementFrequency": "50",
         "TopFractionOfCells": "0.3"
     },
     "Approximation": {
@@ -37,7 +37,7 @@
     },
     "GrainTracker": {
         "BufferDistanceRatio": "0.05",
-        "GrainTrackerFrequency": "25",
+        "GrainTrackerFrequency": "100000",
         "ThresholdLower": "0.01",
         "ThresholdUpper": "1.01"
     },
@@ -54,8 +54,8 @@
         "Debug": "false",
         "Fields": "bnds",
         "HigherOrderCells": "false",
-        "OutputTimeInterval": "1",
-        "Regular": "true",
+        "OutputTimeInterval": "50",
+        "Regular": "false",
         "VtkPath": "."
     },
     "Preconditioners": {

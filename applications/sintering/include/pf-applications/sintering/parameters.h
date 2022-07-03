@@ -156,6 +156,11 @@ namespace Sintering
     void
     parse(const std::string file_name)
     {
+      ConditionalOStream pcout(
+        std::cout, Utilities::MPI::this_mpi_process(MPI_COMM_WORLD) == 0);
+
+      pcout << "Parsing: " << file_name << std::endl;
+
       dealii::ParameterHandler prm;
       add_parameters(prm);
 
