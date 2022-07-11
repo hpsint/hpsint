@@ -55,11 +55,20 @@ namespace NonLinearSolvers
       return residual_evaluations;
     }
 
+    template <typename VectorType>
     State
-    check(const unsigned int step, const double check_value)
+    check(const unsigned int step,
+          const double       check_value,
+          const VectorType & solution,
+          const VectorType & residuum)
     {
+      (void)solution;
+      (void)residuum;
+
       if (step == 0)
         this->check_value_0 = check_value;
+
+      this->check_value = check_value;
 
       this->newton_iterations = step;
 
@@ -73,12 +82,21 @@ namespace NonLinearSolvers
       return failure;
     }
 
+    State
+    check()
+    {
+      Vector<double> dummy;
+
+      return check(this->newton_iterations, this->check_value, dummy, dummy);
+    }
+
   private:
     const unsigned int max_iter;
     const double       abs_tol;
     const double       rel_tol;
 
     double check_value_0 = 0.0;
+    double check_value   = 0.0;
 
     unsigned int newton_iterations    = 0;
     unsigned int linear_iterations    = 0;
@@ -170,8 +188,12 @@ namespace NonLinearSolvers
       double   norm_r = vec_residual.l2_norm();
       unsigned it     = 0;
 
-      while (statistics.check(it, norm_r) == NewtonSolverSolverControl::iterate)
+      auto status = NewtonSolverSolverControl::iterate;
+
+      while (status == NewtonSolverSolverControl::iterate)
         {
+          status = check(it, norm_r, dst, vec_residual);
+
           // reset increment
           increment = 0.0;
 
@@ -236,8 +258,7 @@ namespace NonLinearSolvers
           ++history_newton_iterations;
         }
 
-      AssertThrow(statistics.check(it, norm_r) ==
-                    NewtonSolverSolverControl::success,
+      AssertThrow(status == NewtonSolverSolverControl::success,
                   ExcNewtonDidNotConverge("Newton"));
     }
 
@@ -246,6 +267,28 @@ namespace NonLinearSolvers
     {
       history_linear_iterations_last = 0;
       history_newton_iterations      = 0;
+    }
+
+    NewtonSolverSolverControl::State
+    check(const unsigned int step,
+          const double       check_value,
+          const VectorType & x,
+          const VectorType & r) const
+    {
+      if (check_iteration_status == nullptr)
+        return statistics.check(step, check_value, x, r);
+
+      const auto state1 = statistics.check(step, check_value, x, r);
+      const auto state2 = check_iteration_status(step, check_value, x, r);
+
+      if ((state1 == NewtonSolverSolverControl::failure) ||
+          (state2 == NewtonSolverSolverControl::failure))
+        return NewtonSolverSolverControl::failure;
+      else if ((state1 == NewtonSolverSolverControl::iterate) ||
+               (state2 == NewtonSolverSolverControl::iterate))
+        return NewtonSolverSolverControl::iterate;
+      else
+        return NewtonSolverSolverControl::success;
     }
 
 
@@ -262,5 +305,10 @@ namespace NonLinearSolvers
     std::function<void(const VectorType &, const bool)>   setup_jacobian = {};
     std::function<unsigned int(const VectorType &, VectorType &)>
       solve_with_jacobian = {};
+    std::function<NewtonSolverSolverControl::State(const unsigned int,
+                                                   const double,
+                                                   const VectorType &,
+                                                   const VectorType &)>
+      check_iteration_status = {};
   };
 } // namespace NonLinearSolvers

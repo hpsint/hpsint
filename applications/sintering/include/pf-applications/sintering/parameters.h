@@ -131,6 +131,8 @@ namespace Sintering
     unsigned int newton_threshold_newton_iter = 100;
     unsigned int newton_threshold_linear_iter = 20;
     bool         newton_reuse_preconditioner  = true;
+
+    unsigned int verbosity = 1;
   };
 
 
