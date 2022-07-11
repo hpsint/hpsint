@@ -55,9 +55,16 @@ namespace NonLinearSolvers
       return residual_evaluations;
     }
 
+    template <typename VectorType>
     State
-    check(const unsigned int step, const double check_value)
+    check(const unsigned int step,
+          const double       check_value,
+          const VectorType & solution,
+          const VectorType & residuum)
     {
+      (void)solution;
+      (void)residuum;
+
       if (step == 0)
         this->check_value_0 = check_value;
 
@@ -170,7 +177,8 @@ namespace NonLinearSolvers
       double   norm_r = vec_residual.l2_norm();
       unsigned it     = 0;
 
-      while (statistics.check(it, norm_r) == NewtonSolverSolverControl::iterate)
+      while (check(it, norm_r, dst, vec_residual) ==
+             NewtonSolverSolverControl::iterate)
         {
           // reset increment
           increment = 0.0;
@@ -236,7 +244,7 @@ namespace NonLinearSolvers
           ++history_newton_iterations;
         }
 
-      AssertThrow(statistics.check(it, norm_r) ==
+      AssertThrow(check(it, norm_r, dst, vec_residual) ==
                     NewtonSolverSolverControl::success,
                   ExcNewtonDidNotConverge("Newton"));
     }
@@ -246,6 +254,15 @@ namespace NonLinearSolvers
     {
       history_linear_iterations_last = 0;
       history_newton_iterations      = 0;
+    }
+
+    NewtonSolverSolverControl::State
+    check(const unsigned int step,
+          const double       check_value,
+          const VectorType & solution,
+          const VectorType & residuum) const
+    {
+      return statistics.check(step, check_value, solution, residuum);
     }
 
 
