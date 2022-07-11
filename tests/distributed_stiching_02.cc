@@ -271,7 +271,7 @@ main(int argc, char **argv)
       }
 
   // ... reduce information
-  MPI_Reduce(MPI_IN_PLACE,
+  MPI_Reduce(my_rank == 0 ? MPI_IN_PLACE : particle_info.data(),
              particle_info.data(),
              particle_info.size(),
              MPI_DOUBLE,
