@@ -1,5 +1,7 @@
 #pragma once
 
+#include <deal.II/base/mpi_consensus_algorithms.h>
+
 #include <deal.II/grid/filtered_iterator.h>
 #include <deal.II/grid/grid_tools.h>
 
@@ -19,6 +21,7 @@
 
 #include "cloud.h"
 #include "grain.h"
+#include "periodicity_graph.h"
 #include "remap_graph.h"
 #include "remapping.h"
 #include "segment.h"
@@ -628,38 +631,144 @@ namespace GrainTracker
                      0,
                      comm);
 
+          // Set global ids to the particles
+          for (auto &particle_id : particle_ids)
+            if (particle_id != invalid_particle_id)
+              particle_id = local_to_global_particle_ids
+                [static_cast<unsigned int>(particle_id) - offset];
+          particle_ids.update_ghost_values();
 
+          // Build periodicity between particles
+          std::set<std::tuple<unsigned int, unsigned int>> periodicity;
 
-          // Convert to native grain tracker data format
+          for (const auto &cell :
+               dof_handler.get_triangulation().active_cell_iterators())
+            if (!cell->is_artificial())
+              {
+                const auto particle_id =
+                  particle_ids[cell->global_active_cell_index()];
+
+                if (particle_id == invalid_particle_id)
+                  continue;
+
+                for (const auto face : cell->face_indices())
+                  {
+                    if (!cell->has_periodic_neighbor(face))
+                      continue;
+
+                    const auto add = [&](const auto &cell,
+                                         const auto &other_cell) {
+                      if (other_cell->is_locally_owned() == false)
+                        return;
+
+                      const auto neighbor_particle_id =
+                        particle_ids[other_cell->global_active_cell_index()];
+
+                      if (neighbor_particle_id == invalid_particle_id)
+                        return;
+
+                      periodicity.emplace(neighbor_particle_id, particle_id);
+                    };
+
+                    if (cell->periodic_neighbor(face)->has_children())
+                      {
+                        for (unsigned int subface = 0;
+                             subface <
+                             GeometryInfo<dim>::n_subfaces(
+                               internal::SubfaceCase<dim>::case_isotropic);
+                             ++subface)
+                          add(cell,
+                              cell->periodic_neighbor_child_on_subface(
+                                face, subface));
+                      }
+                    else
+                      add(cell, cell->periodic_neighbor(face));
+                  }
+              }
+
+          // Convert set to flatten vector
+          std::vector<unsigned int> periodicity_flatten;
+          for (const auto &conn : periodicity)
+            {
+              periodicity_flatten.push_back(std::get<0>(conn));
+              periodicity_flatten.push_back(std::get<1>(conn));
+            }
+
+          // Perform global communication, the data is not large
+          auto global_periodicity =
+            Utilities::MPI::all_gather(MPI_COMM_WORLD, periodicity_flatten);
+
+          // Build periodicity graph
+          PeriodicityGraph pg;
+          for (const auto &part_periodicity : global_periodicity)
+            for (unsigned int i = 0; i < part_periodicity.size(); i += 2)
+              pg.add_connection(part_periodicity[i], part_periodicity[i + 1]);
+
+          // Build particles groups
+          std::vector<unsigned int> particle_groups(
+            n_particles, numbers::invalid_unsigned_int);
+
+          particles_numerator = pg.build_groups(particle_groups);
+
+          // Indices of free particles (all at the beginning)
+          std::set<unsigned int> free_particles;
+          for (unsigned int i = 0; i < n_particles; i++)
+            free_particles.insert(i);
+
+          // Lambda to create individual segments
+          const auto create_segment = [&particle_info](const unsigned int i) {
+            Point<dim> center;
+
+            for (unsigned int d = 0; d < dim; ++d)
+              {
+                center[d] = particle_info[i * (1 + dim) + 1 + d] /
+                            particle_info[i * (1 + dim)];
+              }
+
+            double radius = 0;
+            if (dim == 2)
+              {
+                radius = std::sqrt(particle_info[i * (1 + dim)] / numbers::PI);
+              }
+            else if (dim == 3)
+              {
+                radius =
+                  std::pow(3. / 4. * particle_info[i * (1 + dim)] / numbers::PI,
+                           1. / 3.);
+              }
+
+            Segment<dim> segment(center, radius);
+
+            return segment;
+          };
+
+          // Parse groups at first to create grains
           for (unsigned int i = 0; i < n_particles; ++i)
             {
-              dealii::Point<dim> center;
-              for (unsigned int d = 0; d < dim; ++d)
+              if (particle_groups[i] != numbers::invalid_unsigned_int)
                 {
-                  center[d] = particle_info[i * (1 + dim) + 1 + d] /
-                              particle_info[i * (1 + dim)];
-                }
+                  unsigned int grain_id = particle_groups[i];
 
-              double radius = 0;
-              if (dim == 2)
-                {
-                  radius =
-                    std::sqrt(particle_info[i * (1 + dim)] / numbers::PI);
-                }
-              else if (dim == 3)
-                {
-                  radius = std::pow(3. / 4. * particle_info[i * (1 + dim)] /
-                                      numbers::PI,
-                                    1. / 3.);
-                }
+                  grains.try_emplace(grain_id,
+                                     grain_id,
+                                     current_order_parameter_id);
 
+                  grains.at(grain_id).add_segment(create_segment(i));
+
+                  free_particles.erase(i);
+                }
+            }
+
+          // Then handle the remaining non-periodic particles
+          for (const unsigned int i : free_particles)
+            {
               unsigned int grain_id = particles_numerator;
 
-              Segment<dim> segment(center, radius);
               grains.try_emplace(grain_id,
                                  grain_id,
                                  current_order_parameter_id);
-              grains.at(grain_id).add_segment(segment);
+
+              grains.at(grain_id).add_segment(create_segment(i));
 
               ++particles_numerator;
             }

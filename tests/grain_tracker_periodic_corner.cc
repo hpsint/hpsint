@@ -27,53 +27,6 @@ using namespace dealii;
 using Number     = double;
 using VectorType = LinearAlgebra::distributed::DynamicBlockVector<Number>;
 
-template <int dim>
-class AdvectSolution : public Function<dim>
-{
-public:
-  AdvectSolution(const Point<dim> &                   direction,
-                 const Point<dim> &                   bottom_left,
-                 const Point<dim> &                   top_right,
-                 std::shared_ptr<const Function<dim>> initial_values)
-    : Function<dim>(1)
-    , direction(direction)
-    , bottom_left(bottom_left)
-    , top_right(top_right)
-    , initial_values(initial_values)
-  {}
-
-  double
-  value(const Point<dim> &p, const unsigned int component) const final
-  {
-    Point<dim> offset(direction);
-    offset *= this->get_time();
-
-    Point<dim> q(p);
-    q -= offset;
-
-    // Periodicity
-    for (unsigned int d = 0; d < dim; ++d)
-      {
-        while (q[d] < bottom_left[d])
-          {
-            q[d] += top_right[d];
-          }
-        while (q[d] > top_right[d])
-          {
-            q[d] -= top_right[d];
-          }
-      }
-
-    return initial_values->value(q, component);
-  }
-
-private:
-  const Point<dim>                     direction;
-  const Point<dim>                     bottom_left;
-  const Point<dim>                     top_right;
-  std::shared_ptr<const Function<dim>> initial_values;
-};
-
 int
 main(int argc, char **argv)
 {
@@ -93,20 +46,18 @@ main(int argc, char **argv)
   DoFHandler<dim>                           dof_handler(tria);
   AffineConstraints<Number>                 constraint;
 
-  const double length = 60;
-  const double width  = 22.5;
+  const double width = 10.;
 
   Point<dim> bottom_left;
   Point<dim> top_right;
-  top_right[0] = length;
-  for (unsigned int d = 1; d < dim; ++d)
+  for (unsigned int d = 0; d < dim; ++d)
     {
       top_right[d] = width;
     }
 
   // Mesh settings
   const unsigned int elements_per_interface = 8;
-  const double       interface_width        = 2.;
+  const double       interface_width        = 1.0;
   const bool         periodic               = true;
 
   Sintering::create_mesh(tria,
@@ -145,32 +96,24 @@ main(int argc, char **argv)
   // Read particles
   std::stringstream iss;
   iss << "#x,y,z,r" << std::endl;
-  iss << "0.0,11.25,11.25,7.5" << std::endl;
-  iss << "15.0,11.25,11.25,7.5" << std::endl;
-  iss << "30.0,11.25,11.25,7.5" << std::endl;
-  iss << "45.0,11.25,11.25,7.5" << std::endl;
-  iss << "60.0,11.25,11.25,7.5" << std::endl;
+  iss << "0.0,0.0,0.0,1.5" << std::endl;
+  iss << "10.0,0.0,0.0,1.5" << std::endl;
+  iss << "0.0,10.0,0.0,1.5" << std::endl;
+  iss << "10.0,10.0,0.0,1.5" << std::endl;
+  iss << "5.0,5.0,0.0,1.5" << std::endl;
 
   const auto   particles                 = Sintering::read_particles<dim>(iss);
   const bool   minimize_order_parameters = true;
   const double interface_buffer_ratio    = 0.5;
 
-  const auto initial_solution =
-    std::make_shared<Sintering::InitialValuesCloud<dim>>(
+  Sintering::InitialValuesCloud<dim> initial_solution(
       particles,
       interface_width,
       minimize_order_parameters,
       interface_buffer_ratio);
 
-  Point<dim> direction;
-  direction[0] = 1.0;
-  AdvectSolution<dim> advect_solution(direction,
-                                      bottom_left,
-                                      top_right,
-                                      initial_solution);
-
   // set initial condition
-  VectorType solution(initial_solution->n_components());
+  VectorType solution(initial_solution.n_components());
 
   const auto partitioner = std::make_shared<Utilities::MPI::Partitioner>(
     dof_handler.locally_owned_dofs(),
@@ -182,6 +125,18 @@ main(int argc, char **argv)
       solution.block(c).reinit(partitioner);
     }
   solution.zero_out_ghost_values();
+
+  for (unsigned int c = 0; c < solution.n_blocks(); ++c)
+    {
+      initial_solution.set_component(c);
+
+      VectorTools::interpolate(mapping,
+                               dof_handler,
+                               initial_solution,
+                               solution.block(c));
+
+      constraint.distribute(solution.block(c));
+    }
 
   // Grain tracker settings
   const double       threshold_lower          = 0.01;
@@ -202,61 +157,8 @@ main(int argc, char **argv)
                                                    buffer_distance_ratio,
                                                    op_offset);
 
-  double t_start = 0;
-  double t_end   = 15;
-  double t_step  = 1;
-
-  for (double t = t_start; t < t_end + 0.1 * t_step; t += t_step)
-    {
-      advect_solution.set_time(t);
-
-      for (unsigned int c = 0; c < solution.n_blocks(); ++c)
-        {
-          initial_solution->set_component(c);
-
-          VectorTools::interpolate(mapping,
-                                   dof_handler,
-                                   advect_solution,
-                                   solution.block(c));
-
-          constraint.distribute(solution.block(c));
-        }
-
-      try
-        {
-          solution.update_ghost_values();
-
-          const auto [has_reassigned_grains, has_op_number_changed] =
-            std::abs(t - t_start) < 1e-16 ?
-              grain_tracker.initial_setup(solution) :
-              grain_tracker.track(solution);
-
-          pcout << "Time t = " << t << std::endl;
-          grain_tracker.print_current_grains(pcout);
-          if (std::abs(t - t_end) > 1e-16)
-            {
-              pcout << std::endl;
-            }
-
-          solution.zero_out_ghost_values();
-
-          if (has_reassigned_grains)
-            {
-              pcout << "Grains have been reassigned" << std::endl;
-            }
-
-          if (has_op_number_changed)
-            {
-              pcout << "Number of order parameters has changed" << std::endl;
-            }
-        }
-      catch (const GrainTracker::ExcCloudsInconsistency &ex)
-        {
-          pcout << "GrainTracker::ExcCloudsInconsistency detected!"
-                << std::endl;
-          grain_tracker.dump_last_clouds();
-
-          AssertThrow(false, ExcMessage(ex.what()));
-        }
-    }
+  solution.update_ghost_values();
+  grain_tracker.initial_setup(solution);
+  grain_tracker.print_current_grains(pcout);
+  solution.zero_out_ghost_values();
 }
