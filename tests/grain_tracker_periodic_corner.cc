@@ -106,11 +106,10 @@ main(int argc, char **argv)
   const bool   minimize_order_parameters = true;
   const double interface_buffer_ratio    = 0.5;
 
-  Sintering::InitialValuesCloud<dim> initial_solution(
-      particles,
-      interface_width,
-      minimize_order_parameters,
-      interface_buffer_ratio);
+  Sintering::InitialValuesCloud<dim> initial_solution(particles,
+                                                      interface_width,
+                                                      minimize_order_parameters,
+                                                      interface_buffer_ratio);
 
   // set initial condition
   VectorType solution(initial_solution.n_components());
