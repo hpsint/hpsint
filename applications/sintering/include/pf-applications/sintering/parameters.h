@@ -397,6 +397,25 @@ namespace Sintering
         "Maximal number of restart outputs. The value 0 means no limit.");
       prm.leave_subsection();
 
+      prm.enter_subsection("NonLinearData");
+      prm.add_parameter("NonLinearMaxIterations", nonlinear_data.nl_max_iter);
+      prm.add_parameter("NonLinearAbsoluteTolerance",
+                        nonlinear_data.nl_abs_tol);
+      prm.add_parameter("NonLinearRelativeTolerance",
+                        nonlinear_data.nl_rel_tol);
+      prm.add_parameter("LinearMaxIterations", nonlinear_data.l_max_iter);
+      prm.add_parameter("LinearAbsoluteTolerance", nonlinear_data.l_abs_tol);
+      prm.add_parameter("LinearRelativeTolerance", nonlinear_data.l_rel_tol);
+      prm.add_parameter("NewtonDoUpdate", nonlinear_data.newton_do_update);
+      prm.add_parameter("NewtonThresholdNewtonIterations",
+                        nonlinear_data.newton_threshold_newton_iter);
+      prm.add_parameter("NewtonThresholdLinearIterations",
+                        nonlinear_data.newton_threshold_linear_iter);
+      prm.add_parameter("NewtonReusePreconditioner",
+                        nonlinear_data.newton_reuse_preconditioner);
+      prm.add_parameter("Verbosity", nonlinear_data.verbosity);
+      prm.leave_subsection();
+
       prm.enter_subsection("Preconditioners");
       const std::string preconditioner_types =
         "AMG|BlockAMG|BlockILU|InverseBlockDiagonalMatrix|InverseDiagonalMatrix|ILU|InverseComponentBlockDiagonalMatrix|BlockGMG|GMG";
