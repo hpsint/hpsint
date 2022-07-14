@@ -110,10 +110,10 @@ public:
         for (auto cell = range.first; cell < range.second; ++cell)
           {
             phi.reinit(cell);
-            phi.gather_evaluate(src, true, false, false);
+            phi.gather_evaluate(src, EvaluationFlags::values);
             for (unsigned int q = 0; q < phi.n_q_points; ++q)
               phi.submit_value(phi.get_value(q), q);
-            phi.integrate_scatter(true, false, dst);
+            phi.integrate_scatter(EvaluationFlags::values, dst);
           }
       },
       dst,
@@ -252,10 +252,14 @@ public:
             for (unsigned int cell = cells.first; cell < cells.second; ++cell)
               {
                 phi_1.reinit(cell);
-                phi_1.gather_evaluate(src.block(0), true, true, false);
+                phi_1.gather_evaluate(src.block(0),
+                                      EvaluationFlags::values |
+                                        EvaluationFlags::gradients);
 
                 phi_2.reinit(cell);
-                phi_2.gather_evaluate(src.block(1), true, true, false);
+                phi_2.gather_evaluate(src.block(1),
+                                      EvaluationFlags::values |
+                                        EvaluationFlags::gradients);
 
                 for (unsigned int q = 0; q < phi_1.n_q_points; ++q)
                   {
@@ -272,8 +276,12 @@ public:
                     phi_2.submit_value(val_2 - dt * M * df_dphi(val_2), q);
                   }
 
-                phi_1.integrate_scatter(true, true, dst.block(0));
-                phi_2.integrate_scatter(true, true, dst.block(1));
+                phi_1.integrate_scatter(EvaluationFlags::values |
+                                          EvaluationFlags::gradients,
+                                        dst.block(0));
+                phi_2.integrate_scatter(EvaluationFlags::values |
+                                          EvaluationFlags::gradients,
+                                        dst.block(1));
               }
           },
           dst,
