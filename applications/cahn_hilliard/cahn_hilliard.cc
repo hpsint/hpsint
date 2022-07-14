@@ -139,10 +139,10 @@ public:
         for (auto cell = range.first; cell < range.second; ++cell)
           {
             phi.reinit(cell);
-            phi.gather_evaluate(src, true, false, false);
+            phi.gather_evaluate(src, EvaluationFlags::values);
             for (unsigned int q = 0; q < phi.n_q_points; ++q)
               phi.submit_value(phi.get_value(q), q);
-            phi.integrate_scatter(true, false, dst);
+            phi.integrate_scatter(EvaluationFlags::values, dst);
           }
       },
       dst,
@@ -258,7 +258,9 @@ public:
             for (unsigned int cell = cells.first; cell < cells.second; ++cell)
               {
                 phi.reinit(cell);
-                phi.gather_evaluate(src, true, true, false);
+                phi.gather_evaluate(src,
+                                    EvaluationFlags::values |
+                                      EvaluationFlags::gradients);
                 for (unsigned int q = 0; q < phi.n_q_points; ++q)
                   {
                     const auto value    = phi.get_value(q);
@@ -276,7 +278,9 @@ public:
                     phi.submit_value(value_result, q);
                     phi.submit_gradient(gradient_result, q);
                   }
-                phi.integrate_scatter(true, true, dst);
+                phi.integrate_scatter(EvaluationFlags::values |
+                                        EvaluationFlags::gradients,
+                                      dst);
               }
           },
           dst,

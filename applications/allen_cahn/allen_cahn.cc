@@ -98,10 +98,10 @@ public:
         for (auto cell = range.first; cell < range.second; ++cell)
           {
             phi.reinit(cell);
-            phi.gather_evaluate(src, true, false, false);
+            phi.gather_evaluate(src, EvaluationFlags::values);
             for (unsigned int q = 0; q < phi.n_q_points; ++q)
               phi.submit_value(phi.get_value(q), q);
-            phi.integrate_scatter(true, false, dst);
+            phi.integrate_scatter(EvaluationFlags::values, dst);
           }
       },
       dst,
@@ -217,7 +217,9 @@ public:
             for (unsigned int cell = cells.first; cell < cells.second; ++cell)
               {
                 phi.reinit(cell);
-                phi.gather_evaluate(src, true, true, false);
+                phi.gather_evaluate(src,
+                                    EvaluationFlags::values |
+                                      EvaluationFlags::gradients);
                 for (unsigned int q = 0; q < phi.n_q_points; ++q)
                   {
                     phi.submit_gradient(-dt * M * kappa * phi.get_gradient(q),
@@ -226,7 +228,9 @@ public:
                     const auto val = phi.get_value(q);
                     phi.submit_value(val - dt * M * df_dphi(val), q);
                   }
-                phi.integrate_scatter(true, true, dst);
+                phi.integrate_scatter(EvaluationFlags::values |
+                                        EvaluationFlags::gradients,
+                                      dst);
               }
           },
           dst,

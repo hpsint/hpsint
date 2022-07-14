@@ -104,10 +104,10 @@ public:
         for (auto cell = range.first; cell < range.second; ++cell)
           {
             phi.reinit(cell);
-            phi.gather_evaluate(src, true, false, false);
+            phi.gather_evaluate(src, EvaluationFlags::values);
             for (unsigned int q = 0; q < phi.n_q_points; ++q)
               phi.submit_value(phi.get_value(q), q);
-            phi.integrate_scatter(true, false, dst);
+            phi.integrate_scatter(EvaluationFlags::values, dst);
           }
       },
       dst,
@@ -173,9 +173,8 @@ public:
             phi.reinit(cell);
 
             phi.gather_evaluate(src,
-                                /*evaluate values = */ true,
-                                /*evaluate gradients = */ true,
-                                false);
+                                EvaluationFlags::values |
+                                  EvaluationFlags::gradients);
 
             for (unsigned int q = 0; q < phi.n_q_points; ++q)
               {
@@ -195,8 +194,8 @@ public:
                 phi.submit_value(value_result, q);
                 phi.submit_gradient(gradient_result, q);
               }
-            phi.integrate_scatter(/*evaluate values = */ true,
-                                  /*evaluate gradients = */ true,
+            phi.integrate_scatter(EvaluationFlags::values |
+                                    EvaluationFlags::gradients,
                                   dst);
           }
       },
@@ -237,13 +236,12 @@ public:
             phi.reinit(cell);
 
             phi.gather_evaluate(src,
-                                /*evaluate values = */ true,
-                                /*evaluate gradients = */ true,
-                                false);
+                                EvaluationFlags::values |
+                                  EvaluationFlags::gradients);
 
             // get values from old solution
             phi_old.read_dof_values_plain(old_solution);
-            phi_old.evaluate(true, false, false);
+            phi_old.evaluate(EvaluationFlags::values);
 
             for (unsigned int q = 0; q < phi.n_q_points; ++q)
               {
@@ -265,8 +263,8 @@ public:
                 phi.submit_value(value_result, q);
                 phi.submit_gradient(gradient_result, q);
               }
-            phi.integrate_scatter(/*evaluate values = */ true,
-                                  /*evaluate gradients = */ true,
+            phi.integrate_scatter(EvaluationFlags::values |
+                                    EvaluationFlags::gradients,
                                   dst);
           }
       },

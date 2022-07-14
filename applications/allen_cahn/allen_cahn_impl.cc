@@ -107,10 +107,10 @@ public:
         for (auto cell = range.first; cell < range.second; ++cell)
           {
             phi.reinit(cell);
-            phi.gather_evaluate(src, true, false, false);
+            phi.gather_evaluate(src, EvaluationFlags::values);
             for (unsigned int q = 0; q < phi.n_q_points; ++q)
               phi.submit_value(phi.get_value(q), q);
-            phi.integrate_scatter(true, false, dst);
+            phi.integrate_scatter(EvaluationFlags::values, dst);
           }
       },
       dst,
@@ -185,13 +185,10 @@ public:
             phi.reinit(cell);
             phi_lin.reinit(cell);
 
-            phi.gather_evaluate(src,
-                                /*evaluate values = */ true,
-                                /*evaluate gradients = */ true,
-                                false);
+            phi.gather_evaluate(src, EvaluationFlags::values);
 
             phi_lin.read_dof_values_plain(src);
-            phi_lin.evaluate(true, false, false);
+            phi_lin.evaluate(EvaluationFlags::values);
 
             for (unsigned int q = 0; q < phi.n_q_points; ++q)
               {
@@ -202,8 +199,8 @@ public:
 
                 phi.submit_gradient(+dt * M * kappa * phi.get_gradient(q), q);
               }
-            phi.integrate_scatter(/*evaluate values = */ true,
-                                  /*evaluate gradients = */ true,
+            phi.integrate_scatter(EvaluationFlags::values |
+                                    EvaluationFlags::gradients,
                                   dst);
           }
       },
@@ -244,13 +241,12 @@ public:
             phi.reinit(cell);
 
             phi.gather_evaluate(src,
-                                /*evaluate values = */ true,
-                                /*evaluate gradients = */ true,
-                                false);
+                                EvaluationFlags::values |
+                                  EvaluationFlags::gradients);
 
             // get values from old solution
             phi_old.read_dof_values_plain(old_solution);
-            phi_old.evaluate(true, false, false);
+            phi_old.evaluate(EvaluationFlags::values);
 
             for (unsigned int q = 0; q < phi.n_q_points; ++q)
               {
@@ -265,8 +261,8 @@ public:
                 // gradient terms
                 phi.submit_gradient(+dt * M * kappa * phi.get_gradient(q), q);
               }
-            phi.integrate_scatter(/*evaluate values = */ true,
-                                  /*evaluate gradients = */ true,
+            phi.integrate_scatter(EvaluationFlags::values |
+                                    EvaluationFlags::gradients,
                                   dst);
           }
       },
