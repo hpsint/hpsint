@@ -113,6 +113,14 @@ namespace GrainTracker
       max_radius = std::max(max_radius, segment.get_radius());
     }
 
+    void
+    add_segment(const Point<dim> &center, const double radius)
+    {
+      segments.emplace_back(center, radius);
+
+      max_radius = std::max(max_radius, radius);
+    }
+
     /* Add a grain's neighbor. Neighbors are grains having the same order
      * parameter id.
      */

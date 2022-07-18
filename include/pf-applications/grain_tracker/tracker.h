@@ -635,6 +635,54 @@ namespace GrainTracker
                      0,
                      comm);
 
+          // ... compute particles centers
+          std::vector<Point<dim>> particle_centers(n_particles);
+          for (unsigned int i = 0; i < n_particles; i++)
+            {
+              for (unsigned int d = 0; d < dim; ++d)
+                {
+                  particle_centers[i][d] =
+                    particle_info[i * (1 + dim) + 1 + d] /
+                    particle_info[i * (1 + dim)];
+                }
+            }
+
+          // ... compute particles radii
+          std::vector<double> particle_radii(n_particles, 0.);
+          for (const auto &cell :
+               dof_handler.get_triangulation().active_cell_iterators())
+            if (cell->is_locally_owned())
+              {
+                const auto particle_id =
+                  particle_ids[cell->global_active_cell_index()];
+
+                if (particle_id == invalid_particle_id)
+                  continue;
+
+                const unsigned int unique_id = local_to_global_particle_ids
+                  [static_cast<unsigned int>(particle_id) - offset];
+
+                AssertIndexRange(unique_id, n_particles);
+
+                const auto &center = particle_centers[unique_id];
+
+                const double dist =
+                  center.distance(cell->barycenter()) + cell->diameter() / 2.;
+                particle_radii[unique_id] =
+                  std::max(particle_radii[unique_id], dist);
+              }
+
+          // ... reduce information
+          MPI_Reduce(Utilities::MPI::this_mpi_process(MPI_COMM_WORLD) == 0 ?
+                       MPI_IN_PLACE :
+                       particle_radii.data(),
+                     particle_radii.data(),
+                     particle_radii.size(),
+                     MPI_DOUBLE,
+                     MPI_MAX,
+                     0,
+                     comm);
+
           // Set global ids to the particles
           for (auto &particle_id : particle_ids)
             if (particle_id != invalid_particle_id)
@@ -660,8 +708,7 @@ namespace GrainTracker
                     if (!cell->has_periodic_neighbor(face))
                       continue;
 
-                    const auto add = [&](const auto &cell,
-                                         const auto &other_cell) {
+                    const auto add = [&](const auto &other_cell) {
                       if (other_cell->is_locally_owned() == false)
                         return;
 
@@ -681,12 +728,12 @@ namespace GrainTracker
                              GeometryInfo<dim>::n_subfaces(
                                internal::SubfaceCase<dim>::case_isotropic);
                              ++subface)
-                          add(cell,
-                              cell->periodic_neighbor_child_on_subface(
-                                face, subface));
+                          add(
+                            cell->periodic_neighbor_child_on_subface(face,
+                                                                     subface));
                       }
                     else
-                      add(cell, cell->periodic_neighbor(face));
+                      add(cell->periodic_neighbor(face));
                   }
               }
 
@@ -712,56 +759,33 @@ namespace GrainTracker
           std::vector<unsigned int> particle_groups(
             n_particles, numbers::invalid_unsigned_int);
 
-          particles_numerator = pg.build_groups(particle_groups);
+          const unsigned int n_groups_found = pg.build_groups(particle_groups);
 
           // Indices of free particles (all at the beginning)
           std::set<unsigned int> free_particles;
           for (unsigned int i = 0; i < n_particles; i++)
             free_particles.insert(i);
 
-          // Lambda to create individual segments
-          const auto create_segment = [&particle_info](const unsigned int i) {
-            Point<dim> center;
-
-            for (unsigned int d = 0; d < dim; ++d)
-              {
-                center[d] = particle_info[i * (1 + dim) + 1 + d] /
-                            particle_info[i * (1 + dim)];
-              }
-
-            double radius = 0;
-            if (dim == 2)
-              {
-                radius = std::sqrt(particle_info[i * (1 + dim)] / numbers::PI);
-              }
-            else if (dim == 3)
-              {
-                radius =
-                  std::pow(3. / 4. * particle_info[i * (1 + dim)] / numbers::PI,
-                           1. / 3.);
-              }
-
-            Segment<dim> segment(center, radius);
-
-            return segment;
-          };
-
           // Parse groups at first to create grains
           for (unsigned int i = 0; i < n_particles; ++i)
             {
               if (particle_groups[i] != numbers::invalid_unsigned_int)
                 {
-                  unsigned int grain_id = particle_groups[i];
+                  unsigned int grain_id =
+                    particle_groups[i] + particles_numerator;
 
                   grains.try_emplace(grain_id,
                                      grain_id,
                                      current_order_parameter_id);
 
-                  grains.at(grain_id).add_segment(create_segment(i));
+                  grains.at(grain_id).add_segment(particle_centers[i],
+                                                  particle_radii[i]);
 
                   free_particles.erase(i);
                 }
             }
+
+          particles_numerator += n_groups_found;
 
           // Then handle the remaining non-periodic particles
           for (const unsigned int i : free_particles)
@@ -772,7 +796,8 @@ namespace GrainTracker
                                  grain_id,
                                  current_order_parameter_id);
 
-              grains.at(grain_id).add_segment(create_segment(i));
+              grains.at(grain_id).add_segment(particle_centers[i],
+                                              particle_radii[i]);
 
               ++particles_numerator;
             }

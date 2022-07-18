@@ -1,9 +1,9 @@
 Number of order parameters: 1
 Number of grains: 2
 op_index_current = 0 | op_index_old = 0 | segments = 4 | grain_index = 0
-    segment: center = 0.879673 0.879673 | radius = 1.03167
-    segment: center = 9.12033 0.879673 | radius = 1.03167
-    segment: center = 0.879673 9.12033 | radius = 1.03167
-    segment: center = 9.12033 9.12033 | radius = 1.03167
+    segment: center = 0.879673 0.879673 | radius = 1.42509
+    segment: center = 9.12033 0.879673 | radius = 1.42509
+    segment: center = 0.879673 9.12033 | radius = 1.42509
+    segment: center = 9.12033 9.12033 | radius = 1.42509
 op_index_current = 0 | op_index_old = 0 | segments = 1 | grain_index = 1
-    segment: center = 5 5 | radius = 2.06335
+    segment: center = 5 5 | radius = 2.47894
