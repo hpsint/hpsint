@@ -927,14 +927,11 @@ namespace GrainTracker
               }
 
           // ... reduce information
-          MPI_Reduce(Utilities::MPI::this_mpi_process(MPI_COMM_WORLD) == 0 ?
-                       MPI_IN_PLACE :
-                       particle_info.data(),
+          MPI_Allreduce(MPI_IN_PLACE,
                      particle_info.data(),
                      particle_info.size(),
                      MPI_DOUBLE,
                      MPI_SUM,
-                     0,
                      comm);
 
           // ... compute particles centers
@@ -975,14 +972,11 @@ namespace GrainTracker
               }
 
           // ... reduce information
-          MPI_Reduce(Utilities::MPI::this_mpi_process(MPI_COMM_WORLD) == 0 ?
-                       MPI_IN_PLACE :
-                       particle_radii.data(),
+          MPI_Allreduce(MPI_IN_PLACE,
                      particle_radii.data(),
                      particle_radii.size(),
                      MPI_DOUBLE,
                      MPI_MAX,
-                     0,
                      comm);
 
           // Set global ids to the particles
