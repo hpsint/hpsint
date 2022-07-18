@@ -232,7 +232,7 @@ main(int argc, char **argv)
               grain_tracker.track(solution);
 
           pcout << "Time t = " << t << std::endl;
-          grain_tracker.print_current_grains(pcout);
+          grain_tracker.print_current_grains(pcout, true);
           if (std::abs(t - t_end) > 1e-16)
             {
               pcout << std::endl;

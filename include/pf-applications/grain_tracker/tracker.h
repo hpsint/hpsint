@@ -545,17 +545,23 @@ namespace GrainTracker
     // Print last grains
     template <typename Stream>
     void
-    print_current_grains(Stream &out) const
+    print_current_grains(Stream &out, bool invariant = false) const
     {
-      print_grains(grains, out);
+      if (invariant)
+        print_grains_invariant(grains, out);
+      else
+        print_grains(grains, out);
     }
 
     // Print last grains
     template <typename Stream>
     void
-    print_old_grains(Stream &out) const
+    print_old_grains(Stream &out, bool invariant = false) const
     {
-      print_grains(old_grains, out);
+      if (invariant)
+        print_grains_invariant(old_grains, out);
+      else
+        print_grains(old_grains, out);
     }
 
     // Output last grains
@@ -1859,6 +1865,97 @@ namespace GrainTracker
               << " | grain_index = " << gr.get_grain_id() << std::endl;
           for (const auto &segment : gr.get_segments())
             {
+              out << "    segment: center = " << segment.get_center()
+                  << " | radius = " << segment.get_radius() << std::endl;
+            }
+        }
+    }
+
+    // Print current grains ordered according to segments location
+    template <typename Stream>
+    void
+    print_grains_invariant(
+      const std::map<unsigned int, Grain<dim>> &current_grains,
+      Stream &                                  out) const
+    {
+      std::vector<unsigned int>                         ordered_grains;
+      std::map<unsigned int, std::vector<unsigned int>> ordered_segments;
+
+      for (const auto &[grain_id, grain] : current_grains)
+        {
+          ordered_grains.push_back(grain_id);
+
+          ordered_segments.emplace(grain_id, std::vector<unsigned int>());
+          for (unsigned int i = 0; i < grain.get_segments().size(); i++)
+            {
+              ordered_segments.at(grain_id).push_back(i);
+            }
+
+          std::sort(
+            ordered_segments.at(grain_id).begin(),
+            ordered_segments.at(grain_id).end(),
+            [&grain](const auto &segment_a_id, const auto &segment_b_id) {
+              const auto &segment_a = grain.get_segments()[segment_a_id];
+              const auto &segment_b = grain.get_segments()[segment_b_id];
+
+              for (unsigned int d = 0; d < dim; ++d)
+                {
+                  if (segment_a.get_center()[d] != segment_b.get_center()[d])
+                    {
+                      return segment_a.get_center()[d] <
+                             segment_b.get_center()[d];
+                    }
+                }
+              return false;
+            });
+        }
+
+      std::sort(
+        ordered_grains.begin(),
+        ordered_grains.end(),
+        [&current_grains, &ordered_segments](const auto &grain_a_id,
+                                             const auto &grain_b_id) {
+          const auto &grain_a = current_grains.at(grain_a_id);
+          const auto &grain_b = current_grains.at(grain_b_id);
+
+          const auto &min_segment_a =
+            grain_a
+              .get_segments()[ordered_segments.at(grain_a.get_grain_id())[0]];
+          const auto &min_segment_b =
+            grain_b
+              .get_segments()[ordered_segments.at(grain_b.get_grain_id())[0]];
+
+          for (unsigned int d = 0; d < dim; ++d)
+            {
+              if (min_segment_a.get_center()[d] !=
+                  min_segment_b.get_center()[d])
+                {
+                  return min_segment_a.get_center()[d] <
+                         min_segment_b.get_center()[d];
+                }
+            }
+          return false;
+        });
+
+      // Printing itself
+      out << "Number of order parameters: "
+          << build_active_order_parameter_ids(current_grains).size()
+          << std::endl;
+      out << "Number of grains: " << current_grains.size() << std::endl;
+
+      for (const auto &grain_id : ordered_grains)
+        {
+          const auto &grain = current_grains.at(grain_id);
+
+          out << "op_index_current = " << grain.get_order_parameter_id()
+              << " | op_index_old = " << grain.get_old_order_parameter_id()
+              << " | segments = " << grain.get_segments().size() << std::endl;
+
+          for (const auto &segment_id : ordered_segments.at(grain_id))
+            {
+              const auto &segment =
+                current_grains.at(grain_id).get_segments()[segment_id];
+
               out << "    segment: center = " << segment.get_center()
                   << " | radius = " << segment.get_radius() << std::endl;
             }

@@ -1,209 +1,209 @@
 Time t = 0
 Number of order parameters: 2
 Number of grains: 4
-op_index_current = 0 | op_index_old = 0 | segments = 2 | grain_index = 0
-    segment: center = 56.4013 11.25 | radius = 9.18874
-    segment: center = 3.5987 11.25 | radius = 9.18874
-op_index_current = 0 | op_index_old = 0 | segments = 1 | grain_index = 1
-    segment: center = 30 11.25 | radius = 8.84588
-op_index_current = 1 | op_index_old = 1 | segments = 1 | grain_index = 2
-    segment: center = 45 11.25 | radius = 8.84588
-op_index_current = 1 | op_index_old = 1 | segments = 1 | grain_index = 3
-    segment: center = 15 11.25 | radius = 8.84588
+op_index_current = 0 | op_index_old = 0 | segments = 2
+    segment: center = 3.69235 11.25 | radius = 9.4844
+    segment: center = 56.3077 11.25 | radius = 9.4844
+op_index_current = 1 | op_index_old = 1 | segments = 1
+    segment: center = 15 11.25 | radius = 8.89283
+op_index_current = 0 | op_index_old = 0 | segments = 1
+    segment: center = 30 11.25 | radius = 8.89283
+op_index_current = 1 | op_index_old = 1 | segments = 1
+    segment: center = 45 11.25 | radius = 8.89283
 
 Time t = 1
 Number of order parameters: 2
 Number of grains: 4
-op_index_current = 0 | op_index_old = 0 | segments = 2 | grain_index = 0
-    segment: center = 4.09899 11.25 | radius = 9.39265
-    segment: center = 56.8315 11.25 | radius = 9.0323
-op_index_current = 0 | op_index_old = 0 | segments = 1 | grain_index = 1
-    segment: center = 31.0119 11.25 | radius = 8.83088
-op_index_current = 1 | op_index_old = 1 | segments = 1 | grain_index = 2
-    segment: center = 46.0119 11.25 | radius = 8.83088
-op_index_current = 1 | op_index_old = 1 | segments = 1 | grain_index = 3
-    segment: center = 16.0119 11.25 | radius = 8.83088
+op_index_current = 0 | op_index_old = 0 | segments = 2
+    segment: center = 4.13892 11.25 | radius = 9.66409
+    segment: center = 56.785 11.25 | radius = 9.31262
+op_index_current = 1 | op_index_old = 1 | segments = 1
+    segment: center = 16.0096 11.25 | radius = 8.88956
+op_index_current = 0 | op_index_old = 0 | segments = 1
+    segment: center = 31.0096 11.25 | radius = 8.88956
+op_index_current = 1 | op_index_old = 1 | segments = 1
+    segment: center = 46.0096 11.25 | radius = 8.88956
 
 Time t = 2
 Number of order parameters: 2
 Number of grains: 4
-op_index_current = 0 | op_index_old = 0 | segments = 2 | grain_index = 0
-    segment: center = 4.54511 11.25 | radius = 9.46158
-    segment: center = 57.294 11.25 | radius = 8.61649
-op_index_current = 0 | op_index_old = 0 | segments = 1 | grain_index = 1
-    segment: center = 32.0009 11.25 | radius = 8.86327
-op_index_current = 1 | op_index_old = 1 | segments = 1 | grain_index = 2
-    segment: center = 47.0009 11.25 | radius = 8.86327
-op_index_current = 1 | op_index_old = 1 | segments = 1 | grain_index = 3
-    segment: center = 17.0009 11.25 | radius = 8.86327
+op_index_current = 0 | op_index_old = 0 | segments = 2
+    segment: center = 4.63708 11.25 | radius = 9.63668
+    segment: center = 57.2125 11.25 | radius = 8.90921
+op_index_current = 1 | op_index_old = 1 | segments = 1
+    segment: center = 16.9999 11.25 | radius = 8.89733
+op_index_current = 0 | op_index_old = 0 | segments = 1
+    segment: center = 31.9999 11.25 | radius = 8.89733
+op_index_current = 1 | op_index_old = 1 | segments = 1
+    segment: center = 46.9999 11.25 | radius = 8.89733
 
 Time t = 3
 Number of order parameters: 2
 Number of grains: 4
-op_index_current = 0 | op_index_old = 0 | segments = 2 | grain_index = 0
-    segment: center = 5.07362 11.25 | radius = 9.46365
-    segment: center = 57.7049 11.25 | radius = 8.22932
-op_index_current = 0 | op_index_old = 0 | segments = 1 | grain_index = 1
-    segment: center = 33.0135 11.25 | radius = 8.887
-op_index_current = 1 | op_index_old = 1 | segments = 1 | grain_index = 2
-    segment: center = 48.0135 11.25 | radius = 8.887
-op_index_current = 1 | op_index_old = 1 | segments = 1 | grain_index = 3
-    segment: center = 18.0135 11.25 | radius = 8.887
+op_index_current = 0 | op_index_old = 0 | segments = 2
+    segment: center = 5.12469 11.25 | radius = 9.63835
+    segment: center = 57.6396 11.25 | radius = 8.51779
+op_index_current = 1 | op_index_old = 1 | segments = 1
+    segment: center = 17.9905 11.25 | radius = 8.9006
+op_index_current = 0 | op_index_old = 0 | segments = 1
+    segment: center = 32.9905 11.25 | radius = 8.9006
+op_index_current = 1 | op_index_old = 1 | segments = 1
+    segment: center = 47.9905 11.25 | radius = 8.9006
 
 Time t = 4
 Number of order parameters: 2
 Number of grains: 4
-op_index_current = 0 | op_index_old = 0 | segments = 2 | grain_index = 0
-    segment: center = 5.56841 11.25 | radius = 9.4194
-    segment: center = 58.1604 11.25 | radius = 7.57097
-op_index_current = 0 | op_index_old = 0 | segments = 1 | grain_index = 1
-    segment: center = 34.0058 11.25 | radius = 8.81477
-op_index_current = 1 | op_index_old = 1 | segments = 1 | grain_index = 2
-    segment: center = 49.0058 11.25 | radius = 8.81477
-op_index_current = 1 | op_index_old = 1 | segments = 1 | grain_index = 3
-    segment: center = 19.0058 11.25 | radius = 8.81477
+op_index_current = 0 | op_index_old = 0 | segments = 2
+    segment: center = 5.63915 11.25 | radius = 9.68904
+    segment: center = 58.0754 11.25 | radius = 7.86425
+op_index_current = 1 | op_index_old = 1 | segments = 1
+    segment: center = 18.9836 11.25 | radius = 8.9027
+op_index_current = 0 | op_index_old = 0 | segments = 1
+    segment: center = 33.9836 11.25 | radius = 8.9027
+op_index_current = 1 | op_index_old = 1 | segments = 1
+    segment: center = 48.9836 11.25 | radius = 8.9027
 
 Time t = 5
 Number of order parameters: 2
 Number of grains: 4
-op_index_current = 0 | op_index_old = 0 | segments = 2 | grain_index = 0
-    segment: center = 6.13078 11.25 | radius = 9.32939
-    segment: center = 58.5542 11.25 | radius = 6.93775
-op_index_current = 0 | op_index_old = 0 | segments = 1 | grain_index = 1
-    segment: center = 35.0065 11.25 | radius = 8.86176
-op_index_current = 1 | op_index_old = 1 | segments = 1 | grain_index = 2
-    segment: center = 50.0065 11.25 | radius = 8.86176
-op_index_current = 1 | op_index_old = 1 | segments = 1 | grain_index = 3
-    segment: center = 20.0065 11.25 | radius = 8.86176
+op_index_current = 0 | op_index_old = 0 | segments = 2
+    segment: center = 6.18647 11.25 | radius = 9.57931
+    segment: center = 58.4913 11.25 | radius = 7.22586
+op_index_current = 1 | op_index_old = 1 | segments = 1
+    segment: center = 19.9937 11.25 | radius = 8.90534
+op_index_current = 0 | op_index_old = 0 | segments = 1
+    segment: center = 34.9937 11.25 | radius = 8.90534
+op_index_current = 1 | op_index_old = 1 | segments = 1
+    segment: center = 49.9937 11.25 | radius = 8.90534
 
 Time t = 6
 Number of order parameters: 2
 Number of grains: 4
-op_index_current = 0 | op_index_old = 0 | segments = 2 | grain_index = 0
-    segment: center = 6.69988 11.25 | radius = 9.12003
-    segment: center = 58.9397 11.25 | radius = 6.03938
-op_index_current = 0 | op_index_old = 0 | segments = 1 | grain_index = 1
-    segment: center = 35.9712 11.25 | radius = 8.84626
-op_index_current = 1 | op_index_old = 1 | segments = 1 | grain_index = 2
-    segment: center = 50.9712 11.25 | radius = 8.84626
-op_index_current = 1 | op_index_old = 1 | segments = 1 | grain_index = 3
-    segment: center = 20.9712 11.25 | radius = 8.84626
+op_index_current = 0 | op_index_old = 0 | segments = 2
+    segment: center = 6.76615 11.25 | radius = 9.36783
+    segment: center = 58.9163 11.25 | radius = 6.32086
+op_index_current = 1 | op_index_old = 1 | segments = 1
+    segment: center = 20.993 11.25 | radius = 8.90683
+op_index_current = 0 | op_index_old = 0 | segments = 1
+    segment: center = 35.993 11.25 | radius = 8.90683
+op_index_current = 1 | op_index_old = 1 | segments = 1
+    segment: center = 50.993 11.25 | radius = 8.90683
 
 Time t = 7
 Number of order parameters: 2
 Number of grains: 4
-op_index_current = 0 | op_index_old = 0 | segments = 2 | grain_index = 0
-    segment: center = 7.36442 11.25 | radius = 8.93963
-    segment: center = 59.364 11.25 | radius = 4.58847
-op_index_current = 0 | op_index_old = 0 | segments = 1 | grain_index = 1
-    segment: center = 37.0146 11.25 | radius = 8.85102
-op_index_current = 1 | op_index_old = 1 | segments = 2 | grain_index = 2
-    segment: center = 51.919 11.25 | radius = 8.75921
-    segment: center = 0.252404 11.25 | radius = 2.8755
-op_index_current = 1 | op_index_old = 1 | segments = 1 | grain_index = 3
-    segment: center = 22.0146 11.25 | radius = 8.85102
+op_index_current = 1 | op_index_old = 1 | segments = 2
+    segment: center = 0.25641 11.25 | radius = 3.15669
+    segment: center = 51.8974 11.25 | radius = 8.94104
+op_index_current = 0 | op_index_old = 0 | segments = 2
+    segment: center = 7.40509 11.25 | radius = 9.13411
+    segment: center = 59.3184 11.25 | radius = 5.15257
+op_index_current = 1 | op_index_old = 1 | segments = 1
+    segment: center = 22.0005 11.25 | radius = 8.87737
+op_index_current = 0 | op_index_old = 0 | segments = 1
+    segment: center = 37.0005 11.25 | radius = 8.87737
 
 Time t = 8
 Number of order parameters: 2
 Number of grains: 4
-op_index_current = 0 | op_index_old = 0 | segments = 2 | grain_index = 0
-    segment: center = 8.081 11.25 | radius = 8.75921
-    segment: center = 59.7476 11.25 | radius = 2.8755
-op_index_current = 0 | op_index_old = 0 | segments = 1 | grain_index = 1
-    segment: center = 37.9854 11.25 | radius = 8.85102
-op_index_current = 1 | op_index_old = 1 | segments = 2 | grain_index = 2
-    segment: center = 52.6356 11.25 | radius = 8.93963
-    segment: center = 0.636034 11.25 | radius = 4.58847
-op_index_current = 1 | op_index_old = 1 | segments = 1 | grain_index = 3
-    segment: center = 22.9854 11.25 | radius = 8.85102
+op_index_current = 1 | op_index_old = 1 | segments = 2
+    segment: center = 0.681639 11.25 | radius = 5.15257
+    segment: center = 52.5949 11.25 | radius = 9.13411
+op_index_current = 0 | op_index_old = 0 | segments = 2
+    segment: center = 8.10265 11.25 | radius = 8.94104
+    segment: center = 59.7436 11.25 | radius = 3.15669
+op_index_current = 1 | op_index_old = 1 | segments = 1
+    segment: center = 22.9995 11.25 | radius = 8.87737
+op_index_current = 0 | op_index_old = 0 | segments = 1
+    segment: center = 37.9995 11.25 | radius = 8.87737
 
 Time t = 9
 Number of order parameters: 2
 Number of grains: 4
-op_index_current = 0 | op_index_old = 0 | segments = 1 | grain_index = 0
-    segment: center = 9.02885 11.25 | radius = 8.84626
-op_index_current = 0 | op_index_old = 0 | segments = 1 | grain_index = 1
-    segment: center = 39.0288 11.25 | radius = 8.84626
-op_index_current = 1 | op_index_old = 1 | segments = 2 | grain_index = 2
-    segment: center = 53.3001 11.25 | radius = 9.12003
-    segment: center = 1.06026 11.25 | radius = 6.03938
-op_index_current = 1 | op_index_old = 1 | segments = 1 | grain_index = 3
-    segment: center = 24.0288 11.25 | radius = 8.84626
+op_index_current = 1 | op_index_old = 1 | segments = 2
+    segment: center = 1.08373 11.25 | radius = 6.32086
+    segment: center = 53.2338 11.25 | radius = 9.36783
+op_index_current = 0 | op_index_old = 0 | segments = 1
+    segment: center = 9.00702 11.25 | radius = 8.90683
+op_index_current = 1 | op_index_old = 1 | segments = 1
+    segment: center = 24.007 11.25 | radius = 8.90683
+op_index_current = 0 | op_index_old = 0 | segments = 1
+    segment: center = 39.007 11.25 | radius = 8.90683
 
 Time t = 10
 Number of order parameters: 2
 Number of grains: 4
-op_index_current = 0 | op_index_old = 0 | segments = 1 | grain_index = 0
-    segment: center = 9.99349 11.25 | radius = 8.86176
-op_index_current = 0 | op_index_old = 0 | segments = 1 | grain_index = 1
-    segment: center = 39.9935 11.25 | radius = 8.86176
-op_index_current = 1 | op_index_old = 1 | segments = 2 | grain_index = 2
-    segment: center = 53.8692 11.25 | radius = 9.32939
-    segment: center = 1.44579 11.25 | radius = 6.93775
-op_index_current = 1 | op_index_old = 1 | segments = 1 | grain_index = 3
-    segment: center = 24.9935 11.25 | radius = 8.86176
+op_index_current = 1 | op_index_old = 1 | segments = 2
+    segment: center = 1.50868 11.25 | radius = 7.22586
+    segment: center = 53.8135 11.25 | radius = 9.57931
+op_index_current = 0 | op_index_old = 0 | segments = 1
+    segment: center = 10.0063 11.25 | radius = 8.90534
+op_index_current = 1 | op_index_old = 1 | segments = 1
+    segment: center = 25.0063 11.25 | radius = 8.90534
+op_index_current = 0 | op_index_old = 0 | segments = 1
+    segment: center = 40.0063 11.25 | radius = 8.90534
 
 Time t = 11
 Number of order parameters: 2
 Number of grains: 4
-op_index_current = 0 | op_index_old = 0 | segments = 1 | grain_index = 0
-    segment: center = 10.9942 11.25 | radius = 8.81477
-op_index_current = 0 | op_index_old = 0 | segments = 1 | grain_index = 1
-    segment: center = 40.9942 11.25 | radius = 8.81477
-op_index_current = 1 | op_index_old = 1 | segments = 2 | grain_index = 2
-    segment: center = 1.83956 11.25 | radius = 7.57097
-    segment: center = 54.4316 11.25 | radius = 9.4194
-op_index_current = 1 | op_index_old = 1 | segments = 1 | grain_index = 3
-    segment: center = 25.9942 11.25 | radius = 8.81477
+op_index_current = 1 | op_index_old = 1 | segments = 2
+    segment: center = 1.92458 11.25 | radius = 7.86425
+    segment: center = 54.3609 11.25 | radius = 9.68904
+op_index_current = 0 | op_index_old = 0 | segments = 1
+    segment: center = 11.0164 11.25 | radius = 8.9027
+op_index_current = 1 | op_index_old = 1 | segments = 1
+    segment: center = 26.0164 11.25 | radius = 8.9027
+op_index_current = 0 | op_index_old = 0 | segments = 1
+    segment: center = 41.0164 11.25 | radius = 8.9027
 
 Time t = 12
 Number of order parameters: 2
 Number of grains: 4
-op_index_current = 0 | op_index_old = 0 | segments = 1 | grain_index = 0
-    segment: center = 11.9865 11.25 | radius = 8.887
-op_index_current = 0 | op_index_old = 0 | segments = 1 | grain_index = 1
-    segment: center = 41.9865 11.25 | radius = 8.887
-op_index_current = 1 | op_index_old = 1 | segments = 2 | grain_index = 2
-    segment: center = 2.29512 11.25 | radius = 8.22932
-    segment: center = 54.9264 11.25 | radius = 9.46365
-op_index_current = 1 | op_index_old = 1 | segments = 1 | grain_index = 3
-    segment: center = 26.9865 11.25 | radius = 8.887
+op_index_current = 1 | op_index_old = 1 | segments = 2
+    segment: center = 2.36039 11.25 | radius = 8.51779
+    segment: center = 54.8753 11.25 | radius = 9.63835
+op_index_current = 0 | op_index_old = 0 | segments = 1
+    segment: center = 12.0095 11.25 | radius = 8.9006
+op_index_current = 1 | op_index_old = 1 | segments = 1
+    segment: center = 27.0095 11.25 | radius = 8.9006
+op_index_current = 0 | op_index_old = 0 | segments = 1
+    segment: center = 42.0095 11.25 | radius = 8.9006
 
 Time t = 13
 Number of order parameters: 2
 Number of grains: 4
-op_index_current = 0 | op_index_old = 0 | segments = 1 | grain_index = 0
-    segment: center = 12.9991 11.25 | radius = 8.86327
-op_index_current = 0 | op_index_old = 0 | segments = 1 | grain_index = 1
-    segment: center = 42.9991 11.25 | radius = 8.86327
-op_index_current = 1 | op_index_old = 1 | segments = 2 | grain_index = 2
-    segment: center = 2.70603 11.25 | radius = 8.61649
-    segment: center = 55.4549 11.25 | radius = 9.46158
-op_index_current = 1 | op_index_old = 1 | segments = 1 | grain_index = 3
-    segment: center = 27.9991 11.25 | radius = 8.86327
+op_index_current = 1 | op_index_old = 1 | segments = 2
+    segment: center = 2.78754 11.25 | radius = 8.90921
+    segment: center = 55.3629 11.25 | radius = 9.63668
+op_index_current = 0 | op_index_old = 0 | segments = 1
+    segment: center = 13.0001 11.25 | radius = 8.89733
+op_index_current = 1 | op_index_old = 1 | segments = 1
+    segment: center = 28.0001 11.25 | radius = 8.89733
+op_index_current = 0 | op_index_old = 0 | segments = 1
+    segment: center = 43.0001 11.25 | radius = 8.89733
 
 Time t = 14
 Number of order parameters: 2
 Number of grains: 4
-op_index_current = 0 | op_index_old = 0 | segments = 1 | grain_index = 0
-    segment: center = 13.9881 11.25 | radius = 8.83088
-op_index_current = 0 | op_index_old = 0 | segments = 1 | grain_index = 1
-    segment: center = 43.9881 11.25 | radius = 8.83088
-op_index_current = 1 | op_index_old = 1 | segments = 2 | grain_index = 2
-    segment: center = 3.16846 11.25 | radius = 9.0323
-    segment: center = 55.901 11.25 | radius = 9.39265
-op_index_current = 1 | op_index_old = 1 | segments = 1 | grain_index = 3
-    segment: center = 28.9881 11.25 | radius = 8.83088
+op_index_current = 1 | op_index_old = 1 | segments = 2
+    segment: center = 3.21495 11.25 | radius = 9.31262
+    segment: center = 55.8611 11.25 | radius = 9.66409
+op_index_current = 0 | op_index_old = 0 | segments = 1
+    segment: center = 13.9904 11.25 | radius = 8.88956
+op_index_current = 1 | op_index_old = 1 | segments = 1
+    segment: center = 28.9904 11.25 | radius = 8.88956
+op_index_current = 0 | op_index_old = 0 | segments = 1
+    segment: center = 43.9904 11.25 | radius = 8.88956
 
 Time t = 15
 Number of order parameters: 2
 Number of grains: 4
-op_index_current = 0 | op_index_old = 0 | segments = 1 | grain_index = 0
-    segment: center = 15 11.25 | radius = 8.84588
-op_index_current = 0 | op_index_old = 0 | segments = 1 | grain_index = 1
-    segment: center = 45 11.25 | radius = 8.84588
-op_index_current = 1 | op_index_old = 1 | segments = 2 | grain_index = 2
-    segment: center = 3.5987 11.25 | radius = 9.18874
-    segment: center = 56.4013 11.25 | radius = 9.18874
-op_index_current = 1 | op_index_old = 1 | segments = 1 | grain_index = 3
-    segment: center = 30 11.25 | radius = 8.84588
+op_index_current = 1 | op_index_old = 1 | segments = 2
+    segment: center = 3.69235 11.25 | radius = 9.4844
+    segment: center = 56.3077 11.25 | radius = 9.4844
+op_index_current = 0 | op_index_old = 0 | segments = 1
+    segment: center = 15 11.25 | radius = 8.89283
+op_index_current = 1 | op_index_old = 1 | segments = 1
+    segment: center = 30 11.25 | radius = 8.89283
+op_index_current = 0 | op_index_old = 0 | segments = 1
+    segment: center = 45 11.25 | radius = 8.89283
