@@ -1024,7 +1024,7 @@ namespace Sintering
                                   time_last_output,
                                   "clouds_inconsistency");
 
-                    grain_tracker.dump_last_clouds();
+                    grain_tracker.print_old_grains(pcout);
 
                     AssertThrow(false, ExcMessage(ex.what()));
                   }

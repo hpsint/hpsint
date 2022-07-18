@@ -254,7 +254,7 @@ main(int argc, char **argv)
         {
           pcout << "GrainTracker::ExcGrainsInconsistency detected!"
                 << std::endl;
-          grain_tracker.dump_last_clouds();
+          grain_tracker.print_old_grains(pcout);
 
           AssertThrow(false, ExcMessage(ex.what()));
         }

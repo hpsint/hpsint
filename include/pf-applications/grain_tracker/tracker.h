@@ -572,14 +572,6 @@ namespace GrainTracker
       output_grains(grains, prefix);
     }
 
-    // Output last set of clouds
-    void
-    dump_last_clouds() const
-    {
-      print_old_grains(pcout);
-      output_clouds(last_clouds, /*is_merged = */ true);
-    }
-
   private:
     unsigned int
     run_flooding(const typename DoFHandler<dim>::cell_iterator &cell,
@@ -1329,8 +1321,8 @@ namespace GrainTracker
 
     // Output clouds
     void
-    output_clouds(const std::vector<Cloud<dim>> &clouds,
-                  const bool                     is_merged) const
+    output_particle_ids(const LinearAlgebra::distributed::Vector<double>
+                          &current_particle_ids) const
     {
       DataOutBase::VtkFlags flags;
       flags.write_higher_order_cells = false;
@@ -1338,128 +1330,28 @@ namespace GrainTracker
       DataOut<dim> data_out;
       data_out.set_flags(flags);
 
-      // Identify all order parameters in use by the given clouds
-      std::map<unsigned int, unsigned int> current_order_parameters;
-      for (const auto &cl : clouds)
-        {
-          current_order_parameters.try_emplace(cl.get_order_parameter_id(), 0);
-          current_order_parameters.at(cl.get_order_parameter_id())++;
-        }
+      Vector<double> ranks(tria.n_active_cells());
+      ranks = Utilities::MPI::this_mpi_process(MPI_COMM_WORLD);
 
-      // Compute offsets for better clouds numbering
-      for (auto it = current_order_parameters.rbegin();
-           it != current_order_parameters.rend();
-           ++it)
-        {
-          auto it_sum_start = it;
-          ++it_sum_start;
-          it->second = std::accumulate(it_sum_start,
-                                       current_order_parameters.rend(),
-                                       0,
-                                       [](auto total, const auto &p) {
-                                         return total + p.second;
-                                       });
-        }
+      data_out.add_data_vector(ranks,
+                               "ranks",
+                               DataOut<dim>::DataVectorType::type_cell_data);
 
-      // Total number of cells and order parameters
-      const unsigned int n_cells =
-        dof_handler.get_triangulation().n_active_cells();
-
-      std::map<unsigned int, Vector<float>> order_parameter_indicators;
-
-      // Initialize with invalid order parameter (negative)
-      for (const auto &[op, offset] : current_order_parameters)
-        {
-          (void)offset;
-
-          order_parameter_indicators.emplace(op, n_cells);
-          order_parameter_indicators.at(op) = -1.;
-        }
-
-      // For each order parameter identify cells contained in its clouds
-      unsigned int counter = 0;
-      for (auto &tria_cell :
-           dof_handler.get_triangulation().active_cell_iterators())
-        {
-          for (unsigned int ic = 0; ic < clouds.size(); ++ic)
-            {
-              const auto &cl = clouds[ic];
-
-              for (const auto &cell : cl.get_cells())
-                {
-                  if (cell.barycenter().distance(tria_cell->barycenter()) <
-                      1e-6)
-                    {
-                      const unsigned int cloud_number =
-                        ic - current_order_parameters.at(
-                               cl.get_order_parameter_id());
-
-                      order_parameter_indicators.at(
-                        cl.get_order_parameter_id())[counter] = cloud_number;
-                    }
-                }
-            }
-          counter++;
-        }
-
-      // Append clouds assigned to order parameters
-      data_out.attach_triangulation(dof_handler.get_triangulation());
-      for (const auto &[op, offset] : current_order_parameters)
-        {
-          (void)offset;
-
-          data_out.add_data_vector(order_parameter_indicators.at(op),
-                                   "op" + std::to_string(op));
-        }
-
-      // Output subdomain structure for diagnostic
-      Vector<float> subdomain(dof_handler.get_triangulation().n_active_cells());
-      for (unsigned int i = 0; i < subdomain.size(); ++i)
-        {
-          subdomain[i] =
-            dof_handler.get_triangulation().locally_owned_subdomain();
-        }
-      data_out.add_data_vector(subdomain, "subdomain");
+      data_out.add_data_vector(current_particle_ids,
+                               "particle_ids",
+                               DataOut<dim>::DataVectorType::type_cell_data);
 
       data_out.build_patches();
 
       pcout << "Outputing clouds..." << std::endl;
 
-      /* This function can be called for global clouds after they have been
-       * indeitifed for each order parameter and populated to each rank or for
-       * local clouds which exist locally only on a given rank. For local calls,
-       * the order parameters may be different for each processor. When calling
-       * write_vtu_in_parallel(), only those order parameter which present at
-       * each processor enter the resultant vtu file. In general, that means
-       * that for local calls the output file in general case will be empty. To
-       * avoid this, we write separate outputs for each of the processor. They
-       * are totally independent from each other and may contain different order
-       * parameters, for this reason a pvtu record is not generated to merge
-       * them all together.
-       */
-      if (is_merged)
-        {
-          static unsigned int counter_merged = 0;
+      static unsigned int counter = 0;
 
-          const std::string filename =
-            "clouds_merged." + std::to_string(counter_merged) + ".vtu";
-          data_out.write_vtu_in_parallel(filename, MPI_COMM_WORLD);
+      const std::string filename =
+        "particle_ids." + std::to_string(counter) + ".vtu";
+      data_out.write_vtu_in_parallel(filename, MPI_COMM_WORLD);
 
-          counter_merged++;
-        }
-      else
-        {
-          static unsigned int counter_split = 0;
-
-          const std::string filename =
-            "clouds_split." + std::to_string(counter_split) + "." +
-            std::to_string(Utilities::MPI::this_mpi_process(MPI_COMM_WORLD)) +
-            ".vtu";
-          std::ofstream output_stream(filename);
-          data_out.write_vtu(output_stream);
-
-          counter_split++;
-        }
+      counter++;
     }
 
     // Output clouds as particles (fast)
