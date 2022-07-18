@@ -83,9 +83,9 @@ namespace GrainTracker
       // Create a list of grain candidates
       std::set<unsigned int> grains_candidates;
       for (const auto &[gid, gr] : old_grains)
-      {
-        grains_candidates.insert(gid);
-      }
+        {
+          grains_candidates.insert(gid);
+        }
 
       // Create segments and transfer grain_id's for them
       for (const auto &[current_grain_id, new_grain] : new_grains)
@@ -98,26 +98,26 @@ namespace GrainTracker
           double       min_distance = std::numeric_limits<double>::max();
           unsigned int new_grain_id = std::numeric_limits<unsigned int>::max();
 
-          for (const auto& new_segment : new_grain.get_segments())
-          {
-            for (const auto& old_grain_id : grains_candidates)
+          for (const auto &new_segment : new_grain.get_segments())
             {
-              const auto& old_grain = old_grains.at(old_grain_id);
-
-              for (const auto &old_segment : old_grain.get_segments())
+              for (const auto &old_grain_id : grains_candidates)
                 {
-                  const double distance =
-                    new_segment.get_center().distance(old_segment.get_center());
+                  const auto &old_grain = old_grains.at(old_grain_id);
 
-                  if (distance < new_segment.get_radius() &&
-                      distance < min_distance)
+                  for (const auto &old_segment : old_grain.get_segments())
                     {
-                      min_distance = distance;
-                      new_grain_id = old_grain.get_grain_id();
+                      const double distance = new_segment.get_center().distance(
+                        old_segment.get_center());
+
+                      if (distance < new_segment.get_radius() &&
+                          distance < min_distance)
+                        {
+                          min_distance = distance;
+                          new_grain_id = old_grain.get_grain_id();
+                        }
                     }
                 }
             }
-          }
 
           // Set up the grain number
           if (new_grain_id == std::numeric_limits<unsigned int>::max())
