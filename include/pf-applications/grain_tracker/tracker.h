@@ -58,6 +58,7 @@ namespace GrainTracker
       , threshold_upper(threshold_upper)
       , buffer_distance_ratio(buffer_distance_ratio)
       , order_parameters_offset(op_offset)
+      , particle_ids(tria.global_active_cell_index_partitioner().lock())
       , pcout(std::cout, Utilities::MPI::this_mpi_process(MPI_COMM_WORLD) == 0)
     {}
 
@@ -576,7 +577,6 @@ namespace GrainTracker
     dump_last_clouds() const
     {
       print_old_grains(pcout);
-      print_clouds(last_clouds, pcout);
       output_clouds(last_clouds, /*is_merged = */ true);
     }
 
@@ -806,8 +806,6 @@ namespace GrainTracker
         {
           // step 1) run flooding and determine local particles and give them
           // local ids
-          LinearAlgebra::distributed::Vector<double> particle_ids(
-            tria.global_active_cell_index_partitioner().lock());
           particle_ids = invalid_particle_id;
 
           unsigned int counter = 0;
@@ -1623,32 +1621,6 @@ namespace GrainTracker
       return false;
     }
 
-    // Print clouds (mainly for debug)
-    template <typename Stream>
-    void
-    print_clouds(const std::vector<Cloud<dim>> &clouds, Stream &out) const
-    {
-      unsigned int cloud_id = 0;
-
-      out << Utilities::MPI::this_mpi_process(MPI_COMM_WORLD)
-          << " Number of clouds = " << clouds.size() << std::endl;
-      for (auto &cloud : clouds)
-        {
-          Segment<dim> current_segment(cloud);
-
-          out << Utilities::MPI::this_mpi_process(MPI_COMM_WORLD) << " "
-              << "cloud_id = " << cloud_id
-              << " | cloud order parameter = " << cloud.get_order_parameter_id()
-              << " | center = " << current_segment.get_center()
-              << " | radius = " << current_segment.get_radius()
-              << " | number of cells = " << cloud.get_cells().size()
-              << " | has_edges = " << (cloud.has_edges() ? "yes" : "no")
-              << " | periodic = "
-              << (cloud.has_periodic_boundary() ? "yes" : "no") << std::endl;
-          cloud_id++;
-        }
-    }
-
     // Output clouds
     void
     output_clouds(const std::vector<Cloud<dim>> &clouds,
@@ -2016,6 +1988,9 @@ namespace GrainTracker
 
     // Last set of detected clouds
     std::vector<Cloud<dim>> last_clouds;
+
+    // Vector of particle ids
+    LinearAlgebra::distributed::Vector<double> particle_ids;
 
     ConditionalOStream pcout;
 
