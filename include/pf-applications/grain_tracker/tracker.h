@@ -928,11 +928,11 @@ namespace GrainTracker
 
           // ... reduce information
           MPI_Allreduce(MPI_IN_PLACE,
-                     particle_info.data(),
-                     particle_info.size(),
-                     MPI_DOUBLE,
-                     MPI_SUM,
-                     comm);
+                        particle_info.data(),
+                        particle_info.size(),
+                        MPI_DOUBLE,
+                        MPI_SUM,
+                        comm);
 
           // ... compute particles centers
           std::vector<Point<dim>> particle_centers(n_particles);
@@ -973,11 +973,11 @@ namespace GrainTracker
 
           // ... reduce information
           MPI_Allreduce(MPI_IN_PLACE,
-                     particle_radii.data(),
-                     particle_radii.size(),
-                     MPI_DOUBLE,
-                     MPI_MAX,
-                     comm);
+                        particle_radii.data(),
+                        particle_radii.size(),
+                        MPI_DOUBLE,
+                        MPI_MAX,
+                        comm);
 
           // Set global ids to the particles
           for (auto &particle_id : particle_ids)
