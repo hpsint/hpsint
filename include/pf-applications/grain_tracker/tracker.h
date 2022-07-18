@@ -30,7 +30,7 @@ namespace GrainTracker
 {
   using namespace dealii;
 
-  DeclExceptionMsg(ExcGrainsInconsistency, "Clouds inconsistency detected!");
+  DeclExceptionMsg(ExcGrainsInconsistency, "Grains inconsistency detected!");
 
   /* The grain tracker algo itself. */
   template <int dim, typename Number>
@@ -192,60 +192,6 @@ namespace GrainTracker
       grains = detect_grains(solution, assign_indices);
 
       // The rest is the same as was before
-
-      /* Initial grains reassignment, the closest neighbors are allowed as we
-       * want to minimize the number of order parameters in use.
-       */
-      const bool force_reassignment = greedy_init;
-
-      // Reassign grains
-      const bool grains_reassigned = reassign_grains(force_reassignment);
-
-      // Check if number of order parameters has changed
-      const bool op_number_changed =
-        (active_order_parameters.size() !=
-         build_old_order_parameter_ids(grains).size());
-
-      return std::make_tuple(grains_reassigned, op_number_changed);
-    }
-
-    /* Initialization of grains at the very first step. The function returns a
-     * tuple of bool variables which signify if any grains have been reassigned
-     * and if the number of active order parameters has been changed.
-     */
-    std::tuple<bool, bool>
-    initial_setup_old(const BlockVectorType &solution)
-    {
-      /* We can perform initialization in two ways: greedy or not. Greedy
-       * initialization signals that we have to reassign grains in optimal way
-       * regardless on how they were defined by the initial conditions. PBC
-       * information is used to identify grains consisting of multiple segments.
-       */
-
-      // Store last clouds state while iterating over groups
-      last_clouds.clear();
-
-      const auto grouped_clouds = find_grouped_clouds(solution);
-
-      unsigned int grain_numberer = 0;
-      for (auto &group : grouped_clouds)
-        {
-          const unsigned int grain_id = grain_numberer;
-
-          for (auto &cloud : group)
-            {
-              const unsigned int order_parameter_id =
-                cloud.get_order_parameter_id();
-              grains.try_emplace(grain_id, grain_id, order_parameter_id);
-
-              Segment<dim> segment(cloud);
-              grains.at(grain_id).add_segment(segment);
-
-              last_clouds.emplace_back(std::move(cloud));
-            }
-
-          grain_numberer++;
-        }
 
       /* Initial grains reassignment, the closest neighbors are allowed as we
        * want to minimize the number of order parameters in use.
