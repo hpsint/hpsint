@@ -70,6 +70,13 @@ namespace GrainTracker
       return grain_id;
     }
 
+    /* Set grain id. */
+    void
+    set_grain_id(const unsigned int new_grain_id)
+    {
+      grain_id = new_grain_id;
+    }
+
     /* Get current order parameter id. */
     unsigned int
     get_order_parameter_id() const

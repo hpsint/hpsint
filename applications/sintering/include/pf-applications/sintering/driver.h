@@ -1017,7 +1017,7 @@ namespace Sintering
                   {
                     run_grain_tracker(t, /*do_initialize = */ false);
                   }
-                catch (const GrainTracker::ExcCloudsInconsistency &ex)
+                catch (const GrainTracker::ExcGrainsInconsistency &ex)
                   {
                     output_result(solution,
                                   nonlinear_operator,

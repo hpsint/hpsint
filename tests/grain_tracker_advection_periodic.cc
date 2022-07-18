@@ -250,9 +250,9 @@ main(int argc, char **argv)
               pcout << "Number of order parameters has changed" << std::endl;
             }
         }
-      catch (const GrainTracker::ExcCloudsInconsistency &ex)
+      catch (const GrainTracker::ExcGrainsInconsistency &ex)
         {
-          pcout << "GrainTracker::ExcCloudsInconsistency detected!"
+          pcout << "GrainTracker::ExcGrainsInconsistency detected!"
                 << std::endl;
           grain_tracker.dump_last_clouds();
 

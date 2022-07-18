@@ -30,7 +30,7 @@ namespace GrainTracker
 {
   using namespace dealii;
 
-  DeclExceptionMsg(ExcCloudsInconsistency, "Clouds inconsistency detected!");
+  DeclExceptionMsg(ExcGrainsInconsistency, "Clouds inconsistency detected!");
 
   /* The grain tracker algo itself. */
   template <int dim, typename Number>
@@ -68,29 +68,29 @@ namespace GrainTracker
     std::tuple<bool, bool>
     track(const BlockVectorType &solution)
     {
-      // Find cells clouds
-      last_clouds = std::move(find_clouds(solution));
-
       // Copy old grains
       old_grains = grains;
-
-      // Clear current grains
       grains.clear();
+
+      // Now we do not assign grain indices when searching for grains
+      const bool assign_indices = false;
+
+      const auto new_grains = detect_grains(solution, assign_indices);
 
       // Numberer for new grains
       unsigned int grain_numberer = old_grains.rbegin()->first + 1;
 
-      // Vector of new periodic segments
-      std::map<const Cloud<dim> *, Segment<dim>> new_periodic_segments;
-
-      // Map of clouds to grains, only for periodic
-      std::map<const Cloud<dim> *, unsigned int> periodic_clouds_to_grains;
+      // Create a list of grain candidates
+      std::set<unsigned int> grains_candidates;
+      for (const auto &[gid, gr] : old_grains)
+      {
+        grains_candidates.insert(gid);
+      }
 
       // Create segments and transfer grain_id's for them
-      for (auto &cloud : last_clouds)
+      for (const auto &[current_grain_id, new_grain] : new_grains)
         {
-          // New segment
-          Segment<dim> current_segment(cloud);
+          (void)current_grain_id;
 
           /* Search for an old segment closest to the new one and get its grain
            * id, this will be assigned the new segment.
@@ -98,33 +98,31 @@ namespace GrainTracker
           double       min_distance = std::numeric_limits<double>::max();
           unsigned int new_grain_id = std::numeric_limits<unsigned int>::max();
 
-          for (const auto &[gid, gr] : old_grains)
+          for (const auto& new_segment : new_grain.get_segments())
+          {
+            for (const auto& old_grain_id : grains_candidates)
             {
-              (void)gid;
+              const auto& old_grain = old_grains.at(old_grain_id);
 
-              for (const auto &segment : gr.get_segments())
+              for (const auto &old_segment : old_grain.get_segments())
                 {
                   const double distance =
-                    current_segment.get_center().distance(segment.get_center());
+                    new_segment.get_center().distance(old_segment.get_center());
 
-                  if (distance < current_segment.get_radius() &&
+                  if (distance < new_segment.get_radius() &&
                       distance < min_distance)
                     {
                       min_distance = distance;
-                      new_grain_id = gr.get_grain_id();
+                      new_grain_id = old_grain.get_grain_id();
                     }
                 }
             }
+          }
 
           // Set up the grain number
           if (new_grain_id == std::numeric_limits<unsigned int>::max())
             {
-              if (cloud.has_periodic_boundary())
-                {
-                  new_periodic_segments.emplace(&cloud,
-                                                std::move(current_segment));
-                }
-              else if (allow_new_grains)
+              if (allow_new_grains)
                 {
                   new_grain_id = grain_numberer++;
                 }
@@ -133,118 +131,34 @@ namespace GrainTracker
                   // Check if we have found anything
                   AssertThrow(
                     new_grain_id != std::numeric_limits<unsigned int>::max(),
-                    ExcCloudsInconsistency(
-                      "Unable to detect a segment from the previous configuration for the cloud!"));
+                    ExcGrainsInconsistency(
+                      "Unable to match a new grain with an old one from the previous configuration!"));
                 }
             }
           else
             {
               // clang-format off
               AssertThrow(old_grains.at(new_grain_id).get_order_parameter_id() 
-                == cloud.get_order_parameter_id(),
-                ExcCloudsInconsistency(
+                == new_grain.get_order_parameter_id(),
+                ExcGrainsInconsistency(
                   std::string("Something got wrong with the order parameters numbering:\r\n") +
                   std::string("\r\n    new_grain_id = ") +
                   std::to_string(new_grain_id) + 
                   std::string("\r\n    old grain order parameter   = ") +
                   std::to_string(old_grains.at(new_grain_id).get_order_parameter_id()) + 
-                  std::string("\r\n    cloud order parameter       = ") +
-                  std::to_string(cloud.get_order_parameter_id()) + 
+                  std::string("\r\n    new grain order parameter   = ") +
+                  std::to_string(new_grain.get_order_parameter_id()) + 
                   std::string("\r\n    min_distance                = ") +
-                  std::to_string(min_distance) +
-                  std::string("\r\n    segment radius              = ") +
-                  std::to_string(current_segment.get_radius())
+                  std::to_string(min_distance)
               ));
               // clang-format on
+
+              grains_candidates.erase(new_grain_id);
             }
 
-          if (new_grain_id != std::numeric_limits<unsigned int>::max())
-            {
-              grains.try_emplace(new_grain_id,
-                                 new_grain_id,
-                                 cloud.get_order_parameter_id());
-
-              grains.at(new_grain_id).add_segment(current_segment);
-
-              if (cloud.has_periodic_boundary())
-                {
-                  periodic_clouds_to_grains.insert({&cloud, new_grain_id});
-                }
-            }
-        }
-
-      // Now try to identify pairs of new periodic segments
-      for (auto it = new_periodic_segments.cbegin();
-           it != new_periodic_segments.cend();)
-        {
-          const auto ptr_cloud_current = it->first;
-
-          bool periodic_found = false;
-
-          for (const auto &[ptr_cloud_candidate, grain_id] :
-               periodic_clouds_to_grains)
-            {
-              if (ptr_cloud_current->get_order_parameter_id() ==
-                    ptr_cloud_candidate->get_order_parameter_id() &&
-                  ptr_cloud_candidate->is_periodic_with(*ptr_cloud_current))
-                {
-                  grains.at(grain_id).add_segment(it->second);
-                  periodic_found = true;
-
-                  break;
-                }
-            }
-
-          if (periodic_found)
-            {
-              it = new_periodic_segments.erase(it);
-            }
-          else
-            {
-              ++it;
-            }
-        }
-
-      /* The remaining segments (if any left) should be new periodic with each
-       * other
-       */
-      if (allow_new_grains)
-        {
-          for (const auto &[ptr_cloud_primary, segment_primary] :
-               new_periodic_segments)
-            {
-              const unsigned int grain_id = grain_numberer++;
-
-              grains.try_emplace(grain_id,
-                                 grain_id,
-                                 ptr_cloud_primary->get_order_parameter_id());
-              grains.at(grain_id).add_segment(segment_primary);
-
-              for (auto it_secondary = new_periodic_segments.cbegin();
-                   it_secondary != new_periodic_segments.cend();)
-                {
-                  const auto ptr_cloud_secondary = it_secondary->first;
-
-                  if (ptr_cloud_primary != ptr_cloud_secondary &&
-                      ptr_cloud_secondary->is_periodic_with(*ptr_cloud_primary))
-                    {
-                      grains.at(grain_id).add_segment(it_secondary->second);
-
-                      it_secondary = new_periodic_segments.erase(it_secondary);
-                    }
-                  else
-                    {
-                      ++it_secondary;
-                    }
-                }
-            }
-        }
-      else
-        {
-          // Check if we found anything
-          AssertThrow(new_periodic_segments.empty(),
-                      ExcMessage(std::to_string(new_periodic_segments.size()) +
-                                 " unidentified periodic clouds left!"));
+          // Insert new grain
+          grains.emplace(std::make_pair(new_grain_id, new_grain));
+          grains.at(new_grain_id).set_grain_id(new_grain_id);
         }
 
       /* For tracking we want the grains assigned to the same order parameter to
@@ -266,214 +180,6 @@ namespace GrainTracker
       return std::make_tuple(grains_reassigned, op_number_changed);
     }
 
-    unsigned int
-    run_flooding(const typename DoFHandler<dim>::cell_iterator &cell,
-                 const BlockVectorType &                        solution,
-                 LinearAlgebra::distributed::Vector<Number> &   particle_ids,
-                 const unsigned int order_parameter_id,
-                 const unsigned int id)
-    {
-      if (cell->has_children())
-        {
-          unsigned int counter = 1;
-
-          for (const auto &child : cell->child_iterators())
-            counter += run_flooding(
-              child, solution, particle_ids, order_parameter_id, id);
-
-          return counter;
-        }
-
-      if (cell->is_locally_owned() == false)
-        return 0;
-
-      const auto particle_id = particle_ids[cell->global_active_cell_index()];
-
-      if (particle_id != invalid_particle_id)
-        return 0; // cell has been visited
-
-      Vector<double> values(cell->get_fe().n_dofs_per_cell());
-
-      cell->get_dof_values(solution.block(order_parameter_id +
-                                          order_parameters_offset),
-                           values);
-
-      if (values.linfty_norm() == 0.0)
-        return 0; // cell has no particle
-
-      particle_ids[cell->global_active_cell_index()] = id;
-
-      unsigned int counter = 1;
-
-      for (const auto face : cell->face_indices())
-        if (cell->at_boundary(face) == false)
-          counter += run_flooding(cell->neighbor(face),
-                                  solution,
-                                  particle_ids,
-                                  order_parameter_id,
-                                  id);
-
-      return counter;
-    }
-
-    std::vector<unsigned int>
-    perform_distributed_stitching(
-      const MPI_Comm                                                   comm,
-      std::vector<std::vector<std::tuple<unsigned int, unsigned int>>> input)
-    {
-      const unsigned int n_ranks = Utilities::MPI::n_mpi_processes(comm);
-      const unsigned int my_rank = Utilities::MPI::this_mpi_process(comm);
-
-      // step 1) determine - via fixed-point iteration - the clique of
-      // each particle
-      const unsigned int local_size = input.size();
-      unsigned int       offset     = 0;
-
-      MPI_Exscan(&local_size, &offset, 1, MPI_UNSIGNED, MPI_SUM, comm);
-
-      using T = std::vector<
-        std::tuple<unsigned int,
-                   std::vector<std::tuple<unsigned int, unsigned int>>>>;
-
-      while (true)
-        {
-          std::map<unsigned int, T> data_to_send;
-
-          for (unsigned int i = 0; i < input.size(); ++i)
-            {
-              const auto input_i = input[i];
-              for (unsigned int j = 0; j < input_i.size(); ++j)
-                {
-                  const unsigned int other_rank = std::get<0>(input_i[j]);
-
-                  if (other_rank == my_rank)
-                    continue;
-
-                  std::vector<std::tuple<unsigned int, unsigned int>> temp;
-
-                  temp.emplace_back(my_rank, i + offset);
-
-                  for (unsigned int k = 0; k < input_i.size(); ++k)
-                    if (k != j)
-                      temp.push_back(input_i[k]);
-
-                  std::sort(temp.begin(), temp.end());
-
-                  data_to_send[other_rank].emplace_back(std::get<1>(input_i[j]),
-                                                        temp);
-                }
-            }
-
-          bool finished = true;
-
-          Utilities::MPI::ConsensusAlgorithms::selector<T>(
-            [&]() {
-              std::vector<unsigned int> targets;
-              for (const auto i : data_to_send)
-                targets.emplace_back(i.first);
-              return targets;
-            }(),
-            [&](const unsigned int other_rank) {
-              return data_to_send[other_rank];
-            },
-            [&](const unsigned int, const auto &data) {
-              for (const auto &data_i : data)
-                {
-                  const unsigned int index   = std::get<0>(data_i) - offset;
-                  const auto &       values  = std::get<1>(data_i);
-                  auto &             input_i = input[index];
-
-                  const unsigned int old_size = input_i.size();
-
-                  input_i.insert(input_i.end(), values.begin(), values.end());
-                  std::sort(input_i.begin(), input_i.end());
-                  input_i.erase(std::unique(input_i.begin(), input_i.end()),
-                                input_i.end());
-
-                  const unsigned int new_size = input_i.size();
-
-                  finished &= (old_size == new_size);
-                }
-            },
-            comm);
-
-          if (Utilities::MPI::sum(static_cast<unsigned int>(finished), comm) ==
-              n_ranks) // run as long as no clique has changed
-            break;
-        }
-
-      // step 2) give each clique a unique id
-      std::vector<std::vector<std::tuple<unsigned int, unsigned int>>>
-        input_valid;
-
-      for (unsigned int i = 0; i < input.size(); ++i)
-        {
-          auto input_i = input[i];
-
-          if (input_i.size() == 0)
-            {
-              std::vector<std::tuple<unsigned int, unsigned int>> temp;
-              temp.emplace_back(my_rank, i + offset);
-              input_valid.push_back(temp);
-            }
-          else
-            {
-              if ((my_rank <= std::get<0>(input_i[0])) &&
-                  ((i + offset) < std::get<1>(input_i[0])))
-                {
-                  input_i.insert(input_i.begin(),
-                                 std::tuple<unsigned int, unsigned int>{
-                                   my_rank, i + offset});
-                  input_valid.push_back(input_i);
-                }
-            }
-        }
-
-      // step 3) notify each particle of the id of its clique
-      const unsigned int local_size_p = input_valid.size();
-      unsigned int       offset_p     = 0;
-
-      MPI_Exscan(&local_size_p, &offset_p, 1, MPI_UNSIGNED, MPI_SUM, comm);
-
-      using U = std::vector<std::tuple<unsigned int, unsigned int>>;
-      std::map<unsigned int, U> data_to_send_;
-
-      for (unsigned int i = 0; i < input_valid.size(); ++i)
-        {
-          for (const auto j : input_valid[i])
-            data_to_send_[std::get<0>(j)].emplace_back(std::get<1>(j),
-                                                       i + offset_p);
-        }
-
-      std::vector<unsigned int> result(input.size(),
-                                       numbers::invalid_unsigned_int);
-
-      Utilities::MPI::ConsensusAlgorithms::selector<U>(
-        [&]() {
-          std::vector<unsigned int> targets;
-          for (const auto i : data_to_send_)
-            targets.emplace_back(i.first);
-          return targets;
-        }(),
-        [&](const unsigned int other_rank) {
-          return data_to_send_[other_rank];
-        },
-        [&](const unsigned int, const auto &data) {
-          for (const auto &i : data)
-            {
-              AssertDimension(result[std::get<0>(i) - offset],
-                              numbers::invalid_unsigned_int);
-              result[std::get<0>(i) - offset] = std::get<1>(i);
-            }
-        },
-        comm);
-
-      MPI_Barrier(comm);
-
-      return result;
-    }
-
-
     /* Initialization of grains at the very first step. The function returns a
      * tuple of bool variables which signify if any grains have been reassigned
      * and if the number of active order parameters has been changed.
@@ -481,327 +187,9 @@ namespace GrainTracker
     std::tuple<bool, bool>
     initial_setup(const BlockVectorType &solution)
     {
-      const MPI_Comm comm = MPI_COMM_WORLD;
+      const bool assign_indices = true;
 
-      unsigned int particles_numerator = 0;
-
-      const unsigned int n_order_params =
-        solution.n_blocks() - order_parameters_offset;
-
-      for (unsigned int current_order_parameter_id = 0;
-           current_order_parameter_id < n_order_params;
-           ++current_order_parameter_id)
-        {
-          // step 1) run flooding and determine local particles and give them
-          // local ids
-          LinearAlgebra::distributed::Vector<double> particle_ids(
-            tria.global_active_cell_index_partitioner().lock());
-          particle_ids = invalid_particle_id;
-
-          unsigned int counter = 0;
-          unsigned int offset  = 0;
-
-          for (const auto &cell : dof_handler.active_cell_iterators())
-            if (run_flooding(cell,
-                             solution,
-                             particle_ids,
-                             current_order_parameter_id,
-                             counter) > 0)
-              counter++;
-
-          // step 2) determine the global number of locally determined particles
-          // and give each one an unique id by shifting the ids
-          MPI_Exscan(&counter, &offset, 1, MPI_UNSIGNED, MPI_SUM, comm);
-
-          for (auto &particle_id : particle_ids)
-            if (particle_id != invalid_particle_id)
-              particle_id += offset;
-
-          // step 3) get particle ids on ghost cells and figure out if local
-          // particles and ghost particles might be one particle
-          particle_ids.update_ghost_values();
-
-          std::vector<std::vector<std::tuple<unsigned int, unsigned int>>>
-            local_connectiviy(counter);
-
-          for (const auto &ghost_cell :
-               dof_handler.get_triangulation().active_cell_iterators())
-            if (ghost_cell->is_ghost())
-              {
-                const auto particle_id =
-                  particle_ids[ghost_cell->global_active_cell_index()];
-
-                if (particle_id == invalid_particle_id)
-                  continue;
-
-                for (const auto face : ghost_cell->face_indices())
-                  {
-                    if (ghost_cell->at_boundary(face))
-                      continue;
-
-                    const auto add = [&](const auto &ghost_cell,
-                                         const auto &local_cell) {
-                      if (local_cell->is_locally_owned() == false)
-                        return;
-
-                      const auto neighbor_particle_id =
-                        particle_ids[local_cell->global_active_cell_index()];
-
-                      if (neighbor_particle_id == invalid_particle_id)
-                        return;
-
-                      auto &temp =
-                        local_connectiviy[neighbor_particle_id - offset];
-                      temp.emplace_back(ghost_cell->subdomain_id(),
-                                        particle_id);
-                      std::sort(temp.begin(), temp.end());
-                      temp.erase(std::unique(temp.begin(), temp.end()),
-                                 temp.end());
-                    };
-
-                    if (ghost_cell->neighbor(face)->has_children())
-                      {
-                        for (unsigned int subface = 0;
-                             subface <
-                             GeometryInfo<dim>::n_subfaces(
-                               internal::SubfaceCase<dim>::case_isotropic);
-                             ++subface)
-                          add(ghost_cell,
-                              ghost_cell->neighbor_child_on_subface(face,
-                                                                    subface));
-                      }
-                    else
-                      add(ghost_cell, ghost_cell->neighbor(face));
-                  }
-              }
-
-          // step 4) based on the local-ghost information, figure out all
-          // particles on all processes that belong togher (unification ->
-          // clique), give each clique an unique id, and return mapping from the
-          // global non-unique ids to the global ids
-          const auto local_to_global_particle_ids =
-            perform_distributed_stitching(comm, local_connectiviy);
-
-          // step 5) determine properties of particles (volume, radius, center)
-          unsigned int n_particles = 0;
-
-          // ... determine the number of particles
-          if (Utilities::MPI::sum(local_to_global_particle_ids.size(), comm) ==
-              0)
-            n_particles = 0;
-          else
-            {
-              n_particles =
-                (local_to_global_particle_ids.size() == 0) ?
-                  0 :
-                  *std::max_element(local_to_global_particle_ids.begin(),
-                                    local_to_global_particle_ids.end());
-              n_particles = Utilities::MPI::max(n_particles, comm) + 1;
-            }
-
-          std::vector<double> particle_info(n_particles * (1 + dim));
-
-          // ... compute local information
-          for (const auto &cell :
-               dof_handler.get_triangulation().active_cell_iterators())
-            if (cell->is_locally_owned())
-              {
-                const auto particle_id =
-                  particle_ids[cell->global_active_cell_index()];
-
-                if (particle_id == invalid_particle_id)
-                  continue;
-
-                const unsigned int unique_id = local_to_global_particle_ids
-                  [static_cast<unsigned int>(particle_id) - offset];
-
-                AssertIndexRange(unique_id, n_particles);
-
-                particle_info[(dim + 1) * unique_id + 0] += cell->measure();
-
-                for (unsigned int d = 0; d < dim; ++d)
-                  particle_info[(dim + 1) * unique_id + 1 + d] +=
-                    cell->center()[d] * cell->measure();
-              }
-
-          // ... reduce information
-          MPI_Reduce(Utilities::MPI::this_mpi_process(MPI_COMM_WORLD) == 0 ?
-                       MPI_IN_PLACE :
-                       particle_info.data(),
-                     particle_info.data(),
-                     particle_info.size(),
-                     MPI_DOUBLE,
-                     MPI_SUM,
-                     0,
-                     comm);
-
-          // ... compute particles centers
-          std::vector<Point<dim>> particle_centers(n_particles);
-          for (unsigned int i = 0; i < n_particles; i++)
-            {
-              for (unsigned int d = 0; d < dim; ++d)
-                {
-                  particle_centers[i][d] =
-                    particle_info[i * (1 + dim) + 1 + d] /
-                    particle_info[i * (1 + dim)];
-                }
-            }
-
-          // ... compute particles radii
-          std::vector<double> particle_radii(n_particles, 0.);
-          for (const auto &cell :
-               dof_handler.get_triangulation().active_cell_iterators())
-            if (cell->is_locally_owned())
-              {
-                const auto particle_id =
-                  particle_ids[cell->global_active_cell_index()];
-
-                if (particle_id == invalid_particle_id)
-                  continue;
-
-                const unsigned int unique_id = local_to_global_particle_ids
-                  [static_cast<unsigned int>(particle_id) - offset];
-
-                AssertIndexRange(unique_id, n_particles);
-
-                const auto &center = particle_centers[unique_id];
-
-                const double dist =
-                  center.distance(cell->barycenter()) + cell->diameter() / 2.;
-                particle_radii[unique_id] =
-                  std::max(particle_radii[unique_id], dist);
-              }
-
-          // ... reduce information
-          MPI_Reduce(Utilities::MPI::this_mpi_process(MPI_COMM_WORLD) == 0 ?
-                       MPI_IN_PLACE :
-                       particle_radii.data(),
-                     particle_radii.data(),
-                     particle_radii.size(),
-                     MPI_DOUBLE,
-                     MPI_MAX,
-                     0,
-                     comm);
-
-          // Set global ids to the particles
-          for (auto &particle_id : particle_ids)
-            if (particle_id != invalid_particle_id)
-              particle_id = local_to_global_particle_ids
-                [static_cast<unsigned int>(particle_id) - offset];
-          particle_ids.update_ghost_values();
-
-          // Build periodicity between particles
-          std::set<std::tuple<unsigned int, unsigned int>> periodicity;
-
-          for (const auto &cell :
-               dof_handler.get_triangulation().active_cell_iterators())
-            if (!cell->is_artificial())
-              {
-                const auto particle_id =
-                  particle_ids[cell->global_active_cell_index()];
-
-                if (particle_id == invalid_particle_id)
-                  continue;
-
-                for (const auto face : cell->face_indices())
-                  {
-                    if (!cell->has_periodic_neighbor(face))
-                      continue;
-
-                    const auto add = [&](const auto &other_cell) {
-                      if (other_cell->is_locally_owned() == false)
-                        return;
-
-                      const auto neighbor_particle_id =
-                        particle_ids[other_cell->global_active_cell_index()];
-
-                      if (neighbor_particle_id == invalid_particle_id)
-                        return;
-
-                      periodicity.emplace(neighbor_particle_id, particle_id);
-                    };
-
-                    if (cell->periodic_neighbor(face)->has_children())
-                      {
-                        for (unsigned int subface = 0;
-                             subface <
-                             GeometryInfo<dim>::n_subfaces(
-                               internal::SubfaceCase<dim>::case_isotropic);
-                             ++subface)
-                          add(
-                            cell->periodic_neighbor_child_on_subface(face,
-                                                                     subface));
-                      }
-                    else
-                      add(cell->periodic_neighbor(face));
-                  }
-              }
-
-          // Convert set to flatten vector
-          std::vector<unsigned int> periodicity_flatten;
-          for (const auto &conn : periodicity)
-            {
-              periodicity_flatten.push_back(std::get<0>(conn));
-              periodicity_flatten.push_back(std::get<1>(conn));
-            }
-
-          // Perform global communication, the data is not large
-          auto global_periodicity =
-            Utilities::MPI::all_gather(MPI_COMM_WORLD, periodicity_flatten);
-
-          // Build periodicity graph
-          PeriodicityGraph pg;
-          for (const auto &part_periodicity : global_periodicity)
-            for (unsigned int i = 0; i < part_periodicity.size(); i += 2)
-              pg.add_connection(part_periodicity[i], part_periodicity[i + 1]);
-
-          // Build particles groups
-          std::vector<unsigned int> particle_groups(
-            n_particles, numbers::invalid_unsigned_int);
-
-          const unsigned int n_groups_found = pg.build_groups(particle_groups);
-
-          // Indices of free particles (all at the beginning)
-          std::set<unsigned int> free_particles;
-          for (unsigned int i = 0; i < n_particles; i++)
-            free_particles.insert(i);
-
-          // Parse groups at first to create grains
-          for (unsigned int i = 0; i < n_particles; ++i)
-            {
-              if (particle_groups[i] != numbers::invalid_unsigned_int)
-                {
-                  unsigned int grain_id =
-                    particle_groups[i] + particles_numerator;
-
-                  grains.try_emplace(grain_id,
-                                     grain_id,
-                                     current_order_parameter_id);
-
-                  grains.at(grain_id).add_segment(particle_centers[i],
-                                                  particle_radii[i]);
-
-                  free_particles.erase(i);
-                }
-            }
-
-          particles_numerator += n_groups_found;
-
-          // Then handle the remaining non-periodic particles
-          for (const unsigned int i : free_particles)
-            {
-              unsigned int grain_id = particles_numerator;
-
-              grains.try_emplace(grain_id,
-                                 grain_id,
-                                 current_order_parameter_id);
-
-              grains.at(grain_id).add_segment(particle_centers[i],
-                                              particle_radii[i]);
-
-              ++particles_numerator;
-            }
-        }
+      grains = detect_grains(solution, assign_indices);
 
       // The rest is the same as was before
 
@@ -1241,6 +629,547 @@ namespace GrainTracker
     }
 
   private:
+    unsigned int
+    run_flooding(const typename DoFHandler<dim>::cell_iterator &cell,
+                 const BlockVectorType &                        solution,
+                 LinearAlgebra::distributed::Vector<Number> &   particle_ids,
+                 const unsigned int order_parameter_id,
+                 const unsigned int id)
+    {
+      if (cell->has_children())
+        {
+          unsigned int counter = 1;
+
+          for (const auto &child : cell->child_iterators())
+            counter += run_flooding(
+              child, solution, particle_ids, order_parameter_id, id);
+
+          return counter;
+        }
+
+      if (cell->is_locally_owned() == false)
+        return 0;
+
+      const auto particle_id = particle_ids[cell->global_active_cell_index()];
+
+      if (particle_id != invalid_particle_id)
+        return 0; // cell has been visited
+
+      Vector<double> values(cell->get_fe().n_dofs_per_cell());
+
+      cell->get_dof_values(solution.block(order_parameter_id +
+                                          order_parameters_offset),
+                           values);
+
+      if (values.linfty_norm() == 0.0)
+        return 0; // cell has no particle
+
+      particle_ids[cell->global_active_cell_index()] = id;
+
+      unsigned int counter = 1;
+
+      for (const auto face : cell->face_indices())
+        if (cell->at_boundary(face) == false)
+          counter += run_flooding(cell->neighbor(face),
+                                  solution,
+                                  particle_ids,
+                                  order_parameter_id,
+                                  id);
+
+      return counter;
+    }
+
+    std::vector<unsigned int>
+    perform_distributed_stitching(
+      const MPI_Comm                                                   comm,
+      std::vector<std::vector<std::tuple<unsigned int, unsigned int>>> input)
+    {
+      const unsigned int n_ranks = Utilities::MPI::n_mpi_processes(comm);
+      const unsigned int my_rank = Utilities::MPI::this_mpi_process(comm);
+
+      // step 1) determine - via fixed-point iteration - the clique of
+      // each particle
+      const unsigned int local_size = input.size();
+      unsigned int       offset     = 0;
+
+      MPI_Exscan(&local_size, &offset, 1, MPI_UNSIGNED, MPI_SUM, comm);
+
+      using T = std::vector<
+        std::tuple<unsigned int,
+                   std::vector<std::tuple<unsigned int, unsigned int>>>>;
+
+      while (true)
+        {
+          std::map<unsigned int, T> data_to_send;
+
+          for (unsigned int i = 0; i < input.size(); ++i)
+            {
+              const auto input_i = input[i];
+              for (unsigned int j = 0; j < input_i.size(); ++j)
+                {
+                  const unsigned int other_rank = std::get<0>(input_i[j]);
+
+                  if (other_rank == my_rank)
+                    continue;
+
+                  std::vector<std::tuple<unsigned int, unsigned int>> temp;
+
+                  temp.emplace_back(my_rank, i + offset);
+
+                  for (unsigned int k = 0; k < input_i.size(); ++k)
+                    if (k != j)
+                      temp.push_back(input_i[k]);
+
+                  std::sort(temp.begin(), temp.end());
+
+                  data_to_send[other_rank].emplace_back(std::get<1>(input_i[j]),
+                                                        temp);
+                }
+            }
+
+          bool finished = true;
+
+          Utilities::MPI::ConsensusAlgorithms::selector<T>(
+            [&]() {
+              std::vector<unsigned int> targets;
+              for (const auto i : data_to_send)
+                targets.emplace_back(i.first);
+              return targets;
+            }(),
+            [&](const unsigned int other_rank) {
+              return data_to_send[other_rank];
+            },
+            [&](const unsigned int, const auto &data) {
+              for (const auto &data_i : data)
+                {
+                  const unsigned int index   = std::get<0>(data_i) - offset;
+                  const auto &       values  = std::get<1>(data_i);
+                  auto &             input_i = input[index];
+
+                  const unsigned int old_size = input_i.size();
+
+                  input_i.insert(input_i.end(), values.begin(), values.end());
+                  std::sort(input_i.begin(), input_i.end());
+                  input_i.erase(std::unique(input_i.begin(), input_i.end()),
+                                input_i.end());
+
+                  const unsigned int new_size = input_i.size();
+
+                  finished &= (old_size == new_size);
+                }
+            },
+            comm);
+
+          if (Utilities::MPI::sum(static_cast<unsigned int>(finished), comm) ==
+              n_ranks) // run as long as no clique has changed
+            break;
+        }
+
+      // step 2) give each clique a unique id
+      std::vector<std::vector<std::tuple<unsigned int, unsigned int>>>
+        input_valid;
+
+      for (unsigned int i = 0; i < input.size(); ++i)
+        {
+          auto input_i = input[i];
+
+          if (input_i.size() == 0)
+            {
+              std::vector<std::tuple<unsigned int, unsigned int>> temp;
+              temp.emplace_back(my_rank, i + offset);
+              input_valid.push_back(temp);
+            }
+          else
+            {
+              if ((my_rank <= std::get<0>(input_i[0])) &&
+                  ((i + offset) < std::get<1>(input_i[0])))
+                {
+                  input_i.insert(input_i.begin(),
+                                 std::tuple<unsigned int, unsigned int>{
+                                   my_rank, i + offset});
+                  input_valid.push_back(input_i);
+                }
+            }
+        }
+
+      // step 3) notify each particle of the id of its clique
+      const unsigned int local_size_p = input_valid.size();
+      unsigned int       offset_p     = 0;
+
+      MPI_Exscan(&local_size_p, &offset_p, 1, MPI_UNSIGNED, MPI_SUM, comm);
+
+      using U = std::vector<std::tuple<unsigned int, unsigned int>>;
+      std::map<unsigned int, U> data_to_send_;
+
+      for (unsigned int i = 0; i < input_valid.size(); ++i)
+        {
+          for (const auto j : input_valid[i])
+            data_to_send_[std::get<0>(j)].emplace_back(std::get<1>(j),
+                                                       i + offset_p);
+        }
+
+      std::vector<unsigned int> result(input.size(),
+                                       numbers::invalid_unsigned_int);
+
+      Utilities::MPI::ConsensusAlgorithms::selector<U>(
+        [&]() {
+          std::vector<unsigned int> targets;
+          for (const auto i : data_to_send_)
+            targets.emplace_back(i.first);
+          return targets;
+        }(),
+        [&](const unsigned int other_rank) {
+          return data_to_send_[other_rank];
+        },
+        [&](const unsigned int, const auto &data) {
+          for (const auto &i : data)
+            {
+              AssertDimension(result[std::get<0>(i) - offset],
+                              numbers::invalid_unsigned_int);
+              result[std::get<0>(i) - offset] = std::get<1>(i);
+            }
+        },
+        comm);
+
+      MPI_Barrier(comm);
+
+      return result;
+    }
+
+    std::map<unsigned int, Grain<dim>>
+    detect_grains(const BlockVectorType &solution, const bool assign_indices)
+    {
+      std::map<unsigned int, Grain<dim>> new_grains;
+
+      const MPI_Comm comm = MPI_COMM_WORLD;
+
+      unsigned int particles_numerator = 0;
+
+      const unsigned int n_order_params =
+        solution.n_blocks() - order_parameters_offset;
+
+      for (unsigned int current_order_parameter_id = 0;
+           current_order_parameter_id < n_order_params;
+           ++current_order_parameter_id)
+        {
+          // step 1) run flooding and determine local particles and give them
+          // local ids
+          LinearAlgebra::distributed::Vector<double> particle_ids(
+            tria.global_active_cell_index_partitioner().lock());
+          particle_ids = invalid_particle_id;
+
+          unsigned int counter = 0;
+          unsigned int offset  = 0;
+
+          for (const auto &cell : dof_handler.active_cell_iterators())
+            if (run_flooding(cell,
+                             solution,
+                             particle_ids,
+                             current_order_parameter_id,
+                             counter) > 0)
+              counter++;
+
+          // step 2) determine the global number of locally determined particles
+          // and give each one an unique id by shifting the ids
+          MPI_Exscan(&counter, &offset, 1, MPI_UNSIGNED, MPI_SUM, comm);
+
+          for (auto &particle_id : particle_ids)
+            if (particle_id != invalid_particle_id)
+              particle_id += offset;
+
+          // step 3) get particle ids on ghost cells and figure out if local
+          // particles and ghost particles might be one particle
+          particle_ids.update_ghost_values();
+
+          std::vector<std::vector<std::tuple<unsigned int, unsigned int>>>
+            local_connectiviy(counter);
+
+          for (const auto &ghost_cell :
+               dof_handler.get_triangulation().active_cell_iterators())
+            if (ghost_cell->is_ghost())
+              {
+                const auto particle_id =
+                  particle_ids[ghost_cell->global_active_cell_index()];
+
+                if (particle_id == invalid_particle_id)
+                  continue;
+
+                for (const auto face : ghost_cell->face_indices())
+                  {
+                    if (ghost_cell->at_boundary(face))
+                      continue;
+
+                    const auto add = [&](const auto &ghost_cell,
+                                         const auto &local_cell) {
+                      if (local_cell->is_locally_owned() == false)
+                        return;
+
+                      const auto neighbor_particle_id =
+                        particle_ids[local_cell->global_active_cell_index()];
+
+                      if (neighbor_particle_id == invalid_particle_id)
+                        return;
+
+                      auto &temp =
+                        local_connectiviy[neighbor_particle_id - offset];
+                      temp.emplace_back(ghost_cell->subdomain_id(),
+                                        particle_id);
+                      std::sort(temp.begin(), temp.end());
+                      temp.erase(std::unique(temp.begin(), temp.end()),
+                                 temp.end());
+                    };
+
+                    if (ghost_cell->neighbor(face)->has_children())
+                      {
+                        for (unsigned int subface = 0;
+                             subface <
+                             GeometryInfo<dim>::n_subfaces(
+                               internal::SubfaceCase<dim>::case_isotropic);
+                             ++subface)
+                          add(ghost_cell,
+                              ghost_cell->neighbor_child_on_subface(face,
+                                                                    subface));
+                      }
+                    else
+                      add(ghost_cell, ghost_cell->neighbor(face));
+                  }
+              }
+
+          // step 4) based on the local-ghost information, figure out all
+          // particles on all processes that belong togher (unification ->
+          // clique), give each clique an unique id, and return mapping from the
+          // global non-unique ids to the global ids
+          const auto local_to_global_particle_ids =
+            perform_distributed_stitching(comm, local_connectiviy);
+
+          // step 5) determine properties of particles (volume, radius, center)
+          unsigned int n_particles = 0;
+
+          // ... determine the number of particles
+          if (Utilities::MPI::sum(local_to_global_particle_ids.size(), comm) ==
+              0)
+            n_particles = 0;
+          else
+            {
+              n_particles =
+                (local_to_global_particle_ids.size() == 0) ?
+                  0 :
+                  *std::max_element(local_to_global_particle_ids.begin(),
+                                    local_to_global_particle_ids.end());
+              n_particles = Utilities::MPI::max(n_particles, comm) + 1;
+            }
+
+          std::vector<double> particle_info(n_particles * (1 + dim));
+
+          // ... compute local information
+          for (const auto &cell :
+               dof_handler.get_triangulation().active_cell_iterators())
+            if (cell->is_locally_owned())
+              {
+                const auto particle_id =
+                  particle_ids[cell->global_active_cell_index()];
+
+                if (particle_id == invalid_particle_id)
+                  continue;
+
+                const unsigned int unique_id = local_to_global_particle_ids
+                  [static_cast<unsigned int>(particle_id) - offset];
+
+                AssertIndexRange(unique_id, n_particles);
+
+                particle_info[(dim + 1) * unique_id + 0] += cell->measure();
+
+                for (unsigned int d = 0; d < dim; ++d)
+                  particle_info[(dim + 1) * unique_id + 1 + d] +=
+                    cell->center()[d] * cell->measure();
+              }
+
+          // ... reduce information
+          MPI_Reduce(Utilities::MPI::this_mpi_process(MPI_COMM_WORLD) == 0 ?
+                       MPI_IN_PLACE :
+                       particle_info.data(),
+                     particle_info.data(),
+                     particle_info.size(),
+                     MPI_DOUBLE,
+                     MPI_SUM,
+                     0,
+                     comm);
+
+          // ... compute particles centers
+          std::vector<Point<dim>> particle_centers(n_particles);
+          for (unsigned int i = 0; i < n_particles; i++)
+            {
+              for (unsigned int d = 0; d < dim; ++d)
+                {
+                  particle_centers[i][d] =
+                    particle_info[i * (1 + dim) + 1 + d] /
+                    particle_info[i * (1 + dim)];
+                }
+            }
+
+          // ... compute particles radii
+          std::vector<double> particle_radii(n_particles, 0.);
+          for (const auto &cell :
+               dof_handler.get_triangulation().active_cell_iterators())
+            if (cell->is_locally_owned())
+              {
+                const auto particle_id =
+                  particle_ids[cell->global_active_cell_index()];
+
+                if (particle_id == invalid_particle_id)
+                  continue;
+
+                const unsigned int unique_id = local_to_global_particle_ids
+                  [static_cast<unsigned int>(particle_id) - offset];
+
+                AssertIndexRange(unique_id, n_particles);
+
+                const auto &center = particle_centers[unique_id];
+
+                const double dist =
+                  center.distance(cell->barycenter()) + cell->diameter() / 2.;
+                particle_radii[unique_id] =
+                  std::max(particle_radii[unique_id], dist);
+              }
+
+          // ... reduce information
+          MPI_Reduce(Utilities::MPI::this_mpi_process(MPI_COMM_WORLD) == 0 ?
+                       MPI_IN_PLACE :
+                       particle_radii.data(),
+                     particle_radii.data(),
+                     particle_radii.size(),
+                     MPI_DOUBLE,
+                     MPI_MAX,
+                     0,
+                     comm);
+
+          // Set global ids to the particles
+          for (auto &particle_id : particle_ids)
+            if (particle_id != invalid_particle_id)
+              particle_id = local_to_global_particle_ids
+                [static_cast<unsigned int>(particle_id) - offset];
+          particle_ids.update_ghost_values();
+
+          // Build periodicity between particles
+          std::set<std::tuple<unsigned int, unsigned int>> periodicity;
+
+          for (const auto &cell :
+               dof_handler.get_triangulation().active_cell_iterators())
+            if (!cell->is_artificial())
+              {
+                const auto particle_id =
+                  particle_ids[cell->global_active_cell_index()];
+
+                if (particle_id == invalid_particle_id)
+                  continue;
+
+                for (const auto face : cell->face_indices())
+                  {
+                    if (!cell->has_periodic_neighbor(face))
+                      continue;
+
+                    const auto add = [&](const auto &other_cell) {
+                      if (other_cell->is_locally_owned() == false)
+                        return;
+
+                      const auto neighbor_particle_id =
+                        particle_ids[other_cell->global_active_cell_index()];
+
+                      if (neighbor_particle_id == invalid_particle_id)
+                        return;
+
+                      periodicity.emplace(neighbor_particle_id, particle_id);
+                    };
+
+                    if (cell->periodic_neighbor(face)->has_children())
+                      {
+                        for (unsigned int subface = 0;
+                             subface <
+                             GeometryInfo<dim>::n_subfaces(
+                               internal::SubfaceCase<dim>::case_isotropic);
+                             ++subface)
+                          add(
+                            cell->periodic_neighbor_child_on_subface(face,
+                                                                     subface));
+                      }
+                    else
+                      add(cell->periodic_neighbor(face));
+                  }
+              }
+
+          // Convert set to flatten vector
+          std::vector<unsigned int> periodicity_flatten;
+          for (const auto &conn : periodicity)
+            {
+              periodicity_flatten.push_back(std::get<0>(conn));
+              periodicity_flatten.push_back(std::get<1>(conn));
+            }
+
+          // Perform global communication, the data is not large
+          auto global_periodicity =
+            Utilities::MPI::all_gather(MPI_COMM_WORLD, periodicity_flatten);
+
+          // Build periodicity graph
+          PeriodicityGraph pg;
+          for (const auto &part_periodicity : global_periodicity)
+            for (unsigned int i = 0; i < part_periodicity.size(); i += 2)
+              pg.add_connection(part_periodicity[i], part_periodicity[i + 1]);
+
+          // Build particles groups
+          std::vector<unsigned int> particle_groups(
+            n_particles, numbers::invalid_unsigned_int);
+
+          const unsigned int n_groups_found = pg.build_groups(particle_groups);
+
+          // Indices of free particles (all at the beginning)
+          std::set<unsigned int> free_particles;
+          for (unsigned int i = 0; i < n_particles; i++)
+            free_particles.insert(i);
+
+          // Parse groups at first to create grains
+          for (unsigned int i = 0; i < n_particles; ++i)
+            {
+              if (particle_groups[i] != numbers::invalid_unsigned_int)
+                {
+                  unsigned int grain_id =
+                    particle_groups[i] + particles_numerator;
+
+                  new_grains.try_emplace(grain_id,
+                                         assign_indices ?
+                                           grain_id :
+                                           numbers::invalid_unsigned_int,
+                                         current_order_parameter_id);
+
+                  new_grains.at(grain_id).add_segment(particle_centers[i],
+                                                      particle_radii[i]);
+
+                  free_particles.erase(i);
+                }
+            }
+
+          particles_numerator += n_groups_found;
+
+          // Then handle the remaining non-periodic particles
+          for (const unsigned int i : free_particles)
+            {
+              unsigned int grain_id = particles_numerator;
+
+              new_grains.try_emplace(grain_id,
+                                     assign_indices ?
+                                       grain_id :
+                                       numbers::invalid_unsigned_int,
+                                     current_order_parameter_id);
+
+              new_grains.at(grain_id).add_segment(particle_centers[i],
+                                                  particle_radii[i]);
+
+              ++particles_numerator;
+            }
+        }
+
+      return new_grains;
+    }
+
     // Build a set of active order parameters
     std::set<unsigned int>
     build_active_order_parameter_ids(
