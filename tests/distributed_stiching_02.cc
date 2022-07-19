@@ -13,7 +13,9 @@
 #include <deal.II/numerics/data_out.h>
 #include <deal.II/numerics/vector_tools.h>
 
-#include "distributed_stiching.h"
+#include <pf-applications/grain_tracker/distributed_stitching.h>
+
+using namespace dealii;
 
 template <int dim>
 class Solution : public Function<dim>
@@ -229,7 +231,7 @@ main(int argc, char **argv)
   // clique an unique id, and return mapping from the global non-unique
   // ids to the global ids
   const auto local_to_global_particle_ids =
-    perform_distributed_stitching(comm, local_connectiviy);
+    GrainTracker::perform_distributed_stitching(comm, local_connectiviy);
 
   // step 5) determine properties of particles (volume, radius, center)
   unsigned int n_particles = 0;

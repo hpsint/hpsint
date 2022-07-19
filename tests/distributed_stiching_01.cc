@@ -1,6 +1,8 @@
 #include <deal.II/base/mpi.h>
 
-#include "distributed_stiching.h"
+#include <pf-applications/grain_tracker/distributed_stitching.h>
+
+using namespace dealii;
 
 int
 main(int argc, char **argv)
@@ -43,8 +45,8 @@ main(int argc, char **argv)
       input[1].emplace_back(1, 2);
     }
 
-  const auto results =
-    Utilities::MPI::gather(comm, perform_distributed_stitching(comm, input), 0);
+  const auto results = Utilities::MPI::gather(
+    comm, GrainTracker::perform_distributed_stitching(comm, input), 0);
 
   if (my_rank == 0)
     for (const auto &result : results)
