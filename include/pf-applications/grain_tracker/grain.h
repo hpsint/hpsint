@@ -4,6 +4,8 @@
 
 namespace GrainTracker
 {
+  using namespace dealii;
+
   /* This class represents a physical grain as a part of the domain. A single
    * grain normally consists of a single segment unless periodic boundary
    * conditions are imposed over the domain: in this case one may have multiple
@@ -135,12 +137,11 @@ namespace GrainTracker
     add_neighbor(const Grain *neighbor)
     {
       AssertThrow(this != neighbor,
-                  dealii::ExcMessage(
-                    "Grain can not be added as a neighbot to itself"));
+                  ExcMessage("Grain can not be added as a neighbot to itself"));
       AssertThrow(
         order_parameter_id == neighbor->get_order_parameter_id() ||
           old_order_parameter_id == neighbor->get_old_order_parameter_id(),
-        dealii::ExcMessage(
+        ExcMessage(
           "Neighbors should have the same order parameter (current or old)."));
 
       neighbors.insert(neighbors.end(), neighbor);

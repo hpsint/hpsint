@@ -2,10 +2,10 @@
 
 #include <deal.II/base/point.h>
 
-#include "cloud.h"
-
 namespace GrainTracker
 {
+  using namespace dealii;
+
   /* Segment is a part of a grain created from the previously detected cloud.
    * Segments are represented as circles with a given center and radius.
    */
@@ -13,34 +13,12 @@ namespace GrainTracker
   class Segment
   {
   public:
-    Segment(const Cloud<dim> &cloud)
-    {
-      double grain_volume = 0.0;
-      for (const auto &cell : cloud.get_cells())
-        {
-          center += cell.barycenter() * cell.measure();
-          grain_volume += cell.measure();
-        }
-
-      center /= grain_volume;
-
-      // Calculate the radius as the largest distance from the centroid to the
-      // center of the most distant cell
-      radius = 0.0;
-      for (const auto &cell : cloud.get_cells())
-        {
-          const double dist =
-            center.distance(cell.barycenter()) + cell.diameter() / 2.;
-          radius = std::max(radius, dist);
-        }
-    }
-
-    Segment(const dealii::Point<dim> &center_in, const double radius_in)
+    Segment(const Point<dim> &center_in, const double radius_in)
       : center(center_in)
       , radius(radius_in)
     {}
 
-    dealii::Point<dim>
+    Point<dim>
     get_center() const
     {
       return center;
@@ -64,7 +42,7 @@ namespace GrainTracker
     }
 
   protected:
-    dealii::Point<dim> center;
+    Point<dim> center;
 
     double radius;
   };

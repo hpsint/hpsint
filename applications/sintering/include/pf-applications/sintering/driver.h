@@ -1022,7 +1022,7 @@ namespace Sintering
                     output_result(solution,
                                   nonlinear_operator,
                                   time_last_output,
-                                  "clouds_inconsistency");
+                                  "grains_inconsistency");
 
                     grain_tracker.print_old_grains(pcout);
 

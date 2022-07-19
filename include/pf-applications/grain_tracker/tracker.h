@@ -19,7 +19,6 @@
 
 #include <functional>
 
-#include "cloud.h"
 #include "grain.h"
 #include "periodicity_graph.h"
 #include "remap_graph.h"
@@ -1313,7 +1312,7 @@ namespace GrainTracker
       return grains_reassigned;
     }
 
-    // Output clouds
+    // Output particle ids
     void
     output_particle_ids(const LinearAlgebra::distributed::Vector<double>
                           &current_particle_ids) const
@@ -1337,7 +1336,7 @@ namespace GrainTracker
 
       data_out.build_patches();
 
-      pcout << "Outputing clouds..." << std::endl;
+      pcout << "Outputing particle_ids..." << std::endl;
 
       static unsigned int counter = 0;
 
@@ -1577,9 +1576,6 @@ namespace GrainTracker
     std::map<unsigned int, Grain<dim>> grains;
     std::map<unsigned int, Grain<dim>> old_grains;
     std::set<unsigned int>             active_order_parameters;
-
-    // Last set of detected clouds
-    std::vector<Cloud<dim>> last_clouds;
 
     // Vector of particle ids
     LinearAlgebra::distributed::Vector<double> particle_ids;
