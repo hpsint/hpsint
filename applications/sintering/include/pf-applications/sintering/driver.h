@@ -922,7 +922,7 @@ namespace Sintering
             .count() /
           1e9;
 
-        pcout << Utilities::MPI::max(time_total_double, MPI_COMM_WORLD);
+        pcout << Utilities::MPI::max(time_total_double, MPI_COMM_WORLD) << std::endl;
 
 
         grain_tracker.print_current_grains(pcout);

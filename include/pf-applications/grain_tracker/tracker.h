@@ -26,6 +26,11 @@
 #include "remapping.h"
 #include "segment.h"
 
+#define AssertThrowDistributedDimension(size) \
+  {const auto min_size = Utilities::MPI::min(size, MPI_COMM_WORLD);             \
+  const auto max_size = Utilities::MPI::max(size, MPI_COMM_WORLD);             \
+  AssertThrow(min_size == max_size, ExcDimensionMismatch(min_size, max_size));}
+
 namespace GrainTracker
 {
   using namespace dealii;
@@ -366,6 +371,8 @@ namespace GrainTracker
       // Transfer cycled grains to temporary vectors
       std::vector<std::pair<Remapping, Remapping>> remappings_via_temp;
 
+      AssertThrowDistributedDimension((static_cast<unsigned int>(graph.empty())));
+
       /* If graph is not empty, then have some dependencies in remapping and
        * need to perform at first those at the end of the graph in order not to
        * break the configuration of the domain.
@@ -382,6 +389,8 @@ namespace GrainTracker
           graph.print(ss);
           log.emplace_back(ss.str());
 
+          AssertThrowDistributedDimension(remappings.size());
+
           // At frist resolve cyclic remappings
           remappings_via_temp = graph.resolve_cycles(remappings);
 
@@ -393,6 +402,8 @@ namespace GrainTracker
       std::map<const BlockVectorType *, std::shared_ptr<BlockVectorType>>
         solutions_to_temps;
 
+      AssertThrowDistributedDimension(remappings_via_temp.size());
+
       if (!remappings_via_temp.empty())
         {
           const auto partitioner =
@@ -400,6 +411,8 @@ namespace GrainTracker
               dof_handler.locally_owned_dofs(),
               DoFTools::extract_locally_relevant_dofs(dof_handler),
               dof_handler.get_communicator());
+
+          AssertThrowDistributedDimension(solutions.size());
 
           for (const auto &solution : solutions)
             {
