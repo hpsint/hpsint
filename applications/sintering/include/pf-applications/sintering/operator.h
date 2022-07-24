@@ -1448,7 +1448,8 @@ namespace Sintering
                     this->do_timing);
 
 #define OPERATION(c, d)                                       \
-  this->matrix_free.cell_loop(                                \
+  MyMatrixFreeTools::cell_loop_wrapper(                       \
+    this->matrix_free,                                        \
     &SinteringOperator::do_evaluate_nonlinear_residual<c, d>, \
     this,                                                     \
     dst,                                                      \
