@@ -37,6 +37,31 @@ namespace Sintering
         subdivisions[2] = initial_nz;
       }
 
+    ConditionalOStream pcout(std::cout,
+                             Utilities::MPI::this_mpi_process(MPI_COMM_WORLD) ==
+                               0);
+
+    pcout << "Create subdivided hyperrectangle [";
+    for (unsigned int i = 0; i < dim; ++i)
+      {
+        pcout << std::to_string(top_right[i] - bottom_left[i]);
+
+        if (i + 1 != dim)
+          pcout << "x";
+      }
+
+    pcout << "] with " << std::to_string(n_refinements) << " refinements and ";
+    for (unsigned int i = 0; i < dim; ++i)
+      {
+        pcout << std::to_string(subdivisions[i]);
+
+        if (i + 1 != dim)
+          pcout << "x";
+      }
+
+    pcout << " subdivisions" << std::endl << std::endl;
+
+
     GridGenerator::subdivided_hyper_rectangle(
       tria, subdivisions, bottom_left, top_right, true);
 
