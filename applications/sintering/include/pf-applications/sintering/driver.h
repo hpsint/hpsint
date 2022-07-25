@@ -886,6 +886,9 @@ namespace Sintering
           constraints.distribute(solution.block(b));
 
         output_result(solution, nonlinear_operator, t, "refinement");
+
+        if (true)
+          Postprocessors::estimate_overhead(mapping, dof_handler, solution);
       };
 
       // New grains can not appear in current sintering simulations
