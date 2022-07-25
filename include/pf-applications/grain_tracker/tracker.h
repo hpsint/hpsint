@@ -26,10 +26,13 @@
 #include "remapping.h"
 #include "segment.h"
 
-#define AssertThrowDistributedDimension(size) \
-  {const auto min_size = Utilities::MPI::min(size, MPI_COMM_WORLD);             \
-  const auto max_size = Utilities::MPI::max(size, MPI_COMM_WORLD);             \
-  AssertThrow(min_size == max_size, ExcDimensionMismatch(min_size, max_size));}
+#define AssertThrowDistributedDimension(size)                        \
+  {                                                                  \
+    const auto min_size = Utilities::MPI::min(size, MPI_COMM_WORLD); \
+    const auto max_size = Utilities::MPI::max(size, MPI_COMM_WORLD); \
+    AssertThrow(min_size == max_size,                                \
+                ExcDimensionMismatch(min_size, max_size));           \
+  }
 
 namespace GrainTracker
 {
@@ -371,7 +374,8 @@ namespace GrainTracker
       // Transfer cycled grains to temporary vectors
       std::vector<std::pair<Remapping, Remapping>> remappings_via_temp;
 
-      AssertThrowDistributedDimension((static_cast<unsigned int>(graph.empty())));
+      AssertThrowDistributedDimension(
+        (static_cast<unsigned int>(graph.empty())));
 
       /* If graph is not empty, then have some dependencies in remapping and
        * need to perform at first those at the end of the graph in order not to
@@ -402,8 +406,6 @@ namespace GrainTracker
       std::map<const BlockVectorType *, std::shared_ptr<BlockVectorType>>
         solutions_to_temps;
 
-      AssertThrowDistributedDimension(remappings_via_temp.size());
-
       if (!remappings_via_temp.empty())
         {
           const auto partitioner =
@@ -416,8 +418,16 @@ namespace GrainTracker
 
           for (const auto &solution : solutions)
             {
-              auto temp =
-                std::make_shared<BlockVectorType>(remappings_via_temp.size());
+              /* Sicne boost graphs algorithms are not deterministic, the number
+               * of remapping performed with the aid of temporary vectors may
+               * vary. We then create a temporary block vector of the maximum
+               * size to fit all ranks. However, we may also think of picking up
+               * a remapping sequence among all of the available ones
+               * with thee smallest number of remapping steps. */
+              const auto max_size =
+                Utilities::MPI::max(remappings_via_temp.size(), MPI_COMM_WORLD);
+
+              auto temp = std::make_shared<BlockVectorType>(max_size);
               for (unsigned int b = 0; b < temp->n_blocks(); ++b)
                 {
                   temp->block(b).reinit(partitioner);
