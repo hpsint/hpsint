@@ -184,7 +184,7 @@ main(int argc, char **argv)
   solution.zero_out_ghost_values();
 
   // Grain tracker settings
-  const double       threshold_lower          = 0.01;
+  const double       threshold_lower          = 1e-15;
   const double       threshold_upper          = 1.01;
   const double       buffer_distance_ratio    = 0.05;
   const bool         allow_new_grains         = false;

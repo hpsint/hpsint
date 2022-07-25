@@ -66,7 +66,6 @@ namespace GrainTracker
       , threshold_upper(threshold_upper)
       , buffer_distance_ratio(buffer_distance_ratio)
       , order_parameters_offset(op_offset)
-      , particle_ids(tria.global_active_cell_index_partitioner().lock())
       , pcout(std::cout, Utilities::MPI::this_mpi_process(MPI_COMM_WORLD) == 0)
     {}
 
@@ -605,7 +604,7 @@ namespace GrainTracker
     {
       if (cell->has_children())
         {
-          unsigned int counter = 1;
+          unsigned int counter = 0;
 
           for (const auto &child : cell->child_iterators())
             counter += run_flooding(
@@ -628,7 +627,7 @@ namespace GrainTracker
                                           order_parameters_offset),
                            values);
 
-      if (values.linfty_norm() == 0.0)
+      if (values.linfty_norm() < threshold_lower)
         return 0; // cell has no particle
 
       particle_ids[cell->global_active_cell_index()] = id;
@@ -657,6 +656,9 @@ namespace GrainTracker
 
       const unsigned int n_order_params =
         solution.n_blocks() - order_parameters_offset;
+
+      LinearAlgebra::distributed::Vector<double> particle_ids(
+        tria.global_active_cell_index_partitioner().lock());
 
       for (unsigned int current_order_parameter_id = 0;
            current_order_parameter_id < n_order_params;
@@ -1193,6 +1195,8 @@ namespace GrainTracker
       Vector<double> ranks(tria.n_active_cells());
       ranks = Utilities::MPI::this_mpi_process(MPI_COMM_WORLD);
 
+      data_out.attach_triangulation(tria);
+
       data_out.add_data_vector(ranks,
                                "ranks",
                                DataOut<dim>::DataVectorType::type_cell_data);
@@ -1443,9 +1447,6 @@ namespace GrainTracker
     std::map<unsigned int, Grain<dim>> grains;
     std::map<unsigned int, Grain<dim>> old_grains;
     std::set<unsigned int>             active_order_parameters;
-
-    // Vector of particle ids
-    LinearAlgebra::distributed::Vector<double> particle_ids;
 
     ConditionalOStream pcout;
 
