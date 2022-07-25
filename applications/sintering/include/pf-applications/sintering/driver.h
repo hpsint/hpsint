@@ -922,8 +922,9 @@ namespace Sintering
             .count() /
           1e9;
 
-        pcout << Utilities::MPI::max(time_total_double, MPI_COMM_WORLD) << std::endl;
-
+        pcout << "Grain tracker CPU time = "
+              << Utilities::MPI::max(time_total_double, MPI_COMM_WORLD)
+              << " sec" << std::endl;
 
         grain_tracker.print_current_grains(pcout);
 
