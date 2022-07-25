@@ -235,9 +235,9 @@ namespace Sintering
     {
       using Number = typename VectorType::value_type;
 
-      const unsigned int n_active_cells_0 =
+      const std::int64_t n_active_cells_0 =
         background_dof_handler.get_triangulation().n_global_active_cells();
-      unsigned int n_active_cells_1 = 0;
+      std::int64_t n_active_cells_1 = 0;
 
       if (output_mesh)
         {
@@ -360,9 +360,9 @@ namespace Sintering
                                  background_dof_handler.get_communicator()) ==
                                  0);
 
-      pcout << "Estimation of mesh overhead : "
-            << std::to_string((n_active_cells_0 * (vector.n_blocks() - 2)) *
-                                100 / n_active_cells_1 -
+      pcout << "Estimation of mesh overhead: "
+            << std::to_string((n_active_cells_0 * vector.n_blocks()) * 100 /
+                                (n_active_cells_1 + 2 * n_active_cells_0) -
                               100)
             << "%" << std::endl
             << std::endl;

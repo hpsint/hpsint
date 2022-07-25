@@ -887,7 +887,7 @@ namespace Sintering
 
         output_result(solution, nonlinear_operator, t, "refinement");
 
-        if (true)
+        if (params.output_data.mesh_overhead_estimate)
           Postprocessors::estimate_overhead(mapping, dof_handler, solution);
       };
 
