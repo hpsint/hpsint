@@ -1301,8 +1301,8 @@ namespace Sintering
     const FreeEnergy<VectorizedArrayType> free_energy;
 
     // Choose MobilityScalar or MobilityTensorial here:
-    const MobilityScalar<dim, VectorizedArrayType> mobility;
-    // const MobilityTensorial<dim, VectorizedArrayType> mobility;
+    // const MobilityScalar<dim, VectorizedArrayType> mobility;
+    const MobilityTensorial<dim, VectorizedArrayType> mobility;
 
     const Number L;
     const Number kappa_c;
@@ -1641,26 +1641,39 @@ namespace Sintering
                     }
                 }
 
-              if (entries_mask[FieldM])
+              if constexpr (std::is_same<
+                              decltype(mobility),
+                              const MobilityTensorial<dim, VectorizedArrayType>
+                                &>::value == false)
                 {
-                  temp[counter++] = mobility.M(c, etas, c_grad, etas_grad);
-                }
+                  if (entries_mask[FieldM])
+                    {
+                      temp[counter++] = mobility.M(c, etas, c_grad, etas_grad);
+                    }
 
-              if (entries_mask[FieldDM])
-                {
-                  temp[counter++] =
-                    (mobility.dM_dc(c, etas, c_grad, etas_grad) * mu_grad)
-                      .norm();
-                  temp[counter++] =
-                    (mobility.dM_dgrad_c(c, c_grad, mu_grad)).norm();
-
-                  for (unsigned int ig = 0; ig < n_grains; ++ig)
+                  if (entries_mask[FieldDM])
                     {
                       temp[counter++] =
-                        (mobility.dM_detai(c, etas, c_grad, etas_grad, ig) *
-                         mu_grad)
+                        (mobility.dM_dc(c, etas, c_grad, etas_grad) * mu_grad)
                           .norm();
+                      temp[counter++] =
+                        (mobility.dM_dgrad_c(c, c_grad, mu_grad)).norm();
+
+                      for (unsigned int ig = 0; ig < n_grains; ++ig)
+                        {
+                          temp[counter++] =
+                            (mobility.dM_detai(c, etas, c_grad, etas_grad, ig) *
+                             mu_grad)
+                              .norm();
+                        }
                     }
+                }
+              else
+                {
+                  AssertThrow(entries_mask[FieldM] == false,
+                              ExcNotImplemented());
+                  AssertThrow(entries_mask[FieldDM] == false,
+                              ExcNotImplemented());
                 }
 
               if (entries_mask[FieldKappa])
