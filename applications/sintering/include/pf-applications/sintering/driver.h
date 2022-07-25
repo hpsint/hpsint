@@ -976,7 +976,10 @@ namespace Sintering
              i < std::max(params.adaptivity_data.min_refinement_depth,
                           params.adaptivity_data.max_refinement_depth);
              ++i)
-          execute_coarsening_and_refinement(t);
+          {
+            execute_coarsening_and_refinement(t);
+            initialize_solution(solution, timer);
+          }
 
       if (t == 0.0 && params.output_data.output_time_interval > 0.0)
         output_result(solution, nonlinear_operator, time_last_output);
