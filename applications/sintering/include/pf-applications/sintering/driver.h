@@ -979,10 +979,6 @@ namespace Sintering
 
       initialize_solution(solution, timer);
 
-      // Grain tracker - first run after we have initial configuration defined
-      if (params.grain_tracker_data.grain_tracker_frequency > 0)
-        run_grain_tracker(t, /*do_initialize = */ true);
-
       // initial local refinement
       if (t == 0.0 && params.adaptivity_data.refinement_frequency > 0)
         for (unsigned int i = 0;
@@ -993,6 +989,10 @@ namespace Sintering
             execute_coarsening_and_refinement(t);
             initialize_solution(solution, timer);
           }
+
+      // Grain tracker - first run after we have initial configuration defined
+      if (params.grain_tracker_data.grain_tracker_frequency > 0)
+        run_grain_tracker(t, /*do_initialize = */ true);
 
       if (t == 0.0 && params.output_data.output_time_interval > 0.0)
         output_result(solution, nonlinear_operator, time_last_output);
