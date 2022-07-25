@@ -1368,9 +1368,9 @@ namespace Sintering
             0.5,
             output,
             params.output_data.n_coarsening_steps);
-
-          counters[label]++;
         }
+
+      counters[label]++;
     };
   };
 } // namespace Sintering
