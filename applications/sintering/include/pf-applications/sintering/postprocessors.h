@@ -589,84 +589,90 @@ namespace Sintering
 
 
     template <int dim, typename VectorType>
+    BoundingBox<dim, typename VectorType::value_type>
+    estimate_shrinkage(const Mapping<dim> &   mapping,
+                       const DoFHandler<dim> &dof_handler,
+                       const VectorType &     solution)
+    {
+      FEValues<dim> fe_values(mapping,
+                              dof_handler.get_fe(),
+                              dof_handler.get_fe().get_unit_support_points(),
+                              update_quadrature_points);
+
+      const auto bb_tria = dealii::GridTools::compute_bounding_box(
+        dof_handler.get_triangulation());
+
+      std::vector<typename VectorType::value_type> min_values(dim);
+      std::vector<typename VectorType::value_type> max_values(dim);
+
+      for (unsigned int d = 0; d < dim; ++d)
+        {
+          min_values[d] = bb_tria.get_boundary_points().second[d];
+          max_values[d] = bb_tria.get_boundary_points().first[d];
+        }
+
+      Vector<typename VectorType::value_type> values;
+
+      const bool has_ghost_elements = solution.has_ghost_elements();
+
+      if (has_ghost_elements == false)
+        solution.update_ghost_values();
+
+      for (const auto &cell : dof_handler.active_cell_iterators())
+        {
+          if (cell->is_locally_owned() == false)
+            continue;
+
+          fe_values.reinit(cell);
+
+          values.reinit(fe_values.dofs_per_cell);
+
+          cell->get_dof_values(solution.block(0), values);
+
+          for (const auto q : fe_values.quadrature_point_indices())
+            if (values[q] > 0.1 /*TODO*/)
+              for (unsigned int d = 0; d < dim; ++d)
+                {
+                  min_values[d] =
+                    std::min(min_values[d], fe_values.quadrature_point(q)[d]);
+                  max_values[d] =
+                    std::max(max_values[d], fe_values.quadrature_point(q)[d]);
+                }
+        }
+
+      if (has_ghost_elements == false)
+        solution.zero_out_ghost_values();
+
+      Utilities::MPI::min(min_values,
+                          dof_handler.get_communicator(),
+                          min_values);
+      Utilities::MPI::max(max_values,
+                          dof_handler.get_communicator(),
+                          max_values);
+
+      Point<dim> left_bb, right_bb;
+
+      for (unsigned int d = 0; d < dim; ++d)
+        {
+          left_bb[d]  = min_values[d];
+          right_bb[d] = max_values[d];
+        }
+
+      BoundingBox<dim, typename VectorType::value_type> bb({left_bb, right_bb});
+
+      return bb;
+    }
+
+
+
+    template <int dim, typename VectorType>
     void
     estimate_shrinkage(const Mapping<dim> &   mapping,
                        const DoFHandler<dim> &dof_handler,
                        const VectorType &     solution,
                        const std::string      output)
     {
-      const auto bb = [&](const auto &mapping,
-                          const auto &dof_handler,
-                          const auto &solution) {
-        FEValues<dim> fe_values(mapping,
-                                dof_handler.get_fe(),
-                                dof_handler.get_fe().get_unit_support_points(),
-                                update_quadrature_points);
-
-        const auto bb_tria = dealii::GridTools::compute_bounding_box(
-          dof_handler.get_triangulation());
-
-        std::vector<typename VectorType::value_type> min_values(dim);
-        std::vector<typename VectorType::value_type> max_values(dim);
-
-        for (unsigned int d = 0; d < dim; ++d)
-          {
-            min_values[d] = bb_tria.get_boundary_points().second[d];
-            max_values[d] = bb_tria.get_boundary_points().first[d];
-          }
-
-        Vector<typename VectorType::value_type> values;
-
-        const bool has_ghost_elements = solution.has_ghost_elements();
-
-        if (has_ghost_elements == false)
-          solution.update_ghost_values();
-
-        for (const auto &cell : dof_handler.active_cell_iterators())
-          {
-            if (cell->is_locally_owned() == false)
-              continue;
-
-            fe_values.reinit(cell);
-
-            values.reinit(fe_values.dofs_per_cell);
-
-            cell->get_dof_values(solution.block(0), values);
-
-            for (const auto q : fe_values.quadrature_point_indices())
-              if (values[q] > 0.1 /*TODO*/)
-                for (unsigned int d = 0; d < dim; ++d)
-                  {
-                    min_values[d] =
-                      std::min(min_values[d], fe_values.quadrature_point(q)[d]);
-                    max_values[d] =
-                      std::max(max_values[d], fe_values.quadrature_point(q)[d]);
-                  }
-          }
-
-        if (has_ghost_elements == false)
-          solution.zero_out_ghost_values();
-
-        Utilities::MPI::min(min_values,
-                            dof_handler.get_communicator(),
-                            min_values);
-        Utilities::MPI::max(max_values,
-                            dof_handler.get_communicator(),
-                            max_values);
-
-        Point<dim> left_bb, right_bb;
-
-        for (unsigned int d = 0; d < dim; ++d)
-          {
-            left_bb[d]  = min_values[d];
-            right_bb[d] = max_values[d];
-          }
-
-        BoundingBox<dim, typename VectorType::value_type> bb(
-          {left_bb, right_bb});
-
-        return bb;
-      }(mapping, dof_handler, solution);
+      const auto bb = estimate_shrinkage(mapping, dof_handler, solution);
 
       Triangulation<dim> tria;
       GridGenerator::hyper_rectangle(tria,
