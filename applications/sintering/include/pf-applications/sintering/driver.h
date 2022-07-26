@@ -1160,6 +1160,8 @@ namespace Sintering
                 n_residual_evaluations += statistics.n_residual_evaluations();
                 max_reached_dt = std::max(max_reached_dt, dt);
 
+                t += dt;
+
                 if (std::abs(t - params.time_integration_data.time_end) > 1e-9)
                   {
                     if (statistics.n_newton_iterations() <
@@ -1184,8 +1186,6 @@ namespace Sintering
                         dt = params.time_integration_data.time_end - t;
                       }
                   }
-
-                t += dt;
               }
             catch (const NonLinearSolvers::ExcNewtonDidNotConverge &e)
               {
