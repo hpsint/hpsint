@@ -93,6 +93,7 @@ namespace Sintering
     std::string           vtk_path             = ".";
     std::set<std::string> fields =
       {"CH", "AC", "bnds", "dt", "d2f", "M", "dM", "kappa", "L", "subdomain"};
+    bool mesh_overhead_estimate = false;
   };
 
   struct RestartData
@@ -377,6 +378,9 @@ namespace Sintering
                         "Fields to output.",
                         Patterns::List(
                           Patterns::MultipleSelection(output_fields_options)));
+      prm.add_parameter("MeshOverheadEstimate",
+                        output_data.mesh_overhead_estimate,
+                        "Print mesh overhead estimate.");
       prm.leave_subsection();
 
       prm.enter_subsection("Restart");
