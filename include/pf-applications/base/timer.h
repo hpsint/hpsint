@@ -283,14 +283,19 @@ public:
   MyScope(dealii::TimerOutput &timer_,
           const std::string &  section_name,
           const bool           do_timing = true)
+    : section_name(section_name)
   {
 #ifdef WITH_TIMING
     if (do_timing)
       scope =
         std::make_unique<dealii::TimerOutput::Scope>(timer_, section_name);
+#  ifdef WITH_TIMING_OUTPUT
+    if (dealii::Utilities::MPI::this_mpi_process(MPI_COMM_WORLD) == 0)
+      std::cout << ">>> MyScope: entering <" << section_name << ">"
+                << std::endl;
+#  endif
 #else
     (void)timer_;
-    (void)section_name;
     (void)do_timing;
 #endif
   }
@@ -301,9 +306,18 @@ public:
     : MyScope(timer_(), section_name, do_timing)
   {}
 
-  ~MyScope() = default;
+  ~MyScope()
+  {
+#ifdef WITH_TIMING
+#  ifdef WITH_TIMING_OUTPUT
+    if (dealii::Utilities::MPI::this_mpi_process(MPI_COMM_WORLD) == 0)
+      std::cout << ">>> MyScope: leaving <" << section_name << ">" << std::endl;
+#  endif
+#endif
+  }
 
 private:
+  const std::string section_name;
 #ifdef WITH_TIMING
   std::unique_ptr<dealii::TimerOutput::Scope> scope;
 #endif
