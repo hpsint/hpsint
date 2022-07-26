@@ -1842,21 +1842,21 @@ namespace Sintering
           Tensor<1, n_comp, Tensor<1, dim, VectorizedArrayType>>
             gradient_result;
 
-          value_result[0] = phi.get_value(q)[0] * dt_inv;
-          value_result[1] = -phi.get_value(q)[1] +
+          value_result[1] = phi.get_value(q)[0] * dt_inv;
+          value_result[0] = -phi.get_value(q)[1] +
                             free_energy.d2f_dc2(c, etas) * phi.get_value(q)[0];
 
-          gradient_result[0] =
+          gradient_result[1] =
             mobility.M(c, etas, c_grad, etas_grad) * phi.get_gradient(q)[1] +
             mobility.dM_dc(c, etas, c_grad, etas_grad) * mu_grad *
               phi.get_value(q)[0] +
             mobility.dM_dgrad_c(c, c_grad, mu_grad) * phi.get_gradient(q)[0];
 
-          gradient_result[1] = kappa_c * phi.get_gradient(q)[0];
+          gradient_result[0] = kappa_c * phi.get_gradient(q)[0];
 
           for (unsigned int ig = 0; ig < n_grains; ++ig)
             {
-              value_result[1] +=
+              value_result[0] +=
                 free_energy.d2f_dcdetai(c, etas, ig) * phi.get_value(q)[ig + 2];
 
               value_result[ig + 2] =
@@ -1865,7 +1865,7 @@ namespace Sintering
                 L * free_energy.d2f_detai2(c, etas, ig) *
                   phi.get_value(q)[ig + 2];
 
-              gradient_result[0] +=
+              gradient_result[1] +=
                 mobility.dM_detai(c, etas, c_grad, etas_grad, ig) * mu_grad *
                 phi.get_value(q)[ig + 2];
 
@@ -1930,10 +1930,11 @@ namespace Sintering
               const auto val_old = phi_old.get_value(q);
               const auto grad    = phi.get_gradient(q);
 
-              auto &c      = val[0];
-              auto &mu     = val[1];
-              auto &c_old  = val_old[0];
-              auto &c_grad = grad[0];
+              auto &c       = val[0];
+              auto &mu      = val[1];
+              auto &c_old   = val_old[0];
+              auto &c_grad  = grad[0];
+              auto &mu_grad = grad[1];
 
               std::array<const VectorizedArrayType *, n_grains> etas;
               std::array<const Tensor<1, dim, VectorizedArrayType> *, n_grains>
@@ -1950,11 +1951,11 @@ namespace Sintering
                 gradient_result;
 
               // CH equations
-              value_result[0] = (c - c_old) * dt_inv;
-              value_result[1] = -mu + free_energy.df_dc(c, etas);
-              gradient_result[0] =
-                mobility.M(c, etas, c_grad, etas_grad) * grad[1];
-              gradient_result[1] = kappa_c * grad[0];
+              value_result[1] = (c - c_old) * dt_inv;
+              value_result[0] = -mu + free_energy.df_dc(c, etas);
+              gradient_result[1] =
+                mobility.M(c, etas, c_grad, etas_grad) * mu_grad;
+              gradient_result[0] = kappa_c * c_grad;
 
               // AC equations
               for (unsigned int ig = 0; ig < n_grains; ++ig)
