@@ -595,63 +595,78 @@ namespace Sintering
                        const VectorType &     solution,
                        const std::string      output)
     {
-      FEValues<dim> fe_values(mapping,
-                              dof_handler.get_fe(),
-                              dof_handler.get_fe().get_unit_support_points(),
-                              update_quadrature_points);
+      const auto bb = [&](const auto &mapping,
+                          const auto &dof_handler,
+                          const auto &solution) {
+        FEValues<dim> fe_values(mapping,
+                                dof_handler.get_fe(),
+                                dof_handler.get_fe().get_unit_support_points(),
+                                update_quadrature_points);
 
-      const auto bb_tria = dealii::GridTools::compute_bounding_box(
-        dof_handler.get_triangulation());
+        const auto bb_tria = dealii::GridTools::compute_bounding_box(
+          dof_handler.get_triangulation());
 
-      std::vector<typename VectorType::value_type> min_values(dim);
-      std::vector<typename VectorType::value_type> max_values(dim);
+        std::vector<typename VectorType::value_type> min_values(dim);
+        std::vector<typename VectorType::value_type> max_values(dim);
 
-      for (unsigned int d = 0; d < dim; ++d)
-        {
-          min_values[d] = bb_tria.get_boundary_points().second[d];
-          max_values[d] = bb_tria.get_boundary_points().first[d];
-        }
+        for (unsigned int d = 0; d < dim; ++d)
+          {
+            min_values[d] = bb_tria.get_boundary_points().second[d];
+            max_values[d] = bb_tria.get_boundary_points().first[d];
+          }
 
-      Vector<typename VectorType::value_type> values;
+        Vector<typename VectorType::value_type> values;
 
-      for (const auto &cell : dof_handler.active_cell_iterators())
-        {
-          if (cell->is_locally_owned() == false)
-            continue;
+        const bool has_ghost_elements = solution.has_ghost_elements();
 
-          fe_values.reinit(cell);
+        if (has_ghost_elements == false)
+          solution.update_ghost_values();
 
-          values.reinit(fe_values.dofs_per_cell);
+        for (const auto &cell : dof_handler.active_cell_iterators())
+          {
+            if (cell->is_locally_owned() == false)
+              continue;
 
-          cell->get_dof_values(solution.block(0), values);
+            fe_values.reinit(cell);
 
-          for (const auto q : fe_values.quadrature_point_indices())
-            if (values[q] > 0.1 /*TODO*/)
-              for (unsigned int d = 0; d < dim; ++d)
-                {
-                  min_values[d] =
-                    std::min(min_values[d], fe_values.quadrature_point(q)[d]);
-                  max_values[d] =
-                    std::max(max_values[d], fe_values.quadrature_point(q)[d]);
-                }
-        }
+            values.reinit(fe_values.dofs_per_cell);
 
-      Utilities::MPI::min(min_values,
-                          dof_handler.get_communicator(),
-                          min_values);
-      Utilities::MPI::max(max_values,
-                          dof_handler.get_communicator(),
-                          max_values);
+            cell->get_dof_values(solution.block(0), values);
 
-      Point<dim> left_bb, right_bb;
+            for (const auto q : fe_values.quadrature_point_indices())
+              if (values[q] > 0.1 /*TODO*/)
+                for (unsigned int d = 0; d < dim; ++d)
+                  {
+                    min_values[d] =
+                      std::min(min_values[d], fe_values.quadrature_point(q)[d]);
+                    max_values[d] =
+                      std::max(max_values[d], fe_values.quadrature_point(q)[d]);
+                  }
+          }
 
-      for (unsigned int d = 0; d < dim; ++d)
-        {
-          left_bb[d]  = min_values[d];
-          right_bb[d] = max_values[d];
-        }
+        if (has_ghost_elements == false)
+          solution.zero_out_ghost_values();
 
-      BoundingBox<dim, typename VectorType::value_type> bb({left_bb, right_bb});
+        Utilities::MPI::min(min_values,
+                            dof_handler.get_communicator(),
+                            min_values);
+        Utilities::MPI::max(max_values,
+                            dof_handler.get_communicator(),
+                            max_values);
+
+        Point<dim> left_bb, right_bb;
+
+        for (unsigned int d = 0; d < dim; ++d)
+          {
+            left_bb[d]  = min_values[d];
+            right_bb[d] = max_values[d];
+          }
+
+        BoundingBox<dim, typename VectorType::value_type> bb(
+          {left_bb, right_bb});
+
+        return bb;
+      }(mapping, dof_handler, solution);
 
       Triangulation<dim> tria;
       GridGenerator::hyper_rectangle(tria,
