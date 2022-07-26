@@ -376,14 +376,14 @@ namespace Sintering
 
     namespace internal
     {
-      template <int dim, typename Number>
+      template <int dim, typename BlockVectorType, typename Number>
       unsigned int
-      run_flooding(const typename DoFHandler<dim>::cell_iterator &   cell,
-                   const LinearAlgebra::distributed::Vector<Number> &solution,
-                   LinearAlgebra::distributed::Vector<Number> &particle_ids,
-                   const unsigned int                          id)
+      run_flooding(const typename DoFHandler<dim>::cell_iterator &cell,
+                   const BlockVectorType &                        solution,
+                   LinearAlgebra::distributed::Vector<Number> &   particle_ids,
+                   const unsigned int                             id)
       {
-        const double threshold_lower     = 0.2;  // TODO
+        const double threshold_lower     = 0.8;  // TODO
         const double invalid_particle_id = -1.0; // TODO
 
         if (cell->has_children())
@@ -406,10 +406,23 @@ namespace Sintering
 
         Vector<double> values(cell->get_fe().n_dofs_per_cell());
 
-        cell->get_dof_values(solution, values);
+        if (false /* TODO */)
+          {
+            for (unsigned int b = 2; b < solution.n_blocks(); ++b)
+              {
+                cell->get_dof_values(solution.block(b), values);
 
-        if (values.linfty_norm() >= threshold_lower)
-          return 0; // cell has no particle
+                if (values.linfty_norm() >= threshold_lower)
+                  return 0;
+              }
+          }
+        else
+          {
+            cell->get_dof_values(solution.block(0), values);
+
+            if (values.linfty_norm() >= threshold_lower)
+              return 0;
+          }
 
         particle_ids[cell->global_active_cell_index()] = id;
 
@@ -428,8 +441,10 @@ namespace Sintering
 
     template <int dim, typename VectorType>
     void
-    estimate_porosity(const DoFHandler<dim> &dof_handler,
-                      const VectorType &     solution)
+    estimate_porosity(const Mapping<dim> &   mapping,
+                      const DoFHandler<dim> &dof_handler,
+                      const VectorType &     solution,
+                      const std::string      output)
     {
       const double invalid_particle_id = -1.0; // TODO
 
@@ -451,8 +466,8 @@ namespace Sintering
       unsigned int offset  = 0;
 
       for (const auto &cell : dof_handler.active_cell_iterators())
-        if (internal::run_flooding<dim>(
-              cell, solution.block(0), particle_ids, counter) > 0)
+        if (internal::run_flooding<dim>(cell, solution, particle_ids, counter) >
+            0)
           counter++;
 
       // step 2) determine the global number of locally determined particles
@@ -523,6 +538,52 @@ namespace Sintering
       // global non-unique ids to the global ids
       const auto local_to_global_particle_ids =
         GrainTracker::perform_distributed_stitching(comm, local_connectiviy);
+
+      Vector<double> cell_to_id(tria->n_active_cells());
+
+      for (const auto &cell :
+           dof_handler.get_triangulation().active_cell_iterators())
+        if (cell->is_locally_owned())
+          {
+            const auto particle_id =
+              particle_ids[cell->global_active_cell_index()];
+
+            if (particle_id == invalid_particle_id)
+              cell_to_id[cell->active_cell_index()] = invalid_particle_id;
+            else
+              cell_to_id[cell->active_cell_index()] =
+                local_to_global_particle_ids
+                  [static_cast<unsigned int>(particle_id) - offset];
+          }
+
+      DataOut<dim> data_out;
+
+      const auto next_cell = [&](const auto &, const auto cell_in) {
+        auto cell = cell_in;
+        cell++;
+
+        while (cell != tria->end())
+          {
+            if (cell->is_active() && cell->is_locally_owned() &&
+                cell_to_id[cell->active_cell_index()] != invalid_particle_id)
+              break;
+
+            ++cell;
+          }
+
+        return cell;
+      };
+
+      const auto first_cell = [&](const auto &tria) {
+        return next_cell(tria, tria.begin());
+      };
+
+      data_out.set_cell_selection(first_cell, next_cell);
+
+      data_out.attach_triangulation(dof_handler.get_triangulation());
+      data_out.add_data_vector(cell_to_id, "ids");
+      data_out.build_patches(mapping);
+      data_out.write_vtu_in_parallel(output, dof_handler.get_communicator());
     }
 
   } // namespace Postprocessors

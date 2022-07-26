@@ -1399,6 +1399,21 @@ namespace Sintering
             params.output_data.n_coarsening_steps);
         }
 
+      if (true /* TODO */ || label != "solution")
+        {
+          std::string output = params.output_data.vtk_path + "/porosity_" +
+                               label + "." + std::to_string(counters[label]) +
+                               ".vtu";
+
+          pcout << "Outputing data at t = " << t << " (" << output << ")"
+                << std::endl;
+
+          Postprocessors::estimate_porosity(mapping,
+                                            dof_handler,
+                                            solution,
+                                            output);
+        }
+
       counters[label]++;
     };
   };
