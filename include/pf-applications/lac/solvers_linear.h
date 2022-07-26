@@ -48,7 +48,10 @@ namespace LinearSolvers
     {
       MyScope scope(timer, "gmres::solve");
 
-      SolverGMRES<VectorType> solver(solver_control);
+      typename SolverGMRES<VectorType>::AdditionalData ad;
+      ad.right_preconditioning = true;
+
+      SolverGMRES<VectorType> solver(solver_control, ad);
       solver.solve(op, dst, src, preconditioner);
 
       return solver_control.last_step();
@@ -59,7 +62,10 @@ namespace LinearSolvers
     {
       MyScope scope(timer, "gmres::solve");
 
-      SolverGMRES<BlockVectorType> solver(solver_control);
+      typename SolverGMRES<BlockVectorType>::AdditionalData ad;
+      ad.right_preconditioning = true;
+
+      SolverGMRES<BlockVectorType> solver(solver_control, ad);
       solver.solve(op, dst, src, preconditioner);
 
       return solver_control.last_step();
