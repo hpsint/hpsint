@@ -1,8 +1,12 @@
 #pragma once
 
+#include <deal.II/base/geometry_info.h>
+
 #include <deal.II/grid/grid_tools.h>
 
 #include <deal.II/numerics/data_out.h>
+
+#include <pf-applications/grain_tracker/distributed_stitching.h>
 
 namespace dealii
 {
@@ -366,6 +370,159 @@ namespace Sintering
                               100)
             << "%" << std::endl
             << std::endl;
+    }
+
+
+
+    namespace internal
+    {
+      template <int dim, typename Number>
+      unsigned int
+      run_flooding(const typename DoFHandler<dim>::cell_iterator &   cell,
+                   const LinearAlgebra::distributed::Vector<Number> &solution,
+                   LinearAlgebra::distributed::Vector<Number> &particle_ids,
+                   const unsigned int                          id)
+      {
+        const double threshold_lower     = 0.2;  // TODO
+        const double invalid_particle_id = -1.0; // TODO
+
+        if (cell->has_children())
+          {
+            unsigned int counter = 0;
+
+            for (const auto &child : cell->child_iterators())
+              counter += run_flooding<dim>(child, solution, particle_ids, id);
+
+            return counter;
+          }
+
+        if (cell->is_locally_owned() == false)
+          return 0;
+
+        const auto particle_id = particle_ids[cell->global_active_cell_index()];
+
+        if (particle_id != invalid_particle_id)
+          return 0; // cell has been visited
+
+        Vector<double> values(cell->get_fe().n_dofs_per_cell());
+
+        cell->get_dof_values(solution, values);
+
+        if (values.linfty_norm() >= threshold_lower)
+          return 0; // cell has no particle
+
+        particle_ids[cell->global_active_cell_index()] = id;
+
+        unsigned int counter = 1;
+
+        for (const auto face : cell->face_indices())
+          if (cell->at_boundary(face) == false)
+            counter += run_flooding<dim>(cell->neighbor(face),
+                                         solution,
+                                         particle_ids,
+                                         id);
+
+        return counter;
+      }
+    } // namespace internal
+
+    template <int dim, typename VectorType>
+    void
+    estimate_porosity(const DoFHandler<dim> &dof_handler,
+                      const VectorType &     solution)
+    {
+      const double invalid_particle_id = -1.0; // TODO
+
+      const auto tria = dynamic_cast<const parallel::TriangulationBase<dim> *>(
+        &dof_handler.get_triangulation());
+
+      AssertThrow(tria, ExcNotImplemented());
+
+      const auto comm = dof_handler.get_communicator();
+
+      LinearAlgebra::distributed::Vector<double> particle_ids(
+        tria->global_active_cell_index_partitioner().lock());
+
+      // step 1) run flooding and determine local particles and give them
+      // local ids
+      particle_ids = invalid_particle_id;
+
+      unsigned int counter = 0;
+      unsigned int offset  = 0;
+
+      for (const auto &cell : dof_handler.active_cell_iterators())
+        if (internal::run_flooding<dim>(
+              cell, solution.block(0), particle_ids, counter) > 0)
+          counter++;
+
+      // step 2) determine the global number of locally determined particles
+      // and give each one an unique id by shifting the ids
+      MPI_Exscan(&counter, &offset, 1, MPI_UNSIGNED, MPI_SUM, comm);
+
+      for (auto &particle_id : particle_ids)
+        if (particle_id != invalid_particle_id)
+          particle_id += offset;
+
+      // step 3) get particle ids on ghost cells and figure out if local
+      // particles and ghost particles might be one particle
+      particle_ids.update_ghost_values();
+
+      std::vector<std::vector<std::tuple<unsigned int, unsigned int>>>
+        local_connectiviy(counter);
+
+      for (const auto &ghost_cell :
+           dof_handler.get_triangulation().active_cell_iterators())
+        if (ghost_cell->is_ghost())
+          {
+            const auto particle_id =
+              particle_ids[ghost_cell->global_active_cell_index()];
+
+            if (particle_id == invalid_particle_id)
+              continue;
+
+            for (const auto face : ghost_cell->face_indices())
+              {
+                if (ghost_cell->at_boundary(face))
+                  continue;
+
+                const auto add = [&](const auto &ghost_cell,
+                                     const auto &local_cell) {
+                  if (local_cell->is_locally_owned() == false)
+                    return;
+
+                  const auto neighbor_particle_id =
+                    particle_ids[local_cell->global_active_cell_index()];
+
+                  if (neighbor_particle_id == invalid_particle_id)
+                    return;
+
+                  auto &temp = local_connectiviy[neighbor_particle_id - offset];
+                  temp.emplace_back(ghost_cell->subdomain_id(), particle_id);
+                  std::sort(temp.begin(), temp.end());
+                  temp.erase(std::unique(temp.begin(), temp.end()), temp.end());
+                };
+
+                if (ghost_cell->neighbor(face)->has_children())
+                  {
+                    for (unsigned int subface = 0;
+                         subface <
+                         GeometryInfo<dim>::n_subfaces(
+                           dealii::internal::SubfaceCase<dim>::case_isotropic);
+                         ++subface)
+                      add(ghost_cell,
+                          ghost_cell->neighbor_child_on_subface(face, subface));
+                  }
+                else
+                  add(ghost_cell, ghost_cell->neighbor(face));
+              }
+          }
+
+      // step 4) based on the local-ghost information, figure out all
+      // particles on all processes that belong togher (unification ->
+      // clique), give each clique an unique id, and return mapping from the
+      // global non-unique ids to the global ids
+      const auto local_to_global_particle_ids =
+        GrainTracker::perform_distributed_stitching(comm, local_connectiviy);
     }
 
   } // namespace Postprocessors
