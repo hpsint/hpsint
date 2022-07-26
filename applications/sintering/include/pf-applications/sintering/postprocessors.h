@@ -586,5 +586,83 @@ namespace Sintering
       data_out.write_vtu_in_parallel(output, dof_handler.get_communicator());
     }
 
+
+
+    template <int dim, typename VectorType>
+    void
+    estimate_shrinkage(const Mapping<dim> &   mapping,
+                       const DoFHandler<dim> &dof_handler,
+                       const VectorType &     solution,
+                       const std::string      output)
+    {
+      FEValues<dim> fe_values(mapping,
+                              dof_handler.get_fe(),
+                              dof_handler.get_fe().get_unit_support_points(),
+                              update_quadrature_points);
+
+      const auto bb_tria = dealii::GridTools::compute_bounding_box(
+        dof_handler.get_triangulation());
+
+      std::vector<typename VectorType::value_type> min_values(dim);
+      std::vector<typename VectorType::value_type> max_values(dim);
+
+      for (unsigned int d = 0; d < dim; ++d)
+        {
+          min_values[d] = bb_tria.get_boundary_points().second[d];
+          max_values[d] = bb_tria.get_boundary_points().first[d];
+        }
+
+      Vector<typename VectorType::value_type> values;
+
+      for (const auto &cell : dof_handler.active_cell_iterators())
+        {
+          if (cell->is_locally_owned() == false)
+            continue;
+
+          fe_values.reinit(cell);
+
+          values.reinit(fe_values.dofs_per_cell);
+
+          cell->get_dof_values(solution.block(0), values);
+
+          for (const auto q : fe_values.quadrature_point_indices())
+            if (values[q] > 0.1 /*TODO*/)
+              for (unsigned int d = 0; d < dim; ++d)
+                {
+                  min_values[d] =
+                    std::min(min_values[d], fe_values.quadrature_point(q)[d]);
+                  max_values[d] =
+                    std::max(max_values[d], fe_values.quadrature_point(q)[d]);
+                }
+        }
+
+      Utilities::MPI::min(min_values,
+                          dof_handler.get_communicator(),
+                          min_values);
+      Utilities::MPI::max(max_values,
+                          dof_handler.get_communicator(),
+                          max_values);
+
+      Point<dim> left_bb, right_bb;
+
+      for (unsigned int d = 0; d < dim; ++d)
+        {
+          left_bb[d]  = min_values[d];
+          right_bb[d] = max_values[d];
+        }
+
+      BoundingBox<dim, typename VectorType::value_type> bb({left_bb, right_bb});
+
+      Triangulation<dim> tria;
+      GridGenerator::hyper_rectangle(tria,
+                                     bb.get_boundary_points().first,
+                                     bb.get_boundary_points().second);
+
+      DataOut<dim> data_out;
+      data_out.attach_triangulation(tria);
+      data_out.build_patches(mapping);
+      data_out.write_vtu_in_parallel(output, dof_handler.get_communicator());
+    }
+
   } // namespace Postprocessors
 } // namespace Sintering
