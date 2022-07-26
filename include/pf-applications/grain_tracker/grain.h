@@ -4,6 +4,8 @@
 
 namespace GrainTracker
 {
+  using namespace dealii;
+
   /* This class represents a physical grain as a part of the domain. A single
    * grain normally consists of a single segment unless periodic boundary
    * conditions are imposed over the domain: in this case one may have multiple
@@ -70,6 +72,13 @@ namespace GrainTracker
       return grain_id;
     }
 
+    /* Set grain id. */
+    void
+    set_grain_id(const unsigned int new_grain_id)
+    {
+      grain_id = new_grain_id;
+    }
+
     /* Get current order parameter id. */
     unsigned int
     get_order_parameter_id() const
@@ -113,6 +122,14 @@ namespace GrainTracker
       max_radius = std::max(max_radius, segment.get_radius());
     }
 
+    void
+    add_segment(const Point<dim> &center, const double radius)
+    {
+      segments.emplace_back(center, radius);
+
+      max_radius = std::max(max_radius, radius);
+    }
+
     /* Add a grain's neighbor. Neighbors are grains having the same order
      * parameter id.
      */
@@ -120,12 +137,11 @@ namespace GrainTracker
     add_neighbor(const Grain *neighbor)
     {
       AssertThrow(this != neighbor,
-                  dealii::ExcMessage(
-                    "Grain can not be added as a neighbot to itself"));
+                  ExcMessage("Grain can not be added as a neighbot to itself"));
       AssertThrow(
         order_parameter_id == neighbor->get_order_parameter_id() ||
           old_order_parameter_id == neighbor->get_old_order_parameter_id(),
-        dealii::ExcMessage(
+        ExcMessage(
           "Neighbors should have the same order parameter (current or old)."));
 
       neighbors.insert(neighbors.end(), neighbor);

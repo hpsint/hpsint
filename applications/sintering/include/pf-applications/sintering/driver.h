@@ -891,6 +891,7 @@ namespace Sintering
       // New grains can not appear in current sintering simulations
       GrainTracker::Tracker<dim, Number> grain_tracker(
         dof_handler,
+        tria,
         !params.geometry_data.minimize_order_parameters,
         /*allow_new_grains*/ false,
         MAX_SINTERING_GRAINS,
@@ -909,9 +910,21 @@ namespace Sintering
 
         solution.update_ghost_values();
 
+        const auto time_total = std::chrono::system_clock::now();
+
         const auto [has_reassigned_grains, has_op_number_changed] =
           do_initialize ? grain_tracker.initial_setup(solution) :
                           grain_tracker.track(solution);
+
+        const double time_total_double =
+          std::chrono::duration_cast<std::chrono::nanoseconds>(
+            std::chrono::system_clock::now() - time_total)
+            .count() /
+          1e9;
+
+        pcout << "Grain tracker CPU time = "
+              << Utilities::MPI::max(time_total_double, MPI_COMM_WORLD)
+              << " sec" << std::endl;
 
         grain_tracker.print_current_grains(pcout);
 
@@ -966,10 +979,6 @@ namespace Sintering
 
       initialize_solution(solution, timer);
 
-      // Grain tracker - first run after we have initial configuration defined
-      if (params.grain_tracker_data.grain_tracker_frequency > 0)
-        run_grain_tracker(t, /*do_initialize = */ true);
-
       // initial local refinement
       if (t == 0.0 && params.adaptivity_data.refinement_frequency > 0)
         for (unsigned int i = 0;
@@ -980,6 +989,10 @@ namespace Sintering
             execute_coarsening_and_refinement(t);
             initialize_solution(solution, timer);
           }
+
+      // Grain tracker - first run after we have initial configuration defined
+      if (params.grain_tracker_data.grain_tracker_frequency > 0)
+        run_grain_tracker(t, /*do_initialize = */ true);
 
       if (t == 0.0 && params.output_data.output_time_interval > 0.0)
         output_result(solution, nonlinear_operator, time_last_output);
@@ -1005,14 +1018,14 @@ namespace Sintering
                   {
                     run_grain_tracker(t, /*do_initialize = */ false);
                   }
-                catch (const GrainTracker::ExcCloudsInconsistency &ex)
+                catch (const GrainTracker::ExcGrainsInconsistency &ex)
                   {
                     output_result(solution,
                                   nonlinear_operator,
                                   time_last_output,
-                                  "clouds_inconsistency");
+                                  "grains_inconsistency");
 
-                    grain_tracker.dump_last_clouds();
+                    grain_tracker.print_old_grains(pcout);
 
                     AssertThrow(false, ExcMessage(ex.what()));
                   }
