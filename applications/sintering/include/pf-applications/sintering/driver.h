@@ -946,6 +946,13 @@ namespace Sintering
                       << n_components_old << " to " << n_components_new
                       << "\033[0m" << std::endl;
 
+                AssertThrow((n_components_new - 2) <= MAX_SINTERING_GRAINS,
+                            ExcMessage("Number of grains (" +
+                                       std::to_string(n_components_new - 2) +
+                                       ") exceeds the maximum value (" +
+                                       std::to_string(MAX_SINTERING_GRAINS) +
+                                       ")."));
+
                 sintering_data.set_n_components(n_components_new);
 
                 nonlinear_operator.clear();
