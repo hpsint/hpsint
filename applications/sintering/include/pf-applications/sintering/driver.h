@@ -1399,7 +1399,7 @@ namespace Sintering
             params.output_data.n_coarsening_steps);
         }
 
-      if (true /* TODO */ || label != "solution")
+      if (params.output_data.porosity || label != "solution")
         {
           std::string output = params.output_data.vtk_path + "/porosity_" +
                                label + "." + std::to_string(counters[label]) +
