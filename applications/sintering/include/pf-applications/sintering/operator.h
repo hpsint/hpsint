@@ -842,7 +842,8 @@ namespace Sintering
               constrained_indices.resize(constrained_dofs.size());
               for (unsigned int i = 0; i < constrained_dofs.size(); ++i)
                 constrained_indices[i] = constrained_dofs[i];
-              constrained_values_src.resize(this->m());
+              constrained_values_src.resize(this->n_components() *
+                                            constrained_indices.size());
             }
 
           const bool is_scalar_dof_handler =
