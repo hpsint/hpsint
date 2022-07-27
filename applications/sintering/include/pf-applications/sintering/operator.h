@@ -1310,8 +1310,29 @@ namespace Sintering
     const Number kappa_c;
     const Number kappa_p;
 
+  public:
+    void
+    set_dt(const double dt)
+    {
+      this->dt = dt;
+    }
+
+    Number
+    get_dt() const
+    {
+      return dt;
+    }
+
+    Number
+    weight() const
+    {
+      return 1.0 / dt;
+    }
+
+  private:
     Number dt;
 
+  public:
     Table<3, VectorizedArrayType> &
     get_nonlinear_values()
     {
@@ -1616,7 +1637,7 @@ namespace Sintering
 
               if (entries_mask[FieldDt])
                 {
-                  temp[counter++] = VectorizedArrayType(data.dt);
+                  temp[counter++] = VectorizedArrayType(data.get_dt());
                 }
 
               if (entries_mask[FieldD2f])
@@ -1818,7 +1839,7 @@ namespace Sintering
       const auto &mobility    = this->data.mobility;
       const auto &kappa_c     = this->data.kappa_c;
       const auto &kappa_p     = this->data.kappa_p;
-      const auto  dt_inv      = 1.0 / this->data.dt;
+      const auto  dt_inv      = this->data.weight();
 
       for (unsigned int q = 0; q < phi.n_q_points; ++q)
         {
@@ -1910,7 +1931,7 @@ namespace Sintering
       const auto &mobility    = this->data.mobility;
       const auto &kappa_c     = this->data.kappa_c;
       const auto &kappa_p     = this->data.kappa_p;
-      const auto  dt_inv      = 1.0 / this->data.dt;
+      const auto  dt_inv      = this->data.weight();
 
       for (auto cell = range.first; cell < range.second; ++cell)
         {
