@@ -633,7 +633,7 @@ namespace Sintering
                   const unsigned int n_blocks  = current_u.n_blocks();
 
                   for (unsigned int l = min_level; l <= max_level; ++l)
-                    mg_sintering_data[l].dt = sintering_data.dt;
+                    mg_sintering_data[l].set_dt(sintering_data.get_dt());
 
                   MGLevelObject<VectorType> mg_current_u(min_level, max_level);
 
@@ -1044,7 +1044,7 @@ namespace Sintering
                   }
               }
 
-            sintering_data.dt = dt;
+            sintering_data.set_dt(dt);
             nonlinear_operator.set_previous_solution(solution);
 
             if (params.profiling_data.run_vmults && system_has_changed)

@@ -1310,8 +1310,35 @@ namespace Sintering
     const Number kappa_c;
     const Number kappa_p;
 
+  public:
+    void
+    set_dt(const double dt)
+    {
+      this->dt = dt;
+    }
+
+    Number
+    get_dt() const
+    {
+      return dt;
+    }
+
+    Number
+    weight() const
+    {
+      return 1.0 / dt;
+    }
+
+    Number
+    weight_old() const
+    {
+      return -1.0 / dt;
+    }
+
+  private:
     Number dt;
 
+  public:
     Table<3, VectorizedArrayType> &
     get_nonlinear_values()
     {
@@ -1616,7 +1643,7 @@ namespace Sintering
 
               if (entries_mask[FieldDt])
                 {
-                  temp[counter++] = VectorizedArrayType(data.dt);
+                  temp[counter++] = VectorizedArrayType(data.get_dt());
                 }
 
               if (entries_mask[FieldD2f])
@@ -1818,7 +1845,7 @@ namespace Sintering
       const auto &mobility    = this->data.mobility;
       const auto &kappa_c     = this->data.kappa_c;
       const auto &kappa_p     = this->data.kappa_p;
-      const auto  dt_inv      = 1.0 / this->data.dt;
+      const auto  weight      = this->data.weight();
 
       for (unsigned int q = 0; q < phi.n_q_points; ++q)
         {
@@ -1843,7 +1870,7 @@ namespace Sintering
           Tensor<1, n_comp, Tensor<1, dim, VectorizedArrayType>>
             gradient_result;
 
-          value_result[0] = phi.get_value(q)[0] * dt_inv;
+          value_result[0] = phi.get_value(q)[0] * weight;
           value_result[1] = -phi.get_value(q)[1] +
                             free_energy.d2f_dc2(c, etas) * phi.get_value(q)[0];
 
@@ -1861,7 +1888,7 @@ namespace Sintering
                 free_energy.d2f_dcdetai(c, etas, ig) * phi.get_value(q)[ig + 2];
 
               value_result[ig + 2] =
-                phi.get_value(q)[ig + 2] * dt_inv +
+                phi.get_value(q)[ig + 2] * weight +
                 L * free_energy.d2f_dcdetai(c, etas, ig) * phi.get_value(q)[0] +
                 L * free_energy.d2f_detai2(c, etas, ig) *
                   phi.get_value(q)[ig + 2];
@@ -1910,7 +1937,8 @@ namespace Sintering
       const auto &mobility    = this->data.mobility;
       const auto &kappa_c     = this->data.kappa_c;
       const auto &kappa_p     = this->data.kappa_p;
-      const auto  dt_inv      = 1.0 / this->data.dt;
+      const auto  weight      = this->data.weight();
+      const auto  weight_old  = this->data.weight_old();
 
       for (auto cell = range.first; cell < range.second; ++cell)
         {
@@ -1951,7 +1979,7 @@ namespace Sintering
                 gradient_result;
 
               // CH equations
-              value_result[0] = (c - c_old) * dt_inv;
+              value_result[0] = c * weight + c_old * weight_old;
               value_result[1] = -mu + free_energy.df_dc(c, etas);
               gradient_result[0] =
                 mobility.M(c, etas, c_grad, etas_grad) * grad[1];
@@ -1960,9 +1988,9 @@ namespace Sintering
               // AC equations
               for (unsigned int ig = 0; ig < n_grains; ++ig)
                 {
-                  value_result[2 + ig] =
-                    (val[2 + ig] - val_old[2 + ig]) * dt_inv +
-                    L * free_energy.df_detai(c, etas, ig);
+                  value_result[2 + ig] = val[2 + ig] * weight +
+                                         val_old[2 + ig] * weight_old +
+                                         L * free_energy.df_detai(c, etas, ig);
 
                   gradient_result[2 + ig] = L * kappa_p * grad[2 + ig];
                 }
