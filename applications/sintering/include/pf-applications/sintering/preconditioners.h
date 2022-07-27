@@ -60,7 +60,7 @@ namespace Sintering
       const auto &free_energy         = data.free_energy;
       const auto &mobility            = data.mobility;
       const auto &kappa_c             = data.kappa_c;
-      const auto  dt_inv              = this->data.weight();
+      const auto  weight              = this->data.weight();
       const auto &nonlinear_values    = data.get_nonlinear_values();
       const auto &nonlinear_gradients = data.get_nonlinear_gradients();
 
@@ -91,7 +91,7 @@ namespace Sintering
 
 #if true
           // CH with all terms
-          value_result[0] = phi.get_value(q)[0] * dt_inv;
+          value_result[0] = phi.get_value(q)[0] * weight;
           value_result[1] = -phi.get_value(q)[1] +
                             free_energy.d2f_dc2(c, etas) * phi.get_value(q)[0];
 
@@ -103,7 +103,7 @@ namespace Sintering
           gradient_result[1] = kappa_c * phi.get_gradient(q)[0];
 #else
           // CH with the terms as considered in BlockPreconditioner3CHData
-          value_result[0] = phi.get_value(q)[0] * dt_inv;
+          value_result[0] = phi.get_value(q)[0] * weight;
           value_result[1] = -phi.get_value(q)[1];
 
           gradient_result[0] =
@@ -175,7 +175,7 @@ namespace Sintering
       const auto &free_energy      = data.free_energy;
       const auto &L                = data.L;
       const auto &kappa_p          = data.kappa_p;
-      const auto  dt_inv           = this->data.weight();
+      const auto  weight           = this->data.weight();
       const auto &nonlinear_values = data.get_nonlinear_values();
 
       for (unsigned int q = 0; q < phi.n_q_points; ++q)
@@ -196,7 +196,7 @@ namespace Sintering
           for (unsigned int ig = 0; ig < n_grains; ++ig)
             {
               value_result[ig] =
-                phi.get_value(q)[ig] * dt_inv +
+                phi.get_value(q)[ig] * weight +
                 L * free_energy.d2f_detai2(c, etas, ig) * phi.get_value(q)[ig];
 
               gradient_result[ig] = L * kappa_p * phi.get_gradient(q)[ig];
@@ -304,7 +304,7 @@ namespace Sintering
       const auto &free_energy      = data.free_energy;
       const auto &L                = data.L;
       const auto &kappa_p          = data.kappa_p;
-      const auto  dt_inv           = data.weight();
+      const auto  weight           = data.weight();
       const auto &nonlinear_values = data.get_nonlinear_values();
 
       for (unsigned int q = 0; q < phi.n_q_points; ++q)
@@ -325,7 +325,7 @@ namespace Sintering
           for (unsigned int ig = 0; ig < n_grains; ++ig)
             {
               value_result[ig] =
-                phi.get_value(q)[ig] * dt_inv +
+                phi.get_value(q)[ig] * weight +
                 L * free_energy.d2f_detai2(c, etas, ig) * phi.get_value(q)[ig];
 
               gradient_result[ig] = L * kappa_p * phi.get_gradient(q)[ig];
@@ -427,7 +427,7 @@ namespace Sintering
         const auto &free_energy      = data.free_energy;
         const auto &L                = data.L;
         const auto &kappa_p          = data.kappa_p;
-        const auto  dt_inv           = data.weight();
+        const auto  weight           = data.weight();
         const auto &nonlinear_values = data.get_nonlinear_values();
 
         std::vector<const VectorizedArrayType *> etas(this->n_grains());
@@ -516,7 +516,7 @@ namespace Sintering
                           }
 
                         const auto value_result =
-                          integrator.get_value(q) * dt_inv +
+                          integrator.get_value(q) * weight +
                           L * scaling * integrator.get_value(q);
 
                         const auto gradient_result =
