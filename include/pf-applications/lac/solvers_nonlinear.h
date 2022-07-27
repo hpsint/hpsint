@@ -104,6 +104,9 @@ namespace NonLinearSolvers
 
     template <typename>
     friend class NewtonSolver;
+
+    template <typename>
+    friend class DampedNewtonSolver;
   };
 
 
@@ -160,7 +163,31 @@ namespace NonLinearSolvers
   class NewtonSolver
   {
   public:
-    NewtonSolver(NewtonSolverSolverControl &       statistics,
+    virtual void
+    solve(VectorType &dst) const = 0;
+
+    virtual void
+    clear() const = 0;
+    
+    std::function<void(VectorType &)>                     reinit_vector  = {};
+    std::function<void(const VectorType &, VectorType &)> residual       = {};
+    std::function<void(const VectorType &, const bool)>   setup_jacobian = {};
+    std::function<unsigned int(const VectorType &, VectorType &)>
+      solve_with_jacobian = {};
+    std::function<NewtonSolverSolverControl::State(const unsigned int,
+                                                   const double,
+                                                   const VectorType &,
+                                                   const VectorType &)>
+      check_iteration_status = {};
+  };
+
+
+
+  template <typename VectorType>
+  class DampedNewtonSolver : public NewtonSolver<VectorType>
+  {
+  public:
+    DampedNewtonSolver(NewtonSolverSolverControl &       statistics,
                  const NewtonSolverAdditionalData &solver_data_in =
                    NewtonSolverAdditionalData())
       : statistics(statistics)
@@ -168,12 +195,12 @@ namespace NonLinearSolvers
     {}
 
     void
-    solve(VectorType &dst) const
+    solve(VectorType &dst) const override
     {
       VectorType vec_residual, increment, tmp;
-      reinit_vector(vec_residual);
-      reinit_vector(increment);
-      reinit_vector(tmp);
+      this->reinit_vector(vec_residual);
+      this->reinit_vector(increment);
+      this->reinit_vector(tmp);
 
       if (this->solver_data.reuse_preconditioner == false)
         clear();
@@ -182,7 +209,7 @@ namespace NonLinearSolvers
       this->statistics.clear();
 
       // evaluate residual using the given estimate of the solution
-      residual(dst, vec_residual);
+      this->residual(dst, vec_residual);
       ++statistics.residual_evaluations;
 
       double   norm_r = vec_residual.l2_norm();
@@ -208,10 +235,10 @@ namespace NonLinearSolvers
             (history_linear_iterations_last >
              solver_data.threshold_linear_iter);
 
-          setup_jacobian(dst, solver_data.do_update && threshold_exceeded);
+          this->setup_jacobian(dst, solver_data.do_update && threshold_exceeded);
 
           history_linear_iterations_last =
-            solve_with_jacobian(vec_residual, increment);
+            this->solve_with_jacobian(vec_residual, increment);
 
           statistics.linear_iterations += history_linear_iterations_last;
 
@@ -231,7 +258,7 @@ namespace NonLinearSolvers
               tmp.add(omega, increment);
 
               // evaluate residual using the temporary solution
-              residual(tmp, vec_residual);
+              this->residual(tmp, vec_residual);
               ++statistics.residual_evaluations;
 
               // calculate norm of residual (for temporary solution)
@@ -263,23 +290,24 @@ namespace NonLinearSolvers
     }
 
     void
-    clear() const
+    clear() const override
     {
       history_linear_iterations_last = 0;
       history_newton_iterations      = 0;
     }
 
+  private:
     NewtonSolverSolverControl::State
     check(const unsigned int step,
           const double       check_value,
           const VectorType & x,
           const VectorType & r) const
     {
-      if (check_iteration_status == nullptr)
+      if (this->check_iteration_status == nullptr)
         return statistics.check(step, check_value, x, r);
 
       const auto state1 = statistics.check(step, check_value, x, r);
-      const auto state2 = check_iteration_status(step, check_value, x, r);
+      const auto state2 = this->check_iteration_status(step, check_value, x, r);
 
       if ((state1 == NewtonSolverSolverControl::failure) ||
           (state2 == NewtonSolverSolverControl::failure))
@@ -291,24 +319,10 @@ namespace NonLinearSolvers
         return NewtonSolverSolverControl::success;
     }
 
-
-  private:
     NewtonSolverSolverControl &      statistics;
     const NewtonSolverAdditionalData solver_data;
 
     mutable unsigned int history_linear_iterations_last = 0;
     mutable unsigned int history_newton_iterations      = 0;
-
-  public:
-    std::function<void(VectorType &)>                     reinit_vector  = {};
-    std::function<void(const VectorType &, VectorType &)> residual       = {};
-    std::function<void(const VectorType &, const bool)>   setup_jacobian = {};
-    std::function<unsigned int(const VectorType &, VectorType &)>
-      solve_with_jacobian = {};
-    std::function<NewtonSolverSolverControl::State(const unsigned int,
-                                                   const double,
-                                                   const VectorType &,
-                                                   const VectorType &)>
-      check_iteration_status = {};
   };
 } // namespace NonLinearSolvers

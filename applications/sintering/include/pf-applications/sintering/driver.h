@@ -589,14 +589,18 @@ namespace Sintering
         params.nonlinear_data.nl_abs_tol,
         params.nonlinear_data.nl_rel_tol);
 
-      auto non_linear_solver =
-        std::make_unique<NonLinearSolvers::NewtonSolver<VectorType>>(
-          statistics,
-          NonLinearSolvers::NewtonSolverAdditionalData(
-            params.nonlinear_data.newton_do_update,
-            params.nonlinear_data.newton_threshold_newton_iter,
-            params.nonlinear_data.newton_threshold_linear_iter,
-            params.nonlinear_data.newton_reuse_preconditioner));
+      std::unique_ptr<NonLinearSolvers::NewtonSolver<VectorType>>
+        non_linear_solver;
+
+      if (true)
+        non_linear_solver =
+          std::make_unique<NonLinearSolvers::DampedNewtonSolver<VectorType>>(
+            statistics,
+            NonLinearSolvers::NewtonSolverAdditionalData(
+              params.nonlinear_data.newton_do_update,
+              params.nonlinear_data.newton_threshold_newton_iter,
+              params.nonlinear_data.newton_threshold_linear_iter,
+              params.nonlinear_data.newton_reuse_preconditioner));
 
       non_linear_solver->reinit_vector = [&](auto &vector) {
         MyScope scope(timer, "time_loop::newton::reinit_vector");
