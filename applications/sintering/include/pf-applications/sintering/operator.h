@@ -1329,6 +1329,12 @@ namespace Sintering
       return 1.0 / dt;
     }
 
+    Number
+    weight_old() const
+    {
+      return -1.0 / dt;
+    }
+
   private:
     Number dt;
 
@@ -1932,6 +1938,7 @@ namespace Sintering
       const auto &kappa_c     = this->data.kappa_c;
       const auto &kappa_p     = this->data.kappa_p;
       const auto  weight      = this->data.weight();
+      const auto  weight_old  = this->data.weight_old();
 
       for (auto cell = range.first; cell < range.second; ++cell)
         {
@@ -1972,7 +1979,7 @@ namespace Sintering
                 gradient_result;
 
               // CH equations
-              value_result[0] = (c - c_old) * weight;
+              value_result[0] = c * weight + c_old * weight_old;
               value_result[1] = -mu + free_energy.df_dc(c, etas);
               gradient_result[0] =
                 mobility.M(c, etas, c_grad, etas_grad) * grad[1];
@@ -1981,9 +1988,9 @@ namespace Sintering
               // AC equations
               for (unsigned int ig = 0; ig < n_grains; ++ig)
                 {
-                  value_result[2 + ig] =
-                    (val[2 + ig] - val_old[2 + ig]) * weight +
-                    L * free_energy.df_detai(c, etas, ig);
+                  value_result[2 + ig] = val[2 + ig] * weight +
+                                         val_old[2 + ig] * weight_old +
+                                         L * free_energy.df_detai(c, etas, ig);
 
                   gradient_result[2 + ig] = L * kappa_p * grad[2 + ig];
                 }
