@@ -132,6 +132,7 @@ namespace Sintering
     unsigned int newton_threshold_newton_iter = 100;
     unsigned int newton_threshold_linear_iter = 20;
     bool         newton_reuse_preconditioner  = true;
+    bool         newton_use_damping           = true;
 
     unsigned int verbosity = 1;
   };
@@ -417,6 +418,7 @@ namespace Sintering
                         nonlinear_data.newton_threshold_linear_iter);
       prm.add_parameter("NewtonReusePreconditioner",
                         nonlinear_data.newton_reuse_preconditioner);
+      prm.add_parameter("NewtonUseDamping", nonlinear_data.newton_use_damping);
       prm.add_parameter("Verbosity", nonlinear_data.verbosity);
       prm.leave_subsection();
 

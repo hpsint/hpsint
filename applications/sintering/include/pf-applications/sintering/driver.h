@@ -600,7 +600,8 @@ namespace Sintering
               params.nonlinear_data.newton_do_update,
               params.nonlinear_data.newton_threshold_newton_iter,
               params.nonlinear_data.newton_threshold_linear_iter,
-              params.nonlinear_data.newton_reuse_preconditioner));
+              params.nonlinear_data.newton_reuse_preconditioner,
+              params.nonlinear_data.newton_use_damping));
 
       non_linear_solver->reinit_vector = [&](auto &vector) {
         MyScope scope(timer, "time_loop::newton::reinit_vector");
