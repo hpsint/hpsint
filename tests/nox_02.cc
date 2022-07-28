@@ -4,6 +4,11 @@
 
 #include <NOX_Abstract_Group.H>
 #include <NOX_Abstract_Vector.H>
+#include <NOX_Solver_Factory.H>
+#include <NOX_Solver_Generic.H>
+#include <NOX_StatusTest_Combo.H>
+#include <NOX_StatusTest_MaxIters.H>
+#include <NOX_StatusTest_NormF.H>
 
 using namespace dealii;
 
@@ -173,6 +178,13 @@ namespace dealii
       class Group : public NOX::Abstract::Group
       {
       public:
+        Group(VectorType &solution)
+        {
+          AssertThrow(false, ExcNotImplemented());
+
+          (void)solution;
+        }
+
         NOX::Abstract::Group &
         operator=(const NOX::Abstract::Group &source) override
         {
@@ -281,8 +293,6 @@ namespace dealii
         Vector<VectorType> x, f, gradient, newton;
       };
 
-
-
     } // namespace NOXWrapper
   }   // namespace internal
 } // namespace dealii
@@ -295,7 +305,35 @@ main(int argc, char **argv)
   using Number     = double;
   using VectorType = LinearAlgebra::distributed::Vector<Number>;
 
-  internal::NOXWrapper::Vector<VectorType> vector;
+  // some parameters
+  const unsigned int n_max_iterations = 100;
+  const double       abs_tolerance    = 1e-9;
 
-  internal::NOXWrapper::Group<VectorType> group;
+  // initial guess
+  VectorType solution;
+
+  // create group
+  const auto group =
+    Teuchos::rcp(new internal::NOXWrapper::Group<VectorType>(solution));
+
+  // setup parameters
+  Teuchos::RCP<Teuchos::ParameterList> nlParamsPtr =
+    Teuchos::rcp(new Teuchos::ParameterList);
+
+  // setup solver control
+  const auto testNormF =
+    Teuchos::rcp(new NOX::StatusTest::NormF(abs_tolerance));
+
+  const auto testMaxIters =
+    Teuchos::rcp(new NOX::StatusTest::MaxIters(n_max_iterations));
+
+  const auto combo = Teuchos::rcp(new NOX::StatusTest::Combo(
+    NOX::StatusTest::Combo::OR, testNormF, testMaxIters));
+
+  // create non-linear solver
+  const auto solver = NOX::Solver::buildSolver(group, combo, nlParamsPtr);
+
+  // solve
+  const auto status = solver->solve();
+  AssertThrow(status == NOX::StatusTest::Converged, ExcNotImplemented());
 }
