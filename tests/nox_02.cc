@@ -136,7 +136,8 @@ namespace dealii
         Teuchos::RCP<NOX::Abstract::Vector>
         clone(NOX::CopyType copy_type) const override
         {
-          auto new_vector = Teuchos::rcp(new Vector<VectorType>());
+          auto new_vector    = Teuchos::rcp(new Vector<VectorType>());
+          new_vector->vector = std::make_shared<VectorType>();
           new_vector->vector->reinit(*this->vector);
 
           if (copy_type == NOX::CopyType::DeepCopy)
