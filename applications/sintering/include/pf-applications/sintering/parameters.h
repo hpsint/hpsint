@@ -136,6 +136,8 @@ namespace Sintering
     bool         newton_reuse_preconditioner  = true;
     bool         newton_use_damping           = true;
 
+    std::string nonlinear_solver_type = "damped";
+
     unsigned int verbosity = 1;
   };
 
@@ -427,6 +429,12 @@ namespace Sintering
       prm.add_parameter("NewtonReusePreconditioner",
                         nonlinear_data.newton_reuse_preconditioner);
       prm.add_parameter("NewtonUseDamping", nonlinear_data.newton_use_damping);
+
+      prm.add_parameter("NonLinearSolverType",
+                        nonlinear_data.nonlinear_solver_type,
+                        "Type of the non-linear solver.",
+                        Patterns::Selection("damped|NOX"));
+
       prm.add_parameter("Verbosity", nonlinear_data.verbosity);
       prm.leave_subsection();
 

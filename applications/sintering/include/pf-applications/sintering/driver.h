@@ -592,7 +592,7 @@ namespace Sintering
       std::unique_ptr<NonLinearSolvers::NewtonSolver<VectorType>>
         non_linear_solver;
 
-      if (true)
+      if (params.nonlinear_data.nonlinear_solver_type == "damped")
         non_linear_solver =
           std::make_unique<NonLinearSolvers::DampedNewtonSolver<VectorType>>(
             statistics,
@@ -602,6 +602,11 @@ namespace Sintering
               params.nonlinear_data.newton_threshold_linear_iter,
               params.nonlinear_data.newton_reuse_preconditioner,
               params.nonlinear_data.newton_use_damping));
+      else if (params.nonlinear_data.nonlinear_solver_type == "NOX")
+        non_linear_solver =
+          std::make_unique<NonLinearSolvers::NOXSolver<VectorType>>(statistics);
+      else
+        AssertThrow(false, ExcNotImplemented());
 
       non_linear_solver->reinit_vector = [&](auto &vector) {
         MyScope scope(timer, "time_loop::newton::reinit_vector");

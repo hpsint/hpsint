@@ -347,4 +347,32 @@ namespace NonLinearSolvers
     mutable unsigned int history_linear_iterations_last = 0;
     mutable unsigned int history_newton_iterations      = 0;
   };
+
+
+
+  template <typename VectorType>
+  class NOXSolver : public NewtonSolver<VectorType>
+  {
+  public:
+    NOXSolver(NewtonSolverSolverControl &statistics)
+      : statistics(statistics)
+    {}
+
+    void
+    solve(VectorType &dst) const override
+    {
+      AssertThrow(false, ExcNotImplemented());
+
+      (void)dst;
+    }
+
+    void
+    clear() const override
+    {
+      AssertThrow(false, ExcNotImplemented());
+    }
+
+  private:
+    NewtonSolverSolverControl &statistics;
+  };
 } // namespace NonLinearSolvers
