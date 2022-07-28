@@ -18,9 +18,7 @@ namespace dealii
         NOX::Abstract::Vector &
         init(double gamma) override
         {
-          AssertThrow(false, ExcNotImplemented());
-          (void)gamma;
-
+          *vector = gamma;
           return *this;
         }
 
@@ -68,9 +66,7 @@ namespace dealii
         NOX::Abstract::Vector &
         scale(double gamma) override
         {
-          AssertThrow(false, ExcNotImplemented());
-
-          (void)gamma;
+          *vector *= gamma;
 
           return *this;
         }
@@ -78,9 +74,11 @@ namespace dealii
         NOX::Abstract::Vector &
         scale(const NOX::Abstract::Vector &a) override
         {
-          AssertThrow(false, ExcNotImplemented());
+          const auto a_ = dynamic_cast<const Vector<VectorType> *>(&a);
 
-          (void)a;
+          Assert(a_, ExcInternalError());
+
+          vector->scale(*a_->vector);
 
           return *this;
         }
@@ -90,11 +88,11 @@ namespace dealii
                const NOX::Abstract::Vector &a,
                double                       gamma = 0.0) override
         {
-          AssertThrow(false, ExcNotImplemented());
+          const auto a_ = dynamic_cast<const Vector<VectorType> *>(&a);
 
-          (void)alpha;
-          (void)a;
-          (void)gamma;
+          Assert(a_, ExcInternalError());
+
+          vector->sadd(gamma, alpha, *a_->vector);
 
           return *this;
         }
@@ -106,13 +104,14 @@ namespace dealii
                const NOX::Abstract::Vector &b,
                double                       gamma)
         {
-          AssertThrow(false, ExcNotImplemented());
+          const auto a_ = dynamic_cast<const Vector<VectorType> *>(&a);
+          const auto b_ = dynamic_cast<const Vector<VectorType> *>(&b);
 
-          (void)alpha;
-          (void)a;
-          (void)beta;
-          (void)b;
-          (void)gamma;
+          Assert(a_, ExcInternalError());
+          Assert(b_, ExcInternalError());
+
+          vector->operator*=(gamma);
+          vector->add(alpha, *a_->vector, beta, *b_->vector);
 
           return *this;
         }
@@ -128,8 +127,12 @@ namespace dealii
         norm(NOX::Abstract::Vector::NormType type =
                NOX::Abstract::Vector::TwoNorm) const
         {
-          AssertThrow(false, ExcNotImplemented());
-          (void)type;
+          if (type == NOX::Abstract::Vector::NormType::TwoNorm)
+            return vector->l2_norm();
+          if (type == NOX::Abstract::Vector::NormType::OneNorm)
+            return vector->l1_norm();
+          if (type == NOX::Abstract::Vector::NormType::MaxNorm)
+            return vector->linfty_norm();
 
           return 0.0;
         }
@@ -147,19 +150,17 @@ namespace dealii
         double
         innerProduct(const NOX::Abstract::Vector &y) const override
         {
-          AssertThrow(false, ExcNotImplemented());
+          const auto y_ = dynamic_cast<const Vector<VectorType> *>(&y);
 
-          (void)y;
+          Assert(y_, ExcInternalError());
 
-          return 0.0;
+          return (*vector) * (*y_->vector);
         }
 
         NOX::size_type
         length() const override
         {
-          AssertThrow(false, ExcNotImplemented());
-
-          return 0.0;
+          return vector->size();
         }
 
       private:
@@ -169,10 +170,7 @@ namespace dealii
 
 
     } // namespace NOXWrapper
-
-
-  } // namespace internal
-
+  }   // namespace internal
 } // namespace dealii
 
 int
