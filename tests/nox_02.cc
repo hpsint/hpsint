@@ -19,6 +19,9 @@ namespace dealii
     namespace NOXWrapper
     {
       template <typename VectorType>
+      class Group;
+
+      template <typename VectorType>
       class Vector : public NOX::Abstract::Vector
       {
       public:
@@ -130,11 +133,16 @@ namespace dealii
           return *this;
         }
 
-        Teuchos::RCP<NOX::Abstract::Vector> clone(NOX::CopyType) const override
+        Teuchos::RCP<NOX::Abstract::Vector>
+        clone(NOX::CopyType copy_type) const override
         {
-          AssertThrow(false, ExcNotImplemented());
+          auto new_vector = Teuchos::rcp(new Vector<VectorType>());
+          new_vector->vector->reinit(*this->vector);
 
-          return {};
+          if (copy_type == NOX::CopyType::DeepCopy)
+            *new_vector->vector = *this->vector;
+
+          return new_vector;
         }
 
         double
@@ -179,6 +187,8 @@ namespace dealii
 
       private:
         std::shared_ptr<VectorType> vector;
+
+        friend Group<VectorType>;
       };
 
       template <typename VectorType>
@@ -287,10 +297,12 @@ namespace dealii
           return {};
         }
 
-        Teuchos::RCP<NOX::Abstract::Group> clone(NOX::CopyType) const override
+        Teuchos::RCP<NOX::Abstract::Group>
+        clone(NOX::CopyType copy_type) const override
         {
-          AssertThrow(false, ExcNotImplemented());
-          return {};
+          (void)copy_type; // don't care?
+
+          return Teuchos::rcp(new Group(*x.vector));
         }
 
       private:
