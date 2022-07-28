@@ -1,5 +1,7 @@
 #pragma once
 
+#include <deal.II/lac/vector.h>
+
 #include <pf-applications/base/timer.h>
 
 namespace NonLinearSolvers
@@ -361,15 +363,13 @@ namespace NonLinearSolvers
     void
     solve(VectorType &dst) const override
     {
-      AssertThrow(false, ExcNotImplemented());
-
       (void)dst;
     }
 
     void
     clear() const override
     {
-      AssertThrow(false, ExcNotImplemented());
+      // nothing to do
     }
 
   private:
