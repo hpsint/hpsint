@@ -22,6 +22,13 @@ namespace dealii
       class Vector : public NOX::Abstract::Vector
       {
       public:
+        Vector() = default;
+
+        Vector(VectorType &vector)
+        {
+          this->vector.reset(&vector, [](auto *) { /*nothing to do*/ });
+        }
+
         NOX::Abstract::Vector &
         init(double gamma) override
         {
@@ -179,11 +186,8 @@ namespace dealii
       {
       public:
         Group(VectorType &solution)
-        {
-          AssertThrow(false, ExcNotImplemented());
-
-          (void)solution;
-        }
+          : x(solution)
+        {}
 
         NOX::Abstract::Group &
         operator=(const NOX::Abstract::Group &source) override
