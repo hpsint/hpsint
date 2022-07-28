@@ -2,6 +2,7 @@
 
 #include <deal.II/lac/la_parallel_vector.h>
 
+#include <NOX_Abstract_Group.H>
 #include <NOX_Abstract_Vector.H>
 
 using namespace dealii;
@@ -15,6 +16,7 @@ namespace dealii
       template <typename VectorType>
       class Vector : public NOX::Abstract::Vector
       {
+      public:
         NOX::Abstract::Vector &
         init(double gamma) override
         {
@@ -167,6 +169,118 @@ namespace dealii
         std::shared_ptr<VectorType> vector;
       };
 
+      template <typename VectorType>
+      class Group : public NOX::Abstract::Group
+      {
+      public:
+        NOX::Abstract::Group &
+        operator=(const NOX::Abstract::Group &source) override
+        {
+          AssertThrow(false, ExcNotImplemented());
+          (void)source;
+
+          return *this;
+        }
+
+        void
+        setX(const NOX::Abstract::Vector &y) override
+        {
+          x = y;
+        }
+
+        void
+        computeX(const NOX::Abstract::Group & grp,
+                 const NOX::Abstract::Vector &d,
+                 double                       step)
+        {
+          AssertThrow(false, ExcNotImplemented());
+          (void)grp;
+          (void)d;
+          (void)step;
+        }
+
+        NOX::Abstract::Group::ReturnType
+        computeF() override
+        {
+          AssertThrow(false, ExcNotImplemented());
+          return {};
+        }
+
+        bool
+        isF() const override
+        {
+          AssertThrow(false, ExcNotImplemented());
+          return {};
+        }
+
+        const NOX::Abstract::Vector &
+        getX() const override
+        {
+          return x;
+        }
+
+        const NOX::Abstract::Vector &
+        getF() const override
+        {
+          return f;
+        }
+
+        double
+        getNormF() const override
+        {
+          return f.norm();
+        }
+
+        const NOX::Abstract::Vector &
+        getGradient() const override
+        {
+          return gradient;
+        }
+
+        const NOX::Abstract::Vector &
+        getNewton() const override
+        {
+          return newton;
+        }
+
+        Teuchos::RCP<const NOX::Abstract::Vector>
+        getXPtr() const override
+        {
+          AssertThrow(false, ExcNotImplemented());
+          return {};
+        }
+
+        Teuchos::RCP<const NOX::Abstract::Vector>
+        getFPtr() const override
+        {
+          AssertThrow(false, ExcNotImplemented());
+          return {};
+        }
+
+        Teuchos::RCP<const NOX::Abstract::Vector>
+        getGradientPtr() const override
+        {
+          AssertThrow(false, ExcNotImplemented());
+          return {};
+        }
+
+        Teuchos::RCP<const NOX::Abstract::Vector>
+        getNewtonPtr() const override
+        {
+          AssertThrow(false, ExcNotImplemented());
+          return {};
+        }
+
+        Teuchos::RCP<NOX::Abstract::Group> clone(NOX::CopyType) const override
+        {
+          AssertThrow(false, ExcNotImplemented());
+          return {};
+        }
+
+      private:
+        Vector<VectorType> x, f, gradient, newton;
+      };
+
 
 
     } // namespace NOXWrapper
@@ -182,4 +296,6 @@ main(int argc, char **argv)
   using VectorType = LinearAlgebra::distributed::Vector<Number>;
 
   internal::NOXWrapper::Vector<VectorType> vector;
+
+  internal::NOXWrapper::Group<VectorType> group;
 }
