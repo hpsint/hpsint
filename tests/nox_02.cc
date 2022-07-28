@@ -126,7 +126,7 @@ namespace dealii
                const NOX::Abstract::Vector &a,
                double                       beta,
                const NOX::Abstract::Vector &b,
-               double                       gamma)
+               double                       gamma = 0.0)
         {
           const auto a_ = dynamic_cast<const Vector<VectorType> *>(&a);
           const auto b_ = dynamic_cast<const Vector<VectorType> *>(&b);
@@ -221,8 +221,25 @@ namespace dealii
         NOX::Abstract::Group &
         operator=(const NOX::Abstract::Group &source) override
         {
-          AssertThrow(false, ExcNotImplemented());
-          (void)source;
+          if (this != &source)
+            {
+              const auto other =
+                dynamic_cast<const Group<VectorType> *>(&source);
+
+              Assert(other, ExcInternalError());
+
+              this->x.vector        = other->x.vector;
+              this->f.vector        = other->f.vector;
+              this->gradient.vector = other->gradient.vector;
+              this->newton.vector   = other->newton.vector;
+
+              this->residual            = other->residual;
+              this->setup_jacobian      = other->setup_jacobian;
+              this->solve_with_jacobian = other->solve_with_jacobian;
+
+              this->is_valid_f = other->is_valid_f;
+              this->is_valid_j = other->is_valid_j;
+            }
 
           return *this;
         }
@@ -230,6 +247,8 @@ namespace dealii
         void
         setX(const NOX::Abstract::Vector &y) override
         {
+          reset();
+
           x = y;
         }
 
@@ -238,10 +257,13 @@ namespace dealii
                  const NOX::Abstract::Vector &d,
                  double                       step)
         {
-          AssertThrow(false, ExcNotImplemented());
-          (void)grp;
-          (void)d;
-          (void)step;
+          reset();
+
+          const auto grp_ = dynamic_cast<const Group *>(&grp);
+
+          Assert(grp_, ExcInternalError());
+
+          x.update(1.0, grp_->x, step, d);
         }
 
         NOX::Abstract::Group::ReturnType
@@ -276,6 +298,12 @@ namespace dealii
             }
 
           return NOX::Abstract::Group::Ok;
+        }
+
+        bool
+        isJacobian() const override
+        {
+          return is_valid_j;
         }
 
 
@@ -344,7 +372,10 @@ namespace dealii
             *x.vector, residual, setup_jacobian, solve_with_jacobian));
 
           if (copy_type == NOX::CopyType::DeepCopy)
-            new_group->is_valid_f = is_valid_f;
+            {
+              new_group->is_valid_f = is_valid_f;
+              new_group->is_valid_j = is_valid_j;
+            }
 
           return new_group;
         }
@@ -352,28 +383,36 @@ namespace dealii
         NOX::Abstract::Group::ReturnType
         computeNewton(Teuchos::ParameterList &p)
         {
-          AssertThrow(false, ExcNotImplemented());
+          (void)p; // TODO
 
-          (void)p;
+          if (isNewton())
+            return NOX::Abstract::Group::Ok;
 
-          return {};
-        }
+          Assert(isF(), ExcMessage("Residual has not been computed yet!"));
+          Assert(isJacobian(), ExcMessage("Jacobian has not been setup yet!"));
 
-        NOX::Abstract::Group::ReturnType
-        applyJacobianInverse(Teuchos::ParameterList &     params,
-                             const NOX::Abstract::Vector &input,
-                             NOX::Abstract::Vector &      result) const override
-        {
-          AssertThrow(false, ExcNotImplemented());
+          if (newton.vector == nullptr)
+            newton.vector = std::make_shared<VectorType>();
 
-          (void)params;
-          (void)input;
-          (void)result;
+          newton.vector->reinit(*f.vector, false);
 
-          return {};
+          solve_with_jacobian(*f.vector, *newton.vector);
+
+          // TODO: use status of linear solver
+
+          newton.scale(-1.0);
+
+          return NOX::Abstract::Group::Ok;
         }
 
       private:
+        void
+        reset()
+        {
+          is_valid_f = false;
+          is_valid_f = is_valid_j;
+        }
+
         Vector<VectorType> x, f, gradient, newton;
 
         std::function<void(const VectorType &, VectorType &)> residual;
@@ -445,5 +484,6 @@ main(int argc, char **argv)
 
   // solve
   const auto status = solver->solve();
-  AssertThrow(status == NOX::StatusTest::Converged, ExcNotImplemented());
+  AssertThrow(status == NOX::StatusTest::Converged,
+              ExcMessage("NOX did not converge!"));
 }
