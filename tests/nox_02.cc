@@ -426,7 +426,7 @@ namespace dealii
         reset()
         {
           is_valid_f = false;
-          is_valid_f = is_valid_j;
+          is_valid_j = false;
         }
 
         Vector<VectorType> x, f, gradient, newton;
