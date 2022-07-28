@@ -440,18 +440,25 @@ main(int argc, char **argv)
   const unsigned int n_max_iterations = 100;
   const double       abs_tolerance    = 1e-9;
 
+  // helper functions
   double J = 0.0;
 
-  std::function<void(const VectorType &, VectorType &)> residual =
-    [](const auto &src, auto &dst) { dst[0] = src[0] * src[0]; };
-  std::function<void(const VectorType &, const bool)> setup_jacobian =
-    [&](const auto &src, const auto) { J = 2.0 * src[0]; };
-  std::function<unsigned int(const VectorType &, VectorType &)>
-    solve_with_jacobian = [&](const auto &src, auto &dst) {
-      dst[0] = src[0] / J;
+  const auto residual = [](const auto &src, auto &dst) {
+    // compute residual
+    dst[0] = src[0] * src[0];
+  };
 
-      return 1;
-    };
+  const auto setup_jacobian = [&](const auto &src, const auto) {
+    // compute Jacobian
+    J = 2.0 * src[0];
+  };
+
+  const auto solve_with_jacobian = [&](const auto &src, auto &dst) {
+    // solve with Jacobian
+    dst[0] = src[0] / J;
+
+    return 1;
+  };
 
   // initial guess
   VectorType solution(1);
