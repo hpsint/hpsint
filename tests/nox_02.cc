@@ -405,6 +405,22 @@ namespace dealii
           return NOX::Abstract::Group::Ok;
         }
 
+        NOX::Abstract::Group::ReturnType
+        applyJacobian(const NOX::Abstract::Vector &input,
+                      NOX::Abstract::Vector &      result) const override
+        {
+          if (!isJacobian())
+            return NOX::Abstract::Group::BadDependency;
+
+          const auto *input_ = dynamic_cast<const Vector<VectorType> *>(&input);
+          const auto *result_ =
+            dynamic_cast<const Vector<VectorType> *>(&result);
+
+          solve_with_jacobian(*input_->vector, *result_->vector);
+
+          return NOX::Abstract::Group::Ok;
+        }
+
       private:
         void
         reset()
@@ -478,7 +494,7 @@ main(int argc, char **argv)
   dir_parameters.set("Method", "Newton");
 
   auto &search_parameters = non_linear_parameters->sublist("Line Search");
-  search_parameters.set("Method", "Full Step");
+  search_parameters.set("Method", "Polynomial");
 
   // setup solver control
   const auto solver_control_norm_f =
