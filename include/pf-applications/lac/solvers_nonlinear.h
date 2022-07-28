@@ -104,6 +104,9 @@ namespace NonLinearSolvers
 
     template <typename>
     friend class NewtonSolver;
+
+    template <typename>
+    friend class DampedNewtonSolver;
   };
 
 
@@ -113,17 +116,20 @@ namespace NonLinearSolvers
     NewtonSolverAdditionalData(const bool         do_update             = true,
                                const unsigned int threshold_newton_iter = 10,
                                const unsigned int threshold_linear_iter = 20,
-                               const bool         reuse_preconditioner  = true)
+                               const bool         reuse_preconditioner  = true,
+                               const bool         use_damping           = true)
       : do_update(do_update)
       , threshold_newton_iter(threshold_newton_iter)
       , threshold_linear_iter(threshold_linear_iter)
       , reuse_preconditioner(reuse_preconditioner)
+      , use_damping(use_damping)
     {}
 
     const bool         do_update;
     const unsigned int threshold_newton_iter;
     const unsigned int threshold_linear_iter;
     const bool         reuse_preconditioner;
+    const bool         use_damping;
   };
 
 
@@ -160,20 +166,44 @@ namespace NonLinearSolvers
   class NewtonSolver
   {
   public:
-    NewtonSolver(NewtonSolverSolverControl &       statistics,
-                 const NewtonSolverAdditionalData &solver_data_in =
-                   NewtonSolverAdditionalData())
+    virtual void
+    solve(VectorType &dst) const = 0;
+
+    virtual void
+    clear() const = 0;
+
+    std::function<void(VectorType &)>                     reinit_vector  = {};
+    std::function<void(const VectorType &, VectorType &)> residual       = {};
+    std::function<void(const VectorType &, const bool)>   setup_jacobian = {};
+    std::function<unsigned int(const VectorType &, VectorType &)>
+      solve_with_jacobian = {};
+    std::function<NewtonSolverSolverControl::State(const unsigned int,
+                                                   const double,
+                                                   const VectorType &,
+                                                   const VectorType &)>
+      check_iteration_status = {};
+  };
+
+
+
+  template <typename VectorType>
+  class DampedNewtonSolver : public NewtonSolver<VectorType>
+  {
+  public:
+    DampedNewtonSolver(NewtonSolverSolverControl &       statistics,
+                       const NewtonSolverAdditionalData &solver_data_in =
+                         NewtonSolverAdditionalData())
       : statistics(statistics)
       , solver_data(solver_data_in)
     {}
 
     void
-    solve(VectorType &dst) const
+    solve(VectorType &dst) const override
     {
       VectorType vec_residual, increment, tmp;
-      reinit_vector(vec_residual);
-      reinit_vector(increment);
-      reinit_vector(tmp);
+      this->reinit_vector(vec_residual);
+      this->reinit_vector(increment);
+      this->reinit_vector(tmp);
 
       if (this->solver_data.reuse_preconditioner == false)
         clear();
@@ -182,7 +212,7 @@ namespace NonLinearSolvers
       this->statistics.clear();
 
       // evaluate residual using the given estimate of the solution
-      residual(dst, vec_residual);
+      this->residual(dst, vec_residual);
       ++statistics.residual_evaluations;
 
       double   norm_r = vec_residual.l2_norm();
@@ -208,50 +238,69 @@ namespace NonLinearSolvers
             (history_linear_iterations_last >
              solver_data.threshold_linear_iter);
 
-          setup_jacobian(dst, solver_data.do_update && threshold_exceeded);
+          this->setup_jacobian(dst,
+                               solver_data.do_update && threshold_exceeded);
 
           history_linear_iterations_last =
-            solve_with_jacobian(vec_residual, increment);
+            this->solve_with_jacobian(vec_residual, increment);
 
           statistics.linear_iterations += history_linear_iterations_last;
 
-          // damped Newton scheme
-          const double tau =
-            0.1; // another parameter (has to be smaller than 1)
-          const unsigned int N_ITER_TMP_MAX =
-            100;                   // iteration counts for damping scheme
-          double omega      = 1.0; // damping factor
-          double norm_r_tmp = 1.0; // norm of residual using temporary solution
-          unsigned int n_iter_tmp = 0;
-
-          do
+          if (this->solver_data.use_damping)
             {
-              // calculate temporary solution
-              tmp = dst;
-              tmp.add(omega, increment);
+              // damped Newton scheme
+              const double tau =
+                0.1; // another parameter (has to be smaller than 1)
+              const unsigned int N_ITER_TMP_MAX =
+                100;              // iteration counts for damping scheme
+              double omega = 1.0; // damping factor
+              double norm_r_tmp =
+                1.0; // norm of residual using temporary solution
+              unsigned int n_iter_tmp = 0;
 
-              // evaluate residual using the temporary solution
-              residual(tmp, vec_residual);
+              do
+                {
+                  // calculate temporary solution
+                  tmp = dst;
+                  tmp.add(omega, increment);
+
+                  // evaluate residual using the temporary solution
+                  this->residual(tmp, vec_residual);
+                  ++statistics.residual_evaluations;
+
+                  // calculate norm of residual (for temporary solution)
+                  norm_r_tmp = vec_residual.l2_norm();
+
+                  // reduce step length
+                  omega = omega / 2.0;
+
+                  // increment counter
+                  n_iter_tmp++;
+                }
+              while (norm_r_tmp >= (1.0 - tau * omega) * norm_r &&
+                     n_iter_tmp < N_ITER_TMP_MAX);
+
+              AssertThrow(norm_r_tmp < (1.0 - tau * omega) * norm_r,
+                          ExcNewtonDidNotConverge("damping"));
+
+              // update solution and residual
+              dst    = tmp;
+              norm_r = norm_r_tmp;
+            }
+          else
+            {
+              // non-damped Newton scheme
+
+              // calculate temporary solution
+              dst.add(1.0, increment);
+
+              // evaluate residual
+              this->residual(dst, vec_residual);
               ++statistics.residual_evaluations;
 
-              // calculate norm of residual (for temporary solution)
-              norm_r_tmp = vec_residual.l2_norm();
-
-              // reduce step length
-              omega = omega / 2.0;
-
-              // increment counter
-              n_iter_tmp++;
+              // calculate norm of residual
+              norm_r = vec_residual.l2_norm();
             }
-          while (norm_r_tmp >= (1.0 - tau * omega) * norm_r &&
-                 n_iter_tmp < N_ITER_TMP_MAX);
-
-          AssertThrow(norm_r_tmp < (1.0 - tau * omega) * norm_r,
-                      ExcNewtonDidNotConverge("damping"));
-
-          // update solution and residual
-          dst    = tmp;
-          norm_r = norm_r_tmp;
 
           // increment iteration counter
           ++it;
@@ -263,23 +312,24 @@ namespace NonLinearSolvers
     }
 
     void
-    clear() const
+    clear() const override
     {
       history_linear_iterations_last = 0;
       history_newton_iterations      = 0;
     }
 
+  private:
     NewtonSolverSolverControl::State
     check(const unsigned int step,
           const double       check_value,
           const VectorType & x,
           const VectorType & r) const
     {
-      if (check_iteration_status == nullptr)
+      if (this->check_iteration_status == nullptr)
         return statistics.check(step, check_value, x, r);
 
       const auto state1 = statistics.check(step, check_value, x, r);
-      const auto state2 = check_iteration_status(step, check_value, x, r);
+      const auto state2 = this->check_iteration_status(step, check_value, x, r);
 
       if ((state1 == NewtonSolverSolverControl::failure) ||
           (state2 == NewtonSolverSolverControl::failure))
@@ -291,24 +341,10 @@ namespace NonLinearSolvers
         return NewtonSolverSolverControl::success;
     }
 
-
-  private:
     NewtonSolverSolverControl &      statistics;
     const NewtonSolverAdditionalData solver_data;
 
     mutable unsigned int history_linear_iterations_last = 0;
     mutable unsigned int history_newton_iterations      = 0;
-
-  public:
-    std::function<void(VectorType &)>                     reinit_vector  = {};
-    std::function<void(const VectorType &, VectorType &)> residual       = {};
-    std::function<void(const VectorType &, const bool)>   setup_jacobian = {};
-    std::function<unsigned int(const VectorType &, VectorType &)>
-      solve_with_jacobian = {};
-    std::function<NewtonSolverSolverControl::State(const unsigned int,
-                                                   const double,
-                                                   const VectorType &,
-                                                   const VectorType &)>
-      check_iteration_status = {};
   };
 } // namespace NonLinearSolvers
