@@ -440,15 +440,22 @@ main(int argc, char **argv)
   const unsigned int n_max_iterations = 100;
   const double       abs_tolerance    = 1e-9;
 
+  double J = 0.0;
+
   std::function<void(const VectorType &, VectorType &)> residual =
-    [](const auto &, auto &) {};
+    [](const auto &src, auto &dst) { dst[0] = src[0] * src[0]; };
   std::function<void(const VectorType &, const bool)> setup_jacobian =
-    [](const auto &, const auto) {};
+    [&](const auto &src, const auto) { J = 2.0 * src[0]; };
   std::function<unsigned int(const VectorType &, VectorType &)>
-    solve_with_jacobian = [](const auto &, auto &) { return 0; };
+    solve_with_jacobian = [&](const auto &src, auto &dst) {
+      dst[0] = src[0] / J;
+
+      return 1;
+    };
 
   // initial guess
-  VectorType solution;
+  VectorType solution(1);
+  solution[0] = 2.0;
 
   // create group
   const auto group = Teuchos::rcp(new internal::NOXWrapper::Group<VectorType>(
@@ -484,6 +491,9 @@ main(int argc, char **argv)
 
   // solve
   const auto status = solver->solve();
+
+  std::cout << solution[0] << std::endl;
+
   AssertThrow(status == NOX::StatusTest::Converged,
               ExcMessage("NOX did not converge!"));
 }
