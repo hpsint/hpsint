@@ -317,21 +317,24 @@ main(int argc, char **argv)
     Teuchos::rcp(new internal::NOXWrapper::Group<VectorType>(solution));
 
   // setup parameters
-  Teuchos::RCP<Teuchos::ParameterList> nlParamsPtr =
+  Teuchos::RCP<Teuchos::ParameterList> non_linear_parameters =
     Teuchos::rcp(new Teuchos::ParameterList);
 
   // setup solver control
-  const auto testNormF =
+  const auto solver_control_norm_f =
     Teuchos::rcp(new NOX::StatusTest::NormF(abs_tolerance));
 
-  const auto testMaxIters =
+  const auto solver_control_max_iterations =
     Teuchos::rcp(new NOX::StatusTest::MaxIters(n_max_iterations));
 
-  const auto combo = Teuchos::rcp(new NOX::StatusTest::Combo(
-    NOX::StatusTest::Combo::OR, testNormF, testMaxIters));
+  const auto combo =
+    Teuchos::rcp(new NOX::StatusTest::Combo(NOX::StatusTest::Combo::OR,
+                                            solver_control_norm_f,
+                                            solver_control_max_iterations));
 
   // create non-linear solver
-  const auto solver = NOX::Solver::buildSolver(group, combo, nlParamsPtr);
+  const auto solver =
+    NOX::Solver::buildSolver(group, combo, non_linear_parameters);
 
   // solve
   const auto status = solver->solve();
