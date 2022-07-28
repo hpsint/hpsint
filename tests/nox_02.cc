@@ -320,6 +320,14 @@ main(int argc, char **argv)
   Teuchos::RCP<Teuchos::ParameterList> non_linear_parameters =
     Teuchos::rcp(new Teuchos::ParameterList);
 
+  non_linear_parameters->set("Nonlinear Solver", "Line Search Based");
+
+  auto &dir_parameters = non_linear_parameters->sublist("Direction");
+  dir_parameters.set("Method", "Newton");
+
+  auto &search_parameters = non_linear_parameters->sublist("Line Search");
+  search_parameters.set("Method", "Quadratic");
+
   // setup solver control
   const auto solver_control_norm_f =
     Teuchos::rcp(new NOX::StatusTest::NormF(abs_tolerance));
