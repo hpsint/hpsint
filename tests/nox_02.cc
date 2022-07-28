@@ -343,7 +343,7 @@ main(int argc, char **argv)
   dir_parameters.set("Method", "Newton");
 
   auto &search_parameters = non_linear_parameters->sublist("Line Search");
-  search_parameters.set("Method", "Quadratic");
+  search_parameters.set("Method", "Full Step");
 
   // setup solver control
   const auto solver_control_norm_f =
