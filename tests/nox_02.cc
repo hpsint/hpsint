@@ -63,9 +63,16 @@ namespace dealii
         NOX::Abstract::Vector &
         operator=(const NOX::Abstract::Vector &y) override
         {
-          AssertThrow(false, ExcNotImplemented());
+          if (vector == nullptr)
+            vector = std::shared_ptr<VectorType>();
 
-          (void)y;
+          const auto y_ = dynamic_cast<const Vector<VectorType> *>(&y);
+
+          Assert(y_, ExcInternalError());
+
+          vector->reinit(*y_->vector);
+
+          *vector = *y_->vector;
 
           return *this;
         }
@@ -208,6 +215,7 @@ namespace dealii
           , setup_jacobian(setup_jacobian)
           , solve_with_jacobian(solve_with_jacobian)
           , is_valid_f(false)
+          , is_valid_j(false)
         {}
 
         NOX::Abstract::Group &
@@ -239,7 +247,7 @@ namespace dealii
         NOX::Abstract::Group::ReturnType
         computeF() override
         {
-          if (is_valid_f)
+          if (is_valid_f == false)
             {
               f.vector = std::make_shared<VectorType>();
               f.vector->reinit(*x.vector);
@@ -247,7 +255,6 @@ namespace dealii
               residual(*x.vector, *f.vector);
               is_valid_f = true;
             }
-
 
           return NOX::Abstract::Group::Ok;
         }
@@ -257,6 +264,20 @@ namespace dealii
         {
           return is_valid_f;
         }
+
+        NOX::Abstract::Group::ReturnType
+        computeJacobian() override
+        {
+          if (is_valid_j == false)
+            {
+              setup_jacobian(*x.vector, true);
+
+              is_valid_j = true;
+            }
+
+          return NOX::Abstract::Group::Ok;
+        }
+
 
         const NOX::Abstract::Vector &
         getX() const override
@@ -328,6 +349,30 @@ namespace dealii
           return new_group;
         }
 
+        NOX::Abstract::Group::ReturnType
+        computeNewton(Teuchos::ParameterList &p)
+        {
+          AssertThrow(false, ExcNotImplemented());
+
+          (void)p;
+
+          return {};
+        }
+
+        NOX::Abstract::Group::ReturnType
+        applyJacobianInverse(Teuchos::ParameterList &     params,
+                             const NOX::Abstract::Vector &input,
+                             NOX::Abstract::Vector &      result) const override
+        {
+          AssertThrow(false, ExcNotImplemented());
+
+          (void)params;
+          (void)input;
+          (void)result;
+
+          return {};
+        }
+
       private:
         Vector<VectorType> x, f, gradient, newton;
 
@@ -337,6 +382,7 @@ namespace dealii
           solve_with_jacobian;
 
         bool is_valid_f;
+        bool is_valid_j;
       };
 
     } // namespace NOXWrapper
