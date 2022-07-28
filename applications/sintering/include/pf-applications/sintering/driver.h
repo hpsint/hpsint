@@ -969,13 +969,23 @@ namespace Sintering
 
             nonlinear_operator.do_update();
 
-            if (true)
+            if (params.nonlinear_data.fdm_jacobian_approximation)
               {
                 AssertThrow(params.matrix_based, ExcNotImplemented());
 
-                const double epsilon = 1e-7;
+                const double epsilon   = 1e-7;
+                const double tolerance = 1e-12;
 
                 auto &system_matrix = nonlinear_operator.get_system_matrix();
+
+                const unsigned int n_blocks = current_u.n_blocks();
+
+                // for (unsigned int b = 0; b < n_blocks; ++b)
+                //  for (unsigned int i = 0; i < current_u.block(b).size(); ++i)
+                //    if(constraints.is_constrained (i))
+                //                system_matrix.set(b + i * n_blocks,
+                //                                  b + i * n_blocks,
+                //                                  1.0);
 
                 system_matrix = 0.0;
 
@@ -988,15 +998,8 @@ namespace Sintering
 
                 nonlinear_operator.evaluate_nonlinear_residual(dst_, src);
 
-                for (unsigned int b = 0; b < current_u.n_blocks(); ++b)
-                  dst_.block(b).print(std::cout);
-
-                exit(0);
-
                 const auto locally_owned_dofs =
                   dof_handler.locally_owned_dofs();
-
-                const unsigned int n_blocks = current_u.n_blocks();
 
                 for (unsigned int b = 0; b < n_blocks; ++b)
                   for (unsigned int i = 0; i < current_u.block(b).size(); ++i)
@@ -1015,25 +1018,25 @@ namespace Sintering
                              ++i_)
                           if (locally_owned_dofs.is_element(i_))
                             {
-                              const Number value =
-                                (dst.block(b_)[i_] - dst_.block(b_)[i_]) /
-                                epsilon;
+                              if (nonlinear_operator.get_sparsity_pattern()
+                                    .exists(b_ + i_ * n_blocks,
+                                            b + i * n_blocks))
+                                {
+                                  const Number value =
+                                    (dst.block(b_)[i_] - dst_.block(b_)[i_]) /
+                                    epsilon;
 
-                              if (value > 1e-12)
-                                system_matrix.set(b_ + i_ * n_blocks,
-                                                  b + i * n_blocks,
-                                                  value);
-                              else if ((b == b_) && (i == i_))
-                                system_matrix.set(b_ + i_ * n_blocks,
-                                                  b + i * n_blocks,
-                                                  1.0);
+                                  if (std::abs(value) > tolerance)
+                                    system_matrix.set(b_ + i_ * n_blocks,
+                                                      b + i * n_blocks,
+                                                      value);
+                                  else if ((b == b_) && (i == i_))
+                                    system_matrix.set(b_ + i_ * n_blocks,
+                                                      b + i * n_blocks,
+                                                      1.0);
+                                }
                             }
                     }
-
-                // system_matrix.compress(VectorOperation::add);
-
-
-                // nonlinear_operator.clear_system_matrix();
               }
           }
 

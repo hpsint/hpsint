@@ -223,6 +223,8 @@ namespace Sintering
 
     std::string nonlinear_solver_type = "damped";
 
+    bool fdm_jacobian_approximation = false;
+
     unsigned int verbosity = 1;
 
     NOXData nox_data;
@@ -685,6 +687,8 @@ namespace Sintering
                         "Type of the non-linear solver.",
                         Patterns::Selection("damped|NOX"));
 
+      prm.add_parameter("FDMJacobianApproximation",
+                        nonlinear_data.fdm_jacobian_approximation);
       prm.add_parameter("Verbosity", nonlinear_data.verbosity);
 
       prm.enter_subsection("NOXData");
