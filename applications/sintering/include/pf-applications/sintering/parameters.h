@@ -87,6 +87,8 @@ namespace Sintering
     bool                  regular              = true;
     bool                  contours             = true;
     unsigned int          n_coarsening_steps   = 0;
+    bool                  porosity             = false;
+    bool                  shrinkage            = false;
     bool                  debug                = false;
     bool                  higher_order_cells   = false;
     double                output_time_interval = 10;
@@ -360,6 +362,12 @@ namespace Sintering
       prm.add_parameter("ContourNCoarseningSteps",
                         output_data.n_coarsening_steps,
                         "Whether contour output is enabled.");
+      prm.add_parameter("Porosity",
+                        output_data.porosity,
+                        "Determine porosity.");
+      prm.add_parameter("Shrinkage",
+                        output_data.shrinkage,
+                        "Determine shrinkage.");
       prm.add_parameter("Debug",
                         output_data.debug,
                         "Whether debug output is enabled.");

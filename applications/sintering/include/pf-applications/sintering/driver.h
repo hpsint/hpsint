@@ -1404,6 +1404,36 @@ namespace Sintering
             params.output_data.n_coarsening_steps);
         }
 
+      if (params.output_data.porosity || label != "solution")
+        {
+          std::string output = params.output_data.vtk_path + "/porosity_" +
+                               label + "." + std::to_string(counters[label]) +
+                               ".vtu";
+
+          pcout << "Outputing data at t = " << t << " (" << output << ")"
+                << std::endl;
+
+          Postprocessors::estimate_porosity(mapping,
+                                            dof_handler,
+                                            solution,
+                                            output);
+        }
+
+      if (params.output_data.shrinkage || label != "solution")
+        {
+          std::string output = params.output_data.vtk_path + "/shrinkage_" +
+                               label + "." + std::to_string(counters[label]) +
+                               ".vtu";
+
+          pcout << "Outputing data at t = " << t << " (" << output << ")"
+                << std::endl;
+
+          Postprocessors::estimate_shrinkage(mapping,
+                                             dof_handler,
+                                             solution,
+                                             output);
+        }
+
       counters[label]++;
     };
   };

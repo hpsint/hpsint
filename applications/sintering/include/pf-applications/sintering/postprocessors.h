@@ -1,8 +1,12 @@
 #pragma once
 
+#include <deal.II/base/geometry_info.h>
+
 #include <deal.II/grid/grid_tools.h>
 
 #include <deal.II/numerics/data_out.h>
+
+#include <pf-applications/grain_tracker/distributed_stitching.h>
 
 namespace dealii
 {
@@ -366,6 +370,319 @@ namespace Sintering
                               100)
             << "%" << std::endl
             << std::endl;
+    }
+
+
+
+    namespace internal
+    {
+      template <int dim, typename BlockVectorType, typename Number>
+      unsigned int
+      run_flooding(const typename DoFHandler<dim>::cell_iterator &cell,
+                   const BlockVectorType &                        solution,
+                   LinearAlgebra::distributed::Vector<Number> &   particle_ids,
+                   const unsigned int                             id)
+      {
+        const double threshold_lower     = 0.8;  // TODO
+        const double invalid_particle_id = -1.0; // TODO
+
+        if (cell->has_children())
+          {
+            unsigned int counter = 0;
+
+            for (const auto &child : cell->child_iterators())
+              counter += run_flooding<dim>(child, solution, particle_ids, id);
+
+            return counter;
+          }
+
+        if (cell->is_locally_owned() == false)
+          return 0;
+
+        const auto particle_id = particle_ids[cell->global_active_cell_index()];
+
+        if (particle_id != invalid_particle_id)
+          return 0; // cell has been visited
+
+        Vector<double> values(cell->get_fe().n_dofs_per_cell());
+
+        if (false /* TODO */)
+          {
+            for (unsigned int b = 2; b < solution.n_blocks(); ++b)
+              {
+                cell->get_dof_values(solution.block(b), values);
+
+                if (values.linfty_norm() >= threshold_lower)
+                  return 0;
+              }
+          }
+        else
+          {
+            cell->get_dof_values(solution.block(0), values);
+
+            if (values.linfty_norm() >= threshold_lower)
+              return 0;
+          }
+
+        particle_ids[cell->global_active_cell_index()] = id;
+
+        unsigned int counter = 1;
+
+        for (const auto face : cell->face_indices())
+          if (cell->at_boundary(face) == false)
+            counter += run_flooding<dim>(cell->neighbor(face),
+                                         solution,
+                                         particle_ids,
+                                         id);
+
+        return counter;
+      }
+    } // namespace internal
+
+    template <int dim, typename VectorType>
+    void
+    estimate_porosity(const Mapping<dim> &   mapping,
+                      const DoFHandler<dim> &dof_handler,
+                      const VectorType &     solution,
+                      const std::string      output)
+    {
+      const double invalid_particle_id = -1.0; // TODO
+
+      const auto tria = dynamic_cast<const parallel::TriangulationBase<dim> *>(
+        &dof_handler.get_triangulation());
+
+      AssertThrow(tria, ExcNotImplemented());
+
+      const auto comm = dof_handler.get_communicator();
+
+      LinearAlgebra::distributed::Vector<double> particle_ids(
+        tria->global_active_cell_index_partitioner().lock());
+
+      // step 1) run flooding and determine local particles and give them
+      // local ids
+      particle_ids = invalid_particle_id;
+
+      unsigned int counter = 0;
+      unsigned int offset  = 0;
+
+      for (const auto &cell : dof_handler.active_cell_iterators())
+        if (internal::run_flooding<dim>(cell, solution, particle_ids, counter) >
+            0)
+          counter++;
+
+      // step 2) determine the global number of locally determined particles
+      // and give each one an unique id by shifting the ids
+      MPI_Exscan(&counter, &offset, 1, MPI_UNSIGNED, MPI_SUM, comm);
+
+      for (auto &particle_id : particle_ids)
+        if (particle_id != invalid_particle_id)
+          particle_id += offset;
+
+      // step 3) get particle ids on ghost cells and figure out if local
+      // particles and ghost particles might be one particle
+      particle_ids.update_ghost_values();
+
+      std::vector<std::vector<std::tuple<unsigned int, unsigned int>>>
+        local_connectiviy(counter);
+
+      for (const auto &ghost_cell :
+           dof_handler.get_triangulation().active_cell_iterators())
+        if (ghost_cell->is_ghost())
+          {
+            const auto particle_id =
+              particle_ids[ghost_cell->global_active_cell_index()];
+
+            if (particle_id == invalid_particle_id)
+              continue;
+
+            for (const auto face : ghost_cell->face_indices())
+              {
+                if (ghost_cell->at_boundary(face))
+                  continue;
+
+                const auto add = [&](const auto &ghost_cell,
+                                     const auto &local_cell) {
+                  if (local_cell->is_locally_owned() == false)
+                    return;
+
+                  const auto neighbor_particle_id =
+                    particle_ids[local_cell->global_active_cell_index()];
+
+                  if (neighbor_particle_id == invalid_particle_id)
+                    return;
+
+                  auto &temp = local_connectiviy[neighbor_particle_id - offset];
+                  temp.emplace_back(ghost_cell->subdomain_id(), particle_id);
+                  std::sort(temp.begin(), temp.end());
+                  temp.erase(std::unique(temp.begin(), temp.end()), temp.end());
+                };
+
+                if (ghost_cell->neighbor(face)->has_children())
+                  {
+                    for (unsigned int subface = 0;
+                         subface <
+                         GeometryInfo<dim>::n_subfaces(
+                           dealii::internal::SubfaceCase<dim>::case_isotropic);
+                         ++subface)
+                      add(ghost_cell,
+                          ghost_cell->neighbor_child_on_subface(face, subface));
+                  }
+                else
+                  add(ghost_cell, ghost_cell->neighbor(face));
+              }
+          }
+
+      // step 4) based on the local-ghost information, figure out all
+      // particles on all processes that belong togher (unification ->
+      // clique), give each clique an unique id, and return mapping from the
+      // global non-unique ids to the global ids
+      const auto local_to_global_particle_ids =
+        GrainTracker::perform_distributed_stitching(comm, local_connectiviy);
+
+      Vector<double> cell_to_id(tria->n_active_cells());
+
+      for (const auto &cell :
+           dof_handler.get_triangulation().active_cell_iterators())
+        if (cell->is_locally_owned())
+          {
+            const auto particle_id =
+              particle_ids[cell->global_active_cell_index()];
+
+            if (particle_id == invalid_particle_id)
+              cell_to_id[cell->active_cell_index()] = invalid_particle_id;
+            else
+              cell_to_id[cell->active_cell_index()] =
+                local_to_global_particle_ids
+                  [static_cast<unsigned int>(particle_id) - offset];
+          }
+
+      DataOut<dim> data_out;
+
+      const auto next_cell = [&](const auto &, const auto cell_in) {
+        auto cell = cell_in;
+        cell++;
+
+        while (cell != tria->end())
+          {
+            if (cell->is_active() && cell->is_locally_owned() &&
+                cell_to_id[cell->active_cell_index()] != invalid_particle_id)
+              break;
+
+            ++cell;
+          }
+
+        return cell;
+      };
+
+      const auto first_cell = [&](const auto &tria) {
+        return next_cell(tria, tria.begin());
+      };
+
+      data_out.set_cell_selection(first_cell, next_cell);
+
+      data_out.attach_triangulation(dof_handler.get_triangulation());
+      data_out.add_data_vector(cell_to_id, "ids");
+      data_out.build_patches(mapping);
+      data_out.write_vtu_in_parallel(output, dof_handler.get_communicator());
+    }
+
+
+
+    template <int dim, typename VectorType>
+    BoundingBox<dim, typename VectorType::value_type>
+    estimate_shrinkage(const Mapping<dim> &   mapping,
+                       const DoFHandler<dim> &dof_handler,
+                       const VectorType &     solution)
+    {
+      FEValues<dim> fe_values(mapping,
+                              dof_handler.get_fe(),
+                              dof_handler.get_fe().get_unit_support_points(),
+                              update_quadrature_points);
+
+      const auto bb_tria = dealii::GridTools::compute_bounding_box(
+        dof_handler.get_triangulation());
+
+      std::vector<typename VectorType::value_type> min_values(dim);
+      std::vector<typename VectorType::value_type> max_values(dim);
+
+      for (unsigned int d = 0; d < dim; ++d)
+        {
+          min_values[d] = bb_tria.get_boundary_points().second[d];
+          max_values[d] = bb_tria.get_boundary_points().first[d];
+        }
+
+      Vector<typename VectorType::value_type> values;
+
+      const bool has_ghost_elements = solution.has_ghost_elements();
+
+      if (has_ghost_elements == false)
+        solution.update_ghost_values();
+
+      for (const auto &cell : dof_handler.active_cell_iterators())
+        {
+          if (cell->is_locally_owned() == false)
+            continue;
+
+          fe_values.reinit(cell);
+
+          values.reinit(fe_values.dofs_per_cell);
+
+          cell->get_dof_values(solution.block(0), values);
+
+          for (const auto q : fe_values.quadrature_point_indices())
+            if (values[q] > 0.1 /*TODO*/)
+              for (unsigned int d = 0; d < dim; ++d)
+                {
+                  min_values[d] =
+                    std::min(min_values[d], fe_values.quadrature_point(q)[d]);
+                  max_values[d] =
+                    std::max(max_values[d], fe_values.quadrature_point(q)[d]);
+                }
+        }
+
+      if (has_ghost_elements == false)
+        solution.zero_out_ghost_values();
+
+      Utilities::MPI::min(min_values,
+                          dof_handler.get_communicator(),
+                          min_values);
+      Utilities::MPI::max(max_values,
+                          dof_handler.get_communicator(),
+                          max_values);
+
+      Point<dim> left_bb, right_bb;
+
+      for (unsigned int d = 0; d < dim; ++d)
+        {
+          left_bb[d]  = min_values[d];
+          right_bb[d] = max_values[d];
+        }
+
+      BoundingBox<dim, typename VectorType::value_type> bb({left_bb, right_bb});
+
+      return bb;
+    }
+
+
+
+    template <int dim, typename VectorType>
+    void
+    estimate_shrinkage(const Mapping<dim> &   mapping,
+                       const DoFHandler<dim> &dof_handler,
+                       const VectorType &     solution,
+                       const std::string      output)
+    {
+      const auto bb = estimate_shrinkage(mapping, dof_handler, solution);
+
+      Triangulation<dim> tria;
+      GridGenerator::hyper_rectangle(tria,
+                                     bb.get_boundary_points().first,
+                                     bb.get_boundary_points().second);
+
+      DataOut<dim> data_out;
+      data_out.attach_triangulation(tria);
+      data_out.build_patches(mapping);
+      data_out.write_vtu_in_parallel(output, dof_handler.get_communicator());
     }
 
   } // namespace Postprocessors
