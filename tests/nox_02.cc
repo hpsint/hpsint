@@ -196,8 +196,18 @@ namespace dealii
       class Group : public NOX::Abstract::Group
       {
       public:
-        Group(VectorType &solution)
+        Group(
+          VectorType &                                                 solution,
+          const std::function<void(const VectorType &, VectorType &)> &residual,
+          const std::function<void(const VectorType &, const bool)>
+            &setup_jacobian,
+          const std::function<unsigned int(const VectorType &, VectorType &)>
+            &solve_with_jacobian)
           : x(solution)
+          , residual(residual)
+          , setup_jacobian(setup_jacobian)
+          , solve_with_jacobian(solve_with_jacobian)
+          , is_valid_f(false)
         {}
 
         NOX::Abstract::Group &
@@ -229,15 +239,23 @@ namespace dealii
         NOX::Abstract::Group::ReturnType
         computeF() override
         {
-          AssertThrow(false, ExcNotImplemented());
-          return {};
+          if (is_valid_f)
+            {
+              f.vector = std::make_shared<VectorType>();
+              f.vector->reinit(*x.vector);
+
+              residual(*x.vector, *f.vector);
+              is_valid_f = true;
+            }
+
+
+          return NOX::Abstract::Group::Ok;
         }
 
         bool
         isF() const override
         {
-          AssertThrow(false, ExcNotImplemented());
-          return {};
+          return is_valid_f;
         }
 
         const NOX::Abstract::Vector &
@@ -301,13 +319,24 @@ namespace dealii
         Teuchos::RCP<NOX::Abstract::Group>
         clone(NOX::CopyType copy_type) const override
         {
-          (void)copy_type; // don't care?
+          auto new_group = Teuchos::rcp(new Group<VectorType>(
+            *x.vector, residual, setup_jacobian, solve_with_jacobian));
 
-          return Teuchos::rcp(new Group(*x.vector));
+          if (copy_type == NOX::CopyType::DeepCopy)
+            new_group->is_valid_f = is_valid_f;
+
+          return new_group;
         }
 
       private:
         Vector<VectorType> x, f, gradient, newton;
+
+        std::function<void(const VectorType &, VectorType &)> residual;
+        std::function<void(const VectorType &, const bool)>   setup_jacobian;
+        std::function<unsigned int(const VectorType &, VectorType &)>
+          solve_with_jacobian;
+
+        bool is_valid_f;
       };
 
     } // namespace NOXWrapper
@@ -326,12 +355,19 @@ main(int argc, char **argv)
   const unsigned int n_max_iterations = 100;
   const double       abs_tolerance    = 1e-9;
 
+  std::function<void(const VectorType &, VectorType &)> residual =
+    [](const auto &, auto &) {};
+  std::function<void(const VectorType &, const bool)> setup_jacobian =
+    [](const auto &, const auto) {};
+  std::function<unsigned int(const VectorType &, VectorType &)>
+    solve_with_jacobian = [](const auto &, auto &) { return 0; };
+
   // initial guess
   VectorType solution;
 
   // create group
-  const auto group =
-    Teuchos::rcp(new internal::NOXWrapper::Group<VectorType>(solution));
+  const auto group = Teuchos::rcp(new internal::NOXWrapper::Group<VectorType>(
+    solution, residual, setup_jacobian, solve_with_jacobian));
 
   // setup parameters
   Teuchos::RCP<Teuchos::ParameterList> non_linear_parameters =
