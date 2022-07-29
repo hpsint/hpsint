@@ -175,7 +175,11 @@ namespace Sintering
       (void)etas_grad;
 
       // The reference remains here for compatibility with the previous version
-      const VectorizedArrayType &cl = c;
+      //const VectorizedArrayType &cl = c;
+      VectorizedArrayType cl = c;
+      std::for_each(cl.begin(), cl.end(), [](auto &val) {
+        val = val > 1.0 ? 1.0 : (val < 0.0 ? 0.0 : val);
+      });
 
       VectorizedArrayType etaijSum = 0.0;
       for (const auto &etai : etas)
@@ -196,7 +200,9 @@ namespace Sintering
       });
 
       VectorizedArrayType M = Mvol * phi + Mvap * (1.0 - phi) +
-                              Msurf * 4.0 * cl * cl * (1.0 - cl) * (1.0 - cl) +
+                              //Msurf * 4.0 * cl * cl * (1.0 - cl) * (1.0 - cl) +
+                              //Msurf * cl * cl * (1.0 - cl * cl) +
+                              Msurf * cl * (1.0 - cl) +
                               Mgb * etaijSum;
 
       return M;
@@ -220,12 +226,18 @@ namespace Sintering
       (void)etas_grad;
 
       // The reference remains here for compatibility with the previous version
-      const VectorizedArrayType &cl = c;
+      //const VectorizedArrayType &cl = c;
+      VectorizedArrayType cl = c;
+      std::for_each(cl.begin(), cl.end(), [](auto &val) {
+        val = val > 1.0 ? 1.0 : (val < 0.0 ? 0.0 : val);
+      });
 
       VectorizedArrayType dphidc = 30.0 * cl * cl * (1.0 - 2.0 * cl + cl * cl);
       VectorizedArrayType dMdc =
         Mvol * dphidc - Mvap * dphidc +
-        Msurf * 8.0 * cl * (1.0 - 3.0 * cl + 2.0 * cl * cl);
+        //Msurf * 8.0 * cl * (1.0 - 3.0 * cl + 2.0 * cl * cl);
+        //Msurf * 2.0 * cl * (1.0 - 2.0 * cl * cl);
+        Msurf * (1.0 - 2.0 * cl);
 
       return dMdc;
     }
