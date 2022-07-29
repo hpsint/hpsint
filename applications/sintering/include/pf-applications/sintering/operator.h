@@ -92,6 +92,62 @@ namespace Sintering
     double Mgb;
 
   public:
+    /**
+     * Computes scalar mobility as a sum of 4 components:
+     *   - volumetric (bulk) diffusion,
+     *   - vaporization diffusion,
+     *   - surface diffusion,
+     *   - grain-boundary diffusion.
+     *
+     * Three options are available for the scalar surface diffusion mobility:
+     * @f[
+     *   M_{surf1} = c (1-c)
+     * @f]
+     * and
+     * @f[
+     *   M_{surf2} = c^2 (1-c^2),
+     * @f]
+     * and
+     * @f[
+     *   M_{surf3} = 4 c^2 (1-c)^2,
+     * @f]
+     * where $c$ is the concentration. The first option was implemented at the
+     * beginning. However, it turned out that this term significantly worsens
+     * the convergence of nonlinear Newton iterations. The residual of CH block
+     * converges slowly leading to a large number of iterations within the
+     * timestep and that limits the growth of $\Delta t$. Surprisingly, this
+     * issue does not emerge if the tangent matrix of the system is computed
+     * with finite differences. Probably, this strange behavior is provoked by
+     * the following bounding of $c$ appearing earlier in the code:
+     * @f[
+     *   0 \leq < c \leq 1.
+     * @f]
+     * This restriction is essential for this mobility term since it ensures
+     * that $M_{surf} \geq 0$ always. It is possible to observe in numerical
+     * simulations that once this condition is violated, the solution diverges
+     * quite fast, so it is hardly possible to get rid of it.
+     *
+     * The second option renders a significantly better behavior: the analytical
+     * tangent seems to be much better in comparison to the first option.
+     * Iterations of nonlinear solver converge much faster and, in general, the
+     * convergence observed in the numerical experiments agrees perfectly with
+     * the one obtained by using the tangent computed with finite differences.
+     * Furthermore, this mobility term, disticntly from the first option, does
+     * not break simulations if $c<0$: in such a situation the mobility term
+     * still remains positive. This allows one to use a relaxed bounding:
+     * @f[
+     *   c \leq 1.
+     * @f]
+     *
+     * The third option is not sensitive to the issues of $c$ being $<0$ or
+     * $>1$, however it is less a studied function that has never appeared in
+     * literature before. Due to the form of the function, it requires a scalar
+     * prefactor 4 to achieve dynamics comparable with the other two variants.
+     *
+     * Due to these reasons, the third second option is now implemented in the
+     * code. The checks for $0 \leq < c \leq 1$, previously existing, have been
+     * removed from the code.
+     */
     MobilityScalar(const double Mvol,
                    const double Mvap,
                    const double Msurf,
@@ -118,10 +174,8 @@ namespace Sintering
       (void)c_grad;
       (void)etas_grad;
 
-      VectorizedArrayType cl = c;
-      std::for_each(cl.begin(), cl.end(), [](auto &val) {
-        val = val > 1.0 ? 1.0 : (val < 0.0 ? 0.0 : val);
-      });
+      // The reference remains here for compatibility with the previous version
+      const VectorizedArrayType &cl = c;
 
       VectorizedArrayType etaijSum = 0.0;
       for (const auto &etai : etas)
@@ -142,7 +196,8 @@ namespace Sintering
       });
 
       VectorizedArrayType M = Mvol * phi + Mvap * (1.0 - phi) +
-                              Msurf * cl * (1.0 - cl) + Mgb * etaijSum;
+                              Msurf * 4.0 * cl * cl * (1.0 - cl) * (1.0 - cl) +
+                              Mgb * etaijSum;
 
       return M;
     }
@@ -164,14 +219,13 @@ namespace Sintering
       (void)c_grad;
       (void)etas_grad;
 
-      VectorizedArrayType cl = c;
-      std::for_each(cl.begin(), cl.end(), [](auto &val) {
-        val = val > 1.0 ? 1.0 : (val < 0.0 ? 0.0 : val);
-      });
+      // The reference remains here for compatibility with the previous version
+      const VectorizedArrayType &cl = c;
 
       VectorizedArrayType dphidc = 30.0 * cl * cl * (1.0 - 2.0 * cl + cl * cl);
       VectorizedArrayType dMdc =
-        Mvol * dphidc - Mvap * dphidc + Msurf * (1.0 - 2.0 * cl);
+        Mvol * dphidc - Mvap * dphidc +
+        Msurf * 8.0 * cl * (1.0 - 3.0 * cl + 2.0 * cl * cl);
 
       return dMdc;
     }
