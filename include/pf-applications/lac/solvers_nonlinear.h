@@ -598,10 +598,53 @@ namespace dealii
 
               Assert(other, ExcInternalError());
 
-              this->x.vector        = other->x.vector;
-              this->f.vector        = other->f.vector;
-              this->gradient.vector = other->gradient.vector;
-              this->newton.vector   = other->newton.vector;
+              if (other->x.vector)
+                {
+                  if (this->x.vector == nullptr)
+                    this->x.vector = std::make_shared<VectorType>();
+
+                  *this->x.vector = *other->x.vector;
+                }
+              else
+                {
+                  this->x.vector = {};
+                }
+
+              if (other->f.vector)
+                {
+                  if (this->f.vector == nullptr)
+                    this->f.vector = std::make_shared<VectorType>();
+
+                  *this->f.vector = *other->x.vector;
+                }
+              else
+                {
+                  this->f.vector = {};
+                }
+
+              if (other->gradient.vector)
+                {
+                  if (this->gradient.vector == nullptr)
+                    this->gradient.vector = std::make_shared<VectorType>();
+
+                  *this->gradient.vector = *other->gradient.vector;
+                }
+              else
+                {
+                  this->gradient.vector = {};
+                }
+
+              if (other->newton.vector)
+                {
+                  if (this->newton.vector == nullptr)
+                    this->newton.vector = std::make_shared<VectorType>();
+
+                  *this->newton.vector = *other->newton.vector;
+                }
+              else
+                {
+                  this->newton.vector = {};
+                }
 
               this->residual            = other->residual;
               this->setup_jacobian      = other->setup_jacobian;
@@ -741,8 +784,44 @@ namespace dealii
           auto new_group = Teuchos::rcp(new Group<VectorType>(
             *x.vector, residual, setup_jacobian, solve_with_jacobian));
 
+          if (x.vector)
+            {
+              new_group->x.vector = std::make_shared<VectorType>();
+              new_group->x.vector->reinit(*x.vector);
+            }
+
+          if (f.vector)
+            {
+              new_group->f.vector = std::make_shared<VectorType>();
+              new_group->f.vector->reinit(*f.vector);
+            }
+
+          if (gradient.vector)
+            {
+              new_group->gradient.vector = std::make_shared<VectorType>();
+              new_group->gradient.vector->reinit(*gradient.vector);
+            }
+
+          if (newton.vector)
+            {
+              new_group->newton.vector = std::make_shared<VectorType>();
+              new_group->newton.vector->reinit(*newton.vector);
+            }
+
           if (copy_type == NOX::CopyType::DeepCopy)
             {
+              if (x.vector)
+                *new_group->x.vector = *x.vector;
+
+              if (f.vector)
+                *new_group->f.vector = *f.vector;
+
+              if (gradient.vector)
+                *new_group->gradient.vector = *gradient.vector;
+
+              if (newton.vector)
+                *new_group->newton.vector = *newton.vector;
+
               new_group->is_valid_f = is_valid_f;
               new_group->is_valid_j = is_valid_j;
             }

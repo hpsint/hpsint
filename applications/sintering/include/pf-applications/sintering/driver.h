@@ -614,7 +614,7 @@ namespace Sintering
 
           auto &search_parameters =
             non_linear_parameters->sublist("Line Search");
-          search_parameters.set("Method", "Polynomial");
+          search_parameters.set("Method", "Full Step");
 
           non_linear_solver =
             std::make_unique<NonLinearSolvers::NOXSolver<VectorType>>(
