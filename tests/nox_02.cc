@@ -458,9 +458,57 @@ namespace NonLinearSolvers
     {}
 
     void
-    solve(VectorType &dst) const override
+    solve(VectorType &solution) const override
     {
-      (void)dst;
+      // some parameters
+      const unsigned int n_max_iterations = 100;
+      const double       abs_tolerance    = 1e-9;
+      const double       rel_tolerance    = 1e-3;
+
+      // create group
+      const auto group = Teuchos::rcp(
+        new internal::NOXWrapper::Group<VectorType>(solution,
+                                                    this->residual,
+                                                    this->setup_jacobian,
+                                                    this->solve_with_jacobian));
+
+      // setup parameters
+      Teuchos::RCP<Teuchos::ParameterList> non_linear_parameters =
+        Teuchos::rcp(new Teuchos::ParameterList);
+
+      non_linear_parameters->set("Nonlinear Solver", "Line Search Based");
+
+      auto &dir_parameters = non_linear_parameters->sublist("Direction");
+      dir_parameters.set("Method", "Newton");
+
+      auto &search_parameters = non_linear_parameters->sublist("Line Search");
+      search_parameters.set("Method", "Polynomial");
+
+      // setup solver control
+      const auto solver_control_norm_f_abs =
+        Teuchos::rcp(new NOX::StatusTest::NormF(abs_tolerance));
+
+      const auto solver_control_norm_f_rel =
+        Teuchos::rcp(new NOX::StatusTest::RelativeNormF(rel_tolerance));
+
+      const auto solver_control_max_iterations =
+        Teuchos::rcp(new NOX::StatusTest::MaxIters(n_max_iterations));
+
+      auto combo =
+        Teuchos::rcp(new NOX::StatusTest::Combo(NOX::StatusTest::Combo::OR));
+      combo->addStatusTest(solver_control_norm_f_abs);
+      combo->addStatusTest(solver_control_norm_f_rel);
+      combo->addStatusTest(solver_control_max_iterations);
+
+      // create non-linear solver
+      const auto solver =
+        NOX::Solver::buildSolver(group, combo, non_linear_parameters);
+
+      // solve
+      const auto status = solver->solve();
+
+      AssertThrow(status == NOX::StatusTest::Converged,
+                  ExcMessage("NOX did not converge!"));
     }
 
     void
@@ -482,25 +530,30 @@ main(int argc, char **argv)
   using Number     = double;
   using VectorType = LinearAlgebra::distributed::Vector<Number>;
 
-  // some parameters
   const unsigned int n_max_iterations = 100;
   const double       abs_tolerance    = 1e-9;
   const double       rel_tolerance    = 1e-3;
 
+  NonLinearSolvers::NewtonSolverSolverControl statistics(n_max_iterations,
+                                                         abs_tolerance,
+                                                         rel_tolerance);
+
+  NonLinearSolvers::NOXSolver<VectorType> solver(statistics);
+
   // helper functions
   double J = 0.0;
 
-  const auto residual = [](const auto &src, auto &dst) {
+  solver.residual = [](const auto &src, auto &dst) {
     // compute residual
     dst[0] = src[0] * src[0];
   };
 
-  const auto setup_jacobian = [&](const auto &src, const auto) {
+  solver.setup_jacobian = [&](const auto &src, const auto) {
     // compute Jacobian
     J = 2.0 * src[0];
   };
 
-  const auto solve_with_jacobian = [&](const auto &src, auto &dst) {
+  solver.solve_with_jacobian = [&](const auto &src, auto &dst) {
     // solve with Jacobian
     dst[0] = src[0] / J;
 
@@ -511,47 +564,5 @@ main(int argc, char **argv)
   VectorType solution(1);
   solution[0] = 2.0;
 
-  // create group
-  const auto group = Teuchos::rcp(new internal::NOXWrapper::Group<VectorType>(
-    solution, residual, setup_jacobian, solve_with_jacobian));
-
-  // setup parameters
-  Teuchos::RCP<Teuchos::ParameterList> non_linear_parameters =
-    Teuchos::rcp(new Teuchos::ParameterList);
-
-  non_linear_parameters->set("Nonlinear Solver", "Line Search Based");
-
-  auto &dir_parameters = non_linear_parameters->sublist("Direction");
-  dir_parameters.set("Method", "Newton");
-
-  auto &search_parameters = non_linear_parameters->sublist("Line Search");
-  search_parameters.set("Method", "Polynomial");
-
-  // setup solver control
-  const auto solver_control_norm_f_abs =
-    Teuchos::rcp(new NOX::StatusTest::NormF(abs_tolerance));
-
-  const auto solver_control_norm_f_rel =
-    Teuchos::rcp(new NOX::StatusTest::RelativeNormF(rel_tolerance));
-
-  const auto solver_control_max_iterations =
-    Teuchos::rcp(new NOX::StatusTest::MaxIters(n_max_iterations));
-
-  auto combo =
-    Teuchos::rcp(new NOX::StatusTest::Combo(NOX::StatusTest::Combo::OR));
-  combo->addStatusTest(solver_control_norm_f_abs);
-  combo->addStatusTest(solver_control_norm_f_rel);
-  combo->addStatusTest(solver_control_max_iterations);
-
-  // create non-linear solver
-  const auto solver =
-    NOX::Solver::buildSolver(group, combo, non_linear_parameters);
-
-  // solve
-  const auto status = solver->solve();
-
-  std::cout << solution[0] << std::endl;
-
-  AssertThrow(status == NOX::StatusTest::Converged,
-              ExcMessage("NOX did not converge!"));
+  solver.solve(solution);
 }
