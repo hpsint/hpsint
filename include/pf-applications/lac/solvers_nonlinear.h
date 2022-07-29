@@ -905,14 +905,20 @@ namespace NonLinearSolvers
   {
   public:
     NOXSolver(NewtonSolverSolverControl &                 statistics,
-              const Teuchos::RCP<Teuchos::ParameterList> &non_linear_parameters)
+              const Teuchos::RCP<Teuchos::ParameterList> &non_linear_parameters,
+              const NewtonSolverAdditionalData &          solver_data_in =
+                NewtonSolverAdditionalData())
       : statistics(statistics)
       , non_linear_parameters(non_linear_parameters)
+      , solver_data(solver_data_in)
     {}
 
     void
     solve(VectorType &solution) const override
     {
+      if (this->solver_data.reuse_preconditioner == false)
+        clear();
+
       unsigned int linear_iterations    = 0;
       unsigned int residual_evaluations = 0;
 
@@ -924,13 +930,21 @@ namespace NonLinearSolvers
             residual_evaluations++;
             this->residual(src, dst);
           },
-          [&](const VectorType &src, const bool flag) {
-            this->setup_jacobian(src, flag);
+          [&](const VectorType &src, const bool /*flag*/) {
+            const bool threshold_exceeded =
+              (history_newton_iterations % solver_data.threshold_newton_iter ==
+               0) ||
+              (history_linear_iterations_last >
+               solver_data.threshold_linear_iter);
+
+            this->setup_jacobian(src,
+                                 solver_data.do_update && threshold_exceeded);
           },
           [&](const VectorType &src, VectorType &dst) -> unsigned int {
-            linear_iterations += this->solve_with_jacobian(src, dst);
-
-            return 0;
+            history_linear_iterations_last =
+              this->solve_with_jacobian(src, dst);
+            linear_iterations += history_linear_iterations_last;
+            return 0; // dummy value
           }));
 
       // setup solver control
@@ -959,6 +973,7 @@ namespace NonLinearSolvers
       AssertThrow(status == NOX::StatusTest::Converged,
                   ExcNewtonDidNotConverge("Newton"));
 
+      history_newton_iterations       = solver->getNumIterations();
       statistics.newton_iterations    = solver->getNumIterations();
       statistics.linear_iterations    = linear_iterations;
       statistics.residual_evaluations = residual_evaluations;
@@ -966,10 +981,17 @@ namespace NonLinearSolvers
 
     void
     clear() const override
-    {}
+    {
+      history_linear_iterations_last = 0;
+      history_newton_iterations      = 0;
+    }
 
   private:
     NewtonSolverSolverControl &                statistics;
     const Teuchos::RCP<Teuchos::ParameterList> non_linear_parameters;
+    const NewtonSolverAdditionalData           solver_data;
+
+    mutable unsigned int history_linear_iterations_last = 0;
+    mutable unsigned int history_newton_iterations      = 0;
   };
 } // namespace NonLinearSolvers
