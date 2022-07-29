@@ -609,6 +609,9 @@ namespace Sintering
 
           non_linear_parameters->set("Nonlinear Solver", "Line Search Based");
 
+          auto &printParams = non_linear_parameters->sublist("Printing");
+          printParams.set("Output Information", 0);
+
           auto &dir_parameters = non_linear_parameters->sublist("Direction");
           dir_parameters.set("Method", "Newton");
 

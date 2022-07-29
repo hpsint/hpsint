@@ -11,6 +11,8 @@ namespace NonLinearSolvers
   template <typename VectorType>
   class NewtonSolver;
 
+  template <typename VectorType>
+  class NOXSolver;
 
 
   struct NewtonSolverSolverControl
@@ -127,6 +129,9 @@ namespace NonLinearSolvers
 
     template <typename>
     friend class DampedNewtonSolver;
+
+    template <typename>
+    friend class NOXSolver;
   };
 
 
@@ -908,12 +913,25 @@ namespace NonLinearSolvers
     void
     solve(VectorType &solution) const override
     {
+      unsigned int linear_iterations    = 0;
+      unsigned int residual_evaluations = 0;
+
       // create group
-      const auto group = Teuchos::rcp(
-        new internal::NOXWrapper::Group<VectorType>(solution,
-                                                    this->residual,
-                                                    this->setup_jacobian,
-                                                    this->solve_with_jacobian));
+      const auto group =
+        Teuchos::rcp(new internal::NOXWrapper::Group<VectorType>(
+          solution,
+          [&](const VectorType &src, VectorType &dst) {
+            residual_evaluations++;
+            this->residual(src, dst);
+          },
+          [&](const VectorType &src, const bool flag) {
+            this->setup_jacobian(src, flag);
+          },
+          [&](const VectorType &src, VectorType &dst) -> unsigned int {
+            linear_iterations += this->solve_with_jacobian(src, dst);
+
+            return 0;
+          }));
 
       // setup solver control
       const auto solver_control_norm_f_abs =
@@ -939,14 +957,16 @@ namespace NonLinearSolvers
       const auto status = solver->solve();
 
       AssertThrow(status == NOX::StatusTest::Converged,
-                  ExcMessage("NOX did not converge!"));
+                  ExcNewtonDidNotConverge("Newton"));
+
+      statistics.newton_iterations    = solver->getNumIterations();
+      statistics.linear_iterations    = linear_iterations;
+      statistics.residual_evaluations = residual_evaluations;
     }
 
     void
     clear() const override
-    {
-      // nothing to do
-    }
+    {}
 
   private:
     NewtonSolverSolverControl &                statistics;
