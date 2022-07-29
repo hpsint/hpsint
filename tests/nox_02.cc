@@ -2,6 +2,8 @@
 
 #include <deal.II/lac/la_parallel_vector.h>
 
+#include <pf-applications/lac/solvers_nonlinear.h>
+
 #include <NOX_Abstract_Group.H>
 #include <NOX_Abstract_Vector.H>
 #include <NOX_Solver_Factory.H>
@@ -9,6 +11,7 @@
 #include <NOX_StatusTest_Combo.H>
 #include <NOX_StatusTest_MaxIters.H>
 #include <NOX_StatusTest_NormF.H>
+#include <NOX_StatusTest_RelativeNormF.H>
 
 using namespace dealii;
 
@@ -444,6 +447,33 @@ namespace dealii
   }   // namespace internal
 } // namespace dealii
 
+namespace NonLinearSolvers
+{
+  template <typename VectorType>
+  class NOXSolver : public NewtonSolver<VectorType>
+  {
+  public:
+    NOXSolver(NewtonSolverSolverControl &statistics)
+      : statistics(statistics)
+    {}
+
+    void
+    solve(VectorType &dst) const override
+    {
+      (void)dst;
+    }
+
+    void
+    clear() const override
+    {
+      // nothing to do
+    }
+
+  private:
+    NewtonSolverSolverControl &statistics;
+  };
+} // namespace NonLinearSolvers
+
 int
 main(int argc, char **argv)
 {
@@ -455,6 +485,7 @@ main(int argc, char **argv)
   // some parameters
   const unsigned int n_max_iterations = 100;
   const double       abs_tolerance    = 1e-9;
+  const double       rel_tolerance    = 1e-3;
 
   // helper functions
   double J = 0.0;
@@ -497,16 +528,20 @@ main(int argc, char **argv)
   search_parameters.set("Method", "Polynomial");
 
   // setup solver control
-  const auto solver_control_norm_f =
+  const auto solver_control_norm_f_abs =
     Teuchos::rcp(new NOX::StatusTest::NormF(abs_tolerance));
+
+  const auto solver_control_norm_f_rel =
+    Teuchos::rcp(new NOX::StatusTest::RelativeNormF(rel_tolerance));
 
   const auto solver_control_max_iterations =
     Teuchos::rcp(new NOX::StatusTest::MaxIters(n_max_iterations));
 
-  const auto combo =
-    Teuchos::rcp(new NOX::StatusTest::Combo(NOX::StatusTest::Combo::OR,
-                                            solver_control_norm_f,
-                                            solver_control_max_iterations));
+  auto combo =
+    Teuchos::rcp(new NOX::StatusTest::Combo(NOX::StatusTest::Combo::OR));
+  combo->addStatusTest(solver_control_norm_f_abs);
+  combo->addStatusTest(solver_control_norm_f_rel);
+  combo->addStatusTest(solver_control_max_iterations);
 
   // create non-linear solver
   const auto solver =
