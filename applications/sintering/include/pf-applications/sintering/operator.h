@@ -127,14 +127,14 @@ namespace Sintering
      * simulations that once this condition is violated, the solution diverges
      * quite fast, so it is hardly possible to get rid of it.
      *
-     * The second option rendera significantly better behavior: the analytical
+     * The second option renders a significantly better behavior: the analytical
      * tangent seems to be much better in comparison to the first option.
      * Iterations of nonlinear solver converge much faster and, in general, the
      * convergence observed in the numerical experiments agrees perfectly with
      * the one obtained by using the tangent computed with finite differences.
      * Furthermore, this mobility term, disticntly from the first option, does
      * not break simulations if $c<0$: in such a situation the mobility term
-     * still remains positive. This allows one to use a softer bounding:
+     * still remains positive. This allows one to use a relaxed bounding:
      * @f[
      *   c \leq 1.
      * @f]
