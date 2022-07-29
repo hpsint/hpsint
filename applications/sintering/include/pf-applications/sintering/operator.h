@@ -830,7 +830,7 @@ namespace Sintering
     void
     vmult(VectorType &dst, const VectorType &src) const
     {
-      MyScope scope(this->timer, label + "::vmult", this->do_timing);
+      MyScope scope(this->timer, label + "::vmult_", this->do_timing);
 
       if (matrix_based == false)
         {
