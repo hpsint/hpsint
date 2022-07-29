@@ -603,8 +603,23 @@ namespace Sintering
               params.nonlinear_data.newton_reuse_preconditioner,
               params.nonlinear_data.newton_use_damping));
       else if (params.nonlinear_data.nonlinear_solver_type == "NOX")
-        non_linear_solver =
-          std::make_unique<NonLinearSolvers::NOXSolver<VectorType>>(statistics);
+        {
+          Teuchos::RCP<Teuchos::ParameterList> non_linear_parameters =
+            Teuchos::rcp(new Teuchos::ParameterList);
+
+          non_linear_parameters->set("Nonlinear Solver", "Line Search Based");
+
+          auto &dir_parameters = non_linear_parameters->sublist("Direction");
+          dir_parameters.set("Method", "Newton");
+
+          auto &search_parameters =
+            non_linear_parameters->sublist("Line Search");
+          search_parameters.set("Method", "Polynomial");
+
+          non_linear_solver =
+            std::make_unique<NonLinearSolvers::NOXSolver<VectorType>>(
+              statistics, non_linear_parameters);
+        }
       else
         AssertThrow(false, ExcNotImplemented());
 

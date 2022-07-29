@@ -85,6 +85,15 @@ namespace dealii
             }
         }
 
+        types::global_dof_index
+        size() const
+        {
+          AssertThrow(false, ExcNotImplemented());
+
+          return 0;
+        }
+
+
         /**
          * Create view.
          */
@@ -206,11 +215,39 @@ namespace dealii
           return std::sqrt(result);
         }
 
+        T
+        l1_norm() const
+        {
+          T result = 0.0;
+          for (unsigned int b = 0; b < n_blocks(); ++b)
+            result += block(b).l1_norm();
+          return result;
+        }
+
+        T
+        linfty_norm() const
+        {
+          T result = 0.0;
+          for (unsigned int b = 0; b < n_blocks(); ++b)
+            result = std::max<T>(result, block(b).linfty_norm());
+          return result;
+        }
+
         void
         add(const T a, const DynamicBlockVector<T> &V)
         {
           for (unsigned int b = 0; b < n_blocks(); ++b)
             block(b).add(a, V.block(b));
+        }
+
+        void
+        add(const T                      v,
+            const DynamicBlockVector<T> &V,
+            const T                      w,
+            const DynamicBlockVector<T> &W)
+        {
+          for (unsigned int b = 0; b < n_blocks(); ++b)
+            block(b).add(v, V.block(b), w, W.block(b));
         }
 
         void
