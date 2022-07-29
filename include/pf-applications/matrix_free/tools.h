@@ -389,7 +389,7 @@ namespace dealii
       const InVector &src,
       const bool      zero_dst_vector = false)
     {
-      if (false)
+      if (true)
         {
           if (zero_dst_vector)
             dst = 0.0;

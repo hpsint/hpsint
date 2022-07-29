@@ -453,18 +453,15 @@ namespace NonLinearSolvers
   class NOXSolver : public NewtonSolver<VectorType>
   {
   public:
-    NOXSolver(NewtonSolverSolverControl &statistics)
+    NOXSolver(NewtonSolverSolverControl &                 statistics,
+              const Teuchos::RCP<Teuchos::ParameterList> &non_linear_parameters)
       : statistics(statistics)
+      , non_linear_parameters(non_linear_parameters)
     {}
 
     void
     solve(VectorType &solution) const override
     {
-      // some parameters
-      const unsigned int n_max_iterations = 100;
-      const double       abs_tolerance    = 1e-9;
-      const double       rel_tolerance    = 1e-3;
-
       // create group
       const auto group = Teuchos::rcp(
         new internal::NOXWrapper::Group<VectorType>(solution,
@@ -472,27 +469,15 @@ namespace NonLinearSolvers
                                                     this->setup_jacobian,
                                                     this->solve_with_jacobian));
 
-      // setup parameters
-      Teuchos::RCP<Teuchos::ParameterList> non_linear_parameters =
-        Teuchos::rcp(new Teuchos::ParameterList);
-
-      non_linear_parameters->set("Nonlinear Solver", "Line Search Based");
-
-      auto &dir_parameters = non_linear_parameters->sublist("Direction");
-      dir_parameters.set("Method", "Newton");
-
-      auto &search_parameters = non_linear_parameters->sublist("Line Search");
-      search_parameters.set("Method", "Polynomial");
-
       // setup solver control
       const auto solver_control_norm_f_abs =
-        Teuchos::rcp(new NOX::StatusTest::NormF(abs_tolerance));
+        Teuchos::rcp(new NOX::StatusTest::NormF(statistics.get_abs_tol()));
 
-      const auto solver_control_norm_f_rel =
-        Teuchos::rcp(new NOX::StatusTest::RelativeNormF(rel_tolerance));
+      const auto solver_control_norm_f_rel = Teuchos::rcp(
+        new NOX::StatusTest::RelativeNormF(statistics.get_rel_tol()));
 
       const auto solver_control_max_iterations =
-        Teuchos::rcp(new NOX::StatusTest::MaxIters(n_max_iterations));
+        Teuchos::rcp(new NOX::StatusTest::MaxIters(statistics.get_max_iter()));
 
       auto combo =
         Teuchos::rcp(new NOX::StatusTest::Combo(NOX::StatusTest::Combo::OR));
@@ -518,7 +503,8 @@ namespace NonLinearSolvers
     }
 
   private:
-    NewtonSolverSolverControl &statistics;
+    NewtonSolverSolverControl &                statistics;
+    const Teuchos::RCP<Teuchos::ParameterList> non_linear_parameters;
   };
 } // namespace NonLinearSolvers
 
@@ -530,6 +516,7 @@ main(int argc, char **argv)
   using Number     = double;
   using VectorType = LinearAlgebra::distributed::Vector<Number>;
 
+  // set up solver control
   const unsigned int n_max_iterations = 100;
   const double       abs_tolerance    = 1e-9;
   const double       rel_tolerance    = 1e-3;
@@ -538,9 +525,23 @@ main(int argc, char **argv)
                                                          abs_tolerance,
                                                          rel_tolerance);
 
-  NonLinearSolvers::NOXSolver<VectorType> solver(statistics);
+  // set up parameters
+  Teuchos::RCP<Teuchos::ParameterList> non_linear_parameters =
+    Teuchos::rcp(new Teuchos::ParameterList);
 
-  // helper functions
+  non_linear_parameters->set("Nonlinear Solver", "Line Search Based");
+
+  auto &dir_parameters = non_linear_parameters->sublist("Direction");
+  dir_parameters.set("Method", "Newton");
+
+  auto &search_parameters = non_linear_parameters->sublist("Line Search");
+  search_parameters.set("Method", "Polynomial");
+
+  // set up solver
+  NonLinearSolvers::NOXSolver<VectorType> solver(statistics,
+                                                 non_linear_parameters);
+
+  // ... helper functions
   double J = 0.0;
 
   solver.residual = [](const auto &src, auto &dst) {
@@ -564,5 +565,6 @@ main(int argc, char **argv)
   VectorType solution(1);
   solution[0] = 2.0;
 
+  // solve with the given initial guess
   solver.solve(solution);
 }
