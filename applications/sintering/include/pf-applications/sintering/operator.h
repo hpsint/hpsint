@@ -196,7 +196,7 @@ namespace Sintering
       });
 
       VectorizedArrayType M = Mvol * phi + Mvap * (1.0 - phi) +
-                              Msurf * cl * cl * (1.0 - cl) * (1.0 - cl) +
+                              Msurf * 4.0 * cl * cl * (1.0 - cl) * (1.0 - cl) +
                               Mgb * etaijSum;
 
       return M;
@@ -225,7 +225,7 @@ namespace Sintering
       VectorizedArrayType dphidc = 30.0 * cl * cl * (1.0 - 2.0 * cl + cl * cl);
       VectorizedArrayType dMdc =
         Mvol * dphidc - Mvap * dphidc +
-        Msurf * 2.0 * cl * (1.0 - 3.0 * cl + 2.0 * cl * cl);
+        Msurf * 8.0 * cl * (1.0 - 3.0 * cl + 2.0 * cl * cl);
 
       return dMdc;
     }
