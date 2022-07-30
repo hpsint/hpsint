@@ -72,6 +72,8 @@ namespace Sintering
 
   struct TimeIntegrationData
   {
+    std::string interation_scheme = "BDF1";
+
     double       time_start                  = 0;
     double       time_end                    = 1e3;
     double       time_step_init              = 1e-3;
@@ -328,6 +330,10 @@ namespace Sintering
 
 
       prm.enter_subsection("TimeIntegration");
+      prm.add_parameter("IntegrationScheme",
+                        time_integration_data.interation_scheme,
+                        "Integration scheme.",
+                        Patterns::Selection("BDF1|BDF2"));
       prm.add_parameter("TimeStart",
                         time_integration_data.time_start,
                         "Start time.");

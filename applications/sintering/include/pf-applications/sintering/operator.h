@@ -884,7 +884,7 @@ namespace Sintering
     void
     vmult(VectorType &dst, const VectorType &src) const
     {
-      MyScope scope(this->timer, label + "::vmult", this->do_timing);
+      MyScope scope(this->timer, label + "::vmult_", this->do_timing);
 
       if (matrix_based == false)
         {
@@ -1371,6 +1371,13 @@ namespace Sintering
       this->dt = dt;
     }
 
+    void
+    set_dt(const double dt, const double old_dt)
+    {
+      this->dt     = dt;
+      this->old_dt = old_dt;
+    }
+
     Number
     get_dt() const
     {
@@ -1378,25 +1385,41 @@ namespace Sintering
     }
 
     Number
+    get_old_dt() const
+    {
+      return old_dt;
+    }
+
+    Number
     weight() const
     {
-      return 1.0 / dt;
+      if (old_dt == 0)
+        return 1.0 / dt;
+      else
+        return (2 * dt + old_dt) / (dt * (dt + old_dt));
     }
 
     Number
     weight_old() const
     {
-      return -1.0 / dt;
+      if (old_dt == 0)
+        return -1.0 / dt;
+      else
+        return -(dt + old_dt) / (dt * old_dt);
     }
 
     Number
     weight_old_old() const
     {
-      return 0.0;
+      if (old_dt == 0.0)
+        return 0.0;
+      else
+        return dt / (old_dt * (dt + old_dt));
     }
 
   private:
-    Number dt;
+    Number dt     = 0.0;
+    Number old_dt = 0.0;
 
   public:
     Table<3, VectorizedArrayType> &
@@ -1549,7 +1572,7 @@ namespace Sintering
     }
 
     void
-    set_previous_solution(const BlockVectorType &src) const
+    set_old_solution(const BlockVectorType &src) const
     {
       Assert(src.has_ghost_elements() == false, ExcInternalError());
 
@@ -1583,7 +1606,7 @@ namespace Sintering
     }
 
     const BlockVectorType &
-    get_previous_solution() const
+    get_old_solution() const
     {
       AssertThrow(this->old_solution.is_globally_compatible(
                     this->matrix_free.get_vector_partitioner()),
@@ -1591,6 +1614,28 @@ namespace Sintering
 
       this->old_solution.zero_out_ghost_values();
       return this->old_solution;
+    }
+
+    BlockVectorType &
+    get_old_old_solution()
+    {
+      AssertThrow(this->old_old_solution.is_globally_compatible(
+                    this->matrix_free.get_vector_partitioner()),
+                  ExcInternalError());
+
+      this->old_old_solution.zero_out_ghost_values();
+      return this->old_old_solution;
+    }
+
+    const BlockVectorType &
+    get_old_old_solution() const
+    {
+      AssertThrow(this->old_old_solution.is_globally_compatible(
+                    this->matrix_free.get_vector_partitioner()),
+                  ExcInternalError());
+
+      this->old_old_solution.zero_out_ghost_values();
+      return this->old_old_solution;
     }
 
     void
@@ -2022,8 +2067,8 @@ namespace Sintering
 
       for (auto cell = range.first; cell < range.second; ++cell)
         {
-          phi_old.reinit(cell);
           phi.reinit(cell);
+          phi_old.reinit(cell);
 
           phi.gather_evaluate(src,
                               EvaluationFlags::EvaluationFlags::values |
@@ -2033,8 +2078,9 @@ namespace Sintering
           phi_old.read_dof_values_plain(old_solution);
           phi_old.evaluate(EvaluationFlags::EvaluationFlags::values);
 
-          if ((weight_old_old != 0.0))
+          if (weight_old_old != 0.0)
             {
+              phi_old_old.reinit(cell);
               phi_old_old.read_dof_values_plain(old_old_solution);
               phi_old_old.evaluate(EvaluationFlags::EvaluationFlags::values);
             }
