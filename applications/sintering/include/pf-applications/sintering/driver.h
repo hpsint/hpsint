@@ -139,7 +139,8 @@ namespace Sintering
     double       max_reached_dt;
     unsigned int restart_counter;
     double       t;
-    double       dt;
+    double       dt     = 0.0;
+    double       old_dt = 0.0;
 
     std::map<std::string, unsigned int> counters;
 
@@ -276,6 +277,7 @@ namespace Sintering
       ar &restart_counter;
       ar &t;
       ar &dt;
+      ar &old_dt;
       ar &counters;
     }
 
@@ -638,7 +640,8 @@ namespace Sintering
                   const unsigned int n_blocks  = current_u.n_blocks();
 
                   for (unsigned int l = min_level; l <= max_level; ++l)
-                    mg_sintering_data[l].set_dt(sintering_data.get_dt());
+                    mg_sintering_data[l].set_dt(sintering_data.get_dt(),
+                                                sintering_data.get_old_dt());
 
                   MGLevelObject<VectorType> mg_current_u(min_level, max_level);
 
@@ -755,6 +758,10 @@ namespace Sintering
 
       nonlinear_operator.initialize_dof_vector(solution);
 
+      if (params.time_integration_data.interation_scheme == "BDF2")
+        nonlinear_operator.initialize_dof_vector(
+          nonlinear_operator.get_old_old_solution());
+
       bool system_has_changed = true;
 
       const auto execute_coarsening_and_refinement = [&](const double t) {
@@ -764,6 +771,8 @@ namespace Sintering
 
         system_has_changed = true;
 
+        auto &old_solution = nonlinear_operator.get_old_old_solution();
+
         output_result(solution, nonlinear_operator, t, "refinement");
 
         // 1) copy solution so that it has the right ghosting
@@ -772,13 +781,20 @@ namespace Sintering
           DoFTools::extract_locally_relevant_dofs(dof_handler),
           dof_handler.get_communicator());
 
-        VectorType solution_dealii(solution.n_blocks());
+        VectorType solution_dealii(solution.n_blocks() +
+                                   old_solution.n_blocks());
 
         for (unsigned int b = 0; b < solution_dealii.n_blocks(); ++b)
           {
             solution_dealii.block(b).reinit(partitioner);
-            solution_dealii.block(b).copy_locally_owned_data_from(
-              solution.block(b));
+
+            if (b < solution.n_blocks())
+              solution_dealii.block(b).copy_locally_owned_data_from(
+                solution.block(b));
+            else
+              solution_dealii.block(b).copy_locally_owned_data_from(
+                old_solution.block(b - solution.n_blocks()));
+
             constraints.distribute(solution_dealii.block(b));
           }
 
@@ -787,7 +803,7 @@ namespace Sintering
         // 2) estimate errors
         Vector<float> estimated_error_per_cell(tria.n_active_cells());
 
-        for (unsigned int b = 2; b < solution_dealii.n_blocks(); ++b)
+        for (unsigned int b = 2; b < solution.n_blocks(); ++b)
           {
             Vector<float> estimated_error_per_cell_temp(tria.n_active_cells());
 
@@ -825,7 +841,7 @@ namespace Sintering
             if (cell->is_locally_owned() == false || cell->refine_flag_set())
               continue;
 
-            for (unsigned int b = 2; b < solution_dealii.n_blocks(); ++b)
+            for (unsigned int b = 2; b < solution.n_blocks(); ++b)
               {
                 cell->get_dof_values(solution_dealii.block(b), values);
 
@@ -866,7 +882,7 @@ namespace Sintering
 
         std::vector<const typename VectorType::BlockType *> solution_dealii_ptr(
           solution_dealii.n_blocks());
-        for (unsigned int b = 0; b < solution.n_blocks(); ++b)
+        for (unsigned int b = 0; b < solution_dealii.n_blocks(); ++b)
           solution_dealii_ptr[b] = &solution_dealii.block(b);
 
         solution_trans.prepare_for_coarsening_and_refinement(
@@ -874,7 +890,7 @@ namespace Sintering
 
         tria.execute_coarsening_and_refinement();
 
-        initialize(solution_dealii.n_blocks());
+        initialize(solution.n_blocks());
 
         nonlinear_operator.clear();
         non_linear_solver->clear();
@@ -882,16 +898,25 @@ namespace Sintering
 
         nonlinear_operator.initialize_dof_vector(solution);
 
-        std::vector<typename VectorType::BlockType *> solution_ptr(
-          solution.n_blocks());
+        if (old_solution.n_blocks() > 0)
+          nonlinear_operator.initialize_dof_vector(old_solution);
+
+        std::vector<typename VectorType::BlockType *> solution_ptr;
         for (unsigned int b = 0; b < solution.n_blocks(); ++b)
-          solution_ptr[b] = &solution.block(b);
+          solution_ptr.push_back(&solution.block(b));
+        for (unsigned int b = 0; b < old_solution.n_blocks(); ++b)
+          solution_ptr.push_back(&old_solution.block(b));
 
         solution_trans.interpolate(solution_ptr);
 
         // note: apply constraints since the Newton solver expects this
         for (unsigned int b = 0; b < solution.n_blocks(); ++b)
           constraints.distribute(solution.block(b));
+        for (unsigned int b = 0; b < old_solution.n_blocks(); ++b)
+          constraints.distribute(old_solution.block(b));
+
+        if (old_solution.n_blocks() > 0)
+          old_solution.update_ghost_values();
 
         output_result(solution, nonlinear_operator, t, "refinement");
 
@@ -919,7 +944,12 @@ namespace Sintering
 
         system_has_changed = true;
 
+        auto &old_solution = nonlinear_operator.get_old_old_solution();
+
         solution.update_ghost_values();
+
+        if (old_solution.n_blocks() > 0)
+          old_solution.update_ghost_values();
 
         const auto time_total = std::chrono::system_clock::now();
 
@@ -974,25 +1004,38 @@ namespace Sintering
                  * add new blocks to the solution vector prior to remapping.
                  */
 
-                if (has_reassigned_grains &&
-                    n_components_new < n_components_old)
-                  grain_tracker.remap(solution);
+                const auto remap = [&](auto &solution) {
+                  if (has_reassigned_grains &&
+                      n_components_new < n_components_old)
+                    grain_tracker.remap(solution);
 
-                solution.reinit(n_components_new);
+                  solution.reinit(n_components_new);
 
-                if (has_reassigned_grains &&
-                    n_components_new > n_components_old)
-                  grain_tracker.remap(solution);
+                  if (has_reassigned_grains &&
+                      n_components_new > n_components_old)
+                    grain_tracker.remap(solution);
+                };
+
+                remap(solution);
+
+                if (old_solution.n_blocks() > 0)
+                  remap(solution);
               }
             else if (has_reassigned_grains)
               {
                 grain_tracker.remap(solution);
+
+                if (old_solution.n_blocks() > 0)
+                  grain_tracker.remap(old_solution);
               }
 
             output_result(solution, nonlinear_operator, t, "remap");
           }
 
         solution.zero_out_ghost_values();
+
+        if (old_solution.n_blocks() > 0)
+          old_solution.update_ghost_values();
       };
 
       initialize_solution(solution, timer);
@@ -1049,8 +1092,12 @@ namespace Sintering
                   }
               }
 
-            sintering_data.set_dt(dt);
-            nonlinear_operator.set_previous_solution(solution);
+            if (params.time_integration_data.interation_scheme == "BDF2")
+              sintering_data.set_dt(dt, old_dt);
+            else
+              sintering_data.set_dt(dt);
+
+            nonlinear_operator.set_old_solution(solution);
 
             if (params.profiling_data.run_vmults && system_has_changed)
               {
@@ -1166,6 +1213,7 @@ namespace Sintering
                 max_reached_dt = std::max(max_reached_dt, dt);
 
                 t += dt;
+                old_dt = dt;
 
                 if (std::abs(t - params.time_integration_data.time_end) > 1e-9)
                   {
@@ -1206,7 +1254,7 @@ namespace Sintering
                 n_failed_residual_evaluations +=
                   statistics.n_residual_evaluations();
 
-                solution = nonlinear_operator.get_previous_solution();
+                solution = nonlinear_operator.get_old_solution();
 
                 output_result(solution,
                               nonlinear_operator,
@@ -1232,7 +1280,7 @@ namespace Sintering
                 n_failed_residual_evaluations +=
                   statistics.n_residual_evaluations();
 
-                solution = nonlinear_operator.get_previous_solution();
+                solution = nonlinear_operator.get_old_solution();
 
                 output_result(solution,
                               nonlinear_operator,
@@ -1244,6 +1292,11 @@ namespace Sintering
                   ExcMessage(
                     "Minimum timestep size exceeded, solution failed!"));
               }
+
+            if (has_converged &&
+                (params.time_integration_data.interation_scheme == "BDF2"))
+              nonlinear_operator.set_old_old_solution(
+                nonlinear_operator.get_old_solution());
 
             const bool is_last_time_step =
               has_converged &&
