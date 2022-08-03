@@ -6,6 +6,8 @@
 
 #include <fstream>
 
+#include "time_integrators.h"
+
 template <typename T>
 using n_grains_t = decltype(std::declval<T const>().n_grains());
 
@@ -2051,10 +2053,11 @@ namespace Sintering
 
       FECellIntegrator<dim, n_comp, Number, VectorizedArrayType> phi(
         matrix_free, this->dof_index);
-      FECellIntegrator<dim, n_comp, Number, VectorizedArrayType> phi_old(
-        matrix_free, this->dof_index);
-      FECellIntegrator<dim, n_comp, Number, VectorizedArrayType> phi_old_old(
-        matrix_free, this->dof_index);
+
+      // This is temporary callback just to test the concept
+      time_integrator.set_old_vectors_pointers(&old_solution, &old_old_solution);
+
+      auto time_phi = time_integrator.create_cell_intergator(phi);
 
       const auto &free_energy    = this->data.free_energy;
       const auto &L              = this->data.L;
@@ -2068,39 +2071,24 @@ namespace Sintering
       for (auto cell = range.first; cell < range.second; ++cell)
         {
           phi.reinit(cell);
-          phi_old.reinit(cell);
-
           phi.gather_evaluate(src,
                               EvaluationFlags::EvaluationFlags::values |
                                 EvaluationFlags::EvaluationFlags::gradients);
 
-          // get values from old solution
-          phi_old.read_dof_values_plain(old_solution);
-          phi_old.evaluate(EvaluationFlags::EvaluationFlags::values);
-
-          if (weight_old_old != 0.0)
-            {
-              phi_old_old.reinit(cell);
-              phi_old_old.read_dof_values_plain(old_old_solution);
-              phi_old_old.evaluate(EvaluationFlags::EvaluationFlags::values);
-            }
+          for(unsigned int i = 0; i < time_integrator.n_order; i++)
+          {
+            time_phi[i].reinit(cell);
+            time_phi[i].read_dof_values_plain(*time_integrator.old_solutions[i]);
+            time_phi[i].evaluate(EvaluationFlags::EvaluationFlags::values);
+          }
 
           for (unsigned int q = 0; q < phi.n_q_points; ++q)
             {
               const auto val         = phi.get_value(q);
-              const auto val_old     = phi_old.get_value(q);
-              const auto val_old_old = (weight_old_old != 0.0) ?
-                                         phi_old_old.get_value(q) :
-                                         (typename FECellIntegrator<
-                                           dim,
-                                           n_comp,
-                                           Number,
-                                           VectorizedArrayType>::value_type());
               const auto grad        = phi.get_gradient(q);
 
               auto &c      = val[0];
               auto &mu     = val[1];
-              auto &c_old  = val_old[0];
               auto &c_grad = grad[0];
 
               std::array<const VectorizedArrayType *, n_grains> etas;
@@ -2118,9 +2106,11 @@ namespace Sintering
                 gradient_result;
 
               // CH equations
-              value_result[0] = c * weight + c_old * weight_old;
-              if (weight_old_old != 0.0)
-                value_result[0] += val_old_old[0] * weight_old_old;
+              //value_result[0] = c * weight + c_old * weight_old;
+              //if (weight_old_old != 0.0)
+              //  value_result[0] += val_old_old[0] * weight_old_old;
+
+              time_integrator.compute_time_derivative(value_result[0], val, time_phi, 0, q);
 
               value_result[1] = -mu + free_energy.df_dc(c, etas);
               gradient_result[0] =
@@ -2130,13 +2120,15 @@ namespace Sintering
               // AC equations
               for (unsigned int ig = 0; ig < n_grains; ++ig)
                 {
-                  value_result[2 + ig] = val[2 + ig] * weight +
-                                         val_old[2 + ig] * weight_old +
+                  value_result[2 + ig] = //val[2 + ig] * weight +
+                                         //val_old[2 + ig] * weight_old +
                                          L * free_energy.df_detai(c, etas, ig);
 
-                  if (weight_old_old != 0.0)
-                    value_result[2 + ig] +=
-                      val_old_old[2 + ig] * weight_old_old;
+                  //if (weight_old_old != 0.0)
+                  //  value_result[2 + ig] +=
+                  //    val_old_old[2 + ig] * weight_old_old;
+
+                  time_integrator.compute_time_derivative(value_result[2 + ig], val, time_phi, 2 + ig, q);
 
                   gradient_result[2 + ig] = L * kappa_p * grad[2 + ig];
                 }
@@ -2151,6 +2143,7 @@ namespace Sintering
     }
 
     const SinteringOperatorData<dim, VectorizedArrayType> &data;
+    BDFIntegrator<dim, Number, VectorizedArrayType, 2> time_integrator;
 
     mutable BlockVectorType old_solution;
     mutable BlockVectorType old_old_solution;
