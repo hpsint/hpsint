@@ -92,7 +92,7 @@ namespace Sintering
           weights[1] = -(dt[0] + dt[1]) / (dt[0] * dt[1]);
           weights[2] = dt[0] / (dt[1] * (dt[0] + dt[1]));
         }
-      else if (order == 1 || dt[0] == 0)
+      else if (order == 1 || dt[1] == 0)
         {
           weights[0] = 1.0 / dt[0];
           weights[1] = -1.0 / dt[0];
