@@ -640,9 +640,8 @@ namespace Sintering
                   const unsigned int n_blocks  = current_u.n_blocks();
 
                   for (unsigned int l = min_level; l <= max_level; ++l)
-                    mg_sintering_data[l].set_dt(sintering_data.get_dt(),
-                                                sintering_data.get_old_dt());
-
+                    mg_sintering_data[l].time_data.update_dt(sintering_data.time_data.get_current_dt());
+                    
                   MGLevelObject<VectorType> mg_current_u(min_level, max_level);
 
                   // acitve level
@@ -1092,10 +1091,13 @@ namespace Sintering
                   }
               }
 
+            /*
             if (params.time_integration_data.interation_scheme == "BDF2")
               sintering_data.set_dt(dt, old_dt);
             else
               sintering_data.set_dt(dt);
+            */
+            sintering_data.time_data.update_dt(dt);
 
             nonlinear_operator.set_old_solution(solution);
 
@@ -1255,6 +1257,8 @@ namespace Sintering
                   statistics.n_residual_evaluations();
 
                 solution = nonlinear_operator.get_old_solution();
+
+                sintering_data.time_data.rollback();
 
                 output_result(solution,
                               nonlinear_operator,

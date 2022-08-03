@@ -60,7 +60,7 @@ namespace Sintering
       const auto &free_energy         = data.free_energy;
       const auto &mobility            = data.mobility;
       const auto &kappa_c             = data.kappa_c;
-      const auto  weight              = this->data.weight();
+      const auto  weight              = this->data.time_data.get_primary_weight();
       const auto &nonlinear_values    = data.get_nonlinear_values();
       const auto &nonlinear_gradients = data.get_nonlinear_gradients();
 
@@ -175,7 +175,7 @@ namespace Sintering
       const auto &free_energy      = data.free_energy;
       const auto &L                = data.L;
       const auto &kappa_p          = data.kappa_p;
-      const auto  weight           = this->data.weight();
+      const auto  weight           = this->data.time_data.get_primary_weight();
       const auto &nonlinear_values = data.get_nonlinear_values();
 
       for (unsigned int q = 0; q < phi.n_q_points; ++q)
@@ -304,7 +304,7 @@ namespace Sintering
       const auto &free_energy      = data.free_energy;
       const auto &L                = data.L;
       const auto &kappa_p          = data.kappa_p;
-      const auto  weight           = data.weight();
+      const auto  weight           = data.time_data.get_primary_weight();
       const auto &nonlinear_values = data.get_nonlinear_values();
 
       for (unsigned int q = 0; q < phi.n_q_points; ++q)
@@ -427,7 +427,7 @@ namespace Sintering
         const auto &free_energy      = data.free_energy;
         const auto &L                = data.L;
         const auto &kappa_p          = data.kappa_p;
-        const auto  weight           = data.weight();
+        const auto  weight           = data.time_data.get_primary_weight();
         const auto &nonlinear_values = data.get_nonlinear_values();
 
         std::vector<const VectorizedArrayType *> etas(this->n_grains());

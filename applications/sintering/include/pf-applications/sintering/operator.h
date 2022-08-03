@@ -1366,62 +1366,7 @@ namespace Sintering
     const Number kappa_c;
     const Number kappa_p;
 
-  public:
-    void
-    set_dt(const double dt)
-    {
-      this->dt = dt;
-    }
-
-    void
-    set_dt(const double dt, const double old_dt)
-    {
-      this->dt     = dt;
-      this->old_dt = old_dt;
-    }
-
-    Number
-    get_dt() const
-    {
-      return dt;
-    }
-
-    Number
-    get_old_dt() const
-    {
-      return old_dt;
-    }
-
-    Number
-    weight() const
-    {
-      if (old_dt == 0)
-        return 1.0 / dt;
-      else
-        return (2 * dt + old_dt) / (dt * (dt + old_dt));
-    }
-
-    Number
-    weight_old() const
-    {
-      if (old_dt == 0)
-        return -1.0 / dt;
-      else
-        return -(dt + old_dt) / (dt * old_dt);
-    }
-
-    Number
-    weight_old_old() const
-    {
-      if (old_dt == 0.0)
-        return 0.0;
-      else
-        return dt / (old_dt * (dt + old_dt));
-    }
-
-  private:
-    Number dt     = 0.0;
-    Number old_dt = 0.0;
+    TimeIntegratorData<Number, 2> time_data;
 
   public:
     Table<3, VectorizedArrayType> &
@@ -1548,6 +1493,7 @@ namespace Sintering
           "sintering_op",
           matrix_based)
       , data(data)
+      , time_integrator(data.time_data)
     {}
 
     ~SinteringOperator()
@@ -1767,7 +1713,7 @@ namespace Sintering
 
               if (entries_mask[FieldDt])
                 {
-                  temp[counter++] = VectorizedArrayType(data.get_dt());
+                  temp[counter++] = VectorizedArrayType(data.time_data.get_current_dt());
                 }
 
               if (entries_mask[FieldD2f])
@@ -1969,7 +1915,7 @@ namespace Sintering
       const auto &mobility    = this->data.mobility;
       const auto &kappa_c     = this->data.kappa_c;
       const auto &kappa_p     = this->data.kappa_p;
-      const auto  weight      = this->data.weight();
+      const auto  weight      = this->data.time_data.get_primary_weight();
 
       for (unsigned int q = 0; q < phi.n_q_points; ++q)
         {
@@ -2064,9 +2010,6 @@ namespace Sintering
       const auto &mobility       = this->data.mobility;
       const auto &kappa_c        = this->data.kappa_c;
       const auto &kappa_p        = this->data.kappa_p;
-      const auto  weight         = this->data.weight();
-      const auto  weight_old     = this->data.weight_old();
-      const auto  weight_old_old = this->data.weight_old_old();
 
       for (auto cell = range.first; cell < range.second; ++cell)
         {
