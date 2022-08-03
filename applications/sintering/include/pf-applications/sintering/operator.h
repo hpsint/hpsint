@@ -2048,11 +2048,6 @@ namespace Sintering
               Tensor<1, n_comp, Tensor<1, dim, VectorizedArrayType>>
                 gradient_result;
 
-              // CH equations
-              //value_result[0] = c * weight + c_old * weight_old;
-              //if (weight_old_old != 0.0)
-              //  value_result[0] += val_old_old[0] * weight_old_old;
-
               time_integrator.compute_time_derivative(value_result[0], val, time_phi, 0, q);
 
               value_result[1] = -mu + free_energy.df_dc(c, etas);
@@ -2063,13 +2058,7 @@ namespace Sintering
               // AC equations
               for (unsigned int ig = 0; ig < n_grains; ++ig)
                 {
-                  value_result[2 + ig] = //val[2 + ig] * weight +
-                                         //val_old[2 + ig] * weight_old +
-                                         L * free_energy.df_detai(c, etas, ig);
-
-                  //if (weight_old_old != 0.0)
-                  //  value_result[2 + ig] +=
-                  //    val_old_old[2 + ig] * weight_old_old;
+                  value_result[2 + ig] = L * free_energy.df_detai(c, etas, ig);
 
                   time_integrator.compute_time_derivative(value_result[2 + ig], val, time_phi, 2 + ig, q);
 

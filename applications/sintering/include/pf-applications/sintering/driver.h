@@ -1091,12 +1091,6 @@ namespace Sintering
                   }
               }
 
-            /*
-            if (params.time_integration_data.interation_scheme == "BDF2")
-              sintering_data.set_dt(dt, old_dt);
-            else
-              sintering_data.set_dt(dt);
-            */
             sintering_data.time_data.update_dt(dt);
 
             nonlinear_operator.set_old_solution(solution);
