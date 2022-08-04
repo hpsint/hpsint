@@ -26,21 +26,22 @@ namespace Sintering
 
   using namespace dealii;
 
-  template <typename Number, int order>
+  template <typename Number>
   class TimeIntegratorData
   {
   public:
-    TimeIntegratorData()
-    {
-      dt = create_array<order>(0.0);
-    }
+    TimeIntegratorData(unsigned int order)
+      : dt(order)
+      , dt_backup(order)
+      , weights(order + 1)
+    {}
 
     void
     update_dt(Number dt_new)
     {
       dt_backup = dt;
 
-      for (int i = order - 2; i >= 0; i--)
+      for (int i = maximum_order() - 2; i >= 0; i--)
         {
           dt[i + 1] = dt[i];
         }
@@ -70,7 +71,7 @@ namespace Sintering
       return weights[0];
     }
 
-    const std::array<Number, order + 1> &
+    const std::vector<Number> &
     get_weights() const
     {
       return weights;
@@ -84,30 +85,37 @@ namespace Sintering
       });
     }
 
+    unsigned int
+    maximum_order() const
+    {
+      return dt.size();
+    }
+
+
   private:
     void
     update_weights()
     {
-      if (order == 2 && dt[1] != 0)
+      if (maximum_order() == 2 && dt[1] != 0)
         {
           weights[0] = (2 * dt[0] + dt[1]) / (dt[0] * (dt[0] + dt[1]));
           weights[1] = -(dt[0] + dt[1]) / (dt[0] * dt[1]);
           weights[2] = dt[0] / (dt[1] * (dt[0] + dt[1]));
         }
-      else if (order == 1 || dt[1] == 0)
+      else if (maximum_order() == 1 || dt[1] == 0)
         {
           weights[0] = 1.0 / dt[0];
           weights[1] = -1.0 / dt[0];
         }
       else
         {
-          AssertThrow(order < 3, ExcMessage("Not implemented"));
+          AssertThrow(maximum_order() < 3, ExcMessage("Not implemented"));
         }
     }
 
-    std::array<Number, order>     dt;
-    std::array<Number, order>     dt_backup;
-    std::array<Number, order + 1> weights;
+    std::vector<Number> dt;
+    std::vector<Number> dt_backup;
+    std::vector<Number> weights;
   };
 
   template <int dim, typename Number, typename VectorizedArrayType, int order>
@@ -133,7 +141,7 @@ namespace Sintering
       std::array<FECellIntegrator<dim, n_comp, Number, VectorizedArrayType>,
                  order>;
 
-    BDFIntegrator(const TimeIntegratorData<Number, order> &time_data)
+    BDFIntegrator(const TimeIntegratorData<Number> &time_data)
       : time_data(time_data)
     {
       for (unsigned int i = 0; i < order; i++)
@@ -223,7 +231,7 @@ namespace Sintering
     }
 
   private:
-    const TimeIntegratorData<Number, order> &time_data;
+    const TimeIntegratorData<Number> &time_data;
 
     mutable std::array<std::shared_ptr<BlockVectorType>, order> old_solutions;
   };

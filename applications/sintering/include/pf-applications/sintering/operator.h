@@ -1354,6 +1354,7 @@ namespace Sintering
       , L(L)
       , kappa_c(kappa_c)
       , kappa_p(kappa_p)
+      , time_data(2)
     {}
 
     const FreeEnergy<VectorizedArrayType> free_energy;
@@ -1366,7 +1367,7 @@ namespace Sintering
     const Number kappa_c;
     const Number kappa_p;
 
-    TimeIntegratorData<Number, 2> time_data;
+    TimeIntegratorData<Number> time_data;
 
   public:
     Table<3, VectorizedArrayType> &
