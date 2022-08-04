@@ -143,6 +143,7 @@ namespace Sintering
 
     BDFIntegrator(const TimeIntegratorData<Number> &time_data)
       : time_data(time_data)
+      , old_solutions(order)
     {
       for (unsigned int i = 0; i < order; i++)
         {
@@ -212,7 +213,7 @@ namespace Sintering
     }
 
     std::vector<std::shared_ptr<BlockVectorType>>
-    get_old_solutions()
+    get_old_solutions() const
     {
       std::vector<std::shared_ptr<BlockVectorType>> vec;
       for (int i = 1; i < order; i++)
@@ -224,7 +225,7 @@ namespace Sintering
       return vec;
     }
 
-    std::array<std::shared_ptr<BlockVectorType>, order>
+    std::vector<std::shared_ptr<BlockVectorType>>
     get_old_solutions_all() const
     {
       return old_solutions;
@@ -233,6 +234,6 @@ namespace Sintering
   private:
     const TimeIntegratorData<Number> &time_data;
 
-    mutable std::array<std::shared_ptr<BlockVectorType>, order> old_solutions;
+    mutable std::vector<std::shared_ptr<BlockVectorType>> old_solutions;
   };
 } // namespace Sintering
