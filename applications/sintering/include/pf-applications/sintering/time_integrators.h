@@ -215,6 +215,6 @@ namespace Sintering
   private:
     const TimeIntegratorData<Number> &time_data;
 
-    mutable std::vector<std::shared_ptr<BlockVectorType>> old_solutions;
+    std::vector<std::shared_ptr<BlockVectorType>> old_solutions;
   };
 } // namespace Sintering
