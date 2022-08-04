@@ -770,8 +770,6 @@ namespace Sintering
       nonlinear_operator.initialize_dof_vector(solution);
 
       nonlinear_operator.initialize_old_solutions();
-      // nonlinear_operator.initialize_dof_vector(
-      //  nonlinear_operator.get_old_old_solution());
 
       bool system_has_changed = true;
 
@@ -782,7 +780,6 @@ namespace Sintering
 
         system_has_changed = true;
 
-        // auto &old_solution = nonlinear_operator.get_old_old_solution();
         auto ptr_old_solutions = nonlinear_operator.get_old_solutions();
 
         output_result(solution, nonlinear_operator, t, "refinement");
@@ -976,7 +973,6 @@ namespace Sintering
 
         system_has_changed = true;
 
-        // auto &old_solution = nonlinear_operator.get_old_old_solution();
         auto ptr_old_solutions = nonlinear_operator.get_old_solutions();
 
         solution.update_ghost_values();

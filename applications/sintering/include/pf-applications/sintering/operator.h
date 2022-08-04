@@ -1541,14 +1541,6 @@ namespace Sintering
         time_integrator.get_recent_old_solution().is_globally_compatible(
           this->matrix_free.get_vector_partitioner()),
         ExcInternalError());
-      /*
-            this->old_solution = src;
-            this->old_solution.update_ghost_values();
-
-            AssertThrow(this->old_solution.is_globally_compatible(
-                          this->matrix_free.get_vector_partitioner()),
-                        ExcInternalError());
-      */
     }
 
     void
@@ -1556,24 +1548,7 @@ namespace Sintering
     {
       time_integrator.commit_old_solutions();
     }
-    /*
-        void
-        set_old_old_solution(const BlockVectorType &src) const
-        {
-          Assert(src.has_ghost_elements() == false, ExcInternalError());
 
-          AssertThrow(src.is_globally_compatible(
-                        this->matrix_free.get_vector_partitioner()),
-                      ExcInternalError());
-
-          this->old_old_solution = src;
-          this->old_old_solution.update_ghost_values();
-
-          AssertThrow(this->old_old_solution.is_globally_compatible(
-                        this->matrix_free.get_vector_partitioner()),
-                      ExcInternalError());
-        }
-    */
     const BlockVectorType &
     get_old_solution() const
     {
@@ -1582,37 +1557,12 @@ namespace Sintering
                   ExcInternalError());
 
       return time_integrator.get_recent_old_solution();
-
-      // this->old_solution.zero_out_ghost_values();
-      // return this->old_solution;
     }
 
     auto
-    get_old_solutions()
+    get_old_solutions(bool skip_first = true)
     {
-      return time_integrator.get_old_solutions();
-    }
-
-    BlockVectorType &
-    get_old_old_solution()
-    {
-      AssertThrow(this->old_old_solution.is_globally_compatible(
-                    this->matrix_free.get_vector_partitioner()),
-                  ExcInternalError());
-
-      this->old_old_solution.zero_out_ghost_values();
-      return this->old_old_solution;
-    }
-
-    const BlockVectorType &
-    get_old_old_solution() const
-    {
-      AssertThrow(this->old_old_solution.is_globally_compatible(
-                    this->matrix_free.get_vector_partitioner()),
-                  ExcInternalError());
-
-      this->old_old_solution.zero_out_ghost_values();
-      return this->old_old_solution;
+      return time_integrator.get_old_solutions(skip_first);
     }
 
     void
