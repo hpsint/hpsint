@@ -2046,6 +2046,7 @@ namespace Sintering
       const auto &mobility    = this->data.mobility;
       const auto &kappa_c     = this->data.kappa_c;
       const auto &kappa_p     = this->data.kappa_p;
+      const auto &order       = this->data.time_data.effective_order();
 
       for (auto cell = range.first; cell < range.second; ++cell)
         {
@@ -2054,7 +2055,7 @@ namespace Sintering
                               EvaluationFlags::EvaluationFlags::values |
                                 EvaluationFlags::EvaluationFlags::gradients);
 
-          for (unsigned int i = 0; i < time_integrator.n_order; i++)
+          for (unsigned int i = 0; i < order; i++)
             {
               time_phi[i].reinit(cell);
               time_phi[i].read_dof_values_plain(
@@ -2114,7 +2115,7 @@ namespace Sintering
     }
 
     const SinteringOperatorData<dim, VectorizedArrayType> &data;
-    BDFIntegrator<dim, Number, VectorizedArrayType, 2>     time_integrator;
+    BDFIntegrator<dim, Number, VectorizedArrayType>        time_integrator;
 
     mutable BlockVectorType old_solution;
     mutable BlockVectorType old_old_solution;

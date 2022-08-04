@@ -118,12 +118,10 @@ namespace Sintering
     std::vector<Number> weights;
   };
 
-  template <int dim, typename Number, typename VectorizedArrayType, int order>
+  template <int dim, typename Number, typename VectorizedArrayType>
   class BDFIntegrator
   {
   public:
-    static constexpr int n_order = order;
-
     using BlockVectorType =
       LinearAlgebra::distributed::DynamicBlockVector<Number>;
 
@@ -138,17 +136,14 @@ namespace Sintering
 
     template <int n_comp>
     using TimeCellIntegrator =
-      std::array<FECellIntegrator<dim, n_comp, Number, VectorizedArrayType>,
-                 order>;
+      std::vector<FECellIntegrator<dim, n_comp, Number, VectorizedArrayType>>;
 
     BDFIntegrator(const TimeIntegratorData<Number> &time_data)
       : time_data(time_data)
-      , old_solutions(order)
+      , old_solutions(time_data.maximum_order())
     {
-      for (unsigned int i = 0; i < order; i++)
-        {
-          old_solutions[i] = std::make_shared<BlockVectorType>();
-        }
+      for (unsigned int i = 0; i < old_solutions.size(); i++)
+        old_solutions[i] = std::make_shared<BlockVectorType>();
     }
 
     template <int n_comp>
@@ -159,6 +154,9 @@ namespace Sintering
                             const unsigned int                index,
                             const unsigned int                q) const
     {
+      AssertThrow(time_data.effective_order() == time_phi.size(),
+                  ExcMessage("Inconsistent data structures provided!"));
+
       const auto &weights = time_data.get_weights();
 
       value_result += val[index] * weights[0];
@@ -174,14 +172,15 @@ namespace Sintering
     TimeCellIntegrator<n_comp>
     create_cell_intergator(const CellIntegrator<n_comp> &cell_integrator) const
     {
-      return create_array<order>(cell_integrator);
+      return TimeCellIntegrator<n_comp>(time_data.effective_order(),
+                                        cell_integrator);
     }
 
     void
     commit_old_solutions() const
     {
       // Move pointers
-      for (int i = order - 2; i >= 0; i--)
+      for (int i = old_solutions.size() - 2; i >= 0; i--)
         {
           old_solutions[i]->zero_out_ghost_values();
           *old_solutions[i + 1] = *old_solutions[i];
@@ -206,17 +205,15 @@ namespace Sintering
     void
     initialize_old_solutions(std::function<void(BlockVectorType &)> f)
     {
-      for (int i = 1; i < order; i++)
-        {
-          f(*old_solutions[i]);
-        }
+      for (unsigned int i = 1; i < old_solutions.size(); i++)
+        f(*old_solutions[i]);
     }
 
     std::vector<std::shared_ptr<BlockVectorType>>
     get_old_solutions() const
     {
       std::vector<std::shared_ptr<BlockVectorType>> vec;
-      for (int i = 1; i < order; i++)
+      for (unsigned int i = 1; i < old_solutions.size(); i++)
         {
           old_solutions[i]->zero_out_ghost_values();
           vec.push_back(old_solutions[i]);
