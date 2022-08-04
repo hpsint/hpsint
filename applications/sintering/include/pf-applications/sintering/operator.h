@@ -1507,6 +1507,11 @@ namespace Sintering
                     "sintering_op::nonlinear_residual",
                     this->do_timing);
 
+      auto ptr_old_solutions = time_integrator.get_old_solutions_all();
+      for (auto &ptr_old : ptr_old_solutions)
+        if (ptr_old->n_blocks() > 0 && !ptr_old->has_ghost_elements())
+          ptr_old->update_ghost_values();
+
 #define OPERATION(c, d)                                       \
   MyMatrixFreeTools::cell_loop_wrapper(                       \
     this->matrix_free,                                        \
@@ -1528,31 +1533,45 @@ namespace Sintering
                     this->matrix_free.get_vector_partitioner()),
                   ExcInternalError());
 
-      this->old_solution = src;
-      this->old_solution.update_ghost_values();
+      time_integrator.set_recent_old_solution(src);
 
-      AssertThrow(this->old_solution.is_globally_compatible(
-                    this->matrix_free.get_vector_partitioner()),
-                  ExcInternalError());
+      AssertThrow(
+        time_integrator.get_recent_old_solution().is_globally_compatible(
+          this->matrix_free.get_vector_partitioner()),
+        ExcInternalError());
+      /*
+            this->old_solution = src;
+            this->old_solution.update_ghost_values();
+
+            AssertThrow(this->old_solution.is_globally_compatible(
+                          this->matrix_free.get_vector_partitioner()),
+                        ExcInternalError());
+      */
     }
 
     void
-    set_old_old_solution(const BlockVectorType &src) const
+    commit_old_solutions() const
     {
-      Assert(src.has_ghost_elements() == false, ExcInternalError());
-
-      AssertThrow(src.is_globally_compatible(
-                    this->matrix_free.get_vector_partitioner()),
-                  ExcInternalError());
-
-      this->old_old_solution = src;
-      this->old_old_solution.update_ghost_values();
-
-      AssertThrow(this->old_old_solution.is_globally_compatible(
-                    this->matrix_free.get_vector_partitioner()),
-                  ExcInternalError());
+      time_integrator.commit_old_solutions();
     }
+    /*
+        void
+        set_old_old_solution(const BlockVectorType &src) const
+        {
+          Assert(src.has_ghost_elements() == false, ExcInternalError());
 
+          AssertThrow(src.is_globally_compatible(
+                        this->matrix_free.get_vector_partitioner()),
+                      ExcInternalError());
+
+          this->old_old_solution = src;
+          this->old_old_solution.update_ghost_values();
+
+          AssertThrow(this->old_old_solution.is_globally_compatible(
+                        this->matrix_free.get_vector_partitioner()),
+                      ExcInternalError());
+        }
+    */
     const BlockVectorType &
     get_old_solution() const
     {
@@ -1560,8 +1579,16 @@ namespace Sintering
                     this->matrix_free.get_vector_partitioner()),
                   ExcInternalError());
 
-      this->old_solution.zero_out_ghost_values();
-      return this->old_solution;
+      return time_integrator.get_recent_old_solution();
+
+      // this->old_solution.zero_out_ghost_values();
+      // return this->old_solution;
+    }
+
+    auto
+    get_old_solutions()
+    {
+      return time_integrator.get_old_solutions();
     }
 
     BlockVectorType &
@@ -1584,6 +1611,16 @@ namespace Sintering
 
       this->old_old_solution.zero_out_ghost_values();
       return this->old_old_solution;
+    }
+
+    void
+    initialize_old_solutions()
+    {
+      std::function<void(BlockVectorType &)> f = [=](BlockVectorType &v) {
+        this->initialize_dof_vector(v);
+      };
+
+      time_integrator.initialize_old_solutions(f);
     }
 
     void
@@ -1713,7 +1750,8 @@ namespace Sintering
 
               if (entries_mask[FieldDt])
                 {
-                  temp[counter++] = VectorizedArrayType(data.time_data.get_current_dt());
+                  temp[counter++] =
+                    VectorizedArrayType(data.time_data.get_current_dt());
                 }
 
               if (entries_mask[FieldD2f])
@@ -2001,15 +2039,16 @@ namespace Sintering
         matrix_free, this->dof_index);
 
       // This is temporary callback just to test the concept
-      time_integrator.set_old_vectors_pointers(&old_solution, &old_old_solution);
+      // time_integrator.set_old_vectors_pointers(&old_solution,
+      // &old_old_solution);
 
       auto time_phi = time_integrator.create_cell_intergator(phi);
 
-      const auto &free_energy    = this->data.free_energy;
-      const auto &L              = this->data.L;
-      const auto &mobility       = this->data.mobility;
-      const auto &kappa_c        = this->data.kappa_c;
-      const auto &kappa_p        = this->data.kappa_p;
+      const auto &free_energy = this->data.free_energy;
+      const auto &L           = this->data.L;
+      const auto &mobility    = this->data.mobility;
+      const auto &kappa_c     = this->data.kappa_c;
+      const auto &kappa_p     = this->data.kappa_p;
 
       for (auto cell = range.first; cell < range.second; ++cell)
         {
@@ -2018,17 +2057,18 @@ namespace Sintering
                               EvaluationFlags::EvaluationFlags::values |
                                 EvaluationFlags::EvaluationFlags::gradients);
 
-          for(unsigned int i = 0; i < time_integrator.n_order; i++)
-          {
-            time_phi[i].reinit(cell);
-            time_phi[i].read_dof_values_plain(*time_integrator.old_solutions[i]);
-            time_phi[i].evaluate(EvaluationFlags::EvaluationFlags::values);
-          }
+          for (unsigned int i = 0; i < time_integrator.n_order; i++)
+            {
+              time_phi[i].reinit(cell);
+              time_phi[i].read_dof_values_plain(
+                *time_integrator.get_old_solutions_all()[i]);
+              time_phi[i].evaluate(EvaluationFlags::EvaluationFlags::values);
+            }
 
           for (unsigned int q = 0; q < phi.n_q_points; ++q)
             {
-              const auto val         = phi.get_value(q);
-              const auto grad        = phi.get_gradient(q);
+              const auto val  = phi.get_value(q);
+              const auto grad = phi.get_gradient(q);
 
               auto &c      = val[0];
               auto &mu     = val[1];
@@ -2048,7 +2088,8 @@ namespace Sintering
               Tensor<1, n_comp, Tensor<1, dim, VectorizedArrayType>>
                 gradient_result;
 
-              time_integrator.compute_time_derivative(value_result[0], val, time_phi, 0, q);
+              time_integrator.compute_time_derivative(
+                value_result[0], val, time_phi, 0, q);
 
               value_result[1] = -mu + free_energy.df_dc(c, etas);
               gradient_result[0] =
@@ -2060,7 +2101,8 @@ namespace Sintering
                 {
                   value_result[2 + ig] = L * free_energy.df_detai(c, etas, ig);
 
-                  time_integrator.compute_time_derivative(value_result[2 + ig], val, time_phi, 2 + ig, q);
+                  time_integrator.compute_time_derivative(
+                    value_result[2 + ig], val, time_phi, 2 + ig, q);
 
                   gradient_result[2 + ig] = L * kappa_p * grad[2 + ig];
                 }
@@ -2075,7 +2117,7 @@ namespace Sintering
     }
 
     const SinteringOperatorData<dim, VectorizedArrayType> &data;
-    BDFIntegrator<dim, Number, VectorizedArrayType, 2> time_integrator;
+    BDFIntegrator<dim, Number, VectorizedArrayType, 2>     time_integrator;
 
     mutable BlockVectorType old_solution;
     mutable BlockVectorType old_old_solution;

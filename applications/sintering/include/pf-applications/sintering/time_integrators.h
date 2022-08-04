@@ -79,7 +79,9 @@ namespace Sintering
     unsigned int
     effective_order() const
     {
-      return std::count_if(dt.begin(), dt.end(), [](const auto &v) { return v > 0; });
+      return std::count_if(dt.begin(), dt.end(), [](const auto &v) {
+        return v > 0;
+      });
     }
 
   private:
@@ -133,7 +135,12 @@ namespace Sintering
 
     BDFIntegrator(const TimeIntegratorData<Number, order> &time_data)
       : time_data(time_data)
-    {}
+    {
+      for (unsigned int i = 0; i < order; i++)
+        {
+          old_solutions[i] = std::make_shared<BlockVectorType>();
+        }
+    }
 
     template <int n_comp>
     void
@@ -154,6 +161,7 @@ namespace Sintering
         }
     }
 
+    /*
     // Temporary function, works for order = 2 only
     void
     set_old_vectors_pointers(const BlockVectorType *old_solution,
@@ -165,6 +173,7 @@ namespace Sintering
 
     // Also made mutable temprorarily
     mutable std::array<const BlockVectorType *, order> old_solutions;
+    */
 
     template <int n_comp>
     TimeCellIntegrator<n_comp>
@@ -173,7 +182,63 @@ namespace Sintering
       return create_array<order>(cell_integrator);
     }
 
+    void
+    commit_old_solutions() const
+    {
+      // Move pointers
+      for (int i = order - 2; i >= 0; i--)
+        {
+          old_solutions[i]->zero_out_ghost_values();
+          *old_solutions[i + 1] = *old_solutions[i];
+          old_solutions[i + 1]->update_ghost_values();
+        }
+    }
+
+    void
+    set_recent_old_solution(const BlockVectorType &src) const
+    {
+      *old_solutions[0] = src;
+      old_solutions[0]->update_ghost_values();
+    }
+
+    const BlockVectorType &
+    get_recent_old_solution() const
+    {
+      old_solutions[0]->zero_out_ghost_values();
+      return *old_solutions[0];
+    }
+
+    void
+    initialize_old_solutions(std::function<void(BlockVectorType &)> f)
+    {
+      for (int i = 1; i < order; i++)
+        {
+          f(*old_solutions[i]);
+        }
+    }
+
+    std::vector<std::shared_ptr<BlockVectorType>>
+    get_old_solutions()
+    {
+      std::vector<std::shared_ptr<BlockVectorType>> vec;
+      for (int i = 1; i < order; i++)
+        {
+          old_solutions[i]->zero_out_ghost_values();
+          vec.push_back(old_solutions[i]);
+        }
+
+      return vec;
+    }
+
+    std::array<std::shared_ptr<BlockVectorType>, order>
+    get_old_solutions_all() const
+    {
+      return old_solutions;
+    }
+
   private:
     const TimeIntegratorData<Number, order> &time_data;
+
+    mutable std::array<std::shared_ptr<BlockVectorType>, order> old_solutions;
   };
 } // namespace Sintering
