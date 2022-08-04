@@ -161,20 +161,6 @@ namespace Sintering
         }
     }
 
-    /*
-    // Temporary function, works for order = 2 only
-    void
-    set_old_vectors_pointers(const BlockVectorType *old_solution,
-                             const BlockVectorType *old_old_solution) const
-    {
-      old_solutions[0] = old_solution;
-      old_solutions[1] = old_old_solution;
-    }
-
-    // Also made mutable temprorarily
-    mutable std::array<const BlockVectorType *, order> old_solutions;
-    */
-
     template <int n_comp>
     TimeCellIntegrator<n_comp>
     create_cell_intergator(const CellIntegrator<n_comp> &cell_integrator) const

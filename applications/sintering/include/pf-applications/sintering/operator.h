@@ -2038,10 +2038,6 @@ namespace Sintering
       FECellIntegrator<dim, n_comp, Number, VectorizedArrayType> phi(
         matrix_free, this->dof_index);
 
-      // This is temporary callback just to test the concept
-      // time_integrator.set_old_vectors_pointers(&old_solution,
-      // &old_old_solution);
-
       auto time_phi = time_integrator.create_cell_intergator(phi);
 
       const auto &free_energy = this->data.free_energy;
