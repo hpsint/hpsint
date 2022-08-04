@@ -96,20 +96,30 @@ namespace Sintering
     void
     update_weights()
     {
-      if (maximum_order() == 2 && dt[1] != 0)
+      if (effective_order() == 3)
+        {
+          weights[1] = -(dt[0] + dt[1]) * (dt[0] + dt[1] + dt[2]) /
+                       (dt[0] * dt[1] * (dt[1] + dt[2]));
+          weights[2] =
+            dt[0] * (dt[0] + dt[1] + dt[2]) / (dt[1] * dt[2] * (dt[0] + dt[1]));
+          weights[3] = -dt[0] * (dt[0] + dt[1]) /
+                       (dt[2] * (dt[1] + dt[2]) * (dt[0] + dt[1] + dt[2]));
+          weights[0] = -(weights[1] + weights[2] + weights[3]);
+        }
+      else if (effective_order() == 2)
         {
           weights[0] = (2 * dt[0] + dt[1]) / (dt[0] * (dt[0] + dt[1]));
           weights[1] = -(dt[0] + dt[1]) / (dt[0] * dt[1]);
           weights[2] = dt[0] / (dt[1] * (dt[0] + dt[1]));
         }
-      else if (maximum_order() == 1 || dt[1] == 0)
+      else if (effective_order() == 1)
         {
           weights[0] = 1.0 / dt[0];
           weights[1] = -1.0 / dt[0];
         }
       else
         {
-          AssertThrow(maximum_order() < 3, ExcMessage("Not implemented"));
+          AssertThrow(false, ExcMessage("Not implemented"));
         }
     }
 

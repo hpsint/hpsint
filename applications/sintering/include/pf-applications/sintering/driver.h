@@ -513,6 +513,16 @@ namespace Sintering
                                          t,
                                        params.restart_data.interval);
 
+      unsigned int time_integration_order = 0;
+      if (params.time_integration_data.interation_scheme == "BDF1")
+        time_integration_order = 1;
+      else if (params.time_integration_data.interation_scheme == "BDF2")
+        time_integration_order = 2;
+      else if (params.time_integration_data.interation_scheme == "BDF3")
+        time_integration_order = 3;
+      else
+        AssertThrow(false, ExcNotImplemented());
+
       SinteringOperatorData<dim, VectorizedArrayType> sintering_data(
         params.energy_data.A,
         params.energy_data.B,
@@ -522,7 +532,8 @@ namespace Sintering
         params.mobility_data.Mgb,
         params.mobility_data.L,
         params.energy_data.kappa_c,
-        params.energy_data.kappa_p);
+        params.energy_data.kappa_p,
+        time_integration_order);
 
       sintering_data.set_n_components(n_initial_components);
 
@@ -758,8 +769,7 @@ namespace Sintering
 
       nonlinear_operator.initialize_dof_vector(solution);
 
-      if (params.time_integration_data.interation_scheme == "BDF2")
-        nonlinear_operator.initialize_old_solutions();
+      nonlinear_operator.initialize_old_solutions();
       // nonlinear_operator.initialize_dof_vector(
       //  nonlinear_operator.get_old_old_solution());
 
@@ -1319,8 +1329,7 @@ namespace Sintering
                     "Minimum timestep size exceeded, solution failed!"));
               }
 
-            if (has_converged &&
-                (params.time_integration_data.interation_scheme == "BDF2"))
+            if (has_converged)
               nonlinear_operator.commit_old_solutions();
             /*
           nonlinear_operator.set_old_old_solution(

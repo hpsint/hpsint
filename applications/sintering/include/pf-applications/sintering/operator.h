@@ -1340,21 +1340,22 @@ namespace Sintering
   {
     using Number = typename VectorizedArrayType::value_type;
 
-    SinteringOperatorData(const Number A,
-                          const Number B,
-                          const Number Mvol,
-                          const Number Mvap,
-                          const Number Msurf,
-                          const Number Mgb,
-                          const Number L,
-                          const Number kappa_c,
-                          const Number kappa_p)
+    SinteringOperatorData(const Number       A,
+                          const Number       B,
+                          const Number       Mvol,
+                          const Number       Mvap,
+                          const Number       Msurf,
+                          const Number       Mgb,
+                          const Number       L,
+                          const Number       kappa_c,
+                          const Number       kappa_p,
+                          const unsigned int integration_order)
       : free_energy(A, B)
       , mobility(Mvol, Mvap, Msurf, Mgb)
       , L(L)
       , kappa_c(kappa_c)
       , kappa_p(kappa_p)
-      , time_data(2)
+      , time_data(integration_order)
     {}
 
     const FreeEnergy<VectorizedArrayType> free_energy;
