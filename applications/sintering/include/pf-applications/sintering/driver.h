@@ -1068,7 +1068,7 @@ namespace Sintering
 
         for (auto &ptr_old : ptr_old_solutions)
           if (ptr_old->n_blocks() > 0)
-            ptr_old->update_ghost_values();
+            ptr_old->zero_out_ghost_values();
       };
 
       initialize_solution(solution, timer);
