@@ -1509,7 +1509,7 @@ namespace Sintering
                     "sintering_op::nonlinear_residual",
                     this->do_timing);
 
-      auto ptr_old_solutions = time_integrator.get_old_solutions_all();
+      auto ptr_old_solutions = time_integrator.get_old_solutions(false);
       for (auto &ptr_old : ptr_old_solutions)
         if (ptr_old->n_blocks() > 0 && !ptr_old->has_ghost_elements())
           ptr_old->update_ghost_values();
@@ -1616,13 +1616,13 @@ namespace Sintering
     }
 
     void
-    initialize_old_solutions()
+    initialize_old_solutions(bool skip_first = true)
     {
       std::function<void(BlockVectorType &)> f = [=](BlockVectorType &v) {
         this->initialize_dof_vector(v);
       };
 
-      time_integrator.initialize_old_solutions(f);
+      time_integrator.initialize_old_solutions(f, skip_first);
     }
 
     void
@@ -2049,6 +2049,8 @@ namespace Sintering
       const auto &kappa_p     = this->data.kappa_p;
       const auto &order       = this->data.time_data.effective_order();
 
+      const auto old_solutions = time_integrator.get_old_solutions(false);
+
       for (auto cell = range.first; cell < range.second; ++cell)
         {
           phi.reinit(cell);
@@ -2059,8 +2061,7 @@ namespace Sintering
           for (unsigned int i = 0; i < order; i++)
             {
               time_phi[i].reinit(cell);
-              time_phi[i].read_dof_values_plain(
-                *time_integrator.get_old_solutions_all()[i]);
+              time_phi[i].read_dof_values_plain(*old_solutions[i]);
               time_phi[i].evaluate(EvaluationFlags::EvaluationFlags::values);
             }
 

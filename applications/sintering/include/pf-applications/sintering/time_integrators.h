@@ -6,24 +6,6 @@
 
 namespace Sintering
 {
-  namespace internal
-  {
-    template <typename T, std::size_t... Is>
-    constexpr std::array<T, sizeof...(Is)>
-    create_array(T value, std::index_sequence<Is...>)
-    {
-      // cast Is to void to remove the warning: unused value
-      return {{(static_cast<void>(Is), value)...}};
-    }
-  } // namespace internal
-
-  template <std::size_t N, typename T>
-  constexpr std::array<T, N>
-  create_array(const T &value)
-  {
-    return internal::create_array(value, std::make_index_sequence<N>());
-  }
-
   using namespace dealii;
 
   template <typename Number>
@@ -189,7 +171,6 @@ namespace Sintering
     void
     commit_old_solutions() const
     {
-      // Move pointers
       for (int i = old_solutions.size() - 2; i >= 0; i--)
         {
           old_solutions[i]->zero_out_ghost_values();
@@ -213,29 +194,22 @@ namespace Sintering
     }
 
     void
-    initialize_old_solutions(std::function<void(BlockVectorType &)> f)
+    initialize_old_solutions(std::function<void(BlockVectorType &)> f,
+                             bool skip_first = true)
     {
-      for (unsigned int i = 1; i < old_solutions.size(); i++)
+      unsigned int start = skip_first ? 1 : 0;
+      for (unsigned int i = start; i < old_solutions.size(); i++)
         f(*old_solutions[i]);
     }
 
     std::vector<std::shared_ptr<BlockVectorType>>
-    get_old_solutions() const
+    get_old_solutions(bool skip_first = true) const
     {
-      std::vector<std::shared_ptr<BlockVectorType>> vec;
-      for (unsigned int i = 1; i < old_solutions.size(); i++)
-        {
-          old_solutions[i]->zero_out_ghost_values();
-          vec.push_back(old_solutions[i]);
-        }
-
-      return vec;
-    }
-
-    std::vector<std::shared_ptr<BlockVectorType>>
-    get_old_solutions_all() const
-    {
-      return old_solutions;
+      if (skip_first)
+        return std::vector<std::shared_ptr<BlockVectorType>>(
+          old_solutions.begin() + 1, old_solutions.end());
+      else
+        return old_solutions;
     }
 
   private:
