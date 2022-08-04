@@ -57,11 +57,11 @@ namespace Sintering
       static_assert(n_grains != -1);
       const unsigned int cell = phi.get_current_cell_index();
 
-      const auto &free_energy         = data.free_energy;
-      const auto &mobility            = data.mobility;
-      const auto &kappa_c             = data.kappa_c;
-      const auto  weight              = this->data.time_data.get_primary_weight();
-      const auto &nonlinear_values    = data.get_nonlinear_values();
+      const auto &free_energy      = data.free_energy;
+      const auto &mobility         = data.mobility;
+      const auto &kappa_c          = data.kappa_c;
+      const auto  weight           = this->data.time_data.get_primary_weight();
+      const auto &nonlinear_values = data.get_nonlinear_values();
       const auto &nonlinear_gradients = data.get_nonlinear_gradients();
 
       // TODO: 1) allow std::array again and 2) allocate less often in the
