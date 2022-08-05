@@ -807,32 +807,7 @@ namespace Sintering
           solution_dealii.block(b).reinit(partitioner);
 
         solutions_except_recent.flatten(solution_dealii);
-        /*
-        unsigned int old_offset = 0;
-        unsigned int old_id     = 0;
-        for (unsigned int b = 0; b < solution_dealii.n_blocks(); ++b)
-          {
-            solution_dealii.block(b).reinit(partitioner);
 
-            if (b < solution.n_blocks())
-              solution_dealii.block(b).copy_locally_owned_data_from(
-                solution.block(b));
-            else
-              {
-                if (b >= old_offset + ptr_old_solutions[old_id]->n_blocks() +
-                           solution.n_blocks())
-                  {
-                    old_offset += ptr_old_solutions[old_id]->n_blocks();
-                    old_id += 1;
-                  }
-                solution_dealii.block(b).copy_locally_owned_data_from(
-                  ptr_old_solutions[old_id]->block(b - old_offset -
-                                                   solution.n_blocks()));
-              }
-
-            constraints.distribute(solution_dealii.block(b));
-          }
-        */
         for (unsigned int b = 0; b < solution_dealii.n_blocks(); ++b)
           constraints.distribute(solution_dealii.block(b));
 
@@ -935,23 +910,8 @@ namespace Sintering
         preconditioner->clear();
 
         solutions_except_recent.apply(f_init);
-        /*
-        nonlinear_operator.initialize_dof_vector(solution);
-
-        for (auto &ptr_old : ptr_old_solutions)
-          if (ptr_old->n_blocks() > 0)
-            nonlinear_operator.initialize_dof_vector(*ptr_old);
-        */
 
         auto solution_ptr = solutions_except_recent.get_all_blocks();
-        /*
-        std::vector<typename VectorType::BlockType *> solution_ptr;
-        for (unsigned int b = 0; b < solution.n_blocks(); ++b)
-          solution_ptr.push_back(&solution.block(b));
-        for (auto &ptr_old : ptr_old_solutions)
-          for (unsigned int b = 0; b < ptr_old->n_blocks(); ++b)
-            solution_ptr.push_back(&ptr_old->block(b));
-        */
 
         solution_trans.interpolate(solution_ptr);
 
@@ -959,22 +919,7 @@ namespace Sintering
         for (unsigned int b = 0; b < solution_ptr.size(); ++b)
           constraints.distribute(*solution_ptr[b]);
 
-        // solutions_except_recent.apply_blockwise([&](const auto& block) {
-        // constraints.distribute(block); });
-        /*
-        for (unsigned int b = 0; b < solution.n_blocks(); ++b)
-          constraints.distribute(solution.block(b));
-        for (auto &ptr_old : ptr_old_solutions)
-          for (unsigned int b = 0; b < ptr_old->n_blocks(); ++b)
-            constraints.distribute(ptr_old->block(b));
-        */
-
         old_old_solutions.update_ghost_values();
-        /*
-        for (auto &ptr_old : ptr_old_solutions)
-          if (ptr_old->n_blocks() > 0)
-            ptr_old->update_ghost_values();
-        */
 
         output_result(solution, nonlinear_operator, t, "refinement");
 
@@ -1003,7 +948,6 @@ namespace Sintering
         system_has_changed = true;
 
         auto solutions_except_recent = solution_history.filter(true, false);
-        // auto ptr_old_solutions = solution_history.get_old_solutions();
 
         solutions_except_recent.update_ghost_values();
 
@@ -1074,38 +1018,17 @@ namespace Sintering
                 };
 
                 solutions_except_recent.apply([&](auto &sol) { remap(sol); });
-                /*
-                remap(solution);
-
-                for (auto &ptr_old : ptr_old_solutions)
-                  if (ptr_old->n_blocks() > 0)
-                    remap(*ptr_old);
-                */
               }
             else if (has_reassigned_grains)
               {
                 solutions_except_recent.apply(
                   [&](auto &sol) { grain_tracker.remap(sol); });
-                /*
-                grain_tracker.remap(solution);
-
-                for (auto &ptr_old : ptr_old_solutions)
-                  if (ptr_old->n_blocks() > 0)
-                    grain_tracker.remap(*ptr_old);
-                */
               }
 
             output_result(solution, nonlinear_operator, t, "remap");
           }
 
         solutions_except_recent.zero_out_ghost_values();
-        /*
-        solution.zero_out_ghost_values();
-
-        for (auto &ptr_old : ptr_old_solutions)
-          if (ptr_old->n_blocks() > 0)
-            ptr_old->zero_out_ghost_values();
-        */
       };
 
       initialize_solution(solution, timer);
