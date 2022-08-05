@@ -3,6 +3,7 @@
 #include <deal.II/lac/trilinos_sparsity_pattern.h>
 
 #include <pf-applications/matrix_free/tools.h>
+#include <pf-applications/time_integration/solution_history.h>
 
 #include <fstream>
 
@@ -1481,10 +1482,11 @@ namespace Sintering
     using vector_type = VectorType;
 
     SinteringOperator(
-      const MatrixFree<dim, Number, VectorizedArrayType> &   matrix_free,
-      const AffineConstraints<Number> &                      constraints,
-      const SinteringOperatorData<dim, VectorizedArrayType> &data,
-      const bool                                             matrix_based)
+      const MatrixFree<dim, Number, VectorizedArrayType> &     matrix_free,
+      const AffineConstraints<Number> &                        constraints,
+      const SinteringOperatorData<dim, VectorizedArrayType>   &data,
+      const TimeIntegration::SolutionHistory<BlockVectorType> &history,
+      const bool                                               matrix_based)
       : OperatorBase<dim,
                      Number,
                      VectorizedArrayType,
@@ -1495,7 +1497,8 @@ namespace Sintering
           "sintering_op",
           matrix_based)
       , data(data)
-      , time_integrator(data.time_data)
+      , history(history)
+      , time_integrator(data.time_data, history)
     {}
 
     ~SinteringOperator()
@@ -1509,9 +1512,9 @@ namespace Sintering
                     "sintering_op::nonlinear_residual",
                     this->do_timing);
 
-      auto ptr_old_solutions = time_integrator.get_old_solutions(false);
+      auto ptr_old_solutions = history.get_old_solutions(false);
       for (auto &ptr_old : ptr_old_solutions)
-        if (ptr_old->n_blocks() > 0 && !ptr_old->has_ghost_elements())
+        if (ptr_old->n_blocks() > 0)
           ptr_old->update_ghost_values();
 
 #define OPERATION(c, d)                                       \
@@ -1524,55 +1527,6 @@ namespace Sintering
     true);
       EXPAND_OPERATIONS(OPERATION);
 #undef OPERATION
-    }
-
-    void
-    set_old_solution(const BlockVectorType &src) const
-    {
-      Assert(src.has_ghost_elements() == false, ExcInternalError());
-
-      AssertThrow(src.is_globally_compatible(
-                    this->matrix_free.get_vector_partitioner()),
-                  ExcInternalError());
-
-      time_integrator.set_recent_old_solution(src);
-
-      AssertThrow(
-        time_integrator.get_recent_old_solution().is_globally_compatible(
-          this->matrix_free.get_vector_partitioner()),
-        ExcInternalError());
-    }
-
-    void
-    commit_old_solutions() const
-    {
-      time_integrator.commit_old_solutions();
-    }
-
-    const BlockVectorType &
-    get_old_solution() const
-    {
-      AssertThrow(this->old_solution.is_globally_compatible(
-                    this->matrix_free.get_vector_partitioner()),
-                  ExcInternalError());
-
-      return time_integrator.get_recent_old_solution();
-    }
-
-    auto
-    get_old_solutions(bool skip_first = true)
-    {
-      return time_integrator.get_old_solutions(skip_first);
-    }
-
-    void
-    initialize_old_solutions(bool skip_first = true)
-    {
-      std::function<void(BlockVectorType &)> f = [=](BlockVectorType &v) {
-        this->initialize_dof_vector(v);
-      };
-
-      time_integrator.initialize_old_solutions(f, skip_first);
     }
 
     void
@@ -1999,7 +1953,7 @@ namespace Sintering
       const auto &kappa_p     = this->data.kappa_p;
       const auto &order       = this->data.time_data.effective_order();
 
-      const auto old_solutions = time_integrator.get_old_solutions(false);
+      const auto old_solutions = history.get_old_solutions(false);
 
       for (auto cell = range.first; cell < range.second; ++cell)
         {
@@ -2066,8 +2020,9 @@ namespace Sintering
         }
     }
 
-    const SinteringOperatorData<dim, VectorizedArrayType> &data;
-    BDFIntegrator<dim, Number, VectorizedArrayType>        time_integrator;
+    const SinteringOperatorData<dim, VectorizedArrayType>   &data;
+    const TimeIntegration::SolutionHistory<BlockVectorType> &history;
+    BDFIntegrator<dim, Number, VectorizedArrayType>          time_integrator;
 
     mutable BlockVectorType old_solution;
     mutable BlockVectorType old_old_solution;

@@ -1,6 +1,9 @@
+#pragma once
+
 #include <pf-applications/base/fe_integrator.h>
 
 #include <pf-applications/lac/dynamic_block_vector.h>
+#include <pf-applications/time_integration/solution_history.h>
 
 #include <array>
 
@@ -130,12 +133,11 @@ namespace Sintering
     using TimeCellIntegrator =
       std::vector<FECellIntegrator<dim, n_comp, Number, VectorizedArrayType>>;
 
-    BDFIntegrator(const TimeIntegratorData<Number> &time_data)
+    BDFIntegrator(const TimeIntegratorData<Number> &time_data,
+      const TimeIntegration::SolutionHistory<BlockVectorType> &history)
       : time_data(time_data)
-      , old_solutions(time_data.maximum_order())
+      , history(history)
     {
-      for (unsigned int i = 0; i < old_solutions.size(); i++)
-        old_solutions[i] = std::make_shared<BlockVectorType>();
     }
 
     template <int n_comp>
@@ -168,53 +170,8 @@ namespace Sintering
                                         cell_integrator);
     }
 
-    void
-    commit_old_solutions() const
-    {
-      for (int i = old_solutions.size() - 2; i >= 0; i--)
-        {
-          old_solutions[i]->zero_out_ghost_values();
-          *old_solutions[i + 1] = *old_solutions[i];
-          old_solutions[i + 1]->update_ghost_values();
-        }
-    }
-
-    void
-    set_recent_old_solution(const BlockVectorType &src) const
-    {
-      *old_solutions[0] = src;
-      old_solutions[0]->update_ghost_values();
-    }
-
-    const BlockVectorType &
-    get_recent_old_solution() const
-    {
-      old_solutions[0]->zero_out_ghost_values();
-      return *old_solutions[0];
-    }
-
-    void
-    initialize_old_solutions(std::function<void(BlockVectorType &)> f,
-                             bool skip_first = true)
-    {
-      unsigned int start = skip_first ? 1 : 0;
-      for (unsigned int i = start; i < old_solutions.size(); i++)
-        f(*old_solutions[i]);
-    }
-
-    std::vector<std::shared_ptr<BlockVectorType>>
-    get_old_solutions(bool skip_first = true) const
-    {
-      if (skip_first)
-        return std::vector<std::shared_ptr<BlockVectorType>>(
-          old_solutions.begin() + 1, old_solutions.end());
-      else
-        return old_solutions;
-    }
-
   private:
     const TimeIntegratorData<Number> &time_data;
-
-    std::vector<std::shared_ptr<BlockVectorType>> old_solutions;
+    const TimeIntegration::SolutionHistory<BlockVectorType> &history;
   };
 } // namespace Sintering

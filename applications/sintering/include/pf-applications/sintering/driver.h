@@ -537,6 +537,12 @@ namespace Sintering
 
       sintering_data.set_n_components(n_initial_components);
 
+      // TODO number of vectors is defined by the time integration scheme
+      unsigned int n_solutions = 3;
+
+      TimeIntegration::SolutionHistory<VectorType> solution_history(
+        n_solutions);
+
       MGLevelObject<SinteringOperatorData<dim, VectorizedArrayType>>
         mg_sintering_data(0,
                           n_global_levels_0 +
@@ -547,6 +553,7 @@ namespace Sintering
       NonLinearOperator nonlinear_operator(matrix_free,
                                            constraints,
                                            sintering_data,
+                                           solution_history,
                                            params.matrix_based);
 
       // ... preconditioner
@@ -765,11 +772,15 @@ namespace Sintering
 
 
       // set initial condition
-      VectorType solution;
 
-      nonlinear_operator.initialize_dof_vector(solution);
+      std::function<void(VectorType &)> f_init =
+        [&nonlinear_operator](VectorType &v) {
+          nonlinear_operator.initialize_dof_vector(v);
+        };
 
-      nonlinear_operator.initialize_old_solutions();
+      solution_history.initialize_dof_vectors(f_init);
+
+      VectorType &solution = solution_history.get_current_solution();
 
       bool system_has_changed = true;
 
@@ -780,7 +791,7 @@ namespace Sintering
 
         system_has_changed = true;
 
-        auto ptr_old_solutions = nonlinear_operator.get_old_solutions();
+        auto ptr_old_solutions = solution_history.get_old_solutions();
 
         output_result(solution, nonlinear_operator, t, "refinement");
 
@@ -973,7 +984,7 @@ namespace Sintering
 
         system_has_changed = true;
 
-        auto ptr_old_solutions = nonlinear_operator.get_old_solutions();
+        auto ptr_old_solutions = solution_history.get_old_solutions();
 
         solution.update_ghost_values();
 
@@ -1127,7 +1138,7 @@ namespace Sintering
 
             sintering_data.time_data.update_dt(dt);
 
-            nonlinear_operator.set_old_solution(solution);
+            solution_history.set_recent_old_solution(solution);
 
             if (params.profiling_data.run_vmults && system_has_changed)
               {
@@ -1284,7 +1295,7 @@ namespace Sintering
                 n_failed_residual_evaluations +=
                   statistics.n_residual_evaluations();
 
-                solution = nonlinear_operator.get_old_solution();
+                solution = solution_history.get_recent_old_solution();
 
                 sintering_data.time_data.rollback();
 
@@ -1312,7 +1323,7 @@ namespace Sintering
                 n_failed_residual_evaluations +=
                   statistics.n_residual_evaluations();
 
-                solution = nonlinear_operator.get_old_solution();
+                solution = solution_history.get_recent_old_solution();
 
                 output_result(solution,
                               nonlinear_operator,
@@ -1326,11 +1337,7 @@ namespace Sintering
               }
 
             if (has_converged)
-              nonlinear_operator.commit_old_solutions();
-            /*
-          nonlinear_operator.set_old_old_solution(
-            nonlinear_operator.get_old_solution());
-            */
+              solution_history.commit_old_solutions();
 
             const bool is_last_time_step =
               has_converged &&
@@ -1352,6 +1359,8 @@ namespace Sintering
                 if (solution_is_ghosted == false)
                   solution.update_ghost_values();
 
+                // solution_history.update_ghost_values(); // TODO
+
                 parallel::distributed::
                   SolutionTransfer<dim, typename VectorType::BlockType>
                     solution_transfer(dof_handler);
@@ -1360,6 +1369,9 @@ namespace Sintering
                   solution_ptr(solution.n_blocks());
                 for (unsigned int b = 0; b < solution.n_blocks(); ++b)
                   solution_ptr[b] = &solution.block(b);
+
+                // auto solution_ptr = solution_history.get_all_blocks();
+                // TODO
 
                 solution_transfer.prepare_for_serialization(solution_ptr);
 
