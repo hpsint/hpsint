@@ -3,6 +3,7 @@
 #include <pf-applications/base/fe_integrator.h>
 
 #include <pf-applications/lac/dynamic_block_vector.h>
+
 #include <pf-applications/time_integration/solution_history.h>
 
 #include <array>
@@ -133,12 +134,12 @@ namespace Sintering
     using TimeCellIntegrator =
       std::vector<FECellIntegrator<dim, n_comp, Number, VectorizedArrayType>>;
 
-    BDFIntegrator(const TimeIntegratorData<Number> &time_data,
+    BDFIntegrator(
+      const TimeIntegratorData<Number> &                       time_data,
       const TimeIntegration::SolutionHistory<BlockVectorType> &history)
       : time_data(time_data)
       , history(history)
-    {
-    }
+    {}
 
     template <int n_comp>
     void
@@ -171,7 +172,7 @@ namespace Sintering
     }
 
   private:
-    const TimeIntegratorData<Number> &time_data;
+    const TimeIntegratorData<Number> &                       time_data;
     const TimeIntegration::SolutionHistory<BlockVectorType> &history;
   };
 } // namespace Sintering
