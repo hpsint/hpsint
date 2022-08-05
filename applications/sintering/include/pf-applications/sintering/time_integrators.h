@@ -154,7 +154,7 @@ namespace Sintering
       const auto &weights = time_data.get_weights();
 
       value_result += val[index] * weights[0];
-      for (unsigned int i = 0; i < time_data.effective_order(); i++)
+      for (unsigned int i = 0; i < time_data.effective_order(); ++i)
         {
           const auto val_old = time_phi[i].get_value(q);
 

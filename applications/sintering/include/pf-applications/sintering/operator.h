@@ -1484,7 +1484,7 @@ namespace Sintering
     SinteringOperator(
       const MatrixFree<dim, Number, VectorizedArrayType> &     matrix_free,
       const AffineConstraints<Number> &                        constraints,
-      const SinteringOperatorData<dim, VectorizedArrayType>   &data,
+      const SinteringOperatorData<dim, VectorizedArrayType> &  data,
       const TimeIntegration::SolutionHistory<BlockVectorType> &history,
       const bool                                               matrix_based)
       : OperatorBase<dim,
@@ -1512,10 +1512,13 @@ namespace Sintering
                     "sintering_op::nonlinear_residual",
                     this->do_timing);
 
+      history.filter(false, true).update_ghost_values();
+      /*
       auto ptr_old_solutions = history.get_old_solutions(false);
       for (auto &ptr_old : ptr_old_solutions)
         if (ptr_old->n_blocks() > 0)
           ptr_old->update_ghost_values();
+      */
 
 #define OPERATION(c, d)                                       \
   MyMatrixFreeTools::cell_loop_wrapper(                       \
@@ -1962,7 +1965,7 @@ namespace Sintering
                               EvaluationFlags::EvaluationFlags::values |
                                 EvaluationFlags::EvaluationFlags::gradients);
 
-          for (unsigned int i = 0; i < order; i++)
+          for (unsigned int i = 0; i < order; ++i)
             {
               time_phi[i].reinit(cell);
               time_phi[i].read_dof_values_plain(*old_solutions[i]);
@@ -2020,7 +2023,7 @@ namespace Sintering
         }
     }
 
-    const SinteringOperatorData<dim, VectorizedArrayType>   &data;
+    const SinteringOperatorData<dim, VectorizedArrayType> &  data;
     const TimeIntegration::SolutionHistory<BlockVectorType> &history;
     BDFIntegrator<dim, Number, VectorizedArrayType>          time_integrator;
 

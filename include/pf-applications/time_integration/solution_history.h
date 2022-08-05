@@ -11,9 +11,6 @@ namespace TimeIntegration
   template <typename VectorType>
   class SolutionHistory
   {
-    template <typename T>
-    using n_blocks_t = decltype(std::declval<T const>().n_blocks());
-
   public:
     SolutionHistory(unsigned int size)
       : solutions(size)
@@ -22,14 +19,28 @@ namespace TimeIntegration
         solutions[i] = std::make_shared<VectorType>();
     }
 
-    void initialize_dof_vectors(std::function<void(VectorType &)> f)
+    SolutionHistory(std::vector<std::shared_ptr<VectorType>> solutions)
+      : solutions(solutions)
+    {}
+
+    void
+    apply(std::function<void(VectorType &)> f) const
     {
       for (unsigned int i = 0; i < solutions.size(); ++i)
-          f(*solutions[i]);
+        f(*solutions[i]);
     }
 
-    template <typename T = VectorType, std::enable_if_t<dealii::internal::is_supported_operation<n_blocks_t, T>, bool>>
-    unsigned int n_blocks_total()
+    void
+    apply_blockwise(
+      std::function<void(typename VectorType::BlockType &)> f) const
+    {
+      for (unsigned int i = 0; i < solutions.size(); ++i)
+        for (unsigned int b = 0; b < solutions[i]->n_blocks(); ++b)
+          f(solutions[i]->block(b));
+    }
+
+    unsigned int
+    n_blocks_total() const
     {
       unsigned int n_blocks = 0;
       for (const auto &sol : solutions)
@@ -38,16 +49,62 @@ namespace TimeIntegration
       return n_blocks;
     }
 
-    template <typename T = VectorType, std::enable_if_t<!dealii::internal::is_supported_operation<n_blocks_t, T>, bool>>
-    unsigned int n_blocks_total()
+    SolutionHistory<VectorType>
+    filter(bool keep_current = true, bool keep_recent = true) const
     {
-      return 0;
+      std::vector<std::shared_ptr<VectorType>> subset;
+
+      for (unsigned int i = 0; i < solutions.size(); ++i)
+        if (can_process(i, keep_current, keep_recent))
+          subset.push_back(solutions[i]);
+
+      return SolutionHistory(subset);
+    }
+
+    void
+    update_ghost_values() const
+    {
+      for (unsigned int i = 0; i < solutions.size(); ++i)
+        solutions[i]->update_ghost_values();
+    }
+
+    void
+    zero_out_ghost_values() const
+    {
+      for (unsigned int i = 0; i < solutions.size(); ++i)
+        solutions[i]->zero_out_ghost_values();
+    }
+
+    void
+    flatten(VectorType &dst) const
+    {
+      unsigned int b_dst = 0;
+
+      for (unsigned int i = 0; i < solutions.size(); ++i)
+        for (unsigned int b = 0; b < solutions[i]->n_blocks(); ++b)
+          {
+            dst.block(b_dst).copy_locally_owned_data_from(
+              solutions[i]->block(b));
+            ++b_dst;
+          }
+    }
+
+    std::vector<typename VectorType::BlockType *>
+    get_all_blocks() const
+    {
+      std::vector<typename VectorType::BlockType *> solution_ptr;
+
+      for (unsigned int i = 0; i < solutions.size(); ++i)
+        for (unsigned int b = 0; b < solutions[i]->n_blocks(); ++b)
+          solution_ptr.push_back(&solutions[i]->block(b));
+
+      return solution_ptr;
     }
 
     void
     commit_old_solutions() const
     {
-      for (int i = solutions.size() - 2; i >= 1; --i) // 1 or 0 ???
+      for (int i = solutions.size() - 2; i >= 1; --i)
         {
           solutions[i]->zero_out_ghost_values();
           *solutions[i + 1] = *solutions[i];
@@ -96,6 +153,15 @@ namespace TimeIntegration
     }
 
   private:
+    bool
+    can_process(const unsigned int index,
+                const bool         keep_current = false,
+                const bool         keep_recent  = false) const
+    {
+      return index > 1 || (index == 0 && keep_current) ||
+             (index == 1 && keep_recent);
+    }
+
     std::vector<std::shared_ptr<VectorType>> solutions;
   };
 } // namespace TimeIntegration
