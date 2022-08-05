@@ -143,12 +143,9 @@ namespace TimeIntegration
     }
 
     std::vector<std::shared_ptr<VectorType>>
-    get_old_solutions(bool skip_first = true) const
+    get_old_solutions() const
     {
-      const unsigned int offset = skip_first ? 2 : 1;
-
-      return std::vector<std::shared_ptr<VectorType>>(solutions.begin() +
-                                                        offset,
+      return std::vector<std::shared_ptr<VectorType>>(solutions.begin() + 1,
                                                       solutions.end());
     }
 

@@ -1947,7 +1947,7 @@ namespace Sintering
       const auto &kappa_p     = this->data.kappa_p;
       const auto &order       = this->data.time_data.effective_order();
 
-      const auto old_solutions = history.get_old_solutions(false);
+      const auto old_solutions = history.get_old_solutions();
 
       for (auto cell = range.first; cell < range.second; ++cell)
         {
