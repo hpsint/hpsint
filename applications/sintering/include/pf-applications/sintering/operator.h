@@ -480,7 +480,7 @@ namespace Sintering
     }
 
     DEAL_II_ALWAYS_INLINE Tensor<1, dim, VectorizedArrayType>
-                          unitVector(const Tensor<1, dim, VectorizedArrayType> &vec) const
+    unitVector(const Tensor<1, dim, VectorizedArrayType> &vec) const
     {
       VectorizedArrayType nrm = vec.norm();
       VectorizedArrayType filter;
@@ -506,8 +506,8 @@ namespace Sintering
     }
 
     DEAL_II_ALWAYS_INLINE Tensor<2, dim, VectorizedArrayType>
-                          projectorMatrix(const Tensor<1, dim, VectorizedArrayType> vec,
-                                          const VectorizedArrayType &               fac = 1.) const
+    projectorMatrix(const Tensor<1, dim, VectorizedArrayType> vec,
+                    const VectorizedArrayType &               fac = 1.) const
     {
       auto tensor = unitMatrix() - dealii::outer_product(vec, vec);
       tensor *= fac;
