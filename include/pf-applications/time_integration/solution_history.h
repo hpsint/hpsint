@@ -50,7 +50,7 @@ namespace TimeIntegration
     }
 
     SolutionHistory<VectorType>
-    filter(bool keep_current = true, bool keep_recent = true) const
+    filter(const bool keep_current = true, const bool keep_recent = true) const
     {
       std::vector<std::shared_ptr<VectorType>> subset;
 
@@ -155,8 +155,8 @@ namespace TimeIntegration
   private:
     bool
     can_process(const unsigned int index,
-                const bool         keep_current = false,
-                const bool         keep_recent  = false) const
+                const bool         keep_current,
+                const bool         keep_recent) const
     {
       return index > 1 || (index == 0 && keep_current) ||
              (index == 1 && keep_recent);
