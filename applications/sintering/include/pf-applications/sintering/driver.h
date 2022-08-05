@@ -948,6 +948,7 @@ namespace Sintering
         system_has_changed = true;
 
         auto solutions_except_recent = solution_history.filter(true, false);
+        auto old_old_solutions       = solution_history.filter(false, false);
 
         solutions_except_recent.update_ghost_values();
 
@@ -1028,7 +1029,8 @@ namespace Sintering
             output_result(solution, nonlinear_operator, t, "remap");
           }
 
-        solutions_except_recent.zero_out_ghost_values();
+        solution.zero_out_ghost_values();
+        old_old_solutions.update_ghost_values();
       };
 
       initialize_solution(solution, timer);

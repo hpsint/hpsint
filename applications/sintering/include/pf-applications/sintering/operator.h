@@ -1512,14 +1512,6 @@ namespace Sintering
                     "sintering_op::nonlinear_residual",
                     this->do_timing);
 
-      history.filter(false, true).update_ghost_values();
-      /*
-      auto ptr_old_solutions = history.get_old_solutions(false);
-      for (auto &ptr_old : ptr_old_solutions)
-        if (ptr_old->n_blocks() > 0)
-          ptr_old->update_ghost_values();
-      */
-
 #define OPERATION(c, d)                                       \
   MyMatrixFreeTools::cell_loop_wrapper(                       \
     this->matrix_free,                                        \
