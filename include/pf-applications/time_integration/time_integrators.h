@@ -8,7 +8,7 @@
 
 #include <array>
 
-namespace Sintering
+namespace TimeIntegration
 {
   using namespace dealii;
 
@@ -134,9 +134,8 @@ namespace Sintering
     using TimeCellIntegrator =
       std::vector<FECellIntegrator<dim, n_comp, Number, VectorizedArrayType>>;
 
-    BDFIntegrator(
-      const TimeIntegratorData<Number> &                       time_data,
-      const TimeIntegration::SolutionHistory<BlockVectorType> &history)
+    BDFIntegrator(const TimeIntegratorData<Number> &      time_data,
+                  const SolutionHistory<BlockVectorType> &history)
       : time_data(time_data)
       , history(history)
     {}
@@ -172,7 +171,7 @@ namespace Sintering
     }
 
   private:
-    const TimeIntegratorData<Number> &                       time_data;
-    const TimeIntegration::SolutionHistory<BlockVectorType> &history;
+    const TimeIntegratorData<Number> &      time_data;
+    const SolutionHistory<BlockVectorType> &history;
   };
-} // namespace Sintering
+} // namespace TimeIntegration

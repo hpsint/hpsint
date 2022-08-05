@@ -4,10 +4,9 @@
 
 #include <pf-applications/matrix_free/tools.h>
 #include <pf-applications/time_integration/solution_history.h>
+#include <pf-applications/time_integration/time_integrators.h>
 
 #include <fstream>
-
-#include "time_integrators.h"
 
 template <typename T>
 using n_grains_t = decltype(std::declval<T const>().n_grains());
@@ -481,7 +480,7 @@ namespace Sintering
     }
 
     DEAL_II_ALWAYS_INLINE Tensor<1, dim, VectorizedArrayType>
-    unitVector(const Tensor<1, dim, VectorizedArrayType> &vec) const
+                          unitVector(const Tensor<1, dim, VectorizedArrayType> &vec) const
     {
       VectorizedArrayType nrm = vec.norm();
       VectorizedArrayType filter;
@@ -507,8 +506,8 @@ namespace Sintering
     }
 
     DEAL_II_ALWAYS_INLINE Tensor<2, dim, VectorizedArrayType>
-    projectorMatrix(const Tensor<1, dim, VectorizedArrayType> vec,
-                    const VectorizedArrayType &               fac = 1.) const
+                          projectorMatrix(const Tensor<1, dim, VectorizedArrayType> vec,
+                                          const VectorizedArrayType &               fac = 1.) const
     {
       auto tensor = unitMatrix() - dealii::outer_product(vec, vec);
       tensor *= fac;
@@ -1369,7 +1368,7 @@ namespace Sintering
     const Number kappa_c;
     const Number kappa_p;
 
-    TimeIntegratorData<Number> time_data;
+    TimeIntegration::TimeIntegratorData<Number> time_data;
 
   public:
     Table<3, VectorizedArrayType> &
@@ -2017,7 +2016,8 @@ namespace Sintering
 
     const SinteringOperatorData<dim, VectorizedArrayType> &  data;
     const TimeIntegration::SolutionHistory<BlockVectorType> &history;
-    BDFIntegrator<dim, Number, VectorizedArrayType>          time_integrator;
+    const TimeIntegration::BDFIntegrator<dim, Number, VectorizedArrayType>
+      time_integrator;
 
     mutable BlockVectorType old_solution;
     mutable BlockVectorType old_old_solution;
