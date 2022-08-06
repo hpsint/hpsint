@@ -46,14 +46,14 @@ namespace TimeIntegration
     }
 
     void
-    set_all_dt(const std::vector<Number>& dt_new)
+    set_all_dt(const std::vector<Number> &dt_new)
     {
       AssertDimension(dt.size(), dt_new.size());
 
       update_weights();
     }
 
-    const std::vector<Number>&
+    const std::vector<Number> &
     get_all_dt() const
     {
       return dt;
