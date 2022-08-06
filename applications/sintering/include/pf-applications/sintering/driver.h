@@ -535,11 +535,8 @@ namespace Sintering
 
       sintering_data.set_n_components(n_initial_components);
 
-      // TODO number of vectors is defined by the time integration scheme
-      unsigned int n_solutions = 3;
-
       TimeIntegration::SolutionHistory<VectorType> solution_history(
-        n_solutions);
+        time_integration_order + 1);
 
       MGLevelObject<SinteringOperatorData<dim, VectorizedArrayType>>
         mg_sintering_data(0,

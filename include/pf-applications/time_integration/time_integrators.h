@@ -17,7 +17,8 @@ namespace TimeIntegration
   {
   public:
     TimeIntegratorData(unsigned int order)
-      : dt(order)
+      : order(order)
+      , dt(order)
       , dt_backup(order)
       , weights(order + 1)
     {}
@@ -27,7 +28,7 @@ namespace TimeIntegration
     {
       dt_backup = dt;
 
-      for (int i = maximum_order() - 2; i >= 0; i--)
+      for (int i = get_order() - 2; i >= 0; i--)
         {
           dt[i + 1] = dt[i];
         }
@@ -78,6 +79,13 @@ namespace TimeIntegration
     }
 
     unsigned int
+    get_order() const
+    {
+      return order;
+    }
+
+  private:
+    unsigned int
     effective_order() const
     {
       return std::count_if(dt.begin(), dt.end(), [](const auto &v) {
@@ -85,17 +93,11 @@ namespace TimeIntegration
       });
     }
 
-    unsigned int
-    maximum_order() const
-    {
-      return dt.size();
-    }
-
-
-  private:
     void
     update_weights()
     {
+      std::fill(weights.begin(), weights.end(), 0);
+
       if (effective_order() == 3)
         {
           weights[1] = -(dt[0] + dt[1]) * (dt[0] + dt[1] + dt[2]) /
@@ -123,6 +125,7 @@ namespace TimeIntegration
         }
     }
 
+    unsigned int        order;
     std::vector<Number> dt;
     std::vector<Number> dt_backup;
     std::vector<Number> weights;
@@ -162,13 +165,13 @@ namespace TimeIntegration
                             const unsigned int                index,
                             const unsigned int                q) const
     {
-      AssertThrow(time_data.effective_order() == time_phi.size(),
+      AssertThrow(time_data.get_order() == time_phi.size(),
                   ExcMessage("Inconsistent data structures provided!"));
 
       const auto &weights = time_data.get_weights();
 
       value_result += val[index] * weights[0];
-      for (unsigned int i = 0; i < time_data.effective_order(); ++i)
+      for (unsigned int i = 0; i < time_data.get_order(); ++i)
         {
           const auto val_old = time_phi[i].get_value(q);
 
@@ -180,8 +183,7 @@ namespace TimeIntegration
     TimeCellIntegrator<n_comp>
     create_cell_intergator(const CellIntegrator<n_comp> &cell_integrator) const
     {
-      return TimeCellIntegrator<n_comp>(time_data.effective_order(),
-                                        cell_integrator);
+      return TimeCellIntegrator<n_comp>(time_data.get_order(), cell_integrator);
     }
 
   private:

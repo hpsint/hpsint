@@ -1945,7 +1945,7 @@ namespace Sintering
       const auto &mobility    = this->data.mobility;
       const auto &kappa_c     = this->data.kappa_c;
       const auto &kappa_p     = this->data.kappa_p;
-      const auto &order       = this->data.time_data.effective_order();
+      const auto &order       = this->data.time_data.get_order();
 
       const auto old_solutions = history.get_old_solutions();
 
