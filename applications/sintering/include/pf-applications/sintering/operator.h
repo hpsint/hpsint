@@ -2018,9 +2018,6 @@ namespace Sintering
     const TimeIntegration::SolutionHistory<BlockVectorType> &history;
     const TimeIntegration::BDFIntegrator<dim, Number, VectorizedArrayType>
       time_integrator;
-
-    mutable BlockVectorType old_solution;
-    mutable BlockVectorType old_old_solution;
   };
 
 } // namespace Sintering

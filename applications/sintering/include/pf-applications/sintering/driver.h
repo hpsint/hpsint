@@ -139,8 +139,7 @@ namespace Sintering
     double       max_reached_dt;
     unsigned int restart_counter;
     double       t;
-    double       dt     = 0.0;
-    double       old_dt = 0.0;
+    double       dt = 0.0;
 
     std::map<std::string, unsigned int> counters;
 
@@ -277,7 +276,6 @@ namespace Sintering
       ar &restart_counter;
       ar &t;
       ar &dt;
-      ar &old_dt;
       ar &counters;
     }
 
@@ -1205,7 +1203,6 @@ namespace Sintering
                 max_reached_dt = std::max(max_reached_dt, dt);
 
                 t += dt;
-                old_dt = dt;
 
                 if (std::abs(t - params.time_integration_data.time_end) > 1e-9)
                   {
