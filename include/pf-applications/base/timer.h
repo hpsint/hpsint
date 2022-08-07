@@ -51,6 +51,8 @@ public:
   void
   reinit(const Type type, const double start, const double interval = 0.0)
   {
+    counter = 0;
+
     this->type = type;
 
     if (type == Type::never)
@@ -81,6 +83,8 @@ public:
   bool
   now(const double time = 0.0)
   {
+    ++counter;
+
     if (type == Type::never)
       {
         return false;
