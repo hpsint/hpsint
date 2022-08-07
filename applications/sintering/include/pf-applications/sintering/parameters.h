@@ -333,7 +333,7 @@ namespace Sintering
       prm.add_parameter("IntegrationScheme",
                         time_integration_data.interation_scheme,
                         "Integration scheme.",
-                        Patterns::Selection("BDF1|BDF2"));
+                        Patterns::Selection("BDF1|BDF2|BDF3"));
       prm.add_parameter("TimeStart",
                         time_integration_data.time_start,
                         "Start time.");

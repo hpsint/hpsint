@@ -3,6 +3,8 @@
 #include <deal.II/lac/trilinos_sparsity_pattern.h>
 
 #include <pf-applications/matrix_free/tools.h>
+#include <pf-applications/time_integration/solution_history.h>
+#include <pf-applications/time_integration/time_integrators.h>
 
 #include <fstream>
 
@@ -1338,20 +1340,22 @@ namespace Sintering
   {
     using Number = typename VectorizedArrayType::value_type;
 
-    SinteringOperatorData(const Number A,
-                          const Number B,
-                          const Number Mvol,
-                          const Number Mvap,
-                          const Number Msurf,
-                          const Number Mgb,
-                          const Number L,
-                          const Number kappa_c,
-                          const Number kappa_p)
+    SinteringOperatorData(const Number       A,
+                          const Number       B,
+                          const Number       Mvol,
+                          const Number       Mvap,
+                          const Number       Msurf,
+                          const Number       Mgb,
+                          const Number       L,
+                          const Number       kappa_c,
+                          const Number       kappa_p,
+                          const unsigned int integration_order)
       : free_energy(A, B)
       , mobility(Mvol, Mvap, Msurf, Mgb)
       , L(L)
       , kappa_c(kappa_c)
       , kappa_p(kappa_p)
+      , time_data(integration_order)
     {}
 
     const FreeEnergy<VectorizedArrayType> free_energy;
@@ -1364,62 +1368,7 @@ namespace Sintering
     const Number kappa_c;
     const Number kappa_p;
 
-  public:
-    void
-    set_dt(const double dt)
-    {
-      this->dt = dt;
-    }
-
-    void
-    set_dt(const double dt, const double old_dt)
-    {
-      this->dt     = dt;
-      this->old_dt = old_dt;
-    }
-
-    Number
-    get_dt() const
-    {
-      return dt;
-    }
-
-    Number
-    get_old_dt() const
-    {
-      return old_dt;
-    }
-
-    Number
-    weight() const
-    {
-      if (old_dt == 0)
-        return 1.0 / dt;
-      else
-        return (2 * dt + old_dt) / (dt * (dt + old_dt));
-    }
-
-    Number
-    weight_old() const
-    {
-      if (old_dt == 0)
-        return -1.0 / dt;
-      else
-        return -(dt + old_dt) / (dt * old_dt);
-    }
-
-    Number
-    weight_old_old() const
-    {
-      if (old_dt == 0.0)
-        return 0.0;
-      else
-        return dt / (old_dt * (dt + old_dt));
-    }
-
-  private:
-    Number dt     = 0.0;
-    Number old_dt = 0.0;
+    TimeIntegration::TimeIntegratorData<Number> time_data;
 
   public:
     Table<3, VectorizedArrayType> &
@@ -1532,10 +1481,11 @@ namespace Sintering
     using vector_type = VectorType;
 
     SinteringOperator(
-      const MatrixFree<dim, Number, VectorizedArrayType> &   matrix_free,
-      const AffineConstraints<Number> &                      constraints,
-      const SinteringOperatorData<dim, VectorizedArrayType> &data,
-      const bool                                             matrix_based)
+      const MatrixFree<dim, Number, VectorizedArrayType> &     matrix_free,
+      const AffineConstraints<Number> &                        constraints,
+      const SinteringOperatorData<dim, VectorizedArrayType> &  data,
+      const TimeIntegration::SolutionHistory<BlockVectorType> &history,
+      const bool                                               matrix_based)
       : OperatorBase<dim,
                      Number,
                      VectorizedArrayType,
@@ -1546,6 +1496,8 @@ namespace Sintering
           "sintering_op",
           matrix_based)
       , data(data)
+      , history(history)
+      , time_integrator(data.time_data, history)
     {}
 
     ~SinteringOperator()
@@ -1569,73 +1521,6 @@ namespace Sintering
     true);
       EXPAND_OPERATIONS(OPERATION);
 #undef OPERATION
-    }
-
-    void
-    set_old_solution(const BlockVectorType &src) const
-    {
-      Assert(src.has_ghost_elements() == false, ExcInternalError());
-
-      AssertThrow(src.is_globally_compatible(
-                    this->matrix_free.get_vector_partitioner()),
-                  ExcInternalError());
-
-      this->old_solution = src;
-      this->old_solution.update_ghost_values();
-
-      AssertThrow(this->old_solution.is_globally_compatible(
-                    this->matrix_free.get_vector_partitioner()),
-                  ExcInternalError());
-    }
-
-    void
-    set_old_old_solution(const BlockVectorType &src) const
-    {
-      Assert(src.has_ghost_elements() == false, ExcInternalError());
-
-      AssertThrow(src.is_globally_compatible(
-                    this->matrix_free.get_vector_partitioner()),
-                  ExcInternalError());
-
-      this->old_old_solution = src;
-      this->old_old_solution.update_ghost_values();
-
-      AssertThrow(this->old_old_solution.is_globally_compatible(
-                    this->matrix_free.get_vector_partitioner()),
-                  ExcInternalError());
-    }
-
-    const BlockVectorType &
-    get_old_solution() const
-    {
-      AssertThrow(this->old_solution.is_globally_compatible(
-                    this->matrix_free.get_vector_partitioner()),
-                  ExcInternalError());
-
-      this->old_solution.zero_out_ghost_values();
-      return this->old_solution;
-    }
-
-    BlockVectorType &
-    get_old_old_solution()
-    {
-      AssertThrow(this->old_old_solution.is_globally_compatible(
-                    this->matrix_free.get_vector_partitioner()),
-                  ExcInternalError());
-
-      this->old_old_solution.zero_out_ghost_values();
-      return this->old_old_solution;
-    }
-
-    const BlockVectorType &
-    get_old_old_solution() const
-    {
-      AssertThrow(this->old_old_solution.is_globally_compatible(
-                    this->matrix_free.get_vector_partitioner()),
-                  ExcInternalError());
-
-      this->old_old_solution.zero_out_ghost_values();
-      return this->old_old_solution;
     }
 
     void
@@ -1765,7 +1650,8 @@ namespace Sintering
 
               if (entries_mask[FieldDt])
                 {
-                  temp[counter++] = VectorizedArrayType(data.get_dt());
+                  temp[counter++] =
+                    VectorizedArrayType(data.time_data.get_current_dt());
                 }
 
               if (entries_mask[FieldD2f])
@@ -1967,7 +1853,7 @@ namespace Sintering
       const auto &mobility    = this->data.mobility;
       const auto &kappa_c     = this->data.kappa_c;
       const auto &kappa_p     = this->data.kappa_p;
-      const auto  weight      = this->data.weight();
+      const auto  weight      = this->data.time_data.get_primary_weight();
 
       for (unsigned int q = 0; q < phi.n_q_points; ++q)
         {
@@ -2051,56 +1937,39 @@ namespace Sintering
 
       FECellIntegrator<dim, n_comp, Number, VectorizedArrayType> phi(
         matrix_free, this->dof_index);
-      FECellIntegrator<dim, n_comp, Number, VectorizedArrayType> phi_old(
-        matrix_free, this->dof_index);
-      FECellIntegrator<dim, n_comp, Number, VectorizedArrayType> phi_old_old(
-        matrix_free, this->dof_index);
 
-      const auto &free_energy    = this->data.free_energy;
-      const auto &L              = this->data.L;
-      const auto &mobility       = this->data.mobility;
-      const auto &kappa_c        = this->data.kappa_c;
-      const auto &kappa_p        = this->data.kappa_p;
-      const auto  weight         = this->data.weight();
-      const auto  weight_old     = this->data.weight_old();
-      const auto  weight_old_old = this->data.weight_old_old();
+      auto time_phi = time_integrator.create_cell_intergator(phi);
+
+      const auto &free_energy = this->data.free_energy;
+      const auto &L           = this->data.L;
+      const auto &mobility    = this->data.mobility;
+      const auto &kappa_c     = this->data.kappa_c;
+      const auto &kappa_p     = this->data.kappa_p;
+      const auto &order       = this->data.time_data.get_order();
+
+      const auto old_solutions = history.get_old_solutions();
 
       for (auto cell = range.first; cell < range.second; ++cell)
         {
           phi.reinit(cell);
-          phi_old.reinit(cell);
-
           phi.gather_evaluate(src,
                               EvaluationFlags::EvaluationFlags::values |
                                 EvaluationFlags::EvaluationFlags::gradients);
 
-          // get values from old solution
-          phi_old.read_dof_values_plain(old_solution);
-          phi_old.evaluate(EvaluationFlags::EvaluationFlags::values);
-
-          if (weight_old_old != 0.0)
+          for (unsigned int i = 0; i < order; ++i)
             {
-              phi_old_old.reinit(cell);
-              phi_old_old.read_dof_values_plain(old_old_solution);
-              phi_old_old.evaluate(EvaluationFlags::EvaluationFlags::values);
+              time_phi[i].reinit(cell);
+              time_phi[i].read_dof_values_plain(*old_solutions[i]);
+              time_phi[i].evaluate(EvaluationFlags::EvaluationFlags::values);
             }
 
           for (unsigned int q = 0; q < phi.n_q_points; ++q)
             {
-              const auto val         = phi.get_value(q);
-              const auto val_old     = phi_old.get_value(q);
-              const auto val_old_old = (weight_old_old != 0.0) ?
-                                         phi_old_old.get_value(q) :
-                                         (typename FECellIntegrator<
-                                           dim,
-                                           n_comp,
-                                           Number,
-                                           VectorizedArrayType>::value_type());
-              const auto grad        = phi.get_gradient(q);
+              const auto val  = phi.get_value(q);
+              const auto grad = phi.get_gradient(q);
 
               auto &c      = val[0];
               auto &mu     = val[1];
-              auto &c_old  = val_old[0];
               auto &c_grad = grad[0];
 
               std::array<const VectorizedArrayType *, n_grains> etas;
@@ -2117,10 +1986,8 @@ namespace Sintering
               Tensor<1, n_comp, Tensor<1, dim, VectorizedArrayType>>
                 gradient_result;
 
-              // CH equations
-              value_result[0] = c * weight + c_old * weight_old;
-              if (weight_old_old != 0.0)
-                value_result[0] += val_old_old[0] * weight_old_old;
+              time_integrator.compute_time_derivative(
+                value_result[0], val, time_phi, 0, q);
 
               value_result[1] = -mu + free_energy.df_dc(c, etas);
               gradient_result[0] =
@@ -2130,13 +1997,10 @@ namespace Sintering
               // AC equations
               for (unsigned int ig = 0; ig < n_grains; ++ig)
                 {
-                  value_result[2 + ig] = val[2 + ig] * weight +
-                                         val_old[2 + ig] * weight_old +
-                                         L * free_energy.df_detai(c, etas, ig);
+                  value_result[2 + ig] = L * free_energy.df_detai(c, etas, ig);
 
-                  if (weight_old_old != 0.0)
-                    value_result[2 + ig] +=
-                      val_old_old[2 + ig] * weight_old_old;
+                  time_integrator.compute_time_derivative(
+                    value_result[2 + ig], val, time_phi, 2 + ig, q);
 
                   gradient_result[2 + ig] = L * kappa_p * grad[2 + ig];
                 }
@@ -2150,10 +2014,10 @@ namespace Sintering
         }
     }
 
-    const SinteringOperatorData<dim, VectorizedArrayType> &data;
-
-    mutable BlockVectorType old_solution;
-    mutable BlockVectorType old_old_solution;
+    const SinteringOperatorData<dim, VectorizedArrayType> &  data;
+    const TimeIntegration::SolutionHistory<BlockVectorType> &history;
+    const TimeIntegration::BDFIntegrator<dim, Number, VectorizedArrayType>
+      time_integrator;
   };
 
 } // namespace Sintering
