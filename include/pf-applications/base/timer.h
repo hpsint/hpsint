@@ -97,7 +97,7 @@ public:
         if (interval <= 0.0)
           return false;
 
-        if ((time - last_simulation_time - interval) < -1e-10)
+        if ((time - last_simulation_time - interval) > -1e-10)
           last_simulation_time = time;
         return last_simulation_time == time;
       }
