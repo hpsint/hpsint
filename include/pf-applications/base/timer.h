@@ -51,7 +51,8 @@ public:
   void
   reinit(const Type type, const double start, const double interval = 0.0)
   {
-    counter = 0;
+    this->counter              = 0;
+    this->last_simulation_time = 0;
 
     this->type = type;
 
@@ -94,7 +95,7 @@ public:
         if (interval <= 0.0)
           return false;
 
-        return (counter % static_cast<unsigned int>(interval)) == 0;
+        return ((counter - 1) % static_cast<unsigned int>(interval)) == 0;
       }
     else if (type == Type::simulation_time)
       {
