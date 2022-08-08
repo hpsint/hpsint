@@ -919,7 +919,6 @@ namespace NonLinearSolvers
       , status(NOX::StatusTest::Unevaluated)
     {}
 
-    // derived
     NOX::StatusTest::StatusType
     checkStatus(const NOX::Solver::Generic &problem,
                 NOX::StatusTest::CheckType  checkType) override
@@ -962,7 +961,6 @@ namespace NonLinearSolvers
       return status;
     }
 
-    // derived
     NOX::StatusTest::StatusType
     getStatus() const override
     {
@@ -1043,14 +1041,6 @@ namespace NonLinearSolvers
 
       const auto solver_control_max_iterations =
         Teuchos::rcp(new NOX::StatusTest::MaxIters(statistics.get_max_iter()));
-
-      /*
-      auto combo =
-        Teuchos::rcp(new NOX::StatusTest::Combo(NOX::StatusTest::Combo::OR));
-      combo->addStatusTest(solver_control_norm_f_abs);
-      combo->addStatusTest(solver_control_norm_f_rel);
-      combo->addStatusTest(solver_control_max_iterations);
-      */
 
       auto combo =
         Teuchos::rcp(new NOX::StatusTest::Combo(NOX::StatusTest::Combo::AND));
