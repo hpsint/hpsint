@@ -51,6 +51,9 @@ public:
   void
   reinit(const Type type, const double start, const double interval = 0.0)
   {
+    this->counter              = 0;
+    this->last_simulation_time = 0;
+
     this->type = type;
 
     if (type == Type::never)
@@ -81,6 +84,8 @@ public:
   bool
   now(const double time = 0.0)
   {
+    ++counter;
+
     if (type == Type::never)
       {
         return false;
@@ -90,14 +95,14 @@ public:
         if (interval <= 0.0)
           return false;
 
-        return (counter % static_cast<unsigned int>(interval)) == 0;
+        return ((counter - 1) % static_cast<unsigned int>(interval)) == 0;
       }
     else if (type == Type::simulation_time)
       {
         if (interval <= 0.0)
           return false;
 
-        if ((time - last_simulation_time - interval) < -1e-10)
+        if ((time - last_simulation_time - interval) > -1e-10)
           last_simulation_time = time;
         return last_simulation_time == time;
       }

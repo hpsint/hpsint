@@ -50,6 +50,7 @@ namespace TimeIntegration
     set_all_dt(const std::vector<Number> &dt_new)
     {
       AssertDimension(dt.size(), dt_new.size());
+      dt = dt_new;
 
       update_weights();
     }
