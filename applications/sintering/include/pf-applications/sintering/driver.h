@@ -632,8 +632,12 @@ namespace Sintering
 
           auto &search_parameters =
             non_linear_parameters->sublist("Line Search");
-          // search_parameters.set("Method", "Full Step");
-          search_parameters.set("Method", "Polynomial");
+          search_parameters.set("Method", "Full Step");
+          // search_parameters.set("Method", "Polynomial");
+
+          // Params for polynomial
+          // auto& poly_params = search_parameters.sublist("Polynomial");
+          // poly_params.set("Interpolation Type", "Cubic");
 
           non_linear_solver =
             std::make_unique<NonLinearSolvers::NOXSolver<VectorType>>(
@@ -787,10 +791,6 @@ namespace Sintering
                        check_value_ch / check_value_0_ch,
                        check_value_ac,
                        check_value_ac / check_value_0_ac);
-
-              if (statistics.check() !=
-                  NonLinearSolvers::NewtonSolverSolverControl::iterate)
-                printf("\n");
             }
 
           return NonLinearSolvers::NewtonSolverSolverControl::success;
@@ -1217,6 +1217,7 @@ namespace Sintering
 
                 has_converged = true;
 
+                pcout << std::endl;
                 pcout << "t = " << t << ", t_n = " << n_timestep
                       << ", dt = " << dt << ":"
                       << " solved in " << statistics.n_newton_iterations()

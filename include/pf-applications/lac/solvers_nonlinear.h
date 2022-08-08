@@ -568,6 +568,12 @@ namespace dealii
           return vector->size();
         }
 
+        std::shared_ptr<VectorType>
+        genericVector() const
+        {
+          return vector;
+        }
+
       private:
         std::shared_ptr<VectorType> vector;
 
@@ -901,6 +907,87 @@ namespace dealii
 namespace NonLinearSolvers
 {
   template <typename VectorType>
+  class NOXCheck : public NOX::StatusTest::Generic
+  {
+  public:
+    NOXCheck(std::function<NewtonSolverSolverControl::State(const unsigned int,
+                                                            const double,
+                                                            const VectorType &,
+                                                            const VectorType &)>
+               check_iteration_status)
+      : check_iteration_status(check_iteration_status)
+      , status(NOX::StatusTest::Unevaluated)
+    {}
+
+    // derived
+    NOX::StatusTest::StatusType
+    checkStatus(const NOX::Solver::Generic &problem,
+                NOX::StatusTest::CheckType  checkType) override
+    {
+      if (checkType == NOX::StatusTest::None)
+        {
+          status = NOX::StatusTest::Unevaluated;
+        }
+      else
+        {
+          if (check_iteration_status == nullptr)
+            {
+              status = NOX::StatusTest::Converged;
+            }
+          else
+            {
+              const auto &x = problem.getSolutionGroup().getX();
+              const auto *x_ =
+                dynamic_cast<const internal::NOXWrapper::Vector<VectorType> *>(
+                  &x);
+
+              const auto &f = problem.getSolutionGroup().getF();
+              const auto *f_ =
+                dynamic_cast<const internal::NOXWrapper::Vector<VectorType> *>(
+                  &f);
+
+              const unsigned int step = problem.getNumIterations();
+
+              const double norm_f = f_->genericVector()->l2_norm();
+
+              const auto state = this->check_iteration_status(
+                step, norm_f, *x_->genericVector(), *f_->genericVector());
+
+              status = (state == NewtonSolverSolverControl::success) ?
+                         NOX::StatusTest::Converged :
+                         NOX::StatusTest::Unconverged;
+            }
+        }
+
+      return status;
+    }
+
+    // derived
+    NOX::StatusTest::StatusType
+    getStatus() const override
+    {
+      return status;
+    }
+
+    virtual std::ostream &
+    print(std::ostream &stream, int indent = 0) const override
+    {
+      (void)indent;
+
+      return stream;
+    }
+
+  private:
+    std::function<NewtonSolverSolverControl::State(const unsigned int,
+                                                   const double,
+                                                   const VectorType &,
+                                                   const VectorType &)>
+      check_iteration_status = {};
+
+    NOX::StatusTest::StatusType status;
+  };
+
+  template <typename VectorType>
   class NOXSolver : public NewtonSolver<VectorType>
   {
   public:
@@ -957,11 +1044,27 @@ namespace NonLinearSolvers
       const auto solver_control_max_iterations =
         Teuchos::rcp(new NOX::StatusTest::MaxIters(statistics.get_max_iter()));
 
+      /*
       auto combo =
         Teuchos::rcp(new NOX::StatusTest::Combo(NOX::StatusTest::Combo::OR));
       combo->addStatusTest(solver_control_norm_f_abs);
       combo->addStatusTest(solver_control_norm_f_rel);
       combo->addStatusTest(solver_control_max_iterations);
+      */
+
+      auto combo =
+        Teuchos::rcp(new NOX::StatusTest::Combo(NOX::StatusTest::Combo::AND));
+
+      auto check =
+        Teuchos::rcp(new NOX::StatusTest::Combo(NOX::StatusTest::Combo::OR));
+      check->addStatusTest(solver_control_norm_f_abs);
+      check->addStatusTest(solver_control_norm_f_rel);
+      check->addStatusTest(solver_control_max_iterations);
+
+      auto info = Teuchos::rcp(new NOXCheck(this->check_iteration_status));
+
+      combo->addStatusTest(info);
+      combo->addStatusTest(check);
 
       // create non-linear solver
       const auto solver =
