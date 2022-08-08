@@ -607,7 +607,7 @@ namespace Sintering
       std::unique_ptr<NonLinearSolvers::NewtonSolver<VectorType>>
         non_linear_solver;
 
-      if (true)
+      if (params.nonlinear_data.nonlinear_solver_type == "damped")
         non_linear_solver =
           std::make_unique<NonLinearSolvers::DampedNewtonSolver<VectorType>>(
             statistics,
@@ -617,6 +617,37 @@ namespace Sintering
               params.nonlinear_data.newton_threshold_linear_iter,
               params.nonlinear_data.newton_reuse_preconditioner,
               params.nonlinear_data.newton_use_damping));
+      else if (params.nonlinear_data.nonlinear_solver_type == "NOX")
+        {
+          Teuchos::RCP<Teuchos::ParameterList> non_linear_parameters =
+            Teuchos::rcp(new Teuchos::ParameterList);
+
+          non_linear_parameters->set("Nonlinear Solver", "Line Search Based");
+
+          auto &printParams = non_linear_parameters->sublist("Printing");
+          printParams.set("Output Information", 0);
+
+          auto &dir_parameters = non_linear_parameters->sublist("Direction");
+          dir_parameters.set("Method", "Newton");
+
+          auto &search_parameters =
+            non_linear_parameters->sublist("Line Search");
+          // search_parameters.set("Method", "Full Step");
+          search_parameters.set("Method", "Polynomial");
+
+          non_linear_solver =
+            std::make_unique<NonLinearSolvers::NOXSolver<VectorType>>(
+              statistics,
+              non_linear_parameters,
+              NonLinearSolvers::NewtonSolverAdditionalData(
+                params.nonlinear_data.newton_do_update,
+                params.nonlinear_data.newton_threshold_newton_iter,
+                params.nonlinear_data.newton_threshold_linear_iter,
+                params.nonlinear_data.newton_reuse_preconditioner,
+                params.nonlinear_data.newton_use_damping));
+        }
+      else
+        AssertThrow(false, ExcNotImplemented());
 
       non_linear_solver->reinit_vector = [&](auto &vector) {
         MyScope scope(timer, "time_loop::newton::reinit_vector");

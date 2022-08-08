@@ -22,11 +22,13 @@ namespace dealii
          * Initialization.
          */
         explicit DynamicBlockVector(const unsigned int n = 0)
+          : size_(0)
         {
           reinit(n);
         }
 
         explicit DynamicBlockVector(const DynamicBlockVector<T> &V)
+          : size_(0)
         {
           *this = V;
         }
@@ -44,6 +46,10 @@ namespace dealii
               block(b).reinit(V.block(b), true);
               block(b) = V.block(b);
             }
+
+          size_ = 0;
+          for (unsigned int b = 0; b < n_blocks(); ++b)
+            size_ += block(b).size();
 
           return *this;
         }
@@ -68,6 +74,10 @@ namespace dealii
                     block(b).reinit(block(0), omit_zeroing_entries);
                 }
             }
+
+          size_ = 0;
+          for (unsigned int b = 0; b < n_blocks(); ++b)
+            size_ += block(b).size();
         }
 
         void
@@ -83,7 +93,18 @@ namespace dealii
                 blocks[b] = std::make_shared<BlockType>();
               block(b).reinit(V.block(b), omit_zeroing_entries);
             }
+
+          size_ = 0;
+          for (unsigned int b = 0; b < n_blocks(); ++b)
+            size_ += block(b).size();
         }
+
+        types::global_dof_index
+        size() const
+        {
+          return size_;
+        }
+
 
         /**
          * Create view.
@@ -206,11 +227,39 @@ namespace dealii
           return std::sqrt(result);
         }
 
+        T
+        l1_norm() const
+        {
+          T result = 0.0;
+          for (unsigned int b = 0; b < n_blocks(); ++b)
+            result += block(b).l1_norm();
+          return result;
+        }
+
+        T
+        linfty_norm() const
+        {
+          T result = 0.0;
+          for (unsigned int b = 0; b < n_blocks(); ++b)
+            result = std::max<T>(result, block(b).linfty_norm());
+          return result;
+        }
+
         void
         add(const T a, const DynamicBlockVector<T> &V)
         {
           for (unsigned int b = 0; b < n_blocks(); ++b)
             block(b).add(a, V.block(b));
+        }
+
+        void
+        add(const T                      v,
+            const DynamicBlockVector<T> &V,
+            const T                      w,
+            const DynamicBlockVector<T> &W)
+        {
+          for (unsigned int b = 0; b < n_blocks(); ++b)
+            block(b).add(v, V.block(b), w, W.block(b));
         }
 
         void
@@ -290,6 +339,8 @@ namespace dealii
       private:
         unsigned int                            block_counter;
         std::vector<std::shared_ptr<BlockType>> blocks;
+
+        types::global_dof_index size_;
       };
     } // namespace distributed
   }   // namespace LinearAlgebra
