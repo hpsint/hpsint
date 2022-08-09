@@ -122,6 +122,14 @@ namespace Sintering
     double output_time_interval = -1.0; // default: never
   };
 
+  struct NOXData
+  {
+    int         output_information             = 0;
+    std::string direction_method               = "Newton";
+    std::string line_search_method             = "Full Step";
+    std::string line_search_interpolation_type = "Cubic";
+  };
+
   struct NonLinearData
   {
     int    nl_max_iter = 10;
@@ -141,6 +149,8 @@ namespace Sintering
     std::string nonlinear_solver_type = "damped";
 
     unsigned int verbosity = 1;
+
+    NOXData nox_data;
   };
 
 
@@ -442,6 +452,26 @@ namespace Sintering
                         Patterns::Selection("damped|NOX"));
 
       prm.add_parameter("Verbosity", nonlinear_data.verbosity);
+
+      prm.enter_subsection("NOXData");
+      prm.add_parameter("OutputInformation",
+                        nonlinear_data.nox_data.output_information,
+                        "NOX verbosity level");
+      prm.add_parameter(
+        "DirectionMethod",
+        nonlinear_data.nox_data.direction_method,
+        "How to compute the primary direction associated with the method",
+        Patterns::Selection("Newton|Steepest Descent|NonlinearCG|Broyden"));
+      prm.add_parameter("LineSearchMethod",
+                        nonlinear_data.nox_data.line_search_method,
+                        "Line search method",
+                        Patterns::Selection("Full Step|Backtrack|Polynomial"));
+      prm.add_parameter("LineSearchInterpolationType",
+                        nonlinear_data.nox_data.line_search_interpolation_type,
+                        "Polynomial line search interpolation type",
+                        Patterns::Selection("Quadratic|Quadratic3|Cubic"));
+      prm.leave_subsection();
+
       prm.leave_subsection();
 
       prm.enter_subsection("Preconditioners");

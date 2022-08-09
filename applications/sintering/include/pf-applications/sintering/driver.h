@@ -625,19 +625,18 @@ namespace Sintering
           non_linear_parameters->set("Nonlinear Solver", "Line Search Based");
 
           auto &printParams = non_linear_parameters->sublist("Printing");
-          printParams.set("Output Information", 0);
+          printParams.set("Output Information", params.nonlinear_data.nox_data.output_information);
 
           auto &dir_parameters = non_linear_parameters->sublist("Direction");
-          dir_parameters.set("Method", "Newton");
+          dir_parameters.set("Method", params.nonlinear_data.nox_data.direction_method);
 
           auto &search_parameters =
             non_linear_parameters->sublist("Line Search");
-          search_parameters.set("Method", "Full Step");
-          // search_parameters.set("Method", "Polynomial");
+          search_parameters.set("Method", params.nonlinear_data.nox_data.line_search_method);
 
           // Params for polynomial
-          // auto& poly_params = search_parameters.sublist("Polynomial");
-          // poly_params.set("Interpolation Type", "Cubic");
+          auto& poly_params = search_parameters.sublist("Polynomial");
+          poly_params.set("Interpolation Type", params.nonlinear_data.nox_data.line_search_interpolation_type);
 
           non_linear_solver =
             std::make_unique<NonLinearSolvers::NOXSolver<VectorType>>(
