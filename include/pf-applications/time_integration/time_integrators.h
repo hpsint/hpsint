@@ -122,7 +122,7 @@ namespace TimeIntegration
         }
       else
         {
-          AssertThrow(false, ExcMessage("Not implemented"));
+          AssertThrow(effective_order() <= 3, ExcMessage("Not implemented"));
         }
     }
 
