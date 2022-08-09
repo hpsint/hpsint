@@ -914,8 +914,10 @@ namespace NonLinearSolvers
                                                             const double,
                                                             const VectorType &,
                                                             const VectorType &)>
-               check_iteration_status)
+                  check_iteration_status,
+             bool as_dummy = false)
       : check_iteration_status(check_iteration_status)
+      , as_dummy(as_dummy)
       , status(NOX::StatusTest::Unevaluated)
     {}
 
@@ -949,14 +951,30 @@ namespace NonLinearSolvers
 
               const double norm_f = f_->genericVector()->l2_norm();
 
-              const auto state = this->check_iteration_status(
-                step, norm_f, *x_->genericVector(), *f_->genericVector());
+              state = this->check_iteration_status(step,
+                                                   norm_f,
+                                                   *x_->genericVector(),
+                                                   *f_->genericVector());
 
-              status = (state == NewtonSolverSolverControl::success) ?
-                         NOX::StatusTest::Converged :
-                         NOX::StatusTest::Unconverged;
+              switch (state)
+                {
+                  case NewtonSolverSolverControl::iterate:
+                    status = NOX::StatusTest::Unconverged;
+                    break;
+                  case NewtonSolverSolverControl::failure:
+                    status = NOX::StatusTest::Failed;
+                    break;
+                  case NewtonSolverSolverControl::success:
+                    status = NOX::StatusTest::Converged;
+                    break;
+                  default:
+                    AssertThrow(false, ExcNotImplemented());
+                }
             }
         }
+
+      if (as_dummy)
+        status = NOX::StatusTest::Unconverged;
 
       return status;
     }
@@ -972,6 +990,29 @@ namespace NonLinearSolvers
     {
       (void)indent;
 
+      std::string state_str;
+      switch (state)
+        {
+          case NewtonSolverSolverControl::iterate:
+            state_str = "iterate";
+            break;
+          case NewtonSolverSolverControl::failure:
+            state_str = "failure";
+            break;
+          case NewtonSolverSolverControl::success:
+            state_str = "success";
+            break;
+          default:
+            AssertThrow(false, ExcNotImplemented());
+        }
+
+      for (int j = 0; j < indent; j++)
+        stream << ' ';
+      stream << status;
+      stream << "check_iteration_status() = " << state_str
+             << " (dummy = " << (as_dummy ? "yes" : "no") << ")";
+      stream << std::endl;
+
       return stream;
     }
 
@@ -982,7 +1023,10 @@ namespace NonLinearSolvers
                                                    const VectorType &)>
       check_iteration_status = {};
 
-    NOX::StatusTest::StatusType status;
+    const bool as_dummy = false;
+
+    NOX::StatusTest::StatusType      status;
+    NewtonSolverSolverControl::State state;
   };
 
   template <typename VectorType>
@@ -1042,23 +1086,20 @@ namespace NonLinearSolvers
       const auto solver_control_max_iterations =
         Teuchos::rcp(new NOX::StatusTest::MaxIters(statistics.get_max_iter()));
 
-      auto combo =
-        Teuchos::rcp(new NOX::StatusTest::Combo(NOX::StatusTest::Combo::AND));
+      const auto info =
+        Teuchos::rcp(new NOXCheck(this->check_iteration_status, true));
 
       auto check =
         Teuchos::rcp(new NOX::StatusTest::Combo(NOX::StatusTest::Combo::OR));
+
+      check->addStatusTest(info);
       check->addStatusTest(solver_control_norm_f_abs);
       check->addStatusTest(solver_control_norm_f_rel);
       check->addStatusTest(solver_control_max_iterations);
 
-      auto info = Teuchos::rcp(new NOXCheck(this->check_iteration_status));
-
-      combo->addStatusTest(info);
-      combo->addStatusTest(check);
-
       // create non-linear solver
       const auto solver =
-        NOX::Solver::buildSolver(group, combo, non_linear_parameters);
+        NOX::Solver::buildSolver(group, check, non_linear_parameters);
 
       // solve
       const auto status = solver->solve();
