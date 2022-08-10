@@ -10,6 +10,7 @@ namespace dealii::parallel
 
       const auto fu = [&]() { this->reinit(triangulation); };
 
+      triangulation.signals.post_distributed_load.connect(fu);
       triangulation.signals.post_p4est_refinement.connect(fu);
       triangulation.signals.post_distributed_refinement.connect(fu);
       triangulation.signals.pre_distributed_repartition.connect(fu);
