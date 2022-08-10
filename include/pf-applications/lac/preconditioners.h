@@ -642,8 +642,6 @@ namespace Preconditioners
 
       if (src_.size() == 0 || dst_.size() == 0)
         {
-          const auto partitioner = op.get_system_partitioner();
-
           src_.reinit(partitioner);
           dst_.reinit(partitioner);
         }
@@ -657,11 +655,22 @@ namespace Preconditioners
     do_update() override
     {
       MyScope scope(timer, "ilu::setup");
-      precondition_ilu.initialize(op.get_system_matrix(), additional_data);
+
+      if (true)
+        {
+          this->partitioner  = op.get_system_partitioner();
+          const auto &matrix = op.get_system_matrix();
+
+          precondition_ilu.initialize(matrix, additional_data);
+        }
+      else
+        {}
     }
 
   private:
     const Operator &op;
+
+    std::shared_ptr<const Utilities::MPI::Partitioner> partitioner;
 
     TrilinosWrappers::PreconditionILU::AdditionalData additional_data;
     TrilinosWrappers::PreconditionILU                 precondition_ilu;
