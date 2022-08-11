@@ -810,6 +810,18 @@ namespace Sintering
       }
     }
 
+    virtual std::size_t
+    memory_consumption() const
+    {
+      return MyMemoryConsumption::memory_consumption(operator_0) +
+             MyMemoryConsumption::memory_consumption(operator_1) +
+             MyMemoryConsumption::memory_consumption(operator_1_blocked) +
+             MyMemoryConsumption::memory_consumption(mg_operator_1) +
+             MyMemoryConsumption::memory_consumption(mg_operator_blocked_1) +
+             MyMemoryConsumption::memory_consumption(preconditioner_0) +
+             MyMemoryConsumption::memory_consumption(preconditioner_1);
+    }
+
   private:
     // operator CH
     std::unique_ptr<OperatorCahnHilliard<dim, Number, VectorizedArrayType>>

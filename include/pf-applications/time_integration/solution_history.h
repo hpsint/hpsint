@@ -149,6 +149,12 @@ namespace TimeIntegration
                                                       solutions.end());
     }
 
+    virtual std::size_t
+    memory_consumption() const
+    {
+      return MyMemoryConsumption::memory_consumption(solutions);
+    }
+
   private:
     bool
     can_process(const unsigned int index,

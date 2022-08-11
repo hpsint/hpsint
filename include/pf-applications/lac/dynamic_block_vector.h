@@ -4,6 +4,8 @@
 #include <deal.II/lac/la_parallel_block_vector.h>
 #include <deal.II/lac/vector_operation.h>
 
+#include <pf-applications/base/memory_consumption.h>
+
 namespace dealii
 {
   namespace LinearAlgebra
@@ -334,6 +336,12 @@ namespace dealii
           AssertDimension(n_blocks(), V.n_blocks());
           for (unsigned int b = 0; b < n_blocks(); ++b)
             block(b).copy_locally_owned_data_from(V.block(b));
+        }
+
+        virtual std::size_t
+        memory_consumption() const
+        {
+          return MyMemoryConsumption::memory_consumption(blocks);
         }
 
       private:

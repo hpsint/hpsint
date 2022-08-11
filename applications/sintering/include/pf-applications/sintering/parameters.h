@@ -118,8 +118,9 @@ namespace Sintering
 
   struct ProfilingData
   {
-    bool   run_vmults           = false;
-    double output_time_interval = -1.0; // default: never
+    bool   run_vmults                = false;
+    double output_time_interval      = -1.0; // default: never
+    bool   output_memory_consumption = false;
   };
 
   struct NOXData
@@ -507,6 +508,9 @@ namespace Sintering
       prm.add_parameter("RunVmults",
                         profiling_data.run_vmults,
                         "Run vmults standalone.");
+      prm.add_parameter("OutputMemoryConsumption",
+                        profiling_data.output_memory_consumption,
+                        "Output memory consumption.");
       prm.add_parameter("OutputTimeInterval",
                         profiling_data.output_time_interval,
                         "Specify the inverval to print timings in seconds.");

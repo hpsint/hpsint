@@ -157,6 +157,8 @@ namespace Sintering
       , quad(params.approximation_data.n_points_1D)
       , dof_handler(tria)
     {
+      MyScope("Problem::constructor");
+
       geometry_domain_boundaries    = initial_solution->get_domain_boundaries();
       geometry_r_max                = initial_solution->get_r_max();
       geometry_interface_width      = initial_solution->get_interface_width();
@@ -215,6 +217,8 @@ namespace Sintering
       , quad(params.approximation_data.n_points_1D)
       , dof_handler(tria)
     {
+      MyScope("Problem::constructor");
+
       // 0) load internal state
       unsigned int                    n_initial_components = 0;
       std::ifstream                   in_stream(restart_path + "_driver");
@@ -282,6 +286,8 @@ namespace Sintering
     void
     create_grid(const bool with_initial_refinement)
     {
+      MyScope("Problem::create_grid");
+
       std::pair<dealii::Point<dim>, dealii::Point<dim>> boundaries;
 
       if (!params.geometry_data.custom_bounding_box)
@@ -335,6 +341,7 @@ namespace Sintering
       const auto weight_function = parallel::hanging_nodes_weighting<dim>(
         *helper, params.geometry_data.hanging_node_weight);
       tria.signals.weight.connect(weight_function);
+
       tria.repartition();
     }
 
@@ -342,38 +349,52 @@ namespace Sintering
     initialize(const unsigned int n_components = 0)
     {
       // setup DoFHandlers, ...
-      dof_handler.distribute_dofs(fe);
-
-      // ... constraints, and ...
-      constraints.clear();
-      constraints.reinit(DoFTools::extract_locally_relevant_dofs(dof_handler));
-      DoFTools::make_hanging_node_constraints(dof_handler, constraints);
-
-      if (params.geometry_data.periodic)
+      if (true)
         {
-          std::vector<GridTools::PeriodicFacePair<
-            typename dealii::DoFHandler<dim>::cell_iterator>>
-            periodicity_vector;
-
-          for (unsigned int d = 0; d < dim; ++d)
-            {
-              GridTools::collect_periodic_faces(
-                dof_handler, 2 * d, 2 * d + 1, d, periodicity_vector);
-            }
-
-          DoFTools::make_periodicity_constraints<dim, dim>(periodicity_vector,
-                                                           constraints);
+          MyScope("Problem::initialize::dofhandler");
+          dof_handler.distribute_dofs(fe);
         }
 
-      constraints.close();
+      // ... constraints, and ...
+      if (true)
+        {
+          MyScope("Problem::initialize::constraints");
+          constraints.clear();
+          constraints.reinit(
+            DoFTools::extract_locally_relevant_dofs(dof_handler));
+          DoFTools::make_hanging_node_constraints(dof_handler, constraints);
+
+          if (params.geometry_data.periodic)
+            {
+              std::vector<GridTools::PeriodicFacePair<
+                typename dealii::DoFHandler<dim>::cell_iterator>>
+                periodicity_vector;
+
+              for (unsigned int d = 0; d < dim; ++d)
+                {
+                  GridTools::collect_periodic_faces(
+                    dof_handler, 2 * d, 2 * d + 1, d, periodicity_vector);
+                }
+
+              DoFTools::make_periodicity_constraints<dim, dim>(
+                periodicity_vector, constraints);
+            }
+
+          constraints.close();
+        }
 
       // ... MatrixFree
-      typename MatrixFree<dim, Number, VectorizedArrayType>::AdditionalData
-        additional_data;
-      additional_data.mapping_update_flags = update_values | update_gradients;
+      if (true)
+        {
+          MyScope("Problem::initialize::matrix_free");
+          typename MatrixFree<dim, Number, VectorizedArrayType>::AdditionalData
+            additional_data;
+          additional_data.mapping_update_flags =
+            update_values | update_gradients;
 
-      matrix_free.reinit(
-        mapping, dof_handler, constraints, quad, additional_data);
+          matrix_free.reinit(
+            mapping, dof_handler, constraints, quad, additional_data);
+        }
 
       if ((params.preconditioners_data.outer_preconditioner == "GMG") ||
           (params.preconditioners_data.outer_preconditioner == "BlockGMG") ||
@@ -384,6 +405,8 @@ namespace Sintering
             (params.preconditioners_data.block_preconditioner_2_data
                .block_1_preconditioner == "BlockGMG"))))
         {
+          MyScope("Problem::initialize::multigrid");
+
           mg_triangulations = MGTransferGlobalCoarseningTools::
             create_geometric_coarsening_sequence(tria);
 
@@ -420,6 +443,11 @@ namespace Sintering
               Assert(params.geometry_data.periodic == false,
                      ExcNotImplemented());
               constraints.close();
+
+              typename MatrixFree<dim, Number, VectorizedArrayType>::
+                AdditionalData additional_data;
+              additional_data.mapping_update_flags =
+                update_values | update_gradients;
 
               matrix_free.reinit(
                 mapping, dof_handler, constraints, quad, additional_data);
@@ -1204,8 +1232,6 @@ namespace Sintering
 
                 timer.print_wall_time_statistics(MPI_COMM_WORLD);
 
-                system_has_changed = false;
-
                 nonlinear_operator.set_timing(old_timing_state);
               }
 
@@ -1260,6 +1286,59 @@ namespace Sintering
                       {
                         dt = params.time_integration_data.time_end - t;
                       }
+                  }
+
+                if (params.profiling_data.output_memory_consumption &&
+                    system_has_changed)
+                  {
+                    // general-purpose: tria, dofhander, constraints
+                    const auto mc_tria =
+                      Utilities::MPI::sum<double>(tria.memory_consumption(),
+                                                  MPI_COMM_WORLD);
+                    const auto mc_dofhandler = Utilities::MPI::sum<double>(
+                      dof_handler.memory_consumption(), MPI_COMM_WORLD);
+                    const auto mc_affine_constraints =
+                      Utilities::MPI::sum<double>(
+                        constraints.memory_consumption(), MPI_COMM_WORLD);
+                    const auto mc_matrix_free = Utilities::MPI::sum<double>(
+                      matrix_free.memory_consumption(), MPI_COMM_WORLD);
+
+                    // sintering-related data
+                    const auto mc_sintering_data = Utilities::MPI::sum<double>(
+                      sintering_data.memory_consumption(), MPI_COMM_WORLD);
+                    const auto mc_nonlinear_operator =
+                      Utilities::MPI::sum<double>(
+                        nonlinear_operator.memory_consumption(),
+                        MPI_COMM_WORLD);
+                    const auto mc_solution_history =
+                      Utilities::MPI::sum<double>(
+                        solution_history.memory_consumption(), MPI_COMM_WORLD);
+                    const auto mc_preconditioner = Utilities::MPI::sum<double>(
+                      preconditioner->memory_consumption(), MPI_COMM_WORLD);
+
+                    const auto mc_total =
+                      mc_tria + mc_dofhandler + mc_affine_constraints +
+                      mc_matrix_free + mc_nonlinear_operator +
+                      mc_solution_history + mc_preconditioner;
+
+                    pcout << "Memory consumption:     " << mc_total / 1e9
+                          << std::endl;
+                    pcout << " - triangulation:       " << mc_tria / 1e9
+                          << std::endl;
+                    pcout << " - dof-handler:         " << mc_dofhandler / 1e9
+                          << std::endl;
+                    pcout << " - affine constraints:  "
+                          << mc_affine_constraints / 1e9 << std::endl;
+                    pcout << " - matrix-free:         " << mc_matrix_free / 1e9
+                          << std::endl;
+                    pcout << " - sintering data:      "
+                          << mc_sintering_data / 1e9 << std::endl;
+                    pcout << " - non-linear operator: "
+                          << mc_nonlinear_operator / 1e9 << std::endl;
+                    pcout << " - vectors:             "
+                          << mc_solution_history / 1e9 << std::endl;
+                    pcout << " - preconditioner:      "
+                          << mc_preconditioner / 1e9 << std::endl;
                   }
               }
             catch (const NonLinearSolvers::ExcNewtonDidNotConverge &e)
@@ -1378,6 +1457,8 @@ namespace Sintering
               }
 
             TimerCollection::print_all_wall_time_statistics();
+
+            system_has_changed = false;
           }
       }
 
