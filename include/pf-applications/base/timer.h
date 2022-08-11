@@ -2,6 +2,38 @@
 
 #include <deal.II/base/timer.h>
 
+void
+monitor(const std::string label)
+{
+  // return;
+
+  dealii::Utilities::System::MemoryStats stats;
+  dealii::Utilities::System::get_memory_stats(stats);
+
+  dealii::ConditionalOStream pcout(
+    std::cout, dealii::Utilities::MPI::this_mpi_process(MPI_COMM_WORLD) == 0);
+
+  pcout << "MONITOR " << label << ": ";
+
+  if (label != "break")
+    {
+      const auto print = [&pcout](const double value) {
+        const auto min_max_avg =
+          dealii::Utilities::MPI::min_max_avg(value / 1e6, MPI_COMM_WORLD);
+
+        pcout << min_max_avg.min << " " << min_max_avg.max << " "
+              << min_max_avg.avg << " " << min_max_avg.sum << " ";
+      };
+
+      print(stats.VmPeak);
+      print(stats.VmSize);
+      print(stats.VmHWM);
+      print(stats.VmRSS);
+    }
+
+  pcout << std::endl;
+}
+
 class MyTimerOutput;
 
 class TimerPredicate
@@ -298,6 +330,7 @@ public:
     if (dealii::Utilities::MPI::this_mpi_process(MPI_COMM_WORLD) == 0)
       std::cout << ">>> MyScope: entering <" << section_name << ">"
                 << std::endl;
+    monitor(section_name + "_in_");
 #  endif
 #else
     (void)timer_;
@@ -311,12 +344,26 @@ public:
     : MyScope(timer_(), section_name, do_timing)
   {}
 
+  MyScope(const std::string &section_name)
+    : section_name(section_name)
+  {
+#ifdef WITH_TIMING
+#  ifdef WITH_TIMING_OUTPUT
+    if (dealii::Utilities::MPI::this_mpi_process(MPI_COMM_WORLD) == 0)
+      std::cout << ">>> MyScope: entering <" << section_name << ">"
+                << std::endl;
+    monitor(section_name + "_in_");
+#  endif
+#endif
+  }
+
   ~MyScope()
   {
 #ifdef WITH_TIMING
 #  ifdef WITH_TIMING_OUTPUT
     if (dealii::Utilities::MPI::this_mpi_process(MPI_COMM_WORLD) == 0)
       std::cout << ">>> MyScope: leaving <" << section_name << ">" << std::endl;
+    monitor(section_name + "_out");
 #  endif
 #endif
   }

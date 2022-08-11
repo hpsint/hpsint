@@ -26,6 +26,14 @@ namespace Preconditioners
       AssertThrow(false, ExcNotImplemented());
     }
 
+    virtual std::size_t
+    memory_consumption() const
+    {
+      AssertThrow(false, ExcNotImplemented());
+
+      return 0;
+    }
+
     virtual void
     vmult(VectorType &dst, const VectorType &src) const = 0;
 
@@ -75,6 +83,12 @@ namespace Preconditioners
     do_update() override
     {
       op.compute_inverse_diagonal(diagonal_matrix.get_vector());
+    }
+
+    virtual std::size_t
+    memory_consumption() const
+    {
+      return diagonal_matrix.memory_consumption();
     }
 
   private:
@@ -526,6 +540,13 @@ namespace Preconditioners
       precondition_amg.initialize(op.get_system_matrix(), additional_data);
     }
 
+    virtual std::size_t
+    memory_consumption() const
+    {
+      return precondition_amg.memory_consumption() + src_.memory_consumption() +
+             dst_.memory_consumption();
+    }
+
   private:
     const Operator &op;
 
@@ -588,6 +609,12 @@ namespace Preconditioners
             std::make_shared<TrilinosWrappers::PreconditionAMG>();
           precondition_amg[b]->initialize(*block_matrix[b], additional_data);
         }
+    }
+
+    virtual std::size_t
+    memory_consumption() const
+    {
+      return MyMemoryConsumption::memory_consumption(precondition_amg);
     }
 
   private:
@@ -658,6 +685,20 @@ namespace Preconditioners
     {
       MyScope scope(timer, "ilu::setup");
       precondition_ilu.initialize(op.get_system_matrix(), additional_data);
+    }
+
+    virtual std::size_t
+    memory_consumption() const
+    {
+      std::size_t result = 0;
+
+      // TODO: not implemented in deal.II
+      // result += MyMemoryConsumption::memory_consumption(precondition_ilu);
+
+      result += src_.memory_consumption();
+      result += dst_.memory_consumption();
+
+      return result;
     }
 
   private:
@@ -734,6 +775,17 @@ namespace Preconditioners
             std::make_shared<TrilinosWrappers::PreconditionILU>();
           precondition_ilu[b]->initialize(*block_matrix[b], additional_data);
         }
+    }
+
+    virtual std::size_t
+    memory_consumption() const
+    {
+      std::size_t result = 0;
+
+      // TODO: not implemented in deal.II
+      // result += MyMemoryConsumption::memory_consumption(precondition_ilu);
+
+      return result;
     }
 
   private:

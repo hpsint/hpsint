@@ -55,13 +55,17 @@ constexpr bool has_n_grains_method =
           case  8: OPERATION(T::n_grains_to_n_components(std::min(max_grains,  8)), std::min(max_grains,  8)); break; \
           case  9: OPERATION(T::n_grains_to_n_components(std::min(max_grains,  9)), std::min(max_grains,  9)); break; \
           case 10: OPERATION(T::n_grains_to_n_components(std::min(max_grains, 10)), std::min(max_grains, 10)); break; \
+          case 11: OPERATION(T::n_grains_to_n_components(std::min(max_grains, 11)), std::min(max_grains, 11)); break; \
+          case 12: OPERATION(T::n_grains_to_n_components(std::min(max_grains, 12)), std::min(max_grains, 12)); break; \
+          case 13: OPERATION(T::n_grains_to_n_components(std::min(max_grains, 13)), std::min(max_grains, 13)); break; \
+          case 14: OPERATION(T::n_grains_to_n_components(std::min(max_grains, 14)), std::min(max_grains, 14)); break; \
           default:                                                                                                    \
             AssertThrow(false, ExcNotImplemented());                                                                  \
         }                                                                                                             \
     }                                                                                                                 \
   else                                                                                                                \
     {                                                                                                                 \
-      constexpr int max_components = MAX_SINTERING_GRAINS +2 ;                                                        \
+      constexpr int max_components = MAX_SINTERING_GRAINS + 2;                                                        \
       AssertIndexRange(this->n_components(), max_components + 1);                                                     \
       switch (this->n_components())                                                                                   \
         {                                                                                                             \
@@ -75,6 +79,10 @@ constexpr bool has_n_grains_method =
           case  8: OPERATION(std::min(max_components,  8), -1); break;                                                \
           case  9: OPERATION(std::min(max_components,  9), -1); break;                                                \
           case 10: OPERATION(std::min(max_components, 10), -1); break;                                                \
+          case 11: OPERATION(std::min(max_components, 11), -1); break;                                                \
+          case 12: OPERATION(std::min(max_components, 12), -1); break;                                                \
+          case 13: OPERATION(std::min(max_components, 13), -1); break;                                                \
+          case 14: OPERATION(std::min(max_components, 14), -1); break;                                                \
           default:                                                                                                    \
             AssertThrow(false, ExcNotImplemented());                                                                  \
         }                                                                                                             \
@@ -1212,6 +1220,23 @@ namespace Sintering
       return block_system_matrix;
     }
 
+    virtual std::size_t
+    memory_consumption() const
+    {
+      std::size_t result = 0;
+
+      result += constraints_for_matrix.memory_consumption();
+      result += system_matrix.memory_consumption();
+      result += MyMemoryConsumption::memory_consumption(block_system_matrix);
+      result += MyMemoryConsumption::memory_consumption(block_system_matrix);
+      result += src_.memory_consumption();
+      result += dst_.memory_consumption();
+      result += MyMemoryConsumption::memory_consumption(constrained_indices);
+      result += MyMemoryConsumption::memory_consumption(constrained_values_src);
+
+      return result;
+    }
+
   protected:
     template <int n_comp, int n_grains>
     void
@@ -1308,6 +1333,7 @@ namespace Sintering
                                 dst);
         }
     }
+
 
   protected:
     const MatrixFree<dim, Number, VectorizedArrayType> &matrix_free;
@@ -1451,6 +1477,13 @@ namespace Sintering
         }
 
       src.zero_out_ghost_values();
+    }
+
+    virtual std::size_t
+    memory_consumption() const
+    {
+      return nonlinear_values.memory_consumption() +
+             nonlinear_gradients.memory_consumption();
     }
 
   private:
