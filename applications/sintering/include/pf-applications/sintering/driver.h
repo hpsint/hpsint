@@ -1145,9 +1145,28 @@ namespace Sintering
                   }
               }
 
-            sintering_data.time_data.update_dt(dt);
+            // Try to extrapolate initial guess
+            if (true && sintering_data.time_data.get_current_dt() > 0)
+              {
+                VectorType extrap;
+                nonlinear_operator.initialize_dof_vector(extrap);
 
-            solution_history.set_recent_old_solution(solution);
+                const double fac =
+                  dt / sintering_data.time_data.get_current_dt();
+                solution_history.extrapolate(extrap, fac);
+
+                sintering_data.time_data.update_dt(dt);
+
+                solution_history.set_recent_old_solution(solution);
+
+                solution = extrap;
+              }
+            else
+              {
+                sintering_data.time_data.update_dt(dt);
+
+                solution_history.set_recent_old_solution(solution);
+              }
 
             if (params.profiling_data.run_vmults && system_has_changed)
               {
