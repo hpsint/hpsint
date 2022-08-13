@@ -1446,6 +1446,9 @@ namespace Sintering
     {
       AssertDimension(src.n_blocks(), this->n_components());
 
+      this->history_vector = src;
+      this->history_vector.update_ghost_values();
+
       const unsigned n_cells             = matrix_free.n_cell_batches();
       const unsigned n_quadrature_points = matrix_free.get_quadrature().size();
 
@@ -1486,12 +1489,20 @@ namespace Sintering
              nonlinear_gradients.memory_consumption();
     }
 
+    const LinearAlgebra::distributed::DynamicBlockVector<Number> &
+    get_history_vector() const
+    {
+      return history_vector;
+    }
+
   private:
     mutable Table<3, VectorizedArrayType> nonlinear_values;
     mutable Table<3, dealii::Tensor<1, dim, VectorizedArrayType>>
       nonlinear_gradients;
 
     unsigned int number_of_components;
+
+    LinearAlgebra::distributed::DynamicBlockVector<Number> history_vector;
   };
 
 
@@ -1891,8 +1902,26 @@ namespace Sintering
 
       const unsigned int cell = phi.get_current_cell_index();
 
-      const auto &nonlinear_values    = this->data.get_nonlinear_values();
-      const auto &nonlinear_gradients = this->data.get_nonlinear_gradients();
+      if (this->phi_lin_base == nullptr)
+        this->phi_lin_base = std::make_unique<
+          FECellIntegrator<dim, n_comp, Number, VectorizedArrayType>>(
+          phi.get_matrix_free());
+
+      FEEvaluationData<dim, VectorizedArrayType, false> &phi_lin_base =
+        *this->phi_lin_base.get();
+
+      auto &phi_lin = *dynamic_cast<
+        FECellIntegrator<dim, n_comp, Number, VectorizedArrayType> *>(
+        &phi_lin_base);
+
+      if (cell != phi_lin.get_current_cell_index())
+        {
+          phi_lin.reinit(cell);
+
+          phi_lin.read_dof_values_plain(this->data.get_history_vector());
+          phi_lin.evaluate(EvaluationFlags::values |
+                           EvaluationFlags::gradients);
+        }
 
       const auto &free_energy = this->data.free_energy;
       const auto &L           = this->data.L;
@@ -1903,8 +1932,8 @@ namespace Sintering
 
       for (unsigned int q = 0; q < phi.n_q_points; ++q)
         {
-          const auto &val  = nonlinear_values[cell][q];
-          const auto &grad = nonlinear_gradients[cell][q];
+          const auto val  = phi_lin.get_value(q);
+          const auto grad = phi_lin.get_gradient(q);
 
           const auto &c       = val[0];
           const auto &c_grad  = grad[0];
@@ -2064,6 +2093,9 @@ namespace Sintering
     const TimeIntegration::SolutionHistory<BlockVectorType> &history;
     const TimeIntegration::BDFIntegrator<dim, Number, VectorizedArrayType>
       time_integrator;
+
+    mutable std::unique_ptr<FEEvaluationData<dim, VectorizedArrayType, false>>
+      phi_lin_base;
   };
 
 } // namespace Sintering
