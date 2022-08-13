@@ -1301,8 +1301,8 @@ namespace Sintering
     const FreeEnergy<VectorizedArrayType> free_energy;
 
     // Choose MobilityScalar or MobilityTensorial here:
-    // const MobilityScalar<dim, VectorizedArrayType> mobility;
-    const MobilityTensorial<dim, VectorizedArrayType> mobility;
+    const MobilityScalar<dim, VectorizedArrayType> mobility;
+    // const MobilityTensorial<dim, VectorizedArrayType> mobility;
 
     const Number L;
     const Number kappa_c;
