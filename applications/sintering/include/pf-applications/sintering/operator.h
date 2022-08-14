@@ -182,16 +182,9 @@ namespace Sintering
       const VectorizedArrayType &cl = c;
 
       VectorizedArrayType etaijSum = 0.0;
-      for (unsigned int i = 0; i < etas.size(); i++)
-        {
-          for (unsigned int j = 0; j < etas.size(); j++)
-            {
-              if (i != j)
-                {
-                  etaijSum += (etas[i]) * (etas[j]);
-                }
-            }
-        }
+      for (unsigned int i = 0; i < etas.size(); ++i)
+        for (unsigned int j = 0; j < i; ++j)
+          etaijSum += etas[i] * etas[j] * 2.0;
 
       VectorizedArrayType phi =
         cl * cl * cl * (10.0 - 15.0 * cl + 6.0 * cl * cl);
