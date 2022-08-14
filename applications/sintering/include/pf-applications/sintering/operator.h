@@ -175,12 +175,6 @@ namespace Sintering
       const Tensor<1, dim, VectorizedArrayType> &c_grad,
       const VectorTypeGradient &                 etas_grad) const
     {
-      // static_assert(std::is_same<typename VectorTypeValue::value_type,
-      //                           const VectorizedArrayType *>::value);
-      // static_assert(
-      //  std::is_same<typename VectorTypeGradient::value_type,
-      //               const Tensor<1, dim, VectorizedArrayType> *>::value);
-
       (void)c_grad;
       (void)etas_grad;
 
@@ -219,12 +213,6 @@ namespace Sintering
           const Tensor<1, dim, VectorizedArrayType> &c_grad,
           const VectorTypeGradient &                 etas_grad) const
     {
-      // static_assert(std::is_same<typename VectorTypeValue::value_type,
-      //                           const VectorizedArrayType *>::value);
-      // static_assert(
-      //  std::is_same<typename VectorTypeGradient::value_type,
-      //               const Tensor<1, dim, VectorizedArrayType> *>::value);
-
       (void)etas;
       (void)c_grad;
       (void)etas_grad;
@@ -260,12 +248,6 @@ namespace Sintering
              const VectorTypeGradient &                 etas_grad,
              unsigned int                               index_i) const
     {
-      // static_assert(std::is_same<typename VectorTypeValue::value_type,
-      //                           const VectorizedArrayType *>::value);
-      // static_assert(
-      //  std::is_same<typename VectorTypeGradient::value_type,
-      //               const Tensor<1, dim, VectorizedArrayType> *>::value);
-
       (void)c;
       (void)c_grad;
       (void)etas_grad;
@@ -314,12 +296,6 @@ namespace Sintering
                             const Tensor<1, dim, VectorizedArrayType> &c_grad,
                             const VectorTypeGradient &                 etas_grad) const
     {
-      // static_assert(std::is_same<typename VectorTypeValue::value_type,
-      //                           const VectorizedArrayType *>::value);
-      // static_assert(
-      //  std::is_same<typename VectorTypeGradient::value_type,
-      //               const Tensor<1, dim, VectorizedArrayType> *>::value);
-
       VectorizedArrayType cl = c;
       std::for_each(cl.begin(), cl.end(), [](auto &val) {
         val = val > 1.0 ? 1.0 : (val < 0.0 ? 0.0 : val);
@@ -367,12 +343,6 @@ namespace Sintering
                                 const Tensor<1, dim, VectorizedArrayType> &c_grad,
                                 const VectorTypeGradient &                 etas_grad) const
     {
-      // static_assert(std::is_same<typename VectorTypeValue::value_type,
-      //                           const VectorizedArrayType *>::value);
-      // static_assert(
-      //  std::is_same<typename VectorTypeGradient::value_type,
-      //               const Tensor<1, dim, VectorizedArrayType> *>::value);
-
       (void)etas;
       (void)etas_grad;
 
@@ -446,12 +416,6 @@ namespace Sintering
                                    const VectorTypeGradient &                 etas_grad,
                                    unsigned int                               index_i) const
     {
-      // static_assert(std::is_same<typename VectorTypeValue::value_type,
-      //                           const VectorizedArrayType *>::value);
-      // static_assert(
-      //  std::is_same<typename VectorTypeGradient::value_type,
-      //               const Tensor<1, dim, VectorizedArrayType> *>::value);
-
       (void)c;
       (void)c_grad;
 
@@ -536,7 +500,7 @@ namespace Sintering
 
       return std::accumulate(
         etas.begin(), etas.end(), initial, [](auto a, auto b) {
-          return std::move(a) + std::pow(b, static_cast<double>(p));
+          return std::move(a) + Utilities::fixed_power<p>(b);
         });
     }
 
@@ -613,9 +577,6 @@ namespace Sintering
     DEAL_II_ALWAYS_INLINE VectorizedArrayType
     f(const VectorizedArrayType &c, const VectorType &etas) const
     {
-      // static_assert(std::is_same<typename VectorType::value_type,
-      //                           const VectorizedArrayType *>::value);
-
       const std::size_t n = SizeHelper<VectorType>::size;
 
       const auto etaPower2Sum = PowerHelper<n, 2>::power_sum(etas);
@@ -631,9 +592,6 @@ namespace Sintering
     DEAL_II_ALWAYS_INLINE VectorizedArrayType
     df_dc(const VectorizedArrayType &c, const VectorType &etas) const
     {
-      // static_assert(std::is_same<typename VectorType::value_type,
-      //                           const VectorizedArrayType *>::value);
-
       const std::size_t n = SizeHelper<VectorType>::size;
 
       const auto etaPower2Sum = PowerHelper<n, 2>::power_sum(etas);
@@ -650,9 +608,6 @@ namespace Sintering
              const VectorType &         etas,
              unsigned int               index_i) const
     {
-      // static_assert(std::is_same<typename VectorType::value_type,
-      //                           const VectorizedArrayType *>::value);
-
       const std::size_t n = SizeHelper<VectorType>::size;
 
       const auto etaPower2Sum = PowerHelper<n, 2>::power_sum(etas);
@@ -667,9 +622,6 @@ namespace Sintering
     DEAL_II_ALWAYS_INLINE VectorizedArrayType
     d2f_dc2(const VectorizedArrayType &c, const VectorType &etas) const
     {
-      // static_assert(std::is_same<typename VectorType::value_type,
-      //                           const VectorizedArrayType *>::value);
-
       (void)etas;
 
       return 2.0 * A * (c * c) + 4.0 * A * c * (2.0 * c - 2.0) +
@@ -682,9 +634,6 @@ namespace Sintering
                 const VectorType &         etas,
                 unsigned int               index_i) const
     {
-      // static_assert(std::is_same<typename VectorType::value_type,
-      //                           const VectorizedArrayType *>::value);
-
       (void)c;
 
       const auto &etai = etas[index_i];
@@ -698,9 +647,6 @@ namespace Sintering
                const VectorType &         etas,
                unsigned int               index_i) const
     {
-      // static_assert(std::is_same<typename VectorType::value_type,
-      //                           const VectorizedArrayType *>::value);
-
       const std::size_t n = SizeHelper<VectorType>::size;
 
       const auto etaPower2Sum = PowerHelper<n, 2>::power_sum(etas);
@@ -718,9 +664,6 @@ namespace Sintering
                    unsigned int               index_i,
                    unsigned int               index_j) const
     {
-      // static_assert(std::is_same<typename VectorType::value_type,
-      //                           const VectorizedArrayType *>::value);
-
       (void)c;
 
       const auto &etai = etas[index_i];
@@ -1971,7 +1914,7 @@ namespace Sintering
               value_result[1] +=
                 free_energy.d2f_dcdetai(value_lin[0], etas, ig) * value[ig + 2];
 
-              value_result[ig + 2] =
+              value_result[ig + 2] +=
                 value[ig + 2] * weight +
                 L * free_energy.d2f_dcdetai(value_lin[0], etas, ig) * value[0] +
                 L * free_energy.d2f_detai2(value_lin[0], etas, ig) *
@@ -1986,15 +1929,13 @@ namespace Sintering
 
               gradient_result[ig + 2] = L * kappa_p * gradient[ig + 2];
 
-              for (unsigned int jg = 0; jg < n_grains; ++jg)
+              for (unsigned int jg = 0; jg < ig; ++jg)
                 {
-                  if (ig != jg)
-                    {
-                      value_result[ig + 2] +=
-                        L *
-                        free_energy.d2f_detaidetaj(value_lin[0], etas, ig, jg) *
-                        value[jg + 2];
-                    }
+                  const auto d2f_detaidetaj =
+                    free_energy.d2f_detaidetaj(value_lin[0], etas, ig, jg);
+
+                  value_result[ig + 2] += L * d2f_detaidetaj * value[jg + 2];
+                  value_result[jg + 2] += L * d2f_detaidetaj * value[ig + 2];
                 }
             }
 
