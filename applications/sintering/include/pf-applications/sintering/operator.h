@@ -195,9 +195,11 @@ namespace Sintering
 
       VectorizedArrayType phi =
         cl * cl * cl * (10.0 - 15.0 * cl + 6.0 * cl * cl);
-      std::for_each(phi.begin(), phi.end(), [](auto &val) {
-        val = val > 1.0 ? 1.0 : (val < 0.0 ? 0.0 : val);
-      });
+
+      phi = compare_and_apply_mask<SIMDComparison::less_than>(
+        phi, VectorizedArrayType(0.0), VectorizedArrayType(0.0), phi);
+      phi = compare_and_apply_mask<SIMDComparison::greater_than>(
+        phi, VectorizedArrayType(1.0), VectorizedArrayType(1.0), phi);
 
       VectorizedArrayType M = Mvol * phi + Mvap * (1.0 - phi) +
                               Msurf * 4.0 * cl * cl * (1.0 - cl) * (1.0 - cl) +
@@ -1880,6 +1882,11 @@ namespace Sintering
           const auto value_lin    = phi_lin.get_value(q);
           const auto gradient_lin = phi_lin.get_gradient(q);
 
+          Tensor<1, n_comp, VectorizedArrayType> value_result;
+          Tensor<1, n_comp, Tensor<1, dim, VectorizedArrayType>>
+            gradient_result;
+
+          // TODO: remove temporal arrays etas and etas_grad
           std::array<VectorizedArrayType, n_grains>                 etas;
           std::array<Tensor<1, dim, VectorizedArrayType>, n_grains> etas_grad;
 
@@ -1888,10 +1895,6 @@ namespace Sintering
               etas[ig]      = value_lin[2 + ig];
               etas_grad[ig] = gradient_lin[2 + ig];
             }
-
-          Tensor<1, n_comp, VectorizedArrayType> value_result;
-          Tensor<1, n_comp, Tensor<1, dim, VectorizedArrayType>>
-            gradient_result;
 
           value_result[0] = value[0] * weight;
           value_result[1] =
