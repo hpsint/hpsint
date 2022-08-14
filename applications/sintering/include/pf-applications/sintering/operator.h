@@ -1920,6 +1920,8 @@ namespace Sintering
               etas_grad[ig] = gradient_lin[2 + ig];
             }
 
+          const auto etaPower2Sum = PowerHelper<n_grains, 2>::power_sum(etas);
+
           value_result[0] = value[0] * weight;
           value_result[1] =
             -value[1] + free_energy.d2f_dc2(value_lin[0], etas) * value[0];
@@ -1944,7 +1946,8 @@ namespace Sintering
               value_result[ig + 2] +=
                 value[ig + 2] * weight +
                 L * free_energy.d2f_dcdetai(value_lin[0], etas, ig) * value[0] +
-                L * free_energy.d2f_detai2(value_lin[0], etas, ig) *
+                L *
+                  free_energy.d2f_detai2(value_lin[0], etas, etaPower2Sum, ig) *
                   value[ig + 2];
 
               gradient_result[0] += mobility.dM_detai(value_lin[0],
