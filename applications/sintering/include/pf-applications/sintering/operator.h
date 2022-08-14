@@ -178,25 +178,21 @@ namespace Sintering
       (void)c_grad;
       (void)etas_grad;
 
-      // The reference remains here for compatibility with the previous version
-      const VectorizedArrayType &cl = c;
-
       VectorizedArrayType etaijSum = 0.0;
       for (unsigned int i = 0; i < etas.size(); ++i)
         for (unsigned int j = 0; j < i; ++j)
           etaijSum += etas[i] * etas[j] * 2.0;
 
-      VectorizedArrayType phi =
-        cl * cl * cl * (10.0 - 15.0 * cl + 6.0 * cl * cl);
+      VectorizedArrayType phi = c * c * c * (10.0 - 15.0 * c + 6.0 * c * c);
 
       phi = compare_and_apply_mask<SIMDComparison::less_than>(
         phi, VectorizedArrayType(0.0), VectorizedArrayType(0.0), phi);
       phi = compare_and_apply_mask<SIMDComparison::greater_than>(
         phi, VectorizedArrayType(1.0), VectorizedArrayType(1.0), phi);
 
-      VectorizedArrayType M = Mvol * phi + Mvap * (1.0 - phi) +
-                              Msurf * 4.0 * cl * cl * (1.0 - cl) * (1.0 - cl) +
-                              Mgb * etaijSum;
+      const VectorizedArrayType M =
+        Mvol * phi + Mvap * (1.0 - phi) +
+        Msurf * 4.0 * c * c * (1.0 - c) * (1.0 - c) + Mgb * etaijSum;
 
       return M;
     }
@@ -212,13 +208,10 @@ namespace Sintering
       (void)c_grad;
       (void)etas_grad;
 
-      // The reference remains here for compatibility with the previous version
-      const VectorizedArrayType &cl = c;
-
-      VectorizedArrayType dphidc = 30.0 * cl * cl * (1.0 - 2.0 * cl + cl * cl);
-      VectorizedArrayType dMdc =
+      const VectorizedArrayType dphidc = 30.0 * c * c * (1.0 - 2.0 * c + c * c);
+      const VectorizedArrayType dMdc =
         Mvol * dphidc - Mvap * dphidc +
-        Msurf * 8.0 * cl * (1.0 - 3.0 * cl + 2.0 * cl * cl);
+        Msurf * 8.0 * c * (1.0 - 3.0 * c + 2.0 * c * c);
 
       return dMdc;
     }
@@ -248,15 +241,11 @@ namespace Sintering
       (void)etas_grad;
 
       VectorizedArrayType etajSum = 0;
-      for (unsigned int j = 0; j < etas.size(); j++)
-        {
-          if (j != index_i)
-            {
-              etajSum += etas[j];
-            }
-        }
+      for (unsigned int j = 0; j < etas.size(); ++j)
+        if (j != index_i)
+          etajSum += etas[j];
 
-      auto MetajSum = 2.0 * Mgb * etajSum;
+      const auto MetajSum = 2.0 * Mgb * etajSum;
 
       return MetajSum;
     }
