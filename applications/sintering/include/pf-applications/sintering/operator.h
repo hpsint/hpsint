@@ -1335,6 +1335,14 @@ namespace Sintering
   {
     using Number = typename VectorizedArrayType::value_type;
 
+    // Choose MobilityScalar or MobilityTensorial here:
+    static const bool use_tensorial_mobility = false;
+
+    using MobilityType =
+      typename std::conditional<use_tensorial_mobility,
+                                MobilityTensorial<dim, VectorizedArrayType>,
+                                MobilityScalar<dim, VectorizedArrayType>>::type;
+
     SinteringOperatorData(const Number       A,
                           const Number       B,
                           const Number       Mvol,
@@ -1354,10 +1362,7 @@ namespace Sintering
     {}
 
     const FreeEnergy<VectorizedArrayType> free_energy;
-
-    // Choose MobilityScalar or MobilityTensorial here:
-    const MobilityScalar<dim, VectorizedArrayType> mobility;
-    // const MobilityTensorial<dim, VectorizedArrayType> mobility;
+    const MobilityType                    mobility;
 
     const Number L;
     const Number kappa_c;
@@ -1423,8 +1428,11 @@ namespace Sintering
 
       nonlinear_values.reinit(
         {n_cells, n_quadrature_points, this->n_components()});
+
       nonlinear_gradients.reinit(
-        {n_cells, n_quadrature_points, this->n_components()});
+        {n_cells,
+         n_quadrature_points,
+         use_tensorial_mobility ? this->n_components() : 2});
 
       FECellIntegrator<dim, 1, Number, VectorizedArrayType> phi(matrix_free);
 
@@ -1442,8 +1450,10 @@ namespace Sintering
 
               for (unsigned int q = 0; q < phi.n_q_points; ++q)
                 {
-                  nonlinear_values(cell, q, c)    = phi.get_value(q);
-                  nonlinear_gradients(cell, q, c) = phi.get_gradient(q);
+                  nonlinear_values(cell, q, c) = phi.get_value(q);
+
+                  if (use_tensorial_mobility || (c < 2))
+                    nonlinear_gradients(cell, q, c) = phi.get_gradient(q);
                 }
             }
         }
@@ -1691,10 +1701,8 @@ namespace Sintering
                     }
                 }
 
-              if constexpr (std::is_same<
-                              decltype(mobility),
-                              const MobilityTensorial<dim, VectorizedArrayType>
-                                &>::value == false)
+              if constexpr (SinteringOperatorData<dim, VectorizedArrayType>::
+                              use_tensorial_mobility == false)
                 {
                   if (entries_mask[FieldM])
                     {
@@ -1871,26 +1879,8 @@ namespace Sintering
 
       const unsigned int cell = phi.get_current_cell_index();
 
-      if (this->phi_lin_base == nullptr)
-        this->phi_lin_base = std::make_unique<
-          FECellIntegrator<dim, n_comp, Number, VectorizedArrayType>>(
-          phi.get_matrix_free());
-
-      FEEvaluationData<dim, VectorizedArrayType, false> &phi_lin_base =
-        *this->phi_lin_base.get();
-
-      auto &phi_lin = *dynamic_cast<
-        FECellIntegrator<dim, n_comp, Number, VectorizedArrayType> *>(
-        &phi_lin_base);
-
-      if (cell != phi_lin.get_current_cell_index())
-        {
-          phi_lin.reinit(cell);
-
-          phi_lin.read_dof_values_plain(this->data.get_history_vector());
-          phi_lin.evaluate(EvaluationFlags::values |
-                           EvaluationFlags::gradients);
-        }
+      const auto &nonlinear_values    = this->data.get_nonlinear_values();
+      const auto &nonlinear_gradients = this->data.get_nonlinear_gradients();
 
       const auto &free_energy = this->data.free_energy;
       const auto &L           = this->data.L;
@@ -1901,10 +1891,10 @@ namespace Sintering
 
       for (unsigned int q = 0; q < phi.n_q_points; ++q)
         {
-          const auto value        = phi.get_value(q);
-          const auto gradient     = phi.get_gradient(q);
-          const auto value_lin    = phi_lin.get_value(q);
-          const auto gradient_lin = phi_lin.get_gradient(q);
+          const auto  value        = phi.get_value(q);
+          const auto  gradient     = phi.get_gradient(q);
+          const auto &value_lin    = nonlinear_values[cell][q];
+          const auto &gradient_lin = nonlinear_gradients[cell][q];
 
           Tensor<1, n_comp, VectorizedArrayType> value_result;
           Tensor<1, n_comp, Tensor<1, dim, VectorizedArrayType>>
@@ -1916,8 +1906,11 @@ namespace Sintering
 
           for (unsigned int ig = 0; ig < n_grains; ++ig)
             {
-              etas[ig]      = value_lin[2 + ig];
-              etas_grad[ig] = gradient_lin[2 + ig];
+              etas[ig] = value_lin[2 + ig];
+
+              if (SinteringOperatorData<dim, VectorizedArrayType>::
+                    use_tensorial_mobility)
+                etas_grad[ig] = gradient_lin[2 + ig];
             }
 
           const auto etaPower2Sum = PowerHelper<n_grains, 2>::power_sum(etas);
