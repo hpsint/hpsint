@@ -172,6 +172,7 @@ namespace Sintering
     DEAL_II_ALWAYS_INLINE VectorizedArrayType
     M(const VectorizedArrayType &                c,
       const VectorTypeValue &                    etas,
+      const unsigned int                         etas_size,
       const Tensor<1, dim, VectorizedArrayType> &c_grad,
       const VectorTypeGradient &                 etas_grad) const
     {
@@ -179,7 +180,7 @@ namespace Sintering
       (void)etas_grad;
 
       VectorizedArrayType etaijSum = 0.0;
-      for (unsigned int i = 0; i < etas.size(); ++i)
+      for (unsigned int i = 0; i < etas_size; ++i)
         for (unsigned int j = 0; j < i; ++j)
           etaijSum += etas[i] * etas[j] * 2.0;
 
@@ -232,6 +233,7 @@ namespace Sintering
     DEAL_II_ALWAYS_INLINE VectorizedArrayType
     dM_detai(const VectorizedArrayType &                c,
              const VectorTypeValue &                    etas,
+             const unsigned int                         etas_size,
              const Tensor<1, dim, VectorizedArrayType> &c_grad,
              const VectorTypeGradient &                 etas_grad,
              unsigned int                               index_i) const
@@ -241,7 +243,7 @@ namespace Sintering
       (void)etas_grad;
 
       VectorizedArrayType etajSum = 0;
-      for (unsigned int j = 0; j < etas.size(); ++j)
+      for (unsigned int j = 0; j < etas_size; ++j)
         if (j != index_i)
           etajSum += etas[j];
 
@@ -277,6 +279,7 @@ namespace Sintering
     DEAL_II_ALWAYS_INLINE Tensor<2, dim, VectorizedArrayType>
                           M(const VectorizedArrayType &                c,
                             const VectorTypeValue &                    etas,
+                            const unsigned int                         etas_size,
                             const Tensor<1, dim, VectorizedArrayType> &c_grad,
                             const VectorTypeGradient &                 etas_grad) const
     {
@@ -301,9 +304,9 @@ namespace Sintering
       M += projectorMatrix(nc, fsurf);
 
       // GB diffusion part
-      for (unsigned int i = 0; i < etas.size(); i++)
+      for (unsigned int i = 0; i < etas_size; i++)
         {
-          for (unsigned int j = 0; j < etas.size(); j++)
+          for (unsigned int j = 0; j < etas_size; j++)
             {
               if (i != j)
                 {
@@ -396,6 +399,7 @@ namespace Sintering
     DEAL_II_ALWAYS_INLINE Tensor<2, dim, VectorizedArrayType>
                           dM_detai(const VectorizedArrayType &                c,
                                    const VectorTypeValue &                    etas,
+                                   const unsigned int                         etas_size,
                                    const Tensor<1, dim, VectorizedArrayType> &c_grad,
                                    const VectorTypeGradient &                 etas_grad,
                                    unsigned int                               index_i) const
@@ -405,7 +409,7 @@ namespace Sintering
 
       dealii::Tensor<2, dim, VectorizedArrayType> M;
 
-      for (unsigned int j = 0; j < etas.size(); j++)
+      for (unsigned int j = 0; j < etas_size; j++)
         {
           if (j != index_i)
             {
@@ -478,6 +482,18 @@ namespace Sintering
   public:
     template <typename T>
     DEAL_II_ALWAYS_INLINE static T
+    power_sum(const T *etas)
+    {
+      T initial = 0.0;
+
+      for (unsigned int i = 0; i < n; ++i)
+        initial += Utilities::fixed_power<p>(etas[i]);
+
+      return initial;
+    }
+
+    template <typename T>
+    DEAL_II_ALWAYS_INLINE static T
     power_sum(const std::array<T, n> &etas)
     {
       T initial = 0.0;
@@ -507,6 +523,13 @@ namespace Sintering
   public:
     template <typename T>
     DEAL_II_ALWAYS_INLINE static T
+    power_sum(const T *etas)
+    {
+      return (etas[0]) * (etas[0]) + (etas[1]) * (etas[1]);
+    }
+
+    template <typename T>
+    DEAL_II_ALWAYS_INLINE static T
     power_sum(const std::array<T, 2> &etas)
     {
       return (etas[0]) * (etas[0]) + (etas[1]) * (etas[1]);
@@ -517,6 +540,14 @@ namespace Sintering
   class PowerHelper<2, 3>
   {
   public:
+    template <typename T>
+    DEAL_II_ALWAYS_INLINE static T
+    power_sum(const T *etas)
+    {
+      return (etas[0]) * (etas[0]) * (etas[0]) +
+             (etas[1]) * (etas[1]) * (etas[1]);
+    }
+
     template <typename T>
     DEAL_II_ALWAYS_INLINE static T
     power_sum(const std::array<T, 2> &etas)
@@ -1706,7 +1737,8 @@ namespace Sintering
                 {
                   if (entries_mask[FieldM])
                     {
-                      temp[counter++] = mobility.M(c, etas, c_grad, etas_grad);
+                      temp[counter++] =
+                        mobility.M(c, etas, n_grains, c_grad, etas_grad);
                     }
 
                   if (entries_mask[FieldDM])
@@ -1720,7 +1752,8 @@ namespace Sintering
                       for (unsigned int ig = 0; ig < n_grains; ++ig)
                         {
                           temp[counter++] =
-                            (mobility.dM_detai(c, etas, c_grad, etas_grad, ig) *
+                            (mobility.dM_detai(
+                               c, etas, n_grains, c_grad, etas_grad, ig) *
                              mu_grad)
                               .norm();
                         }
@@ -1900,18 +1933,12 @@ namespace Sintering
           Tensor<1, n_comp, Tensor<1, dim, VectorizedArrayType>>
             gradient_result;
 
-          // TODO: remove temporal arrays etas and etas_grad
-          std::array<VectorizedArrayType, n_grains>                 etas;
-          std::array<Tensor<1, dim, VectorizedArrayType>, n_grains> etas_grad;
+          const VectorizedArrayType *                etas      = &value_lin[2];
+          const Tensor<1, dim, VectorizedArrayType> *etas_grad = nullptr;
 
-          for (unsigned int ig = 0; ig < n_grains; ++ig)
-            {
-              etas[ig] = value_lin[2 + ig];
-
-              if (SinteringOperatorData<dim, VectorizedArrayType>::
-                    use_tensorial_mobility)
-                etas_grad[ig] = gradient_lin[2 + ig];
-            }
+          if (SinteringOperatorData<dim, VectorizedArrayType>::
+                use_tensorial_mobility)
+            etas_grad = &gradient_lin[2];
 
           const auto etaPower2Sum = PowerHelper<n_grains, 2>::power_sum(etas);
 
@@ -1920,7 +1947,8 @@ namespace Sintering
             -value[1] + free_energy.d2f_dc2(value_lin[0], etas) * value[0];
 
           gradient_result[0] =
-            mobility.M(value_lin[0], etas, gradient_lin[0], etas_grad) *
+            mobility.M(
+              value_lin[0], etas, n_grains, gradient_lin[0], etas_grad) *
               gradient[1] +
             mobility.dM_dc(value_lin[0], etas, gradient_lin[0], etas_grad) *
               gradient_lin[1] * value[0] +
@@ -1945,6 +1973,7 @@ namespace Sintering
 
               gradient_result[0] += mobility.dM_detai(value_lin[0],
                                                       etas,
+                                                      n_grains,
                                                       gradient_lin[0],
                                                       etas_grad,
                                                       ig) *
@@ -2034,7 +2063,7 @@ namespace Sintering
 
               value_result[1] = -mu + free_energy.df_dc(c, etas);
               gradient_result[0] =
-                mobility.M(c, etas, c_grad, etas_grad) * grad[1];
+                mobility.M(c, etas, n_grains, c_grad, etas_grad) * grad[1];
               gradient_result[1] = kappa_c * grad[0];
 
               // AC equations
