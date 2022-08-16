@@ -1924,14 +1924,18 @@ namespace Sintering
 
       for (unsigned int q = 0; q < phi.n_q_points; ++q)
         {
+          Tensor<1, n_comp, VectorizedArrayType> value_result;
+          Tensor<1, n_comp, Tensor<1, dim, VectorizedArrayType>>
+            gradient_result;
+
           const auto  value        = phi.get_value(q);
           const auto  gradient     = phi.get_gradient(q);
           const auto &value_lin    = nonlinear_values[cell][q];
           const auto &gradient_lin = nonlinear_gradients[cell][q];
 
-          Tensor<1, n_comp, VectorizedArrayType> value_result;
-          Tensor<1, n_comp, Tensor<1, dim, VectorizedArrayType>>
-            gradient_result;
+          const auto &c       = value_lin[0];
+          const auto &c_grad  = gradient_lin[0];
+          const auto &mu_grad = gradient_lin[1];
 
           const VectorizedArrayType *                etas      = &value_lin[2];
           const Tensor<1, dim, VectorizedArrayType> *etas_grad = nullptr;
@@ -1943,48 +1947,36 @@ namespace Sintering
           const auto etaPower2Sum = PowerHelper<n_grains, 2>::power_sum(etas);
 
           value_result[0] = value[0] * weight;
-          value_result[1] =
-            -value[1] + free_energy.d2f_dc2(value_lin[0], etas) * value[0];
+          value_result[1] = -value[1] + free_energy.d2f_dc2(c, etas) * value[0];
 
           gradient_result[0] =
-            mobility.M(
-              value_lin[0], etas, n_grains, gradient_lin[0], etas_grad) *
-              gradient[1] +
-            mobility.dM_dc(value_lin[0], etas, gradient_lin[0], etas_grad) *
-              gradient_lin[1] * value[0] +
-            mobility.dM_dgrad_c(value_lin[0],
-                                gradient_lin[0],
-                                gradient_lin[1]) *
-              gradient[0];
+            mobility.M(c, etas, n_grains, c_grad, etas_grad) * gradient[1] +
+            mobility.dM_dc(c, etas, c_grad, etas_grad) * mu_grad * value[0] +
+            mobility.dM_dgrad_c(c, c_grad, mu_grad) * gradient[0];
 
           gradient_result[1] = kappa_c * gradient[0];
 
           for (unsigned int ig = 0; ig < n_grains; ++ig)
             {
               value_result[1] +=
-                free_energy.d2f_dcdetai(value_lin[0], etas, ig) * value[ig + 2];
+                free_energy.d2f_dcdetai(c, etas, ig) * value[ig + 2];
 
               value_result[ig + 2] +=
                 value[ig + 2] * weight +
-                L * free_energy.d2f_dcdetai(value_lin[0], etas, ig) * value[0] +
-                L *
-                  free_energy.d2f_detai2(value_lin[0], etas, etaPower2Sum, ig) *
+                L * free_energy.d2f_dcdetai(c, etas, ig) * value[0] +
+                L * free_energy.d2f_detai2(c, etas, etaPower2Sum, ig) *
                   value[ig + 2];
 
-              gradient_result[0] += mobility.dM_detai(value_lin[0],
-                                                      etas,
-                                                      n_grains,
-                                                      gradient_lin[0],
-                                                      etas_grad,
-                                                      ig) *
-                                    gradient_lin[1] * value[ig + 2];
+              gradient_result[0] +=
+                mobility.dM_detai(c, etas, n_grains, c_grad, etas_grad, ig) *
+                mu_grad * value[ig + 2];
 
               gradient_result[ig + 2] = L * kappa_p * gradient[ig + 2];
 
               for (unsigned int jg = 0; jg < ig; ++jg)
                 {
                   const auto d2f_detaidetaj =
-                    free_energy.d2f_detaidetaj(value_lin[0], etas, ig, jg);
+                    free_energy.d2f_detaidetaj(c, etas, ig, jg);
 
                   value_result[ig + 2] += L * d2f_detaidetaj * value[jg + 2];
                   value_result[jg + 2] += L * d2f_detaidetaj * value[ig + 2];
@@ -2090,9 +2082,6 @@ namespace Sintering
     const TimeIntegration::SolutionHistory<BlockVectorType> &history;
     const TimeIntegration::BDFIntegrator<dim, Number, VectorizedArrayType>
       time_integrator;
-
-    mutable std::unique_ptr<FEEvaluationData<dim, VectorizedArrayType, false>>
-      phi_lin_base;
   };
 
 } // namespace Sintering
