@@ -109,6 +109,7 @@ main(int argc, char **argv)
   const double       interface_width         = 2.;
   const bool         periodic                = true;
   const bool         with_initial_refinement = true;
+  const double       level0_inter_elements   = 1.5;
 
   Sintering::create_mesh(tria,
                          bottom_left,
@@ -116,7 +117,8 @@ main(int argc, char **argv)
                          interface_width,
                          elements_per_interface,
                          periodic,
-                         with_initial_refinement);
+                         with_initial_refinement,
+                         level0_inter_elements);
 
   // setup DoFHandlers
   dof_handler.distribute_dofs(fe);
