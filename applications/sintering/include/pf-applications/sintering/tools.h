@@ -5,26 +5,33 @@
 namespace Sintering
 {
   template <typename Triangulation, int dim>
-  void
+  unsigned int
   create_mesh(Triangulation &    tria,
               const Point<dim> & bottom_left,
               const Point<dim> & top_right,
               const double       interface_width,
               const unsigned int elements_per_interface,
               const bool         periodic,
-              const bool         with_initial_refinement)
+              const bool         with_initial_refinement,
+              const double       max_level0_elements_per_interface = 1.0)
   {
     const auto   domain_size   = top_right - bottom_left;
     const double domain_width  = domain_size[0];
     const double domain_height = domain_size[1];
 
-    const unsigned int initial_ny = 10;
-    const unsigned int initial_nx =
-      static_cast<unsigned int>(domain_width / domain_height * initial_ny);
+    const double h_e = interface_width / elements_per_interface;
 
-    const unsigned int n_refinements = static_cast<unsigned int>(
-      std::round(std::log2(elements_per_interface / interface_width *
-                           domain_height / initial_ny)));
+    unsigned int       n_refinements = 0;
+    const unsigned int base          = 2;
+    for (double initial_elements_per_interface = elements_per_interface;
+         initial_elements_per_interface > max_level0_elements_per_interface;
+         initial_elements_per_interface /= base, ++n_refinements)
+      ;
+
+    const unsigned int initial_nx = static_cast<unsigned int>(
+      domain_width / h_e / std::pow(2, n_refinements));
+    const unsigned int initial_ny = static_cast<unsigned int>(
+      domain_height / h_e / std::pow(2, n_refinements));
 
     std::vector<unsigned int> subdivisions(dim);
     subdivisions[0] = initial_nx;
@@ -32,8 +39,8 @@ namespace Sintering
     if (dim == 3)
       {
         const double       domain_depth = domain_size[2];
-        const unsigned int initial_nz =
-          static_cast<unsigned int>(domain_depth / domain_height * initial_ny);
+        const unsigned int initial_nz   = static_cast<unsigned int>(
+          domain_depth / h_e / std::pow(2, n_refinements));
         subdivisions[2] = initial_nz;
       }
 
@@ -85,5 +92,7 @@ namespace Sintering
       {
         tria.refine_global(n_refinements);
       }
+
+    return n_refinements;
   }
 } // namespace Sintering

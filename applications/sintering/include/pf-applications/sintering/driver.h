@@ -189,9 +189,12 @@ namespace Sintering
       this->dts.assign(time_integration_order, 0);
       this->dts[0] = params.time_integration_data.time_step_init;
 
-      create_grid(true);
 
+      const unsigned int n_refinements =
+        create_grid(params.geometry_data.global_refinement);
       this->n_global_levels_0 = tria.n_global_levels();
+      if (params.geometry_data.global_refinement == false)
+        this->n_global_levels_0 += n_refinements;
 
       initialize();
 
@@ -396,7 +399,7 @@ namespace Sintering
       ar &boost::serialization::make_array(dts.data(), dts.size());
     }
 
-    void
+    unsigned int
     create_grid(const bool with_initial_refinement)
     {
       MyScope("Problem::create_grid");
@@ -441,13 +444,15 @@ namespace Sintering
             }
         }
 
-      create_mesh(tria,
-                  boundaries.first,
-                  boundaries.second,
-                  geometry_interface_width,
-                  params.geometry_data.elements_per_interface,
-                  params.geometry_data.periodic,
-                  with_initial_refinement);
+      const unsigned int n_refinements =
+        create_mesh(tria,
+                    boundaries.first,
+                    boundaries.second,
+                    geometry_interface_width,
+                    params.geometry_data.elements_per_interface,
+                    params.geometry_data.periodic,
+                    with_initial_refinement,
+                    params.geometry_data.max_level0_elements_per_interface);
 
       helper = std::make_unique<dealii::parallel::Helper<dim>>(tria);
 
@@ -456,6 +461,8 @@ namespace Sintering
       tria.signals.weight.connect(weight_function);
 
       tria.repartition();
+
+      return n_refinements;
     }
 
     void
@@ -1211,10 +1218,13 @@ namespace Sintering
           const auto solution_ptr =
             solution_history.filter(true, false, false).get_all_blocks();
 
-          for (unsigned int i = 0;
-               i < std::max(params.adaptivity_data.min_refinement_depth,
-                            params.adaptivity_data.max_refinement_depth);
-               ++i)
+          const unsigned int n_init_refinements =
+            std::max(std::min(tria.n_global_levels() - 1,
+                              params.adaptivity_data.min_refinement_depth),
+                     this->n_global_levels_0 - tria.n_global_levels() +
+                       params.adaptivity_data.max_refinement_depth);
+
+          for (unsigned int i = 0; i < n_init_refinements; ++i)
             {
               execute_coarsening_and_refinement(t);
               initialize_solution(solution_ptr, timer);
