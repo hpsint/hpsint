@@ -9,7 +9,8 @@
     },
     "Approximation": {
         "FEDegree": "1",
-        "NPoints1D": "2"
+        "NPoints1D": "2",
+        "NSubdivisions": "1"
     },
     "Energy": {
         "A": "16",

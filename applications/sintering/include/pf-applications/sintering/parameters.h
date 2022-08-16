@@ -8,8 +8,9 @@ namespace Sintering
 {
   struct ApproximationData
   {
-    unsigned int fe_degree   = 1;
-    unsigned int n_points_1D = 2;
+    unsigned int fe_degree      = 1;
+    unsigned int n_subdivisions = 1;
+    unsigned int n_points_1D    = 2;
   };
 
   struct BoundingBoxData
@@ -183,11 +184,36 @@ namespace Sintering
       prm.parse_input(file_name, "", true);
 
 #ifdef FE_DEGREE
-      AssertDimension(FE_DEGREE, approximation_data.fe_degree);
+      if (approximation_data.n_subdivisions == 1)
+        {
+          AssertThrow(FE_DEGREE == approximation_data.fe_degree,
+                      StandardExceptions::ExcDimensionMismatch(
+                        FE_DEGREE, approximation_data.fe_degree));
+        }
+      else
+        {
+          AssertThrow(FE_DEGREE == approximation_data.n_subdivisions,
+                      StandardExceptions::ExcDimensionMismatch(
+                        FE_DEGREE, approximation_data.n_subdivisions + 1));
+        }
 #endif
 
 #ifdef N_Q_POINTS_1D
-      AssertDimension(N_Q_POINTS_1D, approximation_data.n_points_1D);
+      if (approximation_data.n_subdivisions == 1)
+        {
+          AssertThrow(N_Q_POINTS_1D == approximation_data.n_points_1D,
+                      StandardExceptions::ExcDimensionMismatch(
+                        N_Q_POINTS_1D, approximation_data.n_points_1D));
+        }
+      else
+        {
+          AssertThrow(N_Q_POINTS_1D == approximation_data.n_points_1D *
+                                         approximation_data.n_subdivisions,
+                      StandardExceptions::ExcDimensionMismatch(
+                        N_Q_POINTS_1D,
+                        approximation_data.n_points_1D *
+                          approximation_data.n_subdivisions));
+        }
 #endif
     }
 
@@ -219,6 +245,9 @@ namespace Sintering
       prm.add_parameter("FEDegree",
                         approximation_data.fe_degree,
                         "Degree of the shape the finite element.");
+      prm.add_parameter("NSubdivisions",
+                        approximation_data.n_subdivisions,
+                        "Number of subdivisions.");
       prm.add_parameter("NPoints1D",
                         approximation_data.n_points_1D,
                         "Number of quadrature points.");

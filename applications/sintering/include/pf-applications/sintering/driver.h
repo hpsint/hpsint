@@ -29,6 +29,7 @@
 #include <deal.II/dofs/dof_tools.h>
 
 #include <deal.II/fe/fe_q.h>
+#include <deal.II/fe/fe_q_iso_q1.h>
 #include <deal.II/fe/fe_system.h>
 #include <deal.II/fe/mapping_q.h>
 
@@ -96,9 +97,9 @@ namespace Sintering
     ConditionalOStream                        pcout;
     ConditionalOStream                        pcout_statistics;
     parallel::distributed::Triangulation<dim> tria;
-    FE_Q<dim>                                 fe;
+    std::shared_ptr<const FiniteElement<dim>> fe;
     MappingQ<dim>                             mapping;
-    QGauss<dim>                               quad;
+    Quadrature<1>                             quad;
     DoFHandler<dim>                           dof_handler;
 
     std::unique_ptr<dealii::parallel::Helper<dim>> helper;
@@ -152,9 +153,11 @@ namespace Sintering
       , pcout_statistics(std::cout,
                          Utilities::MPI::this_mpi_process(MPI_COMM_WORLD) == 0)
       , tria(MPI_COMM_WORLD)
-      , fe(params.approximation_data.fe_degree)
+      , fe(create_fe(params.approximation_data.fe_degree,
+                     params.approximation_data.n_subdivisions))
       , mapping(1)
-      , quad(params.approximation_data.n_points_1D)
+      , quad(QIterated<1>(QGauss<1>(params.approximation_data.n_points_1D),
+                          params.approximation_data.n_subdivisions))
       , dof_handler(tria)
     {
       MyScope("Problem::constructor");
@@ -212,9 +215,11 @@ namespace Sintering
       , pcout_statistics(std::cout,
                          Utilities::MPI::this_mpi_process(MPI_COMM_WORLD) == 0)
       , tria(MPI_COMM_WORLD)
-      , fe(params.approximation_data.fe_degree)
+      , fe(create_fe(params.approximation_data.fe_degree,
+                     params.approximation_data.n_subdivisions))
       , mapping(1)
-      , quad(params.approximation_data.n_points_1D)
+      , quad(QIterated<1>(QGauss<1>(params.approximation_data.n_points_1D),
+                          params.approximation_data.n_subdivisions))
       , dof_handler(tria)
     {
       MyScope("Problem::constructor");
@@ -352,7 +357,7 @@ namespace Sintering
       if (true)
         {
           MyScope("Problem::initialize::dofhandler");
-          dof_handler.distribute_dofs(fe);
+          dof_handler.distribute_dofs(*fe);
         }
 
       // ... constraints, and ...
@@ -434,7 +439,7 @@ namespace Sintering
               auto &matrix_free = mg_matrix_free[l];
 
               dof_handler.reinit(*mg_triangulations[l]);
-              dof_handler.distribute_dofs(fe);
+              dof_handler.distribute_dofs(*fe);
 
               constraints.clear();
               constraints.reinit(
@@ -880,7 +885,7 @@ namespace Sintering
 
             KellyErrorEstimator<dim>::estimate(
               this->dof_handler,
-              QGauss<dim - 1>(this->dof_handler.get_fe().degree + 1),
+              Quadrature<dim - 1>(quad),
               std::map<types::boundary_id, const Function<dim> *>(),
               solution_dealii.block(b),
               estimated_error_per_cell_temp,
@@ -1543,7 +1548,7 @@ namespace Sintering
               data_out.add_data_vector(subdomain, "subdomain");
             }
 
-          data_out.build_patches(mapping, this->fe.tensor_degree());
+          data_out.build_patches(mapping, this->fe->tensor_degree());
 
           std::string output = params.output_data.vtk_path + "/" + label + "." +
                                std::to_string(counters[label]) + ".vtu";
@@ -1603,6 +1608,20 @@ namespace Sintering
         }
 
       counters[label]++;
-    };
+    }
+
+
+    static std::shared_ptr<const FiniteElement<dim>>
+    create_fe(const unsigned int fe_degree, const unsigned int n_subdivisions)
+    {
+      if (n_subdivisions == 1)
+        return std::make_shared<FE_Q<dim>>(fe_degree);
+
+      AssertThrow(fe_degree == 1,
+                  ExcMessage(
+                    "Either fe-degree or number of subdivisions has to be 1."));
+
+      return std::make_shared<FE_Q_iso_Q1<dim>>(n_subdivisions);
+    }
   };
 } // namespace Sintering
