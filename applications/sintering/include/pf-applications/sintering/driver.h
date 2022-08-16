@@ -1205,6 +1205,13 @@ namespace Sintering
 
                 if (true)
                   {
+                    {
+                      TimerOutput::Scope scope(timer,
+                                               "vmult_matrixbased_assembly");
+
+                      nonlinear_operator.get_system_matrix();
+                    }
+
                     const auto &matrix = nonlinear_operator.get_system_matrix();
 
                     typename VectorType::BlockType src_, dst_;

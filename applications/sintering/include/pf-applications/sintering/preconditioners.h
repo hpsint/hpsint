@@ -66,9 +66,8 @@ namespace Sintering
 
       // TODO: 1) allow std::array again and 2) allocate less often in the
       // case of std::vector
-      std::array<const VectorizedArrayType *, n_grains> etas;
-      std::array<const Tensor<1, dim, VectorizedArrayType> *, n_grains>
-        etas_grad;
+      std::array<VectorizedArrayType, n_grains>                 etas;
+      std::array<Tensor<1, dim, VectorizedArrayType>, n_grains> etas_grad;
 
       for (unsigned int q = 0; q < phi.n_q_points; ++q)
         {
@@ -81,8 +80,8 @@ namespace Sintering
 
           for (unsigned int ig = 0; ig < etas.size(); ++ig)
             {
-              etas[ig]      = &val[2 + ig];
-              etas_grad[ig] = &grad[2 + ig];
+              etas[ig]      = val[2 + ig];
+              etas_grad[ig] = grad[2 + ig];
             }
 
           Tensor<1, n_comp, VectorizedArrayType> value_result;
@@ -96,7 +95,8 @@ namespace Sintering
                             free_energy.d2f_dc2(c, etas) * phi.get_value(q)[0];
 
           gradient_result[0] =
-            mobility.M(c, etas, c_grad, etas_grad) * phi.get_gradient(q)[1] +
+            mobility.M(c, etas, etas.size(), c_grad, etas_grad) *
+              phi.get_gradient(q)[1] +
             mobility.dM_dc(c, etas, c_grad, etas_grad) * mu_grad *
               phi.get_value(q)[0] +
             mobility.dM_dgrad_c(c, c_grad, mu_grad) * phi.get_gradient(q)[0];
@@ -107,7 +107,8 @@ namespace Sintering
           value_result[1] = -phi.get_value(q)[1];
 
           gradient_result[0] =
-            mobility.M(c, etas, c_grad, etas_grad) * phi.get_gradient(q)[1];
+            mobility.M(c, etas, etas.size(), c_grad, etas_grad) *
+            phi.get_gradient(q)[1];
           gradient_result[1] = kappa_c * phi.get_gradient(q)[0];
 #endif
 
@@ -184,10 +185,10 @@ namespace Sintering
 
           const auto &c = val[0];
 
-          std::array<const VectorizedArrayType *, n_grains> etas;
+          std::array<VectorizedArrayType, n_grains> etas;
 
           for (unsigned int ig = 0; ig < n_grains; ++ig)
-            etas[ig] = &val[2 + ig];
+            etas[ig] = val[2 + ig];
 
           Tensor<1, n_comp, VectorizedArrayType> value_result;
           Tensor<1, n_comp, Tensor<1, dim, VectorizedArrayType>>
@@ -313,10 +314,10 @@ namespace Sintering
 
           const auto &c = val[0];
 
-          std::array<const VectorizedArrayType *, n_grains> etas;
+          std::array<VectorizedArrayType, n_grains> etas;
 
           for (unsigned int ig = 0; ig < n_grains; ++ig)
-            etas[ig] = &val[2 + ig];
+            etas[ig] = val[2 + ig];
 
           Tensor<1, n_comp, VectorizedArrayType> value_result;
           Tensor<1, n_comp, Tensor<1, dim, VectorizedArrayType>>
@@ -430,7 +431,7 @@ namespace Sintering
         const auto  weight           = data.time_data.get_primary_weight();
         const auto &nonlinear_values = data.get_nonlinear_values();
 
-        std::vector<const VectorizedArrayType *> etas(this->n_grains());
+        std::vector<VectorizedArrayType> etas(this->n_grains());
 
         for (unsigned int cell = 0; cell < this->matrix_free.n_cell_batches();
              ++cell)
@@ -476,7 +477,7 @@ namespace Sintering
                         const auto &c   = val[0];
 
                         for (unsigned int ig = 0; ig < this->n_grains(); ++ig)
-                          etas[ig] = &val[2 + ig];
+                          etas[ig] = val[2 + ig];
 
                         VectorizedArrayType scaling = 0.0;
 
