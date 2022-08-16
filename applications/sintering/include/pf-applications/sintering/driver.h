@@ -220,10 +220,13 @@ namespace Sintering
       MyScope("Problem::constructor");
 
       // 0) load internal state
-      unsigned int                    n_initial_components = 0;
+      unsigned int n_initial_components;
+      bool         flexible_output;
+
       std::ifstream                   in_stream(restart_path + "_driver");
       boost::archive::binary_iarchive fisb(in_stream);
       fisb >> n_initial_components;
+      fisb >> flexible_output;
       fisb >> *this;
 
       // 1) create coarse mesh
@@ -236,21 +239,29 @@ namespace Sintering
       initialize();
 
       // 4) helper function to initialize solution vector
-      const auto initialize_solution = [&](VectorType &   solution,
+      const auto initialize_solution =
+        [&, flexible_output, restart_path](VectorType &   solution,
                                            MyTimerOutput &timer) {
-        MyScope scope(timer, "deserialize_solution");
+          MyScope scope(timer, "deserialize_solution");
 
-        parallel::distributed::SolutionTransfer<dim,
-                                                typename VectorType::BlockType>
-          solution_transfer(dof_handler);
+          if (flexible_output)
+            {
+              parallel::distributed::
+                SolutionTransfer<dim, typename VectorType::BlockType>
+                  solution_transfer(dof_handler);
 
-        std::vector<typename VectorType::BlockType *> solution_ptr(
-          solution.n_blocks());
-        for (unsigned int b = 0; b < solution.n_blocks(); ++b)
-          solution_ptr[b] = &solution.block(b);
+              std::vector<typename VectorType::BlockType *> solution_ptr(
+                solution.n_blocks());
+              for (unsigned int b = 0; b < solution.n_blocks(); ++b)
+                solution_ptr[b] = &solution.block(b);
 
-        solution_transfer.deserialize(solution_ptr);
-      };
+              solution_transfer.deserialize(solution_ptr);
+            }
+          else
+            {
+              solution.load(restart_path + "_tria");
+            }
+        };
 
       // 5) run time loop
       run(n_initial_components, initialize_solution);
@@ -1437,11 +1448,6 @@ namespace Sintering
                 for (unsigned int b = 0; b < solution.n_blocks(); ++b)
                   solution_ptr[b] = &solution.block(b);
 
-                // auto solution_ptr = solution_history.get_all_blocks();
-                // TODO
-
-                solution_transfer.prepare_for_serialization(solution_ptr);
-
                 unsigned int current_restart_count = restart_counter++;
 
                 if (params.restart_data.max_output != 0)
@@ -1452,11 +1458,17 @@ namespace Sintering
                   params.restart_data.prefix + "_" +
                   std::to_string(current_restart_count);
 
+                if (params.restart_data.flexible_output == true)
+                  solution_transfer.prepare_for_serialization(solution_ptr);
+                else
+                  solution.save(prefix + "_vectors");
+
                 tria.save(prefix + "_tria");
 
                 std::ofstream                   out_stream(prefix + "_driver");
                 boost::archive::binary_oarchive fosb(out_stream);
                 fosb << solution.n_blocks();
+                fosb << params.restart_data.flexible_output;
                 fosb << *this;
 
                 if (solution_is_ghosted == false)

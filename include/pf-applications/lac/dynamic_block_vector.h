@@ -344,6 +344,18 @@ namespace dealii
           return MyMemoryConsumption::memory_consumption(blocks);
         }
 
+        void
+        save(const std::string file_name) const
+        {
+          (void)file_name;
+        }
+
+        void
+        load(const std::string file_name)
+        {
+          (void)file_name;
+        }
+
       private:
         unsigned int                            block_counter;
         std::vector<std::shared_ptr<BlockType>> blocks;
