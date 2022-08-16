@@ -48,41 +48,46 @@
         "Mvap": "1e-10",
         "Mvol": "0.01"
     },
+    "NonLinearData": {
+        "LinearRelativeTolerance" : 1e-2, "NewtonUseDamping" : true, "NonLinearSolverType" : "NOX"
+    },
     "Output": {
         "Contour": "true",
         "ContourNCoarseningSteps": "0",
         "Debug": "false",
         "Fields": "bnds",
         "HigherOrderCells": "false",
-        "OutputTimeInterval": "1",
-        "Regular": "true",
+        "OutputTimeInterval": "50",
+        "Regular": "false",
         "VtkPath": "."
     },
     "Preconditioners": {
         "OuterPreconditioner": "BlockPreconditioner2",
         "BlockPreconditioner2": {
             "Block0Preconditioner": "ILU",
-            "Block1Approximation": "all",
-            "Block1Preconditioner": "InverseDiagonalMatrix"
+            "Block1Approximation": "avg",
+            "Block1Preconditioner": "BlockILU"
         }
     },
     "Profiling": {
-        "OutputTimeInterval": "-1",
-        "RunVmults": "false"
+        "OutputTimeInterval": "900",
+        "RunVmults": "false",
+        "OutputMemoryConsumption" : "false"
     },
     "Restart": {
-        "Interval": "10",
-        "MaximalOutput": "0",
+        "Interval": "500",
+        "MaximalOutput": "1",
         "Prefix": "./restart",
-        "Type": "never"
+        "Type": "simulation_time"
     },
     "TimeIntegration": {
+        "IntegrationScheme" : "BDF2",
         "DesirableLinearIterations": "100",
         "DesirableNewtonIterations": "5",
         "GrowthFactor": "1.2",
-        "TimeEnd": "1000",
+        "TimeEnd": "5000",
         "TimeStart": "0",
-        "TimeStepInit": "0.001",
+        "TimeStepInit": "0.1",
         "TimeStepMax": "100",
         "TimeStepMin": "1e-05"
     }
