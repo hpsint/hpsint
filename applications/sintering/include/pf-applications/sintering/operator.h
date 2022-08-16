@@ -182,7 +182,8 @@ namespace Sintering
       VectorizedArrayType etaijSum = 0.0;
       for (unsigned int i = 0; i < etas_size; ++i)
         for (unsigned int j = 0; j < i; ++j)
-          etaijSum += etas[i] * etas[j] * 2.0;
+          etaijSum += etas[i] * etas[j];
+      etaijSum *= 2.0;
 
       VectorizedArrayType phi = c * c * c * (10.0 - 15.0 * c + 6.0 * c * c);
 
@@ -209,7 +210,7 @@ namespace Sintering
       (void)c_grad;
       (void)etas_grad;
 
-      const VectorizedArrayType dphidc = 30.0 * c * c * (1.0 - 2.0 * c + c * c);
+      const VectorizedArrayType dphidc = 30.0 * c * c * (1.0 - c) * (1.0 - c);
       const VectorizedArrayType dMdc =
         Mvol * dphidc - Mvap * dphidc +
         Msurf * 8.0 * c * (1.0 - 3.0 * c + 2.0 * c * c);
@@ -512,7 +513,7 @@ namespace Sintering
 
       return std::accumulate(
         etas.begin(), etas.end(), initial, [](auto a, auto b) {
-          return std::move(a) + std::pow(b, static_cast<double>(p));
+          return std::move(a) + Utilities::fixed_power<p>(b);
         });
     }
   };
@@ -525,14 +526,14 @@ namespace Sintering
     DEAL_II_ALWAYS_INLINE static T
     power_sum(const T *etas)
     {
-      return (etas[0]) * (etas[0]) + (etas[1]) * (etas[1]);
+      return etas[0] * etas[0] + etas[1] * etas[1];
     }
 
     template <typename T>
     DEAL_II_ALWAYS_INLINE static T
     power_sum(const std::array<T, 2> &etas)
     {
-      return (etas[0]) * (etas[0]) + (etas[1]) * (etas[1]);
+      return etas[0] * etas[0] + etas[1] * etas[1];
     }
   };
 
@@ -544,16 +545,14 @@ namespace Sintering
     DEAL_II_ALWAYS_INLINE static T
     power_sum(const T *etas)
     {
-      return (etas[0]) * (etas[0]) * (etas[0]) +
-             (etas[1]) * (etas[1]) * (etas[1]);
+      return etas[0] * etas[0] * etas[0] + etas[1] * etas[1] * etas[1];
     }
 
     template <typename T>
     DEAL_II_ALWAYS_INLINE static T
     power_sum(const std::array<T, 2> &etas)
     {
-      return (etas[0]) * (etas[0]) * (etas[0]) +
-             (etas[1]) * (etas[1]) * (etas[1]);
+      return etas[0] * etas[0] * etas[0] + etas[1] * etas[1] * etas[1];
     }
   };
 
@@ -648,8 +647,8 @@ namespace Sintering
     {
       const auto &etai = etas[index_i];
 
-      return B * (3.0 * (etai * etai) * (4.0 * c - 8.0) +
-                  2.0 * etai * (-6.0 * c + 6.0) + 12.0 * etai * (etaPower2Sum));
+      return etai * B * 12.0 *
+             (etai * (1.0 * c - 2.0) + (-c + 1.0) + etaPower2Sum);
     }
 
     template <typename VectorType>
@@ -685,7 +684,7 @@ namespace Sintering
 
       const auto &etai = etas[index_i];
 
-      return B * (12.0 * (etai * etai) - 12.0 * etai);
+      return B * 12.0 * etai * (etai - 1.0);
     }
 
     template <typename VectorType>
