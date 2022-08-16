@@ -344,16 +344,55 @@ namespace dealii
           return MyMemoryConsumption::memory_consumption(blocks);
         }
 
+        template <int dim, int spacedim>
         void
-        save(const std::string file_name) const
+        save(const DoFHandler<dim, spacedim> &dof_handler,
+             const std::string                file_name) const
         {
-          (void)file_name;
+          // create unique map
+          const auto unique_dof_map = create_unique_dof_map(dof_handler);
+
+          // determine local size
+          size_type local_size = 0;
+
+          for (unsigned int b = 0; b < n_blocks(); ++b)
+            local_size += block(b).locally_owned_size();
+
+          // collect all values in a single vector
+          std::vector<value_type> temp(local_size);
+
+          for (unsigned int b = 0, c = 0; b < n_blocks(); ++b)
+            for (unsigned int i = 0; i < block(b).locally_owned_size();
+                 ++i, ++c)
+              temp[c] = block(b).local_element(unique_dof_map[i]);
+
+          // write to hard drive
+          io(1, file_name, temp);
         }
 
+        template <int dim, int spacedim>
         void
-        load(const std::string file_name)
+        load(const DoFHandler<dim, spacedim> &dof_handler,
+             const std::string                file_name)
         {
-          (void)file_name;
+          // create unique map
+          const auto unique_dof_map = create_unique_dof_map(dof_handler);
+
+          // determine local size
+          size_type local_size = 0;
+
+          for (unsigned int b = 0; b < n_blocks(); ++b)
+            local_size += block(b).locally_owned_size();
+
+          // read from hard drive
+          std::vector<value_type> temp(local_size);
+          io(0, file_name, temp);
+
+          // split up single vector into blocks
+          for (unsigned int b = 0, c = 0; b < n_blocks(); ++b)
+            for (unsigned int i = 0; i < block(b).locally_owned_size();
+                 ++i, ++c)
+              block(b).local_element(unique_dof_map[i]) = temp[c];
         }
 
       private:
@@ -361,6 +400,138 @@ namespace dealii
         std::vector<std::shared_ptr<BlockType>> blocks;
 
         types::global_dof_index size_;
+
+        template <int dim, int spacedim = dim>
+        void
+        visit_cells_recursevely(
+          const typename DoFHandler<dim, spacedim>::cell_iterator &cell,
+          const IndexSet &           locally_owned_dofs,
+          std::vector<bool> &        mask,
+          std::vector<unsigned int> &result) const
+        {
+          if (cell->is_active())
+            {
+              if (cell->is_locally_owned())
+                {
+                  std::vector<types::global_dof_index> dof_indices(
+                    cell->get_fe().n_dofs_per_cell());
+
+                  cell->get_dof_indices(dof_indices);
+
+                  for (const auto i : dof_indices)
+                    {
+                      if (locally_owned_dofs.is_element(i) == false)
+                        continue;
+
+                      const auto i_local =
+                        locally_owned_dofs.index_within_set(i);
+
+                      if (mask[i_local] == true)
+                        continue;
+
+                      mask[i_local] = true;
+                      result.push_back(i_local);
+                    }
+                }
+            }
+          else
+            {
+              for (const auto child : cell->child_iterators())
+                visit_cells_recursevely<dim, spacedim>(child,
+                                                       locally_owned_dofs,
+                                                       mask,
+                                                       result);
+            }
+        }
+
+        template <int dim, int spacedim>
+        std::vector<unsigned int>
+        create_unique_dof_map(
+          const DoFHandler<dim, spacedim> &dof_handler) const
+        {
+          const auto &locally_owned_dofs = dof_handler.locally_owned_dofs();
+
+          std::vector<unsigned int> result;
+          result.reserve(locally_owned_dofs.n_elements());
+
+          std::vector<bool> mask(locally_owned_dofs.n_elements(), false);
+
+          for (const auto &cell : dof_handler.cell_iterators_on_level(0))
+            visit_cells_recursevely<dim, spacedim>(cell,
+                                                   locally_owned_dofs,
+                                                   mask,
+                                                   result);
+
+          AssertThrow(result.size() == locally_owned_dofs.n_elements(),
+                      ExcNotImplemented());
+
+          return result;
+        }
+
+        void
+        io(int type, std::string filename, std::vector<value_type> &src) const
+        {
+          const MPI_Comm comm = block(0).get_mpi_communicator();
+
+          const size_type local_size = src.size();
+
+          size_type offset = 0;
+
+          int ierr = MPI_Exscan(&local_size,
+                                &offset,
+                                1,
+                                Utilities::MPI::mpi_type_id_for_type<size_type>,
+                                MPI_SUM,
+                                comm);
+          AssertThrowMPI(ierr);
+
+          // local displacement in file (in bytes)
+          MPI_Offset disp =
+            static_cast<unsigned long int>(offset) * sizeof(value_type);
+
+          // ooen file ...
+          MPI_File fh;
+          if (type == 0)
+            ierr = MPI_File_open(
+              comm, filename.c_str(), MPI_MODE_RDONLY, MPI_INFO_NULL, &fh);
+          else
+            ierr = MPI_File_open(comm,
+                                 filename.c_str(),
+                                 MPI_MODE_CREATE | MPI_MODE_WRONLY,
+                                 MPI_INFO_NULL,
+                                 &fh);
+          AssertThrowMPI(ierr);
+
+          // ... set view
+          MPI_File_set_view(fh,
+                            disp,
+                            Utilities::MPI::mpi_type_id_for_type<value_type>,
+                            Utilities::MPI::mpi_type_id_for_type<value_type>,
+                            "native",
+                            MPI_INFO_NULL);
+
+          if (type == 0)
+            // ... read file
+            ierr = MPI_File_read_all(
+              fh,
+              src.data(),
+              src.size(),
+              Utilities::MPI::mpi_type_id_for_type<value_type>,
+              MPI_STATUSES_IGNORE);
+          else
+            // ... write file
+            ierr = MPI_File_write_all(
+              fh,
+              src.data(),
+              src.size(),
+              Utilities::MPI::mpi_type_id_for_type<value_type>,
+              MPI_STATUSES_IGNORE);
+          AssertThrowMPI(ierr);
+
+          // ... close file
+          ierr = MPI_File_close(&fh);
+          AssertThrowMPI(ierr);
+        }
       };
     } // namespace distributed
   }   // namespace LinearAlgebra

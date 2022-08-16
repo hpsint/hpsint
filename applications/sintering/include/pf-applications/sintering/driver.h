@@ -220,13 +220,26 @@ namespace Sintering
       MyScope("Problem::constructor");
 
       // 0) load internal state
+      unsigned int n_ranks;
       unsigned int n_initial_components;
       bool         flexible_output;
 
       std::ifstream                   in_stream(restart_path + "_driver");
       boost::archive::binary_iarchive fisb(in_stream);
-      fisb >> n_initial_components;
       fisb >> flexible_output;
+      fisb >> n_ranks;
+
+      const auto n_mpi_processes =
+        Utilities::MPI::n_mpi_processes(MPI_COMM_WORLD);
+
+      AssertThrow(
+        flexible_output || (n_ranks == n_mpi_processes),
+        ExcMessage(
+          "You are not using flexible serialization. You can restart this simulation only with " +
+          std::to_string(n_ranks) + "! But you have " +
+          std::to_string(n_mpi_processes) + "!"));
+
+      fisb >> n_initial_components;
       fisb >> *this;
 
       // 1) create coarse mesh
@@ -234,6 +247,7 @@ namespace Sintering
 
       // 2) load mesh refinement (incl. vectors)
       tria.load(restart_path + "_tria");
+      tria.repartition();
 
       // 3) initialize data structures
       initialize();
@@ -259,7 +273,7 @@ namespace Sintering
             }
           else
             {
-              solution.load(restart_path + "_tria");
+              solution.load(dof_handler, restart_path + "_vectors");
             }
         };
 
@@ -1437,17 +1451,6 @@ namespace Sintering
                 if (solution_is_ghosted == false)
                   solution.update_ghost_values();
 
-                // solution_history.update_ghost_values(); // TODO
-
-                parallel::distributed::
-                  SolutionTransfer<dim, typename VectorType::BlockType>
-                    solution_transfer(dof_handler);
-
-                std::vector<const typename VectorType::BlockType *>
-                  solution_ptr(solution.n_blocks());
-                for (unsigned int b = 0; b < solution.n_blocks(); ++b)
-                  solution_ptr[b] = &solution.block(b);
-
                 unsigned int current_restart_count = restart_counter++;
 
                 if (params.restart_data.max_output != 0)
@@ -1459,16 +1462,30 @@ namespace Sintering
                   std::to_string(current_restart_count);
 
                 if (params.restart_data.flexible_output == true)
-                  solution_transfer.prepare_for_serialization(solution_ptr);
-                else
-                  solution.save(prefix + "_vectors");
+                  {
+                    parallel::distributed::
+                      SolutionTransfer<dim, typename VectorType::BlockType>
+                        solution_transfer(dof_handler);
 
-                tria.save(prefix + "_tria");
+                    std::vector<const typename VectorType::BlockType *>
+                      solution_ptr(solution.n_blocks());
+                    for (unsigned int b = 0; b < solution.n_blocks(); ++b)
+                      solution_ptr[b] = &solution.block(b);
+
+                    solution_transfer.prepare_for_serialization(solution_ptr);
+                    tria.save(prefix + "_tria");
+                  }
+                else
+                  {
+                    solution.save(dof_handler, prefix + "_vectors");
+                    tria.save(prefix + "_tria");
+                  }
 
                 std::ofstream                   out_stream(prefix + "_driver");
                 boost::archive::binary_oarchive fosb(out_stream);
-                fosb << solution.n_blocks();
                 fosb << params.restart_data.flexible_output;
+                fosb << Utilities::MPI::n_mpi_processes(MPI_COMM_WORLD);
+                fosb << solution.n_blocks();
                 fosb << *this;
 
                 if (solution_is_ghosted == false)
