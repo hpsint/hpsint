@@ -73,6 +73,7 @@ namespace Sintering
   struct TimeIntegrationData
   {
     std::string interation_scheme = "BDF1";
+    std::string extrapolation     = "Euler";
 
     double       time_start                  = 0;
     double       time_end                    = 1e3;
@@ -347,6 +348,10 @@ namespace Sintering
                         time_integration_data.interation_scheme,
                         "Integration scheme.",
                         Patterns::Selection("BDF1|BDF2|BDF3"));
+      prm.add_parameter("Extrapolation",
+                        time_integration_data.extrapolation,
+                        "Initial guess extrapolation.",
+                        Patterns::Selection("None|Linear|Euler|Midpoint"));
       prm.add_parameter("TimeStart",
                         time_integration_data.time_start,
                         "Start time.");

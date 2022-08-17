@@ -1146,17 +1146,44 @@ namespace Sintering
               }
 
             // Try to extrapolate initial guess
-            if (true && sintering_data.time_data.get_current_dt() > 0)
+            if (params.time_integration_data.extrapolation != "None" &&
+                sintering_data.time_data.get_current_dt() > 0)
               {
                 VectorType extrap;
                 nonlinear_operator.initialize_dof_vector(extrap);
 
-                const double fac =
-                  dt / sintering_data.time_data.get_current_dt();
-                solution_history.extrapolate(extrap, fac);
+                if (params.time_integration_data.extrapolation == "Euler")
+                  {
+                    nonlinear_operator.evaluate_nonlinear_residual_static(
+                      extrap, solution);
+                    extrap.sadd(dt, solution);
+                  }
+                else if (params.time_integration_data.extrapolation ==
+                         "Midpoint")
+                  {
+                    VectorType midpoint;
+                    nonlinear_operator.initialize_dof_vector(midpoint);
+
+                    nonlinear_operator.evaluate_nonlinear_residual_static(
+                      midpoint, solution);
+                    midpoint.sadd(dt / 2., solution);
+
+                    nonlinear_operator.evaluate_nonlinear_residual_static(
+                      extrap, midpoint);
+                    extrap.sadd(dt, solution);
+                  }
+                else if (params.time_integration_data.extrapolation == "Linear")
+                  {
+                    const double fac =
+                      dt / sintering_data.time_data.get_current_dt();
+                    solution_history.extrapolate(extrap, fac);
+                  }
+                else
+                  {
+                    Assert(false, ExcNotImplemented());
+                  }
 
                 sintering_data.time_data.update_dt(dt);
-
                 solution_history.set_recent_old_solution(solution);
 
                 solution = extrap;
@@ -1164,7 +1191,6 @@ namespace Sintering
             else
               {
                 sintering_data.time_data.update_dt(dt);
-
                 solution_history.set_recent_old_solution(solution);
               }
 
