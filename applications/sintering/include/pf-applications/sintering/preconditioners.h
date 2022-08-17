@@ -80,8 +80,11 @@ namespace Sintering
 
           for (unsigned int ig = 0; ig < etas.size(); ++ig)
             {
-              etas[ig]      = val[2 + ig];
-              etas_grad[ig] = grad[2 + ig];
+              etas[ig] = val[2 + ig];
+
+              if (SinteringOperatorData<dim, VectorizedArrayType>::
+                    use_tensorial_mobility)
+                etas_grad[ig] = grad[2 + ig];
             }
 
           Tensor<1, n_comp, VectorizedArrayType> value_result;
@@ -356,9 +359,16 @@ namespace Sintering
           const auto &dof_handler =
             this->matrix_free.get_dof_handler(this->dof_index);
 
-          TrilinosWrappers::SparsityPattern dsp(
-            dof_handler.locally_owned_dofs(), dof_handler.get_communicator());
-          DoFTools::make_sparsity_pattern(dof_handler, dsp, this->constraints);
+          TrilinosWrappers::SparsityPattern dsp;
+          dsp.reinit(dof_handler.locally_owned_dofs(),
+                     dof_handler.locally_owned_dofs(),
+                     DoFTools::extract_locally_relevant_dofs(dof_handler),
+                     dof_handler.get_communicator());
+
+          DoFTools::make_sparsity_pattern(dof_handler,
+                                          dsp,
+                                          this->constraints,
+                                          this->matrix_free.get_quadrature());
           dsp.compress();
 
           this->block_system_matrix.resize(this->n_unique_components());
@@ -538,10 +548,24 @@ namespace Sintering
 
                 // 2b) compute columns of blocks
                 for (unsigned int v = 0; v < n_filled_lanes; ++v)
-                  this->constraints.distribute_local_to_global(
-                    matrices[v],
-                    dof_indices_mf[v],
-                    *this->block_system_matrix[b]);
+                  {
+                    // new: remove small entries (TODO: only for FE_Q_iso_1)
+                    Number max = 0.0;
+
+                    for (unsigned int i = 0; i < matrices[v].m(); ++i)
+                      for (unsigned int j = 0; j < matrices[v].n(); ++j)
+                        max = std::max(max, std::abs(matrices[v][i][j]));
+
+                    for (unsigned int i = 0; i < matrices[v].m(); ++i)
+                      for (unsigned int j = 0; j < matrices[v].n(); ++j)
+                        if (std::abs(matrices[v][i][j]) < 1e-10 * max)
+                          matrices[v][i][j] = 0.0;
+
+                    this->constraints.distribute_local_to_global(
+                      matrices[v],
+                      dof_indices_mf[v],
+                      *this->block_system_matrix[b]);
+                  }
               }
           }
       }

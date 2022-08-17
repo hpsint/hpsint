@@ -128,6 +128,18 @@ namespace dealii
                         dof_indices_mf_all[c] =
                           dof_indices_mf[i] + b * dofs_per_block;
 
+                  // new: remove small entries (TODO: only for FE_Q_iso_1)
+                  Number max = 0.0;
+
+                  for (unsigned int i = 0; i < matrices[v].m(); ++i)
+                    for (unsigned int j = 0; j < matrices[v].n(); ++j)
+                      max = std::max(max, std::abs(matrices[v][i][j]));
+
+                  for (unsigned int i = 0; i < matrices[v].m(); ++i)
+                    for (unsigned int j = 0; j < matrices[v].n(); ++j)
+                      if (std::abs(matrices[v][i][j]) < 1e-10 * max)
+                        matrices[v][i][j] = 0.0;
+
                   constraints.distribute_local_to_global(matrices[v],
                                                          dof_indices_mf_all,
                                                          dst);
