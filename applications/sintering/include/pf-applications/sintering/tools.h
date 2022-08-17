@@ -15,33 +15,39 @@ namespace Sintering
               const bool         with_initial_refinement,
               const double       max_level0_elements_per_interface = 1.0)
   {
-    const auto   domain_size   = top_right - bottom_left;
-    const double domain_width  = domain_size[0];
-    const double domain_height = domain_size[1];
+    const auto domain_size = top_right - bottom_left;
 
     const double h_e = interface_width / elements_per_interface;
+    const double min_size =
+      *std::min_element(domain_size.begin_raw(), domain_size.end_raw());
+    const unsigned int n_ref = static_cast<unsigned int>(min_size / h_e);
 
-    unsigned int       n_refinements = 0;
-    const unsigned int base          = 2;
-    for (double initial_elements_per_interface = elements_per_interface;
-         initial_elements_per_interface > max_level0_elements_per_interface;
-         initial_elements_per_interface /= base, ++n_refinements)
-      ;
+    const unsigned int              base = 2;
+    const std::vector<unsigned int> primes{2, 3, 5, 7};
 
-    const unsigned int initial_nx = static_cast<unsigned int>(
-      domain_width / h_e / std::pow(2, n_refinements));
-    const unsigned int initial_ny = static_cast<unsigned int>(
-      domain_height / h_e / std::pow(2, n_refinements));
+    unsigned int optimal_prime      = 0;
+    unsigned int n_refinements      = 0;
+    unsigned int min_elements_delta = numbers::invalid_unsigned_int;
+    for (const auto &p : primes)
+      {
+        const unsigned int s =
+          static_cast<unsigned int>(std::ceil(std::log2(n_ref / p)));
+        const unsigned int n_current     = p * std::pow(base, s);
+        const unsigned int current_delta = n_current - n_ref;
+
+        if (current_delta < min_elements_delta)
+          {
+            min_elements_delta = current_delta;
+            optimal_prime      = p;
+            n_refinements      = s;
+          }
+      }
 
     std::vector<unsigned int> subdivisions(dim);
-    subdivisions[0] = initial_nx;
-    subdivisions[1] = initial_ny;
-    if (dim == 3)
+    for (unsigned int d = 0; d < dim; d++)
       {
-        const double       domain_depth = domain_size[2];
-        const unsigned int initial_nz   = static_cast<unsigned int>(
-          domain_depth / h_e / std::pow(2, n_refinements));
-        subdivisions[2] = initial_nz;
+        subdivisions[d] = static_cast<unsigned int>(
+          std::ceil(domain_size[d] / min_size * optimal_prime));
       }
 
     ConditionalOStream pcout(std::cout,
