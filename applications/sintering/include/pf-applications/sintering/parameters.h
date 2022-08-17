@@ -84,6 +84,8 @@ namespace Sintering
     double       growth_factor               = 1.2;
     unsigned int desirable_newton_iterations = 5;
     unsigned int desirable_linear_iterations = 100;
+    bool         sanity_check_predictor      = false;
+    bool         sanity_check_solution       = false;
   };
 
   struct OutputData
@@ -404,6 +406,12 @@ namespace Sintering
       prm.add_parameter("DesirableLinearIterations",
                         time_integration_data.desirable_linear_iterations,
                         "Desirable linear iterations.");
+      prm.add_parameter("SanityCheckPredictor",
+                        time_integration_data.sanity_check_predictor,
+                        "Whether to perform PF sanity check after predictor.");
+      prm.add_parameter("SanityCheckSolution",
+                        time_integration_data.sanity_check_solution,
+                        "Whether to perform PF sanity check after solution.");
       prm.leave_subsection();
 
       prm.enter_subsection("Output");
