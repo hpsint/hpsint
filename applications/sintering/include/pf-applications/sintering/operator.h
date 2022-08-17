@@ -1886,6 +1886,20 @@ namespace Sintering
 #undef OPERATION
     }
 
+    void
+    sanity_check(BlockVectorType &solution) const
+    {
+      for (unsigned int b = 0; b < solution.n_blocks(); ++b)
+        if (b != 1) // If not chemical potential
+          for (auto &val : solution.block(b))
+            {
+              if (val < 0.)
+                val = 0.;
+              else if (val > 1.)
+                val = 1.;
+            }
+    }
+
     unsigned int
     n_components() const override
     {

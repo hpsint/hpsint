@@ -1182,6 +1182,10 @@ namespace Sintering
                   }
               }
 
+            // Perform sanity check
+            if (params.time_integration_data.sanity_check_solution)
+              nonlinear_operator.sanity_check(solution);
+
             // Try to extrapolate initial guess
             if (params.time_integration_data.predictor != "None" &&
                 sintering_data.time_data.get_current_dt() > 0)
@@ -1224,6 +1228,10 @@ namespace Sintering
 
                 sintering_data.time_data.update_dt(dt);
                 solution_history.set_recent_old_solution(solution);
+
+                // Sanity check of the predicted value
+                if (params.time_integration_data.sanity_check_predictor)
+                  nonlinear_operator.sanity_check(extrap);
 
                 solution = extrap;
               }
