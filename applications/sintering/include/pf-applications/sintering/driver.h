@@ -59,6 +59,7 @@
 #include <deal.II/numerics/vector_tools.h>
 
 #include <pf-applications/base/fe_integrator.h>
+#include <pf-applications/base/solution_serialization.h>
 #include <pf-applications/base/timer.h>
 
 #include <pf-applications/lac/solvers_linear.h>
@@ -258,22 +259,28 @@ namespace Sintering
                                            MyTimerOutput &timer) {
           MyScope scope(timer, "deserialize_solution");
 
+          std::vector<typename VectorType::BlockType *> solution_ptr(
+            solution.n_blocks());
+          for (unsigned int b = 0; b < solution.n_blocks(); ++b)
+            solution_ptr[b] = &solution.block(b);
+
           if (flexible_output)
             {
               parallel::distributed::
                 SolutionTransfer<dim, typename VectorType::BlockType>
                   solution_transfer(dof_handler);
 
-              std::vector<typename VectorType::BlockType *> solution_ptr(
-                solution.n_blocks());
-              for (unsigned int b = 0; b < solution.n_blocks(); ++b)
-                solution_ptr[b] = &solution.block(b);
-
               solution_transfer.deserialize(solution_ptr);
             }
           else
             {
-              solution.load(dof_handler, restart_path + "_vectors");
+              parallel::distributed::
+                SolutionSerialization<dim, typename VectorType::BlockType>
+                  solution_serialization(dof_handler);
+
+              solution_serialization.add_vectors(solution_ptr);
+
+              solution_serialization.load(restart_path + "_vectors");
             }
         };
 
@@ -1461,23 +1468,29 @@ namespace Sintering
                   params.restart_data.prefix + "_" +
                   std::to_string(current_restart_count);
 
+                std::vector<const typename VectorType::BlockType *>
+                  solution_ptr(solution.n_blocks());
+                for (unsigned int b = 0; b < solution.n_blocks(); ++b)
+                  solution_ptr[b] = &solution.block(b);
+
                 if (params.restart_data.flexible_output == true)
                   {
                     parallel::distributed::
                       SolutionTransfer<dim, typename VectorType::BlockType>
                         solution_transfer(dof_handler);
 
-                    std::vector<const typename VectorType::BlockType *>
-                      solution_ptr(solution.n_blocks());
-                    for (unsigned int b = 0; b < solution.n_blocks(); ++b)
-                      solution_ptr[b] = &solution.block(b);
-
                     solution_transfer.prepare_for_serialization(solution_ptr);
                     tria.save(prefix + "_tria");
                   }
                 else
                   {
-                    solution.save(dof_handler, prefix + "_vectors");
+                    parallel::distributed::
+                      SolutionSerialization<dim, typename VectorType::BlockType>
+                        solution_serialization(dof_handler);
+
+                    solution_serialization.add_vectors(solution_ptr);
+
+                    solution_serialization.save(prefix + "_vectors");
                     tria.save(prefix + "_tria");
                   }
 
