@@ -103,10 +103,11 @@ namespace Sintering
 
   struct RestartData
   {
-    std::string  prefix     = "./restart";
-    std::string  type       = "never";
-    double       interval   = 10.0;
-    unsigned int max_output = 0;
+    std::string  prefix          = "./restart";
+    std::string  type            = "never";
+    double       interval        = 10.0;
+    unsigned int max_output      = 0;
+    bool         flexible_output = true;
   };
 
   struct PreconditionersData
@@ -452,6 +453,11 @@ namespace Sintering
       prm.add_parameter("Interval",
                         restart_data.interval,
                         "Interval of restart output.");
+      prm.add_parameter(
+        "FlexibleOutput",
+        restart_data.flexible_output,
+        "Allow flexible output. If enabled, you can restart with any number of "
+        "processes but the generated file is (significanlty) larger.");
       prm.add_parameter(
         "MaximalOutput",
         restart_data.max_output,

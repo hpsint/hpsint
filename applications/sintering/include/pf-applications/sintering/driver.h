@@ -60,6 +60,7 @@
 #include <deal.II/numerics/vector_tools.h>
 
 #include <pf-applications/base/fe_integrator.h>
+#include <pf-applications/base/solution_serialization.h>
 #include <pf-applications/base/timer.h>
 
 #include <pf-applications/lac/solvers_linear.h>
@@ -225,9 +226,25 @@ namespace Sintering
       MyScope("Problem::constructor");
 
       // 0) load internal state
-      unsigned int                    n_initial_components = 0;
+      unsigned int n_ranks;
+      unsigned int n_initial_components;
+      bool         flexible_output;
+
       std::ifstream                   in_stream(restart_path + "_driver");
       boost::archive::binary_iarchive fisb(in_stream);
+      fisb >> flexible_output;
+      fisb >> n_ranks;
+
+      const auto n_mpi_processes =
+        Utilities::MPI::n_mpi_processes(MPI_COMM_WORLD);
+
+      AssertThrow(
+        flexible_output || (n_ranks == n_mpi_processes),
+        ExcMessage(
+          "You are not using flexible serialization. You can restart this simulation only with " +
+          std::to_string(n_ranks) + "! But you have " +
+          std::to_string(n_mpi_processes) + "!"));
+
       fisb >> n_initial_components;
       fisb >> *this;
 
@@ -236,26 +253,41 @@ namespace Sintering
 
       // 2) load mesh refinement (incl. vectors)
       tria.load(restart_path + "_tria");
+      tria.repartition();
 
       // 3) initialize data structures
       initialize();
 
       // 4) helper function to initialize solution vector
-      const auto initialize_solution = [&](VectorType &   solution,
+      const auto initialize_solution =
+        [&, flexible_output, restart_path](VectorType &   solution,
                                            MyTimerOutput &timer) {
-        MyScope scope(timer, "deserialize_solution");
+          MyScope scope(timer, "deserialize_solution");
 
-        parallel::distributed::SolutionTransfer<dim,
-                                                typename VectorType::BlockType>
-          solution_transfer(dof_handler);
+          std::vector<typename VectorType::BlockType *> solution_ptr(
+            solution.n_blocks());
+          for (unsigned int b = 0; b < solution.n_blocks(); ++b)
+            solution_ptr[b] = &solution.block(b);
 
-        std::vector<typename VectorType::BlockType *> solution_ptr(
-          solution.n_blocks());
-        for (unsigned int b = 0; b < solution.n_blocks(); ++b)
-          solution_ptr[b] = &solution.block(b);
+          if (flexible_output)
+            {
+              parallel::distributed::
+                SolutionTransfer<dim, typename VectorType::BlockType>
+                  solution_transfer(dof_handler);
 
-        solution_transfer.deserialize(solution_ptr);
-      };
+              solution_transfer.deserialize(solution_ptr);
+            }
+          else
+            {
+              parallel::distributed::
+                SolutionSerialization<dim, typename VectorType::BlockType>
+                  solution_serialization(dof_handler);
+
+              solution_serialization.add_vectors(solution_ptr);
+
+              solution_serialization.load(restart_path + "_vectors");
+            }
+        };
 
       // 5) run time loop
       run(n_initial_components, initialize_solution);
@@ -1431,22 +1463,6 @@ namespace Sintering
                 if (solution_is_ghosted == false)
                   solution.update_ghost_values();
 
-                // solution_history.update_ghost_values(); // TODO
-
-                parallel::distributed::
-                  SolutionTransfer<dim, typename VectorType::BlockType>
-                    solution_transfer(dof_handler);
-
-                std::vector<const typename VectorType::BlockType *>
-                  solution_ptr(solution.n_blocks());
-                for (unsigned int b = 0; b < solution.n_blocks(); ++b)
-                  solution_ptr[b] = &solution.block(b);
-
-                // auto solution_ptr = solution_history.get_all_blocks();
-                // TODO
-
-                solution_transfer.prepare_for_serialization(solution_ptr);
-
                 unsigned int current_restart_count = restart_counter++;
 
                 if (params.restart_data.max_output != 0)
@@ -1457,10 +1473,36 @@ namespace Sintering
                   params.restart_data.prefix + "_" +
                   std::to_string(current_restart_count);
 
-                tria.save(prefix + "_tria");
+                std::vector<const typename VectorType::BlockType *>
+                  solution_ptr(solution.n_blocks());
+                for (unsigned int b = 0; b < solution.n_blocks(); ++b)
+                  solution_ptr[b] = &solution.block(b);
+
+                if (params.restart_data.flexible_output == true)
+                  {
+                    parallel::distributed::
+                      SolutionTransfer<dim, typename VectorType::BlockType>
+                        solution_transfer(dof_handler);
+
+                    solution_transfer.prepare_for_serialization(solution_ptr);
+                    tria.save(prefix + "_tria");
+                  }
+                else
+                  {
+                    parallel::distributed::
+                      SolutionSerialization<dim, typename VectorType::BlockType>
+                        solution_serialization(dof_handler);
+
+                    solution_serialization.add_vectors(solution_ptr);
+
+                    solution_serialization.save(prefix + "_vectors");
+                    tria.save(prefix + "_tria");
+                  }
 
                 std::ofstream                   out_stream(prefix + "_driver");
                 boost::archive::binary_oarchive fosb(out_stream);
+                fosb << params.restart_data.flexible_output;
+                fosb << Utilities::MPI::n_mpi_processes(MPI_COMM_WORLD);
                 fosb << solution.n_blocks();
                 fosb << *this;
 
