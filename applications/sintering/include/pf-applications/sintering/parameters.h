@@ -427,7 +427,8 @@ namespace Sintering
       prm.add_parameter(
         "FlexibleOutput",
         restart_data.flexible_output,
-        "Allow flexible output. If enabled, you can restart with any number of processes but the generated file is (significanlty) more larger.");
+        "Allow flexible output. If enabled, you can restart with any number of "
+        "processes but the generated file is (significanlty) larger.");
       prm.add_parameter(
         "MaximalOutput",
         restart_data.max_output,
