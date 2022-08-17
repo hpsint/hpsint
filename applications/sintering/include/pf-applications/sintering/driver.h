@@ -1154,7 +1154,7 @@ namespace Sintering
 
                 if (params.time_integration_data.predictor == "Euler")
                   {
-                    nonlinear_operator.evaluate_nonlinear_residual_static(
+                    nonlinear_operator.template evaluate_nonlinear_residual<false>(
                       extrap, solution);
                     extrap.sadd(dt, solution);
                   }
@@ -1163,11 +1163,11 @@ namespace Sintering
                     VectorType midpoint;
                     nonlinear_operator.initialize_dof_vector(midpoint);
 
-                    nonlinear_operator.evaluate_nonlinear_residual_static(
+                    nonlinear_operator.template evaluate_nonlinear_residual<false>(
                       midpoint, solution);
                     midpoint.sadd(dt / 2., solution);
 
-                    nonlinear_operator.evaluate_nonlinear_residual_static(
+                    nonlinear_operator.template evaluate_nonlinear_residual<false>(
                       extrap, midpoint);
                     extrap.sadd(dt, solution);
                   }

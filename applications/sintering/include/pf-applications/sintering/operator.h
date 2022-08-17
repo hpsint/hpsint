@@ -1536,6 +1536,7 @@ namespace Sintering
     ~SinteringOperator()
     {}
 
+    template <bool with_time_derivative = true>
     void
     evaluate_nonlinear_residual(BlockVectorType &      dst,
                                 const BlockVectorType &src) const
@@ -1544,33 +1545,14 @@ namespace Sintering
                     "sintering_op::nonlinear_residual",
                     this->do_timing);
 
-#define OPERATION(c, d)                                             \
-  MyMatrixFreeTools::cell_loop_wrapper(                             \
-    this->matrix_free,                                              \
-    &SinteringOperator::do_evaluate_nonlinear_residual<c, d, true>, \
-    this,                                                           \
-    dst,                                                            \
-    src,                                                            \
-    true);
-      EXPAND_OPERATIONS(OPERATION);
-#undef OPERATION
-    }
-
-    void
-    evaluate_nonlinear_residual_static(BlockVectorType &      dst,
-                                       const BlockVectorType &src) const
-    {
-      MyScope scope(this->timer,
-                    "sintering_op::nonlinear_residual_static",
-                    this->do_timing);
-
-#define OPERATION(c, d)                                              \
-  MyMatrixFreeTools::cell_loop_wrapper(                              \
-    this->matrix_free,                                               \
-    &SinteringOperator::do_evaluate_nonlinear_residual<c, d, false>, \
-    this,                                                            \
-    dst,                                                             \
-    src,                                                             \
+#define OPERATION(c, d)                                           \
+  MyMatrixFreeTools::cell_loop_wrapper(                           \
+    this->matrix_free,                                            \
+    &SinteringOperator::                                          \
+      do_evaluate_nonlinear_residual<c, d, with_time_derivative>, \
+    this,                                                         \
+    dst,                                                          \
+    src,                                                          \
     true);
       EXPAND_OPERATIONS(OPERATION);
 #undef OPERATION
