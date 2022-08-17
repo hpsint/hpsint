@@ -1556,6 +1556,7 @@ namespace Sintering
     ~SinteringOperator()
     {}
 
+    template <bool with_time_derivative = true>
     void
     evaluate_nonlinear_residual(BlockVectorType &      dst,
                                 const BlockVectorType &src) const
@@ -1564,13 +1565,14 @@ namespace Sintering
                     "sintering_op::nonlinear_residual",
                     this->do_timing);
 
-#define OPERATION(c, d)                                       \
-  MyMatrixFreeTools::cell_loop_wrapper(                       \
-    this->matrix_free,                                        \
-    &SinteringOperator::do_evaluate_nonlinear_residual<c, d>, \
-    this,                                                     \
-    dst,                                                      \
-    src,                                                      \
+#define OPERATION(c, d)                                           \
+  MyMatrixFreeTools::cell_loop_wrapper(                           \
+    this->matrix_free,                                            \
+    &SinteringOperator::                                          \
+      do_evaluate_nonlinear_residual<c, d, with_time_derivative>, \
+    this,                                                         \
+    dst,                                                          \
+    src,                                                          \
     true);
       EXPAND_OPERATIONS(OPERATION);
 #undef OPERATION
@@ -1988,7 +1990,7 @@ namespace Sintering
     }
 
   private:
-    template <int n_comp, int n_grains>
+    template <int n_comp, int n_grains, bool with_time_derivative>
     void
     do_evaluate_nonlinear_residual(
       const MatrixFree<dim, Number, VectorizedArrayType> &matrix_free,
@@ -2019,12 +2021,13 @@ namespace Sintering
                               EvaluationFlags::EvaluationFlags::values |
                                 EvaluationFlags::EvaluationFlags::gradients);
 
-          for (unsigned int i = 0; i < order; ++i)
-            {
-              time_phi[i].reinit(cell);
-              time_phi[i].read_dof_values_plain(*old_solutions[i]);
-              time_phi[i].evaluate(EvaluationFlags::EvaluationFlags::values);
-            }
+          if (with_time_derivative)
+            for (unsigned int i = 0; i < order; ++i)
+              {
+                time_phi[i].reinit(cell);
+                time_phi[i].read_dof_values_plain(*old_solutions[i]);
+                time_phi[i].evaluate(EvaluationFlags::EvaluationFlags::values);
+              }
 
           for (unsigned int q = 0; q < phi.n_q_points; ++q)
             {
@@ -2049,8 +2052,9 @@ namespace Sintering
               Tensor<1, n_comp, Tensor<1, dim, VectorizedArrayType>>
                 gradient_result;
 
-              time_integrator.compute_time_derivative(
-                value_result[0], val, time_phi, 0, q);
+              if (with_time_derivative)
+                time_integrator.compute_time_derivative(
+                  value_result[0], val, time_phi, 0, q);
 
               value_result[1] = -mu + free_energy.df_dc(c, etas);
               gradient_result[0] =
@@ -2062,8 +2066,9 @@ namespace Sintering
                 {
                   value_result[2 + ig] = L * free_energy.df_detai(c, etas, ig);
 
-                  time_integrator.compute_time_derivative(
-                    value_result[2 + ig], val, time_phi, 2 + ig, q);
+                  if (with_time_derivative)
+                    time_integrator.compute_time_derivative(
+                      value_result[2 + ig], val, time_phi, 2 + ig, q);
 
                   gradient_result[2 + ig] = L * kappa_p * grad[2 + ig];
                 }

@@ -155,6 +155,14 @@ namespace TimeIntegration
       return MyMemoryConsumption::memory_consumption(solutions);
     }
 
+    void
+    extrapolate(VectorType &dst, const double factor) const
+    {
+      dst = *solutions[0];
+      dst.add(-1.0, *solutions[1]);
+      dst.sadd(factor, *solutions[0]);
+    }
+
   private:
     bool
     can_process(const unsigned int index,
