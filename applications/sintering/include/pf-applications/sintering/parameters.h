@@ -111,6 +111,7 @@ namespace Sintering
     double       interval        = 10.0;
     unsigned int max_output      = 0;
     bool         flexible_output = true;
+    bool         full_history    = true;
   };
 
   struct PreconditionersData
@@ -471,6 +472,11 @@ namespace Sintering
         restart_data.flexible_output,
         "Allow flexible output. If enabled, you can restart with any number of "
         "processes but the generated file is (significanlty) larger.");
+      prm.add_parameter(
+        "FullHistory",
+        restart_data.full_history,
+        "Save full history. If enabled, all previous solutions are saved and "
+        "then the higher order integration scheme can be applied.");
       prm.add_parameter(
         "MaximalOutput",
         restart_data.max_output,

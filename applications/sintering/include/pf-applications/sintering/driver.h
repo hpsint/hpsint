@@ -187,23 +187,24 @@ namespace Sintering
 
       initialize();
 
-      const auto initialize_solution = [&](VectorType &   solution,
-                                           MyTimerOutput &timer) {
-        MyScope scope(timer, "initialize_solution");
+      const auto initialize_solution =
+        [&](std::vector<typename VectorType::BlockType *> solution_ptr,
+            MyTimerOutput &                               timer) {
+          MyScope scope(timer, "initialize_solution");
 
-        for (unsigned int c = 0; c < solution.n_blocks(); ++c)
-          {
-            initial_solution->set_component(c);
+          for (unsigned int c = 0; c < solution_ptr.n_blocks(); ++c)
+            {
+              initial_solution->set_component(c);
 
-            VectorTools::interpolate(mapping,
-                                     dof_handler,
-                                     *initial_solution,
-                                     solution.block(c));
+              VectorTools::interpolate(mapping,
+                                       dof_handler,
+                                       *initial_solution,
+                                       *solution_ptr[c]);
 
-            constraints.distribute(solution.block(c));
-          }
-        solution.zero_out_ghost_values();
-      };
+              constraints.distribute(*solution_ptr[c]);
+            }
+          solution.zero_out_ghost_values();
+        };
 
       run(initial_solution->n_components(), initialize_solution);
     }
@@ -228,6 +229,7 @@ namespace Sintering
       // 0) load internal state
       unsigned int n_ranks;
       unsigned int n_initial_components;
+      unsigned int n_blocks;
       bool         flexible_output;
 
       std::ifstream                   in_stream(restart_path + "_driver");
@@ -246,6 +248,7 @@ namespace Sintering
           std::to_string(n_mpi_processes) + "!"));
 
       fisb >> n_initial_components;
+      fisb >> n_blocks;
       fisb >> *this;
 
       // 1) create coarse mesh
@@ -265,16 +268,23 @@ namespace Sintering
       // 3) initialize data structures
       initialize();
 
+      // 4) determine number of components
+      unsigned int n_initial_components = n_blocks;
+
       // 4) helper function to initialize solution vector
       const auto initialize_solution =
-        [&, flexible_output, restart_path](VectorType &   solution,
-                                           MyTimerOutput &timer) {
+        [&, flexible_output, n_blocks, restart_path](
+          std::vector<typename VectorType::BlockType *> solution_ptr,
+          MyTimerOutput &                               timer) {
           MyScope scope(timer, "deserialize_solution");
 
-          std::vector<typename VectorType::BlockType *> solution_ptr(
-            solution.n_blocks());
-          for (unsigned int b = 0; b < solution.n_blocks(); ++b)
-            solution_ptr[b] = &solution.block(b);
+          AssertThrow(n_blocks <= solution_ptr.size(),
+                      ExcMessage("Number of blocks saved (" +
+                                 std::to_string(n_blocks) +
+                                 ") exceeds the number of blocks provided (" +
+                                 std::to_string(solution_ptr.size()) + ")."));
+
+          solution_ptr.resize(n_blocks);
 
           if (flexible_output)
             {
@@ -574,8 +584,9 @@ namespace Sintering
 
     void
     run(const unsigned int n_initial_components,
-        const std::function<void(VectorType &, MyTimerOutput &)>
-          &initialize_solution)
+        const std::function<
+          void(std::vector<typename VectorType::BlockType *> solution_ptr,
+               MyTimerOutput &)> &initialize_solution)
     {
       TimerPredicate restart_predicate(params.restart_data.type,
                                        params.restart_data.type == "n_calls" ?
@@ -1135,18 +1146,23 @@ namespace Sintering
         old_old_solutions.update_ghost_values();
       };
 
-      initialize_solution(solution, timer);
+      initialize_solution(solution_history.get_all_blocks(), timer);
 
       // initial local refinement
       if (t == 0.0 && params.adaptivity_data.refinement_frequency > 0)
-        for (unsigned int i = 0;
-             i < std::max(params.adaptivity_data.min_refinement_depth,
-                          params.adaptivity_data.max_refinement_depth);
-             ++i)
-          {
-            execute_coarsening_and_refinement(t);
-            initialize_solution(solution, timer);
-          }
+        {
+          const auto solution_ptr =
+            solution_history.filter(true, false, false).get_all_blocks();
+
+          for (unsigned int i = 0;
+               i < std::max(params.adaptivity_data.min_refinement_depth,
+                            params.adaptivity_data.max_refinement_depth);
+               ++i)
+            {
+              execute_coarsening_and_refinement(t);
+              initialize_solution(solution_ptr, timer);
+            }
+        }
 
       // Grain tracker - first run after we have initial configuration defined
       if (params.grain_tracker_data.grain_tracker_frequency > 0)
@@ -1520,11 +1536,6 @@ namespace Sintering
 
             if (is_last_time_step || restart_predicate.now(t))
               {
-                const bool solution_is_ghosted = solution.has_ghost_elements();
-
-                if (solution_is_ghosted == false)
-                  solution.update_ghost_values();
-
                 unsigned int current_restart_count = restart_counter++;
 
                 if (params.restart_data.max_output != 0)
@@ -1536,9 +1547,25 @@ namespace Sintering
                   std::to_string(current_restart_count);
 
                 std::vector<const typename VectorType::BlockType *>
-                  solution_ptr(solution.n_blocks());
-                for (unsigned int b = 0; b < solution.n_blocks(); ++b)
-                  solution_ptr[b] = &solution.block(b);
+                  solution_ptr;
+
+                if (params.restart_data.full_history)
+                  {
+                    solution_history.update_ghost_values(true);
+                    solution_ptr = solution_history.get_all_blocks();
+                  }
+                else
+                  {
+                    const bool solution_is_ghosted =
+                      solution.has_ghost_elements();
+
+                    if (solution_is_ghosted == false)
+                      solution.update_ghost_values();
+
+                    solution_ptr.resize(solution.n_blocks());
+                    for (unsigned int b = 0; b < solution.n_blocks(); ++b)
+                      solution_ptr[b] = &solution.block(b);
+                  }
 
                 if (params.restart_data.flexible_output == true)
                   {
@@ -1566,10 +1593,24 @@ namespace Sintering
                 fosb << params.restart_data.flexible_output;
                 fosb << Utilities::MPI::n_mpi_processes(MPI_COMM_WORLD);
                 fosb << solution.n_blocks();
+                fosb << solution_ptr.size();
                 fosb << *this;
 
-                if (solution_is_ghosted == false)
-                  solution.zero_out_ghost_values();
+                if (params.restart_data.full_history)
+                {
+                  for(const auto &tstep : sintering_data.time_data.get_all_dt())
+                    fosb << tstep;
+                }
+
+                if (params.restart_data.full_history)
+                  {
+                    solution_history.zero_out_ghost_values(true);
+                  }
+                else
+                  {
+                    if (solution_is_ghosted == false)
+                      solution.zero_out_ghost_values();
+                  }
               }
 
             TimerCollection::print_all_wall_time_statistics();

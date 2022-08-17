@@ -50,7 +50,9 @@ namespace TimeIntegration
     }
 
     SolutionHistory<VectorType>
-    filter(const bool keep_current = true, const bool keep_recent = true) const
+    filter(const bool keep_current = true,
+           const bool keep_recent  = true,
+           const bool keep_old     = true) const
     {
       std::vector<std::shared_ptr<VectorType>> subset;
 
@@ -62,17 +64,19 @@ namespace TimeIntegration
     }
 
     void
-    update_ghost_values() const
+    update_ghost_values(const bool check = false) const
     {
       for (unsigned int i = 0; i < solutions.size(); ++i)
-        solutions[i]->update_ghost_values();
+        if (!check || !solutions[i]->has_ghost_elements())
+          solutions[i]->update_ghost_values();
     }
 
     void
-    zero_out_ghost_values() const
+    zero_out_ghost_values(const bool check = false) const
     {
       for (unsigned int i = 0; i < solutions.size(); ++i)
-        solutions[i]->zero_out_ghost_values();
+        if (!check || solutions[i]->has_ghost_elements())
+          solutions[i]->zero_out_ghost_values();
     }
 
     void
@@ -167,10 +171,11 @@ namespace TimeIntegration
     bool
     can_process(const unsigned int index,
                 const bool         keep_current,
-                const bool         keep_recent) const
+                const bool         keep_recent,
+                const bool         keep_old) const
     {
-      return index > 1 || (index == 0 && keep_current) ||
-             (index == 1 && keep_recent);
+      return (index == 0 && keep_current) || (index == 1 && keep_recent) ||
+             (index > 1 && keep_old);
     }
 
     std::vector<std::shared_ptr<VectorType>> solutions;
