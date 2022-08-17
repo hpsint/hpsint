@@ -84,8 +84,8 @@ namespace Sintering
     double       growth_factor               = 1.2;
     unsigned int desirable_newton_iterations = 5;
     unsigned int desirable_linear_iterations = 100;
-    bool         sanity_check_predictor      = false;
-    bool         sanity_check_solution       = false;
+    bool         sanity_check_predictor      = true;
+    bool         sanity_check_solution       = true;
   };
 
   struct OutputData
