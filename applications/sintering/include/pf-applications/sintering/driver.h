@@ -1146,20 +1146,19 @@ namespace Sintering
               }
 
             // Try to extrapolate initial guess
-            if (params.time_integration_data.extrapolation != "None" &&
+            if (params.time_integration_data.predictor != "None" &&
                 sintering_data.time_data.get_current_dt() > 0)
               {
                 VectorType extrap;
                 nonlinear_operator.initialize_dof_vector(extrap);
 
-                if (params.time_integration_data.extrapolation == "Euler")
+                if (params.time_integration_data.predictor == "Euler")
                   {
                     nonlinear_operator.evaluate_nonlinear_residual_static(
                       extrap, solution);
                     extrap.sadd(dt, solution);
                   }
-                else if (params.time_integration_data.extrapolation ==
-                         "Midpoint")
+                else if (params.time_integration_data.predictor == "Midpoint")
                   {
                     VectorType midpoint;
                     nonlinear_operator.initialize_dof_vector(midpoint);
@@ -1172,7 +1171,7 @@ namespace Sintering
                       extrap, midpoint);
                     extrap.sadd(dt, solution);
                   }
-                else if (params.time_integration_data.extrapolation == "Linear")
+                else if (params.time_integration_data.predictor == "Linear")
                   {
                     const double fac =
                       dt / sintering_data.time_data.get_current_dt();
