@@ -1212,7 +1212,8 @@ namespace Sintering
         solution_history.filter(true, false, true).get_all_blocks(), timer);
 
       // initial local refinement
-      if (t == 0.0 && params.adaptivity_data.refinement_frequency > 0)
+      if (t == 0.0 && (params.adaptivity_data.refinement_frequency > 0 ||
+                       params.geometry_data.global_refinement == false))
         {
           // Initialize only the current solution
           const auto solution_ptr =
