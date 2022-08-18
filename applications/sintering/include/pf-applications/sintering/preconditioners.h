@@ -80,8 +80,11 @@ namespace Sintering
 
           for (unsigned int ig = 0; ig < etas.size(); ++ig)
             {
-              etas[ig]      = val[2 + ig];
-              etas_grad[ig] = grad[2 + ig];
+              etas[ig] = val[2 + ig];
+
+              if (SinteringOperatorData<dim, VectorizedArrayType>::￼
+                    use_tensorial_mobility)
+                etas_grad[ig] = grad[2 + ig];
             }
 
           Tensor<1, n_comp, VectorizedArrayType> value_result;
