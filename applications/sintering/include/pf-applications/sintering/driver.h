@@ -181,15 +181,9 @@ namespace Sintering
       this->counters                       = {};
 
       // Initialize timestepping
-      unsigned int time_integration_order = 0;
-      if (params.time_integration_data.interation_scheme == "BDF1")
-        time_integration_order = 1;
-      else if (params.time_integration_data.interation_scheme == "BDF2")
-        time_integration_order = 2;
-      else if (params.time_integration_data.interation_scheme == "BDF3")
-        time_integration_order = 3;
-      else
-        AssertThrow(false, ExcNotImplemented());
+      const unsigned int time_integration_order =
+        TimeIntegration::get_scheme_order(
+          params.time_integration_data.interation_scheme);
 
       this->dts.assign(time_integration_order, 0);
       this->dts[0] = params.time_integration_data.time_step_init;
@@ -273,22 +267,16 @@ namespace Sintering
       fisb >> n_initial_components;
       fisb >> n_blocks;
 
-      unsigned int time_integration_order = 0;
-      if (params.time_integration_data.interation_scheme == "BDF1")
-        time_integration_order = 1;
-      else if (params.time_integration_data.interation_scheme == "BDF2")
-        time_integration_order = 2;
-      else if (params.time_integration_data.interation_scheme == "BDF3")
-        time_integration_order = 3;
-      else
-        AssertThrow(false, ExcNotImplemented());
+      const unsigned int time_integration_order =
+        TimeIntegration::get_scheme_order(
+          params.time_integration_data.interation_scheme);
 
       if (full_history)
         {
           fisb >> n_integration_order;
           this->dts.resize(n_integration_order);
         }
-        else
+      else
         {
           this->dts.resize(time_integration_order);
         }
@@ -299,10 +287,10 @@ namespace Sintering
       // Check if the data structures are consistent
       if (full_history)
         {
-          AssertDimension(this->dts.size(), n_blocks / n_initial_components);
+          AssertDimension(this->dts.size() + 1, n_blocks / n_initial_components);
 
-          // We do resize anyways since the user might have changed the integration
-          // scheme
+          // We do resize anyways since the user might have changed the
+          // integration scheme
           this->dts.resize(time_integration_order);
         }
       else
@@ -334,13 +322,8 @@ namespace Sintering
           MyTimerOutput &                               timer) {
           MyScope scope(timer, "deserialize_solution");
 
-          AssertThrow(n_blocks <= solution_ptr.size(),
-                      ExcMessage("Number of blocks saved (" +
-                                 std::to_string(n_blocks) +
-                                 ") exceeds the number of blocks provided (" +
-                                 std::to_string(solution_ptr.size()) + ")."));
-
-          solution_ptr.resize(n_blocks);
+          if (n_blocks < solution_ptr.size()) 
+            solution_ptr.resize(n_blocks);
 
           if (flexible_output)
             {
@@ -1646,10 +1629,10 @@ namespace Sintering
                 fosb << params.restart_data.full_history;
                 fosb << Utilities::MPI::n_mpi_processes(MPI_COMM_WORLD);
                 fosb << solution.n_blocks();
-                fosb << solution_ptr.size();
+                fosb << static_cast<unsigned int>(solution_ptr.size());
 
                 if (params.restart_data.full_history)
-                  fosb << dts.size();
+                  fosb << static_cast<unsigned int>(dts.size());
 
                 fosb << *this;
 
