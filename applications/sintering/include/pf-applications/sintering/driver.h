@@ -287,7 +287,8 @@ namespace Sintering
       // Check if the data structures are consistent
       if (full_history)
         {
-          AssertDimension(this->dts.size() + 1, n_blocks / n_initial_components);
+          AssertDimension(this->dts.size() + 1,
+                          n_blocks / n_initial_components);
 
           // We do resize anyways since the user might have changed the
           // integration scheme
@@ -322,7 +323,7 @@ namespace Sintering
           MyTimerOutput &                               timer) {
           MyScope scope(timer, "deserialize_solution");
 
-          if (n_blocks < solution_ptr.size()) 
+          if (n_blocks < solution_ptr.size())
             solution_ptr.resize(n_blocks);
 
           if (flexible_output)
