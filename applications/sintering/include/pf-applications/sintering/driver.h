@@ -333,6 +333,20 @@ namespace Sintering
                 SolutionTransfer<dim, typename VectorType::BlockType>
                   solution_transfer(dof_handler);
 
+              // In order to perform deserialization, we need to add dummy
+              // vectors which will get deleted at the end
+              std::vector<std::shared_ptr<typename VectorType::BlockType>>
+                dummy_vecs;
+              if (n_blocks > solution_ptr.size())
+                for (unsigned int i = solution_ptr.size(); i < n_blocks; ++i)
+                  {
+                    auto dummy =
+                      std::make_shared<typename VectorType::BlockType>(
+                        *solution_ptr[0]);
+                    dummy_vecs.push_back(dummy);
+                    solution_ptr.push_back(dummy.get());
+                  }
+
               solution_transfer.deserialize(solution_ptr);
             }
           else
