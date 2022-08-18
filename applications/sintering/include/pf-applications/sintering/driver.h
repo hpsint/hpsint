@@ -253,7 +253,14 @@ namespace Sintering
 
       // 2) load mesh refinement (incl. vectors)
       tria.load(restart_path + "_tria");
-      tria.repartition();
+
+      // note: for flexible restart file, do not repartition here,
+      // since else the attached vectors will be lost; in the case of
+      // non-flexible restart filed, we need to repartition here, since
+      // Triangulation::load() does not guarantee that the saved and loaded
+      // files are identical
+      if (params.restart_data.flexible_output == false)
+        tria.repartition();
 
       // 3) initialize data structures
       initialize();
