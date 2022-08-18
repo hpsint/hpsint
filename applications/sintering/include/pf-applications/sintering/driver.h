@@ -141,7 +141,7 @@ namespace Sintering
     double              max_reached_dt;
     unsigned int        restart_counter;
     double              t;
-    std::vector<double> dts{0};
+    std::vector<Number> dts{0};
 
     std::map<std::string, unsigned int> counters;
 
