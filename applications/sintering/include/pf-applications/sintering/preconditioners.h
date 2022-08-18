@@ -82,7 +82,7 @@ namespace Sintering
             {
               etas[ig] = val[2 + ig];
 
-              if (SinteringOperatorData<dim, VectorizedArrayType>::￼
+              if (SinteringOperatorData<dim, VectorizedArrayType>::
                     use_tensorial_mobility)
                 etas_grad[ig] = grad[2 + ig];
             }
