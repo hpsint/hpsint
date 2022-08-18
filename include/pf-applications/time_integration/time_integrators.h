@@ -19,29 +19,18 @@ namespace TimeIntegration
     TimeIntegratorData(unsigned int order)
       : order(order)
       , dt(order)
-      , dt_backup(order)
       , weights(order + 1)
     {}
 
     void
     update_dt(Number dt_new)
     {
-      dt_backup = dt;
-
       for (int i = get_order() - 2; i >= 0; i--)
         {
           dt[i + 1] = dt[i];
         }
 
       dt[0] = dt_new;
-
-      update_weights();
-    }
-
-    void
-    rollback()
-    {
-      dt = dt_backup;
 
       update_weights();
     }
@@ -128,7 +117,6 @@ namespace TimeIntegration
 
     unsigned int        order;
     std::vector<Number> dt;
-    std::vector<Number> dt_backup;
     std::vector<Number> weights;
   };
 

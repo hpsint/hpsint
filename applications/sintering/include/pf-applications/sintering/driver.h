@@ -128,20 +128,20 @@ namespace Sintering
     double geometry_r_max;
     double geometry_interface_width;
 
-    unsigned int n_global_levels_0;
-    double       time_last_output;
-    unsigned int n_timestep;
-    unsigned int n_linear_iterations;
-    unsigned int n_non_linear_iterations;
-    unsigned int n_residual_evaluations;
-    unsigned int n_failed_tries;
-    unsigned int n_failed_linear_iterations;
-    unsigned int n_failed_non_linear_iterations;
-    unsigned int n_failed_residual_evaluations;
-    double       max_reached_dt;
-    unsigned int restart_counter;
-    double       t;
-    double       dt = 0.0;
+    unsigned int        n_global_levels_0;
+    double              time_last_output;
+    unsigned int        n_timestep;
+    unsigned int        n_linear_iterations;
+    unsigned int        n_non_linear_iterations;
+    unsigned int        n_residual_evaluations;
+    unsigned int        n_failed_tries;
+    unsigned int        n_failed_linear_iterations;
+    unsigned int        n_failed_non_linear_iterations;
+    unsigned int        n_failed_residual_evaluations;
+    double              max_reached_dt;
+    unsigned int        restart_counter;
+    double              t;
+    std::vector<double> dts{0};
 
     std::map<std::string, unsigned int> counters;
 
@@ -178,8 +178,21 @@ namespace Sintering
       this->max_reached_dt                 = 0.0;
       this->restart_counter                = 0;
       this->t                              = 0;
-      this->dt       = params.time_integration_data.time_step_init;
-      this->counters = {};
+      this->counters                       = {};
+
+      // Initialize timestepping
+      unsigned int time_integration_order = 0;
+      if (params.time_integration_data.interation_scheme == "BDF1")
+        time_integration_order = 1;
+      else if (params.time_integration_data.interation_scheme == "BDF2")
+        time_integration_order = 2;
+      else if (params.time_integration_data.interation_scheme == "BDF3")
+        time_integration_order = 3;
+      else
+        AssertThrow(false, ExcNotImplemented());
+
+      this->dts.assign(time_integration_order, 0);
+      this->dts[0] = params.time_integration_data.time_step_init;
 
       create_grid(true);
 
@@ -192,7 +205,14 @@ namespace Sintering
             MyTimerOutput &                               timer) {
           MyScope scope(timer, "initialize_solution");
 
-          for (unsigned int c = 0; c < solution_ptr.n_blocks(); ++c)
+          AssertThrow(initial_solution->n_components() <= solution_ptr.size(),
+                      ExcMessage(
+                        "Number of initial values components (" +
+                        std::to_string(initial_solution->n_components()) +
+                        ") exceeds the number of blocks provided (" +
+                        std::to_string(solution_ptr.size()) + ")."));
+
+          for (unsigned int c = 0; c < initial_solution->n_components(); ++c)
             {
               initial_solution->set_component(c);
 
@@ -202,8 +222,8 @@ namespace Sintering
                                        *solution_ptr[c]);
 
               constraints.distribute(*solution_ptr[c]);
+              solution_ptr[c]->zero_out_ghost_values();
             }
-          solution.zero_out_ghost_values();
         };
 
       run(initial_solution->n_components(), initialize_solution);
@@ -268,9 +288,6 @@ namespace Sintering
       // 3) initialize data structures
       initialize();
 
-      // 4) determine number of components
-      unsigned int n_initial_components = n_blocks;
-
       // 4) helper function to initialize solution vector
       const auto initialize_solution =
         [&, flexible_output, n_blocks, restart_path](
@@ -333,7 +350,7 @@ namespace Sintering
       ar &max_reached_dt;
       ar &restart_counter;
       ar &t;
-      ar &dt;
+      ar &dts;
       ar &counters;
     }
 
@@ -594,15 +611,7 @@ namespace Sintering
                                          t,
                                        params.restart_data.interval);
 
-      unsigned int time_integration_order = 0;
-      if (params.time_integration_data.interation_scheme == "BDF1")
-        time_integration_order = 1;
-      else if (params.time_integration_data.interation_scheme == "BDF2")
-        time_integration_order = 2;
-      else if (params.time_integration_data.interation_scheme == "BDF3")
-        time_integration_order = 3;
-      else
-        AssertThrow(false, ExcNotImplemented());
+      const unsigned int time_integration_order = dts.size();
 
       SinteringOperatorData<dim, VectorizedArrayType> sintering_data(
         params.energy_data.A,
@@ -617,6 +626,9 @@ namespace Sintering
         time_integration_order);
 
       sintering_data.set_n_components(n_initial_components);
+
+      // Reference to the current timestep for convinience
+      auto &dt = dts[0];
 
       TimeIntegration::SolutionHistory<VectorType> solution_history(
         time_integration_order + 1);
@@ -775,8 +787,7 @@ namespace Sintering
                   const unsigned int n_blocks  = current_u.n_blocks();
 
                   for (unsigned int l = min_level; l <= max_level; ++l)
-                    mg_sintering_data[l].time_data.set_all_dt(
-                      sintering_data.time_data.get_all_dt());
+                    mg_sintering_data[l].time_data.set_all_dt(dts);
 
                   MGLevelObject<VectorType> mg_current_u(min_level, max_level);
 
@@ -1208,10 +1219,13 @@ namespace Sintering
             // Perform sanity check
             if (params.time_integration_data.sanity_check_solution)
               nonlinear_operator.sanity_check(solution);
+              
+            // Set timesteps in order to update weights
+            sintering_data.time_data.set_all_dt(dts);
+
 
             // Try to extrapolate initial guess
-            if (params.time_integration_data.predictor != "None" &&
-                sintering_data.time_data.get_current_dt() > 0)
+            if (params.time_integration_data.predictor != "None" && t > 0)
               {
                 VectorType extrap;
                 nonlinear_operator.initialize_dof_vector(extrap);
@@ -1238,10 +1252,10 @@ namespace Sintering
                                                                    midpoint);
                     extrap.sadd(dt, solution);
                   }
-                else if (params.time_integration_data.predictor == "Linear")
+                else if (params.time_integration_data.predictor == "Linear" &&
+                         dts.size() > 1)
                   {
-                    const double fac =
-                      dt / sintering_data.time_data.get_current_dt();
+                    const double fac = dts[0] / dts[1];
                     solution_history.extrapolate(extrap, fac);
                   }
                 else
@@ -1249,7 +1263,6 @@ namespace Sintering
                     Assert(false, ExcNotImplemented());
                   }
 
-                sintering_data.time_data.update_dt(dt);
                 solution_history.set_recent_old_solution(solution);
 
                 // Sanity check of the predicted value
@@ -1260,7 +1273,6 @@ namespace Sintering
               }
             else
               {
-                sintering_data.time_data.update_dt(dt);
                 solution_history.set_recent_old_solution(solution);
               }
 
@@ -1383,7 +1395,10 @@ namespace Sintering
                 n_residual_evaluations += statistics.n_residual_evaluations();
                 max_reached_dt = std::max(max_reached_dt, dt);
 
+                // Commit current timestep
                 t += dt;
+                for (int i = dts.size() - 2; i >= 0; --i)
+                  dts[i + 1] = dts[i];
 
                 if (std::abs(t - params.time_integration_data.time_end) > 1e-9)
                   {
@@ -1479,8 +1494,6 @@ namespace Sintering
 
                 solution = solution_history.get_recent_old_solution();
 
-                sintering_data.time_data.rollback();
-
                 output_result(solution,
                               nonlinear_operator,
                               time_last_output,
@@ -1552,14 +1565,14 @@ namespace Sintering
                 if (params.restart_data.full_history)
                   {
                     solution_history.update_ghost_values(true);
-                    solution_ptr = solution_history.get_all_blocks();
+                    const auto history_all_blocks =
+                      solution_history.get_all_blocks();
+                    solution_ptr.assign(history_all_blocks.begin(),
+                                        history_all_blocks.end());
                   }
                 else
                   {
-                    const bool solution_is_ghosted =
-                      solution.has_ghost_elements();
-
-                    if (solution_is_ghosted == false)
+                    if (solution.has_ghost_elements() == false)
                       solution.update_ghost_values();
 
                     solution_ptr.resize(solution.n_blocks());
@@ -1597,18 +1610,12 @@ namespace Sintering
                 fosb << *this;
 
                 if (params.restart_data.full_history)
-                {
-                  for(const auto &tstep : sintering_data.time_data.get_all_dt())
-                    fosb << tstep;
-                }
-
-                if (params.restart_data.full_history)
                   {
                     solution_history.zero_out_ghost_values(true);
                   }
                 else
                   {
-                    if (solution_is_ghosted == false)
+                    if (solution.has_ghost_elements() == false)
                       solution.zero_out_ghost_values();
                   }
               }

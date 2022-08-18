@@ -57,7 +57,7 @@ namespace TimeIntegration
       std::vector<std::shared_ptr<VectorType>> subset;
 
       for (unsigned int i = 0; i < solutions.size(); ++i)
-        if (can_process(i, keep_current, keep_recent))
+        if (can_process(i, keep_current, keep_recent, keep_old))
           subset.push_back(solutions[i]);
 
       return SolutionHistory(subset);
