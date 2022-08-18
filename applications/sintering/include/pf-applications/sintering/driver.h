@@ -250,11 +250,14 @@ namespace Sintering
       unsigned int n_ranks;
       unsigned int n_initial_components;
       unsigned int n_blocks;
+      unsigned int n_integration_order;
       bool         flexible_output;
+      bool         full_history;
 
       std::ifstream                   in_stream(restart_path + "_driver");
       boost::archive::binary_iarchive fisb(in_stream);
       fisb >> flexible_output;
+      fisb >> full_history;
       fisb >> n_ranks;
 
       const auto n_mpi_processes =
@@ -269,7 +272,43 @@ namespace Sintering
 
       fisb >> n_initial_components;
       fisb >> n_blocks;
+
+      unsigned int time_integration_order = 0;
+      if (params.time_integration_data.interation_scheme == "BDF1")
+        time_integration_order = 1;
+      else if (params.time_integration_data.interation_scheme == "BDF2")
+        time_integration_order = 2;
+      else if (params.time_integration_data.interation_scheme == "BDF3")
+        time_integration_order = 3;
+      else
+        AssertThrow(false, ExcNotImplemented());
+
+      if (full_history)
+        {
+          fisb >> n_integration_order;
+          this->dts.resize(n_integration_order);
+        }
+        else
+        {
+          this->dts.resize(time_integration_order);
+        }
+
+      // Read the rest
       fisb >> *this;
+
+      // Check if the data structures are consistent
+      if (full_history)
+        {
+          AssertDimension(this->dts.size(), n_blocks / n_initial_components);
+
+          // We do resize anyways since the user might have changed the integration
+          // scheme
+          this->dts.resize(time_integration_order);
+        }
+      else
+        {
+          std::fill(std::next(this->dts.begin()), this->dts.end(), 0.);
+        }
 
       // 1) create coarse mesh
       create_grid(false);
@@ -350,8 +389,8 @@ namespace Sintering
       ar &max_reached_dt;
       ar &restart_counter;
       ar &t;
-      ar &dts;
       ar &counters;
+      ar &boost::serialization::make_array(dts.data(), dts.size());
     }
 
     void
@@ -1604,9 +1643,14 @@ namespace Sintering
                 std::ofstream                   out_stream(prefix + "_driver");
                 boost::archive::binary_oarchive fosb(out_stream);
                 fosb << params.restart_data.flexible_output;
+                fosb << params.restart_data.full_history;
                 fosb << Utilities::MPI::n_mpi_processes(MPI_COMM_WORLD);
                 fosb << solution.n_blocks();
                 fosb << solution_ptr.size();
+
+                if (params.restart_data.full_history)
+                  fosb << dts.size();
+
                 fosb << *this;
 
                 if (params.restart_data.full_history)
