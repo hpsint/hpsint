@@ -128,19 +128,20 @@ namespace Sintering
     double geometry_r_max;
     double geometry_interface_width;
 
-    unsigned int        n_global_levels_0;
-    double              time_last_output;
-    unsigned int        n_timestep;
-    unsigned int        n_linear_iterations;
-    unsigned int        n_non_linear_iterations;
-    unsigned int        n_residual_evaluations;
-    unsigned int        n_failed_tries;
-    unsigned int        n_failed_linear_iterations;
-    unsigned int        n_failed_non_linear_iterations;
-    unsigned int        n_failed_residual_evaluations;
-    double              max_reached_dt;
-    unsigned int        restart_counter;
-    double              t;
+    unsigned int n_global_levels_0;
+    double       time_last_output;
+    unsigned int n_timestep;
+    unsigned int n_linear_iterations;
+    unsigned int n_non_linear_iterations;
+    unsigned int n_residual_evaluations;
+    unsigned int n_failed_tries;
+    unsigned int n_failed_linear_iterations;
+    unsigned int n_failed_non_linear_iterations;
+    unsigned int n_failed_residual_evaluations;
+    double       max_reached_dt;
+    unsigned int restart_counter;
+    double       t;
+
     std::vector<Number> dts{0};
 
     std::map<std::string, unsigned int> counters;
