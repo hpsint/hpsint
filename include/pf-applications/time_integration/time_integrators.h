@@ -12,6 +12,22 @@ namespace TimeIntegration
 {
   using namespace dealii;
 
+  unsigned int
+  get_scheme_order(std::string scheme)
+  {
+    unsigned int time_integration_order = 0;
+    if (scheme == "BDF1")
+      time_integration_order = 1;
+    else if (scheme == "BDF2")
+      time_integration_order = 2;
+    else if (scheme == "BDF3")
+      time_integration_order = 3;
+    else
+      AssertThrow(false, ExcNotImplemented());
+
+    return time_integration_order;
+  }
+
   template <typename Number>
   class TimeIntegratorData
   {
@@ -19,29 +35,18 @@ namespace TimeIntegration
     TimeIntegratorData(unsigned int order)
       : order(order)
       , dt(order)
-      , dt_backup(order)
       , weights(order + 1)
     {}
 
     void
     update_dt(Number dt_new)
     {
-      dt_backup = dt;
-
       for (int i = get_order() - 2; i >= 0; i--)
         {
           dt[i + 1] = dt[i];
         }
 
       dt[0] = dt_new;
-
-      update_weights();
-    }
-
-    void
-    rollback()
-    {
-      dt = dt_backup;
 
       update_weights();
     }
@@ -128,7 +133,6 @@ namespace TimeIntegration
 
     unsigned int        order;
     std::vector<Number> dt;
-    std::vector<Number> dt_backup;
     std::vector<Number> weights;
   };
 
