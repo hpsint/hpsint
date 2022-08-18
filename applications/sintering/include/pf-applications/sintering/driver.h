@@ -1219,7 +1219,7 @@ namespace Sintering
             // Perform sanity check
             if (params.time_integration_data.sanity_check_solution)
               nonlinear_operator.sanity_check(solution);
-              
+
             // Set timesteps in order to update weights
             sintering_data.time_data.set_all_dt(dts);
 
