@@ -15,17 +15,17 @@ namespace TimeIntegration
   unsigned int
   get_scheme_order(std::string scheme)
   {
-      unsigned int time_integration_order = 0;
-      if (scheme == "BDF1")
-        time_integration_order = 1;
-      else if (scheme == "BDF2")
-        time_integration_order = 2;
-      else if (scheme == "BDF3")
-        time_integration_order = 3;
-      else
-        AssertThrow(false, ExcNotImplemented());
+    unsigned int time_integration_order = 0;
+    if (scheme == "BDF1")
+      time_integration_order = 1;
+    else if (scheme == "BDF2")
+      time_integration_order = 2;
+    else if (scheme == "BDF3")
+      time_integration_order = 3;
+    else
+      AssertThrow(false, ExcNotImplemented());
 
-      return time_integration_order;
+    return time_integration_order;
   }
 
   template <typename Number>
