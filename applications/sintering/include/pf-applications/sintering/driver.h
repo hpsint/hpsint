@@ -288,8 +288,12 @@ namespace Sintering
       // Check if the data structures are consistent
       if (full_history)
         {
-          AssertDimension(this->dts.size() + 1,
-                          n_blocks / n_initial_components);
+          const unsigned int n_vectors_saved = n_blocks / n_initial_components;
+          // Strictly speaking, the number of vectors should be equal to the
+          // time integration order + 1, however, we skipped the recent old
+          // solution since it will get overwritten anyway, so we neither save
+          // it not load during restarts.
+          AssertDimension(this->dts.size(), n_vectors_saved);
 
           // We do resize anyways since the user might have changed the
           // integration scheme
@@ -1195,11 +1199,15 @@ namespace Sintering
         old_old_solutions.update_ghost_values();
       };
 
-      initialize_solution(solution_history.get_all_blocks(), timer);
+      // Initialize all solutions except the evry old one, it will get
+      // overwritten anyway
+      initialize_solution(
+        solution_history.filter(true, false, true).get_all_blocks(), timer);
 
       // initial local refinement
       if (t == 0.0 && params.adaptivity_data.refinement_frequency > 0)
         {
+          // Initialize only the current solution
           const auto solution_ptr =
             solution_history.filter(true, false, false).get_all_blocks();
 
@@ -1602,9 +1610,12 @@ namespace Sintering
 
                 if (params.restart_data.full_history)
                   {
-                    solution_history.update_ghost_values(true);
+                    auto all_except_old =
+                      solution_history.filter(true, false, true);
+                    all_except_old.update_ghost_values(true);
+
                     const auto history_all_blocks =
-                      solution_history.get_all_blocks();
+                      all_except_old.get_all_blocks();
                     solution_ptr.assign(history_all_blocks.begin(),
                                         history_all_blocks.end());
                   }
@@ -1654,7 +1665,8 @@ namespace Sintering
 
                 if (params.restart_data.full_history)
                   {
-                    solution_history.zero_out_ghost_values(true);
+                    solution_history.filter(true, false, true)
+                      .zero_out_ghost_values(true);
                   }
                 else
                   {
