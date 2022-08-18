@@ -23,7 +23,7 @@ static_assert(false, "No dimension has been given!");
 static_assert(false, "No grains number has been given!");
 #endif
 
-//#define USE_FE_Q_iso_Q1
+#define USE_FE_Q_iso_Q1
 
 #ifdef USE_FE_Q_iso_Q1
 #  define FE_DEGREE 2
@@ -65,6 +65,8 @@ main(int argc, char **argv)
       if (argc >= 4)
         params.parse(std::string(argv[3]));
 
+      params.check();
+
       // geometry
       static constexpr double r0              = 15.0 / 2.;
       static constexpr bool   is_accumulative = false;
@@ -96,6 +98,8 @@ main(int argc, char **argv)
       if (argc >= 4)
         params.parse(std::string(argv[3]));
 
+      params.check();
+
       const auto initial_solution =
         std::make_shared<Sintering::InitialValuesCloud<SINTERING_DIM>>(
           particles,
@@ -118,6 +122,8 @@ main(int argc, char **argv)
 
       if (argc >= 4)
         params.parse(std::string(argv[3]));
+
+      params.check();
 
       Sintering::Problem<SINTERING_DIM> runner(params, restart_path);
     }

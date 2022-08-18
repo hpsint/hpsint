@@ -2,6 +2,7 @@
 
 #include <deal.II/lac/trilinos_sparsity_pattern.h>
 
+#include <pf-applications/dofs/dof_tools.h>
 #include <pf-applications/matrix_free/tools.h>
 #include <pf-applications/time_integration/solution_history.h>
 #include <pf-applications/time_integration/time_integrators.h>
@@ -1107,7 +1108,8 @@ namespace Sintering
             dof_handler.locally_owned_dofs(), dof_handler.get_communicator());
           DoFTools::make_sparsity_pattern(dof_handler,
                                           dsp,
-                                          constraints_for_matrix);
+                                          constraints_for_matrix,
+                                          matrix_free.get_quadrature());
           dsp.compress();
 
           system_matrix.reinit(dsp);
@@ -1174,7 +1176,10 @@ namespace Sintering
 
           TrilinosWrappers::SparsityPattern dsp(
             dof_handler.locally_owned_dofs(), dof_handler.get_communicator());
-          DoFTools::make_sparsity_pattern(dof_handler, dsp, this->constraints);
+          DoFTools::make_sparsity_pattern(dof_handler,
+                                          dsp,
+                                          this->constraints,
+                                          matrix_free.get_quadrature());
           dsp.compress();
 
           block_system_matrix.resize(this->n_components());

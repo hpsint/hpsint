@@ -186,7 +186,11 @@ namespace Sintering
       add_parameters(prm);
 
       prm.parse_input(file_name, "", true);
+    }
 
+    void
+    check()
+    {
 #ifdef FE_DEGREE
       if (approximation_data.n_subdivisions == 1)
         {
