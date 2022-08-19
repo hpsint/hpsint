@@ -299,12 +299,11 @@ namespace Sintering
       // Check if the data structures are consistent
       if (full_history)
         {
-          const unsigned int n_vectors_saved = n_blocks / n_initial_components;
           // Strictly speaking, the number of vectors should be equal to the
           // time integration order + 1, however, we skipped the recent old
           // solution since it will get overwritten anyway, so we neither save
           // it not load during restarts.
-          AssertDimension(this->dts.size(), n_vectors_saved);
+          AssertDimension(this->dts.size(), n_blocks / n_initial_components);
 
           // We do resize anyways since the user might have changed the
           // integration scheme
