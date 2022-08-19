@@ -50,9 +50,9 @@ namespace Sintering
       {
         const unsigned int s =
           static_cast<unsigned int>(std::ceil(std::log2(n_ref / p)));
-        const unsigned int n_current = p * std::pow(2, s);
-        const unsigned int current_delta =
-          static_cast<unsigned int>(std::abs(static_cast<int>(n_current - n_ref)));
+        const unsigned int n_current     = p * std::pow(2, s);
+        const unsigned int current_delta = static_cast<unsigned int>(
+          std::abs(static_cast<int>(n_current - n_ref)));
 
         if (current_delta < min_elements_delta)
           {
@@ -63,6 +63,38 @@ namespace Sintering
       }
 
     return std::make_pair(optimal_prime, n_refinements);
+  }
+
+  template <int dim>
+  void
+  print_mesh_info(const Point<dim> &               bottom_left,
+                  const Point<dim> &               top_right,
+                  const std::vector<unsigned int> &subdivisions,
+                  const unsigned int               n_refinements)
+  {
+    ConditionalOStream pcout(std::cout,
+                             Utilities::MPI::this_mpi_process(MPI_COMM_WORLD) ==
+                               0);
+
+    pcout << "Create subdivided hyperrectangle [";
+    for (unsigned int i = 0; i < dim; ++i)
+      {
+        pcout << std::to_string(top_right[i] - bottom_left[i]);
+
+        if (i + 1 != dim)
+          pcout << "x";
+      }
+
+    pcout << "] with " << std::to_string(n_refinements) << " refinements and ";
+    for (unsigned int i = 0; i < dim; ++i)
+      {
+        pcout << std::to_string(subdivisions[i]);
+
+        if (i + 1 != dim)
+          pcout << "x";
+      }
+
+    pcout << " subdivisions" << std::endl << std::endl;
   }
 
   template <typename Triangulation, int dim>
@@ -88,8 +120,8 @@ namespace Sintering
     std::vector<unsigned int> subdivisions(dim);
     for (unsigned int d = 0; d < dim; d++)
       {
-        subdivisions[d] = static_cast<unsigned int>(
-          std::ceil(domain_size[d] / h_e / std::pow(2, n_refinements_interface)));
+        subdivisions[d] = static_cast<unsigned int>(std::ceil(
+          domain_size[d] / h_e / std::pow(2, n_refinements_interface)));
       }
 
     // Further reduce the number of initial subdivisions
@@ -106,37 +138,14 @@ namespace Sintering
 
         for (unsigned int d = 0; d < dim; d++)
           {
-            subdivisions[d] = static_cast<unsigned int>(
-              std::ceil(static_cast<double>(subdivisions[d]) / n_ref * optimal_prime));
+            subdivisions[d] = static_cast<unsigned int>(std::ceil(
+              static_cast<double>(subdivisions[d]) / n_ref * optimal_prime));
           }
       }
 
     unsigned int n_refinements = n_refinements_base + n_refinements_interface;
 
-    ConditionalOStream pcout(std::cout,
-                             Utilities::MPI::this_mpi_process(MPI_COMM_WORLD) ==
-                               0);
-
-    pcout << "Create subdivided hyperrectangle [";
-    for (unsigned int i = 0; i < dim; ++i)
-      {
-        pcout << std::to_string(top_right[i] - bottom_left[i]);
-
-        if (i + 1 != dim)
-          pcout << "x";
-      }
-
-    pcout << "] with " << std::to_string(n_refinements) << " refinements and ";
-    for (unsigned int i = 0; i < dim; ++i)
-      {
-        pcout << std::to_string(subdivisions[i]);
-
-        if (i + 1 != dim)
-          pcout << "x";
-      }
-
-    pcout << " subdivisions" << std::endl << std::endl;
-
+    print_mesh_info(bottom_left, top_right, subdivisions, n_refinements);
 
     GridGenerator::subdivided_hyper_rectangle(
       tria, subdivisions, bottom_left, top_right, true);
@@ -174,4 +183,41 @@ namespace Sintering
         return n_refinements;
       }
   }
+
+  template <typename Triangulation, int dim>
+  void
+  create_mesh(Triangulation &                  tria,
+              const Point<dim> &               bottom_left,
+              const Point<dim> &               top_right,
+              const std::vector<unsigned int> &subdivisions,
+              const bool                       periodic,
+              const unsigned int               n_refinements)
+  {
+    print_mesh_info(bottom_left, top_right, subdivisions, n_refinements);
+
+    GridGenerator::subdivided_hyper_rectangle(
+      tria, subdivisions, bottom_left, top_right, true);
+
+    if (periodic)
+      {
+        // Need to work with triangulation here
+        std::vector<
+          GridTools::PeriodicFacePair<typename Triangulation::cell_iterator>>
+          periodicity_vector;
+
+        for (unsigned int d = 0; d < dim; ++d)
+          {
+            GridTools::collect_periodic_faces(
+              tria, 2 * d, 2 * d + 1, d, periodicity_vector);
+          }
+
+        tria.add_periodicity(periodicity_vector);
+      }
+
+    if (n_refinements > 0)
+      {
+        tria.refine_global(n_refinements);
+      }
+  }
+
 } // namespace Sintering
