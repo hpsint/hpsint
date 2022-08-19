@@ -18,7 +18,7 @@ namespace Sintering
 
     for (unsigned int i = start; i <= end; ++i)
       {
-        // Skip 0 and 1 as they are
+        // Skip 0 and 1
         if (i == 1 || i == 0)
           continue;
 
