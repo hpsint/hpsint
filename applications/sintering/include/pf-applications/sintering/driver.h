@@ -190,11 +190,19 @@ namespace Sintering
       this->dts[0] = params.time_integration_data.time_step_init;
 
 
-      const unsigned int n_refinements =
-        create_grid(params.geometry_data.global_refinement);
-      this->n_global_levels_0 = tria.n_global_levels();
-      if (params.geometry_data.global_refinement == false)
-        this->n_global_levels_0 += n_refinements;
+      InitialRefine global_refine;
+      if (params.geometry_data.global_refinement == "None")
+        global_refine = InitialRefine::None;
+      else if (params.geometry_data.global_refinement == "Base")
+        global_refine = InitialRefine::Base;
+      else if (params.geometry_data.global_refinement == "Full")
+        global_refine = InitialRefine::Full;
+      else
+        Assert(false, ExcNotImplemented());
+
+      const unsigned int n_refinements_remaining = create_grid(global_refine);
+      this->n_global_levels_0 =
+        tria.n_global_levels() + n_refinements_remaining;
 
       initialize();
 
@@ -308,7 +316,7 @@ namespace Sintering
         }
 
       // 1) create coarse mesh
-      create_grid(false);
+      create_grid(InitialRefine::None);
 
       // 2) load mesh refinement (incl. vectors)
       tria.load(restart_path + "_tria");
@@ -400,7 +408,7 @@ namespace Sintering
     }
 
     unsigned int
-    create_grid(const bool with_initial_refinement)
+    create_grid(InitialRefine global_refine)
     {
       MyScope("Problem::create_grid");
 
@@ -444,14 +452,15 @@ namespace Sintering
             }
         }
 
-      const unsigned int n_refinements =
+      const unsigned int n_refinements_remaining =
         create_mesh(tria,
                     boundaries.first,
                     boundaries.second,
                     geometry_interface_width,
                     params.geometry_data.elements_per_interface,
                     params.geometry_data.periodic,
-                    with_initial_refinement,
+                    global_refine,
+                    params.geometry_data.max_prime,
                     params.geometry_data.max_level0_elements_per_interface);
 
       helper = std::make_unique<dealii::parallel::Helper<dim>>(tria);
@@ -462,7 +471,7 @@ namespace Sintering
 
       tria.repartition();
 
-      return n_refinements;
+      return n_refinements_remaining;
     }
 
     void
@@ -957,148 +966,154 @@ namespace Sintering
 
       bool system_has_changed = true;
 
-      const auto execute_coarsening_and_refinement = [&](const double t) {
-        MyScope scope(timer, "execute_coarsening_and_refinement");
+      const auto execute_coarsening_and_refinement =
+        [&](const double t,
+            const double top_fraction_of_cells,
+            const double bottom_fraction_of_cells) {
+          MyScope scope(timer, "execute_coarsening_and_refinement");
 
-        pcout << "Execute refinement/coarsening:" << std::endl;
+          pcout << "Execute refinement/coarsening:" << std::endl;
 
-        system_has_changed = true;
+          system_has_changed = true;
 
-        auto solutions_except_recent = solution_history.filter(true, false);
-        auto old_old_solutions       = solution_history.filter(false, false);
+          auto solutions_except_recent = solution_history.filter(true, false);
+          auto old_old_solutions       = solution_history.filter(false, false);
 
-        output_result(solution, nonlinear_operator, t, "refinement");
+          output_result(solution, nonlinear_operator, t, "refinement");
 
-        // 1) copy solution so that it has the right ghosting
-        const auto partitioner = std::make_shared<Utilities::MPI::Partitioner>(
-          dof_handler.locally_owned_dofs(),
-          DoFTools::extract_locally_relevant_dofs(dof_handler),
-          dof_handler.get_communicator());
+          // 1) copy solution so that it has the right ghosting
+          const auto partitioner =
+            std::make_shared<Utilities::MPI::Partitioner>(
+              dof_handler.locally_owned_dofs(),
+              DoFTools::extract_locally_relevant_dofs(dof_handler),
+              dof_handler.get_communicator());
 
-        VectorType solution_dealii(solutions_except_recent.n_blocks_total());
-        for (unsigned int b = 0; b < solution_dealii.n_blocks(); ++b)
-          solution_dealii.block(b).reinit(partitioner);
+          VectorType solution_dealii(solutions_except_recent.n_blocks_total());
+          for (unsigned int b = 0; b < solution_dealii.n_blocks(); ++b)
+            solution_dealii.block(b).reinit(partitioner);
 
-        solutions_except_recent.flatten(solution_dealii);
+          solutions_except_recent.flatten(solution_dealii);
 
-        for (unsigned int b = 0; b < solution_dealii.n_blocks(); ++b)
-          constraints.distribute(solution_dealii.block(b));
+          for (unsigned int b = 0; b < solution_dealii.n_blocks(); ++b)
+            constraints.distribute(solution_dealii.block(b));
 
-        solution_dealii.update_ghost_values();
+          solution_dealii.update_ghost_values();
 
-        // 2) estimate errors
-        Vector<float> estimated_error_per_cell(tria.n_active_cells());
+          // 2) estimate errors
+          Vector<float> estimated_error_per_cell(tria.n_active_cells());
 
-        for (unsigned int b = 2; b < solution.n_blocks(); ++b)
-          {
-            Vector<float> estimated_error_per_cell_temp(tria.n_active_cells());
+          for (unsigned int b = 2; b < solution.n_blocks(); ++b)
+            {
+              Vector<float> estimated_error_per_cell_temp(
+                tria.n_active_cells());
 
-            KellyErrorEstimator<dim>::estimate(
-              this->dof_handler,
-              Quadrature<dim - 1>(quad),
-              std::map<types::boundary_id, const Function<dim> *>(),
-              solution_dealii.block(b),
-              estimated_error_per_cell_temp,
-              {},
-              nullptr,
-              0,
-              Utilities::MPI::this_mpi_process(MPI_COMM_WORLD));
+              KellyErrorEstimator<dim>::estimate(
+                this->dof_handler,
+                Quadrature<dim - 1>(quad),
+                std::map<types::boundary_id, const Function<dim> *>(),
+                solution_dealii.block(b),
+                estimated_error_per_cell_temp,
+                {},
+                nullptr,
+                0,
+                Utilities::MPI::this_mpi_process(MPI_COMM_WORLD));
 
-            for (unsigned int i = 0; i < estimated_error_per_cell.size(); ++i)
-              estimated_error_per_cell[i] += estimated_error_per_cell_temp[i] *
-                                             estimated_error_per_cell_temp[i];
-          }
+              for (unsigned int i = 0; i < estimated_error_per_cell.size(); ++i)
+                estimated_error_per_cell[i] +=
+                  estimated_error_per_cell_temp[i] *
+                  estimated_error_per_cell_temp[i];
+            }
 
-        for (unsigned int i = 0; i < estimated_error_per_cell.size(); ++i)
-          estimated_error_per_cell[i] = std::sqrt(estimated_error_per_cell[i]);
+          for (unsigned int i = 0; i < estimated_error_per_cell.size(); ++i)
+            estimated_error_per_cell[i] =
+              std::sqrt(estimated_error_per_cell[i]);
 
-        // 3) mark automatically cells for coarsening/refinement, ...
-        parallel::distributed::GridRefinement::
-          refine_and_coarsen_fixed_fraction(
-            tria,
-            estimated_error_per_cell,
-            params.adaptivity_data.top_fraction_of_cells,
-            params.adaptivity_data.bottom_fraction_of_cells);
+          // 3) mark automatically cells for coarsening/refinement, ...
+          parallel::distributed::GridRefinement::
+            refine_and_coarsen_fixed_fraction(tria,
+                                              estimated_error_per_cell,
+                                              top_fraction_of_cells,
+                                              bottom_fraction_of_cells);
 
-        // make sure that cells close to the interfaces are refined, ...
-        Vector<Number> values(dof_handler.get_fe().n_dofs_per_cell());
-        for (const auto &cell : dof_handler.active_cell_iterators())
-          {
-            if (cell->is_locally_owned() == false || cell->refine_flag_set())
-              continue;
+          // make sure that cells close to the interfaces are refined, ...
+          Vector<Number> values(dof_handler.get_fe().n_dofs_per_cell());
+          for (const auto &cell : dof_handler.active_cell_iterators())
+            {
+              if (cell->is_locally_owned() == false || cell->refine_flag_set())
+                continue;
 
-            for (unsigned int b = 2; b < solution.n_blocks(); ++b)
-              {
-                cell->get_dof_values(solution_dealii.block(b), values);
+              for (unsigned int b = 2; b < solution.n_blocks(); ++b)
+                {
+                  cell->get_dof_values(solution_dealii.block(b), values);
 
-                for (unsigned int i = 0; i < values.size(); ++i)
-                  if (0.05 < values[i] && values[i] < 0.95)
-                    {
-                      cell->clear_coarsen_flag();
-                      cell->set_refine_flag();
+                  for (unsigned int i = 0; i < values.size(); ++i)
+                    if (0.05 < values[i] && values[i] < 0.95)
+                      {
+                        cell->clear_coarsen_flag();
+                        cell->set_refine_flag();
 
-                      break;
-                    }
+                        break;
+                      }
 
-                if (cell->refine_flag_set())
-                  break;
-              }
-          }
+                  if (cell->refine_flag_set())
+                    break;
+                }
+            }
 
-        // and limit the number of levels
-        for (const auto &cell : tria.active_cell_iterators())
-          if (cell->refine_flag_set() &&
-              (static_cast<unsigned int>(cell->level()) ==
-               ((this->n_global_levels_0 - 1) +
-                params.adaptivity_data.max_refinement_depth)))
-            cell->clear_refine_flag();
-          else if (cell->coarsen_flag_set() &&
-                   (static_cast<unsigned int>(cell->level()) ==
-                    ((this->n_global_levels_0 - 1) -
-                     std::min((this->n_global_levels_0 - 1),
-                              params.adaptivity_data.min_refinement_depth))))
-            cell->clear_coarsen_flag();
+          // and limit the number of levels
+          for (const auto &cell : tria.active_cell_iterators())
+            if (cell->refine_flag_set() &&
+                (static_cast<unsigned int>(cell->level()) ==
+                 ((this->n_global_levels_0 - 1) +
+                  params.adaptivity_data.max_refinement_depth)))
+              cell->clear_refine_flag();
+            else if (cell->coarsen_flag_set() &&
+                     (static_cast<unsigned int>(cell->level()) ==
+                      ((this->n_global_levels_0 - 1) -
+                       std::min((this->n_global_levels_0 - 1),
+                                params.adaptivity_data.min_refinement_depth))))
+              cell->clear_coarsen_flag();
 
-        // 4) perform interpolation and initialize data structures
-        tria.prepare_coarsening_and_refinement();
+          // 4) perform interpolation and initialize data structures
+          tria.prepare_coarsening_and_refinement();
 
-        parallel::distributed::SolutionTransfer<dim,
-                                                typename VectorType::BlockType>
-          solution_trans(dof_handler);
+          parallel::distributed::
+            SolutionTransfer<dim, typename VectorType::BlockType>
+              solution_trans(dof_handler);
 
-        std::vector<const typename VectorType::BlockType *> solution_dealii_ptr(
-          solution_dealii.n_blocks());
-        for (unsigned int b = 0; b < solution_dealii.n_blocks(); ++b)
-          solution_dealii_ptr[b] = &solution_dealii.block(b);
+          std::vector<const typename VectorType::BlockType *>
+            solution_dealii_ptr(solution_dealii.n_blocks());
+          for (unsigned int b = 0; b < solution_dealii.n_blocks(); ++b)
+            solution_dealii_ptr[b] = &solution_dealii.block(b);
 
-        solution_trans.prepare_for_coarsening_and_refinement(
-          solution_dealii_ptr);
+          solution_trans.prepare_for_coarsening_and_refinement(
+            solution_dealii_ptr);
 
-        tria.execute_coarsening_and_refinement();
+          tria.execute_coarsening_and_refinement();
 
-        initialize(solution.n_blocks());
+          initialize(solution.n_blocks());
 
-        nonlinear_operator.clear();
-        non_linear_solver->clear();
-        preconditioner->clear();
+          nonlinear_operator.clear();
+          non_linear_solver->clear();
+          preconditioner->clear();
 
-        solutions_except_recent.apply(f_init);
+          solutions_except_recent.apply(f_init);
 
-        auto solution_ptr = solutions_except_recent.get_all_blocks();
+          auto solution_ptr = solutions_except_recent.get_all_blocks();
 
-        solution_trans.interpolate(solution_ptr);
+          solution_trans.interpolate(solution_ptr);
 
-        // note: apply constraints since the Newton solver expects this
-        for (unsigned int b = 0; b < solution_ptr.size(); ++b)
-          constraints.distribute(*solution_ptr[b]);
+          // note: apply constraints since the Newton solver expects this
+          for (unsigned int b = 0; b < solution_ptr.size(); ++b)
+            constraints.distribute(*solution_ptr[b]);
 
-        old_old_solutions.update_ghost_values();
+          old_old_solutions.update_ghost_values();
 
-        output_result(solution, nonlinear_operator, t, "refinement");
+          output_result(solution, nonlinear_operator, t, "refinement");
 
-        if (params.output_data.mesh_overhead_estimate)
-          Postprocessors::estimate_overhead(mapping, dof_handler, solution);
-      };
+          if (params.output_data.mesh_overhead_estimate)
+            Postprocessors::estimate_overhead(mapping, dof_handler, solution);
+        };
 
       // New grains can not appear in current sintering simulations
       GrainTracker::Tracker<dim, Number> grain_tracker(
@@ -1213,11 +1228,22 @@ namespace Sintering
 
       // initial local refinement
       if (t == 0.0 && (params.adaptivity_data.refinement_frequency > 0 ||
-                       params.geometry_data.global_refinement == false))
+                       params.geometry_data.global_refinement != "Full"))
         {
           // Initialize only the current solution
           const auto solution_ptr =
             solution_history.filter(true, false, false).get_all_blocks();
+
+          // If global_refinement is not Full, then we need use more agressive
+          // refinement strategy here
+          double top_fraction_of_cells =
+            params.adaptivity_data.top_fraction_of_cells;
+          const double bottom_fraction_of_cells =
+            params.adaptivity_data.bottom_fraction_of_cells;
+          if (params.geometry_data.global_refinement == "None")
+            top_fraction_of_cells = 0.9;
+          else if (params.geometry_data.global_refinement == "Base")
+            top_fraction_of_cells = 0.8;
 
           const unsigned int n_init_refinements =
             std::max(std::min(tria.n_global_levels() - 1,
@@ -1227,7 +1253,9 @@ namespace Sintering
 
           for (unsigned int i = 0; i < n_init_refinements; ++i)
             {
-              execute_coarsening_and_refinement(t);
+              execute_coarsening_and_refinement(t,
+                                                top_fraction_of_cells,
+                                                bottom_fraction_of_cells);
               initialize_solution(solution_ptr, timer);
             }
         }
@@ -1248,7 +1276,10 @@ namespace Sintering
             if (n_timestep != 0 &&
                 params.adaptivity_data.refinement_frequency > 0 &&
                 n_timestep % params.adaptivity_data.refinement_frequency == 0)
-              execute_coarsening_and_refinement(t);
+              execute_coarsening_and_refinement(
+                t,
+                params.adaptivity_data.top_fraction_of_cells,
+                params.adaptivity_data.bottom_fraction_of_cells);
 
             if (n_timestep != 0 &&
                 params.grain_tracker_data.grain_tracker_frequency > 0 &&

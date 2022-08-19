@@ -32,7 +32,8 @@ namespace Sintering
     double          interface_buffer_ratio            = 1.0;
     bool            periodic                          = false;
     bool            custom_bounding_box               = false;
-    bool            global_refinement                 = false;
+    unsigned int    max_prime                         = 20;
+    std::string     global_refinement                 = "None";
     double          max_level0_elements_per_interface = 1.0 - 1e-9;
     BoundingBoxData bounding_box_data;
 
@@ -287,9 +288,13 @@ namespace Sintering
       prm.add_parameter("CustomBoundingBox",
                         geometry_data.custom_bounding_box,
                         "Is custom bounding box specified.");
+      prm.add_parameter("MaxPrime",
+                        geometry_data.max_prime,
+                        "Max prime number for subdivisions decomposition.");
       prm.add_parameter("GlobalRefinement",
                         geometry_data.global_refinement,
-                        "Perform global refinements.");
+                        "Perform global refinements.",
+                        Patterns::Selection("None|Base|Full"));
       prm.add_parameter("MaxLevel0ElementsPerInterface",
                         geometry_data.max_level0_elements_per_interface,
                         "Maximum initial number of elements per interface.");

@@ -4,26 +4,44 @@
 
 namespace Sintering
 {
-  template <typename Triangulation, int dim>
-  unsigned int
-  create_mesh(Triangulation &    tria,
-              const Point<dim> & bottom_left,
-              const Point<dim> & top_right,
-              const double       interface_width,
-              const unsigned int elements_per_interface,
-              const bool         periodic,
-              const bool         with_initial_refinement,
-              const double       max_level0_elements_per_interface = 1.0)
+  enum class InitialRefine
   {
-    const auto domain_size = top_right - bottom_left;
+    None,
+    Base,
+    Full
+  };
 
-    const double h_e = interface_width / elements_per_interface;
-    const double min_size =
-      *std::min_element(domain_size.begin_raw(), domain_size.end_raw());
-    const unsigned int n_ref = static_cast<unsigned int>(min_size / h_e);
+  std::vector<unsigned int>
+  get_primes(unsigned int start, unsigned int end)
+  {
+    std::vector<unsigned int> primes;
 
-    const unsigned int              base = 2;
-    const std::vector<unsigned int> primes{2, 3, 5, 7};
+    for (unsigned int i = start; i <= end; ++i)
+      {
+        // Skip 0 and 1 as they are
+        if (i == 1 || i == 0)
+          continue;
+
+        bool is_prime = true;
+
+        // Iterate to check if i is prime
+        for (unsigned int j = 2; j <= i / 2; ++j)
+          if (i % j == 0)
+            {
+              is_prime = false;
+              break;
+            }
+
+        if (is_prime)
+          primes.push_back(i);
+      }
+    return primes;
+  }
+
+  std::pair<unsigned int, unsigned int>
+  decompose_to_prime_tuple(const unsigned int n_ref, const unsigned max_prime)
+  {
+    const auto primes = get_primes(2, max_prime);
 
     unsigned int optimal_prime      = 0;
     unsigned int n_refinements      = 0;
@@ -32,8 +50,9 @@ namespace Sintering
       {
         const unsigned int s =
           static_cast<unsigned int>(std::ceil(std::log2(n_ref / p)));
-        const unsigned int n_current     = p * std::pow(base, s);
-        const unsigned int current_delta = n_current - n_ref;
+        const unsigned int n_current = p * std::pow(2, s);
+        const unsigned int current_delta =
+          static_cast<unsigned int>(std::abs(static_cast<int>(n_current - n_ref)));
 
         if (current_delta < min_elements_delta)
           {
@@ -43,12 +62,56 @@ namespace Sintering
           }
       }
 
+    return std::make_pair(optimal_prime, n_refinements);
+  }
+
+  template <typename Triangulation, int dim>
+  unsigned int
+  create_mesh(Triangulation &     tria,
+              const Point<dim> &  bottom_left,
+              const Point<dim> &  top_right,
+              const double        interface_width,
+              const unsigned int  elements_per_interface,
+              const bool          periodic,
+              const InitialRefine refine,
+              const unsigned int  max_prime                         = 0,
+              const double        max_level0_elements_per_interface = 1.0)
+  {
+    const auto domain_size = top_right - bottom_left;
+
+    const double h_e = interface_width / elements_per_interface;
+
+    const unsigned int n_refinements_interface =
+      static_cast<unsigned int>(std::ceil(
+        std::log2(elements_per_interface / max_level0_elements_per_interface)));
+
     std::vector<unsigned int> subdivisions(dim);
     for (unsigned int d = 0; d < dim; d++)
       {
         subdivisions[d] = static_cast<unsigned int>(
-          std::ceil(domain_size[d] / min_size * optimal_prime));
+          std::ceil(domain_size[d] / h_e / std::pow(2, n_refinements_interface)));
       }
+
+    // Further reduce the number of initial subdivisions
+    unsigned int n_refinements_base = 0;
+    if (max_prime > 0)
+      {
+        const unsigned int n_ref =
+          *std::min_element(subdivisions.begin(), subdivisions.end());
+
+        const auto         pair = decompose_to_prime_tuple(n_ref, max_prime);
+        const unsigned int optimal_prime = pair.first;
+
+        n_refinements_base = pair.second;
+
+        for (unsigned int d = 0; d < dim; d++)
+          {
+            subdivisions[d] = static_cast<unsigned int>(
+              std::ceil(static_cast<double>(subdivisions[d]) / n_ref * optimal_prime));
+          }
+      }
+
+    unsigned int n_refinements = n_refinements_base + n_refinements_interface;
 
     ConditionalOStream pcout(std::cout,
                              Utilities::MPI::this_mpi_process(MPI_COMM_WORLD) ==
@@ -94,11 +157,21 @@ namespace Sintering
         tria.add_periodicity(periodicity_vector);
       }
 
-    if (with_initial_refinement && (n_refinements > 0))
+    if (refine == InitialRefine::Base)
       {
-        tria.refine_global(n_refinements);
+        if (n_refinements_base > 0)
+          tria.refine_global(n_refinements_base);
+        return n_refinements_interface;
       }
-
-    return n_refinements;
+    else if (refine == InitialRefine::Full)
+      {
+        if (n_refinements > 0)
+          tria.refine_global(n_refinements);
+        return 0;
+      }
+    else
+      {
+        return n_refinements;
+      }
   }
 } // namespace Sintering
