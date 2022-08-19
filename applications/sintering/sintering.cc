@@ -23,7 +23,7 @@ static_assert(false, "No dimension has been given!");
 static_assert(false, "No grains number has been given!");
 #endif
 
-#define USE_FE_Q_iso_Q1
+//#define USE_FE_Q_iso_Q1
 
 #ifdef USE_FE_Q_iso_Q1
 #  define FE_DEGREE 2
