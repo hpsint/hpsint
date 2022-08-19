@@ -96,29 +96,23 @@ main(int argc, char **argv)
   const double length = 60;
   const double width  = 22.5;
 
-  Point<dim> bottom_left;
-  Point<dim> top_right;
-  top_right[0] = length;
+  Point<dim>                bottom_left;
+  Point<dim>                top_right;
+  std::vector<unsigned int> subdivisions(dim, 10);
+  top_right[0]    = length;
+  subdivisions[0] = 26;
   for (unsigned int d = 1; d < dim; ++d)
     {
       top_right[d] = width;
     }
 
   // Mesh settings
-  const unsigned int elements_per_interface  = 8;
-  const double       interface_width         = 2.;
-  const bool         periodic                = true;
-  const bool         with_initial_refinement = true;
-  const double       level0_inter_elements   = 1.5;
+  const double       interface_width = 2.;
+  const bool         periodic        = true;
+  const unsigned int n_refinements   = 3;
 
-  Sintering::create_mesh(tria,
-                         bottom_left,
-                         top_right,
-                         interface_width,
-                         elements_per_interface,
-                         periodic,
-                         with_initial_refinement,
-                         level0_inter_elements);
+  Sintering::create_mesh(
+    tria, bottom_left, top_right, subdivisions, periodic, n_refinements);
 
   // setup DoFHandlers
   dof_handler.distribute_dofs(fe);
