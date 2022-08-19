@@ -198,7 +198,7 @@ namespace Sintering
       else if (params.geometry_data.global_refinement == "Full")
         global_refine = InitialRefine::Full;
       else
-        Assert(false, ExcNotImplemented());
+        AssertThrow(false, ExcNotImplemented());
 
       const unsigned int n_refinements_remaining = create_grid(global_refine);
       this->n_global_levels_0 =
