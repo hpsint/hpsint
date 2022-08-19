@@ -1,4 +1,4 @@
-Create subdivided hyperrectangle [10.000000x10.000000] with 3 refinements and 10x10 subdivisions
+Create subdivided hyperrectangle [10.000000x10.000000] with 3 refinements (global = 3, delayed = 0) and 10x10 subdivisions
 
 Number of order parameters: 1
 Number of grains: 2

@@ -70,7 +70,8 @@ namespace Sintering
   print_mesh_info(const Point<dim> &               bottom_left,
                   const Point<dim> &               top_right,
                   const std::vector<unsigned int> &subdivisions,
-                  const unsigned int               n_refinements)
+                  const unsigned int               n_refinements_global,
+                  const unsigned int               n_refinements_delayed)
   {
     ConditionalOStream pcout(std::cout,
                              Utilities::MPI::this_mpi_process(MPI_COMM_WORLD) ==
@@ -85,7 +86,12 @@ namespace Sintering
           pcout << "x";
       }
 
-    pcout << "] with " << std::to_string(n_refinements) << " refinements and ";
+    const unsigned int n_refinements =
+      n_refinements_global + n_refinements_delayed;
+
+    pcout << "] with " << std::to_string(n_refinements) << " refinements (";
+    pcout << "global = " << n_refinements_global << ", ";
+    pcout << "delayed = " << n_refinements_delayed << ") and ";
     for (unsigned int i = 0; i < dim; ++i)
       {
         pcout << std::to_string(subdivisions[i]);
@@ -143,10 +149,6 @@ namespace Sintering
           }
       }
 
-    unsigned int n_refinements = n_refinements_base + n_refinements_interface;
-
-    print_mesh_info(bottom_left, top_right, subdivisions, n_refinements);
-
     GridGenerator::subdivided_hyper_rectangle(
       tria, subdivisions, bottom_left, top_right, true);
 
@@ -166,26 +168,37 @@ namespace Sintering
         tria.add_periodicity(periodicity_vector);
       }
 
+    unsigned int n_global  = 0;
+    unsigned int n_delayed = 0;
     if (refine == InitialRefine::Base)
       {
         if (n_refinements_base > 0)
           tria.refine_global(n_refinements_base);
-        return n_refinements_interface;
+
+        n_global  = n_refinements_base;
+        n_delayed = n_refinements_interface;
       }
     else if (refine == InitialRefine::Full)
       {
-        if (n_refinements > 0)
-          tria.refine_global(n_refinements);
-        return 0;
+        if (n_refinements_base > 0 || n_refinements_interface > 0)
+          tria.refine_global(n_refinements_base + n_refinements_interface);
+
+        n_global  = n_refinements_base + n_refinements_interface;
+        n_delayed = 0;
       }
     else
       {
-        return n_refinements;
+        n_global  = 0;
+        n_delayed = n_refinements_base + n_refinements_interface;
       }
+
+    print_mesh_info(bottom_left, top_right, subdivisions, n_global, n_delayed);
+
+    return n_delayed;
   }
 
   template <typename Triangulation, int dim>
-  void
+  unsigned int
   create_mesh(Triangulation &                  tria,
               const Point<dim> &               bottom_left,
               const Point<dim> &               top_right,
@@ -193,8 +206,6 @@ namespace Sintering
               const bool                       periodic,
               const unsigned int               n_refinements)
   {
-    print_mesh_info(bottom_left, top_right, subdivisions, n_refinements);
-
     GridGenerator::subdivided_hyper_rectangle(
       tria, subdivisions, bottom_left, top_right, true);
 
@@ -218,6 +229,11 @@ namespace Sintering
       {
         tria.refine_global(n_refinements);
       }
+
+    print_mesh_info(bottom_left, top_right, subdivisions, n_refinements, 0);
+
+    // Return 0 delayed lazy refinements for consistency of the interfaces
+    return 0;
   }
 
 } // namespace Sintering
