@@ -462,7 +462,8 @@ namespace Sintering
                     params.geometry_data.periodic,
                     global_refine,
                     params.geometry_data.max_prime,
-                    params.geometry_data.max_level0_elements_per_interface);
+                    params.geometry_data.max_level0_elements_per_interface,
+                    params.approximation_data.n_subdivisions);
 
       helper = std::make_unique<dealii::parallel::Helper<dim>>(tria);
 
