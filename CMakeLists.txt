@@ -23,6 +23,16 @@ ENDIF()
 
 DEAL_II_INITIALIZE_CACHED_VARIABLES()
 
+DEAL_II_QUERY_GIT_INFORMATION(PF_APPLICATIONS)
+
+SET(HYPER_DEAL_GIT_BRANCH "@HYPER_DEAL_GIT_BRANCH@")
+SET(HYPER_DEAL_GIT_REVISION "@HYPER_DEAL_GIT_REVISION@")
+
+CONFIGURE_FILE(
+  ${CMAKE_CURRENT_SOURCE_DIR}/include/pf-applications/base/revision.h.in
+  ${CMAKE_CURRENT_BINARY_DIR}/include/pf-applications/base/revision.h
+  )
+
 SET( TARGET_SRC dummy.cc)
 
 PROJECT(pf-applications)
@@ -44,7 +54,7 @@ DEAL_II_INITIALIZE_CACHED_VARIABLES()
 
 DEAL_II_SETUP_TARGET(pf-applications)
 
-target_include_directories(pf-applications PUBLIC "include/")
+target_include_directories(pf-applications PUBLIC "include/" ${CMAKE_CURRENT_BINARY_DIR}/include)
 
 FILE(GLOB SOURCE_FILES "*.cc")
 

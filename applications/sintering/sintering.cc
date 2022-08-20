@@ -36,6 +36,10 @@ static_assert(false, "No grains number has been given!");
 #define WITH_TIMING
 //#define WITH_TIMING_OUTPUT
 
+#include <deal.II/base/revision.h>
+
+#include <pf-applications/base/revision.h>
+
 #include <pf-applications/sintering/driver.h>
 #include <pf-applications/sintering/initial_values_circle.h>
 #include <pf-applications/sintering/initial_values_cloud.h>
@@ -44,10 +48,35 @@ static_assert(false, "No grains number has been given!");
 
 using namespace dealii;
 
+std::string
+concatenate_strings(const int argc, char **argv)
+{
+  std::string result = std::string(argv[0]);
+
+  for (int i = 0; i < argc; ++i)
+    result = result + " " + std::string(argv[i]);
+
+  return result;
+}
+
 int
 main(int argc, char **argv)
 {
   Utilities::MPI::MPI_InitFinalize mpi_init(argc, argv, 1);
+
+  ConditionalOStream pcout(std::cout,
+                           Utilities::MPI::this_mpi_process(MPI_COMM_WORLD) ==
+                             0);
+
+  pcout << "Running: " << concatenate_strings(argc, argv) << std::endl;
+  pcout << "  - deal.II (branch: " << DEAL_II_GIT_BRANCH
+        << "; revision: " << DEAL_II_GIT_REVISION
+        << "; short: " << DEAL_II_GIT_SHORTREV << ")" << std::endl;
+  pcout << "  - deal.II (branch: " << PF_APPLICATIONS_GIT_BRANCH
+        << "; revision: " << PF_APPLICATIONS_GIT_REVISION
+        << "; short: " << PF_APPLICATIONS_GIT_SHORTREV << ")" << std::endl;
+  pcout << std::endl;
+  pcout << std::endl;
 
   Sintering::Parameters params;
 
