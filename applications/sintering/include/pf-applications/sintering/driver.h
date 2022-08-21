@@ -1250,6 +1250,9 @@ namespace Sintering
                      this->n_global_levels_0 - tria.n_global_levels() +
                        params.adaptivity_data.max_refinement_depth);
 
+          pcout << "Number of local refinements to be performed: "
+                << n_init_refinements << std::endl;
+
           for (unsigned int i = 0; i < n_init_refinements; ++i)
             {
               execute_coarsening_and_refinement(t,
