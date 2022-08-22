@@ -82,7 +82,7 @@ main(int argc, char **argv)
 
   if (argc == 1 || std::string(argv[1]) == "--help")
     {
-      params.print();
+      params.print_help();
       return 0;
     }
   else if (std::string(argv[1]) == "--circle")
@@ -98,11 +98,21 @@ main(int argc, char **argv)
                   ExcMessage("Number of grains should be grater than 0!"));
       AssertThrow(r0 > 0,
                   ExcMessage("Particle radius should be grater than 0!"));
+      // Output case specific info
+      pcout << "Mode:             circle" << std::endl;
+      pcout << "Diameter:         " << 15 << std::endl;
+      pcout << "Number of grains: " << n_grains << std::endl;
+      pcout << std::endl;
+
 
       if (argc >= 5)
         params.parse(std::string(argv[4]));
 
       params.check();
+      pcout << "Parameters:" << std::endl;
+      params.print_input();
+      pcout << std::endl;
+
 
       const auto initial_solution =
         std::make_shared<Sintering::InitialValuesCircle<SINTERING_DIM>>(
@@ -128,10 +138,23 @@ main(int argc, char **argv)
       std::ifstream fstream(file_cloud.c_str());
       const auto particles = Sintering::read_particles<SINTERING_DIM>(fstream);
 
+      // Output case specific info
+      pcout << "Mode:       cloud" << std::endl;
+      pcout << "Cloud path: " << file_cloud << std::endl;
+      pcout << "Particles list:" << std::endl;
+      fstream.clear();
+      fstream.seekg(0);
+      pcout << fstream.rdbuf();
+      pcout << std::endl;
+
       if (argc >= 4)
         params.parse(std::string(argv[3]));
 
       params.check();
+
+      pcout << "Parameters:" << std::endl;
+      params.print_input();
+      pcout << std::endl;
 
       const auto initial_solution =
         std::make_shared<Sintering::InitialValuesCloud<SINTERING_DIM>>(
@@ -153,10 +176,19 @@ main(int argc, char **argv)
 
       const std::string restart_path = std::string(argv[2]);
 
+      // Output case specific info
+      pcout << "Mode:         restart" << std::endl;
+      pcout << "Restart path: " << restart_path << std::endl;
+      pcout << std::endl;
+
       if (argc >= 4)
         params.parse(std::string(argv[3]));
 
       params.check();
+
+      pcout << "Parameters:" << std::endl;
+      params.print_input();
+      pcout << std::endl;
 
       Sintering::Problem<SINTERING_DIM> runner(params, restart_path);
     }
