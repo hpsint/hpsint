@@ -98,21 +98,21 @@ main(int argc, char **argv)
                   ExcMessage("Number of grains should be grater than 0!"));
       AssertThrow(r0 > 0,
                   ExcMessage("Particle radius should be grater than 0!"));
+
       // Output case specific info
       pcout << "Mode:             circle" << std::endl;
-      pcout << "Diameter:         " << 15 << std::endl;
+      pcout << "Grains radius:    " << r0 << std::endl;
       pcout << "Number of grains: " << n_grains << std::endl;
       pcout << std::endl;
-
 
       if (argc >= 5)
         params.parse(std::string(argv[4]));
 
       params.check();
+
       pcout << "Parameters:" << std::endl;
       params.print_input();
       pcout << std::endl;
-
 
       const auto initial_solution =
         std::make_shared<Sintering::InitialValuesCircle<SINTERING_DIM>>(
