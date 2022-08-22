@@ -236,7 +236,7 @@ namespace Sintering
     void
     print_input()
     {
-      print(ParameterHandler::OutputStyle::Short);
+      print(ParameterHandler::OutputStyle::ShortJSON);
     }
 
     void

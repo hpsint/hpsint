@@ -101,16 +101,21 @@ main(int argc, char **argv)
 
       // Output case specific info
       pcout << "Mode:             circle" << std::endl;
-      pcout << "Grains radius:    " << r0 << std::endl;
       pcout << "Number of grains: " << n_grains << std::endl;
+      pcout << "Grains radius:    " << r0 << std::endl;
       pcout << std::endl;
 
       if (argc >= 5)
-        params.parse(std::string(argv[4]));
+        {
+          pcout << "Input parameters file:" << std::endl;
+          pcout << std::ifstream(argv[4]).rdbuf() << std::endl;
+
+          params.parse(std::string(argv[4]));
+        }
 
       params.check();
 
-      pcout << "Parameters:" << std::endl;
+      pcout << "Parameters in JSON format:" << std::endl;
       params.print_input();
       pcout << std::endl;
 
@@ -141,6 +146,8 @@ main(int argc, char **argv)
       // Output case specific info
       pcout << "Mode:       cloud" << std::endl;
       pcout << "Cloud path: " << file_cloud << std::endl;
+      pcout << std::endl;
+
       pcout << "Particles list:" << std::endl;
       fstream.clear();
       fstream.seekg(0);
@@ -148,11 +155,16 @@ main(int argc, char **argv)
       pcout << std::endl;
 
       if (argc >= 4)
-        params.parse(std::string(argv[3]));
+        {
+          pcout << "Input parameters file:" << std::endl;
+          pcout << std::ifstream(argv[3]).rdbuf() << std::endl;
+
+          params.parse(std::string(argv[3]));
+        }
 
       params.check();
 
-      pcout << "Parameters:" << std::endl;
+      pcout << "Parameters in JSON format:" << std::endl;
       params.print_input();
       pcout << std::endl;
 
@@ -182,11 +194,16 @@ main(int argc, char **argv)
       pcout << std::endl;
 
       if (argc >= 4)
-        params.parse(std::string(argv[3]));
+        {
+          pcout << "Input parameters file:" << std::endl;
+          pcout << std::ifstream(argv[3]).rdbuf() << std::endl;
+
+          params.parse(std::string(argv[3]));
+        }
 
       params.check();
 
-      pcout << "Parameters:" << std::endl;
+      pcout << "Parameters in JSON format:" << std::endl;
       params.print_input();
       pcout << std::endl;
 
