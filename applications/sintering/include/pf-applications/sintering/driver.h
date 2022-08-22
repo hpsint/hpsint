@@ -1818,15 +1818,23 @@ namespace Sintering
     }
 
 
-    static std::shared_ptr<const FiniteElement<dim>>
+    std::shared_ptr<const FiniteElement<dim>>
     create_fe(const unsigned int fe_degree, const unsigned int n_subdivisions)
     {
       if (n_subdivisions == 1)
-        return std::make_shared<FE_Q<dim>>(fe_degree);
+        {
+          pcout << "Finite element: FE_Q<" << dim << ">, "
+                << "n_subdivisions = " << n_subdivisions << std::endl;
+
+          return std::make_shared<FE_Q<dim>>(fe_degree);
+        }
 
       AssertThrow(fe_degree == 1,
                   ExcMessage(
                     "Either fe-degree or number of subdivisions has to be 1."));
+
+      pcout << "Finite element: FE_Q_iso_Q1<" << dim << ">, "
+            << "n_subdivisions = " << n_subdivisions << std::endl;
 
       return std::make_shared<FE_Q_iso_Q1<dim>>(n_subdivisions);
     }
