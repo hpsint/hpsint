@@ -172,16 +172,14 @@ namespace Sintering
     unsigned int n_delayed = 0;
     if (refine == InitialRefine::Base)
       {
-        if (n_refinements_base > 0)
-          tria.refine_global(n_refinements_base);
+        tria.refine_global(n_refinements_base);
 
         n_global  = n_refinements_base;
         n_delayed = n_refinements_interface;
       }
     else if (refine == InitialRefine::Full)
       {
-        if (n_refinements_base > 0 || n_refinements_interface > 0)
-          tria.refine_global(n_refinements_base + n_refinements_interface);
+        tria.refine_global(n_refinements_base + n_refinements_interface);
 
         n_global  = n_refinements_base + n_refinements_interface;
         n_delayed = 0;
@@ -225,10 +223,7 @@ namespace Sintering
         tria.add_periodicity(periodicity_vector);
       }
 
-    if (n_refinements > 0)
-      {
-        tria.refine_global(n_refinements);
-      }
+    tria.refine_global(n_refinements);
 
     print_mesh_info(bottom_left, top_right, subdivisions, n_refinements, 0);
 
