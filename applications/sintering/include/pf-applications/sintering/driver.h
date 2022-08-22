@@ -155,14 +155,15 @@ namespace Sintering
       , pcout_statistics(std::cout,
                          Utilities::MPI::this_mpi_process(MPI_COMM_WORLD) == 0)
       , tria(MPI_COMM_WORLD)
-      , fe(create_fe(params.approximation_data.fe_degree,
-                     params.approximation_data.n_subdivisions))
       , mapping(1)
       , quad(QIterated<1>(QGauss<1>(params.approximation_data.n_points_1D),
                           params.approximation_data.n_subdivisions))
       , dof_handler(tria)
     {
       MyScope("Problem::constructor");
+
+      fe = create_fe(params.approximation_data.fe_degree,
+                     params.approximation_data.n_subdivisions);
 
       geometry_domain_boundaries    = initial_solution->get_domain_boundaries();
       geometry_r_max                = initial_solution->get_r_max();
@@ -232,14 +233,15 @@ namespace Sintering
       , pcout_statistics(std::cout,
                          Utilities::MPI::this_mpi_process(MPI_COMM_WORLD) == 0)
       , tria(MPI_COMM_WORLD)
-      , fe(create_fe(params.approximation_data.fe_degree,
-                     params.approximation_data.n_subdivisions))
       , mapping(1)
       , quad(QIterated<1>(QGauss<1>(params.approximation_data.n_points_1D),
                           params.approximation_data.n_subdivisions))
       , dof_handler(tria)
     {
       MyScope("Problem::constructor");
+
+      fe = create_fe(params.approximation_data.fe_degree,
+                     params.approximation_data.n_subdivisions);
 
       // 0) load internal state
       unsigned int n_ranks;
@@ -1818,15 +1820,23 @@ namespace Sintering
     }
 
 
-    static std::shared_ptr<const FiniteElement<dim>>
+    std::shared_ptr<const FiniteElement<dim>>
     create_fe(const unsigned int fe_degree, const unsigned int n_subdivisions)
     {
       if (n_subdivisions == 1)
-        return std::make_shared<FE_Q<dim>>(fe_degree);
+        {
+          pcout << "Finite element: FE_Q<" << dim << ">, "
+                << "n_subdivisions = " << n_subdivisions << std::endl;
+
+          return std::make_shared<FE_Q<dim>>(fe_degree);
+        }
 
       AssertThrow(fe_degree == 1,
                   ExcMessage(
                     "Either fe-degree or number of subdivisions has to be 1."));
+
+      pcout << "Finite element: FE_Q_iso_Q1<" << dim << ">, "
+            << "n_subdivisions = " << n_subdivisions << std::endl;
 
       return std::make_shared<FE_Q_iso_Q1<dim>>(n_subdivisions);
     }
