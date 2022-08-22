@@ -233,14 +233,15 @@ namespace Sintering
       , pcout_statistics(std::cout,
                          Utilities::MPI::this_mpi_process(MPI_COMM_WORLD) == 0)
       , tria(MPI_COMM_WORLD)
-      , fe(create_fe(params.approximation_data.fe_degree,
-                     params.approximation_data.n_subdivisions))
       , mapping(1)
       , quad(QIterated<1>(QGauss<1>(params.approximation_data.n_points_1D),
                           params.approximation_data.n_subdivisions))
       , dof_handler(tria)
     {
       MyScope("Problem::constructor");
+
+      fe = create_fe(params.approximation_data.fe_degree,
+                     params.approximation_data.n_subdivisions);
 
       // 0) load internal state
       unsigned int n_ranks;
