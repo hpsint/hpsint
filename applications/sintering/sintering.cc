@@ -87,18 +87,22 @@ main(int argc, char **argv)
     }
   else if (std::string(argv[1]) == "--circle")
     {
-      AssertThrow(3 <= argc && argc <= 4, ExcNotImplemented());
-
-      const unsigned int n_grains = atoi(argv[2]);
-
-      if (argc >= 4)
-        params.parse(std::string(argv[3]));
-
-      params.check();
+      AssertThrow(4 <= argc && argc <= 5, ExcNotImplemented());
 
       // geometry
-      static constexpr double r0              = 15.0 / 2.;
-      static constexpr bool   is_accumulative = false;
+      const unsigned int    n_grains        = atoi(argv[2]);
+      const double          r0              = atof(argv[3]) / 2.;
+      static constexpr bool is_accumulative = false;
+
+      AssertThrow(n_grains > 0,
+                  ExcMessage("Number of grains should be grater than 0!"));
+      AssertThrow(r0 > 0,
+                  ExcMessage("Particle diameter should be grater than 0!"));
+
+      if (argc >= 5)
+        params.parse(std::string(argv[4]));
+        
+      params.check();
 
       const auto initial_solution =
         std::make_shared<Sintering::InitialValuesCircle<SINTERING_DIM>>(
