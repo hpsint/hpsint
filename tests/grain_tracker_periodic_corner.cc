@@ -54,20 +54,16 @@ main(int argc, char **argv)
     {
       top_right[d] = width;
     }
+  std::vector<unsigned int> subdivisions(dim, 10);
 
   // Mesh settings
-  const unsigned int elements_per_interface  = 8;
-  const double       interface_width         = 1.0;
-  const bool         periodic                = true;
-  const bool         with_initial_refinement = true;
+  const double       interface_width = 1.0;
+  const bool         periodic        = true;
+  const unsigned int n_refinements   = 3;
 
-  Sintering::create_mesh(tria,
-                         bottom_left,
-                         top_right,
-                         interface_width,
-                         elements_per_interface,
-                         periodic,
-                         with_initial_refinement);
+
+  Sintering::create_mesh(
+    tria, bottom_left, top_right, subdivisions, periodic, n_refinements);
 
   // setup DoFHandlers
   dof_handler.distribute_dofs(fe);

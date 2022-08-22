@@ -1,0 +1,110 @@
+{
+    "MatrixBased": "false",
+    "Adaptivity": {
+        "BottomFractionOfCells": "0.1",
+        "MaxRefinementDepth": "1",
+        "MinRefinementDepth": "3",
+        "RefinementFrequency": "10",
+        "TopFractionOfCells": "0.3"
+    },
+    "Approximation": {
+        "FEDegree": "1",
+        "NPoints1D": "2",
+        "NSubdivisions": "1"
+    },
+    "Energy": {
+        "A": "16",
+        "B": "0.5",
+        "KappaC": "4",
+        "KappaP": "1"
+    },
+    "Geometry": {
+        "BoundaryFactor": "0.5",
+        "CustomBoundingBox": "false",
+        "ElementsPerInterface": "2",
+        "GlobalRefinement": "Base",
+        "HangingNodeWeight": "1",
+        "InterfaceBufferRatio": "1",
+        "InterfaceWidth": "4",
+        "MaxLevel0ElementsPerInterface": "0.99999",
+        "MaxPrime": "20",
+        "MinimizeOrderParameters": "true",
+        "Periodic": "false",
+        "BoundingBox": {
+            "Xmax": "0",
+            "Xmin": "0",
+            "Ymax": "0",
+            "Ymin": "0",
+            "Zmax": "0",
+            "Zmin": "0"
+        }
+    },
+    "GrainTracker": {
+        "BufferDistanceRatio": "0.05",
+        "GrainTrackerFrequency": "25",
+        "ThresholdLower": "0.01",
+        "ThresholdUpper": "1.01"
+    },
+    "Mobility": {
+        "L": "1",
+        "Mgb": "0.4",
+        "Msurf": "4",
+        "Mvap": "1e-10",
+        "Mvol": "0.01"
+    },
+    "NonLinearData": {
+        "LinearRelativeTolerance" : 1e-2,
+        "NewtonUseDamping" : true,
+        "NonLinearSolverType" : "NOX",
+        "NOXData": {
+            "DirectionMethod": "Newton",
+            "LineSearchInterpolationType": "Cubic",
+            "LineSearchMethod": "Polynomial",
+            "OutputInformation": "0"
+        }
+    },
+    "Output": {
+        "Contour": "true",
+        "ContourNCoarseningSteps": "0",
+        "Debug": "false",
+        "Fields": "bnds",
+        "HigherOrderCells": "false",
+        "OutputTimeInterval": "50",
+        "Regular": "false",
+        "VtkPath": "."
+    },
+    "Preconditioners": {
+        "OuterPreconditioner": "BlockPreconditioner2",
+        "BlockPreconditioner2": {
+            "Block0Preconditioner": "ILU",
+            "Block1Approximation": "avg",
+            "Block1Preconditioner": "BlockILU"
+        }
+    },
+    "Profiling": {
+        "OutputTimeInterval": "900",
+        "RunVmults": "false",
+        "OutputMemoryConsumption" : "false"
+    },
+    "Restart": {
+        "FlexibleOutput": "true",
+        "FullHistory": "true",
+        "Interval": "500",
+        "MaximalOutput": "1",
+        "Prefix": "./restart",
+        "Type": "simulation_time"
+    },
+    "TimeIntegration": {
+        "IntegrationScheme" : "BDF2",
+        "DesirableLinearIterations": "100",
+        "DesirableNewtonIterations": "5",
+        "GrowthFactor": "1.2",
+        "Predictor": "None",
+        "SanityCheck": "false",
+        "TimeEnd": "5000",
+        "TimeStart": "0",
+        "TimeStepInit": "0.1",
+        "TimeStepMax": "100",
+        "TimeStepMin": "1e-05"
+    }
+}
