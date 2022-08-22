@@ -91,17 +91,17 @@ main(int argc, char **argv)
 
       // geometry
       const unsigned int    n_grains        = atoi(argv[2]);
-      const double          r0              = atof(argv[3]) / 2.;
+      const double          r0              = atof(argv[3]);
       static constexpr bool is_accumulative = false;
 
       AssertThrow(n_grains > 0,
                   ExcMessage("Number of grains should be grater than 0!"));
       AssertThrow(r0 > 0,
-                  ExcMessage("Particle diameter should be grater than 0!"));
+                  ExcMessage("Particle radius should be grater than 0!"));
 
       if (argc >= 5)
         params.parse(std::string(argv[4]));
-        
+
       params.check();
 
       const auto initial_solution =
