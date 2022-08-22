@@ -227,7 +227,20 @@ namespace Sintering
     }
 
     void
-    print()
+    print_help()
+    {
+      print(ParameterHandler::OutputStyle::Description |
+            ParameterHandler::OutputStyle::KeepDeclarationOrder);
+    }
+
+    void
+    print_input()
+    {
+      print(ParameterHandler::OutputStyle::ShortJSON);
+    }
+
+    void
+    print(const ParameterHandler::OutputStyle style)
     {
       dealii::ParameterHandler prm;
       add_parameters(prm);
@@ -236,10 +249,7 @@ namespace Sintering
         std::cout, Utilities::MPI::this_mpi_process(MPI_COMM_WORLD) == 0);
 
       if (pcout.is_active())
-        prm.print_parameters(
-          pcout.get_stream(),
-          ParameterHandler::OutputStyle::Description |
-            ParameterHandler::OutputStyle::KeepDeclarationOrder);
+        prm.print_parameters(pcout.get_stream(), style);
     }
 
   private:
