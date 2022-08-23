@@ -1328,7 +1328,7 @@ namespace Sintering
                     nonlinear_operator
                       .template evaluate_nonlinear_residual<false>(extrap,
                                                                    solution);
-                    extrap.sadd(dt, solution);
+                    extrap.sadd(-dt, solution);
                   }
                 else if (params.time_integration_data.predictor == "Midpoint")
                   {
@@ -1338,12 +1338,12 @@ namespace Sintering
                     nonlinear_operator
                       .template evaluate_nonlinear_residual<false>(midpoint,
                                                                    solution);
-                    midpoint.sadd(dt / 2., solution);
+                    midpoint.sadd(-dt / 2., solution);
 
                     nonlinear_operator
                       .template evaluate_nonlinear_residual<false>(extrap,
                                                                    midpoint);
-                    extrap.sadd(dt, solution);
+                    extrap.sadd(-dt, solution);
                   }
                 else if (params.time_integration_data.predictor == "Linear" &&
                          dts.size() > 1)
