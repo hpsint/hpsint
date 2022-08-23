@@ -109,16 +109,26 @@ namespace Sintering
               const Point<dim> &  bottom_left,
               const Point<dim> &  top_right,
               const double        interface_width,
-              const unsigned int  elements_per_interface,
+              const unsigned int  divisions_per_interface,
               const bool          periodic,
               const InitialRefine refine,
-              const unsigned int  max_prime                         = 0,
-              const double        max_level0_elements_per_interface = 1.0)
+              const unsigned int  max_prime                          = 0,
+              const double        max_level0_divisions_per_interface = 1.0,
+              const unsigned int  divisions_per_element              = 1)
   {
+    // Domain size
     const auto domain_size = top_right - bottom_left;
 
+    // Recompute divisions to elements
+    const double elements_per_interface =
+      static_cast<double>(divisions_per_interface) / divisions_per_element;
+    const double max_level0_elements_per_interface =
+      max_level0_divisions_per_interface / divisions_per_element;
+
+    // Desirable smallest element size
     const double h_e = interface_width / elements_per_interface;
 
+    // Number of refinements to get the desirable element size
     const unsigned int n_refinements_interface =
       static_cast<unsigned int>(std::ceil(
         std::log2(elements_per_interface / max_level0_elements_per_interface)));
