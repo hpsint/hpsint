@@ -109,7 +109,7 @@ namespace Sintering
               const Point<dim> &  bottom_left,
               const Point<dim> &  top_right,
               const double        interface_width,
-              const unsigned int  elements_per_interface,
+              const unsigned int  divs_per_interface,
               const bool          periodic,
               const InitialRefine refine,
               const unsigned int  max_prime                         = 0,
@@ -118,10 +118,14 @@ namespace Sintering
   {
     const auto domain_size = top_right - bottom_left;
 
+    const double elements_per_interface =
+      static_cast<double>(divs_per_interface) / divs_per_element;
+
     const double h_e = interface_width / elements_per_interface;
 
-    unsigned int n_refinements_interface = static_cast<unsigned int>(std::ceil(
-      std::log2(elements_per_interface / max_level0_elements_per_interface)));
+    const unsigned int n_refinements_interface =
+      static_cast<unsigned int>(std::ceil(
+        std::log2(elements_per_interface / max_level0_elements_per_interface)));
 
     std::vector<unsigned int> subdivisions(dim);
     for (unsigned int d = 0; d < dim; d++)
@@ -146,26 +150,6 @@ namespace Sintering
           {
             subdivisions[d] = static_cast<unsigned int>(std::ceil(
               static_cast<double>(subdivisions[d]) / n_ref * optimal_prime));
-          }
-      }
-
-    // Reduce the number of refinements based on the number of subdivisions
-    // within the elements
-    unsigned int required_reduction = divs_per_element - 1;
-    if (required_reduction > 0)
-      {
-        if (n_refinements_base > 0)
-          {
-            const unsigned int max_reduction =
-              std::min(n_refinements_base, required_reduction);
-            n_refinements_base -= max_reduction;
-            required_reduction -= max_reduction;
-          }
-        if (required_reduction > 0 && n_refinements_interface > 0)
-          {
-            const unsigned int max_reduction =
-              std::min(n_refinements_interface, required_reduction);
-            n_refinements_interface -= max_reduction;
           }
       }
 
