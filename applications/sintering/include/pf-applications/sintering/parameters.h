@@ -76,8 +76,8 @@ namespace Sintering
 
   struct TimeIntegrationData
   {
-    std::string interation_scheme = "BDF1";
-    std::string predictor         = "Euler";
+    std::string interation_scheme = "BDF2";
+    std::string predictor         = "None";
 
     double       time_start                  = 0;
     double       time_end                    = 1e3;
