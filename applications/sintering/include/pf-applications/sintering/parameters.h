@@ -25,16 +25,16 @@ namespace Sintering
 
   struct GeometryData
   {
-    unsigned int    elements_per_interface = 8; // 4 - works well with AMR=off
-    double          boundary_factor        = 0.5;
-    double          interface_width        = 2.0;
-    bool            minimize_order_parameters         = true;
-    double          interface_buffer_ratio            = 1.0;
-    bool            periodic                          = false;
-    bool            custom_bounding_box               = false;
-    unsigned int    max_prime                         = 20;
-    std::string     global_refinement                 = "None";
-    double          max_level0_elements_per_interface = 1.0 - 1e-9;
+    unsigned int    divisions_per_interface = 8; // 4 - works well with AMR=off
+    double          boundary_factor         = 0.5;
+    double          interface_width         = 2.0;
+    bool            minimize_order_parameters          = true;
+    double          interface_buffer_ratio             = 1.0;
+    bool            periodic                           = false;
+    bool            custom_bounding_box                = false;
+    unsigned int    max_prime                          = 20;
+    std::string     global_refinement                  = "None";
+    double          max_level0_divisions_per_interface = 1.0 - 1e-9;
     BoundingBoxData bounding_box_data;
 
     double hanging_node_weight = 1.0;
@@ -277,9 +277,9 @@ namespace Sintering
 
 
       prm.enter_subsection("Geometry");
-      prm.add_parameter("ElementsPerInterface",
-                        geometry_data.elements_per_interface,
-                        "Number of elements per interface.");
+      prm.add_parameter("DivisionsPerInterface",
+                        geometry_data.divisions_per_interface,
+                        "Number of divisions per interface.");
       prm.add_parameter("BoundaryFactor",
                         geometry_data.boundary_factor,
                         "Bounding box padding ratio (to the largest radius).");
@@ -305,9 +305,9 @@ namespace Sintering
                         geometry_data.global_refinement,
                         "Perform global refinements.",
                         Patterns::Selection("None|Base|Full"));
-      prm.add_parameter("MaxLevel0ElementsPerInterface",
-                        geometry_data.max_level0_elements_per_interface,
-                        "Maximum initial number of elements per interface.");
+      prm.add_parameter("MaxLevel0DivisionsPerInterface",
+                        geometry_data.max_level0_divisions_per_interface,
+                        "Maximum initial number of divisions per interface.");
 
       prm.enter_subsection("BoundingBox");
       prm.add_parameter("Xmin",

@@ -3,7 +3,7 @@ subsection Approximation
     set NPoints1D = 2
 end
 subsection Geometry
-    set ElementsPerInterface = 4
+    set DivisionsPerInterface = 4
     set BoundaryFactor = 0.5
     set InterfaceWidth = 2.0
     set MinimizeOrderParameters = true
