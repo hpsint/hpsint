@@ -202,6 +202,61 @@ namespace Sintering
 
     template <typename VectorTypeValue, typename VectorTypeGradient>
     DEAL_II_ALWAYS_INLINE VectorizedArrayType
+    M_vol(const VectorizedArrayType &c) const
+    {
+      VectorizedArrayType phi = c * c * c * (10.0 - 15.0 * c + 6.0 * c * c);
+
+      phi = compare_and_apply_mask<SIMDComparison::less_than>(
+        phi, VectorizedArrayType(0.0), VectorizedArrayType(0.0), phi);
+      phi = compare_and_apply_mask<SIMDComparison::greater_than>(
+        phi, VectorizedArrayType(1.0), VectorizedArrayType(1.0), phi);
+
+      return Mvol * phi;
+    }
+
+    template <typename VectorTypeValue, typename VectorTypeGradient>
+    DEAL_II_ALWAYS_INLINE VectorizedArrayType
+    M_vap(const VectorizedArrayType &c) const
+    {
+      VectorizedArrayType phi = c * c * c * (10.0 - 15.0 * c + 6.0 * c * c);
+
+      phi = compare_and_apply_mask<SIMDComparison::less_than>(
+        phi, VectorizedArrayType(0.0), VectorizedArrayType(0.0), phi);
+      phi = compare_and_apply_mask<SIMDComparison::greater_than>(
+        phi, VectorizedArrayType(1.0), VectorizedArrayType(1.0), phi);
+
+      return Mvap * (1.0 - phi);
+    }
+
+    template <typename VectorTypeValue, typename VectorTypeGradient>
+    DEAL_II_ALWAYS_INLINE VectorizedArrayType
+    M_surf(const VectorizedArrayType &                c,
+           const Tensor<1, dim, VectorizedArrayType> &c_grad) const
+    {
+      (void)c_grad;
+
+      return Msurf * 4.0 * c * c * (1.0 - c) * (1.0 - c);
+    }
+
+    template <typename VectorTypeValue, typename VectorTypeGradient>
+    DEAL_II_ALWAYS_INLINE VectorizedArrayType
+    M_gb(const VectorTypeValue &   etas,
+         const unsigned int        etas_size,
+         const VectorTypeGradient &etas_grad) const
+    {
+      (void)etas_grad;
+
+      VectorizedArrayType etaijSum = 0.0;
+      for (unsigned int i = 0; i < etas_size; ++i)
+        for (unsigned int j = 0; j < i; ++j)
+          etaijSum += etas[i] * etas[j];
+      etaijSum *= 2.0;
+
+      return Mgb * etaijSum;
+    }
+
+    template <typename VectorTypeValue, typename VectorTypeGradient>
+    DEAL_II_ALWAYS_INLINE VectorizedArrayType
     dM_dc(const VectorizedArrayType &                c,
           const VectorTypeValue &                    etas,
           const Tensor<1, dim, VectorizedArrayType> &c_grad,
