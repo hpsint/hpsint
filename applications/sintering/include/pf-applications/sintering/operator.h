@@ -200,7 +200,6 @@ namespace Sintering
       return M;
     }
 
-    template <typename VectorTypeValue, typename VectorTypeGradient>
     DEAL_II_ALWAYS_INLINE VectorizedArrayType
     M_vol(const VectorizedArrayType &c) const
     {
@@ -214,7 +213,6 @@ namespace Sintering
       return Mvol * phi;
     }
 
-    template <typename VectorTypeValue, typename VectorTypeGradient>
     DEAL_II_ALWAYS_INLINE VectorizedArrayType
     M_vap(const VectorizedArrayType &c) const
     {
@@ -228,7 +226,6 @@ namespace Sintering
       return Mvap * (1.0 - phi);
     }
 
-    template <typename VectorTypeValue, typename VectorTypeGradient>
     DEAL_II_ALWAYS_INLINE VectorizedArrayType
     M_surf(const VectorizedArrayType &                c,
            const Tensor<1, dim, VectorizedArrayType> &c_grad) const
@@ -1653,7 +1650,7 @@ namespace Sintering
 
     template <int n_comp, int n_grains>
     void
-    do_add_data_vectors(DataOut<dim> &               data_out,
+    do_add_data_vectors(DataOutWithRanges<dim> &     data_out,
                         const BlockVectorType &      vec,
                         const std::set<std::string> &fields_list) const
     {
@@ -1668,10 +1665,14 @@ namespace Sintering
         FieldM,
         FieldDM,
         FieldKappa,
-        FieldL
+        FieldL,
+        FieldFlux
       };
 
-      const std::array<std::tuple<std::string, OutputFields, unsigned int>, 7>
+      constexpr unsigned int n_data_variants = 8;
+
+      const std::array<std::tuple<std::string, OutputFields, unsigned int>,
+                       n_data_variants>
         possible_entries = {
           {{"bnds", FieldBnds, 1},
            {"dt", FieldDt, 1},
@@ -1679,10 +1680,11 @@ namespace Sintering
            {"M", FieldM, 1},
            {"dM", FieldDM, 2 + n_grains},
            {"kappa", FieldKappa, 2},
-           {"L", FieldL, 1}}};
+           {"L", FieldL, 1},
+           {"flux", FieldFlux, 4 * dim}}};
 
       // A better design is possible, but at the moment this is sufficient
-      std::array<bool, 7> entries_mask;
+      std::array<bool, n_data_variants> entries_mask;
       entries_mask.fill(false);
 
       unsigned int n_entries = 0;
@@ -1839,6 +1841,25 @@ namespace Sintering
                   temp[counter++] = VectorizedArrayType(L);
                 }
 
+              if (entries_mask[FieldFlux])
+                {
+                  auto j_vol  = -1. * mobility.M_vol(c) * mu_grad;
+                  auto j_vap  = -1. * mobility.M_vap(c) * mu_grad;
+                  auto j_surf = -1. * mobility.M_surf(c, c_grad) * mu_grad;
+                  auto j_gb =
+                    -1. * mobility.M_gb(etas, n_grains, etas_grad) * mu_grad;
+
+                  for (unsigned int i = 0; i < dim; ++i)
+                    {
+                      temp[counter + 0 * dim + i] = j_vol[i];
+                      temp[counter + 1 * dim + i] = j_vap[i];
+                      temp[counter + 2 * dim + i] = j_surf[i];
+                      temp[counter + 3 * dim + i] = j_gb[i];
+                    }
+
+                  counter += 4 * dim;
+                }
+
               for (unsigned int c = 0; c < n_entries; ++c)
                 buffer[c * fe_eval.n_q_points + q] = temp[c];
             }
@@ -1851,6 +1872,19 @@ namespace Sintering
                 fe_eval.begin_dof_values());
 
               fe_eval.set_dof_values_plain(data_vectors[c]);
+            }
+        }
+
+      if (entries_mask[FieldFlux])
+        {
+          const unsigned int offset = n_entries - 4 * dim;
+          std::vector fluxes{"flux_vol", "flux_vap", "flux_surf", "flux_gb"};
+
+          for (unsigned int i = 0; i < fluxes.size(); i++)
+            {
+              data_out.wrap_range_to_vector(offset + i * dim,
+                                            offset + (i + 1) * dim - 1,
+                                            fluxes[i]);
             }
         }
 
@@ -1925,6 +1959,12 @@ namespace Sintering
           names.push_back("L");
         }
 
+      if (entries_mask[FieldFlux])
+        {
+          for (unsigned int i = 0; i < 4 * dim; ++i)
+            names.push_back("flux" + std::to_string(i));
+        }
+
       // Add data to output
       for (unsigned int c = 0; c < n_entries; ++c)
         {
@@ -1936,7 +1976,7 @@ namespace Sintering
     }
 
     void
-    add_data_vectors(DataOut<dim> &               data_out,
+    add_data_vectors(DataOutWithRanges<dim> &     data_out,
                      const BlockVectorType &      vec,
                      const std::set<std::string> &fields_list) const
     {

@@ -55,7 +55,6 @@
 #include <deal.II/multigrid/mg_transfer_global_coarsening.h>
 #include <deal.II/multigrid/multigrid.h>
 
-#include <deal.II/numerics/data_out.h>
 #include <deal.II/numerics/error_estimator.h>
 #include <deal.II/numerics/vector_tools.h>
 
@@ -66,6 +65,7 @@
 #include <pf-applications/lac/solvers_linear.h>
 #include <pf-applications/lac/solvers_nonlinear.h>
 
+#include <pf-applications/numerics/data_out.h>
 #include <pf-applications/numerics/vector_tools.h>
 
 #include <pf-applications/sintering/initial_values.h>
@@ -1768,7 +1768,7 @@ namespace Sintering
           flags.write_higher_order_cells =
             params.output_data.higher_order_cells;
 
-          DataOut<dim> data_out;
+          DataOutWithRanges<dim> data_out;
           data_out.set_flags(flags);
 
           if (params.output_data.fields.count("CH"))
