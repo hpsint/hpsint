@@ -104,9 +104,9 @@ namespace Sintering
   {
     std::string type = "Abstract";
 
-    double time_scale   = 0;
-    double length_scale = 0;
-    double energy_scale = 0;
+    double time_scale   = 1.;
+    double length_scale = 1.;
+    double energy_scale = 1.;
 
     EnergyAbstractData  energy_abstract_data;
     EnergyRealisticData energy_realistic_data;
