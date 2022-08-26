@@ -12,12 +12,6 @@
         "NPoints1D": "2",
         "NSubdivisions": "1"
     },
-    "Energy": {
-        "A": "16",
-        "B": "0.5",
-        "KappaC": "4",
-        "KappaP": "1"
-    },
     "Geometry": {
         "BoundaryFactor": "0.5",
         "CustomBoundingBox": "false",
@@ -42,12 +36,21 @@
         "ThresholdLower": "0.01",
         "ThresholdUpper": "1.01"
     },
-    "Mobility": {
-        "L": "1",
-        "Mgb": "0.4",
-        "Msurf": "4",
-        "Mvap": "1e-10",
-        "Mvol": "0.01"
+    "Material": {
+        "EnergyAbstract": {
+            "A": "16",
+            "B": "0.5",
+            "KappaC": "4",
+            "KappaP": "1"
+        },
+        "MobilityAbstract": {
+            "L": "1",
+            "Mgb": "0.4",
+            "Msurf": "4",
+            "Mvap": "1e-10",
+            "Mvol": "0.01"
+        },
+        "Type": "Abstract"
     },
     "NonLinearData": {
         "LinearRelativeTolerance" : 1e-2, "NewtonUseDamping" : true, "NonLinearSolverType" : "NOX"

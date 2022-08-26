@@ -11,12 +11,6 @@
         "FEDegree": "1",
         "NPoints1D": "2"
     },
-    "Energy": {
-        "A": "16",
-        "B": "1",
-        "KappaC": "1",
-        "KappaP": "0.5"
-    },
     "Geometry": {
         "BoundaryFactor": "0",
         "CustomBoundingBox": "true",
@@ -41,12 +35,21 @@
         "ThresholdLower": "0.01",
         "ThresholdUpper": "1.01"
     },
-    "Mobility": {
-        "L": "1",
-        "Mgb": "0.4",
-        "Msurf": "4",
-        "Mvap": "1e-10",
-        "Mvol": "0.01"
+    "Material": {
+        "EnergyAbstract": {
+            "A": "16",
+            "B": "1",
+            "KappaC": "1",
+            "KappaP": "0.5"
+        },
+        "MobilityAbstract": {
+            "L": "1",
+            "Mgb": "0.4",
+            "Msurf": "4",
+            "Mvap": "1e-10",
+            "Mvol": "0.01"
+        },
+        "Type": "Abstract"
     },
     "Output": {
         "Contour": "true",
