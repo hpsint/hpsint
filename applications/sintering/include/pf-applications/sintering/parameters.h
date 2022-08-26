@@ -93,18 +93,27 @@ namespace Sintering
 
   struct OutputData
   {
-    bool                  regular              = true;
-    bool                  contours             = true;
-    unsigned int          n_coarsening_steps   = 0;
-    bool                  porosity             = false;
-    bool                  shrinkage            = false;
-    bool                  debug                = false;
-    bool                  higher_order_cells   = false;
-    double                output_time_interval = 10;
-    std::string           vtk_path             = ".";
-    std::set<std::string> fields =
-      {"CH", "AC", "bnds", "dt", "d2f", "M", "dM", "kappa", "L", "subdomain"};
-    bool mesh_overhead_estimate = false;
+    bool                  regular                = true;
+    bool                  contours               = true;
+    unsigned int          n_coarsening_steps     = 0;
+    bool                  porosity               = false;
+    bool                  shrinkage              = false;
+    bool                  debug                  = false;
+    bool                  higher_order_cells     = false;
+    double                output_time_interval   = 10;
+    std::string           vtk_path               = ".";
+    std::set<std::string> fields                 = {"CH",
+                                    "AC",
+                                    "bnds",
+                                    "dt",
+                                    "d2f",
+                                    "M",
+                                    "dM",
+                                    "kappa",
+                                    "L",
+                                    "flux",
+                                    "subdomain"};
+    bool                  mesh_overhead_estimate = false;
   };
 
   struct RestartData
@@ -471,7 +480,7 @@ namespace Sintering
                         output_data.vtk_path,
                         "Path to write VTK files.");
       const std::string output_fields_options =
-        "CH|AC|bnds|dt|d2f|M|dM|kappa|L|subdomain";
+        "CH|AC|bnds|dt|d2f|M|dM|kappa|L|flux|subdomain";
       prm.add_parameter("Fields",
                         output_data.fields,
                         "Fields to output.",

@@ -200,6 +200,58 @@ namespace Sintering
       return M;
     }
 
+    DEAL_II_ALWAYS_INLINE VectorizedArrayType
+    M_vol(const VectorizedArrayType &c) const
+    {
+      VectorizedArrayType phi = c * c * c * (10.0 - 15.0 * c + 6.0 * c * c);
+
+      phi = compare_and_apply_mask<SIMDComparison::less_than>(
+        phi, VectorizedArrayType(0.0), VectorizedArrayType(0.0), phi);
+      phi = compare_and_apply_mask<SIMDComparison::greater_than>(
+        phi, VectorizedArrayType(1.0), VectorizedArrayType(1.0), phi);
+
+      return Mvol * phi;
+    }
+
+    DEAL_II_ALWAYS_INLINE VectorizedArrayType
+    M_vap(const VectorizedArrayType &c) const
+    {
+      VectorizedArrayType phi = c * c * c * (10.0 - 15.0 * c + 6.0 * c * c);
+
+      phi = compare_and_apply_mask<SIMDComparison::less_than>(
+        phi, VectorizedArrayType(0.0), VectorizedArrayType(0.0), phi);
+      phi = compare_and_apply_mask<SIMDComparison::greater_than>(
+        phi, VectorizedArrayType(1.0), VectorizedArrayType(1.0), phi);
+
+      return Mvap * (1.0 - phi);
+    }
+
+    DEAL_II_ALWAYS_INLINE VectorizedArrayType
+    M_surf(const VectorizedArrayType &                c,
+           const Tensor<1, dim, VectorizedArrayType> &c_grad) const
+    {
+      (void)c_grad;
+
+      return Msurf * 4.0 * c * c * (1.0 - c) * (1.0 - c);
+    }
+
+    template <typename VectorTypeValue, typename VectorTypeGradient>
+    DEAL_II_ALWAYS_INLINE VectorizedArrayType
+    M_gb(const VectorTypeValue &   etas,
+         const unsigned int        etas_size,
+         const VectorTypeGradient &etas_grad) const
+    {
+      (void)etas_grad;
+
+      VectorizedArrayType etaijSum = 0.0;
+      for (unsigned int i = 0; i < etas_size; ++i)
+        for (unsigned int j = 0; j < i; ++j)
+          etaijSum += etas[i] * etas[j];
+      etaijSum *= 2.0;
+
+      return Mgb * etaijSum;
+    }
+
     template <typename VectorTypeValue, typename VectorTypeGradient>
     DEAL_II_ALWAYS_INLINE VectorizedArrayType
     dM_dc(const VectorizedArrayType &                c,
@@ -1613,10 +1665,14 @@ namespace Sintering
         FieldM,
         FieldDM,
         FieldKappa,
-        FieldL
+        FieldL,
+        FieldFlux
       };
 
-      const std::array<std::tuple<std::string, OutputFields, unsigned int>, 7>
+      constexpr unsigned int n_data_variants = 8;
+
+      const std::array<std::tuple<std::string, OutputFields, unsigned int>,
+                       n_data_variants>
         possible_entries = {
           {{"bnds", FieldBnds, 1},
            {"dt", FieldDt, 1},
@@ -1624,10 +1680,11 @@ namespace Sintering
            {"M", FieldM, 1},
            {"dM", FieldDM, 2 + n_grains},
            {"kappa", FieldKappa, 2},
-           {"L", FieldL, 1}}};
+           {"L", FieldL, 1},
+           {"flux", FieldFlux, 4 * dim}}};
 
       // A better design is possible, but at the moment this is sufficient
-      std::array<bool, 7> entries_mask;
+      std::array<bool, n_data_variants> entries_mask;
       entries_mask.fill(false);
 
       unsigned int n_entries = 0;
@@ -1784,6 +1841,25 @@ namespace Sintering
                   temp[counter++] = VectorizedArrayType(L);
                 }
 
+              if (entries_mask[FieldFlux])
+                {
+                  auto j_vol  = -1. * mobility.M_vol(c) * mu_grad;
+                  auto j_vap  = -1. * mobility.M_vap(c) * mu_grad;
+                  auto j_surf = -1. * mobility.M_surf(c, c_grad) * mu_grad;
+                  auto j_gb =
+                    -1. * mobility.M_gb(etas, n_grains, etas_grad) * mu_grad;
+
+                  for (unsigned int i = 0; i < dim; ++i)
+                    {
+                      temp[counter + 0 * dim + i] = j_vol[i];
+                      temp[counter + 1 * dim + i] = j_vap[i];
+                      temp[counter + 2 * dim + i] = j_surf[i];
+                      temp[counter + 3 * dim + i] = j_gb[i];
+                    }
+
+                  counter += 4 * dim;
+                }
+
               for (unsigned int c = 0; c < n_entries; ++c)
                 buffer[c * fe_eval.n_q_points + q] = temp[c];
             }
@@ -1868,6 +1944,15 @@ namespace Sintering
       if (entries_mask[FieldL])
         {
           names.push_back("L");
+        }
+
+      if (entries_mask[FieldFlux])
+        {
+          std::vector fluxes{"flux_vol", "flux_vap", "flux_surf", "flux_gb"};
+
+          for (const auto &flux_name : fluxes)
+            for (unsigned int i = 0; i < dim; ++i)
+              names.push_back(flux_name);
         }
 
       // Add data to output
