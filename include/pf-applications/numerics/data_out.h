@@ -15,27 +15,36 @@ namespace dealii
                  DataComponentInterpretation::DataComponentInterpretation>>
     get_nonscalar_data_ranges() const
     {
-      return nonscalar_ranges;
-    }
+      auto ranges = DataOut<dim>::get_nonscalar_data_ranges();
 
-    void
-    wrap_range_to_vector(const unsigned int from,
-                         const unsigned int to,
-                         std::string        name)
-    {
-      nonscalar_ranges.emplace_back(
-        from,
-        to,
-        name,
-        DataComponentInterpretation::component_is_part_of_vector);
-    }
+      auto names = this->get_dataset_names();
 
-  private:
-    std::vector<
-      std::tuple<unsigned int,
-                 unsigned int,
-                 std::string,
-                 DataComponentInterpretation::DataComponentInterpretation>>
-      nonscalar_ranges;
+      for (unsigned int i = 0; i < names.size();)
+        {
+          unsigned int n_components = 1;
+          for (unsigned int j = i + 1; j < names.size(); ++j)
+            if (names[j] == names[i])
+              n_components++;
+            else
+              break;
+
+          if (n_components == dim)
+            ranges.emplace_back(
+              i,
+              i + n_components - 1,
+              names[i],
+              DataComponentInterpretation::component_is_part_of_vector);
+          else if (n_components == dim * dim)
+            ranges.emplace_back(
+              i,
+              i + n_components - 1,
+              names[i],
+              DataComponentInterpretation::component_is_part_of_tensor);
+
+          i += n_components;
+        }
+
+      return ranges;
+    }
   };
 } // namespace dealii

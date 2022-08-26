@@ -1875,19 +1875,6 @@ namespace Sintering
             }
         }
 
-      if (entries_mask[FieldFlux])
-        {
-          const unsigned int offset = n_entries - 4 * dim;
-          std::vector fluxes{"flux_vol", "flux_vap", "flux_surf", "flux_gb"};
-
-          for (unsigned int i = 0; i < fluxes.size(); i++)
-            {
-              data_out.wrap_range_to_vector(offset + i * dim,
-                                            offset + (i + 1) * dim - 1,
-                                            fluxes[i]);
-            }
-        }
-
       // TODO: remove once FEEvaluation::set_dof_values_plain()
       // sets the values of constrainging DoFs in the case of PBC
       for (unsigned int c = 0; c < n_entries; ++c)
@@ -1961,8 +1948,11 @@ namespace Sintering
 
       if (entries_mask[FieldFlux])
         {
-          for (unsigned int i = 0; i < 4 * dim; ++i)
-            names.push_back("flux" + std::to_string(i));
+          std::vector fluxes{"flux_vol", "flux_vap", "flux_surf", "flux_gb"};
+
+          for (const auto &flux_name : fluxes)
+            for (unsigned int i = 0; i < dim; ++i)
+              names.push_back(flux_name);
         }
 
       // Add data to output
