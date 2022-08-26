@@ -13,7 +13,7 @@ namespace dealii
                  unsigned int,
                  std::string,
                  DataComponentInterpretation::DataComponentInterpretation>>
-    get_nonscalar_data_ranges() const
+    get_nonscalar_data_ranges() const override
     {
       auto ranges = DataOut<dim>::get_nonscalar_data_ranges();
 

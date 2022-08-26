@@ -1650,7 +1650,7 @@ namespace Sintering
 
     template <int n_comp, int n_grains>
     void
-    do_add_data_vectors(DataOutWithRanges<dim> &     data_out,
+    do_add_data_vectors(DataOut<dim> &               data_out,
                         const BlockVectorType &      vec,
                         const std::set<std::string> &fields_list) const
     {
@@ -1966,7 +1966,7 @@ namespace Sintering
     }
 
     void
-    add_data_vectors(DataOutWithRanges<dim> &     data_out,
+    add_data_vectors(DataOut<dim> &               data_out,
                      const BlockVectorType &      vec,
                      const std::set<std::string> &fields_list) const
     {
