@@ -57,7 +57,7 @@ namespace Sintering
     unsigned int grain_tracker_frequency = 10; // 0 - no grain tracker
   };
 
-  struct EnergyData
+  struct EnergyAbstractData
   {
     double A       = 16;
     double B       = 1;
@@ -65,13 +65,54 @@ namespace Sintering
     double kappa_p = 0.5;
   };
 
-  struct MobilityData
+  struct EnergyRealisticData
+  {
+    double surface_energy        = 0;
+    double grain_boundary_energy = 0;
+  };
+
+  struct MobilityAbstractData
   {
     double Mvol  = 1e-2;
     double Mvap  = 1e-10;
     double Msurf = 4;
     double Mgb   = 0.4;
     double L     = 1;
+  };
+
+  struct MobilityRealisticData
+  {
+    double omega = 0;
+
+    double D_vol0  = 0;
+    double D_vap0  = 0;
+    double D_surf0 = 0;
+    double D_gb0   = 0;
+
+    double Q_vol  = 0;
+    double Q_vap  = 0;
+    double Q_surf = 0;
+    double Q_gb   = 0;
+
+    double D_gb_mob0 = 0;
+    double Q_gb_mob  = 0;
+
+    std::string arrhenius_unit = "Boltzmann";
+  };
+
+  struct MaterialData
+  {
+    std::string type = "Abstract";
+
+    double time_scale   = 0;
+    double length_scale = 0;
+    double energy_scale = 0;
+
+    EnergyAbstractData  energy_abstract_data;
+    EnergyRealisticData energy_realistic_data;
+
+    MobilityAbstractData  mobility_abstract_data;
+    MobilityRealisticData mobility_realistic_data;
   };
 
   struct TimeIntegrationData
@@ -179,8 +220,7 @@ namespace Sintering
     GeometryData        geometry_data;
     AdaptivityData      adaptivity_data;
     GrainTrackerData    grain_tracker_data;
-    EnergyData          energy_data;
-    MobilityData        mobility_data;
+    MaterialData        material_data;
     TimeIntegrationData time_integration_data;
     OutputData          output_data;
     RestartData         restart_data;
@@ -381,34 +421,101 @@ namespace Sintering
       prm.leave_subsection();
 
 
-      prm.enter_subsection("Energy");
-      prm.add_parameter("A", energy_data.A, "Energy parameter A.");
-      prm.add_parameter("B", energy_data.B, "Energy parameter B.");
+      prm.enter_subsection("MaterialData");
+      prm.add_parameter("Type",
+                        material_data.type,
+                        "Material type.",
+                        Patterns::Selection("Abstract|Realistic"));
+      prm.add_parameter("TimeScale", material_data.time_scale, "Time scale.");
+      prm.add_parameter("LengthScale",
+                        material_data.length_scale,
+                        "Length scale.");
+      prm.add_parameter("EnergyScale",
+                        material_data.energy_scale,
+                        "Energy scale.");
+
+      prm.enter_subsection("EnergyAbstract");
+      prm.add_parameter("A",
+                        material_data.energy_abstract_data.A,
+                        "Energy parameter A.");
+      prm.add_parameter("B",
+                        material_data.energy_abstract_data.B,
+                        "Energy parameter B.");
       prm.add_parameter("KappaC",
-                        energy_data.kappa_c,
+                        material_data.energy_abstract_data.kappa_c,
                         "Barrier height kappa_c.");
       prm.add_parameter("KappaP",
-                        energy_data.kappa_p,
+                        material_data.energy_abstract_data.kappa_p,
                         "Barrier height kappa_p.");
       prm.leave_subsection();
 
-
-      prm.enter_subsection("Mobility");
+      prm.enter_subsection("MobilityAbstract");
       prm.add_parameter("Mvol",
-                        mobility_data.Mvol,
+                        material_data.mobility_abstract_data.Mvol,
                         "Volumetric diffusion mobility.");
       prm.add_parameter("Mvap",
-                        mobility_data.Mvap,
+                        material_data.mobility_abstract_data.Mvap,
                         "Vaporization diffusion mobility.");
       prm.add_parameter("Msurf",
-                        mobility_data.Msurf,
-                        "Surface diffusion  mobility.");
+                        material_data.mobility_abstract_data.Msurf,
+                        "Surface diffusion mobility.");
       prm.add_parameter("Mgb",
-                        mobility_data.Mgb,
+                        material_data.mobility_abstract_data.Mgb,
                         "Grain boundary diffusion mobility.");
       prm.add_parameter("L",
-                        mobility_data.L,
+                        material_data.mobility_abstract_data.L,
                         "Grain boundary motion mobility.");
+      prm.leave_subsection();
+
+      prm.enter_subsection("EnergyRealistic");
+      prm.add_parameter("SurfaceEnergy",
+                        material_data.energy_realistic_data.surface_energy,
+                        "Surface energy.");
+      prm.add_parameter(
+        "GrainBoundaryEnergy",
+        material_data.energy_realistic_data.grain_boundary_energy,
+        "Grain boundary energy.");
+      prm.leave_subsection();
+
+      prm.enter_subsection("MobilityRealistic");
+      prm.add_parameter("Omega",
+                        material_data.mobility_realistic_data.omega,
+                        "Atomic volume.");
+
+      prm.add_parameter("DVol0",
+                        material_data.mobility_realistic_data.D_vol0,
+                        "Volumetric diffusion mobility prefactor.");
+      prm.add_parameter("Dvap0",
+                        material_data.mobility_realistic_data.D_vap0,
+                        "Vaporization diffusion mobility prefactor.");
+      prm.add_parameter("Dsurf0",
+                        material_data.mobility_realistic_data.D_surf0,
+                        "Surface diffusion mobility prefactor.");
+      prm.add_parameter("Dgb0",
+                        material_data.mobility_realistic_data.D_gb0,
+                        "Grain boundary diffusion mobility prefactor.");
+
+      prm.add_parameter("QVol",
+                        material_data.mobility_realistic_data.Q_vol,
+                        "Volumetric diffusion activation energy.");
+      prm.add_parameter("Qvap",
+                        material_data.mobility_realistic_data.Q_vap,
+                        "Vaporization diffusion activation energy.");
+      prm.add_parameter("Qsurf",
+                        material_data.mobility_realistic_data.Q_surf,
+                        "Surface diffusion activation energy.");
+      prm.add_parameter("Qgb",
+                        material_data.mobility_realistic_data.Q_gb,
+                        "Grain boundary diffusion activation energy.");
+
+      prm.add_parameter("DGbMob0",
+                        material_data.mobility_realistic_data.D_gb_mob0,
+                        "Grain boundary mobility prefactor.");
+      prm.add_parameter("QGbMob",
+                        material_data.mobility_realistic_data.Q_gb_mob,
+                        "Grain boundary mobility activation energy.");
+      prm.leave_subsection();
+
       prm.leave_subsection();
 
 
