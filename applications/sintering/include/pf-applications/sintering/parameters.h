@@ -421,7 +421,7 @@ namespace Sintering
       prm.leave_subsection();
 
 
-      prm.enter_subsection("MaterialData");
+      prm.enter_subsection("Material");
       prm.add_parameter("Type",
                         material_data.type,
                         "Material type.",
@@ -485,26 +485,26 @@ namespace Sintering
       prm.add_parameter("DVol0",
                         material_data.mobility_realistic_data.D_vol0,
                         "Volumetric diffusion mobility prefactor.");
-      prm.add_parameter("Dvap0",
+      prm.add_parameter("DVap0",
                         material_data.mobility_realistic_data.D_vap0,
                         "Vaporization diffusion mobility prefactor.");
-      prm.add_parameter("Dsurf0",
+      prm.add_parameter("DSurf0",
                         material_data.mobility_realistic_data.D_surf0,
                         "Surface diffusion mobility prefactor.");
-      prm.add_parameter("Dgb0",
+      prm.add_parameter("DGb0",
                         material_data.mobility_realistic_data.D_gb0,
                         "Grain boundary diffusion mobility prefactor.");
 
       prm.add_parameter("QVol",
                         material_data.mobility_realistic_data.Q_vol,
                         "Volumetric diffusion activation energy.");
-      prm.add_parameter("Qvap",
+      prm.add_parameter("QVap",
                         material_data.mobility_realistic_data.Q_vap,
                         "Vaporization diffusion activation energy.");
-      prm.add_parameter("Qsurf",
+      prm.add_parameter("QSurf",
                         material_data.mobility_realistic_data.Q_surf,
                         "Surface diffusion activation energy.");
-      prm.add_parameter("Qgb",
+      prm.add_parameter("QGb",
                         material_data.mobility_realistic_data.Q_gb,
                         "Grain boundary diffusion activation energy.");
 
