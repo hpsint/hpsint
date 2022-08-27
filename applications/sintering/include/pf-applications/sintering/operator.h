@@ -4,6 +4,7 @@
 
 #include <pf-applications/dofs/dof_tools.h>
 #include <pf-applications/matrix_free/tools.h>
+#include <pf-applications/numerics/functions.h>
 #include <pf-applications/time_integration/solution_history.h>
 #include <pf-applications/time_integration/time_integrators.h>
 
@@ -144,21 +145,22 @@ namespace Sintering
     };
 
     ProviderRealistic(
-      const double        omega,
-      const double        D_vol0,
-      const double        D_vap0,
-      const double        D_surf0,
-      const double        D_gb0,
-      const double        Q_vol,
-      const double        Q_vap,
-      const double        Q_surf,
-      const double        Q_gb,
-      const double        D_gb_mob0,
-      const double        Q_gb_mob,
-      const double        interface_width,
-      const double        time_scale,
-      const double        length_scale,
-      const double        energy_scale,
+      const double                        omega,
+      const double                        D_vol0,
+      const double                        D_vap0,
+      const double                        D_surf0,
+      const double                        D_gb0,
+      const double                        Q_vol,
+      const double                        Q_vap,
+      const double                        Q_surf,
+      const double                        Q_gb,
+      const double                        D_gb_mob0,
+      const double                        Q_gb_mob,
+      const double                        interface_width,
+      const double                        time_scale,
+      const double                        length_scale,
+      const double                        energy_scale,
+      std::shared_ptr<Function1D<double>> temperature,
       const ArrheniusUnit arrhenius_unit = ArrheniusUnit::Boltzmann)
       : omega(omega)
       , D_vol0(D_vol0)
@@ -178,6 +180,7 @@ namespace Sintering
       , omega_dmls(omega / std::pow(length_scale, 3))
       , arrhenius_unit(arrhenius_unit)
       , arrhenius_factor(arrhenius_unit == ArrheniusUnit::Boltzmann ? kb : R)
+      , temperature(temperature)
     {}
 
     std::array<double, 5>
@@ -187,12 +190,13 @@ namespace Sintering
 
       std::array<double, 5> mobilities;
 
-      mobilities[0] = calc_diffusion_coefficient(D_vol0, Q_vol, temperature);
-      mobilities[1] = calc_diffusion_coefficient(D_vap0, Q_vap, temperature);
-      mobilities[2] = calc_diffusion_coefficient(D_surf0, Q_surf, temperature);
-      mobilities[3] = calc_diffusion_coefficient(D_gb0, Q_gb, temperature);
-      mobilities[4] =
-        calc_gb_mobility_coefficient(D_gb_mob0, Q_gb_mob, temperature);
+      const double T = temperature->value(time);
+
+      mobilities[0] = calc_diffusion_coefficient(D_vol0, Q_vol, T);
+      mobilities[1] = calc_diffusion_coefficient(D_vap0, Q_vap, T);
+      mobilities[2] = calc_diffusion_coefficient(D_surf0, Q_surf, T);
+      mobilities[3] = calc_diffusion_coefficient(D_gb0, Q_gb, T);
+      mobilities[4] = calc_gb_mobility_coefficient(D_gb_mob0, Q_gb_mob, T);
 
       return mobilities;
     }
@@ -252,9 +256,6 @@ namespace Sintering
     // Interface width
     const double interface_width;
 
-    // Temperature - temporary
-    const double temperature = 1573;
-
     // Scales
     const double time_scale;
     const double length_scale;
@@ -266,6 +267,9 @@ namespace Sintering
     // Arrhenius units
     const ArrheniusUnit arrhenius_unit;
     const double        arrhenius_factor;
+
+    // Temperature function
+    std::shared_ptr<Function1D<double>> temperature;
   };
 
   class Mobility

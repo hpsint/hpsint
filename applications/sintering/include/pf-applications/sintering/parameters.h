@@ -108,6 +108,8 @@ namespace Sintering
     double length_scale = 1.;
     double energy_scale = 1.;
 
+    std::map<double, double> temperature = {{0, 1573}, {100, 1573}};
+
     EnergyAbstractData  energy_abstract_data;
     EnergyRealisticData energy_realistic_data;
 
@@ -433,6 +435,9 @@ namespace Sintering
       prm.add_parameter("EnergyScale",
                         material_data.energy_scale,
                         "Energy scale.");
+      prm.add_parameter("Temperature",
+                        material_data.temperature,
+                        "Temperature profile.");
 
       prm.enter_subsection("EnergyAbstract");
       prm.add_parameter("A",
