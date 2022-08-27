@@ -241,7 +241,15 @@ namespace Sintering
     return 0;
   }
 
-  std::array<double, 4>
+  struct EnergyParameters
+  {
+    double A;
+    double B;
+    double kappa_c;
+    double kappa_p;
+  };
+
+  EnergyParameters
   compute_energy_params(const double surface_energy,
                         const double gb_energy,
                         const double interface_width,
@@ -263,7 +271,7 @@ namespace Sintering
       (12.0 * scaled_surface_energy - 7.0 * scaled_gb_energy) / interface_width;
     const double B = scaled_gb_energy / interface_width;
 
-    std::array<double, 4> params{{A, B, kappa_c, kappa_p}};
+    EnergyParameters params{A, B, kappa_c, kappa_p};
 
     return params;
   }

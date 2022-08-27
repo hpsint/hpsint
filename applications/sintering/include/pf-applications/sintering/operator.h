@@ -2223,6 +2223,7 @@ namespace Sintering
       const auto &kappa_c     = this->data.kappa_c;
       const auto &kappa_p     = this->data.kappa_p;
       const auto  weight      = this->data.time_data.get_primary_weight();
+      const auto &L           = mobility.Lgb();
 
       for (unsigned int q = 0; q < phi.n_q_points; ++q)
         {
@@ -2265,28 +2266,23 @@ namespace Sintering
 
               value_result[ig + 2] +=
                 value[ig + 2] * weight +
-                mobility.Lgb() * free_energy.d2f_dcdetai(c, etas, ig) *
-                  value[0] +
-                mobility.Lgb() *
-                  free_energy.d2f_detai2(c, etas, etaPower2Sum, ig) *
+                L * free_energy.d2f_dcdetai(c, etas, ig) * value[0] +
+                L * free_energy.d2f_detai2(c, etas, etaPower2Sum, ig) *
                   value[ig + 2];
 
               gradient_result[0] +=
                 mobility.dM_detai(c, etas, n_grains, c_grad, etas_grad, ig) *
                 mu_grad * value[ig + 2];
 
-              gradient_result[ig + 2] =
-                mobility.Lgb() * kappa_p * gradient[ig + 2];
+              gradient_result[ig + 2] = L * kappa_p * gradient[ig + 2];
 
               for (unsigned int jg = 0; jg < ig; ++jg)
                 {
                   const auto d2f_detaidetaj =
                     free_energy.d2f_detaidetaj(c, etas, ig, jg);
 
-                  value_result[ig + 2] +=
-                    mobility.Lgb() * d2f_detaidetaj * value[jg + 2];
-                  value_result[jg + 2] +=
-                    mobility.Lgb() * d2f_detaidetaj * value[ig + 2];
+                  value_result[ig + 2] += L * d2f_detaidetaj * value[jg + 2];
+                  value_result[jg + 2] += L * d2f_detaidetaj * value[ig + 2];
                 }
             }
 
