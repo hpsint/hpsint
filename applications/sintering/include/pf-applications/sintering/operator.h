@@ -1921,6 +1921,7 @@ namespace Sintering
       const auto &mobility    = this->data.get_mobility();
       const auto &kappa_c     = this->data.kappa_c;
       const auto &kappa_p     = this->data.kappa_p;
+      const auto &L           = mobility.Lgb();
 
       vec.update_ghost_values();
 
@@ -2036,7 +2037,7 @@ namespace Sintering
 
               if (entries_mask[FieldL])
                 {
-                  temp[counter++] = VectorizedArrayType(mobility.Lgb());
+                  temp[counter++] = VectorizedArrayType(L);
                 }
 
               if (entries_mask[FieldFlux])
@@ -2312,6 +2313,7 @@ namespace Sintering
       const auto &kappa_c     = this->data.kappa_c;
       const auto &kappa_p     = this->data.kappa_p;
       const auto &order       = this->data.time_data.get_order();
+      const auto &L           = mobility.Lgb();
 
       const auto old_solutions = history.get_old_solutions();
 
@@ -2365,15 +2367,13 @@ namespace Sintering
               // AC equations
               for (unsigned int ig = 0; ig < n_grains; ++ig)
                 {
-                  value_result[2 + ig] =
-                    mobility.Lgb() * free_energy.df_detai(c, etas, ig);
+                  value_result[2 + ig] = L * free_energy.df_detai(c, etas, ig);
 
                   if (with_time_derivative)
                     time_integrator.compute_time_derivative(
                       value_result[2 + ig], val, time_phi, 2 + ig, q);
 
-                  gradient_result[2 + ig] =
-                    mobility.Lgb() * kappa_p * grad[2 + ig];
+                  gradient_result[2 + ig] = L * kappa_p * grad[2 + ig];
                 }
 
               phi.submit_value(value_result, q);
