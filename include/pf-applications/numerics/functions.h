@@ -4,7 +4,7 @@ template <typename Number>
 class Function1D
 {
 public:
-  Number
+  virtual Number
   value(const Number x) const = 0;
 };
 
@@ -55,12 +55,12 @@ public:
       }
     else
       {
-        std::map<Number, Number>::const_iterator it =
+        typename std::map<Number, Number>::const_iterator it =
           std::find_if(pairs.begin(), pairs.end(), [x](const auto &val) {
             return val.first > x;
           });
 
-        std::map<Number, Number>::const_iterator i1, i2;
+        typename std::map<Number, Number>::const_iterator i1, i2;
         if (it == pairs.begin())
           {
             if (extrapolate_linear)
@@ -71,22 +71,22 @@ public:
               }
             else
               {
-                return it.second;
+                return it->second;
               }
           }
-        else if (it == _pairs.end())
+        else if (it == pairs.end())
           {
             if (extrapolate_linear)
               {
-                i1 = _pairs.end();
+                i1 = pairs.end();
                 std::advance(i1, -2);
-                i2 = _pairs.end();
+                i2 = pairs.end();
                 std::advance(i2, -1);
               }
             else
               {
                 std::advance(it, -1);
-                return it.second;
+                return it->second;
               }
           }
         else
