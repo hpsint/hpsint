@@ -673,17 +673,62 @@ namespace Sintering
 
       const unsigned int time_integration_order = dts.size();
 
+      // Compute energy and mobility parameters
+      double                            A, B, kappa_c, kappa_p;
+      std::shared_ptr<MobilityProvider> mobility_provider;
+      if (params.material_data.type == "Abstract")
+        {
+          A       = params.material_data.energy_abstract_data.A;
+          B       = params.material_data.energy_abstract_data.B;
+          kappa_c = params.material_data.energy_abstract_data.kappa_c;
+          kappa_p = params.material_data.energy_abstract_data.kappa_p;
+
+          mobility_provider = std::make_shared<ProviderAbstract>(
+            params.material_data.mobility_abstract_data.Mvol,
+            params.material_data.mobility_abstract_data.Mvap,
+            params.material_data.mobility_abstract_data.Msurf,
+            params.material_data.mobility_abstract_data.Mgb,
+            params.material_data.mobility_abstract_data.L);
+        }
+      else
+        {
+          const double gamma_surf =
+            params.material_data.energy_realistic_data.surface_energy;
+          const double gamma_gb =
+            params.material_data.energy_realistic_data.grain_boundary_energy;
+
+          auto energy_params =
+            compute_energy_params(gamma_surf,
+                                  gamma_gb,
+                                  geometry_interface_width,
+                                  params.material_data.length_scale,
+                                  params.material_data.energy_scale);
+
+          A       = energy_params.A;
+          B       = energy_params.B;
+          kappa_c = energy_params.kappa_c;
+          kappa_p = energy_params.kappa_p;
+
+          mobility_provider = std::make_shared<ProviderRealistic>(
+            params.material_data.mobility_realistic_data.omega,
+            params.material_data.mobility_realistic_data.D_vol0,
+            params.material_data.mobility_realistic_data.D_vap0,
+            params.material_data.mobility_realistic_data.D_surf0,
+            params.material_data.mobility_realistic_data.D_gb0,
+            params.material_data.mobility_realistic_data.Q_vol,
+            params.material_data.mobility_realistic_data.Q_vap,
+            params.material_data.mobility_realistic_data.Q_surf,
+            params.material_data.mobility_realistic_data.Q_gb,
+            params.material_data.mobility_realistic_data.D_gb_mob0,
+            params.material_data.mobility_realistic_data.Q_gb_mob,
+            geometry_interface_width,
+            params.material_data.time_scale,
+            params.material_data.length_scale,
+            params.material_data.energy_scale);
+        }
+
       SinteringOperatorData<dim, VectorizedArrayType> sintering_data(
-        params.energy_data.A,
-        params.energy_data.B,
-        params.mobility_data.Mvol,
-        params.mobility_data.Mvap,
-        params.mobility_data.Msurf,
-        params.mobility_data.Mgb,
-        params.mobility_data.L,
-        params.energy_data.kappa_c,
-        params.energy_data.kappa_p,
-        time_integration_order);
+        A, B, kappa_c, kappa_p, mobility_provider, time_integration_order);
 
       sintering_data.set_n_components(n_initial_components);
 
@@ -1316,6 +1361,8 @@ namespace Sintering
             // Set timesteps in order to update weights
             sintering_data.time_data.set_all_dt(dts);
 
+            // Update material properties
+            sintering_data.set_time(t);
 
             // Try to extrapolate initial guess
             if (params.time_integration_data.predictor != "None" && t > 0)

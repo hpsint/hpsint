@@ -93,15 +93,213 @@ constexpr bool has_n_grains_method =
 namespace Sintering
 {
   using namespace dealii;
-  template <int dim, typename VectorizedArrayType>
-  class MobilityScalar
+
+  class MobilityProvider
   {
+  public:
+    virtual std::array<double, 5>
+    calculate(const double t) const = 0;
+  };
+
+  class ProviderAbstract : public MobilityProvider
+  {
+  public:
+    ProviderAbstract(const double Mvol,
+                     const double Mvap,
+                     const double Msurf,
+                     const double Mgb,
+                     const double L)
+      : Mvol(Mvol)
+      , Mvap(Mvap)
+      , Msurf(Msurf)
+      , Mgb(Mgb)
+      , L(L)
+    {}
+
+    std::array<double, 5>
+    calculate(const double t) const
+    {
+      (void)t;
+
+      std::array<double, 5> mobilities{{Mvol, Mvap, Msurf, Mgb, L}};
+
+      return mobilities;
+    }
+
   protected:
     double Mvol;
     double Mvap;
     double Msurf;
     double Mgb;
+    double L;
+  };
 
+  class ProviderRealistic : public MobilityProvider
+  {
+  public:
+    enum class ArrheniusUnit
+    {
+      Boltzmann,
+      Gas
+    };
+
+    ProviderRealistic(
+      const double        omega,
+      const double        D_vol0,
+      const double        D_vap0,
+      const double        D_surf0,
+      const double        D_gb0,
+      const double        Q_vol,
+      const double        Q_vap,
+      const double        Q_surf,
+      const double        Q_gb,
+      const double        D_gb_mob0,
+      const double        Q_gb_mob,
+      const double        interface_width,
+      const double        time_scale,
+      const double        length_scale,
+      const double        energy_scale,
+      const ArrheniusUnit arrhenius_unit = ArrheniusUnit::Boltzmann)
+      : omega(omega)
+      , D_vol0(D_vol0)
+      , D_vap0(D_vap0)
+      , D_surf0(D_surf0)
+      , D_gb0(D_gb0)
+      , Q_vol(Q_vol)
+      , Q_vap(Q_vap)
+      , Q_surf(Q_surf)
+      , Q_gb(Q_gb)
+      , D_gb_mob0(D_gb_mob0)
+      , Q_gb_mob(Q_gb_mob)
+      , interface_width(interface_width)
+      , time_scale(time_scale)
+      , length_scale(length_scale)
+      , energy_scale(energy_scale)
+      , omega_dmls(omega / std::pow(length_scale, 3))
+      , arrhenius_unit(arrhenius_unit)
+      , arrhenius_factor(arrhenius_unit == ArrheniusUnit::Boltzmann ? kb : R)
+    {}
+
+    std::array<double, 5>
+    calculate(const double time) const
+    {
+      (void)time;
+
+      std::array<double, 5> mobilities;
+
+      mobilities[0] = calc_diffusion_coefficient(D_vol0, Q_vol, temperature);
+      mobilities[1] = calc_diffusion_coefficient(D_vap0, Q_vap, temperature);
+      mobilities[2] = calc_diffusion_coefficient(D_surf0, Q_surf, temperature);
+      mobilities[3] = calc_diffusion_coefficient(D_gb0, Q_gb, temperature);
+      mobilities[4] =
+        calc_gb_mobility_coefficient(D_gb_mob0, Q_gb_mob, temperature);
+
+      return mobilities;
+    }
+
+  private:
+    double
+    calc_diffusion_coefficient(const double D0,
+                               const double Q,
+                               const double T) const
+    {
+      // Non-dimensionalized Diffusivity prefactor
+      const double D0_dmls = D0 * time_scale / (length_scale * length_scale);
+      const double D_dmls  = D0_dmls * std::exp(-Q / (arrhenius_factor * T));
+      const double M =
+        D_dmls * omega_dmls / (arrhenius_factor * T) * energy_scale;
+
+      return M;
+    }
+
+    double
+    calc_gb_mobility_coefficient(const double D0,
+                                 const double Q,
+                                 const double T) const
+    {
+      // Convert to lengthscale^4/(eV*timescale);
+      const double D0_dmls =
+        D0 * time_scale * energy_scale / std::pow(length_scale, 4);
+      const double D_dmls = D0_dmls * std::exp(-Q / (arrhenius_factor * T));
+      const double L      = 4.0 / 3.0 * D_dmls / interface_width;
+
+      return L;
+    }
+
+    // Some constants
+    const double kb = 8.617343e-5; // Boltzmann constant in eV/K
+    const double R  = 8.314;       // Gas constant J / (mol K)
+
+    // atomic volume
+    const double omega;
+
+    // prefactors
+    const double D_vol0;
+    const double D_vap0;
+    const double D_surf0;
+    const double D_gb0;
+
+    // activation energies
+    const double Q_vol;
+    const double Q_vap;
+    const double Q_surf;
+    const double Q_gb;
+
+    // GB mobility coefficients
+    const double D_gb_mob0;
+    const double Q_gb_mob;
+
+    // Interface width
+    const double interface_width;
+
+    // Temperature - temporary
+    const double temperature = 1573;
+
+    // Scales
+    const double time_scale;
+    const double length_scale;
+    const double energy_scale;
+
+    // Dimensionless omega
+    const double omega_dmls;
+
+    // Arrhenius units
+    const ArrheniusUnit arrhenius_unit;
+    const double        arrhenius_factor;
+  };
+
+  class Mobility
+  {
+  public:
+    Mobility(std::shared_ptr<MobilityProvider> provider)
+      : provider(provider)
+    {}
+
+    void
+    update(const double time)
+    {
+      const auto mobilities = provider->calculate(time);
+
+      Mvol  = mobilities[0];
+      Mvap  = mobilities[1];
+      Msurf = mobilities[2];
+      Mgb   = mobilities[3];
+      L     = mobilities[4];
+    }
+
+  protected:
+    std::shared_ptr<MobilityProvider> provider;
+
+    double Mvol;
+    double Mvap;
+    double Msurf;
+    double Mgb;
+    double L;
+  };
+
+  template <int dim, typename VectorizedArrayType>
+  class MobilityScalar : public Mobility
+  {
   public:
     /**
      * Computes scalar mobility as a sum of 4 components:
@@ -159,14 +357,8 @@ namespace Sintering
      * code. The checks for $0 \leq < c \leq 1$, previously existing, have been
      * removed from the code.
      */
-    MobilityScalar(const double Mvol,
-                   const double Mvap,
-                   const double Msurf,
-                   const double Mgb)
-      : Mvol(Mvol)
-      , Mvap(Mvap)
-      , Msurf(Msurf)
-      , Mgb(Mgb)
+    MobilityScalar(std::shared_ptr<MobilityProvider> provider)
+      : Mobility(provider)
     {}
 
     template <typename VectorTypeValue, typename VectorTypeGradient>
@@ -305,28 +497,22 @@ namespace Sintering
 
       return MetajSum;
     }
+
+    double
+    Lgb() const
+    {
+      return L;
+    }
   };
 
 
 
   template <int dim, typename VectorizedArrayType>
-  class MobilityTensorial
+  class MobilityTensorial : public Mobility
   {
-  protected:
-    double Mvol;
-    double Mvap;
-    double Msurf;
-    double Mgb;
-
   public:
-    MobilityTensorial(const double Mvol,
-                      const double Mvap,
-                      const double Msurf,
-                      const double Mgb)
-      : Mvol(Mvol)
-      , Mvap(Mvap)
-      , Msurf(Msurf)
-      , Mgb(Mgb)
+    MobilityTensorial(std::shared_ptr<MobilityProvider> provider)
+      : Mobility(provider)
     {}
 
     template <typename VectorTypeValue, typename VectorTypeGradient>
@@ -477,6 +663,12 @@ namespace Sintering
         }
 
       return M;
+    }
+
+    double
+    Lgb() const
+    {
+      return L;
     }
 
   private:
@@ -1430,28 +1622,21 @@ namespace Sintering
                                 MobilityTensorial<dim, VectorizedArrayType>,
                                 MobilityScalar<dim, VectorizedArrayType>>::type;
 
-    SinteringOperatorData(const Number       A,
-                          const Number       B,
-                          const Number       Mvol,
-                          const Number       Mvap,
-                          const Number       Msurf,
-                          const Number       Mgb,
-                          const Number       L,
-                          const Number       kappa_c,
-                          const Number       kappa_p,
-                          const unsigned int integration_order)
+    SinteringOperatorData(const Number                      A,
+                          const Number                      B,
+                          const Number                      kappa_c,
+                          const Number                      kappa_p,
+                          std::shared_ptr<MobilityProvider> mobility_provider,
+                          const unsigned int                integration_order)
       : free_energy(A, B)
-      , mobility(Mvol, Mvap, Msurf, Mgb)
-      , L(L)
       , kappa_c(kappa_c)
       , kappa_p(kappa_p)
       , time_data(integration_order)
+      , mobility(mobility_provider)
     {}
 
     const FreeEnergy<VectorizedArrayType> free_energy;
-    const MobilityType                    mobility;
 
-    const Number L;
     const Number kappa_c;
     const Number kappa_p;
 
@@ -1561,7 +1746,21 @@ namespace Sintering
       return history_vector;
     }
 
+    void
+    set_time(const double time)
+    {
+      mobility.update(time);
+    }
+
+    const MobilityType &
+    get_mobility() const
+    {
+      return mobility;
+    }
+
   private:
+    MobilityType mobility;
+
     mutable Table<3, VectorizedArrayType> nonlinear_values;
     mutable Table<3, dealii::Tensor<1, dim, VectorizedArrayType>>
       nonlinear_gradients;
@@ -1719,10 +1918,10 @@ namespace Sintering
       AlignedVector<VectorizedArrayType> buffer(fe_eval.n_q_points * n_entries);
 
       const auto &free_energy = this->data.free_energy;
-      const auto &L           = this->data.L;
-      const auto &mobility    = this->data.mobility;
+      const auto &mobility    = this->data.get_mobility();
       const auto &kappa_c     = this->data.kappa_c;
       const auto &kappa_p     = this->data.kappa_p;
+      const auto &L           = mobility.Lgb();
 
       vec.update_ghost_values();
 
@@ -2021,11 +2220,11 @@ namespace Sintering
       const auto &nonlinear_gradients = this->data.get_nonlinear_gradients();
 
       const auto &free_energy = this->data.free_energy;
-      const auto &L           = this->data.L;
-      const auto &mobility    = this->data.mobility;
+      const auto &mobility    = this->data.get_mobility();
       const auto &kappa_c     = this->data.kappa_c;
       const auto &kappa_p     = this->data.kappa_p;
       const auto  weight      = this->data.time_data.get_primary_weight();
+      const auto &L           = mobility.Lgb();
 
       for (unsigned int q = 0; q < phi.n_q_points; ++q)
         {
@@ -2110,11 +2309,11 @@ namespace Sintering
       auto time_phi = time_integrator.create_cell_intergator(phi);
 
       const auto &free_energy = this->data.free_energy;
-      const auto &L           = this->data.L;
-      const auto &mobility    = this->data.mobility;
+      const auto &mobility    = this->data.get_mobility();
       const auto &kappa_c     = this->data.kappa_c;
       const auto &kappa_p     = this->data.kappa_p;
       const auto &order       = this->data.time_data.get_order();
+      const auto &L           = mobility.Lgb();
 
       const auto old_solutions = history.get_old_solutions();
 

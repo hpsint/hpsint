@@ -58,7 +58,7 @@ namespace Sintering
       const unsigned int cell = phi.get_current_cell_index();
 
       const auto &free_energy      = data.free_energy;
-      const auto &mobility         = data.mobility;
+      const auto &mobility         = data.get_mobility();
       const auto &kappa_c          = data.kappa_c;
       const auto  weight           = this->data.time_data.get_primary_weight();
       const auto &nonlinear_values = data.get_nonlinear_values();
@@ -177,7 +177,7 @@ namespace Sintering
       const unsigned int cell = phi.get_current_cell_index();
 
       const auto &free_energy      = data.free_energy;
-      const auto &L                = data.L;
+      const auto &L                = data.get_mobility().Lgb();
       const auto &kappa_p          = data.kappa_p;
       const auto  weight           = this->data.time_data.get_primary_weight();
       const auto &nonlinear_values = data.get_nonlinear_values();
@@ -306,7 +306,7 @@ namespace Sintering
       const unsigned int cell = phi.get_current_cell_index();
 
       const auto &free_energy      = data.free_energy;
-      const auto &L                = data.L;
+      const auto &L                = data.get_mobility().Lgb();
       const auto &kappa_p          = data.kappa_p;
       const auto  weight           = data.time_data.get_primary_weight();
       const auto &nonlinear_values = data.get_nonlinear_values();
@@ -436,7 +436,7 @@ namespace Sintering
             .lexicographic_numbering;
 
         const auto &free_energy      = data.free_energy;
-        const auto &L                = data.L;
+        const auto &L                = data.get_mobility().Lgb();
         const auto &kappa_p          = data.kappa_p;
         const auto  weight           = data.time_data.get_primary_weight();
         const auto &nonlinear_values = data.get_nonlinear_values();

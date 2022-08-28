@@ -22,18 +22,23 @@ subsection GrainTracker
     set BufferDistanceRatio = 0.05
     set GrainTrackerFrequency = 10
 end
-subsection Energy
-    set A = 16
-    set B = 1
-    set KappaC = 1
-    set KappaP = 0.5
+subsection Material
+    set Type = Abstract
+
+    subsection EnergyAbstract
+        set A = 16
+        set B = 1
+        set KappaC = 1
+        set KappaP = 0.5
+    end
+    subsection MobilityAbstract
+        set Mvol = 1e-2
+        set Mvap = 1e-10
+        set Msurf = 4
+        set Mgb = 0.4
+        set L = 1
+    end
 end
-subsection Mobility
-    set Mvol = 1e-2
-    set Mvap = 1e-10
-    set Msurf = 4
-    set Mgb = 0.4
-    set L = 1
 end
 subsection TimeIntegration
     set TimeStart = 0
