@@ -704,10 +704,10 @@ namespace Sintering
                                   params.material_data.length_scale,
                                   params.material_data.energy_scale);
 
-          A       = energy_params[0];
-          B       = energy_params[1];
-          kappa_c = energy_params[2];
-          kappa_p = energy_params[3];
+          A       = energy_params.A;
+          B       = energy_params.B;
+          kappa_c = energy_params.kappa_c;
+          kappa_p = energy_params.kappa_p;
 
           mobility_provider = std::make_shared<ProviderRealistic>(
             params.material_data.mobility_realistic_data.omega,
