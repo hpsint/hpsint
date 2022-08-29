@@ -57,7 +57,7 @@
         },
         "TimeScale": "1e2",
         "LengthScale": "1e-6",
-        "EnergyScale": "1e4",
+        "Temperature": "0: 1573, 5000: 1573",
         "Type": "Realistic"
     },
     "NonLinearData": {

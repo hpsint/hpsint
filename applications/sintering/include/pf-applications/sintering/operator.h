@@ -2,6 +2,8 @@
 
 #include <deal.II/lac/trilinos_sparsity_pattern.h>
 
+#include <pf-applications/numerics/functions.h>
+
 #include <pf-applications/dofs/dof_tools.h>
 #include <pf-applications/matrix_free/tools.h>
 #include <pf-applications/numerics/functions.h>
