@@ -6,7 +6,6 @@
 
 #include <pf-applications/dofs/dof_tools.h>
 #include <pf-applications/matrix_free/tools.h>
-#include <pf-applications/numerics/functions.h>
 #include <pf-applications/time_integration/solution_history.h>
 #include <pf-applications/time_integration/time_integrators.h>
 
