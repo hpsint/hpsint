@@ -1682,7 +1682,12 @@ namespace Sintering
     using Number = typename VectorizedArrayType::value_type;
 
     // Choose MobilityScalar or MobilityTensorial here:
-    static const bool use_tensorial_mobility = false;
+    static const bool use_tensorial_mobility =
+#ifdef WITH_TENSORIAL_MOBILITY
+      true;
+#else
+      false;
+#endif
 
     using MobilityType =
       typename std::conditional<use_tensorial_mobility,
