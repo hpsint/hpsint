@@ -709,7 +709,7 @@ namespace Sintering
           kappa_c = energy_params.kappa_c;
           kappa_p = energy_params.kappa_p;
 
-          auto temperature_function =
+          const auto temperature_function =
             std::make_shared<Function1DPiecewise<double>>(
               params.material_data.temperature);
 
