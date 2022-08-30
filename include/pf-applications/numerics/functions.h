@@ -59,9 +59,12 @@ public:
       }
     else
       {
-        auto it = std::find_if(pairs.begin(),
-                               pairs.end(),
-                               [x](const auto &val) { return val.first > x; });
+        auto it = std::lower_bound(pairs.begin(),
+                                   pairs.end(),
+                                   x,
+                                   [](const auto &left, const auto &value) {
+                                     return left.first < value;
+                                   });
 
         decltype(it) i1, i2;
         if (it == pairs.begin())
