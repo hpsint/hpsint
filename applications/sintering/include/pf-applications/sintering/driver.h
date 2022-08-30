@@ -709,6 +709,10 @@ namespace Sintering
           kappa_c = energy_params.kappa_c;
           kappa_p = energy_params.kappa_p;
 
+          const auto temperature_function =
+            std::make_shared<Function1DPiecewise<double>>(
+              params.material_data.temperature);
+
           mobility_provider = std::make_shared<ProviderRealistic>(
             params.material_data.mobility_realistic_data.omega,
             params.material_data.mobility_realistic_data.D_vol0,
@@ -724,7 +728,8 @@ namespace Sintering
             geometry_interface_width,
             params.material_data.time_scale,
             params.material_data.length_scale,
-            params.material_data.energy_scale);
+            params.material_data.energy_scale,
+            temperature_function);
         }
 
       SinteringOperatorData<dim, VectorizedArrayType> sintering_data(
