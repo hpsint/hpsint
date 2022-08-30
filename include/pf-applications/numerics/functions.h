@@ -34,16 +34,20 @@ public:
     : extrapolate_linear(extrapolate_linear)
   {}
 
-  Function1DPiecewise(const std::map<Number, Number> &pairs,
+  Function1DPiecewise(const std::map<Number, Number> &map_pairs,
                       const bool extrapolate_linear = false)
-    : pairs(pairs)
+    : pairs(map_pairs.begin(), map_pairs.end())
     , extrapolate_linear(extrapolate_linear)
   {}
 
   void
   add_pair(const Number x, const Number y)
   {
-    pairs[x] = y;
+    const auto location = std::upper_bound(
+      pairs.begin(), pairs.end(), x, [](const auto &value, const auto &right) {
+        return value < right.first;
+      });
+    pairs.emplace(location, x, y);
   }
 
   Number
@@ -55,12 +59,11 @@ public:
       }
     else
       {
-        typename std::map<Number, Number>::const_iterator it =
-          std::find_if(pairs.begin(), pairs.end(), [x](const auto &val) {
-            return val.first > x;
-          });
+        auto it = std::find_if(pairs.begin(),
+                               pairs.end(),
+                               [x](const auto &val) { return val.first > x; });
 
-        typename std::map<Number, Number>::const_iterator i1, i2;
+        decltype(it) i1, i2;
         if (it == pairs.begin())
           {
             if (extrapolate_linear)
@@ -105,7 +108,7 @@ public:
   }
 
 private:
-  std::map<Number, Number> pairs;
+  std::vector<std::pair<Number, Number>> pairs;
 
   const bool extrapolate_linear;
 };
