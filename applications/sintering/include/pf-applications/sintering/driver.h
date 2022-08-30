@@ -730,6 +730,26 @@ namespace Sintering
             params.material_data.length_scale,
             params.material_data.energy_scale,
             temperature_function);
+
+          const auto mobility_reference = mobility_provider->calculate(0.0);
+
+          // Output material data
+          pcout << "Effective model material data: " << std::endl;
+
+          pcout << "- energy parameters:" << std::endl;
+          pcout << "  A       = " << A << std::endl;
+          pcout << "  B       = " << B << std::endl;
+          pcout << "  kappa_c = " << kappa_c << std::endl;
+          pcout << "  kappa_p = " << kappa_p << std::endl;
+
+          pcout << "- mobility parameters:" << std::endl;
+          pcout << "  Mvol    = " << mobility_reference.Mvol << std::endl;
+          pcout << "  Mvap    = " << mobility_reference.Mvap << std::endl;
+          pcout << "  Msurf   = " << mobility_reference.Msurf << std::endl;
+          pcout << "  Mgb     = " << mobility_reference.Mgb << std::endl;
+          pcout << "  L       = " << mobility_reference.L << std::endl;
+
+          pcout << std::endl;
         }
 
       SinteringOperatorData<dim, VectorizedArrayType> sintering_data(

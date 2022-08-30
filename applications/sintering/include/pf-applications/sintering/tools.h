@@ -241,7 +241,7 @@ namespace Sintering
     return 0;
   }
 
-  struct EnergyParameters
+  struct EnergyCoefficients
   {
     double A;
     double B;
@@ -249,7 +249,7 @@ namespace Sintering
     double kappa_p;
   };
 
-  EnergyParameters
+  EnergyCoefficients
   compute_energy_params(const double surface_energy,
                         const double gb_energy,
                         const double interface_width,
@@ -271,7 +271,7 @@ namespace Sintering
       (12.0 * scaled_surface_energy - 7.0 * scaled_gb_energy) / interface_width;
     const double B = scaled_gb_energy / interface_width;
 
-    EnergyParameters params{A, B, kappa_c, kappa_p};
+    EnergyCoefficients params{A, B, kappa_c, kappa_p};
 
     return params;
   }

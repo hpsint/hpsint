@@ -96,10 +96,19 @@ namespace Sintering
 {
   using namespace dealii;
 
+  struct MobilityCoefficients
+  {
+    double Mvol;
+    double Mvap;
+    double Msurf;
+    double Mgb;
+    double L;
+  };
+
   class MobilityProvider
   {
   public:
-    virtual std::array<double, 5>
+    virtual MobilityCoefficients
     calculate(const double t) const = 0;
   };
 
@@ -118,12 +127,12 @@ namespace Sintering
       , L(L)
     {}
 
-    std::array<double, 5>
+    MobilityCoefficients
     calculate(const double t) const
     {
       (void)t;
 
-      std::array<double, 5> mobilities{{Mvol, Mvap, Msurf, Mgb, L}};
+      MobilityCoefficients mobilities{Mvol, Mvap, Msurf, Mgb, L};
 
       return mobilities;
     }
@@ -184,20 +193,20 @@ namespace Sintering
       , temperature(temperature)
     {}
 
-    std::array<double, 5>
+    MobilityCoefficients
     calculate(const double time) const
     {
       (void)time;
 
-      std::array<double, 5> mobilities;
+      MobilityCoefficients mobilities;
 
       const double T = temperature->value(time);
 
-      mobilities[0] = calc_diffusion_coefficient(D_vol0, Q_vol, T);
-      mobilities[1] = calc_diffusion_coefficient(D_vap0, Q_vap, T);
-      mobilities[2] = calc_diffusion_coefficient(D_surf0, Q_surf, T);
-      mobilities[3] = calc_diffusion_coefficient(D_gb0, Q_gb, T);
-      mobilities[4] = calc_gb_mobility_coefficient(D_gb_mob0, Q_gb_mob, T);
+      mobilities.Mvol  = calc_diffusion_coefficient(D_vol0, Q_vol, T);
+      mobilities.Mvap  = calc_diffusion_coefficient(D_vap0, Q_vap, T);
+      mobilities.Msurf = calc_diffusion_coefficient(D_surf0, Q_surf, T);
+      mobilities.Mgb   = calc_diffusion_coefficient(D_gb0, Q_gb, T);
+      mobilities.L     = calc_gb_mobility_coefficient(D_gb_mob0, Q_gb_mob, T);
 
       return mobilities;
     }
@@ -278,18 +287,20 @@ namespace Sintering
   public:
     Mobility(std::shared_ptr<MobilityProvider> provider)
       : provider(provider)
-    {}
+    {
+      update(0.);
+    }
 
     void
     update(const double time)
     {
       const auto mobilities = provider->calculate(time);
 
-      Mvol  = mobilities[0];
-      Mvap  = mobilities[1];
-      Msurf = mobilities[2];
-      Mgb   = mobilities[3];
-      L     = mobilities[4];
+      Mvol  = mobilities.Mvol;
+      Mvap  = mobilities.Mvap;
+      Msurf = mobilities.Msurf;
+      Mgb   = mobilities.Mgb;
+      L     = mobilities.L;
     }
 
   protected:
