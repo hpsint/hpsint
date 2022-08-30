@@ -1932,10 +1932,11 @@ namespace Sintering
         FieldDM,
         FieldKappa,
         FieldL,
+        FieldF,
         FieldFlux
       };
 
-      constexpr unsigned int n_data_variants = 8;
+      constexpr unsigned int n_data_variants = 9;
 
       const std::array<std::tuple<std::string, OutputFields, unsigned int>,
                        n_data_variants>
@@ -1947,6 +1948,7 @@ namespace Sintering
            {"dM", FieldDM, 2 + n_grains},
            {"kappa", FieldKappa, 2},
            {"L", FieldL, 1},
+           {"energy", FieldF, 2},
            {"flux", FieldFlux, 4 * dim}}};
 
       // A better design is possible, but at the moment this is sufficient
@@ -2107,6 +2109,12 @@ namespace Sintering
                   temp[counter++] = VectorizedArrayType(L);
                 }
 
+              if (entries_mask[FieldF])
+                {
+                  temp[counter++] = free_energy.f(c, etas);
+                  temp[counter++] = free_energy.df_dc(c, etas);
+                }
+
               if (entries_mask[FieldFlux])
                 {
                   auto j_vol  = -1. * mobility.M_vol(c) * mu_grad;
@@ -2210,6 +2218,12 @@ namespace Sintering
       if (entries_mask[FieldL])
         {
           names.push_back("L");
+        }
+
+      if (entries_mask[FieldF])
+        {
+          names.push_back("f");
+          names.push_back("df_dc");
         }
 
       if (entries_mask[FieldFlux])
