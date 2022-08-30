@@ -155,6 +155,7 @@ namespace Sintering
                                     "kappa",
                                     "L",
                                     "flux",
+                                    "energy",
                                     "subdomain"};
     bool                  mesh_overhead_estimate = false;
   };
@@ -592,7 +593,7 @@ namespace Sintering
                         output_data.vtk_path,
                         "Path to write VTK files.");
       const std::string output_fields_options =
-        "CH|AC|bnds|dt|d2f|M|dM|kappa|L|flux|subdomain";
+        "CH|AC|bnds|dt|d2f|M|dM|kappa|L|energy|flux|subdomain";
       prm.add_parameter("Fields",
                         output_data.fields,
                         "Fields to output.",
