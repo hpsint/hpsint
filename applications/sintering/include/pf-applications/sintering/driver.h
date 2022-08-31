@@ -755,6 +755,11 @@ namespace Sintering
       SinteringOperatorData<dim, VectorizedArrayType> sintering_data(
         A, B, kappa_c, kappa_p, mobility_provider, time_integration_order);
 
+      pcout << "Mobility type: "
+            << (sintering_data.use_tensorial_mobility ? "tensorial" : "scalar")
+            << std::endl;
+      pcout << std::endl;
+
       sintering_data.set_n_components(n_initial_components);
 
       // Reference to the current timestep for convinience
