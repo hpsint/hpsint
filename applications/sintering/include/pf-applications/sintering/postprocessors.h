@@ -594,6 +594,9 @@ namespace Sintering
                        const DoFHandler<dim> &dof_handler,
                        const VectorType &     solution)
     {
+      const double threshold = 0.5 - 1e-2;
+      const double abs_tol   = 1e-15;
+
       FEValues<dim> fe_values(mapping,
                               dof_handler.get_fe(),
                               dof_handler.get_fe().get_unit_support_points(),
@@ -610,6 +613,15 @@ namespace Sintering
           min_values[d] = bb_tria.get_boundary_points().second[d];
           max_values[d] = bb_tria.get_boundary_points().first[d];
         }
+
+      using CellPtr = std::shared_ptr<DoFCellAccessor<dim, dim, false>>;
+
+      std::vector<std::pair<CellPtr, double>> min_cells(dim,
+                                                        std::make_pair(nullptr,
+                                                                       0));
+      std::vector<std::pair<CellPtr, double>> max_cells(dim,
+                                                        std::make_pair(nullptr,
+                                                                       0));
 
       Vector<typename VectorType::value_type> values;
 
@@ -629,33 +641,145 @@ namespace Sintering
 
           cell->get_dof_values(solution.block(0), values);
 
-          for (const auto q : fe_values.quadrature_point_indices())
-            if (values[q] > 0.1 /*TODO*/)
+          if (std::any_of(values.begin(),
+                          values.end(),
+                          [threshold](const auto &val) {
+                            return val > threshold;
+                          }) &&
+              std::any_of(values.begin(),
+                          values.end(),
+                          [threshold](const auto &val) {
+                            return val < threshold;
+                          }))
+            {
+              const double c_norm = values.linfty_norm();
+
               for (unsigned int d = 0; d < dim; ++d)
                 {
-                  min_values[d] =
-                    std::min(min_values[d], fe_values.quadrature_point(q)[d]);
-                  max_values[d] =
-                    std::max(max_values[d], fe_values.quadrature_point(q)[d]);
+                  if (min_cells[d].first == nullptr ||
+                      (std::abs(cell->barycenter()[d] -
+                                min_cells[d].first->barycenter()[d]) <
+                         abs_tol &&
+                       c_norm > min_cells[d].second) ||
+                      cell->barycenter()[d] <
+                        min_cells[d].first->barycenter()[d])
+                    {
+                      min_cells[d].first =
+                        std::make_shared<DoFCellAccessor<dim, dim, false>>(
+                          *cell);
+                      min_cells[d].second = c_norm;
+                    }
+
+                  if (max_cells[d].first == nullptr ||
+                      (std::abs(cell->barycenter()[d] -
+                                max_cells[d].first->barycenter()[d]) <
+                         abs_tol &&
+                       c_norm > max_cells[d].second) ||
+                      cell->barycenter()[d] >
+                        max_cells[d].first->barycenter()[d])
+                    {
+                      max_cells[d].first =
+                        std::make_shared<DoFCellAccessor<dim, dim, false>>(
+                          *cell);
+                      max_cells[d].second = c_norm;
+                    }
                 }
+
+              for (const auto q : fe_values.quadrature_point_indices())
+                {
+                  if (values[q] > threshold)
+                    for (unsigned int d = 0; d < dim; ++d)
+                      {
+                        min_values[d] =
+                          std::min(min_values[d],
+                                   fe_values.quadrature_point(q)[d]);
+                        max_values[d] =
+                          std::max(max_values[d],
+                                   fe_values.quadrature_point(q)[d]);
+                      }
+                }
+            }
         }
 
       if (has_ghost_elements == false)
         solution.zero_out_ghost_values();
 
+      std::vector<typename VectorType::value_type> global_min_values(dim);
+      std::vector<typename VectorType::value_type> global_max_values(dim);
+
       Utilities::MPI::min(min_values,
                           dof_handler.get_communicator(),
-                          min_values);
+                          global_min_values);
       Utilities::MPI::max(max_values,
                           dof_handler.get_communicator(),
-                          max_values);
+                          global_max_values);
+
+      // Refine the bounds
+      const unsigned int n_q_points_refined = 10;
+      FEValues<dim>      fe_values_refined(mapping,
+                                      dof_handler.get_fe(),
+                                      QGauss<dim>(n_q_points_refined),
+                                      update_quadrature_points | update_values);
+
+      std::vector<typename VectorType::value_type> values_refined(
+        fe_values_refined.n_quadrature_points);
+
+      for (unsigned int d = 0; d < dim; ++d)
+        {
+          if (std::abs(min_values[d] - global_min_values[d]) < abs_tol &&
+              min_cells[d].first != nullptr)
+            {
+              TriaIterator<DoFCellAccessor<dim, dim, false>> it_tria(
+                *min_cells[d].first);
+              fe_values_refined.reinit(it_tria);
+              fe_values_refined.get_function_values(solution.block(0),
+                                                    values_refined);
+
+              for (const auto q : fe_values_refined.quadrature_point_indices())
+                {
+                  if (values_refined[q] > threshold)
+                    {
+                      global_min_values[d] =
+                        std::min(global_min_values[d],
+                                 fe_values_refined.quadrature_point(q)[d]);
+                    }
+                }
+            }
+
+          if (std::abs(max_values[d] - global_max_values[d]) < abs_tol &&
+              max_cells[d].first != nullptr)
+            {
+              TriaIterator<DoFCellAccessor<dim, dim, false>> it_tria(
+                *max_cells[d].first);
+              fe_values_refined.reinit(it_tria);
+              fe_values_refined.get_function_values(solution.block(0),
+                                                    values_refined);
+
+              for (const auto q : fe_values_refined.quadrature_point_indices())
+                {
+                  if (values_refined[q] > threshold)
+                    {
+                      global_max_values[d] =
+                        std::max(global_max_values[d],
+                                 fe_values_refined.quadrature_point(q)[d]);
+                    }
+                }
+            }
+        }
+
+      Utilities::MPI::min(global_min_values,
+                          dof_handler.get_communicator(),
+                          global_min_values);
+      Utilities::MPI::max(global_max_values,
+                          dof_handler.get_communicator(),
+                          global_max_values);
 
       Point<dim> left_bb, right_bb;
 
       for (unsigned int d = 0; d < dim; ++d)
         {
-          left_bb[d]  = min_values[d];
-          right_bb[d] = max_values[d];
+          left_bb[d]  = global_min_values[d];
+          right_bb[d] = global_max_values[d];
         }
 
       BoundingBox<dim, typename VectorType::value_type> bb({left_bb, right_bb});
