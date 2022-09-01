@@ -698,11 +698,20 @@ namespace Sintering
       if (has_ghost_elements == false)
         solution.zero_out_ghost_values();
 
-      // Refine the bounds
-      const unsigned int n_q_points_refined = 10;
-      FEValues<dim>      fe_values_refined(mapping,
+      // Generate refined quadrature
+      const unsigned int            n_intervals = 10;
+      std::vector<dealii::Point<1>> points(n_intervals - 1);
+
+      // The end points are dropped since the support points of the cells have
+      // been already analyzed and the result is already in min/max_values
+      for (unsigned int i = 0; i < n_intervals - 1; ++i)
+        points[i][0] = 1. / n_intervals * (i + 1);
+      Quadrature<1>   quad_1d(points);
+      Quadrature<dim> quad_refined(quad_1d);
+
+      FEValues<dim> fe_values_refined(mapping,
                                       dof_handler.get_fe(),
-                                      QGauss<dim>(n_q_points_refined),
+                                      quad_refined,
                                       update_quadrature_points | update_values);
 
       std::vector<typename VectorType::value_type> values_refined(
