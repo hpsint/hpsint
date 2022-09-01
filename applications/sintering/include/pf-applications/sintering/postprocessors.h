@@ -614,14 +614,12 @@ namespace Sintering
           max_values[d] = bb_tria.get_boundary_points().first[d];
         }
 
-      using CellPtr = std::shared_ptr<DoFCellAccessor<dim, dim, false>>;
+      using CellPtr = TriaIterator<DoFCellAccessor<dim, dim, false>>;
 
-      std::vector<std::pair<CellPtr, double>> min_cells(dim,
-                                                        std::make_pair(nullptr,
-                                                                       0));
-      std::vector<std::pair<CellPtr, double>> max_cells(dim,
-                                                        std::make_pair(nullptr,
-                                                                       0));
+      std::vector<std::pair<CellPtr, double>> min_cells(
+        dim, std::make_pair(CellPtr(), 0));
+      std::vector<std::pair<CellPtr, double>> max_cells(
+        dim, std::make_pair(CellPtr(), 0));
 
       Vector<typename VectorType::value_type> values;
 
@@ -656,7 +654,7 @@ namespace Sintering
 
               for (unsigned int d = 0; d < dim; ++d)
                 {
-                  if (min_cells[d].first == nullptr ||
+                  if (min_cells[d].first.state() == IteratorState::invalid ||
                       (std::abs(cell->barycenter()[d] -
                                 min_cells[d].first->barycenter()[d]) <
                          abs_tol &&
@@ -664,13 +662,11 @@ namespace Sintering
                       cell->barycenter()[d] <
                         min_cells[d].first->barycenter()[d])
                     {
-                      min_cells[d].first =
-                        std::make_shared<DoFCellAccessor<dim, dim, false>>(
-                          *cell);
+                      min_cells[d].first  = cell;
                       min_cells[d].second = c_norm;
                     }
 
-                  if (max_cells[d].first == nullptr ||
+                  if (max_cells[d].first.state() == IteratorState::invalid ||
                       (std::abs(cell->barycenter()[d] -
                                 max_cells[d].first->barycenter()[d]) <
                          abs_tol &&
@@ -678,9 +674,7 @@ namespace Sintering
                       cell->barycenter()[d] >
                         max_cells[d].first->barycenter()[d])
                     {
-                      max_cells[d].first =
-                        std::make_shared<DoFCellAccessor<dim, dim, false>>(
-                          *cell);
+                      max_cells[d].first  = cell;
                       max_cells[d].second = c_norm;
                     }
                 }
@@ -704,16 +698,6 @@ namespace Sintering
       if (has_ghost_elements == false)
         solution.zero_out_ghost_values();
 
-      std::vector<typename VectorType::value_type> global_min_values(dim);
-      std::vector<typename VectorType::value_type> global_max_values(dim);
-
-      Utilities::MPI::min(min_values,
-                          dof_handler.get_communicator(),
-                          global_min_values);
-      Utilities::MPI::max(max_values,
-                          dof_handler.get_communicator(),
-                          global_max_values);
-
       // Refine the bounds
       const unsigned int n_q_points_refined = 10;
       FEValues<dim>      fe_values_refined(mapping,
@@ -726,12 +710,9 @@ namespace Sintering
 
       for (unsigned int d = 0; d < dim; ++d)
         {
-          if (std::abs(min_values[d] - global_min_values[d]) < abs_tol &&
-              min_cells[d].first != nullptr)
+          if (min_cells[d].first.state() == IteratorState::valid)
             {
-              TriaIterator<DoFCellAccessor<dim, dim, false>> it_tria(
-                *min_cells[d].first);
-              fe_values_refined.reinit(it_tria);
+              fe_values_refined.reinit(min_cells[d].first);
               fe_values_refined.get_function_values(solution.block(0),
                                                     values_refined);
 
@@ -739,19 +720,16 @@ namespace Sintering
                 {
                   if (values_refined[q] > threshold)
                     {
-                      global_min_values[d] =
-                        std::min(global_min_values[d],
+                      min_values[d] =
+                        std::min(min_values[d],
                                  fe_values_refined.quadrature_point(q)[d]);
                     }
                 }
             }
 
-          if (std::abs(max_values[d] - global_max_values[d]) < abs_tol &&
-              max_cells[d].first != nullptr)
+          if (max_cells[d].first.state() == IteratorState::valid)
             {
-              TriaIterator<DoFCellAccessor<dim, dim, false>> it_tria(
-                *max_cells[d].first);
-              fe_values_refined.reinit(it_tria);
+              fe_values_refined.reinit(max_cells[d].first);
               fe_values_refined.get_function_values(solution.block(0),
                                                     values_refined);
 
@@ -759,27 +737,27 @@ namespace Sintering
                 {
                   if (values_refined[q] > threshold)
                     {
-                      global_max_values[d] =
-                        std::max(global_max_values[d],
+                      max_values[d] =
+                        std::max(max_values[d],
                                  fe_values_refined.quadrature_point(q)[d]);
                     }
                 }
             }
         }
 
-      Utilities::MPI::min(global_min_values,
+      Utilities::MPI::min(min_values,
                           dof_handler.get_communicator(),
-                          global_min_values);
-      Utilities::MPI::max(global_max_values,
+                          min_values);
+      Utilities::MPI::max(max_values,
                           dof_handler.get_communicator(),
-                          global_max_values);
+                          max_values);
 
       Point<dim> left_bb, right_bb;
 
       for (unsigned int d = 0; d < dim; ++d)
         {
-          left_bb[d]  = global_min_values[d];
-          right_bb[d] = global_max_values[d];
+          left_bb[d]  = min_values[d];
+          right_bb[d] = max_values[d];
         }
 
       BoundingBox<dim, typename VectorType::value_type> bb({left_bb, right_bb});
