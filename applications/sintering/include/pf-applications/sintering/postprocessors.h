@@ -594,6 +594,9 @@ namespace Sintering
                        const DoFHandler<dim> &dof_handler,
                        const VectorType &     solution)
     {
+      const double threshold = 0.5 - 1e-2;
+      const double abs_tol   = 1e-15;
+
       FEValues<dim> fe_values(mapping,
                               dof_handler.get_fe(),
                               dof_handler.get_fe().get_unit_support_points(),
@@ -610,6 +613,13 @@ namespace Sintering
           min_values[d] = bb_tria.get_boundary_points().second[d];
           max_values[d] = bb_tria.get_boundary_points().first[d];
         }
+
+      using CellPtr = TriaIterator<DoFCellAccessor<dim, dim, false>>;
+
+      std::vector<std::pair<CellPtr, double>> min_cells(
+        dim, std::make_pair(CellPtr(), 0));
+      std::vector<std::pair<CellPtr, double>> max_cells(
+        dim, std::make_pair(CellPtr(), 0));
 
       Vector<typename VectorType::value_type> values;
 
@@ -629,19 +639,120 @@ namespace Sintering
 
           cell->get_dof_values(solution.block(0), values);
 
-          for (const auto q : fe_values.quadrature_point_indices())
-            if (values[q] > 0.1 /*TODO*/)
+          if (std::any_of(values.begin(),
+                          values.end(),
+                          [threshold](const auto &val) {
+                            return val > threshold;
+                          }) &&
+              std::any_of(values.begin(),
+                          values.end(),
+                          [threshold](const auto &val) {
+                            return val < threshold;
+                          }))
+            {
+              const double c_norm = values.linfty_norm();
+
               for (unsigned int d = 0; d < dim; ++d)
                 {
-                  min_values[d] =
-                    std::min(min_values[d], fe_values.quadrature_point(q)[d]);
-                  max_values[d] =
-                    std::max(max_values[d], fe_values.quadrature_point(q)[d]);
+                  if (min_cells[d].first.state() == IteratorState::invalid ||
+                      (std::abs(cell->barycenter()[d] -
+                                min_cells[d].first->barycenter()[d]) <
+                         abs_tol &&
+                       c_norm > min_cells[d].second) ||
+                      cell->barycenter()[d] <
+                        min_cells[d].first->barycenter()[d])
+                    {
+                      min_cells[d].first  = cell;
+                      min_cells[d].second = c_norm;
+                    }
+
+                  if (max_cells[d].first.state() == IteratorState::invalid ||
+                      (std::abs(cell->barycenter()[d] -
+                                max_cells[d].first->barycenter()[d]) <
+                         abs_tol &&
+                       c_norm > max_cells[d].second) ||
+                      cell->barycenter()[d] >
+                        max_cells[d].first->barycenter()[d])
+                    {
+                      max_cells[d].first  = cell;
+                      max_cells[d].second = c_norm;
+                    }
                 }
+
+              for (const auto q : fe_values.quadrature_point_indices())
+                {
+                  if (values[q] > threshold)
+                    for (unsigned int d = 0; d < dim; ++d)
+                      {
+                        min_values[d] =
+                          std::min(min_values[d],
+                                   fe_values.quadrature_point(q)[d]);
+                        max_values[d] =
+                          std::max(max_values[d],
+                                   fe_values.quadrature_point(q)[d]);
+                      }
+                }
+            }
         }
 
       if (has_ghost_elements == false)
         solution.zero_out_ghost_values();
+
+      // Generate refined quadrature
+      const unsigned int            n_intervals = 10;
+      std::vector<dealii::Point<1>> points(n_intervals - 1);
+
+      // The end points are dropped since the support points of the cells have
+      // been already analyzed and the result is already in min/max_values
+      for (unsigned int i = 0; i < n_intervals - 1; ++i)
+        points[i][0] = 1. / n_intervals * (i + 1);
+      Quadrature<1>   quad_1d(points);
+      Quadrature<dim> quad_refined(quad_1d);
+
+      FEValues<dim> fe_values_refined(mapping,
+                                      dof_handler.get_fe(),
+                                      quad_refined,
+                                      update_quadrature_points | update_values);
+
+      std::vector<typename VectorType::value_type> values_refined(
+        fe_values_refined.n_quadrature_points);
+
+      for (unsigned int d = 0; d < dim; ++d)
+        {
+          if (min_cells[d].first.state() == IteratorState::valid)
+            {
+              fe_values_refined.reinit(min_cells[d].first);
+              fe_values_refined.get_function_values(solution.block(0),
+                                                    values_refined);
+
+              for (const auto q : fe_values_refined.quadrature_point_indices())
+                {
+                  if (values_refined[q] > threshold)
+                    {
+                      min_values[d] =
+                        std::min(min_values[d],
+                                 fe_values_refined.quadrature_point(q)[d]);
+                    }
+                }
+            }
+
+          if (max_cells[d].first.state() == IteratorState::valid)
+            {
+              fe_values_refined.reinit(max_cells[d].first);
+              fe_values_refined.get_function_values(solution.block(0),
+                                                    values_refined);
+
+              for (const auto q : fe_values_refined.quadrature_point_indices())
+                {
+                  if (values_refined[q] > threshold)
+                    {
+                      max_values[d] =
+                        std::max(max_values[d],
+                                 fe_values_refined.quadrature_point(q)[d]);
+                    }
+                }
+            }
+        }
 
       Utilities::MPI::min(min_values,
                           dof_handler.get_communicator(),

@@ -32,6 +32,8 @@ n_qtys = len(vals0)
 
 for idx, vtk_file in enumerate(vtk_files_list):
 
+    print("Parsing file {} ({}/{})".format(vtk_file, idx + 1, n_rows))
+
     # Read next file
     reader.SetFileName(vtk_file)
     reader.Update()
