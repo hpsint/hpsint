@@ -105,7 +105,7 @@ main(int argc, char **argv)
       pcout << "Number of grains: " << n_grains << std::endl;
       pcout << std::endl;
 
-      if (argc >= 5)
+      if (argc == 5)
         {
           pcout << "Input parameters file:" << std::endl;
           pcout << std::ifstream(argv[4]).rdbuf() << std::endl;
@@ -154,7 +154,7 @@ main(int argc, char **argv)
       pcout << fstream.rdbuf();
       pcout << std::endl;
 
-      if (argc >= 4)
+      if (argc == 4)
         {
           pcout << "Input parameters file:" << std::endl;
           pcout << std::ifstream(argv[3]).rdbuf() << std::endl;
@@ -193,7 +193,7 @@ main(int argc, char **argv)
       pcout << "Restart path: " << restart_path << std::endl;
       pcout << std::endl;
 
-      if (argc >= 4)
+      if (argc == 4)
         {
           pcout << "Input parameters file:" << std::endl;
           pcout << std::ifstream(argv[3]).rdbuf() << std::endl;
