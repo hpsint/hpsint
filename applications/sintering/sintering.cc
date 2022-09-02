@@ -90,19 +90,19 @@ main(int argc, char **argv)
       AssertThrow(4 <= argc && argc <= 5, ExcNotImplemented());
 
       // geometry
-      const unsigned int    n_grains        = atoi(argv[2]);
-      const double          r0              = atof(argv[3]);
+      const double          r0              = atof(argv[2]);
+      const unsigned int    n_grains        = atoi(argv[3]);
       static constexpr bool is_accumulative = false;
 
-      AssertThrow(n_grains > 0,
-                  ExcMessage("Number of grains should be grater than 0!"));
       AssertThrow(r0 > 0,
                   ExcMessage("Particle radius should be grater than 0!"));
+      AssertThrow(n_grains > 0,
+                  ExcMessage("Number of grains should be grater than 0!"));
 
       // Output case specific info
       pcout << "Mode:             circle" << std::endl;
-      pcout << "Number of grains: " << n_grains << std::endl;
       pcout << "Grains radius:    " << r0 << std::endl;
+      pcout << "Number of grains: " << n_grains << std::endl;
       pcout << std::endl;
 
       if (argc >= 5)
