@@ -43,6 +43,7 @@ static_assert(false, "No grains number has been given!");
 #include <pf-applications/sintering/driver.h>
 #include <pf-applications/sintering/initial_values_circle.h>
 #include <pf-applications/sintering/initial_values_cloud.h>
+#include <pf-applications/sintering/initial_values_hypercube.h>
 
 #include <cstdlib>
 
@@ -90,22 +91,22 @@ main(int argc, char **argv)
       AssertThrow(4 <= argc && argc <= 5, ExcNotImplemented());
 
       // geometry
-      const unsigned int    n_grains        = atoi(argv[2]);
-      const double          r0              = atof(argv[3]);
+      const double          r0              = atof(argv[2]);
+      const unsigned int    n_grains        = atoi(argv[3]);
       static constexpr bool is_accumulative = false;
 
-      AssertThrow(n_grains > 0,
-                  ExcMessage("Number of grains should be grater than 0!"));
       AssertThrow(r0 > 0,
                   ExcMessage("Particle radius should be grater than 0!"));
+      AssertThrow(n_grains > 0,
+                  ExcMessage("Number of grains should be grater than 0!"));
 
       // Output case specific info
       pcout << "Mode:             circle" << std::endl;
-      pcout << "Number of grains: " << n_grains << std::endl;
       pcout << "Grains radius:    " << r0 << std::endl;
+      pcout << "Number of grains: " << n_grains << std::endl;
       pcout << std::endl;
 
-      if (argc >= 5)
+      if (argc == 5)
         {
           pcout << "Input parameters file:" << std::endl;
           pcout << std::ifstream(argv[4]).rdbuf() << std::endl;
@@ -121,6 +122,73 @@ main(int argc, char **argv)
 
       const auto initial_solution =
         std::make_shared<Sintering::InitialValuesCircle<SINTERING_DIM>>(
+          r0,
+          params.geometry_data.interface_width,
+          n_grains,
+          params.geometry_data.minimize_order_parameters,
+          is_accumulative);
+
+      AssertThrow(
+        initial_solution->n_order_parameters() <= MAX_SINTERING_GRAINS,
+        Sintering::ExcMaxGrainsExceeded(initial_solution->n_order_parameters(),
+                                        MAX_SINTERING_GRAINS));
+
+      Sintering::Problem<SINTERING_DIM> runner(params, initial_solution);
+    }
+  else if (std::string(argv[1]) == "--hypercube")
+    {
+      AssertThrow(3 + SINTERING_DIM <= argc && argc <= 4 + SINTERING_DIM,
+                  ExcNotImplemented());
+
+      // geometry
+      const double r0 = atof(argv[2]);
+
+      std::array<unsigned int, SINTERING_DIM> n_grains;
+      for (unsigned int d = 0; d < SINTERING_DIM; ++d)
+        n_grains[d] = atoi(argv[3 + d]);
+
+      static constexpr bool is_accumulative = false;
+
+      AssertThrow(r0 > 0,
+                  ExcMessage("Particle radius should be grater than 0!"));
+      AssertThrow(std::all_of(n_grains.begin(),
+                              n_grains.end(),
+                              [](const auto &val) { return val > 0; }),
+                  ExcMessage("Number of grains should be grater than 0!"));
+
+      const unsigned int n_total_grains = std::accumulate(
+        n_grains.begin(), n_grains.end(), 1, std::multiplies<unsigned int>());
+
+      // Output case specific info
+      pcout << "Mode:             hypercube" << std::endl;
+      pcout << "Grains radius:    " << r0 << std::endl;
+      pcout << "Number of grains: ";
+      for (unsigned int d = 0; d < SINTERING_DIM; ++d)
+        {
+          pcout << std::to_string(n_grains[d]);
+
+          if (d + 1 != SINTERING_DIM)
+            pcout << "x";
+        }
+      pcout << " = " << n_total_grains << std::endl;
+      pcout << std::endl;
+
+      if (argc == 4 + SINTERING_DIM)
+        {
+          pcout << "Input parameters file:" << std::endl;
+          pcout << std::ifstream(argv[3 + SINTERING_DIM]).rdbuf() << std::endl;
+
+          params.parse(std::string(argv[3 + SINTERING_DIM]));
+        }
+
+      params.check();
+
+      pcout << "Parameters in JSON format:" << std::endl;
+      params.print_input();
+      pcout << std::endl;
+
+      const auto initial_solution =
+        std::make_shared<Sintering::InitialValuesHypercube<SINTERING_DIM>>(
           r0,
           params.geometry_data.interface_width,
           n_grains,
@@ -154,7 +222,7 @@ main(int argc, char **argv)
       pcout << fstream.rdbuf();
       pcout << std::endl;
 
-      if (argc >= 4)
+      if (argc == 4)
         {
           pcout << "Input parameters file:" << std::endl;
           pcout << std::ifstream(argv[3]).rdbuf() << std::endl;
@@ -193,7 +261,7 @@ main(int argc, char **argv)
       pcout << "Restart path: " << restart_path << std::endl;
       pcout << std::endl;
 
-      if (argc >= 4)
+      if (argc == 4)
         {
           pcout << "Input parameters file:" << std::endl;
           pcout << std::ifstream(argv[3]).rdbuf() << std::endl;
