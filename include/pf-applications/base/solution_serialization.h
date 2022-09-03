@@ -106,7 +106,7 @@ namespace dealii
             }
           else
             {
-              for (const auto child : cell->child_iterators())
+              for (const auto &child : cell->child_iterators())
                 visit_cells_recursevely(child,
                                         locally_owned_dofs,
                                         mask,

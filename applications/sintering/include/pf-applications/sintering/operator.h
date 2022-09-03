@@ -906,6 +906,8 @@ namespace Sintering
       const VectorizedArrayType &etaPower2Sum,
       const VectorizedArrayType &etaPower3Sum) const
     {
+      (void)etas;
+
       return A * (c * c) * ((-c + 1.0) * (-c + 1.0)) +
              B * ((c * c) + (-6.0 * c + 6.0) * etaPower2Sum -
                   (-4.0 * c + 8.0) * etaPower3Sum +

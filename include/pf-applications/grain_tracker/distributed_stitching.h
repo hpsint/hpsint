@@ -60,7 +60,7 @@ namespace GrainTracker
         Utilities::MPI::ConsensusAlgorithms::selector<T>(
           [&]() {
             std::vector<unsigned int> targets;
-            for (const auto i : data_to_send)
+            for (const auto &i : data_to_send)
               targets.emplace_back(i.first);
             return targets;
           }(),
@@ -131,7 +131,7 @@ namespace GrainTracker
 
     for (unsigned int i = 0; i < input_valid.size(); ++i)
       {
-        for (const auto j : input_valid[i])
+        for (const auto &j : input_valid[i])
           data_to_send_[std::get<0>(j)].emplace_back(std::get<1>(j),
                                                      i + offset_p);
       }
@@ -142,7 +142,7 @@ namespace GrainTracker
     Utilities::MPI::ConsensusAlgorithms::selector<U>(
       [&]() {
         std::vector<unsigned int> targets;
-        for (const auto i : data_to_send_)
+        for (const auto &i : data_to_send_)
           targets.emplace_back(i.first);
         return targets;
       }(),
