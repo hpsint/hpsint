@@ -207,7 +207,7 @@ namespace Sintering
         GridGenerator::hyper_cube(tria, -1e-6, 1e-6);
 
       Vector<float> vector_grain_id(tria.n_active_cells());
-      for (const auto cell : tria.active_cell_iterators())
+      for (const auto &cell : tria.active_cell_iterators())
         vector_grain_id[cell->active_cell_index()] = cell->material_id();
 
       Vector<float> vector_rank(tria.n_active_cells());
