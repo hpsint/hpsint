@@ -143,6 +143,7 @@ namespace Sintering
     bool                  shrinkage              = false;
     bool                  debug                  = false;
     bool                  higher_order_cells     = false;
+    bool                  fluxes_divergences     = false;
     double                output_time_interval   = 10;
     std::string           vtk_path               = ".";
     std::set<std::string> fields                 = {"CH",
@@ -586,6 +587,9 @@ namespace Sintering
       prm.add_parameter("HigherOrderCells",
                         output_data.higher_order_cells,
                         "Use higher order cells.");
+      prm.add_parameter("FluxesDivergences",
+                        output_data.fluxes_divergences,
+                        "Calculate divergences of fluxes.");
       prm.add_parameter("OutputTimeInterval",
                         output_data.output_time_interval,
                         "Output time interval.");

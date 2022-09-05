@@ -831,25 +831,34 @@ namespace Sintering
       // Define vector to store additional initializers for additional vectors
       std::vector<std::function<void()>> additional_initializations;
 
-      // Initialization of data for advanced postprocessing
+      // Initialization of data for advanced postprocessing (if needed)
       PostprocOperator<dim, Number, VectorizedArrayType> postproc_operator(
         matrix_free, constraints, sintering_data, params.matrix_based);
 
-      auto postproc_preconditioner =
-        Preconditioners::create(postproc_operator, "ILU");
-
-      auto postproc_linear_solver =
-        std::make_unique<LinearSolvers::SolverGMRESWrapper<
-          PostprocOperator<dim, Number, VectorizedArrayType>,
-          Preconditioners::PreconditionerBase<Number>>>(
-          postproc_operator, *postproc_preconditioner, solver_control_l);
+      std::unique_ptr<Preconditioners::PreconditionerBase<Number>>
+        postproc_preconditioner;
+      std::unique_ptr<LinearSolvers::LinearSolverBase<Number>>
+        postproc_linear_solver;
 
       VectorType postproc_lhs, postproc_rhs;
-      additional_initializations.emplace_back(
-        [&postproc_operator, &postproc_lhs, &postproc_rhs]() {
-          postproc_operator.initialize_dof_vector(postproc_lhs);
-          postproc_operator.initialize_dof_vector(postproc_rhs);
-        });
+
+      if (params.output_data.fluxes_divergences)
+        {
+          postproc_preconditioner =
+            Preconditioners::create(postproc_operator, "ILU");
+
+          postproc_linear_solver =
+            std::make_unique<LinearSolvers::SolverGMRESWrapper<
+              PostprocOperator<dim, Number, VectorizedArrayType>,
+              Preconditioners::PreconditionerBase<Number>>>(
+              postproc_operator, *postproc_preconditioner, solver_control_l);
+
+          additional_initializations.emplace_back(
+            [&postproc_operator, &postproc_lhs, &postproc_rhs]() {
+              postproc_operator.initialize_dof_vector(postproc_lhs);
+              postproc_operator.initialize_dof_vector(postproc_rhs);
+            });
+        }
 
       // ... non-linear Newton solver
       NonLinearSolvers::NewtonSolverSolverControl statistics(
@@ -1374,10 +1383,13 @@ namespace Sintering
         run_grain_tracker(t, /*do_initialize = */ true);
 
       // Build additional output
-      auto additional_output =
-        [&postproc_operator, &postproc_lhs, this](DataOut<dim> &data_out) {
-          postproc_operator.add_data_vectors(data_out, postproc_lhs, {});
-        };
+      std::function<void(DataOut<dim> & data_out)> additional_output;
+
+      if (params.output_data.fluxes_divergences)
+        additional_output =
+          [&postproc_operator, &postproc_lhs, this](DataOut<dim> &data_out) {
+            postproc_operator.add_data_vectors(data_out, postproc_lhs, {});
+          };
 
       if (t == 0.0 && params.output_data.output_time_interval > 0.0)
         output_result(solution,
@@ -1688,9 +1700,10 @@ namespace Sintering
                   }
 
                 // Posptrocessing to calculate divergences of fluxes
-                if (true)
+                if (params.output_data.fluxes_divergences)
                   {
-                    MyScope scope(timer, "time_loop::newton::calc_divergences");
+                    MyScope scope(timer,
+                                  "time_loop::newton::fluxes_divergences");
 
                     postproc_preconditioner->do_update();
                     postproc_operator.evaluate_nonlinear_residual(postproc_rhs,
@@ -1923,7 +1936,8 @@ namespace Sintering
                                               params.output_data.fields);
 
           // Output additional data
-          additional_output(data_out);
+          if (additional_output)
+            additional_output(data_out);
 
           // Output subdomain structure
           if (params.output_data.fields.count("subdomain"))
