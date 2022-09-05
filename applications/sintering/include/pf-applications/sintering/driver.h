@@ -828,6 +828,29 @@ namespace Sintering
       MyTimerOutput timer;
       TimerCollection::configure(params.profiling_data.output_time_interval);
 
+      // Define vector to store additional initializers for additional vectors
+      std::vector<std::function<void()>> additional_initializations;
+
+      // Initialization of data for advanced postprocessing
+      PostprocOperator<dim, Number, VectorizedArrayType> postproc_operator(
+        matrix_free, constraints, sintering_data, params.matrix_based);
+
+      auto postproc_preconditioner =
+        Preconditioners::create(postproc_operator, "ILU");
+
+      auto postproc_linear_solver =
+        std::make_unique<LinearSolvers::SolverGMRESWrapper<
+          PostprocOperator<dim, Number, VectorizedArrayType>,
+          Preconditioners::PreconditionerBase<Number>>>(
+          postproc_operator, *postproc_preconditioner, solver_control_l);
+
+      VectorType postproc_lhs, postproc_rhs;
+      additional_initializations.emplace_back(
+        [&postproc_operator, &postproc_lhs, &postproc_rhs]() {
+          postproc_operator.initialize_dof_vector(postproc_lhs);
+          postproc_operator.initialize_dof_vector(postproc_rhs);
+        });
+
       // ... non-linear Newton solver
       NonLinearSolvers::NewtonSolverSolverControl statistics(
         params.nonlinear_data.nl_max_iter,
@@ -1038,6 +1061,9 @@ namespace Sintering
         };
 
       solution_history.apply(f_init);
+      std::for_each(additional_initializations.begin(),
+                    additional_initializations.end(),
+                    [](auto &a_init) { a_init(); });
 
       VectorType &solution = solution_history.get_current_solution();
 
@@ -1175,6 +1201,9 @@ namespace Sintering
           preconditioner->clear();
 
           solutions_except_recent.apply(f_init);
+          std::for_each(additional_initializations.begin(),
+                        additional_initializations.end(),
+                        [](auto &a_init) { a_init(); });
 
           auto solution_ptr = solutions_except_recent.get_all_blocks();
 
@@ -1344,8 +1373,18 @@ namespace Sintering
       if (params.grain_tracker_data.grain_tracker_frequency > 0)
         run_grain_tracker(t, /*do_initialize = */ true);
 
+      // Build additional output
+      auto additional_output =
+        [&postproc_operator, &postproc_lhs, this](DataOut<dim> &data_out) {
+          postproc_operator.add_data_vectors(data_out, postproc_lhs, {});
+        };
+
       if (t == 0.0 && params.output_data.output_time_interval > 0.0)
-        output_result(solution, nonlinear_operator, time_last_output);
+        output_result(solution,
+                      nonlinear_operator,
+                      time_last_output,
+                      "solution",
+                      additional_output);
 
       // run time loop
       {
@@ -1647,6 +1686,17 @@ namespace Sintering
                     pcout << " - preconditioner:      "
                           << mc_preconditioner / 1e9 << std::endl;
                   }
+
+                // Posptrocessing to calculate divergences of fluxes
+                if (true)
+                  {
+                    MyScope scope(timer, "time_loop::newton::calc_divergences");
+
+                    postproc_preconditioner->do_update();
+                    postproc_operator.evaluate_nonlinear_residual(postproc_rhs,
+                                                                  solution);
+                    postproc_linear_solver->solve(postproc_lhs, postproc_rhs);
+                  }
               }
             catch (const NonLinearSolvers::ExcNewtonDidNotConverge &e)
               {
@@ -1714,7 +1764,11 @@ namespace Sintering
                  params.output_data.output_time_interval + time_last_output))
               {
                 time_last_output = t;
-                output_result(solution, nonlinear_operator, time_last_output);
+                output_result(solution,
+                              nonlinear_operator,
+                              time_last_output,
+                              "solution",
+                              additional_output);
               }
 
             if (is_last_time_step || restart_predicate.now(t))
@@ -1828,10 +1882,12 @@ namespace Sintering
 
   private:
     void
-    output_result(const VectorType &       solution,
-                  const NonLinearOperator &sintering_operator,
-                  const double             t,
-                  const std::string        label = "solution")
+    output_result(
+      const VectorType &                          solution,
+      const NonLinearOperator &                   sintering_operator,
+      const double                                t,
+      const std::string                           label = "solution",
+      std::function<void(DataOut<dim> &data_out)> additional_output = {})
     {
       if (!params.output_data.debug && label != "solution")
         return; // nothing to do for debug for non-solution
@@ -1865,6 +1921,9 @@ namespace Sintering
           sintering_operator.add_data_vectors(data_out,
                                               solution,
                                               params.output_data.fields);
+
+          // Output additional data
+          additional_output(data_out);
 
           // Output subdomain structure
           if (params.output_data.fields.count("subdomain"))
