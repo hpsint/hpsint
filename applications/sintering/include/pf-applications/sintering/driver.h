@@ -835,6 +835,9 @@ namespace Sintering
       PostprocOperator<dim, Number, VectorizedArrayType> postproc_operator(
         matrix_free, constraints, sintering_data, params.matrix_based);
 
+      MassMatrix<dim, Number, VectorizedArrayType> mass_operator(matrix_free,
+                                                                 constraints);
+
       std::unique_ptr<Preconditioners::PreconditionerBase<Number>>
         postproc_preconditioner;
       std::unique_ptr<LinearSolvers::LinearSolverBase<Number>>
@@ -845,13 +848,14 @@ namespace Sintering
       if (params.output_data.fluxes_divergences)
         {
           postproc_preconditioner =
-            Preconditioners::create(postproc_operator, "ILU");
+            Preconditioners::create(mass_operator,
+                                    "InverseBlockDiagonalMatrix");
 
           postproc_linear_solver =
             std::make_unique<LinearSolvers::SolverGMRESWrapper<
-              PostprocOperator<dim, Number, VectorizedArrayType>,
+              MassMatrix<dim, Number, VectorizedArrayType>,
               Preconditioners::PreconditionerBase<Number>>>(
-              postproc_operator, *postproc_preconditioner, solver_control_l);
+              mass_operator, *postproc_preconditioner, solver_control_l);
 
           additional_initializations.emplace_back(
             [&postproc_operator, &postproc_lhs, &postproc_rhs]() {
@@ -1706,9 +1710,15 @@ namespace Sintering
                                   "time_loop::newton::fluxes_divergences");
 
                     postproc_preconditioner->do_update();
-                    postproc_operator.evaluate_nonlinear_residual(postproc_rhs,
-                                                                  solution);
-                    postproc_linear_solver->solve(postproc_lhs, postproc_rhs);
+
+                    postproc_operator.evaluate_residual(postproc_rhs, solution);
+                    for (unsigned int i = 0; i < postproc_lhs.n_blocks(); ++i)
+                      {
+                        postproc_linear_solver->solve(postproc_lhs.block(i),
+                                                      postproc_rhs.block(i));
+                      }
+                    // postproc_linear_solver->solve(postproc_lhs,
+                    // postproc_rhs);
                   }
               }
             catch (const NonLinearSolvers::ExcNewtonDidNotConverge &e)

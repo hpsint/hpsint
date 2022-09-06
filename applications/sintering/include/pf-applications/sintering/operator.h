@@ -2529,20 +2529,17 @@ namespace Sintering
     {}
 
     void
-    evaluate_nonlinear_residual(BlockVectorType &      dst,
-                                const BlockVectorType &src) const
+    evaluate_residual(BlockVectorType &dst, const BlockVectorType &src) const
     {
-      MyScope scope(this->timer,
-                    "sintering_op::nonlinear_residual",
-                    this->do_timing);
+      MyScope scope(this->timer, "postproc_op::residual", this->do_timing);
 
-#define OPERATION(c, d)                                      \
-  MyMatrixFreeTools::cell_loop_wrapper(                      \
-    this->matrix_free,                                       \
-    &PostprocOperator::do_evaluate_nonlinear_residual<c, d>, \
-    this,                                                    \
-    dst,                                                     \
-    src,                                                     \
+#define OPERATION(c, d)                            \
+  MyMatrixFreeTools::cell_loop_wrapper(            \
+    this->matrix_free,                             \
+    &PostprocOperator::do_evaluate_residual<c, d>, \
+    this,                                          \
+    dst,                                           \
+    src,                                           \
     true);
       EXPAND_OPERATIONS(OPERATION);
 #undef OPERATION
@@ -2578,21 +2575,14 @@ namespace Sintering
     do_vmult_kernel(
       FECellIntegrator<dim, n_comp, Number, VectorizedArrayType> &phi) const
     {
-      for (unsigned int q = 0; q < phi.n_q_points; ++q)
-        {
-          phi.submit_value(phi.get_value(q), q);
-          phi.submit_gradient(
-            typename FECellIntegrator<dim, 4, Number, VectorizedArrayType>::
-              gradient_type(),
-            q);
-        }
+      AssertThrow(false, ExcNotImplemented());
     }
 
     template <int n_comp, int n_grains>
     void
-    do_add_data_vectors_kernel(DataOut<dim> &               data_out,
-                               const BlockVectorType &      vec,
-                               const std::set<std::string> &fields_list) const
+    do_evaluate_residual(DataOut<dim> &               data_out,
+                         const BlockVectorType &      vec,
+                         const std::set<std::string> &fields_list) const
     {
       (void)fields_list;
 
