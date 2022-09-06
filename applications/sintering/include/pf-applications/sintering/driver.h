@@ -68,6 +68,7 @@
 #include <pf-applications/numerics/data_out.h>
 #include <pf-applications/numerics/vector_tools.h>
 
+#include <pf-applications/sintering/advection.h>
 #include <pf-applications/sintering/initial_values.h>
 #include <pf-applications/sintering/operator.h>
 #include <pf-applications/sintering/parameters.h>
@@ -774,11 +775,15 @@ namespace Sintering
                             params.adaptivity_data.max_refinement_depth,
                           sintering_data);
 
+      // Advection physics for shrinkage
+      AdvectionMechanism<dim, VectorizedArrayType> advection_mechanism;
+
       // ... non-linear operator
       NonLinearOperator nonlinear_operator(matrix_free,
                                            constraints,
                                            sintering_data,
                                            solution_history,
+                                           advection_mechanism,
                                            params.matrix_based);
 
       // ... preconditioner
