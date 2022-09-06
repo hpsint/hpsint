@@ -1711,7 +1711,7 @@ namespace Sintering
 
                     postproc_preconditioner->do_update();
 
-                    postproc_operator.evaluate_residual(postproc_rhs, solution);
+                    postproc_operator.evaluate_rhs(postproc_rhs, solution);
                     for (unsigned int i = 0; i < postproc_lhs.n_blocks(); ++i)
                       {
                         postproc_linear_solver->solve(postproc_lhs.block(i),
