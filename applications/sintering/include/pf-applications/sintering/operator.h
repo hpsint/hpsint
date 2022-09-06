@@ -2533,13 +2533,13 @@ namespace Sintering
     {
       MyScope scope(this->timer, "postproc_op::residual", this->do_timing);
 
-#define OPERATION(c, d)                            \
-  MyMatrixFreeTools::cell_loop_wrapper(            \
-    this->matrix_free,                             \
+#define OPERATION(c, d)                       \
+  MyMatrixFreeTools::cell_loop_wrapper(       \
+    this->matrix_free,                        \
     &PostprocOperator::do_evaluate_rhs<c, d>, \
-    this,                                          \
-    dst,                                           \
-    src,                                           \
+    this,                                     \
+    dst,                                      \
+    src,                                      \
     true);
       EXPAND_OPERATIONS(OPERATION);
 #undef OPERATION
