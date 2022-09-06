@@ -1213,7 +1213,8 @@ namespace Sintering
           preconditioner->clear();
 
           mass_operator.clear();
-          postproc_preconditioner->clear();
+          if (params.output_data.fluxes_divergences)
+            postproc_preconditioner->clear();
 
           solutions_except_recent.apply(f_init);
           std::for_each(additional_initializations.begin(),
