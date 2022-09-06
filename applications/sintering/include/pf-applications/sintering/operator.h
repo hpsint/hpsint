@@ -2580,9 +2580,9 @@ namespace Sintering
 
     template <int n_comp, int n_grains>
     void
-    do_evaluate_residual(DataOut<dim> &               data_out,
-                         const BlockVectorType &      vec,
-                         const std::set<std::string> &fields_list) const
+    do_add_data_vectors_kernel(DataOut<dim> &               data_out,
+                               const BlockVectorType &      vec,
+                               const std::set<std::string> &fields_list) const
     {
       (void)fields_list;
 
@@ -2603,7 +2603,7 @@ namespace Sintering
   private:
     template <int n_comp, int n_grains>
     void
-    do_evaluate_nonlinear_residual(
+    do_evaluate_residual(
       const MatrixFree<dim, Number, VectorizedArrayType> &matrix_free,
       BlockVectorType &                                   dst,
       const BlockVectorType &                             src,
