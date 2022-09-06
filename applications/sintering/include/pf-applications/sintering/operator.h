@@ -1537,6 +1537,29 @@ namespace Sintering
       return block_system_matrix;
     }
 
+    void
+    add_data_vectors(DataOut<dim> &               data_out,
+                     const BlockVectorType &      vec,
+                     const std::set<std::string> &fields_list) const
+    {
+#define OPERATION(c, d) \
+  this->do_add_data_vectors<c, d>(data_out, vec, fields_list);
+      EXPAND_OPERATIONS(OPERATION);
+#undef OPERATION
+    }
+
+    template <int n_comp, int n_grains>
+    void
+    do_add_data_vectors(DataOut<dim> &               data_out,
+                        const BlockVectorType &      vec,
+                        const std::set<std::string> &fields_list) const
+    {
+      static_cast<const T &>(*this)
+        .template do_add_data_vectors_kernel<n_comp, n_grains>(data_out,
+                                                               vec,
+                                                               fields_list);
+    }
+
     virtual std::size_t
     memory_consumption() const
     {
@@ -1923,9 +1946,9 @@ namespace Sintering
 
     template <int n_comp, int n_grains>
     void
-    do_add_data_vectors(DataOut<dim> &               data_out,
-                        const BlockVectorType &      vec,
-                        const std::set<std::string> &fields_list) const
+    do_add_data_vectors_kernel(DataOut<dim> &               data_out,
+                               const BlockVectorType &      vec,
+                               const std::set<std::string> &fields_list) const
     {
       AssertDimension(n_comp - 2, n_grains);
 
@@ -2253,17 +2276,6 @@ namespace Sintering
     }
 
     void
-    add_data_vectors(DataOut<dim> &               data_out,
-                     const BlockVectorType &      vec,
-                     const std::set<std::string> &fields_list) const
-    {
-#define OPERATION(c, d) \
-  this->do_add_data_vectors<c, d>(data_out, vec, fields_list);
-      EXPAND_OPERATIONS(OPERATION);
-#undef OPERATION
-    }
-
-    void
     sanity_check(BlockVectorType &solution) const
     {
       for (unsigned int b = 0; b < solution.n_blocks(); ++b)
@@ -2477,6 +2489,178 @@ namespace Sintering
     const TimeIntegration::SolutionHistory<BlockVectorType> &history;
     const TimeIntegration::BDFIntegrator<dim, Number, VectorizedArrayType>
       time_integrator;
+  };
+
+  template <int dim, typename Number, typename VectorizedArrayType>
+  class PostprocOperator
+    : public OperatorBase<dim,
+                          Number,
+                          VectorizedArrayType,
+                          PostprocOperator<dim, Number, VectorizedArrayType>>
+  {
+  public:
+    using T = PostprocOperator<dim, Number, VectorizedArrayType>;
+
+    using VectorType = LinearAlgebra::distributed::Vector<Number>;
+    using BlockVectorType =
+      LinearAlgebra::distributed::DynamicBlockVector<Number>;
+
+    using value_type  = Number;
+    using vector_type = VectorType;
+
+    PostprocOperator(
+      const MatrixFree<dim, Number, VectorizedArrayType> &   matrix_free,
+      const AffineConstraints<Number> &                      constraints,
+      const SinteringOperatorData<dim, VectorizedArrayType> &data,
+      const bool                                             matrix_based)
+      : OperatorBase<dim,
+                     Number,
+                     VectorizedArrayType,
+                     PostprocOperator<dim, Number, VectorizedArrayType>>(
+          matrix_free,
+          constraints,
+          0,
+          "postproc_op",
+          matrix_based)
+      , data(data)
+    {}
+
+    ~PostprocOperator()
+    {}
+
+    void
+    evaluate_rhs(BlockVectorType &dst, const BlockVectorType &src) const
+    {
+      MyScope scope(this->timer, "postproc_op::residual", this->do_timing);
+
+#define OPERATION(c, d)                       \
+  MyMatrixFreeTools::cell_loop_wrapper(       \
+    this->matrix_free,                        \
+    &PostprocOperator::do_evaluate_rhs<c, d>, \
+    this,                                     \
+    dst,                                      \
+    src,                                      \
+    true);
+      EXPAND_OPERATIONS(OPERATION);
+#undef OPERATION
+    }
+
+    void
+    do_update()
+    {
+      if (this->matrix_based)
+        this->get_system_matrix(); // assemble matrix
+    }
+
+    unsigned int
+    n_components() const override
+    {
+      return 4;
+    }
+
+    unsigned int
+    n_grains() const
+    {
+      return data.n_grains();
+    }
+
+    static constexpr unsigned int
+    n_grains_to_n_components(const unsigned int)
+    {
+      return 4;
+    }
+
+    template <int n_comp, int n_grains>
+    void
+    do_vmult_kernel(
+      FECellIntegrator<dim, n_comp, Number, VectorizedArrayType> &phi) const
+    {
+      AssertThrow(false, ExcNotImplemented());
+    }
+
+    template <int n_comp, int n_grains>
+    void
+    do_add_data_vectors_kernel(DataOut<dim> &               data_out,
+                               const BlockVectorType &      vec,
+                               const std::set<std::string> &fields_list) const
+    {
+      (void)fields_list;
+
+      std::vector<std::string> names = {"div_vol",
+                                        "div_vap",
+                                        "div_surf",
+                                        "div_gb"};
+
+      AssertDimension(names.size(), vec.n_blocks());
+
+      for (unsigned int i = 0; i < names.size(); ++i)
+        data_out.add_data_vector(this->matrix_free.get_dof_handler(
+                                   this->dof_index),
+                                 vec.block(i),
+                                 names[i]);
+    }
+
+  private:
+    template <int n_comp, int n_grains>
+    void
+    do_evaluate_rhs(
+      const MatrixFree<dim, Number, VectorizedArrayType> &matrix_free,
+      BlockVectorType &                                   dst,
+      const BlockVectorType &                             src,
+      const std::pair<unsigned int, unsigned int> &       range) const
+    {
+      FECellIntegrator<dim, 2 + n_grains, Number, VectorizedArrayType> phi_sint(
+        matrix_free, this->dof_index);
+      FECellIntegrator<dim, n_comp, Number, VectorizedArrayType> phi_post(
+        matrix_free, this->dof_index);
+
+      const auto &mobility = this->data.get_mobility();
+
+      for (auto cell = range.first; cell < range.second; ++cell)
+        {
+          phi_sint.reinit(cell);
+          phi_post.reinit(cell);
+
+          phi_sint.gather_evaluate(
+            src,
+            EvaluationFlags::EvaluationFlags::values |
+              EvaluationFlags::EvaluationFlags::gradients);
+
+          for (unsigned int q = 0; q < phi_post.n_q_points; ++q)
+            {
+              const auto val  = phi_sint.get_value(q);
+              const auto grad = phi_sint.get_gradient(q);
+
+              auto &c       = val[0];
+              auto &c_grad  = grad[0];
+              auto &mu_grad = grad[1];
+
+              std::array<VectorizedArrayType, n_grains> etas;
+              std::array<Tensor<1, dim, VectorizedArrayType>, n_grains>
+                etas_grad;
+
+              for (unsigned int ig = 0; ig < n_grains; ++ig)
+                {
+                  etas[ig]      = val[2 + ig];
+                  etas_grad[ig] = grad[2 + ig];
+                }
+
+              Tensor<1, 4, Tensor<1, dim, VectorizedArrayType>> gradient_result;
+
+              gradient_result[0] = -mobility.M_vol(c) * mu_grad;
+              gradient_result[1] = -mobility.M_vap(c) * mu_grad;
+              gradient_result[2] = -mobility.M_surf(c, c_grad) * mu_grad;
+              gradient_result[3] =
+                -mobility.M_gb(etas, n_grains, etas_grad) * mu_grad;
+
+              phi_post.submit_gradient(gradient_result, q);
+            }
+          phi_post.integrate_scatter(
+            EvaluationFlags::EvaluationFlags::gradients, dst);
+        }
+    }
+
+    const SinteringOperatorData<dim, VectorizedArrayType> &data;
   };
 
 } // namespace Sintering

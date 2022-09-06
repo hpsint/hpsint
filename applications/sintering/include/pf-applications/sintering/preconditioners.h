@@ -599,7 +599,7 @@ namespace Sintering
                      MassMatrix<dim, Number, VectorizedArrayType>>(
           matrix_free,
           constraints,
-          3,
+          0,
           "mass_matrix_op")
     {}
 

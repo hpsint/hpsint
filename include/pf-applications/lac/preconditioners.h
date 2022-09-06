@@ -657,9 +657,9 @@ namespace Preconditioners
     void
     vmult(VectorType &dst, const VectorType &src) const override
     {
-      AssertThrow(false, ExcNotImplemented());
-      (void)dst;
-      (void)src;
+      MyScope scope(timer, "ilu::vmult");
+
+      precondition_ilu.vmult(dst, src);
     }
 
     void
