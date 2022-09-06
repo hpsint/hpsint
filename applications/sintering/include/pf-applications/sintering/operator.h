@@ -2529,14 +2529,14 @@ namespace Sintering
     {}
 
     void
-    evaluate_residual(BlockVectorType &dst, const BlockVectorType &src) const
+    evaluate_rhs(BlockVectorType &dst, const BlockVectorType &src) const
     {
       MyScope scope(this->timer, "postproc_op::residual", this->do_timing);
 
 #define OPERATION(c, d)                            \
   MyMatrixFreeTools::cell_loop_wrapper(            \
     this->matrix_free,                             \
-    &PostprocOperator::do_evaluate_residual<c, d>, \
+    &PostprocOperator::do_evaluate_rhs<c, d>, \
     this,                                          \
     dst,                                           \
     src,                                           \
@@ -2603,7 +2603,7 @@ namespace Sintering
   private:
     template <int n_comp, int n_grains>
     void
-    do_evaluate_residual(
+    do_evaluate_rhs(
       const MatrixFree<dim, Number, VectorizedArrayType> &matrix_free,
       BlockVectorType &                                   dst,
       const BlockVectorType &                             src,
