@@ -848,8 +848,7 @@ namespace Sintering
       if (params.output_data.fluxes_divergences)
         {
           postproc_preconditioner =
-            Preconditioners::create(mass_operator,
-                                    "InverseBlockDiagonalMatrix");
+            Preconditioners::create(mass_operator, "InverseDiagonalMatrix");
 
           postproc_linear_solver =
             std::make_unique<LinearSolvers::SolverGMRESWrapper<
@@ -1212,6 +1211,10 @@ namespace Sintering
           nonlinear_operator.clear();
           non_linear_solver->clear();
           preconditioner->clear();
+
+          mass_operator.clear();
+          if (params.output_data.fluxes_divergences)
+            postproc_preconditioner->clear();
 
           solutions_except_recent.apply(f_init);
           std::for_each(additional_initializations.begin(),
@@ -1712,13 +1715,15 @@ namespace Sintering
                     postproc_preconditioner->do_update();
 
                     postproc_operator.evaluate_rhs(postproc_rhs, solution);
-                    for (unsigned int i = 0; i < postproc_lhs.n_blocks(); ++i)
+
+                    for (unsigned int b = 0; b < postproc_lhs.n_blocks(); ++b)
                       {
-                        postproc_linear_solver->solve(postproc_lhs.block(i),
-                                                      postproc_rhs.block(i));
+                        const auto view_lhs =
+                          postproc_lhs.create_view(b, b + 1);
+                        const auto view_rhs =
+                          postproc_rhs.create_view(b, b + 1);
+                        postproc_linear_solver->solve(*view_lhs, *view_rhs);
                       }
-                    // postproc_linear_solver->solve(postproc_lhs,
-                    // postproc_rhs);
                   }
               }
             catch (const NonLinearSolvers::ExcNewtonDidNotConverge &e)
