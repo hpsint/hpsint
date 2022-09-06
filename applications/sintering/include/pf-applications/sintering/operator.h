@@ -1891,6 +1891,7 @@ namespace Sintering
       const AffineConstraints<Number> &                        constraints,
       const SinteringOperatorData<dim, VectorizedArrayType> &  data,
       const TimeIntegration::SolutionHistory<BlockVectorType> &history,
+      const AdvectionMechanism<dim, VectorizedArrayType> &     advection,
       const bool                                               matrix_based)
       : OperatorBase<dim,
                      Number,
@@ -1904,6 +1905,7 @@ namespace Sintering
       , data(data)
       , history(history)
       , time_integrator(data.time_data, history)
+      , advection(advection)
     {}
 
     ~SinteringOperator()
@@ -2326,6 +2328,11 @@ namespace Sintering
       const auto  weight      = this->data.time_data.get_primary_weight();
       const auto &L           = mobility.Lgb();
 
+      // This is to indicate if we are inside bulk or not
+      advection.reinit(cell);
+      const unsigned int order_parameter_id =
+        advection.get_order_parameter_id();
+
       for (unsigned int q = 0; q < phi.n_q_points; ++q)
         {
           Tensor<1, n_comp, VectorizedArrayType> value_result;
@@ -2387,6 +2394,22 @@ namespace Sintering
                 }
             }
 
+          // If we are inside a grain, then add advection terms
+          if (order_parameter_id != numbers::invalid_unsigned_int)
+            {
+              const auto &velocity =
+                advection.get_velocity(phi.quadrature_point(q));
+              const auto &velocity_derivative =
+                advection.get_velocity_derivative(phi.quadrature_point(q));
+
+              value_result[0] +=
+                velocity * gradient[0] + velocity_derivative * c_grad;
+
+              value_result[order_parameter_id + 2] +=
+                velocity * gradient[order_parameter_id + 2] +
+                velocity_derivative * etas_grad[order_parameter_id];
+            }
+
           phi.submit_value(value_result, q);
           phi.submit_gradient(gradient_result, q);
         }
@@ -2432,6 +2455,11 @@ namespace Sintering
                 time_phi[i].evaluate(EvaluationFlags::EvaluationFlags::values);
               }
 
+          // This is to indicate if we are inside bulk or not
+          advection.reinit(cell);
+          const unsigned int order_parameter_id =
+            advection.get_order_parameter_id();
+
           for (unsigned int q = 0; q < phi.n_q_points; ++q)
             {
               const auto val  = phi.get_value(q);
@@ -2476,6 +2504,17 @@ namespace Sintering
                   gradient_result[2 + ig] = L * kappa_p * grad[2 + ig];
                 }
 
+              // If we are inside a grain, then add advection terms
+              if (order_parameter_id != numbers::invalid_unsigned_int)
+                {
+                  const auto &velocity =
+                    advection.get_velocity(phi.quadrature_point(q));
+
+                  value_result[0] += velocity * c_grad;
+                  value_result[2 + order_parameter_id] +=
+                    velocity * grad[2 + order_parameter_id];
+                }
+
               phi.submit_value(value_result, q);
               phi.submit_gradient(gradient_result, q);
             }
@@ -2488,7 +2527,8 @@ namespace Sintering
     const SinteringOperatorData<dim, VectorizedArrayType> &  data;
     const TimeIntegration::SolutionHistory<BlockVectorType> &history;
     const TimeIntegration::BDFIntegrator<dim, Number, VectorizedArrayType>
-      time_integrator;
+                                                        time_integrator;
+    const AdvectionMechanism<dim, VectorizedArrayType> &advection;
   };
 
   template <int dim, typename Number, typename VectorizedArrayType>
