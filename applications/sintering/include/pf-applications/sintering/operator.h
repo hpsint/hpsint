@@ -1075,7 +1075,7 @@ namespace Sintering
     block(LinearAlgebra::distributed::Vector<Number> &vector,
           const unsigned int                          b)
     {
-      AssertThrow(b == 1, ExcInternalError());
+      AssertThrow(b == 0, ExcInternalError());
       return vector;
     }
 
