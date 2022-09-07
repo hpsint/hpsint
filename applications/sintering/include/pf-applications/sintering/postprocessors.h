@@ -695,9 +695,6 @@ namespace Sintering
             }
         }
 
-      if (has_ghost_elements == false)
-        solution.zero_out_ghost_values();
-
       // Generate refined quadrature
       const unsigned int            n_intervals = 10;
       std::vector<dealii::Point<1>> points(n_intervals - 1);
@@ -753,6 +750,9 @@ namespace Sintering
                 }
             }
         }
+
+      if (has_ghost_elements == false)
+        solution.zero_out_ghost_values();
 
       Utilities::MPI::min(min_values,
                           dof_handler.get_communicator(),
