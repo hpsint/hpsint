@@ -1888,12 +1888,12 @@ namespace Sintering
     using vector_type = VectorType;
 
     SinteringOperator(
-      const MatrixFree<dim, Number, VectorizedArrayType> &     matrix_free,
-      const AffineConstraints<Number> &                        constraints,
-      const SinteringOperatorData<dim, VectorizedArrayType> &  data,
-      const TimeIntegration::SolutionHistory<BlockVectorType> &history,
-      const AdvectionMechanism<dim, VectorizedArrayType> &     advection,
-      const bool                                               matrix_based)
+      const MatrixFree<dim, Number, VectorizedArrayType> &        matrix_free,
+      const AffineConstraints<Number> &                           constraints,
+      const SinteringOperatorData<dim, VectorizedArrayType> &     data,
+      const TimeIntegration::SolutionHistory<BlockVectorType> &   history,
+      const AdvectionMechanism<dim, Number, VectorizedArrayType> &advection,
+      const bool                                                  matrix_based)
       : OperatorBase<dim,
                      Number,
                      VectorizedArrayType,
@@ -2329,10 +2329,10 @@ namespace Sintering
       const auto  weight      = this->data.time_data.get_primary_weight();
       const auto &L           = mobility.Lgb();
 
-      // This is to indicate if we are inside bulk or not
-      advection.reinit(cell);
-      const unsigned int order_parameter_id =
-        advection.get_order_parameter_id();
+      // Reinit advection data for the current cells batch
+      advection.reinit(cell,
+                       static_cast<unsigned int>(n_grains),
+                       phi.get_matrix_free());
 
       for (unsigned int q = 0; q < phi.n_q_points; ++q)
         {
@@ -2353,7 +2353,8 @@ namespace Sintering
           const Tensor<1, dim, VectorizedArrayType> *etas_grad = nullptr;
 
           if (SinteringOperatorData<dim, VectorizedArrayType>::
-                use_tensorial_mobility)
+                use_tensorial_mobility ||
+              true)
             etas_grad = &gradient_lin[2];
 
           const auto etaPower2Sum = PowerHelper<n_grains, 2>::power_sum(etas);
@@ -2393,22 +2394,21 @@ namespace Sintering
                   value_result[ig + 2] += L * d2f_detaidetaj * value[jg + 2];
                   value_result[jg + 2] += L * d2f_detaidetaj * value[ig + 2];
                 }
-            }
 
-          // If we are inside a grain, then add advection terms
-          if (order_parameter_id != numbers::invalid_unsigned_int)
-            {
-              const auto &velocity =
-                advection.get_velocity(phi.quadrature_point(q));
-              const auto &velocity_derivative =
-                advection.get_velocity_derivative(phi.quadrature_point(q));
+              if (advection.has_velocity(ig))
+                {
+                  const auto &velocity =
+                    advection.get_velocity(ig, phi.quadrature_point(q));
+                  const auto &velocity_derivative =
+                    advection.get_velocity_derivative(ig,
+                                                      phi.quadrature_point(q));
 
-              value_result[0] +=
-                velocity * gradient[0] + velocity_derivative * c_grad;
+                  value_result[0] +=
+                    velocity * gradient[0] + velocity_derivative * c_grad;
 
-              value_result[order_parameter_id + 2] +=
-                velocity * gradient[order_parameter_id + 2] +
-                velocity_derivative * etas_grad[order_parameter_id];
+                  value_result[ig + 2] += velocity * gradient[ig + 2] +
+                                          velocity_derivative * etas_grad[ig];
+                }
             }
 
           phi.submit_value(value_result, q);
@@ -2456,10 +2456,10 @@ namespace Sintering
                 time_phi[i].evaluate(EvaluationFlags::EvaluationFlags::values);
               }
 
-          // This is to indicate if we are inside bulk or not
-          advection.reinit(cell);
-          const unsigned int order_parameter_id =
-            advection.get_order_parameter_id();
+          // Reinit advection data for the current cells batch
+          advection.reinit(cell,
+                           static_cast<unsigned int>(n_grains),
+                           matrix_free);
 
           for (unsigned int q = 0; q < phi.n_q_points; ++q)
             {
@@ -2503,17 +2503,15 @@ namespace Sintering
                       value_result[2 + ig], val, time_phi, 2 + ig, q);
 
                   gradient_result[2 + ig] = L * kappa_p * grad[2 + ig];
-                }
 
-              // If we are inside a grain, then add advection terms
-              if (order_parameter_id != numbers::invalid_unsigned_int)
-                {
-                  const auto &velocity =
-                    advection.get_velocity(phi.quadrature_point(q));
+                  if (advection.has_velocity(ig))
+                    {
+                      const auto &velocity =
+                        advection.get_velocity(ig, phi.quadrature_point(q));
 
-                  value_result[0] += velocity * c_grad;
-                  value_result[2 + order_parameter_id] +=
-                    velocity * grad[2 + order_parameter_id];
+                      value_result[0] += velocity * c_grad;
+                      value_result[2 + ig] += velocity * grad[2 + ig];
+                    }
                 }
 
               phi.submit_value(value_result, q);
@@ -2528,8 +2526,8 @@ namespace Sintering
     const SinteringOperatorData<dim, VectorizedArrayType> &  data;
     const TimeIntegration::SolutionHistory<BlockVectorType> &history;
     const TimeIntegration::BDFIntegrator<dim, Number, VectorizedArrayType>
-                                                        time_integrator;
-    const AdvectionMechanism<dim, VectorizedArrayType> &advection;
+                                                                time_integrator;
+    const AdvectionMechanism<dim, Number, VectorizedArrayType> &advection;
   };
 
   template <int dim, typename Number, typename VectorizedArrayType>
@@ -2746,20 +2744,24 @@ namespace Sintering
     {}
 
     void
-    evaluate_forces(const BlockVectorType &src) const
+    evaluate_forces(const BlockVectorType &src,
+                    AdvectionMechanism<dim, Number, VectorizedArrayType>
+                      &advection_mechanism) const
     {
       MyScope scope(this->timer,
                     "sintering_op::nonlinear_residual",
                     this->do_timing);
 
-#define OPERATION(c, d)                           \
-  MyMatrixFreeTools::cell_loop_wrapper(           \
-    this->matrix_free,                            \
-    &AdvectionOperator::do_evaluate_forces<c, d>, \
-    this,                                         \
-    src);
+      std::pair<unsigned int, unsigned int> range{
+        0, this->matrix_free.n_cell_batches()};
+
+      src.update_ghost_values();
+
+#define OPERATION(c, d) \
+  do_evaluate_forces<c, d>(this->matrix_free, src, advection_mechanism, range);
       EXPAND_OPERATIONS(OPERATION);
 #undef OPERATION
+      src.zero_out_ghost_values();
     }
 
     void
@@ -2792,10 +2794,12 @@ namespace Sintering
     template <int n_comp, int n_grains>
     void
     do_evaluate_forces(
-      const MatrixFree<dim, Number, VectorizedArrayType> &matrix_free,
-      const BlockVectorType &                             solution,
-      const std::pair<unsigned int, unsigned int> &       range) const
+      const MatrixFree<dim, Number, VectorizedArrayType> &  matrix_free,
+      const BlockVectorType &                               solution,
+      AdvectionMechanism<dim, Number, VectorizedArrayType> &advection_mechanism,
+      const std::pair<unsigned int, unsigned int> &         range) const
     {
+      auto &grain_forces = advection_mechanism.grains_data();
       grain_forces.clear();
       for (const auto &[grain_id, grain] : grain_tracker.get_grains())
         {
