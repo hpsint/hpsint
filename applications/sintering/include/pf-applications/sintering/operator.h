@@ -2948,10 +2948,6 @@ namespace Sintering
 
     const SinteringOperatorData<dim, VectorizedArrayType> &data;
     const GrainTracker::Tracker<dim, Number> &             grain_tracker;
-
-    mutable std::map<unsigned int,
-                     std::map<unsigned int, Tensor<1, n_force_comp, Number>>>
-      grain_forces;
   };
 
 } // namespace Sintering
