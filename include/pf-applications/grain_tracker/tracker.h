@@ -1055,29 +1055,6 @@ namespace GrainTracker
 
               ++particles_numerator;
             }
-
-          for (const auto &cell :
-               dof_handler.get_triangulation().active_cell_iterators())
-            if (cell->is_locally_owned())
-              {
-                const auto c = cell->center();
-
-                const unsigned int cell_index =
-                  cell->global_active_cell_index();
-
-                const auto particle_id = particle_ids[cell_index];
-
-                if (particle_id == invalid_particle_id)
-                  continue;
-
-                const auto &grain_and_segment =
-                  particle_ids_to_grain_ids[current_order_parameter_id]
-                                           [particle_id];
-
-                const auto &segment =
-                  new_grains.at(grain_and_segment.first)
-                    .get_segments()[grain_and_segment.second];
-              }
         }
 
       return new_grains;
