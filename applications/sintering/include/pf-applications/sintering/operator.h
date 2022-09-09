@@ -5,6 +5,7 @@
 #include <pf-applications/numerics/functions.h>
 
 #include <pf-applications/dofs/dof_tools.h>
+#include <pf-applications/grain_tracker/tracker.h>
 #include <pf-applications/matrix_free/tools.h>
 #include <pf-applications/time_integration/solution_history.h>
 #include <pf-applications/time_integration/time_integrators.h>
@@ -2701,6 +2702,252 @@ namespace Sintering
     }
 
     const SinteringOperatorData<dim, VectorizedArrayType> &data;
+  };
+
+  template <int dim, typename Number, typename VectorizedArrayType>
+  class AdvectionOperator
+    : public OperatorBase<dim,
+                          Number,
+                          VectorizedArrayType,
+                          AdvectionOperator<dim, Number, VectorizedArrayType>>
+  {
+  public:
+    using T = AdvectionOperator<dim, Number, VectorizedArrayType>;
+
+    using VectorType = LinearAlgebra::distributed::Vector<Number>;
+    using BlockVectorType =
+      LinearAlgebra::distributed::DynamicBlockVector<Number>;
+
+    using value_type  = Number;
+    using vector_type = VectorType;
+
+    // Force, torque and grain volume
+    static constexpr unsigned int n_force_comp = (dim == 3 ? 7 : 4);
+
+    AdvectionOperator(
+      const MatrixFree<dim, Number, VectorizedArrayType> &   matrix_free,
+      const AffineConstraints<Number> &                      constraints,
+      const SinteringOperatorData<dim, VectorizedArrayType> &data,
+      const GrainTracker::Tracker<dim, Number> &             grain_tracker)
+      : OperatorBase<dim,
+                     Number,
+                     VectorizedArrayType,
+                     AdvectionOperator<dim, Number, VectorizedArrayType>>(
+          matrix_free,
+          constraints,
+          0,
+          "advection_op",
+          false)
+      , data(data)
+      , grain_tracker(grain_tracker)
+    {}
+
+    ~AdvectionOperator()
+    {}
+
+    void
+    evaluate_forces(const BlockVectorType &src) const
+    {
+      MyScope scope(this->timer,
+                    "sintering_op::nonlinear_residual",
+                    this->do_timing);
+
+#define OPERATION(c, d)                           \
+  MyMatrixFreeTools::cell_loop_wrapper(           \
+    this->matrix_free,                            \
+    &AdvectionOperator::do_evaluate_forces<c, d>, \
+    this,                                         \
+    src);
+      EXPAND_OPERATIONS(OPERATION);
+#undef OPERATION
+    }
+
+    void
+    do_update()
+    {
+      if (this->matrix_based)
+        this->get_system_matrix(); // assemble matrix
+    }
+
+    unsigned int
+    n_components() const override
+    {
+      return n_force_comp;
+    }
+
+    unsigned int
+    n_grains() const
+    {
+      return data.n_components() - 2;
+    }
+
+    static constexpr unsigned int
+    n_grains_to_n_components(const unsigned int n_grains)
+    {
+      (void)n_grains;
+      return n_force_comp;
+    }
+
+  private:
+    template <int n_comp, int n_grains>
+    void
+    do_evaluate_forces(
+      const MatrixFree<dim, Number, VectorizedArrayType> &matrix_free,
+      const BlockVectorType &                             solution,
+      const std::pair<unsigned int, unsigned int> &       range) const
+    {
+      grain_forces.clear();
+      for (const auto &[grain_id, grain] : grain_tracker.get_grains())
+        {
+          (void)grain;
+          grain_forces[grain_id];
+        }
+
+      FECellIntegrator<dim, 2 + n_grains, Number, VectorizedArrayType> phi_sint(
+        matrix_free, this->dof_index);
+
+      FECellIntegrator<dim, this->n_force_comp, Number, VectorizedArrayType>
+        phi_ft(matrix_free, this->dof_index);
+
+      VectorizedArrayType cgb_lim(cgb);
+      VectorizedArrayType zeros(0.0);
+
+      for (auto cell = range.first; cell < range.second; ++cell)
+        {
+          phi_sint.reinit(cell);
+          phi_sint.gather_evaluate(
+            solution,
+            EvaluationFlags::EvaluationFlags::values |
+              EvaluationFlags::EvaluationFlags::gradients);
+
+          phi_ft.reinit(cell);
+
+          for (unsigned int ig = 0; ig < n_grains; ++ig)
+            {
+              Point<dim, VectorizedArrayType> rc;
+
+              std::vector<std::pair<unsigned int, unsigned int>> segments(
+                phi_sint.n_lanes);
+
+              for (unsigned int l = 0; l < phi_sint.n_lanes; ++l)
+                {
+                  const auto lcell = matrix_free.get_cell_iterator(cell, l);
+                  const auto cell_index = lcell->global_active_cell_index();
+
+                  const unsigned int particle_id =
+                    grain_tracker.get_particle_index(ig, cell_index);
+
+                  if (particle_id != numbers::invalid_unsigned_int)
+                    {
+                      const auto grain_and_segment =
+                        grain_tracker.get_grain_and_segment(ig, particle_id);
+
+                      const auto &rc_l =
+                        grain_tracker.get_rc(grain_and_segment.first,
+                                             grain_and_segment.second);
+
+                      for (unsigned int d = 0; d < dim; ++d)
+                        rc[d][l] = rc_l[d];
+
+                      segments[l] = grain_and_segment;
+                    }
+                  else
+                    {
+                      segments[l] =
+                        std::make_pair(numbers::invalid_unsigned_int,
+                                       numbers::invalid_unsigned_int);
+                    }
+                }
+
+              for (unsigned int q = 0; q < phi_sint.n_q_points; ++q)
+                {
+                  const auto val  = phi_sint.get_value(q);
+                  const auto grad = phi_sint.get_gradient(q);
+
+                  auto &c          = val[0];
+                  auto &eta_i      = val[2 + ig];
+                  auto &eta_grad_i = grad[2 + ig];
+
+                  const auto &r = phi_sint.quadrature_point(q);
+
+                  Tensor<1, n_force_comp, VectorizedArrayType> value_result;
+                  Tensor<1, dim, VectorizedArrayType>          force;
+                  Tensor<1, dim, VectorizedArrayType>          torque;
+
+                  for (unsigned int jg = 0; jg < n_grains; ++jg)
+                    {
+                      if (ig != jg)
+                        {
+                          auto &eta_j      = val[2 + jg];
+                          auto &eta_grad_j = grad[2 + jg];
+
+                          Tensor<1, dim, VectorizedArrayType> dF =
+                            eta_grad_i - eta_grad_j;
+
+                          dF *= (c - c0);
+
+                          auto etai_etaj = eta_i * eta_j;
+                          etai_etaj      = compare_and_apply_mask<
+                            SIMDComparison::greater_than>(etai_etaj,
+                                                          cgb_lim,
+                                                          etai_etaj,
+                                                          zeros);
+
+                          dF *= k * etai_etaj;
+                          force += dF;
+
+                          const auto r_rc = (r - rc);
+
+                          // Torque
+                          if (dim == 2)
+                            value_result[dim] +=
+                              dF[1] * r_rc[0] - dF[0] * r_rc[1];
+                          else if (dim == 3)
+                            torque += cross_product_3d(r_rc, dF);
+                        }
+                    }
+
+                  // Add force
+                  for (unsigned int d = 0; d < dim; ++d)
+                    value_result[d] = force[d];
+
+                  // Add torque
+                  if (dim == 3)
+                    for (unsigned int d = 0; d < dim; ++d)
+                      value_result[dim + d] = torque[d];
+
+                  // Volume
+                  value_result[this->n_force_comp - 1] = eta_i;
+
+                  phi_ft.submit_value(value_result, q);
+                }
+
+              const auto force_torque_volume = phi_ft.integrate_value();
+
+              for (unsigned int l = 0; l < phi_sint.n_lanes; ++l)
+                {
+                  const auto &grain_and_segment = segments[l];
+
+                  if (grain_and_segment.first != numbers::invalid_unsigned_int)
+                    for (unsigned int d = 0; d < this->n_force_comp; ++d)
+                      grain_forces[grain_and_segment.first]
+                                  [grain_and_segment.second][d] +=
+                        force_torque_volume[d][l];
+                }
+            }
+        }
+    }
+
+    const double k   = 100;
+    const double cgb = 0.1;
+    const double c0  = 1.0;
+
+    const SinteringOperatorData<dim, VectorizedArrayType> &data;
+    const GrainTracker::Tracker<dim, Number> &             grain_tracker;
+
+    mutable std::map<unsigned int,
+                     std::map<unsigned int, Tensor<1, n_force_comp, Number>>>
+      grain_forces;
   };
 
 } // namespace Sintering
