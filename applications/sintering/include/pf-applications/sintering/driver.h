@@ -775,8 +775,24 @@ namespace Sintering
                             params.adaptivity_data.max_refinement_depth,
                           sintering_data);
 
+      // New grains can not appear in current sintering simulations
+      GrainTracker::Tracker<dim, Number> grain_tracker(
+        dof_handler,
+        tria,
+        !params.geometry_data.minimize_order_parameters,
+        /*allow_new_grains*/ false,
+        MAX_SINTERING_GRAINS,
+        params.grain_tracker_data.threshold_lower,
+        params.grain_tracker_data.threshold_upper,
+        params.grain_tracker_data.buffer_distance_ratio,
+        2);
+
       // Advection physics for shrinkage
-      AdvectionMechanism<dim, VectorizedArrayType> advection_mechanism;
+      const double mt = 200;
+      const double mr = 1;
+
+      AdvectionMechanism<dim, Number, VectorizedArrayType> advection_mechanism(
+        mt, mr, grain_tracker);
 
       // ... non-linear operator
       NonLinearOperator nonlinear_operator(matrix_free,
@@ -1242,18 +1258,6 @@ namespace Sintering
             Postprocessors::estimate_overhead(mapping, dof_handler, solution);
         };
 
-      // New grains can not appear in current sintering simulations
-      GrainTracker::Tracker<dim, Number> grain_tracker(
-        dof_handler,
-        tria,
-        !params.geometry_data.minimize_order_parameters,
-        /*allow_new_grains*/ false,
-        MAX_SINTERING_GRAINS,
-        params.grain_tracker_data.threshold_lower,
-        params.grain_tracker_data.threshold_upper,
-        params.grain_tracker_data.buffer_distance_ratio,
-        2);
-
       AdvectionOperator<dim, Number, VectorizedArrayType> advection_operator(
         matrix_free, constraints, sintering_data, grain_tracker);
 
@@ -1278,7 +1282,7 @@ namespace Sintering
                           grain_tracker.track(solution);
 
         // Try compute
-        advection_operator.evaluate_forces(solution);
+        advection_operator.evaluate_forces(solution, advection_mechanism);
 
         const double time_total_double =
           std::chrono::duration_cast<std::chrono::nanoseconds>(
