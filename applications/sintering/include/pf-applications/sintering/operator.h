@@ -2831,12 +2831,12 @@ namespace Sintering
               Point<dim, VectorizedArrayType> rc;
 
               std::vector<std::pair<unsigned int, unsigned int>> segments(
-                phi_sint.n_lanes);
+                matrix_free.n_active_entries_per_cell_batch(cell));
 
-              for (unsigned int l = 0; l < phi_sint.n_lanes; ++l)
+              for (unsigned int i = 0; i < segments.size(); ++i)
                 {
-                  const auto lcell = matrix_free.get_cell_iterator(cell, l);
-                  const auto cell_index = lcell->global_active_cell_index();
+                  const auto icell = matrix_free.get_cell_iterator(cell, i);
+                  const auto cell_index = icell->global_active_cell_index();
 
                   const unsigned int particle_id =
                     grain_tracker.get_particle_index(ig, cell_index);
@@ -2851,13 +2851,13 @@ namespace Sintering
                                              grain_and_segment.second);
 
                       for (unsigned int d = 0; d < dim; ++d)
-                        rc[d][l] = rc_l[d];
+                        rc[d][i] = rc_l[d];
 
-                      segments[l] = grain_and_segment;
+                      segments[i] = grain_and_segment;
                     }
                   else
                     {
-                      segments[l] =
+                      segments[i] =
                         std::make_pair(numbers::invalid_unsigned_int,
                                        numbers::invalid_unsigned_int);
                     }
@@ -2928,15 +2928,15 @@ namespace Sintering
 
               const auto force_torque_volume = phi_ft.integrate_value();
 
-              for (unsigned int l = 0; l < phi_sint.n_lanes; ++l)
+              for (unsigned int i = 0; i < segments.size(); ++i)
                 {
-                  const auto &grain_and_segment = segments[l];
+                  const auto &grain_and_segment = segments[i];
 
                   if (grain_and_segment.first != numbers::invalid_unsigned_int)
                     for (unsigned int d = 0; d < this->n_force_comp; ++d)
                       grain_forces[grain_and_segment.first]
                                   [grain_and_segment.second][d] +=
-                        force_torque_volume[d][l];
+                        force_torque_volume[d][i];
                 }
             }
         }
