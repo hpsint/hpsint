@@ -522,7 +522,7 @@ namespace Sintering
           typename MatrixFree<dim, Number, VectorizedArrayType>::AdditionalData
             additional_data;
           additional_data.mapping_update_flags =
-            update_values | update_gradients;
+            update_values | update_gradients | update_quadrature_points;
 
           matrix_free.reinit(
             mapping, dof_handler, constraints, quad, additional_data);
@@ -1254,6 +1254,9 @@ namespace Sintering
         params.grain_tracker_data.buffer_distance_ratio,
         2);
 
+      AdvectionOperator<dim, Number, VectorizedArrayType> advection_operator(
+        matrix_free, constraints, sintering_data, grain_tracker);
+
       const auto run_grain_tracker = [&](const double t,
                                          const bool   do_initialize = false) {
         MyScope scope(timer, "run_grain_tracker");
@@ -1273,6 +1276,9 @@ namespace Sintering
         const auto [has_reassigned_grains, has_op_number_changed] =
           do_initialize ? grain_tracker.initial_setup(solution) :
                           grain_tracker.track(solution);
+
+        // Try compute
+        advection_operator.evaluate_forces(solution);
 
         const double time_total_double =
           std::chrono::duration_cast<std::chrono::nanoseconds>(
