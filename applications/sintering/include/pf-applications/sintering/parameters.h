@@ -117,6 +117,17 @@ namespace Sintering
     MobilityRealisticData mobility_realistic_data;
   };
 
+  struct AdvectionData
+  {
+    bool enable = false;
+
+    double k   = 100.;
+    double mt  = 1.;
+    double mr  = 1.;
+    double cgb = 0.1;
+    double ceq = 1.;
+  };
+
   struct TimeIntegrationData
   {
     std::string interation_scheme = "BDF2";
@@ -225,6 +236,7 @@ namespace Sintering
     AdaptivityData      adaptivity_data;
     GrainTrackerData    grain_tracker_data;
     MaterialData        material_data;
+    AdvectionData       advection_data;
     TimeIntegrationData time_integration_data;
     OutputData          output_data;
     RestartData         restart_data;
@@ -523,6 +535,20 @@ namespace Sintering
                         "Grain boundary mobility activation energy.");
       prm.leave_subsection();
 
+      prm.leave_subsection();
+
+
+      prm.enter_subsection("Advection");
+      prm.add_parameter("Enable",
+                        advection_data.enable,
+                        "Enable Wang mechanism");
+      prm.add_parameter("K", advection_data.k, "Wang stiffness.");
+      prm.add_parameter("Mt", advection_data.mt, "Wang translation factor.");
+      prm.add_parameter("Mr", advection_data.mr, "Wang rotation factor.");
+      prm.add_parameter("Cgb", advection_data.cgb, "Grain boundary threshold.");
+      prm.add_parameter("Ceq",
+                        advection_data.ceq,
+                        "Grain boundary equilibrium concentration.");
       prm.leave_subsection();
 
 

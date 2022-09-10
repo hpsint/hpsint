@@ -2330,9 +2330,10 @@ namespace Sintering
       const auto &L           = mobility.Lgb();
 
       // Reinit advection data for the current cells batch
-      advection.reinit(cell,
-                       static_cast<unsigned int>(n_grains),
-                       phi.get_matrix_free());
+      if (advection.enabled())
+        advection.reinit(cell,
+                        static_cast<unsigned int>(n_grains),
+                        phi.get_matrix_free());
 
       for (unsigned int q = 0; q < phi.n_q_points; ++q)
         {
@@ -2395,7 +2396,7 @@ namespace Sintering
                   value_result[jg + 2] += L * d2f_detaidetaj * value[ig + 2];
                 }
 
-              if (advection.has_velocity(ig))
+              if (advection.enabled() && advection.has_velocity(ig))
                 {
                   const auto &velocity =
                     advection.get_velocity(ig, phi.quadrature_point(q));
@@ -2457,9 +2458,10 @@ namespace Sintering
               }
 
           // Reinit advection data for the current cells batch
-          advection.reinit(cell,
-                           static_cast<unsigned int>(n_grains),
-                           matrix_free);
+          if (advection.enabled())
+            advection.reinit(cell,
+                            static_cast<unsigned int>(n_grains),
+                            matrix_free);
 
           for (unsigned int q = 0; q < phi.n_q_points; ++q)
             {
@@ -2504,7 +2506,7 @@ namespace Sintering
 
                   gradient_result[2 + ig] = L * kappa_p * grad[2 + ig];
 
-                  if (advection.has_velocity(ig))
+                  if (advection.enabled() && advection.has_velocity(ig))
                     {
                       const auto &velocity =
                         advection.get_velocity(ig, phi.quadrature_point(q));
@@ -2723,6 +2725,9 @@ namespace Sintering
     static constexpr unsigned int n_force_comp = (dim == 3 ? 7 : 4);
 
     AdvectionOperator(
+      const double                                           k,
+      const double                                           cgb,
+      const double                                           ceq,
       const MatrixFree<dim, Number, VectorizedArrayType> &   matrix_free,
       const AffineConstraints<Number> &                      constraints,
       const SinteringOperatorData<dim, VectorizedArrayType> &data,
@@ -2736,6 +2741,9 @@ namespace Sintering
           0,
           "advection_op",
           false)
+      , k(k)
+      , cgb(cgb)
+      , ceq(ceq)
       , data(data)
       , grain_tracker(grain_tracker)
     {}
@@ -2888,7 +2896,7 @@ namespace Sintering
                           Tensor<1, dim, VectorizedArrayType> dF =
                             eta_grad_i - eta_grad_j;
 
-                          dF *= (c - c0);
+                          dF *= (c - ceq);
 
                           auto etai_etaj = eta_i * eta_j;
                           etai_etaj      = compare_and_apply_mask<
@@ -2942,9 +2950,9 @@ namespace Sintering
         }
     }
 
-    const double k   = 100;
-    const double cgb = 0.1;
-    const double c0  = 1.0;
+    const double k;
+    const double cgb;
+    const double ceq;
 
     const SinteringOperatorData<dim, VectorizedArrayType> &data;
     const GrainTracker::Tracker<dim, Number> &             grain_tracker;

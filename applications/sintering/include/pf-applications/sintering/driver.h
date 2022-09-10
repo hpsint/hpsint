@@ -788,11 +788,11 @@ namespace Sintering
         2);
 
       // Advection physics for shrinkage
-      const double mt = 200;
-      const double mr = 1;
-
       AdvectionMechanism<dim, Number, VectorizedArrayType> advection_mechanism(
-        mt, mr, grain_tracker);
+        params.advection_data.enable,
+        params.advection_data.mt,
+        params.advection_data.mr,
+        grain_tracker);
 
       // ... non-linear operator
       NonLinearOperator nonlinear_operator(matrix_free,
@@ -1259,7 +1259,13 @@ namespace Sintering
         };
 
       AdvectionOperator<dim, Number, VectorizedArrayType> advection_operator(
-        matrix_free, constraints, sintering_data, grain_tracker);
+        params.advection_data.k,
+        params.advection_data.cgb,
+        params.advection_data.ceq,
+        matrix_free,
+        constraints,
+        sintering_data,
+        grain_tracker);
 
       const auto run_grain_tracker = [&](const double t,
                                          const bool   do_initialize = false) {
@@ -1281,8 +1287,9 @@ namespace Sintering
           do_initialize ? grain_tracker.initial_setup(solution) :
                           grain_tracker.track(solution);
 
-        // Try compute
-        advection_operator.evaluate_forces(solution, advection_mechanism);
+        // Compute forces
+        if (advection_mechanism.enabled())
+          advection_operator.evaluate_forces(solution, advection_mechanism);
 
         const double time_total_double =
           std::chrono::duration_cast<std::chrono::nanoseconds>(

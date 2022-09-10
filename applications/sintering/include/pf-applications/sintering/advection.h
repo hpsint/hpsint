@@ -150,10 +150,12 @@ namespace Sintering
       std::map<unsigned int,
                std::map<unsigned int, Tensor<1, n_force_comp, Number>>>;
 
-    AdvectionMechanism(const double                              mt,
+    AdvectionMechanism(const bool                                enable,
+                       const double                              mt,
                        const double                              mr,
                        const GrainTracker::Tracker<dim, Number> &grain_tracker)
-      : mt(mt)
+      : is_active(enable)
+      , mt(mt)
       , mr(mr)
       , grain_tracker(grain_tracker)
     {}
@@ -249,9 +251,16 @@ namespace Sintering
       return grain_forces;
     }
 
+    bool
+    enabled() const
+    {
+      return is_active;
+    }
+
   private:
     mutable Tensor<1, dim, VectorizedArrayType> current_velocity_derivative;
 
+    const bool   is_active;
     const double mt;
     const double mr;
 
