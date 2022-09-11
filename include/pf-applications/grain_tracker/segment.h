@@ -18,7 +18,7 @@ namespace GrainTracker
       , radius(radius_in)
     {}
 
-    const Point<dim>&
+    const Point<dim> &
     get_center() const
     {
       return center;
