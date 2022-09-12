@@ -522,7 +522,10 @@ namespace Sintering
           typename MatrixFree<dim, Number, VectorizedArrayType>::AdditionalData
             additional_data;
           additional_data.mapping_update_flags =
-            update_values | update_gradients | update_quadrature_points;
+            update_values | update_gradients;
+
+          if (params.advection_data.enable)
+            additional_data.mapping_update_flags |= update_quadrature_points;
 
           matrix_free.reinit(
             mapping, dof_handler, constraints, quad, additional_data);
