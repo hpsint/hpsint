@@ -26,18 +26,18 @@ namespace Sintering
   protected:
     bool zero{true};
 
-    template <int n_comp>
     void
-    fill(const unsigned int               cell_id,
-         const Point<dim> &               rc_i,
-         const Tensor<1, n_comp, Number> &fdata)
+    fill(const unsigned int cell_id,
+         const Point<dim> & rc_i,
+         const Number *     fdata)
     {
+      volume[cell_id] = fdata[0];
+
       for (unsigned int d = 0; d < dim; ++d)
         {
           rc[d][cell_id]    = rc_i[d];
-          force[d][cell_id] = fdata[d];
+          force[d][cell_id] = fdata[d + 1];
         }
-      volume[cell_id] = fdata[n_comp - 1];
 
       zero = false;
     }
@@ -69,9 +69,9 @@ namespace Sintering
     VectorizedArrayType torque{0};
 
     void
-    fill(const unsigned int                cell_id,
-         const Point<dim> &                rc_i,
-         const Tensor<1, dim + 2, Number> &fdata)
+    fill(const unsigned int cell_id,
+         const Point<dim> & rc_i,
+         const Number *     fdata)
     {
       AdvectionCellDataBase<dim, Number, VectorizedArrayType>::fill(cell_id,
                                                                     rc_i,
@@ -109,11 +109,13 @@ namespace Sintering
     Tensor<1, dim, VectorizedArrayType> torque;
 
     void
-    fill(const unsigned int                    cell_id,
-         const Point<dim> &                    rc_i,
-         const Tensor<1, 2 * dim + 1, Number> &fdata)
+    fill(const unsigned int cell_id,
+         const Point<dim> & rc_i,
+         const Number *     fdata)
     {
-      AdvectionCellDataBase<dim, Number, VectorizedArrayType>::nullify(cell_id);
+      AdvectionCellDataBase<dim, Number, VectorizedArrayType>::fill(cell_id,
+                                                                    rc_i,
+                                                                    fdata);
 
       for (unsigned int d = 0; d < dim; ++d)
         {
@@ -145,10 +147,6 @@ namespace Sintering
   public:
     // Force, torque and grain volume
     static constexpr unsigned int n_force_comp = (dim == 3 ? 7 : 4);
-
-    using ForceTorqueVolume =
-      std::map<unsigned int,
-               std::map<unsigned int, Tensor<1, n_force_comp, Number>>>;
 
     AdvectionMechanism(const bool                                enable,
                        const double                              mt,
@@ -189,11 +187,11 @@ namespace Sintering
                     grain_tracker.get_rc(grain_and_segment.first,
                                          grain_and_segment.second);
 
-                  current_cell_data[op].fill(i,
-                                             rc_i,
-                                             grain_forces
-                                               .at(grain_and_segment.first)
-                                               .at(grain_and_segment.second));
+                  current_cell_data[op].fill(
+                    i,
+                    rc_i,
+                    grain_data(grain_and_segment.first,
+                               grain_and_segment.second));
                 }
               else
                 {
@@ -239,14 +237,38 @@ namespace Sintering
       return current_velocity_derivative;
     }
 
-    ForceTorqueVolume &
-    grains_data()
+    void
+    nullify_data(const unsigned int n_segments)
+    {
+      grain_forces.assign(n_force_comp * n_segments, 0);
+    }
+
+    Number *
+    grain_data(const unsigned int grain_id, const unsigned int segment_id)
+    {
+      const unsigned int index =
+        grain_tracker.get_grain_segment_index(grain_id, segment_id);
+
+      return &grain_forces[n_force_comp * index];
+    }
+
+    const Number *
+    grain_data(const unsigned int grain_id, const unsigned int segment_id) const
+    {
+      const unsigned int index =
+        grain_tracker.get_grain_segment_index(grain_id, segment_id);
+
+      return &grain_forces[n_force_comp * index];
+    }
+
+    std::vector<Number> &
+    get_grain_forces()
     {
       return grain_forces;
     }
 
-    const ForceTorqueVolume &
-    grains_data() const
+    const std::vector<Number> &
+    get_grain_forces() const
     {
       return grain_forces;
     }
@@ -269,6 +291,6 @@ namespace Sintering
 
     const GrainTracker::Tracker<dim, Number> &grain_tracker;
 
-    ForceTorqueVolume grain_forces;
+    std::vector<Number> grain_forces;
   };
 } // namespace Sintering

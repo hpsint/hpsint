@@ -2807,13 +2807,7 @@ namespace Sintering
       AdvectionMechanism<dim, Number, VectorizedArrayType> &advection_mechanism,
       const std::pair<unsigned int, unsigned int> &         range) const
     {
-      auto &grain_forces = advection_mechanism.grains_data();
-      grain_forces.clear();
-      for (const auto &[grain_id, grain] : grain_tracker.get_grains())
-        {
-          (void)grain;
-          grain_forces[grain_id];
-        }
+      advection_mechanism.nullify_data(grain_tracker.n_segments());
 
       FECellIntegrator<dim, 2 + n_grains, Number, VectorizedArrayType> phi_sint(
         matrix_free, this->dof_index);
@@ -2912,29 +2906,29 @@ namespace Sintering
 
                           // Torque
                           if (dim == 2)
-                            value_result[dim] +=
+                            value_result[dim + 1] +=
                               dF[1] * r_rc[0] - dF[0] * r_rc[1];
                           else if (dim == 3)
                             torque += cross_product_3d(r_rc, dF);
                         }
                     }
 
+                  // Volume
+                  value_result[0] = eta_i;
+
                   // Add force
                   for (unsigned int d = 0; d < dim; ++d)
-                    value_result[d] = force[d];
+                    value_result[d + 1] = force[d];
 
                   // Add torque
                   if (dim == 3)
                     for (unsigned int d = 0; d < dim; ++d)
-                      value_result[dim + d] = torque[d];
-
-                  // Volume
-                  value_result[this->n_force_comp - 1] = eta_i;
+                      value_result[d + dim + 1] = torque[d];
 
                   phi_ft.submit_value(value_result, q);
                 }
 
-              const auto force_torque_volume = phi_ft.integrate_value();
+              const auto volume_force_torque = phi_ft.integrate_value();
 
               for (unsigned int i = 0; i < segments.size(); ++i)
                 {
@@ -2942,12 +2936,20 @@ namespace Sintering
 
                   if (grain_and_segment.first != numbers::invalid_unsigned_int)
                     for (unsigned int d = 0; d < this->n_force_comp; ++d)
-                      grain_forces[grain_and_segment.first]
-                                  [grain_and_segment.second][d] +=
-                        force_torque_volume[d][i];
+                      advection_mechanism.grain_data(
+                        grain_and_segment.first, grain_and_segment.second)[d] +=
+                        volume_force_torque[d][i];
                 }
             }
         }
+
+      // Perform global communication
+      MPI_Allreduce(MPI_IN_PLACE,
+                    advection_mechanism.get_grain_forces().data(),
+                    advection_mechanism.get_grain_forces().size(),
+                    MPI_DOUBLE,
+                    MPI_SUM,
+                    MPI_COMM_WORLD);
     }
 
     const double k;
