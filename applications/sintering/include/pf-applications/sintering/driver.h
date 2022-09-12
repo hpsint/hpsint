@@ -961,8 +961,8 @@ namespace Sintering
             {
               MyScope scope(timer, "time_loop::newton::setup_jacobian");
 
-              sintering_data.fill_quadrature_point_values(matrix_free,
-                                                          current_u);
+              sintering_data.fill_quadrature_point_values(
+                matrix_free, current_u, params.advection_data.enable);
 
               nonlinear_operator.do_update();
             }
@@ -1008,7 +1008,9 @@ namespace Sintering
                       mg_sintering_data[l].set_n_components(
                         sintering_data.n_components());
                       mg_sintering_data[l].fill_quadrature_point_values(
-                        mg_matrix_free[l], mg_current_u[l]);
+                        mg_matrix_free[l],
+                        mg_current_u[l],
+                        params.advection_data.enable);
                     }
                 }
 
@@ -1288,7 +1290,7 @@ namespace Sintering
                           grain_tracker.track(solution);
 
         // Compute forces
-        if (advection_mechanism.enabled())
+        if (params.advection_data.enable)
           advection_operator.evaluate_forces(solution, advection_mechanism);
 
         const double time_total_double =
@@ -1533,8 +1535,8 @@ namespace Sintering
                 const bool old_timing_state =
                   nonlinear_operator.set_timing(false);
 
-                sintering_data.fill_quadrature_point_values(matrix_free,
-                                                            solution);
+                sintering_data.fill_quadrature_point_values(
+                  matrix_free, solution, params.advection_data.enable);
 
                 VectorType dst, src;
 

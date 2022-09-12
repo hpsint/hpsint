@@ -1786,7 +1786,8 @@ namespace Sintering
     void
     fill_quadrature_point_values(
       const MatrixFree<dim, Number, VectorizedArrayType> &          matrix_free,
-      const LinearAlgebra::distributed::DynamicBlockVector<Number> &src)
+      const LinearAlgebra::distributed::DynamicBlockVector<Number> &src,
+      const bool save_op_gradients = false)
     {
       AssertDimension(src.n_blocks(), this->n_components());
 
@@ -1799,10 +1800,11 @@ namespace Sintering
       nonlinear_values.reinit(
         {n_cells, n_quadrature_points, this->n_components()});
 
-      nonlinear_gradients.reinit(
-        {n_cells,
-         n_quadrature_points,
-         use_tensorial_mobility ? this->n_components() : 2});
+      nonlinear_gradients.reinit({n_cells,
+                                  n_quadrature_points,
+                                  use_tensorial_mobility || save_op_gradients ?
+                                    this->n_components() :
+                                    2});
 
       FECellIntegrator<dim, 1, Number, VectorizedArrayType> phi(matrix_free);
 
@@ -1822,7 +1824,7 @@ namespace Sintering
                 {
                   nonlinear_values(cell, q, c) = phi.get_value(q);
 
-                  if (use_tensorial_mobility || (c < 2))
+                  if (use_tensorial_mobility || (c < 2) || save_op_gradients)
                     nonlinear_gradients(cell, q, c) = phi.get_gradient(q);
                 }
             }
@@ -2355,7 +2357,7 @@ namespace Sintering
 
           if (SinteringOperatorData<dim, VectorizedArrayType>::
                 use_tensorial_mobility ||
-              true)
+              advection.enabled())
             etas_grad = &gradient_lin[2];
 
           const auto etaPower2Sum = PowerHelper<n_grains, 2>::power_sum(etas);
