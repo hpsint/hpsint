@@ -183,8 +183,9 @@ namespace Sintering
                   const auto grain_and_segment =
                     grain_tracker.get_grain_and_segment(op, particle_id);
 
-                  const auto &rc_i = grain_tracker.get_segment_center(
-                    grain_and_segment.first, grain_and_segment.second);
+                  const auto &rc_i =
+                    grain_tracker.get_segment_center(grain_and_segment.first,
+                                                     grain_and_segment.second);
 
                   current_cell_data[op].fill(
                     i,
