@@ -2850,12 +2850,11 @@ namespace Sintering
                       const auto grain_and_segment =
                         grain_tracker.get_grain_and_segment(ig, particle_id);
 
-                      const auto &rc_l =
-                        grain_tracker.get_rc(grain_and_segment.first,
-                                             grain_and_segment.second);
+                      const auto &rc_i = grain_tracker.get_segment_center(
+                        grain_and_segment.first, grain_and_segment.second);
 
                       for (unsigned int d = 0; d < dim; ++d)
-                        rc[d][i] = rc_l[d];
+                        rc[d][i] = rc_i[d];
 
                       segments[i] = grain_and_segment;
                     }
@@ -2882,6 +2881,8 @@ namespace Sintering
                   Tensor<1, dim, VectorizedArrayType>          force;
                   Tensor<1, dim, VectorizedArrayType>          torque;
 
+                  // Compute force and torque acting on grain i from each of the
+                  // other grains
                   for (unsigned int jg = 0; jg < n_grains; ++jg)
                     {
                       if (ig != jg)
@@ -2889,11 +2890,11 @@ namespace Sintering
                           auto &eta_j      = val[2 + jg];
                           auto &eta_grad_j = grad[2 + jg];
 
+                          // Vector normal to the grain boundary
                           Tensor<1, dim, VectorizedArrayType> dF =
                             eta_grad_i - eta_grad_j;
 
-                          dF *= (c - ceq);
-
+                          // Filter to detect grain boundary
                           auto etai_etaj = eta_i * eta_j;
                           etai_etaj      = compare_and_apply_mask<
                             SIMDComparison::greater_than>(etai_etaj,
@@ -2901,12 +2902,17 @@ namespace Sintering
                                                           etai_etaj,
                                                           zeros);
 
-                          dF *= k * etai_etaj;
+                          // Compute force component per cell
+                          dF *= k * (c - ceq) * etai_etaj;
+
                           force += dF;
 
+                          // Vector pointing from the grain center to the
+                          // current qp point
                           const auto r_rc = (r - rc);
 
-                          // Torque
+                          // Torque as cross product
+                          // (scalar in 2D and vector in 3D)
                           if (dim == 2)
                             value_result[dim + 1] +=
                               dF[1] * r_rc[0] - dF[0] * r_rc[1];
@@ -2915,14 +2921,14 @@ namespace Sintering
                         }
                     }
 
-                  // Volume
+                  // Volume of grain i
                   value_result[0] = eta_i;
 
-                  // Add force
+                  // Force acting on grain i
                   for (unsigned int d = 0; d < dim; ++d)
                     value_result[d + 1] = force[d];
 
-                  // Add torque
+                  // Torque acting on grain i
                   if (dim == 3)
                     for (unsigned int d = 0; d < dim; ++d)
                       value_result[d + dim + 1] = torque[d];
@@ -2947,9 +2953,9 @@ namespace Sintering
 
       // Perform global communication
       MPI_Allreduce(MPI_IN_PLACE,
-                    advection_mechanism.get_grain_forces().data(),
-                    advection_mechanism.get_grain_forces().size(),
-                    MPI_DOUBLE,
+                    advection_mechanism.get_grains_data().data(),
+                    advection_mechanism.get_grains_data().size(),
+                    Utilities::MPI::mpi_type_id_for_type<Number>,
                     MPI_SUM,
                     MPI_COMM_WORLD);
     }

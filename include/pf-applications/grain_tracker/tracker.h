@@ -96,15 +96,12 @@ namespace GrainTracker
         }
 
       // Create map with the remapped particles
-      std::vector<std::map<unsigned int, bool>> grains_remapped(
+      std::vector<std::vector<bool>> grains_remapped(
         particle_ids_to_grain_ids.size());
 
-      for (unsigned int i = 0; i < particle_ids_to_grain_ids.size(); ++i)
-        {
-          const auto &op_mapping = particle_ids_to_grain_ids[i];
-          for (const auto &[particle_id, grain_id] : op_mapping)
-            grains_remapped[i].try_emplace(particle_id, false);
-        }
+      for (unsigned int iop = 0; iop < particle_ids_to_grain_ids.size(); ++iop)
+        grains_remapped[iop].assign(particle_ids_to_grain_ids[iop].size(),
+                                    false);
 
       // Create segments and transfer grain_id's for them
       for (const auto &[current_grain_id, new_grain] : new_grains)
@@ -185,16 +182,17 @@ namespace GrainTracker
               auto &particle_to_grain =
                 particle_ids_to_grain_ids[new_grain.get_order_parameter_id()];
 
-              for (auto &pmap : particle_to_grain)
+              for (unsigned int ip = 0; ip < particle_to_grain.size(); ip++)
                 {
-                  bool &is_remapped =
-                    grains_remapped[new_grain.get_order_parameter_id()]
-                                   [pmap.first];
-                  if (is_remapped == false &&
-                      pmap.second.first == current_grain_id)
+                  auto &pmap = particle_to_grain[ip];
+
+                  if (grains_remapped[new_grain.get_order_parameter_id()][ip] ==
+                        false &&
+                      pmap.first == current_grain_id)
                     {
-                      pmap.second.first = new_grain_id;
-                      is_remapped       = true;
+                      pmap.first = new_grain_id;
+                      grains_remapped[new_grain.get_order_parameter_id()][ip] =
+                        true;
                     }
                 }
             }
@@ -650,11 +648,12 @@ namespace GrainTracker
       AssertThrow(particle_id != invalid_particle_id,
                   ExcMessage("Invalid particle_id provided"));
 
-      return particle_ids_to_grain_ids[order_parameter].at(particle_id);
+      return particle_ids_to_grain_ids[order_parameter][particle_id];
     }
 
     const Point<dim> &
-    get_rc(const unsigned int grain_id, const unsigned int segment_id) const
+    get_segment_center(const unsigned int grain_id,
+                       const unsigned int segment_id) const
     {
       return grains.at(grain_id).get_segments()[segment_id].get_center();
     }
@@ -1018,6 +1017,10 @@ namespace GrainTracker
           for (unsigned int i = 0; i < n_particles; i++)
             free_particles.insert(i);
 
+          // Initialize the mapping vector
+          particle_ids_to_grain_ids[current_order_parameter_id].resize(
+            n_particles);
+
           // Parse groups at first to create grains
           for (unsigned int i = 0; i < n_particles; ++i)
             {
@@ -1039,8 +1042,8 @@ namespace GrainTracker
                   const unsigned int last_segment_id =
                     new_grains.at(grain_id).n_segments() - 1;
 
-                  particle_ids_to_grain_ids[current_order_parameter_id]
-                    .try_emplace(i, std::make_pair(grain_id, last_segment_id));
+                  particle_ids_to_grain_ids[current_order_parameter_id][i] =
+                    std::make_pair(grain_id, last_segment_id);
                 }
             }
 
@@ -1063,8 +1066,8 @@ namespace GrainTracker
               const unsigned int last_segment_id =
                 new_grains.at(grain_id).n_segments() - 1;
 
-              particle_ids_to_grain_ids[current_order_parameter_id].try_emplace(
-                i, std::make_pair(grain_id, last_segment_id));
+              particle_ids_to_grain_ids[current_order_parameter_id][i] =
+                std::make_pair(grain_id, last_segment_id);
 
               ++grains_numerator;
             }
@@ -1073,9 +1076,8 @@ namespace GrainTracker
       // Build inverse mapping for later use when forces and computed
       n_total_segments = 0;
       for (const auto &op_particle_ids : particle_ids_to_grain_ids)
-        for (const auto &[particle_id, grain_and_segment] : op_particle_ids)
+        for (const auto &grain_and_segment : op_particle_ids)
           {
-            (void)particle_id;
             grain_segment_ids_numbering[grain_and_segment.first]
                                        [grain_and_segment.second] =
                                          n_total_segments;
@@ -1539,7 +1541,7 @@ namespace GrainTracker
     BlockVectorType op_particle_ids;
 
     // Mapping to find grain from particle id over the order paramter
-    std::vector<std::map<unsigned int, std::pair<unsigned int, unsigned int>>>
+    std::vector<std::vector<std::pair<unsigned int, unsigned int>>>
       particle_ids_to_grain_ids;
 
     // The inverse mapping

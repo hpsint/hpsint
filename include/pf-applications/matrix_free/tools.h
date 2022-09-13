@@ -424,30 +424,5 @@ namespace dealii
         }
     }
 
-    template <int dim,
-              typename Number,
-              typename VectorizedArrayType,
-              typename CLASS,
-              typename InVector>
-    void
-    cell_loop_wrapper(
-      const MatrixFree<dim, Number, VectorizedArrayType> &matrix_free,
-      void (CLASS::*cell_operation)(
-        const MatrixFree<dim, Number, VectorizedArrayType> &,
-        const InVector &,
-        const std::pair<unsigned int, unsigned int> &) const,
-      const CLASS *   owning_class,
-      const InVector &src)
-    {
-      src.update_ghost_values();
-
-      (owning_class->*cell_operation)(
-        matrix_free,
-        src,
-        std::pair<unsigned int, unsigned int>{0, matrix_free.n_cell_batches()});
-
-      src.zero_out_ghost_values();
-    }
-
   } // namespace MyMatrixFreeTools
 } // namespace dealii

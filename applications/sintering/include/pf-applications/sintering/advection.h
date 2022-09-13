@@ -183,9 +183,8 @@ namespace Sintering
                   const auto grain_and_segment =
                     grain_tracker.get_grain_and_segment(op, particle_id);
 
-                  const auto &rc_i =
-                    grain_tracker.get_rc(grain_and_segment.first,
-                                         grain_and_segment.second);
+                  const auto &rc_i = grain_tracker.get_segment_center(
+                    grain_and_segment.first, grain_and_segment.second);
 
                   current_cell_data[op].fill(
                     i,
@@ -217,12 +216,16 @@ namespace Sintering
     {
       const auto &op_cell_data = current_cell_data.at(order_parameter_id);
 
+      // Translational velocity
       const auto vt = mt / op_cell_data.volume * op_cell_data.force;
 
-      const auto r_rc   = r - op_cell_data.rc;
-      const auto T_r_rc = op_cell_data.cross(r_rc);
-      const auto vr     = mr / op_cell_data.volume * T_r_rc;
+      // Get vector from the particle center to the current point
+      const auto r_rc = r - op_cell_data.rc;
 
+      // Rotational velocity
+      const auto vr = mr / op_cell_data.volume * op_cell_data.cross(r_rc);
+
+      // Total advection velocity
       const auto v_adv = vt + vr;
 
       return v_adv;
@@ -240,7 +243,7 @@ namespace Sintering
     void
     nullify_data(const unsigned int n_segments)
     {
-      grain_forces.assign(n_force_comp * n_segments, 0);
+      grains_data.assign(n_force_comp * n_segments, 0);
     }
 
     Number *
@@ -249,7 +252,7 @@ namespace Sintering
       const unsigned int index =
         grain_tracker.get_grain_segment_index(grain_id, segment_id);
 
-      return &grain_forces[n_force_comp * index];
+      return &grains_data[n_force_comp * index];
     }
 
     const Number *
@@ -258,19 +261,19 @@ namespace Sintering
       const unsigned int index =
         grain_tracker.get_grain_segment_index(grain_id, segment_id);
 
-      return &grain_forces[n_force_comp * index];
+      return &grains_data[n_force_comp * index];
     }
 
     std::vector<Number> &
-    get_grain_forces()
+    get_grains_data()
     {
-      return grain_forces;
+      return grains_data;
     }
 
     const std::vector<Number> &
-    get_grain_forces() const
+    get_grains_data() const
     {
-      return grain_forces;
+      return grains_data;
     }
 
     bool
@@ -291,6 +294,6 @@ namespace Sintering
 
     const GrainTracker::Tracker<dim, Number> &grain_tracker;
 
-    std::vector<Number> grain_forces;
+    std::vector<Number> grains_data;
   };
 } // namespace Sintering
