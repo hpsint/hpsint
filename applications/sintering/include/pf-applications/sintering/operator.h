@@ -5,6 +5,7 @@
 #include <pf-applications/numerics/functions.h>
 
 #include <pf-applications/dofs/dof_tools.h>
+#include <pf-applications/grain_tracker/tracker.h>
 #include <pf-applications/matrix_free/tools.h>
 #include <pf-applications/time_integration/solution_history.h>
 #include <pf-applications/time_integration/time_integrators.h>
@@ -1785,7 +1786,8 @@ namespace Sintering
     void
     fill_quadrature_point_values(
       const MatrixFree<dim, Number, VectorizedArrayType> &          matrix_free,
-      const LinearAlgebra::distributed::DynamicBlockVector<Number> &src)
+      const LinearAlgebra::distributed::DynamicBlockVector<Number> &src,
+      const bool save_op_gradients = false)
     {
       AssertDimension(src.n_blocks(), this->n_components());
 
@@ -1798,10 +1800,11 @@ namespace Sintering
       nonlinear_values.reinit(
         {n_cells, n_quadrature_points, this->n_components()});
 
-      nonlinear_gradients.reinit(
-        {n_cells,
-         n_quadrature_points,
-         use_tensorial_mobility ? this->n_components() : 2});
+      nonlinear_gradients.reinit({n_cells,
+                                  n_quadrature_points,
+                                  use_tensorial_mobility || save_op_gradients ?
+                                    this->n_components() :
+                                    2});
 
       FECellIntegrator<dim, 1, Number, VectorizedArrayType> phi(matrix_free);
 
@@ -1821,7 +1824,7 @@ namespace Sintering
                 {
                   nonlinear_values(cell, q, c) = phi.get_value(q);
 
-                  if (use_tensorial_mobility || (c < 2))
+                  if (use_tensorial_mobility || (c < 2) || save_op_gradients)
                     nonlinear_gradients(cell, q, c) = phi.get_gradient(q);
                 }
             }
@@ -1887,11 +1890,12 @@ namespace Sintering
     using vector_type = VectorType;
 
     SinteringOperator(
-      const MatrixFree<dim, Number, VectorizedArrayType> &     matrix_free,
-      const AffineConstraints<Number> &                        constraints,
-      const SinteringOperatorData<dim, VectorizedArrayType> &  data,
-      const TimeIntegration::SolutionHistory<BlockVectorType> &history,
-      const bool                                               matrix_based)
+      const MatrixFree<dim, Number, VectorizedArrayType> &        matrix_free,
+      const AffineConstraints<Number> &                           constraints,
+      const SinteringOperatorData<dim, VectorizedArrayType> &     data,
+      const TimeIntegration::SolutionHistory<BlockVectorType> &   history,
+      const AdvectionMechanism<dim, Number, VectorizedArrayType> &advection,
+      const bool                                                  matrix_based)
       : OperatorBase<dim,
                      Number,
                      VectorizedArrayType,
@@ -1904,6 +1908,7 @@ namespace Sintering
       , data(data)
       , history(history)
       , time_integrator(data.time_data, history)
+      , advection(advection)
     {}
 
     ~SinteringOperator()
@@ -2326,6 +2331,12 @@ namespace Sintering
       const auto  weight      = this->data.time_data.get_primary_weight();
       const auto &L           = mobility.Lgb();
 
+      // Reinit advection data for the current cells batch
+      if (advection.enabled())
+        advection.reinit(cell,
+                         static_cast<unsigned int>(n_grains),
+                         phi.get_matrix_free());
+
       for (unsigned int q = 0; q < phi.n_q_points; ++q)
         {
           Tensor<1, n_comp, VectorizedArrayType> value_result;
@@ -2345,7 +2356,8 @@ namespace Sintering
           const Tensor<1, dim, VectorizedArrayType> *etas_grad = nullptr;
 
           if (SinteringOperatorData<dim, VectorizedArrayType>::
-                use_tensorial_mobility)
+                use_tensorial_mobility ||
+              advection.enabled())
             etas_grad = &gradient_lin[2];
 
           const auto etaPower2Sum = PowerHelper<n_grains, 2>::power_sum(etas);
@@ -2384,6 +2396,21 @@ namespace Sintering
 
                   value_result[ig + 2] += L * d2f_detaidetaj * value[jg + 2];
                   value_result[jg + 2] += L * d2f_detaidetaj * value[ig + 2];
+                }
+
+              if (advection.enabled() && advection.has_velocity(ig))
+                {
+                  const auto &velocity =
+                    advection.get_velocity(ig, phi.quadrature_point(q));
+                  const auto &velocity_derivative =
+                    advection.get_velocity_derivative(ig,
+                                                      phi.quadrature_point(q));
+
+                  value_result[0] +=
+                    velocity * gradient[0] + velocity_derivative * c_grad;
+
+                  value_result[ig + 2] += velocity * gradient[ig + 2] +
+                                          velocity_derivative * etas_grad[ig];
                 }
             }
 
@@ -2432,6 +2459,12 @@ namespace Sintering
                 time_phi[i].evaluate(EvaluationFlags::EvaluationFlags::values);
               }
 
+          // Reinit advection data for the current cells batch
+          if (advection.enabled())
+            advection.reinit(cell,
+                             static_cast<unsigned int>(n_grains),
+                             matrix_free);
+
           for (unsigned int q = 0; q < phi.n_q_points; ++q)
             {
               const auto val  = phi.get_value(q);
@@ -2474,6 +2507,15 @@ namespace Sintering
                       value_result[2 + ig], val, time_phi, 2 + ig, q);
 
                   gradient_result[2 + ig] = L * kappa_p * grad[2 + ig];
+
+                  if (advection.enabled() && advection.has_velocity(ig))
+                    {
+                      const auto &velocity =
+                        advection.get_velocity(ig, phi.quadrature_point(q));
+
+                      value_result[0] += velocity * c_grad;
+                      value_result[2 + ig] += velocity * grad[2 + ig];
+                    }
                 }
 
               phi.submit_value(value_result, q);
@@ -2488,7 +2530,8 @@ namespace Sintering
     const SinteringOperatorData<dim, VectorizedArrayType> &  data;
     const TimeIntegration::SolutionHistory<BlockVectorType> &history;
     const TimeIntegration::BDFIntegrator<dim, Number, VectorizedArrayType>
-      time_integrator;
+                                                                time_integrator;
+    const AdvectionMechanism<dim, Number, VectorizedArrayType> &advection;
   };
 
   template <int dim, typename Number, typename VectorizedArrayType>
@@ -2661,6 +2704,268 @@ namespace Sintering
     }
 
     const SinteringOperatorData<dim, VectorizedArrayType> &data;
+  };
+
+  template <int dim, typename Number, typename VectorizedArrayType>
+  class AdvectionOperator
+    : public OperatorBase<dim,
+                          Number,
+                          VectorizedArrayType,
+                          AdvectionOperator<dim, Number, VectorizedArrayType>>
+  {
+  public:
+    using T = AdvectionOperator<dim, Number, VectorizedArrayType>;
+
+    using VectorType = LinearAlgebra::distributed::Vector<Number>;
+    using BlockVectorType =
+      LinearAlgebra::distributed::DynamicBlockVector<Number>;
+
+    using value_type  = Number;
+    using vector_type = VectorType;
+
+    // Force, torque and grain volume
+    static constexpr unsigned int n_force_comp = (dim == 3 ? 7 : 4);
+
+    AdvectionOperator(
+      const double                                           k,
+      const double                                           cgb,
+      const double                                           ceq,
+      const MatrixFree<dim, Number, VectorizedArrayType> &   matrix_free,
+      const AffineConstraints<Number> &                      constraints,
+      const SinteringOperatorData<dim, VectorizedArrayType> &data,
+      const GrainTracker::Tracker<dim, Number> &             grain_tracker)
+      : OperatorBase<dim,
+                     Number,
+                     VectorizedArrayType,
+                     AdvectionOperator<dim, Number, VectorizedArrayType>>(
+          matrix_free,
+          constraints,
+          0,
+          "advection_op",
+          false)
+      , k(k)
+      , cgb(cgb)
+      , ceq(ceq)
+      , data(data)
+      , grain_tracker(grain_tracker)
+    {}
+
+    ~AdvectionOperator()
+    {}
+
+    void
+    evaluate_forces(const BlockVectorType &src,
+                    AdvectionMechanism<dim, Number, VectorizedArrayType>
+                      &advection_mechanism) const
+    {
+      MyScope scope(this->timer,
+                    "sintering_op::nonlinear_residual",
+                    this->do_timing);
+
+      std::pair<unsigned int, unsigned int> range{
+        0, this->matrix_free.n_cell_batches()};
+
+      src.update_ghost_values();
+
+#define OPERATION(c, d) \
+  do_evaluate_forces<c, d>(this->matrix_free, src, advection_mechanism, range);
+      EXPAND_OPERATIONS(OPERATION);
+#undef OPERATION
+      src.zero_out_ghost_values();
+    }
+
+    void
+    do_update()
+    {
+      if (this->matrix_based)
+        this->get_system_matrix(); // assemble matrix
+    }
+
+    unsigned int
+    n_components() const override
+    {
+      return n_force_comp;
+    }
+
+    unsigned int
+    n_grains() const
+    {
+      return data.n_components() - 2;
+    }
+
+    static constexpr unsigned int
+    n_grains_to_n_components(const unsigned int n_grains)
+    {
+      (void)n_grains;
+      return n_force_comp;
+    }
+
+  private:
+    template <int n_comp, int n_grains>
+    void
+    do_evaluate_forces(
+      const MatrixFree<dim, Number, VectorizedArrayType> &  matrix_free,
+      const BlockVectorType &                               solution,
+      AdvectionMechanism<dim, Number, VectorizedArrayType> &advection_mechanism,
+      const std::pair<unsigned int, unsigned int> &         range) const
+    {
+      advection_mechanism.nullify_data(grain_tracker.n_segments());
+
+      FECellIntegrator<dim, 2 + n_grains, Number, VectorizedArrayType> phi_sint(
+        matrix_free, this->dof_index);
+
+      FECellIntegrator<dim, this->n_force_comp, Number, VectorizedArrayType>
+        phi_ft(matrix_free, this->dof_index);
+
+      VectorizedArrayType cgb_lim(cgb);
+      VectorizedArrayType zeros(0.0);
+
+      for (auto cell = range.first; cell < range.second; ++cell)
+        {
+          phi_sint.reinit(cell);
+          phi_sint.gather_evaluate(
+            solution,
+            EvaluationFlags::EvaluationFlags::values |
+              EvaluationFlags::EvaluationFlags::gradients);
+
+          phi_ft.reinit(cell);
+
+          for (unsigned int ig = 0; ig < n_grains; ++ig)
+            {
+              Point<dim, VectorizedArrayType> rc;
+
+              std::vector<std::pair<unsigned int, unsigned int>> segments(
+                matrix_free.n_active_entries_per_cell_batch(cell));
+
+              for (unsigned int i = 0; i < segments.size(); ++i)
+                {
+                  const auto icell = matrix_free.get_cell_iterator(cell, i);
+                  const auto cell_index = icell->global_active_cell_index();
+
+                  const unsigned int particle_id =
+                    grain_tracker.get_particle_index(ig, cell_index);
+
+                  if (particle_id != numbers::invalid_unsigned_int)
+                    {
+                      const auto grain_and_segment =
+                        grain_tracker.get_grain_and_segment(ig, particle_id);
+
+                      const auto &rc_i = grain_tracker.get_segment_center(
+                        grain_and_segment.first, grain_and_segment.second);
+
+                      for (unsigned int d = 0; d < dim; ++d)
+                        rc[d][i] = rc_i[d];
+
+                      segments[i] = grain_and_segment;
+                    }
+                  else
+                    {
+                      segments[i] =
+                        std::make_pair(numbers::invalid_unsigned_int,
+                                       numbers::invalid_unsigned_int);
+                    }
+                }
+
+              for (unsigned int q = 0; q < phi_sint.n_q_points; ++q)
+                {
+                  const auto val  = phi_sint.get_value(q);
+                  const auto grad = phi_sint.get_gradient(q);
+
+                  auto &c          = val[0];
+                  auto &eta_i      = val[2 + ig];
+                  auto &eta_grad_i = grad[2 + ig];
+
+                  const auto &r = phi_sint.quadrature_point(q);
+
+                  Tensor<1, n_force_comp, VectorizedArrayType> value_result;
+                  Tensor<1, dim, VectorizedArrayType>          force;
+                  Tensor<1, dim, VectorizedArrayType>          torque;
+
+                  // Compute force and torque acting on grain i from each of the
+                  // other grains
+                  for (unsigned int jg = 0; jg < n_grains; ++jg)
+                    {
+                      if (ig != jg)
+                        {
+                          auto &eta_j      = val[2 + jg];
+                          auto &eta_grad_j = grad[2 + jg];
+
+                          // Vector normal to the grain boundary
+                          Tensor<1, dim, VectorizedArrayType> dF =
+                            eta_grad_i - eta_grad_j;
+
+                          // Filter to detect grain boundary
+                          auto etai_etaj = eta_i * eta_j;
+                          etai_etaj      = compare_and_apply_mask<
+                            SIMDComparison::greater_than>(etai_etaj,
+                                                          cgb_lim,
+                                                          etai_etaj,
+                                                          zeros);
+
+                          // Compute force component per cell
+                          dF *= k * (c - ceq) * etai_etaj;
+
+                          force += dF;
+
+                          // Vector pointing from the grain center to the
+                          // current qp point
+                          const auto r_rc = (r - rc);
+
+                          // Torque as cross product
+                          // (scalar in 2D and vector in 3D)
+                          if (dim == 2)
+                            value_result[dim + 1] +=
+                              dF[1] * r_rc[0] - dF[0] * r_rc[1];
+                          else if (dim == 3)
+                            torque += cross_product_3d(r_rc, dF);
+                        }
+                    }
+
+                  // Volume of grain i
+                  value_result[0] = eta_i;
+
+                  // Force acting on grain i
+                  for (unsigned int d = 0; d < dim; ++d)
+                    value_result[d + 1] = force[d];
+
+                  // Torque acting on grain i
+                  if (dim == 3)
+                    for (unsigned int d = 0; d < dim; ++d)
+                      value_result[d + dim + 1] = torque[d];
+
+                  phi_ft.submit_value(value_result, q);
+                }
+
+              const auto volume_force_torque = phi_ft.integrate_value();
+
+              for (unsigned int i = 0; i < segments.size(); ++i)
+                {
+                  const auto &grain_and_segment = segments[i];
+
+                  if (grain_and_segment.first != numbers::invalid_unsigned_int)
+                    for (unsigned int d = 0; d < this->n_force_comp; ++d)
+                      advection_mechanism.grain_data(
+                        grain_and_segment.first, grain_and_segment.second)[d] +=
+                        volume_force_torque[d][i];
+                }
+            }
+        }
+
+      // Perform global communication
+      MPI_Allreduce(MPI_IN_PLACE,
+                    advection_mechanism.get_grains_data().data(),
+                    advection_mechanism.get_grains_data().size(),
+                    Utilities::MPI::mpi_type_id_for_type<Number>,
+                    MPI_SUM,
+                    MPI_COMM_WORLD);
+    }
+
+    const double k;
+    const double cgb;
+    const double ceq;
+
+    const SinteringOperatorData<dim, VectorizedArrayType> &data;
+    const GrainTracker::Tracker<dim, Number> &             grain_tracker;
   };
 
 } // namespace Sintering

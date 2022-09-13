@@ -113,6 +113,13 @@ namespace GrainTracker
       return segments;
     }
 
+    /* Get number of segments */
+    unsigned int
+    n_segments() const
+    {
+      return segments.size();
+    }
+
     /* Add a new segment to the grain. */
     void
     add_segment(const Segment<dim> &segment)

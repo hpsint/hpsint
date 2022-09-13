@@ -95,6 +95,14 @@ namespace GrainTracker
           grains_candidates.insert(gid);
         }
 
+      // Create map with the remapped particles
+      std::vector<std::vector<bool>> grains_remapped(
+        particle_ids_to_grain_ids.size());
+
+      for (unsigned int iop = 0; iop < particle_ids_to_grain_ids.size(); ++iop)
+        grains_remapped[iop].assign(particle_ids_to_grain_ids[iop].size(),
+                                    false);
+
       // Create segments and transfer grain_id's for them
       for (const auto &[current_grain_id, new_grain] : new_grains)
         {
@@ -167,6 +175,27 @@ namespace GrainTracker
           // Insert new grain
           grains.emplace(std::make_pair(new_grain_id, new_grain));
           grains.at(new_grain_id).set_grain_id(new_grain_id);
+
+          // Update mapping since we changed the grain id
+          if (new_grain_id != current_grain_id)
+            {
+              auto &particle_to_grain =
+                particle_ids_to_grain_ids[new_grain.get_order_parameter_id()];
+
+              for (unsigned int ip = 0; ip < particle_to_grain.size(); ip++)
+                {
+                  auto &pmap = particle_to_grain[ip];
+
+                  if (grains_remapped[new_grain.get_order_parameter_id()][ip] ==
+                        false &&
+                      pmap.first == current_grain_id)
+                    {
+                      pmap.first = new_grain_id;
+                      grains_remapped[new_grain.get_order_parameter_id()][ip] =
+                        true;
+                    }
+                }
+            }
         }
 
       /* For tracking we want the grains assigned to the same order parameter to
@@ -558,6 +587,12 @@ namespace GrainTracker
       print_log(log);
     }
 
+    const std::map<unsigned int, Grain<dim>> &
+    get_grains() const
+    {
+      return grains;
+    }
+
     // Get active order parameters ids
     std::set<unsigned int>
     get_active_order_parameters() const
@@ -592,6 +627,48 @@ namespace GrainTracker
     output_current_grains(std::string prefix = std::string("grains")) const
     {
       output_grains(grains, prefix);
+    }
+
+    unsigned int
+    get_particle_index(const unsigned int order_parameter,
+                       const unsigned int cell_index) const
+    {
+      const auto &particle_ids = op_particle_ids.block(order_parameter);
+      const auto &particle_id  = particle_ids[cell_index];
+
+      return (particle_id == invalid_particle_id) ?
+               numbers::invalid_unsigned_int :
+               static_cast<unsigned int>(particle_id);
+    }
+
+    std::pair<unsigned int, unsigned int>
+    get_grain_and_segment(const unsigned int order_parameter,
+                          const unsigned int particle_id) const
+    {
+      AssertThrow(particle_id != invalid_particle_id,
+                  ExcMessage("Invalid particle_id provided"));
+
+      return particle_ids_to_grain_ids[order_parameter][particle_id];
+    }
+
+    const Point<dim> &
+    get_segment_center(const unsigned int grain_id,
+                       const unsigned int segment_id) const
+    {
+      return grains.at(grain_id).get_segments()[segment_id].get_center();
+    }
+
+    unsigned int
+    get_grain_segment_index(const unsigned int grain_id,
+                            const unsigned int segment_id) const
+    {
+      return grain_segment_ids_numbering.at(grain_id).at(segment_id);
+    }
+
+    unsigned int
+    n_segments() const
+    {
+      return n_total_segments;
     }
 
   private:
@@ -652,18 +729,28 @@ namespace GrainTracker
 
       const MPI_Comm comm = MPI_COMM_WORLD;
 
-      unsigned int particles_numerator = 0;
+      // Numerator
+      unsigned int grains_numerator = 0;
 
       const unsigned int n_order_params =
         solution.n_blocks() - order_parameters_offset;
 
-      LinearAlgebra::distributed::Vector<double> particle_ids(
-        tria.global_active_cell_index_partitioner().lock());
+      // Order parameter indices stored per cell
+      op_particle_ids.reinit(n_order_params);
+      for (unsigned int b = 0; b < op_particle_ids.n_blocks(); ++b)
+        op_particle_ids.block(b).reinit(
+          tria.global_active_cell_index_partitioner().lock());
+
+      particle_ids_to_grain_ids.clear();
+      particle_ids_to_grain_ids.resize(n_order_params);
 
       for (unsigned int current_order_parameter_id = 0;
            current_order_parameter_id < n_order_params;
            ++current_order_parameter_id)
         {
+          auto &particle_ids =
+            op_particle_ids.block(current_order_parameter_id);
+
           // step 1) run flooding and determine local particles and give them
           // local ids
           particle_ids = invalid_particle_id;
@@ -930,13 +1017,16 @@ namespace GrainTracker
           for (unsigned int i = 0; i < n_particles; i++)
             free_particles.insert(i);
 
+          // Initialize the mapping vector
+          particle_ids_to_grain_ids[current_order_parameter_id].resize(
+            n_particles);
+
           // Parse groups at first to create grains
           for (unsigned int i = 0; i < n_particles; ++i)
             {
               if (particle_groups[i] != numbers::invalid_unsigned_int)
                 {
-                  unsigned int grain_id =
-                    particle_groups[i] + particles_numerator;
+                  unsigned int grain_id = particle_groups[i] + grains_numerator;
 
                   new_grains.try_emplace(grain_id,
                                          assign_indices ?
@@ -948,15 +1038,21 @@ namespace GrainTracker
                                                       particle_radii[i]);
 
                   free_particles.erase(i);
+
+                  const unsigned int last_segment_id =
+                    new_grains.at(grain_id).n_segments() - 1;
+
+                  particle_ids_to_grain_ids[current_order_parameter_id][i] =
+                    std::make_pair(grain_id, last_segment_id);
                 }
             }
 
-          particles_numerator += n_groups_found;
+          grains_numerator += n_groups_found;
 
           // Then handle the remaining non-periodic particles
           for (const unsigned int i : free_particles)
             {
-              unsigned int grain_id = particles_numerator;
+              unsigned int grain_id = grains_numerator;
 
               new_grains.try_emplace(grain_id,
                                      assign_indices ?
@@ -967,9 +1063,27 @@ namespace GrainTracker
               new_grains.at(grain_id).add_segment(particle_centers[i],
                                                   particle_radii[i]);
 
-              ++particles_numerator;
+              const unsigned int last_segment_id =
+                new_grains.at(grain_id).n_segments() - 1;
+
+              particle_ids_to_grain_ids[current_order_parameter_id][i] =
+                std::make_pair(grain_id, last_segment_id);
+
+              ++grains_numerator;
             }
         }
+
+      // Build inverse mapping for later use when forces and computed
+      n_total_segments = 0;
+      for (const auto &op_particle_ids : particle_ids_to_grain_ids)
+        for (const auto &grain_and_segment : op_particle_ids)
+          {
+            grain_segment_ids_numbering[grain_and_segment.first]
+                                       [grain_and_segment.second] =
+                                         n_total_segments;
+
+            ++n_total_segments;
+          }
 
       return new_grains;
     }
@@ -1423,6 +1537,17 @@ namespace GrainTracker
 
     const parallel::TriangulationBase<dim> &tria;
 
+    // Distributed vector of particle ids
+    BlockVectorType op_particle_ids;
+
+    // Mapping to find grain from particle id over the order paramter
+    std::vector<std::vector<std::pair<unsigned int, unsigned int>>>
+      particle_ids_to_grain_ids;
+
+    // The inverse mapping
+    std::map<unsigned int, std::map<unsigned int, unsigned int>>
+      grain_segment_ids_numbering;
+
     // Perform greedy initialization
     const bool greedy_init;
 
@@ -1443,6 +1568,9 @@ namespace GrainTracker
 
     // Order parameters offset in FESystem
     const unsigned int order_parameters_offset;
+
+    // Total number of segments
+    unsigned int n_total_segments;
 
     std::map<unsigned int, Grain<dim>> grains;
     std::map<unsigned int, Grain<dim>> old_grains;

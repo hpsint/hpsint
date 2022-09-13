@@ -68,6 +68,7 @@
 #include <pf-applications/numerics/data_out.h>
 #include <pf-applications/numerics/vector_tools.h>
 
+#include <pf-applications/sintering/advection.h>
 #include <pf-applications/sintering/initial_values.h>
 #include <pf-applications/sintering/operator.h>
 #include <pf-applications/sintering/parameters.h>
@@ -523,6 +524,9 @@ namespace Sintering
           additional_data.mapping_update_flags =
             update_values | update_gradients;
 
+          if (params.advection_data.enable)
+            additional_data.mapping_update_flags |= update_quadrature_points;
+
           matrix_free.reinit(
             mapping, dof_handler, constraints, quad, additional_data);
         }
@@ -774,11 +778,31 @@ namespace Sintering
                             params.adaptivity_data.max_refinement_depth,
                           sintering_data);
 
+      // New grains can not appear in current sintering simulations
+      GrainTracker::Tracker<dim, Number> grain_tracker(
+        dof_handler,
+        tria,
+        !params.geometry_data.minimize_order_parameters,
+        /*allow_new_grains*/ false,
+        MAX_SINTERING_GRAINS,
+        params.grain_tracker_data.threshold_lower,
+        params.grain_tracker_data.threshold_upper,
+        params.grain_tracker_data.buffer_distance_ratio,
+        2);
+
+      // Advection physics for shrinkage
+      AdvectionMechanism<dim, Number, VectorizedArrayType> advection_mechanism(
+        params.advection_data.enable,
+        params.advection_data.mt,
+        params.advection_data.mr,
+        grain_tracker);
+
       // ... non-linear operator
       NonLinearOperator nonlinear_operator(matrix_free,
                                            constraints,
                                            sintering_data,
                                            solution_history,
+                                           advection_mechanism,
                                            params.matrix_based);
 
       // ... preconditioner
@@ -940,8 +964,8 @@ namespace Sintering
             {
               MyScope scope(timer, "time_loop::newton::setup_jacobian");
 
-              sintering_data.fill_quadrature_point_values(matrix_free,
-                                                          current_u);
+              sintering_data.fill_quadrature_point_values(
+                matrix_free, current_u, params.advection_data.enable);
 
               nonlinear_operator.do_update();
             }
@@ -987,7 +1011,9 @@ namespace Sintering
                       mg_sintering_data[l].set_n_components(
                         sintering_data.n_components());
                       mg_sintering_data[l].fill_quadrature_point_values(
-                        mg_matrix_free[l], mg_current_u[l]);
+                        mg_matrix_free[l],
+                        mg_current_u[l],
+                        params.advection_data.enable);
                     }
                 }
 
@@ -1237,17 +1263,14 @@ namespace Sintering
             Postprocessors::estimate_overhead(mapping, dof_handler, solution);
         };
 
-      // New grains can not appear in current sintering simulations
-      GrainTracker::Tracker<dim, Number> grain_tracker(
-        dof_handler,
-        tria,
-        !params.geometry_data.minimize_order_parameters,
-        /*allow_new_grains*/ false,
-        MAX_SINTERING_GRAINS,
-        params.grain_tracker_data.threshold_lower,
-        params.grain_tracker_data.threshold_upper,
-        params.grain_tracker_data.buffer_distance_ratio,
-        2);
+      AdvectionOperator<dim, Number, VectorizedArrayType> advection_operator(
+        params.advection_data.k,
+        params.advection_data.cgb,
+        params.advection_data.ceq,
+        matrix_free,
+        constraints,
+        sintering_data,
+        grain_tracker);
 
       const auto run_grain_tracker = [&](const double t,
                                          const bool   do_initialize = false) {
@@ -1268,6 +1291,10 @@ namespace Sintering
         const auto [has_reassigned_grains, has_op_number_changed] =
           do_initialize ? grain_tracker.initial_setup(solution) :
                           grain_tracker.track(solution);
+
+        // Compute forces
+        if (params.advection_data.enable)
+          advection_operator.evaluate_forces(solution, advection_mechanism);
 
         const double time_total_double =
           std::chrono::duration_cast<std::chrono::nanoseconds>(
@@ -1511,8 +1538,8 @@ namespace Sintering
                 const bool old_timing_state =
                   nonlinear_operator.set_timing(false);
 
-                sintering_data.fill_quadrature_point_values(matrix_free,
-                                                            solution);
+                sintering_data.fill_quadrature_point_values(
+                  matrix_free, solution, params.advection_data.enable);
 
                 VectorType dst, src;
 
