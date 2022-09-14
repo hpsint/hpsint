@@ -161,12 +161,11 @@ namespace Sintering
     void
     reinit(
       const unsigned int                                  cell,
-      const unsigned int                                  n_order_parameters,
       const MatrixFree<dim, Number, VectorizedArrayType> &matrix_free) const
     {
-      current_cell_data.resize(n_order_parameters);
+      current_cell_data.resize(n_active_order_parameters);
 
-      for (unsigned int op = 0; op < n_order_parameters; ++op)
+      for (unsigned int op = 0; op < n_active_order_parameters; ++op)
         {
           unsigned int i = 0;
 
@@ -242,7 +241,8 @@ namespace Sintering
     }
 
     void
-    nullify_data(const unsigned int n_segments)
+    nullify_data(const unsigned int n_segments,
+                 const unsigned int n_order_parameters)
     {
       grains_data.assign(n_force_comp * n_segments, 0);
     }
@@ -295,6 +295,8 @@ namespace Sintering
 
     const GrainTracker::Tracker<dim, Number> &grain_tracker;
 
+    unsigned int n_active_order_parameters;
+    
     std::vector<Number> grains_data;
   };
 } // namespace Sintering

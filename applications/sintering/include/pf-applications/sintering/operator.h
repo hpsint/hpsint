@@ -2356,7 +2356,6 @@ namespace Sintering
       // Reinit advection data for the current cells batch
       if (advection.enabled())
         advection.reinit(cell,
-                         static_cast<unsigned int>(n_grains),
                          phi.get_matrix_free());
 
       for (unsigned int q = 0; q < phi.n_q_points; ++q)
@@ -2484,7 +2483,6 @@ namespace Sintering
           // Reinit advection data for the current cells batch
           if (advection.enabled())
             advection.reinit(cell,
-                             static_cast<unsigned int>(n_grains),
                              matrix_free);
 
           for (unsigned int q = 0; q < phi.n_q_points; ++q)
@@ -2746,7 +2744,9 @@ namespace Sintering
     using vector_type = VectorType;
 
     // Force, torque and grain volume
-    static constexpr unsigned int n_force_comp = (dim == 3 ? 7 : 4);
+    static constexpr unsigned int n_comp_total = (dim == 3 ? 7 : 4);
+    static constexpr unsigned int n_comp_force = dim;
+    static constexpr unsigned int n_comp_torque = (dim == 3 ? 3 : 1);
 
     AdvectionOperator(
       const double                                           k,
@@ -2806,7 +2806,7 @@ namespace Sintering
     unsigned int
     n_components() const override
     {
-      return n_force_comp;
+      return n_comp_total;
     }
 
     unsigned int
@@ -2819,7 +2819,7 @@ namespace Sintering
     n_grains_to_n_components(const unsigned int n_grains)
     {
       (void)n_grains;
-      return n_force_comp;
+      return n_comp_total;
     }
 
   private:
@@ -2831,12 +2831,12 @@ namespace Sintering
       AdvectionMechanism<dim, Number, VectorizedArrayType> &advection_mechanism,
       const std::pair<unsigned int, unsigned int> &         range) const
     {
-      advection_mechanism.nullify_data(grain_tracker.n_segments());
+      advection_mechanism.nullify_data(grain_tracker.n_segments(), n_grains);
 
       FECellIntegrator<dim, 2 + n_grains, Number, VectorizedArrayType> phi_sint(
         matrix_free, this->dof_index);
 
-      FECellIntegrator<dim, this->n_force_comp, Number, VectorizedArrayType>
+      FECellIntegrator<dim, this->n_comp_total, Number, VectorizedArrayType>
         phi_ft(matrix_free, this->dof_index);
 
       VectorizedArrayType cgb_lim(cgb);
@@ -2899,7 +2899,7 @@ namespace Sintering
 
                   const auto &r = phi_sint.quadrature_point(q);
 
-                  Tensor<1, n_force_comp, VectorizedArrayType> value_result;
+                  Tensor<1, this->n_comp_total, VectorizedArrayType> value_result;
                   Tensor<1, dim, VectorizedArrayType>          force;
                   Tensor<1, dim, VectorizedArrayType>          torque;
 
@@ -2965,7 +2965,7 @@ namespace Sintering
                   const auto &grain_and_segment = segments[i];
 
                   if (grain_and_segment.first != numbers::invalid_unsigned_int)
-                    for (unsigned int d = 0; d < this->n_force_comp; ++d)
+                    for (unsigned int d = 0; d < this->n_comp_total; ++d)
                       advection_mechanism.grain_data(
                         grain_and_segment.first, grain_and_segment.second)[d] +=
                         volume_force_torque[d][i];
