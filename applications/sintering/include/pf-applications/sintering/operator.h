@@ -4,6 +4,8 @@
 
 #include <pf-applications/numerics/functions.h>
 
+#include <pf-applications/sintering/tools.h>
+
 #include <pf-applications/dofs/dof_tools.h>
 #include <pf-applications/grain_tracker/tracker.h>
 #include <pf-applications/matrix_free/tools.h>
@@ -2355,8 +2357,7 @@ namespace Sintering
 
       // Reinit advection data for the current cells batch
       if (advection.enabled())
-        advection.reinit(cell,
-                         phi.get_matrix_free());
+        advection.reinit(cell, phi.get_matrix_free());
 
       for (unsigned int q = 0; q < phi.n_q_points; ++q)
         {
@@ -2482,8 +2483,7 @@ namespace Sintering
 
           // Reinit advection data for the current cells batch
           if (advection.enabled())
-            advection.reinit(cell,
-                             matrix_free);
+            advection.reinit(cell, matrix_free);
 
           for (unsigned int q = 0; q < phi.n_q_points; ++q)
             {
@@ -2744,8 +2744,8 @@ namespace Sintering
     using vector_type = VectorType;
 
     // Force, torque and grain volume
-    static constexpr unsigned int n_comp_total = (dim == 3 ? 7 : 4);
-    static constexpr unsigned int n_comp_force = dim;
+    static constexpr unsigned int n_comp_total  = (dim == 3 ? 7 : 4);
+    static constexpr unsigned int n_comp_force  = dim;
     static constexpr unsigned int n_comp_torque = (dim == 3 ? 3 : 1);
 
     AdvectionOperator(
