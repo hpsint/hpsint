@@ -952,8 +952,21 @@ namespace Sintering
         nonlinear_operator.initialize_dof_vector(vector);
       };
 
+      AdvectionOperator<dim, Number, VectorizedArrayType> advection_operator(
+        params.advection_data.k,
+        params.advection_data.cgb,
+        params.advection_data.ceq,
+        matrix_free,
+        constraints,
+        sintering_data,
+        grain_tracker);
+
       non_linear_solver->residual = [&](const auto &src, auto &dst) {
         MyScope scope(timer, "time_loop::newton::residual");
+
+        // Compute forces
+        if (params.advection_data.enable)
+          advection_operator.evaluate_forces(src, advection_mechanism);
 
         nonlinear_operator.evaluate_nonlinear_residual(dst, src);
       };
@@ -1335,14 +1348,6 @@ namespace Sintering
             Postprocessors::estimate_overhead(mapping, dof_handler, solution);
         };
 
-      AdvectionOperator<dim, Number, VectorizedArrayType> advection_operator(
-        params.advection_data.k,
-        params.advection_data.cgb,
-        params.advection_data.ceq,
-        matrix_free,
-        constraints,
-        sintering_data,
-        grain_tracker);
 
       const auto run_grain_tracker = [&](const double t,
                                          const bool   do_initialize = false) {
@@ -1363,10 +1368,6 @@ namespace Sintering
         const auto [has_reassigned_grains, has_op_number_changed] =
           do_initialize ? grain_tracker.initial_setup(solution) :
                           grain_tracker.track(solution);
-
-        // Compute forces
-        if (params.advection_data.enable)
-          advection_operator.evaluate_forces(solution, advection_mechanism);
 
         const double time_total_double =
           std::chrono::duration_cast<std::chrono::nanoseconds>(
