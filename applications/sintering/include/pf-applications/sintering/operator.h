@@ -2899,9 +2899,10 @@ namespace Sintering
 
                   const auto &r = phi_sint.quadrature_point(q);
 
-                  Tensor<1, this->n_comp_total, VectorizedArrayType> value_result;
-                  Tensor<1, dim, VectorizedArrayType>          force;
-                  Tensor<1, dim, VectorizedArrayType>          torque;
+                  Tensor<1, this->n_comp_total, VectorizedArrayType>
+                                                      value_result;
+                  Tensor<1, dim, VectorizedArrayType> force;
+                  moment_t<dim, VectorizedArrayType>  torque;
 
                   // Compute force and torque acting on grain i from each of the
                   // other grains
@@ -2935,11 +2936,7 @@ namespace Sintering
 
                           // Torque as cross product
                           // (scalar in 2D and vector in 3D)
-                          if (dim == 2)
-                            value_result[dim + 1] +=
-                              dF[1] * r_rc[0] - dF[0] * r_rc[1];
-                          else if (dim == 3)
-                            torque += cross_product_3d(r_rc, dF);
+                          torque += cross_product(r_rc, dF);
                         }
                     }
 
@@ -2951,9 +2948,10 @@ namespace Sintering
                     value_result[d + 1] = force[d];
 
                   // Torque acting on grain i
-                  if (dim == 3)
-                    for (unsigned int d = 0; d < dim; ++d)
-                      value_result[d + dim + 1] = torque[d];
+                  for (unsigned int d = 0;
+                       d < moment_s<dim, VectorizedArrayType>;
+                       ++d)
+                    value_result[d + dim + 1] = torque[d];
 
                   phi_ft.submit_value(value_result, q);
                 }

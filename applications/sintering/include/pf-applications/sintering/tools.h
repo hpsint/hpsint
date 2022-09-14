@@ -1,3 +1,4 @@
+#pragma once
 
 #include <deal.II/grid/grid_generator.h>
 #include <deal.II/grid/grid_tools.h>
@@ -274,6 +275,53 @@ namespace Sintering
     EnergyCoefficients params{A, B, kappa_c, kappa_p};
 
     return params;
+  }
+
+  namespace internal
+  {
+    template <int dim, typename Number>
+    struct Moment
+    {};
+
+    template <typename Number>
+    struct Moment<2, Number>
+    {
+      typedef Number                type;
+      static constexpr unsigned int size = 1;
+    };
+
+    template <typename Number>
+    struct Moment<3, Number>
+    {
+      typedef Tensor<1, 3, Number>  type;
+      static constexpr unsigned int size = 3;
+    };
+
+  } // namespace internal
+
+  template <int dim, typename Number>
+  using moment_t = typename internal::Moment<dim, Number>::type;
+
+  template <int dim, typename Number>
+  inline constexpr unsigned int moment_s = internal::Moment<dim, Number>::size;
+
+  template <int dim, typename Number>
+  moment_t<dim, Number>
+  cross_product(const Tensor<1, dim, Number> &x,
+                const Tensor<1, dim, Number> &y);
+
+  template <typename Number>
+  moment_t<2, Number>
+  cross_product(const Tensor<1, 2, Number> &x, const Tensor<1, 2, Number> &y)
+  {
+    return y[1] * x[0] - y[0] * x[1];
+  }
+
+  template <typename Number>
+  moment_t<3, Number>
+  cross_product(const Tensor<1, 3, Number> &x, const Tensor<1, 3, Number> &y)
+  {
+    return cross_product_3d(x, y);
   }
 
 } // namespace Sintering
