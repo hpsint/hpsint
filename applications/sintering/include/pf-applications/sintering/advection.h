@@ -146,7 +146,8 @@ namespace Sintering
   {
   public:
     // Force, torque and grain volume
-    static constexpr unsigned int n_force_comp = (dim == 3 ? 7 : 4);
+    static constexpr unsigned int n_comp_force_torque = (dim == 3 ? 6 : 3);
+    static constexpr unsigned int n_comp_total        = (dim == 3 ? 7 : 4);
 
     AdvectionMechanism(const bool                                enable,
                        const double                              mt,
@@ -244,7 +245,20 @@ namespace Sintering
     nullify_data(const unsigned int n_segments,
                  const unsigned int n_order_parameters)
     {
-      grains_data.assign(n_force_comp * n_segments, 0);
+      n_active_order_parameters = n_order_parameters;
+
+      grains_data.assign(n_comp_total * n_segments, 0);
+    }
+
+    void
+    nullify_data_derivatives(const unsigned int n_segments,
+                             const unsigned int n_order_parameters)
+    {
+      AssertDimension(n_active_order_parameters, n_order_parameters);
+
+      grains_data_derivatives.assign(n_comp_force_torque *
+                                       (n_order_parameters + 1) * n_segments,
+                                     0);
     }
 
     Number *
@@ -253,7 +267,7 @@ namespace Sintering
       const unsigned int index =
         grain_tracker.get_grain_segment_index(grain_id, segment_id);
 
-      return &grains_data[n_force_comp * index];
+      return &grains_data[n_comp_total * index];
     }
 
     const Number *
@@ -262,7 +276,29 @@ namespace Sintering
       const unsigned int index =
         grain_tracker.get_grain_segment_index(grain_id, segment_id);
 
-      return &grains_data[n_force_comp * index];
+      return &grains_data[n_comp_total * index];
+    }
+
+    Number *
+    grain_data_derivative(const unsigned int grain_id,
+                          const unsigned int segment_id)
+    {
+      const unsigned int index =
+        grain_tracker.get_grain_segment_index(grain_id, segment_id);
+
+      return &grains_data_derivatives[n_comp_force_torque *
+                                      (n_active_order_parameters + 1) * index];
+    }
+
+    const Number *
+    grain_data_derivative(const unsigned int grain_id,
+                          const unsigned int segment_id) const
+    {
+      const unsigned int index =
+        grain_tracker.get_grain_segment_index(grain_id, segment_id);
+
+      return &grains_data_derivatives[n_comp_force_torque *
+                                      (n_active_order_parameters + 1) * index];
     }
 
     std::vector<Number> &
@@ -275,6 +311,18 @@ namespace Sintering
     get_grains_data() const
     {
       return grains_data;
+    }
+
+    std::vector<Number> &
+    get_grains_data_derivatives()
+    {
+      return grains_data_derivatives;
+    }
+
+    const std::vector<Number> &
+    get_grains_data_derivatives() const
+    {
+      return grains_data_derivatives;
     }
 
     bool
@@ -296,7 +344,8 @@ namespace Sintering
     const GrainTracker::Tracker<dim, Number> &grain_tracker;
 
     unsigned int n_active_order_parameters;
-    
+
     std::vector<Number> grains_data;
+    std::vector<Number> grains_data_derivatives;
   };
 } // namespace Sintering
