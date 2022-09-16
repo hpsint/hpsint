@@ -2959,11 +2959,11 @@ namespace Sintering
 
                   // Add torque derivative wrt c
                   if (moment_s<dim, VectorizedArrayType> == 1)
-                    value_result[dim + 1] = torque;
+                    value_result_dc[dim] = torque_dc;
                   else
                     for (unsigned int d = 0;
-                        d < moment_s<dim, VectorizedArrayType>;
-                        ++d)
+                         d < moment_s<dim, VectorizedArrayType>;
+                         ++d)
                       value_result_dc[d + dim] = torque_dc[d];
 
                   phi_ft_dc.submit_value(value_result_dc, q);
