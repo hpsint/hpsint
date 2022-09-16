@@ -2817,10 +2817,6 @@ namespace Sintering
       advection_mechanism.nullify_data_derivatives(grain_tracker.n_segments(),
                                                    n_grains);
 
-      /*
-            FECellIntegrator<dim, 2 + n_grains, Number, VectorizedArrayType>
-         phi_sint( matrix_free, this->dof_index);
-      */
       FECellIntegrator<dim,
                        advection_mechanism.n_comp_der_c,
                        Number,
@@ -2843,51 +2839,12 @@ namespace Sintering
       const auto &nonlinear_values    = this->data.get_nonlinear_values();
       const auto &nonlinear_gradients = this->data.get_nonlinear_gradients();
 
-      /*
-            FEValues<dim> fe_values(
-              this->matrix_free.get_dof_handler(this->dof_index).get_fe(),
-              this->matrix_free.get_quadrature(),
-              update_values | update_gradients);
-      */
       for (auto cell = range.first; cell < range.second; ++cell)
         {
-          // phi_sint.reinit(cell);
-          /*
-          phi_sint.evaluate(EvaluationFlags::EvaluationFlags::values |
-                            EvaluationFlags::EvaluationFlags::gradients);
-          */
-          /*
-                    const auto icell0 = matrix_free.get_cell_iterator(cell, 0);
-                    fe_values.reinit(icell0);
-
-                    const auto sv00 = fe_values.shape_value(0, 0);
-                    const auto sv01 = fe_values.shape_value(0, 1);
-                    const auto sv02 = fe_values.shape_value(0, 2);
-                    const auto sv03 = fe_values.shape_value(0, 3);
-
-                    const auto sv10 = fe_values.shape_value(1, 0);
-                    const auto sv11 = fe_values.shape_value(1, 1);
-                    const auto sv12 = fe_values.shape_value(1, 2);
-                    const auto sv13 = fe_values.shape_value(1, 3);
-
-                    const auto sv20 = fe_values.shape_value(2, 0);
-                    const auto sv21 = fe_values.shape_value(2, 1);
-                    const auto sv22 = fe_values.shape_value(2, 2);
-                    const auto sv23 = fe_values.shape_value(2, 3);
-
-                    const auto sv30 = fe_values.shape_value(3, 0);
-                    const auto sv31 = fe_values.shape_value(3, 1);
-                    const auto sv32 = fe_values.shape_value(3, 2);
-                    const auto sv33 = fe_values.shape_value(3, 3);
-          */
           phi_ft_dc.reinit(cell);
 
           for (auto &phi_ft_i : phi_ft_dgrad_eta)
             phi_ft_i.reinit(cell);
-
-          // const auto svalues = phi_sint.get_shape_info().data;
-          // const auto sv00s = phi_sint.get_shape_info().get_shape_data(0, 0);
-          // const auto sv10s = phi_sint.get_shape_info().get_shape_data(1, 0);
 
           for (unsigned int ig = 0; ig < n_grains; ++ig)
             {
@@ -2927,10 +2884,6 @@ namespace Sintering
 
               for (unsigned int q = 0; q < phi_ft_dc.n_q_points; ++q)
                 {
-                  // Shape functions
-                  // const auto phi_val  = phi_sint.get_value(q);
-                  // const auto phi_grad = phi_sint.get_gradient(q);
-
                   // Nonlinear variables
                   const auto &value_lin    = nonlinear_values[cell][q];
                   const auto &gradient_lin = nonlinear_gradients[cell][q];
@@ -2986,8 +2939,7 @@ namespace Sintering
                           torque_dgrad_eta[jg] += -dt_dgrad_etaj;
 
                           // Force derivative wrt c
-                          auto df_dc =
-                            k * etai_etaj * eta_grad_i_j; // phi_val[0];
+                          auto df_dc = k * etai_etaj * eta_grad_i_j;
                           force_dc += df_dc;
 
                           // Torque derivative wrt c
