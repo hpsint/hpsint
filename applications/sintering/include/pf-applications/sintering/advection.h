@@ -4,6 +4,8 @@
 
 #include <deal.II/distributed/tria.h>
 
+#include <pf-applications/sintering/tools.h>
+
 #include <pf-applications/grain_tracker/tracker.h>
 
 namespace Sintering
@@ -141,6 +143,78 @@ namespace Sintering
     }
   };
 
+
+  template <int dim, typename Number, typename VectorizedArrayType>
+  struct AdvectionCellDataDer
+  {
+    std::vector<VectorizedArrayType>                 df_dgrad_eta;
+    std::vector<Tensor<1, dim, VectorizedArrayType>> dt_dgrad_eta;
+
+    Tensor<1, dim, VectorizedArrayType> df_dc;
+    moment_t<dim, VectorizedArrayType>  dt_dc;
+
+    bool
+    is_zero() const
+    {
+      return zero;
+    }
+
+    void
+    reinit(const unsigned int n_order_parameters)
+    {
+      df_dgrad_eta.resize(n_order_parameters);
+      dt_dgrad_eta.resize(n_order_parameters);
+    }
+
+    void
+    fill(const unsigned int cell_id, const Number *fdata)
+    {
+      const unsigned int n_order_parameters = df_dgrad_eta.size();
+
+      for (unsigned int op = 0; op < n_order_parameters; ++op)
+        {
+          df_dgrad_eta[op][cell_id] = fdata[op];
+
+          for (unsigned int d = 0; d < dim; ++d)
+            dt_dgrad_eta[op][d][cell_id] =
+              fdata[n_order_parameters + op * dim + d];
+        }
+
+      for (unsigned int d = 0; d < dim; ++d)
+        df_dc[d][cell_id] = fdata[n_order_parameters * (dim + 1) + d];
+
+      fill_moment_from_buffer(dt_dc,
+                              cell_id,
+                              fdata + n_order_parameters * (dim + 1) + dim);
+
+      zero = false;
+    }
+
+    void
+    nullify(const unsigned int cell_id)
+    {
+      const unsigned int n_order_parameters = df_dgrad_eta.size();
+
+      for (unsigned int op = 0; op < n_order_parameters; ++op)
+        {
+          df_dgrad_eta[op][cell_id] = 0.;
+
+          for (unsigned int d = 0; d < dim; ++d)
+            dt_dgrad_eta[op][d][cell_id] = 0.;
+        }
+
+      for (unsigned int d = 0; d < dim; ++d)
+        df_dc[d][cell_id] = 0.;
+
+      nullify_moment_from_buffer(dt_dc, cell_id);
+
+      zero = true;
+    }
+
+  protected:
+    bool zero{true};
+  };
+
   template <int dim, typename Number, typename VectorizedArrayType>
   class AdvectionMechanism
   {
@@ -160,14 +234,22 @@ namespace Sintering
     {}
 
     void
-    reinit(
-      const unsigned int                                  cell,
-      const MatrixFree<dim, Number, VectorizedArrayType> &matrix_free) const
+    reinit(const unsigned int                                  cell,
+           const MatrixFree<dim, Number, VectorizedArrayType> &matrix_free,
+           const bool init_forces      = true,
+           const bool init_derivatives = true) const
     {
       current_cell_data.resize(n_active_order_parameters);
+      current_cell_data_der.resize(n_active_order_parameters);
+
+      if (init_forces == false && init_derivatives == false)
+        return;
 
       for (unsigned int op = 0; op < n_active_order_parameters; ++op)
         {
+          if (init_derivatives)
+            current_cell_data_der[op].reinit(n_active_order_parameters);
+
           unsigned int i = 0;
 
           for (; i < matrix_free.n_active_entries_per_cell_batch(cell); ++i)
@@ -187,15 +269,26 @@ namespace Sintering
                     grain_tracker.get_segment_center(grain_and_segment.first,
                                                      grain_and_segment.second);
 
-                  current_cell_data[op].fill(
-                    i,
-                    rc_i,
-                    grain_data(grain_and_segment.first,
-                               grain_and_segment.second));
+                  if (init_forces)
+                    current_cell_data[op].fill(
+                      i,
+                      rc_i,
+                      grain_data(grain_and_segment.first,
+                                 grain_and_segment.second));
+
+                  if (init_derivatives)
+                    current_cell_data_der[op].fill(
+                      i,
+                      grain_data_derivative(grain_and_segment.first,
+                                            grain_and_segment.second));
                 }
               else
                 {
-                  current_cell_data[op].nullify(i);
+                  if (init_forces)
+                    current_cell_data[op].nullify(i);
+
+                  if (init_derivatives)
+                    current_cell_data_der[op].nullify(i);
                 }
             }
 
@@ -225,6 +318,7 @@ namespace Sintering
 
       // Rotational velocity
       const auto vr = mr / op_cell_data.volume * op_cell_data.cross(r_rc);
+        //mr / op_cell_data.volume * cross_product(op_cell_data.torque, p);
 
       // Total advection velocity
       const auto v_adv = vt + vr;
@@ -232,13 +326,54 @@ namespace Sintering
       return v_adv;
     }
 
-    Tensor<1, dim, VectorizedArrayType>
-    get_velocity_derivative(const unsigned int order_parameter_id,
-                            const Point<dim, VectorizedArrayType> p) const
+    Tensor<2, dim, VectorizedArrayType>
+    get_velocity_derivative(const unsigned int                     op_id_i,
+                            const unsigned int                     op_id_j,
+                            const Point<dim, VectorizedArrayType> &r) const
     {
-      (void)order_parameter_id;
-      (void)p;
-      return current_velocity_derivative;
+      const auto &op_cell_data     = current_cell_data.at(op_id_i);
+      const auto &op_cell_data_der = current_cell_data_der.at(op_id_i);
+
+      const double gamma_ij = (op_id_i == op_id_j) ? 1. : -1.;
+
+      const auto &s = op_cell_data_der.df_dgrad_eta[op_id_j]; // scalar
+      const auto &h = op_cell_data_der.dt_dgrad_eta[op_id_j]; // vector
+
+      const auto S = diagonal_matrix<dim, VectorizedArrayType>(
+        mt / op_cell_data.volume * gamma_ij * s);
+
+      // Get vector from the particle center to the current point
+      const auto p = r - op_cell_data.rc;
+
+      auto PH = double_cross_tensor(p, h);
+      PH *= -mr / op_cell_data.volume;
+
+      const auto tangent = S + PH;
+
+      return tangent;
+    }
+
+    Tensor<1, dim, VectorizedArrayType>
+    get_velocity_derivative(const unsigned int                     op_id_i,
+                            const Point<dim, VectorizedArrayType> &r) const
+    {
+      const auto &op_cell_data     = current_cell_data.at(op_id_i);
+      const auto &op_cell_data_der = current_cell_data_der.at(op_id_i);
+
+      // Translational velocity derivative
+      const auto dvt_dc = mt / op_cell_data.volume * op_cell_data_der.df_dc;
+
+      // Get vector from the particle center to the current point
+      const auto p = r - op_cell_data.rc;
+
+      // Rotational velocity derivative
+      const auto dvr_dc =
+        mr / op_cell_data.volume * cross_product(op_cell_data_der.dt_dc, p);
+
+      // Total advection velocity derivative
+      const auto dv_adv_dc = dvt_dc + dvr_dc;
+
+      return dv_adv_dc;
     }
 
     void
@@ -340,6 +475,9 @@ namespace Sintering
 
     mutable std::vector<AdvectionCellData<dim, Number, VectorizedArrayType>>
       current_cell_data;
+
+    mutable std::vector<AdvectionCellDataDer<dim, Number, VectorizedArrayType>>
+      current_cell_data_der;
 
     const GrainTracker::Tracker<dim, Number> &grain_tracker;
 

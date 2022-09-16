@@ -1055,6 +1055,10 @@ namespace Sintering
                 }
             }
 
+          // Compute forces drivatives
+          if (params.advection_data.enable)
+            advection_operator.evaluate_forces_derivatives(advection_mechanism);
+
           if (do_update_preconditioner)
             {
               MyScope scope(timer, "time_loop::newton::setup_preconditioner");

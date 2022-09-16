@@ -551,7 +551,7 @@ namespace Sintering
 
       // Volumetric and vaporization parts, the same as for isotropic
       Tensor<2, dim, VectorizedArrayType> M =
-        unit_matrix(Mvol * phi + Mvap * (1.0 - phi));
+        diagonal_matrix(Mvol * phi + Mvap * (1.0 - phi));
 
       // Surface anisotropic part
       VectorizedArrayType fsurf = Msurf * (c * c) * ((1. - c) * (1. - c));
@@ -589,7 +589,7 @@ namespace Sintering
         phi, VectorizedArrayType(1.0), VectorizedArrayType(1.0), phi);
 
       // Volumetric and vaporization parts, the same as for isotropic
-      Tensor<2, dim, VectorizedArrayType> M = unit_matrix(Mvol * phi);
+      Tensor<2, dim, VectorizedArrayType> M = diagonal_matrix(Mvol * phi);
 
       return M;
     }
@@ -605,7 +605,8 @@ namespace Sintering
         phi, VectorizedArrayType(1.0), VectorizedArrayType(1.0), phi);
 
       // Volumetric and vaporization parts, the same as for isotropic
-      Tensor<2, dim, VectorizedArrayType> M = unit_matrix(Mvap * (1. - phi));
+      Tensor<2, dim, VectorizedArrayType> M =
+        diagonal_matrix(Mvap * (1. - phi));
 
       return M;
     }
@@ -666,7 +667,7 @@ namespace Sintering
 
       // Volumetric and vaporization parts, the same as for isotropic
       Tensor<2, dim, VectorizedArrayType> dMdc =
-        unit_matrix((Mvol - Mvap) * dphidc);
+        diagonal_matrix((Mvol - Mvap) * dphidc);
 
       // Surface part
       VectorizedArrayType fsurf  = Msurf * c2_1minusc2;
@@ -698,7 +699,7 @@ namespace Sintering
       Tensor<2, dim, VectorizedArrayType> M  = projector_matrix(nc, 1. / nrm);
 
       Tensor<2, dim, VectorizedArrayType> T =
-        unit_matrix(mu_grad * nc) + outer_product(nc, mu_grad);
+        diagonal_matrix(mu_grad * nc) + outer_product(nc, mu_grad);
       T *= -fsurf;
 
       return T * M;
@@ -738,57 +739,6 @@ namespace Sintering
     Lgb() const
     {
       return L;
-    }
-
-  private:
-    DEAL_II_ALWAYS_INLINE Tensor<2, dim, VectorizedArrayType>
-                          unit_matrix(const VectorizedArrayType &fac = 1.) const
-    {
-      Tensor<2, dim, VectorizedArrayType> I;
-
-      for (unsigned int d = 0; d < dim; d++)
-        {
-          I[d][d] = fac;
-        }
-
-      return I;
-    }
-
-    DEAL_II_ALWAYS_INLINE Tensor<1, dim, VectorizedArrayType>
-    unit_vector(const Tensor<1, dim, VectorizedArrayType> &vec) const
-    {
-      VectorizedArrayType nrm = vec.norm();
-      VectorizedArrayType filter;
-
-      VectorizedArrayType zeros(0.0);
-      VectorizedArrayType ones(1.0);
-      VectorizedArrayType zero_tol(1e-4);
-
-      Tensor<1, dim, VectorizedArrayType> n = vec;
-
-      filter = compare_and_apply_mask<SIMDComparison::greater_than>(nrm,
-                                                                    zero_tol,
-                                                                    ones,
-                                                                    zeros);
-      nrm    = compare_and_apply_mask<SIMDComparison::less_than>(nrm,
-                                                              zero_tol,
-                                                              ones,
-                                                              nrm);
-
-      n /= nrm;
-      n *= filter;
-
-      return n;
-    }
-
-    DEAL_II_ALWAYS_INLINE Tensor<2, dim, VectorizedArrayType>
-    projector_matrix(const Tensor<1, dim, VectorizedArrayType> vec,
-                     const VectorizedArrayType &               fac = 1.) const
-    {
-      auto tensor = unit_matrix() - dealii::outer_product(vec, vec);
-      tensor *= fac;
-
-      return tensor;
     }
   };
 
@@ -2357,7 +2307,7 @@ namespace Sintering
 
       // Reinit advection data for the current cells batch
       if (advection.enabled())
-        advection.reinit(cell, phi.get_matrix_free());
+        advection.reinit(cell, phi.get_matrix_free(), true, true);
 
       for (unsigned int q = 0; q < phi.n_q_points; ++q)
         {
@@ -2424,15 +2374,31 @@ namespace Sintering
                 {
                   const auto &velocity =
                     advection.get_velocity(ig, phi.quadrature_point(q));
-                  const auto &velocity_derivative =
+
+                  value_result[0] += velocity * gradient[0];
+                  value_result[ig + 2] += velocity * gradient[ig + 2];
+
+                  const auto &velocity_der_c =
                     advection.get_velocity_derivative(ig,
                                                       phi.quadrature_point(q));
 
-                  value_result[0] +=
-                    velocity * gradient[0] + velocity_derivative * c_grad;
+                  value_result[0] += velocity_der_c * c_grad * value[0];
 
-                  value_result[ig + 2] += velocity * gradient[ig + 2] +
-                                          velocity_derivative * etas_grad[ig];
+                  value_result[ig + 2] +=
+                    velocity_der_c * etas_grad[ig] * value[ig + 2];
+
+                  for (unsigned int jg = 0; jg < n_grains; ++jg)
+                    {
+                      const auto &velocity_der_etaj =
+                        advection.get_velocity_derivative(
+                          ig, jg, phi.quadrature_point(q));
+
+                      value_result[0] +=
+                        velocity_der_etaj * gradient[jg + 2] * c_grad;
+
+                      value_result[ig + 2] +=
+                        velocity_der_etaj * gradient[jg + 2] * etas_grad[ig];
+                    }
                 }
             }
 
@@ -2483,7 +2449,7 @@ namespace Sintering
 
           // Reinit advection data for the current cells batch
           if (advection.enabled())
-            advection.reinit(cell, matrix_free);
+            advection.reinit(cell, matrix_free, true, false);
 
           for (unsigned int q = 0; q < phi.n_q_points; ++q)
             {
@@ -2744,9 +2710,10 @@ namespace Sintering
     using vector_type = VectorType;
 
     // Force, torque and grain volume
-    static constexpr unsigned int n_comp_total  = (dim == 3 ? 7 : 4);
-    static constexpr unsigned int n_comp_force  = dim;
-    static constexpr unsigned int n_comp_torque = (dim == 3 ? 3 : 1);
+    static constexpr unsigned int n_comp_total        = (dim == 3 ? 7 : 4);
+    static constexpr unsigned int n_comp_force        = dim;
+    static constexpr unsigned int n_comp_torque       = (dim == 3 ? 3 : 1);
+    static constexpr unsigned int n_comp_force_torque = (dim == 3 ? 6 : 3);
 
     AdvectionOperator(
       const double                                           k,
@@ -2797,6 +2764,26 @@ namespace Sintering
     }
 
     void
+    evaluate_forces_derivatives(
+      AdvectionMechanism<dim, Number, VectorizedArrayType> &advection_mechanism)
+      const
+    {
+      MyScope scope(this->timer,
+                    "sintering_op::nonlinear_residual",
+                    this->do_timing);
+
+      std::pair<unsigned int, unsigned int> range{
+        0, this->matrix_free.n_cell_batches()};
+
+#define OPERATION(c, d)                                     \
+  do_evaluate_forces_derivatives<c, d>(this->matrix_free,   \
+                                       advection_mechanism, \
+                                       range);
+      EXPAND_OPERATIONS(OPERATION);
+#undef OPERATION
+    }
+
+    void
     do_update()
     {
       if (this->matrix_based)
@@ -2825,6 +2812,264 @@ namespace Sintering
   private:
     template <int n_comp, int n_grains>
     void
+    do_evaluate_forces_derivatives(
+      const MatrixFree<dim, Number, VectorizedArrayType> &  matrix_free,
+      AdvectionMechanism<dim, Number, VectorizedArrayType> &advection_mechanism,
+      const std::pair<unsigned int, unsigned int> &         range) const
+    {
+      advection_mechanism.nullify_data_derivatives(grain_tracker.n_segments(),
+                                                   n_grains);
+
+      /*
+            FECellIntegrator<dim, 2 + n_grains, Number, VectorizedArrayType>
+         phi_sint( matrix_free, this->dof_index);
+      */
+      FECellIntegrator<dim,
+                       n_comp_force + n_comp_torque,
+                       Number,
+                       VectorizedArrayType>
+        phi_ft_dc(matrix_free, this->dof_index);
+
+      std::array<FECellIntegrator<dim, 1 + dim, Number, VectorizedArrayType>,
+                 n_grains>
+        phi_ft_dgrad_eta = create_array<n_grains>(
+          FECellIntegrator<dim, 1 + dim, Number, VectorizedArrayType>(
+            matrix_free, this->dof_index));
+
+      VectorizedArrayType cgb_lim(cgb);
+      VectorizedArrayType zeros(0.0);
+
+      const auto &nonlinear_values    = this->data.get_nonlinear_values();
+      const auto &nonlinear_gradients = this->data.get_nonlinear_gradients();
+
+      /*
+            FEValues<dim> fe_values(
+              this->matrix_free.get_dof_handler(this->dof_index).get_fe(),
+              this->matrix_free.get_quadrature(),
+              update_values | update_gradients);
+      */
+      for (auto cell = range.first; cell < range.second; ++cell)
+        {
+          // phi_sint.reinit(cell);
+          /*
+          phi_sint.evaluate(EvaluationFlags::EvaluationFlags::values |
+                            EvaluationFlags::EvaluationFlags::gradients);
+          */
+          /*
+                    const auto icell0 = matrix_free.get_cell_iterator(cell, 0);
+                    fe_values.reinit(icell0);
+
+                    const auto sv00 = fe_values.shape_value(0, 0);
+                    const auto sv01 = fe_values.shape_value(0, 1);
+                    const auto sv02 = fe_values.shape_value(0, 2);
+                    const auto sv03 = fe_values.shape_value(0, 3);
+
+                    const auto sv10 = fe_values.shape_value(1, 0);
+                    const auto sv11 = fe_values.shape_value(1, 1);
+                    const auto sv12 = fe_values.shape_value(1, 2);
+                    const auto sv13 = fe_values.shape_value(1, 3);
+
+                    const auto sv20 = fe_values.shape_value(2, 0);
+                    const auto sv21 = fe_values.shape_value(2, 1);
+                    const auto sv22 = fe_values.shape_value(2, 2);
+                    const auto sv23 = fe_values.shape_value(2, 3);
+
+                    const auto sv30 = fe_values.shape_value(3, 0);
+                    const auto sv31 = fe_values.shape_value(3, 1);
+                    const auto sv32 = fe_values.shape_value(3, 2);
+                    const auto sv33 = fe_values.shape_value(3, 3);
+          */
+          phi_ft_dc.reinit(cell);
+
+          for (auto &phi_ft_i : phi_ft_dgrad_eta)
+            phi_ft_i.reinit(cell);
+
+          // const auto svalues = phi_sint.get_shape_info().data;
+          // const auto sv00s = phi_sint.get_shape_info().get_shape_data(0, 0);
+          // const auto sv10s = phi_sint.get_shape_info().get_shape_data(1, 0);
+
+          for (unsigned int ig = 0; ig < n_grains; ++ig)
+            {
+              Point<dim, VectorizedArrayType> rc;
+
+              std::vector<std::pair<unsigned int, unsigned int>> segments(
+                matrix_free.n_active_entries_per_cell_batch(cell));
+
+              for (unsigned int i = 0; i < segments.size(); ++i)
+                {
+                  const auto icell = matrix_free.get_cell_iterator(cell, i);
+                  const auto cell_index = icell->global_active_cell_index();
+
+                  const unsigned int particle_id =
+                    grain_tracker.get_particle_index(ig, cell_index);
+
+                  if (particle_id != numbers::invalid_unsigned_int)
+                    {
+                      const auto grain_and_segment =
+                        grain_tracker.get_grain_and_segment(ig, particle_id);
+
+                      const auto &rc_i = grain_tracker.get_segment_center(
+                        grain_and_segment.first, grain_and_segment.second);
+
+                      for (unsigned int d = 0; d < dim; ++d)
+                        rc[d][i] = rc_i[d];
+
+                      segments[i] = grain_and_segment;
+                    }
+                  else
+                    {
+                      segments[i] =
+                        std::make_pair(numbers::invalid_unsigned_int,
+                                       numbers::invalid_unsigned_int);
+                    }
+                }
+
+              for (unsigned int q = 0; q < phi_ft_dc.n_q_points; ++q)
+                {
+                  // Shape functions
+                  // const auto phi_val  = phi_sint.get_value(q);
+                  // const auto phi_grad = phi_sint.get_gradient(q);
+
+                  // Nonlinear variables
+                  const auto &value_lin    = nonlinear_values[cell][q];
+                  const auto &gradient_lin = nonlinear_gradients[cell][q];
+
+                  const auto &c          = value_lin[0];
+                  const auto &eta_i      = value_lin[2 + ig];
+                  const auto &eta_grad_i = gradient_lin[2 + ig];
+
+                  const auto &r = phi_ft_dc.quadrature_point(q);
+
+                  // Compute force and torque acting on grain i from each of the
+                  // other grains
+                  Tensor<1, n_grains, VectorizedArrayType> force_dgrad_eta;
+                  Tensor<1, n_grains, Tensor<1, dim, VectorizedArrayType>>
+                    torque_dgrad_eta;
+
+                  Tensor<1, dim, VectorizedArrayType> force_dc;
+                  moment_t<dim, VectorizedArrayType>  torque_dc;
+                  torque_dc = 0.;
+
+                  for (unsigned int jg = 0; jg < n_grains; ++jg)
+                    {
+                      if (ig != jg)
+                        {
+                          auto &eta_j      = value_lin[2 + jg];
+                          auto &eta_grad_j = gradient_lin[2 + jg];
+
+                          // Vector normal to the grain boundary
+                          Tensor<1, dim, VectorizedArrayType> eta_grad_i_j =
+                            eta_grad_i - eta_grad_j;
+
+                          // Filter to detect grain boundary
+                          auto etai_etaj = eta_i * eta_j;
+                          etai_etaj      = compare_and_apply_mask<
+                            SIMDComparison::greater_than>(etai_etaj,
+                                                          cgb_lim,
+                                                          etai_etaj,
+                                                          zeros);
+
+                          // Vector pointing from the grain center to the
+                          // current qp point
+                          const auto r_rc = (r - rc);
+
+                          // Force derivative wrt grad_eta_j
+                          auto df_dgrad_etaj = k * (c - ceq) * etai_etaj;
+
+                          auto dt_dgrad_etaj = r_rc * df_dgrad_etaj;
+
+                          force_dgrad_eta[ig] += df_dgrad_etaj;
+                          torque_dgrad_eta[ig] += dt_dgrad_etaj;
+
+                          force_dgrad_eta[jg] += -df_dgrad_etaj;
+                          torque_dgrad_eta[jg] += -dt_dgrad_etaj;
+
+                          // Force derivative wrt c
+                          auto df_dc =
+                            k * etai_etaj * eta_grad_i_j; // phi_val[0];
+                          force_dc += df_dc;
+
+                          // Torque derivative wrt c
+                          torque_dc += cross_product(r_rc, df_dc);
+                        }
+                    }
+
+                  Tensor<1, n_comp_force + n_comp_torque, VectorizedArrayType>
+                    value_result_dc;
+
+                  // Add force derivative wrt c
+                  for (unsigned int d = 0; d < dim; ++d)
+                    value_result_dc[d] = force_dc[d];
+
+                  // Add torque derivative wrt c
+                  for (unsigned int d = 0;
+                       d < moment_s<dim, VectorizedArrayType>;
+                       ++d)
+                    value_result_dc[d + dim] = torque_dc[d];
+
+                  phi_ft_dc.submit_value(value_result_dc, q);
+
+                  for (unsigned int jg = 0; jg < n_grains; ++jg)
+                    {
+                      Tensor<1, 1 + dim, VectorizedArrayType>
+                        value_result_dgrad_etaj;
+
+                      value_result_dgrad_etaj[0] += force_dgrad_eta[jg];
+
+                      for (unsigned int d = 0; d < dim; ++d)
+                        value_result_dgrad_etaj[1 + d] +=
+                          torque_dgrad_eta[jg][d];
+
+                      phi_ft_dgrad_eta[jg].submit_value(value_result_dgrad_etaj,
+                                                        q);
+                    }
+                }
+
+              std::array<Tensor<1, 1 + dim, VectorizedArrayType>, n_grains>
+                force_torque_der_eta;
+
+              for (unsigned int j = 0; j < n_grains; ++j)
+                force_torque_der_eta[j] =
+                  phi_ft_dgrad_eta[j].integrate_value();
+
+              Tensor<1, n_comp_force + n_comp_torque, VectorizedArrayType>
+                force_torque_der_c = phi_ft_dc.integrate_value();
+
+              for (unsigned int i = 0; i < segments.size(); ++i)
+                {
+                  const auto &grain_and_segment = segments[i];
+
+                  if (grain_and_segment.first != numbers::invalid_unsigned_int)
+                    {
+                      for (unsigned int j = 0; j < n_grains; ++j)
+                        for (unsigned int d = 0; d < 1 + dim; ++d)
+                          advection_mechanism.grain_data_derivative(
+                            grain_and_segment.first,
+                            grain_and_segment.second)[j * (1 + dim) + d] +=
+                            force_torque_der_eta[j][d][i];
+
+                      for (unsigned int d = 0; d < n_comp_force + n_comp_torque;
+                           ++d)
+                        advection_mechanism.grain_data_derivative(
+                          grain_and_segment.first,
+                          grain_and_segment.second)[n_grains * (1 + dim) + d] +=
+                          force_torque_der_c[d][i];
+                    }
+                }
+            }
+        }
+
+      // Perform global communication
+      MPI_Allreduce(MPI_IN_PLACE,
+                    advection_mechanism.get_grains_data_derivatives().data(),
+                    advection_mechanism.get_grains_data_derivatives().size(),
+                    Utilities::MPI::mpi_type_id_for_type<Number>,
+                    MPI_SUM,
+                    MPI_COMM_WORLD);
+    }
+
+    template <int n_comp, int n_grains>
+    void
     do_evaluate_forces(
       const MatrixFree<dim, Number, VectorizedArrayType> &  matrix_free,
       const BlockVectorType &                               solution,
@@ -2836,8 +3081,8 @@ namespace Sintering
       FECellIntegrator<dim, 2 + n_grains, Number, VectorizedArrayType> phi_sint(
         matrix_free, this->dof_index);
 
-      FECellIntegrator<dim, this->n_comp_total, Number, VectorizedArrayType>
-        phi_ft(matrix_free, this->dof_index);
+      FECellIntegrator<dim, n_comp_total, Number, VectorizedArrayType> phi_ft(
+        matrix_free, this->dof_index);
 
       VectorizedArrayType cgb_lim(cgb);
       VectorizedArrayType zeros(0.0);
@@ -2899,10 +3144,10 @@ namespace Sintering
 
                   const auto &r = phi_sint.quadrature_point(q);
 
-                  Tensor<1, this->n_comp_total, VectorizedArrayType>
-                                                      value_result;
-                  Tensor<1, dim, VectorizedArrayType> force;
-                  moment_t<dim, VectorizedArrayType>  torque;
+                  Tensor<1, n_comp_total, VectorizedArrayType> value_result;
+                  Tensor<1, dim, VectorizedArrayType>          force;
+                  moment_t<dim, VectorizedArrayType>           torque;
+                  torque = 0;
 
                   // Compute force and torque acting on grain i from each of the
                   // other grains
@@ -2963,7 +3208,7 @@ namespace Sintering
                   const auto &grain_and_segment = segments[i];
 
                   if (grain_and_segment.first != numbers::invalid_unsigned_int)
-                    for (unsigned int d = 0; d < this->n_comp_total; ++d)
+                    for (unsigned int d = 0; d < n_comp_total; ++d)
                       advection_mechanism.grain_data(
                         grain_and_segment.first, grain_and_segment.second)[d] +=
                         volume_force_torque[d][i];
