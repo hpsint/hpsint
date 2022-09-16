@@ -2377,7 +2377,7 @@ namespace Sintering
 
                   value_result[0] += velocity * gradient[0];
                   value_result[ig + 2] += velocity * gradient[ig + 2];
-/*
+
                   const auto &velocity_der_c =
                     advection.get_velocity_derivative(ig,
                                                       phi.quadrature_point(q));
@@ -2399,7 +2399,7 @@ namespace Sintering
                       value_result[ig + 2] +=
                         velocity_der_etaj * gradient[jg + 2] * etas_grad[ig];
                     }
-*/
+
                 }
             }
 
