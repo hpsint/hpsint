@@ -220,8 +220,10 @@ namespace Sintering
   {
   public:
     // Force, torque and grain volume
-    static constexpr unsigned int n_comp_force_torque = (dim == 3 ? 6 : 3);
-    static constexpr unsigned int n_comp_total        = (dim == 3 ? 7 : 4);
+    static constexpr unsigned int n_comp_volume_force_torque =
+      (dim == 3 ? 7 : 4);
+    static constexpr unsigned int n_comp_der_c        = (dim == 3 ? 6 : 3);
+    static constexpr unsigned int n_comp_der_grad_eta = dim + 1;
 
     AdvectionMechanism(const bool                                enable,
                        const double                              mt,
@@ -318,7 +320,7 @@ namespace Sintering
 
       // Rotational velocity
       const auto vr = mr / op_cell_data.volume * op_cell_data.cross(r_rc);
-        //mr / op_cell_data.volume * cross_product(op_cell_data.torque, p);
+      // mr / op_cell_data.volume * cross_product(op_cell_data.torque, p);
 
       // Total advection velocity
       const auto v_adv = vt + vr;
@@ -382,7 +384,7 @@ namespace Sintering
     {
       n_active_order_parameters = n_order_parameters;
 
-      grains_data.assign(n_comp_total * n_segments, 0);
+      grains_data.assign(n_comp_volume_force_torque * n_segments, 0);
     }
 
     void
@@ -391,9 +393,10 @@ namespace Sintering
     {
       AssertDimension(n_active_order_parameters, n_order_parameters);
 
-      grains_data_derivatives.assign(n_comp_force_torque *
-                                       (n_order_parameters + 1) * n_segments,
-                                     0);
+      grains_data_derivatives.assign(
+        (n_comp_der_grad_eta * n_active_order_parameters + n_comp_der_c) *
+          n_segments,
+        0);
     }
 
     Number *
@@ -402,7 +405,7 @@ namespace Sintering
       const unsigned int index =
         grain_tracker.get_grain_segment_index(grain_id, segment_id);
 
-      return &grains_data[n_comp_total * index];
+      return &grains_data[n_comp_volume_force_torque * index];
     }
 
     const Number *
@@ -411,7 +414,7 @@ namespace Sintering
       const unsigned int index =
         grain_tracker.get_grain_segment_index(grain_id, segment_id);
 
-      return &grains_data[n_comp_total * index];
+      return &grains_data[n_comp_volume_force_torque * index];
     }
 
     Number *
@@ -421,8 +424,9 @@ namespace Sintering
       const unsigned int index =
         grain_tracker.get_grain_segment_index(grain_id, segment_id);
 
-      return &grains_data_derivatives[n_comp_force_torque *
-                                      (n_active_order_parameters + 1) * index];
+      return &grains_data_derivatives
+        [(n_comp_der_grad_eta * n_active_order_parameters + n_comp_der_c) *
+         index];
     }
 
     const Number *
@@ -432,8 +436,9 @@ namespace Sintering
       const unsigned int index =
         grain_tracker.get_grain_segment_index(grain_id, segment_id);
 
-      return &grains_data_derivatives[n_comp_force_torque *
-                                      (n_active_order_parameters + 1) * index];
+      return &grains_data_derivatives
+        [(n_comp_der_grad_eta * n_active_order_parameters + n_comp_der_c) *
+         index];
     }
 
     std::vector<Number> &

@@ -2710,10 +2710,7 @@ namespace Sintering
     using vector_type = VectorType;
 
     // Force, torque and grain volume
-    static constexpr unsigned int n_comp_total        = (dim == 3 ? 7 : 4);
-    static constexpr unsigned int n_comp_force        = dim;
-    static constexpr unsigned int n_comp_torque       = (dim == 3 ? 3 : 1);
-    static constexpr unsigned int n_comp_force_torque = (dim == 3 ? 6 : 3);
+    static constexpr unsigned int n_comp_total = (dim == 3 ? 7 : 4);
 
     AdvectionOperator(
       const double                                           k,
@@ -2825,16 +2822,20 @@ namespace Sintering
          phi_sint( matrix_free, this->dof_index);
       */
       FECellIntegrator<dim,
-                       n_comp_force + n_comp_torque,
+                       advection_mechanism.n_comp_der_c,
                        Number,
                        VectorizedArrayType>
         phi_ft_dc(matrix_free, this->dof_index);
 
-      std::array<FECellIntegrator<dim, 1 + dim, Number, VectorizedArrayType>,
-                 n_grains>
-        phi_ft_dgrad_eta = create_array<n_grains>(
-          FECellIntegrator<dim, 1 + dim, Number, VectorizedArrayType>(
-            matrix_free, this->dof_index));
+      using FECellIntegratorGrad =
+        FECellIntegrator<dim,
+                         advection_mechanism.n_comp_der_c,
+                         Number,
+                         VectorizedArrayType>;
+
+      std::array<FECellIntegratorGrad, n_grains> phi_ft_dgrad_eta =
+        create_array<n_grains>(
+          FECellIntegratorGrad(matrix_free, this->dof_index));
 
       VectorizedArrayType cgb_lim(cgb);
       VectorizedArrayType zeros(0.0);
@@ -2994,7 +2995,9 @@ namespace Sintering
                         }
                     }
 
-                  Tensor<1, n_comp_force + n_comp_torque, VectorizedArrayType>
+                  Tensor<1,
+                         advection_mechanism.n_comp_der_c,
+                         VectorizedArrayType>
                     value_result_dc;
 
                   // Add force derivative wrt c
@@ -3011,7 +3014,9 @@ namespace Sintering
 
                   for (unsigned int jg = 0; jg < n_grains; ++jg)
                     {
-                      Tensor<1, 1 + dim, VectorizedArrayType>
+                      Tensor<1,
+                             advection_mechanism.n_comp_der_grad_eta,
+                             VectorizedArrayType>
                         value_result_dgrad_etaj;
 
                       value_result_dgrad_etaj[0] += force_dgrad_eta[jg];
@@ -3025,14 +3030,16 @@ namespace Sintering
                     }
                 }
 
-              std::array<Tensor<1, 1 + dim, VectorizedArrayType>, n_grains>
+              std::array<Tensor<1,
+                                advection_mechanism.n_comp_der_grad_eta,
+                                VectorizedArrayType>,
+                         n_grains>
                 force_torque_der_eta;
 
               for (unsigned int j = 0; j < n_grains; ++j)
-                force_torque_der_eta[j] =
-                  phi_ft_dgrad_eta[j].integrate_value();
+                force_torque_der_eta[j] = phi_ft_dgrad_eta[j].integrate_value();
 
-              Tensor<1, n_comp_force + n_comp_torque, VectorizedArrayType>
+              Tensor<1, advection_mechanism.n_comp_der_c, VectorizedArrayType>
                 force_torque_der_c = phi_ft_dc.integrate_value();
 
               for (unsigned int i = 0; i < segments.size(); ++i)
@@ -3042,17 +3049,20 @@ namespace Sintering
                   if (grain_and_segment.first != numbers::invalid_unsigned_int)
                     {
                       for (unsigned int j = 0; j < n_grains; ++j)
-                        for (unsigned int d = 0; d < 1 + dim; ++d)
+                        for (unsigned int d = 0;
+                             d < advection_mechanism.n_comp_der_grad_eta;
+                             ++d)
                           advection_mechanism.grain_data_derivative(
-                            grain_and_segment.first,
-                            grain_and_segment.second)[j * (1 + dim) + d] +=
+                            grain_and_segment.first, grain_and_segment.second)
+                            [j * advection_mechanism.n_comp_der_grad_eta + d] +=
                             force_torque_der_eta[j][d][i];
 
-                      for (unsigned int d = 0; d < n_comp_force + n_comp_torque;
+                      for (unsigned int d = 0;
+                           d < advection_mechanism.n_comp_der_c;
                            ++d)
                         advection_mechanism.grain_data_derivative(
-                          grain_and_segment.first,
-                          grain_and_segment.second)[n_grains * (1 + dim) + d] +=
+                          grain_and_segment.first, grain_and_segment.second)
+                          [n_grains * advection_mechanism.n_comp_der_c + d] +=
                           force_torque_der_c[d][i];
                     }
                 }
@@ -3076,13 +3086,19 @@ namespace Sintering
       AdvectionMechanism<dim, Number, VectorizedArrayType> &advection_mechanism,
       const std::pair<unsigned int, unsigned int> &         range) const
     {
+      AssertDimension(advection_mechanism.n_comp_volume_force_torque,
+                      n_comp_total);
+
       advection_mechanism.nullify_data(grain_tracker.n_segments(), n_grains);
 
       FECellIntegrator<dim, 2 + n_grains, Number, VectorizedArrayType> phi_sint(
         matrix_free, this->dof_index);
 
-      FECellIntegrator<dim, n_comp_total, Number, VectorizedArrayType> phi_ft(
-        matrix_free, this->dof_index);
+      FECellIntegrator<dim,
+                       advection_mechanism.n_comp_volume_force_torque,
+                       Number,
+                       VectorizedArrayType>
+        phi_ft(matrix_free, this->dof_index);
 
       VectorizedArrayType cgb_lim(cgb);
       VectorizedArrayType zeros(0.0);
@@ -3144,9 +3160,12 @@ namespace Sintering
 
                   const auto &r = phi_sint.quadrature_point(q);
 
-                  Tensor<1, n_comp_total, VectorizedArrayType> value_result;
-                  Tensor<1, dim, VectorizedArrayType>          force;
-                  moment_t<dim, VectorizedArrayType>           torque;
+                  Tensor<1,
+                         advection_mechanism.n_comp_volume_force_torque,
+                         VectorizedArrayType>
+                                                      value_result;
+                  Tensor<1, dim, VectorizedArrayType> force;
+                  moment_t<dim, VectorizedArrayType>  torque;
                   torque = 0;
 
                   // Compute force and torque acting on grain i from each of the
@@ -3208,7 +3227,9 @@ namespace Sintering
                   const auto &grain_and_segment = segments[i];
 
                   if (grain_and_segment.first != numbers::invalid_unsigned_int)
-                    for (unsigned int d = 0; d < n_comp_total; ++d)
+                    for (unsigned int d = 0;
+                         d < advection_mechanism.n_comp_volume_force_torque;
+                         ++d)
                       advection_mechanism.grain_data(
                         grain_and_segment.first, grain_and_segment.second)[d] +=
                         volume_force_torque[d][i];
