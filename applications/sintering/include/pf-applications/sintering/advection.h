@@ -336,7 +336,8 @@ namespace Sintering
       const auto &op_cell_data     = current_cell_data.at(op_id_i);
       const auto &op_cell_data_der = current_cell_data_der.at(op_id_i);
 
-      const double gamma_ij = (op_id_i == op_id_j) ? 1. : -1.;
+      //const double gamma_ij = (op_id_i == op_id_j) ? 1. : -1.;
+      const double gamma_ij = 1.;
 
       const auto &s = op_cell_data_der.df_dgrad_eta[op_id_j]; // scalar
       const auto &h = op_cell_data_der.dt_dgrad_eta[op_id_j]; // vector
