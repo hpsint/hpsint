@@ -2958,10 +2958,13 @@ namespace Sintering
                     value_result_dc[d] = force_dc[d];
 
                   // Add torque derivative wrt c
-                  for (unsigned int d = 0;
-                       d < moment_s<dim, VectorizedArrayType>;
-                       ++d)
-                    value_result_dc[d + dim] = torque_dc[d];
+                  if (moment_s<dim, VectorizedArrayType> == 1)
+                    value_result[dim + 1] = torque;
+                  else
+                    for (unsigned int d = 0;
+                        d < moment_s<dim, VectorizedArrayType>;
+                        ++d)
+                      value_result_dc[d + dim] = torque_dc[d];
 
                   phi_ft_dc.submit_value(value_result_dc, q);
 
@@ -3165,10 +3168,13 @@ namespace Sintering
                     value_result[d + 1] = force[d];
 
                   // Torque acting on grain i
-                  for (unsigned int d = 0;
-                       d < moment_s<dim, VectorizedArrayType>;
-                       ++d)
-                    value_result[d + dim + 1] = torque[d];
+                  if (moment_s<dim, VectorizedArrayType> == 1)
+                    value_result[dim + 1] = torque;
+                  else
+                    for (unsigned int d = 0;
+                         d < moment_s<dim, VectorizedArrayType>;
+                         ++d)
+                      value_result[d + dim + 1] = torque[d];
 
                   phi_ft.submit_value(value_result, q);
                 }
