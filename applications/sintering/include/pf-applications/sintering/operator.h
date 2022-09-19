@@ -1388,8 +1388,24 @@ namespace Sintering
         partitioner_scalar->get_mpi_communicator());
     }
 
+    TrilinosWrappers::SparseMatrix &
+    get_system_matrix()
+    {
+      initialize_system_matrix();
+
+      return system_matrix;
+    }
+
     const TrilinosWrappers::SparseMatrix &
     get_system_matrix() const
+    {
+      initialize_system_matrix();
+
+      return system_matrix;
+    }
+
+    void
+    initialize_system_matrix() const
     {
       const bool system_matrix_is_empty =
         system_matrix.m() == 0 || system_matrix.n() == 0;
@@ -1418,8 +1434,8 @@ namespace Sintering
                                                   constraints_for_matrix);
           constraints_for_matrix.close();
 
-          TrilinosWrappers::SparsityPattern dsp(
-            dof_handler.locally_owned_dofs(), dof_handler.get_communicator());
+          dsp.reinit(dof_handler.locally_owned_dofs(),
+                     dof_handler.get_communicator());
           DoFTools::make_sparsity_pattern(dof_handler,
                                           dsp,
                                           constraints_for_matrix,
@@ -1456,8 +1472,6 @@ namespace Sintering
         EXPAND_OPERATIONS(OPERATION);
 #undef OPERATION
       }
-
-      return system_matrix;
     }
 
     void
@@ -1467,6 +1481,12 @@ namespace Sintering
       block_system_matrix.clear();
       src_.reinit(0);
       dst_.reinit(0);
+    }
+
+    const TrilinosWrappers::SparsityPattern &
+    get_sparsity_pattern() const
+    {
+      return dsp;
     }
 
     const std::vector<std::shared_ptr<TrilinosWrappers::SparseMatrix>> &
@@ -1686,7 +1706,9 @@ namespace Sintering
     const std::string label;
     const bool        matrix_based;
 
-    mutable TrilinosWrappers::SparseMatrix system_matrix;
+    mutable TrilinosWrappers::SparsityPattern dsp;
+    mutable TrilinosWrappers::SparseMatrix    system_matrix;
+
     mutable std::vector<std::shared_ptr<TrilinosWrappers::SparseMatrix>>
       block_system_matrix;
 
