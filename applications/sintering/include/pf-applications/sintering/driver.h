@@ -1022,7 +1022,7 @@ namespace Sintering
 
                   src.copy_locally_owned_data_from(current_u);
 
-                  nonlinear_operator.evaluate_nonlinear_residual(dst_, src);
+                  non_linear_solver->residual(src, dst_);
 
                   const auto locally_owned_dofs =
                     dof_handler.locally_owned_dofs();
@@ -1033,8 +1033,7 @@ namespace Sintering
                         if (locally_owned_dofs.is_element(i))
                           src.block(b)[i] += epsilon;
 
-                        nonlinear_operator.evaluate_nonlinear_residual(dst,
-                                                                       src);
+                        non_linear_solver->residual(src, dst);
 
                         if (locally_owned_dofs.is_element(i))
                           src.block(b)[i] -= epsilon;
