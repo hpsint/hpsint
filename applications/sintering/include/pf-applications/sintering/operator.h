@@ -2958,7 +2958,7 @@ namespace Sintering
                     value_result_dc[d] = force_dc[d];
 
                   // Add torque derivative wrt c
-                  if (moment_s<dim, VectorizedArrayType> == 1)
+                  if constexpr (moment_s<dim, VectorizedArrayType> == 1)
                     value_result_dc[dim] = torque_dc;
                   else
                     for (unsigned int d = 0;
@@ -3168,7 +3168,7 @@ namespace Sintering
                     value_result[d + 1] = force[d];
 
                   // Torque acting on grain i
-                  if (moment_s<dim, VectorizedArrayType> == 1)
+                  if constexpr (moment_s<dim, VectorizedArrayType> == 1)
                     value_result[dim + 1] = torque;
                   else
                     for (unsigned int d = 0;
