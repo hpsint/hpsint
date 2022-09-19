@@ -392,6 +392,7 @@ namespace Sintering
     nullify_data_derivatives(const unsigned int n_segments,
                              const unsigned int n_order_parameters)
     {
+      (void)n_order_parameters;
       AssertDimension(n_active_order_parameters, n_order_parameters);
 
       grains_data_derivatives.assign(
