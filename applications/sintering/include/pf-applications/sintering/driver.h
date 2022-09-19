@@ -966,7 +966,19 @@ namespace Sintering
 
         // Compute forces
         if (params.advection_data.enable)
-          advection_operator.evaluate_forces(src, advection_mechanism);
+          {
+            advection_operator.evaluate_forces(src, advection_mechanism);
+
+            // TODO: check how to do this in a more optimal way
+            if (params.matrix_based)
+              {
+                sintering_data.fill_quadrature_point_values(
+                  matrix_free, src, params.advection_data.enable);
+
+                advection_operator.evaluate_forces_derivatives(
+                  advection_mechanism);
+              }
+          }
 
         nonlinear_operator.evaluate_nonlinear_residual(dst, src);
       };
