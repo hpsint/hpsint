@@ -394,6 +394,17 @@ namespace Sintering
   }
 
   template <typename Number>
+  Tensor<1, 2, Number>
+  skew(const Tensor<1, 2, Number> &a)
+  {
+    Tensor<1, 2, Number> A;
+    A[0] = a[1];
+    A[1] = -a[0];
+
+    return A;
+  }
+
+  template <typename Number>
   Tensor<2, 3, Number>
   double_cross_tensor(const Tensor<1, 3, Number> &a,
                       const Tensor<1, 3, Number> &b)
