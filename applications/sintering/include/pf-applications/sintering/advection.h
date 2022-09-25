@@ -144,7 +144,8 @@ namespace Sintering
   {
   public:
     // Force, torque and grain volume
-    static constexpr unsigned int n_force_comp = (dim == 3 ? 7 : 4);
+    static constexpr unsigned int n_comp_volume_force_torque =
+      (dim == 3 ? 7 : 4);
 
     AdvectionMechanism(const bool                                enable,
                        const double                              mt,
@@ -242,7 +243,7 @@ namespace Sintering
     void
     nullify_data(const unsigned int n_segments)
     {
-      grains_data.assign(n_force_comp * n_segments, 0);
+      grains_data.assign(n_comp_volume_force_torque * n_segments, 0);
     }
 
     Number *
@@ -251,7 +252,7 @@ namespace Sintering
       const unsigned int index =
         grain_tracker.get_grain_segment_index(grain_id, segment_id);
 
-      return &grains_data[n_force_comp * index];
+      return &grains_data[n_comp_volume_force_torque * index];
     }
 
     const Number *
@@ -260,7 +261,7 @@ namespace Sintering
       const unsigned int index =
         grain_tracker.get_grain_segment_index(grain_id, segment_id);
 
-      return &grains_data[n_force_comp * index];
+      return &grains_data[n_comp_volume_force_torque * index];
     }
 
     std::vector<Number> &
