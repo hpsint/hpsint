@@ -1,5 +1,10 @@
 #pragma once
 
+#include <pf-applications/sintering/free_energy.h>
+#include <pf-applications/sintering/mobility.h>
+
+#include <pf-applications/time_integration/time_integrators.h>
+
 namespace Sintering
 {
   using namespace dealii;
