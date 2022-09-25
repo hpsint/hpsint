@@ -1,5 +1,9 @@
 #pragma once
 
+#include <deal.II/base/tensor.h>
+
+#include <pf-applications/sintering/tools.h>
+
 namespace Sintering
 {
   using namespace dealii;
