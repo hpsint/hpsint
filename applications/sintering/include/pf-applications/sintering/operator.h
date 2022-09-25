@@ -9,11 +9,6 @@
 #include <pf-applications/numerics/functions.h>
 #include <pf-applications/numerics/vector_tools.h>
 
-#include <pf-applications/sintering/tools.h>
-
-#include <pf-applications/sintering/advection.h>
-#include <pf-applications/sintering/tools.h>
-
 #include <pf-applications/sintering/advection.h>
 #include <pf-applications/sintering/tools.h>
 
