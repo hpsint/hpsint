@@ -1,5 +1,11 @@
 #pragma once
 
+#include <pf-applications/sintering/advection.h>
+#include <pf-applications/sintering/operator_base.h>
+#include <pf-applications/sintering/sintering_data.h>
+
+#include <pf-applications/time_integration/solution_history.h>
+
 namespace Sintering
 {
   using namespace dealii;
