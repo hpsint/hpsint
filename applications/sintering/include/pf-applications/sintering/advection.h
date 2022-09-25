@@ -4,6 +4,8 @@
 
 #include <deal.II/distributed/tria.h>
 
+#include <pf-applications/sintering/tools.h>
+
 #include <pf-applications/grain_tracker/tracker.h>
 
 namespace Sintering
@@ -15,17 +17,17 @@ namespace Sintering
   {
     Point<dim, VectorizedArrayType>     rc;
     Tensor<1, dim, VectorizedArrayType> force;
-    VectorizedArrayType                 volume{1};
+    VectorizedArrayType                 volume{-1.};
 
     bool
-    is_zero() const
+    has_non_zero() const
     {
-      return zero;
+      return std::any_of(volume.begin(), volume.end(), [](const auto &val) {
+        return val > 0;
+      });
     }
 
   protected:
-    bool zero{true};
-
     void
     fill(const unsigned int cell_id,
          const Point<dim> & rc_i,
@@ -38,8 +40,6 @@ namespace Sintering
           rc[d][cell_id]    = rc_i[d];
           force[d][cell_id] = fdata[d + 1];
         }
-
-      zero = false;
     }
 
     void
@@ -50,9 +50,7 @@ namespace Sintering
           rc[d][cell_id]    = 0;
           force[d][cell_id] = 0;
         }
-      volume[cell_id] = 1; // To prevent division by zero
-
-      zero = true;
+      volume[cell_id] = -1.; // To prevent division by zero
     }
   };
 
@@ -208,7 +206,7 @@ namespace Sintering
     bool
     has_velocity(const unsigned int order_parameter_id) const
     {
-      return !current_cell_data.at(order_parameter_id).is_zero();
+      return current_cell_data.at(order_parameter_id).has_non_zero();
     }
 
     Tensor<1, dim, VectorizedArrayType>
