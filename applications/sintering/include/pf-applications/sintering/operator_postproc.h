@@ -1,5 +1,8 @@
 #pragma once
 
+#include <pf-applications/sintering/operator_base.h>
+#include <pf-applications/sintering/sintering_data.h>
+
 namespace Sintering
 {
   using namespace dealii;
