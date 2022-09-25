@@ -1,9 +1,14 @@
+#pragma once
+
+#include <deal.II/base/point.h>
 
 #include <deal.II/grid/grid_generator.h>
 #include <deal.II/grid/grid_tools.h>
 
 namespace Sintering
 {
+  using namespace dealii;
+
   enum class InitialRefine
   {
     None,
@@ -274,6 +279,220 @@ namespace Sintering
     EnergyCoefficients params{A, B, kappa_c, kappa_p};
 
     return params;
+  }
+
+  namespace internal
+  {
+    template <int dim, typename Number>
+    struct Moment
+    {};
+
+    template <typename Number>
+    struct Moment<2, Number>
+    {
+      typedef Number                type;
+      static constexpr unsigned int size = 1;
+    };
+
+    template <typename Number>
+    struct Moment<3, Number>
+    {
+      typedef Tensor<1, 3, Number>  type;
+      static constexpr unsigned int size = 3;
+    };
+
+  } // namespace internal
+
+  template <int dim, typename Number>
+  using moment_t = typename internal::Moment<dim, Number>::type;
+
+  template <int dim, typename Number>
+  inline constexpr unsigned int moment_s = internal::Moment<dim, Number>::size;
+
+  template <typename Number, typename VectorizedArrayType>
+  void
+  fill_moment_from_buffer(VectorizedArrayType &t,
+                          const unsigned int   cell_id,
+                          const Number *       buffer)
+  {
+    t[cell_id] = *buffer;
+  }
+
+  template <typename Number, typename VectorizedArrayType>
+  void
+  fill_moment_from_buffer(Tensor<1, 3, VectorizedArrayType> &t,
+                          const unsigned int                 cell_id,
+                          const Number *                     buffer)
+  {
+    for (unsigned int d = 0; d < 3; ++d)
+      t[d][cell_id] = buffer[d];
+  }
+
+
+  template <typename VectorizedArrayType>
+  void
+  nullify_moment_from_buffer(VectorizedArrayType &t, const unsigned int cell_id)
+  {
+    t[cell_id] = 0.;
+  }
+
+  template <typename VectorizedArrayType>
+  void
+  nullify_moment_from_buffer(Tensor<1, 3, VectorizedArrayType> &t,
+                             const unsigned int                 cell_id)
+  {
+    for (unsigned int d = 0; d < 3; ++d)
+      t[d][cell_id] = 0.;
+  }
+
+  template <int dim, typename Number>
+  moment_t<dim, Number>
+  cross_product(const Tensor<1, dim, Number> &a,
+                const Tensor<1, dim, Number> &b);
+
+  template <typename Number>
+  moment_t<2, Number>
+  cross_product(const Tensor<1, 2, Number> &a, const Tensor<1, 2, Number> &b)
+  {
+    return a[1] * b[0] - a[0] * b[1];
+  }
+
+  template <typename Number>
+  Tensor<1, 3, Number>
+  cross_product(const Tensor<1, 3, Number> &a, const Tensor<1, 3, Number> &b)
+  {
+    return cross_product_3d(a, b);
+  }
+
+  template <typename Number>
+  Tensor<1, 2, Number>
+  cross_product(const Number &a, const Tensor<1, 2, Number> &b)
+  {
+    Tensor<1, 2, Number> c;
+
+    c[0] = -b[1];
+    c[1] = b[0];
+    c *= a;
+
+    return c;
+  }
+
+  // Compute skew tensor of a vector
+  template <typename Number>
+  Tensor<2, 3, Number>
+  skew(const Tensor<1, 3, Number> &a)
+  {
+    Tensor<2, 3, Number> A;
+    A[0][1] = -a[2];
+    A[0][2] = a[1];
+    A[1][0] = a[2];
+    A[1][2] = -a[0];
+    A[2][0] = -a[1];
+    A[2][1] = a[0];
+
+    return A;
+  }
+
+  template <typename Number>
+  Tensor<1, 2, Number>
+  skew(const Tensor<1, 2, Number> &a)
+  {
+    Tensor<1, 2, Number> A;
+    A[0] = a[1];
+    A[1] = -a[0];
+
+    return A;
+  }
+
+  template <typename Number>
+  Tensor<2, 3, Number>
+  double_cross_tensor(const Tensor<1, 3, Number> &a,
+                      const Tensor<1, 3, Number> &b)
+  {
+    const auto C = skew(a) * skew(b);
+
+    return C;
+  }
+
+  template <typename Number>
+  Tensor<2, 2, Number>
+  double_cross_tensor(const Tensor<1, 2, Number> &a,
+                      const Tensor<1, 2, Number> &b)
+  {
+    auto C = outer_product(a, b);
+
+    C[0][0] *= -1.;
+    C[1][1] *= -1.;
+
+    return C;
+  }
+
+  template <int dim, typename Number>
+  Tensor<2, dim, Number>
+  diagonal_matrix(const Number &fac = 1.)
+  {
+    Tensor<2, dim, Number> I;
+
+    for (unsigned int d = 0; d < dim; d++)
+      I[d][d] = fac;
+
+    return I;
+  }
+
+  template <int dim, typename Number>
+  Tensor<1, dim, Number>
+  unit_vector(const Tensor<1, dim, Number> &vec)
+  {
+    Number nrm = vec.norm();
+    Number filter;
+
+    Number zeros(0.0);
+    Number ones(1.0);
+    Number zero_tol(1e-4);
+
+    Tensor<1, dim, Number> n = vec;
+
+    filter = compare_and_apply_mask<SIMDComparison::greater_than>(nrm,
+                                                                  zero_tol,
+                                                                  ones,
+                                                                  zeros);
+    nrm    = compare_and_apply_mask<SIMDComparison::less_than>(nrm,
+                                                            zero_tol,
+                                                            ones,
+                                                            nrm);
+
+    n /= nrm;
+    n *= filter;
+
+    return n;
+  }
+
+  template <int dim, typename Number>
+  Tensor<2, dim, Number>
+  projector_matrix(const Tensor<1, dim, Number> vec, const Number &fac = 1.)
+  {
+    auto tensor = diagonal_matrix<dim, Number>(1.) - outer_product(vec, vec);
+    tensor *= fac;
+
+    return tensor;
+  }
+
+  namespace internal
+  {
+    template <typename T, std::size_t... Is>
+    constexpr std::array<T, sizeof...(Is)>
+    create_array(T value, std::index_sequence<Is...>)
+    {
+      // cast Is to void to remove the warning: unused value
+      return {{(static_cast<void>(Is), value)...}};
+    }
+  } // namespace internal
+
+  template <std::size_t N, typename T>
+  constexpr std::array<T, N>
+  create_array(const T &value)
+  {
+    return internal::create_array(value, std::make_index_sequence<N>());
   }
 
 } // namespace Sintering
