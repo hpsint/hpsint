@@ -1,9 +1,14 @@
+#pragma once
+
+#include <deal.II/base/point.h>
 
 #include <deal.II/grid/grid_generator.h>
 #include <deal.II/grid/grid_tools.h>
 
 namespace Sintering
 {
+  using namespace dealii;
+
   enum class InitialRefine
   {
     None,
