@@ -1,5 +1,6 @@
 #pragma once
 
+#include <deal.II/base/utilities.h>
 namespace Sintering
 {
   using namespace dealii;
