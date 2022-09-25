@@ -4,6 +4,8 @@
 
 #include <deal.II/distributed/tria.h>
 
+#include <pf-applications/base/fe_integrator.h>
+
 #include <pf-applications/sintering/tools.h>
 
 #include <pf-applications/grain_tracker/tracker.h>
@@ -19,15 +21,7 @@ namespace Sintering
     Tensor<1, dim, VectorizedArrayType> force;
     VectorizedArrayType                 volume{1};
 
-    bool
-    is_zero() const
-    {
-      return zero;
-    }
-
   protected:
-    bool zero{true};
-
     void
     fill(const unsigned int cell_id,
          const Point<dim> & rc_i,
@@ -40,8 +34,6 @@ namespace Sintering
           rc[d][cell_id]    = rc_i[d];
           force[d][cell_id] = fdata[d + 1];
         }
-
-      zero = false;
     }
 
     void
@@ -53,8 +45,6 @@ namespace Sintering
           force[d][cell_id] = 0;
         }
       volume[cell_id] = 1; // To prevent division by zero
-
-      zero = true;
     }
   };
 
@@ -147,72 +137,88 @@ namespace Sintering
   template <int dim, typename Number, typename VectorizedArrayType>
   struct AdvectionCellDataDer
   {
-    std::vector<VectorizedArrayType>                 df_dgrad_eta;
-    std::vector<Tensor<1, dim, VectorizedArrayType>> dt_dgrad_eta;
+    Table<3, Tensor<1, dim, VectorizedArrayType>> df_d_c_eta;
+    Table<3, moment_t<dim, VectorizedArrayType>>  dt_d_c_eta;
 
-    Tensor<1, dim, VectorizedArrayType> df_dc;
-    moment_t<dim, VectorizedArrayType>  dt_dc;
+    static constexpr unsigned int n_comp_der_c_eta = (dim == 3 ? 6 : 3);
 
-    bool
-    is_zero() const
+    using BlockVectorType =
+      LinearAlgebra::distributed::DynamicBlockVector<Number>;
+
+    void
+    reinit(const unsigned int n_segments,
+           const unsigned int n_order_parameters,
+           const unsigned int n_q_points)
     {
-      return zero;
+      df_d_c_eta.reinit({n_segments, n_order_parameters + 1, n_q_points});
+      dt_d_c_eta.reinit({n_segments, n_order_parameters + 1, n_q_points});
     }
 
     void
-    reinit(const unsigned int n_order_parameters)
+    fill(const unsigned int                                  cell,
+         const Table<2, std::shared_ptr<BlockVectorType>> &  der_c_eta,
+         const MatrixFree<dim, Number, VectorizedArrayType> &matrix_free)
     {
-      df_dgrad_eta.resize(n_order_parameters);
-      dt_dgrad_eta.resize(n_order_parameters);
+      FECellIntegrator<dim, n_comp_der_c_eta, Number, VectorizedArrayType>
+        phi_ft_der(matrix_free);
+
+      AssertDimension(df_d_c_eta.size(0), der_c_eta.size(0));
+      AssertDimension(df_d_c_eta.size(1), der_c_eta.size(1));
+
+      phi_ft_der.reinit(cell);
+
+      for (unsigned int s = 0; s < df_d_c_eta.size(0); ++s)
+        for (unsigned int i = 0; i < df_d_c_eta.size(1); ++i)
+          {
+            phi_ft_der.read_dof_values_plain(*der_c_eta[s][i]);
+            phi_ft_der.evaluate(EvaluationFlags::values |
+                                EvaluationFlags::gradients);
+
+            for (unsigned int q = 0; q < phi_ft_der.n_q_points; ++q)
+              {
+                const auto val = phi_ft_der.get_value(q);
+
+                for (unsigned int d = 0; d < dim; ++d)
+                  df_d_c_eta(s, i, q)[d] = val[d];
+
+                if constexpr (moment_s<dim, VectorizedArrayType> == 1)
+                  dt_d_c_eta(s, i, q) = val[dim];
+                else
+                  for (unsigned int d = 0;
+                       d < moment_s<dim, VectorizedArrayType>;
+                       ++d)
+                    dt_d_c_eta(s, i, q)[d] = val[dim + d];
+              }
+          }
     }
 
-    void
-    fill(const unsigned int cell_id, const Number *fdata)
+    const Tensor<1, dim, VectorizedArrayType> &
+    df_dc(const unsigned int i_segment, const unsigned int q) const
     {
-      const unsigned int n_order_parameters = df_dgrad_eta.size();
-
-      for (unsigned int op = 0; op < n_order_parameters; ++op)
-        {
-          df_dgrad_eta[op][cell_id] = fdata[op];
-
-          for (unsigned int d = 0; d < dim; ++d)
-            dt_dgrad_eta[op][d][cell_id] =
-              fdata[n_order_parameters + op * dim + d];
-        }
-
-      for (unsigned int d = 0; d < dim; ++d)
-        df_dc[d][cell_id] = fdata[n_order_parameters * (dim + 1) + d];
-
-      fill_moment_from_buffer(dt_dc,
-                              cell_id,
-                              fdata + n_order_parameters * (dim + 1) + dim);
-
-      zero = false;
+      return df_d_c_eta(i_segment, 0, q);
     }
 
-    void
-    nullify(const unsigned int cell_id)
+    const moment_t<dim, VectorizedArrayType> &
+    dt_dc(const unsigned int i_segment, const unsigned int q) const
     {
-      const unsigned int n_order_parameters = df_dgrad_eta.size();
-
-      for (unsigned int op = 0; op < n_order_parameters; ++op)
-        {
-          df_dgrad_eta[op][cell_id] = 0.;
-
-          for (unsigned int d = 0; d < dim; ++d)
-            dt_dgrad_eta[op][d][cell_id] = 0.;
-        }
-
-      for (unsigned int d = 0; d < dim; ++d)
-        df_dc[d][cell_id] = 0.;
-
-      nullify_moment_from_buffer(dt_dc, cell_id);
-
-      zero = true;
+      return dt_d_c_eta(i_segment, 0, q);
     }
 
-  protected:
-    bool zero{true};
+    const Tensor<1, dim, VectorizedArrayType> &
+    df_deta(const unsigned int i_segment,
+            const unsigned int j_op,
+            const unsigned int q) const
+    {
+      return df_d_c_eta(i_segment, j_op + 1, q);
+    }
+
+    const moment_t<dim, VectorizedArrayType> &
+    dt_deta(const unsigned int i_segment,
+            const unsigned int j_op,
+            const unsigned int q) const
+    {
+      return dt_d_c_eta(i_segment, j_op + 1, q);
+    }
   };
 
   template <int dim, typename Number, typename VectorizedArrayType>
@@ -222,8 +228,10 @@ namespace Sintering
     // Force, torque and grain volume
     static constexpr unsigned int n_comp_volume_force_torque =
       (dim == 3 ? 7 : 4);
-    static constexpr unsigned int n_comp_der_c        = (dim == 3 ? 6 : 3);
-    static constexpr unsigned int n_comp_der_grad_eta = dim + 1;
+    static constexpr unsigned int n_comp_der_c_eta = (dim == 3 ? 6 : 3);
+
+    using BlockVectorType =
+      LinearAlgebra::distributed::DynamicBlockVector<Number>;
 
     AdvectionMechanism(const bool                                enable,
                        const double                              mt,
@@ -236,22 +244,67 @@ namespace Sintering
     {}
 
     void
-    reinit(const unsigned int                                  cell,
-           const MatrixFree<dim, Number, VectorizedArrayType> &matrix_free,
-           const bool init_forces      = true,
-           const bool init_derivatives = true) const
+    resize_storage(const unsigned int n_segments,
+                   const unsigned int n_order_parameters,
+                   const bool         omit_zeroing_entries = false)
+    {
+      const unsigned int n_items = n_order_parameters + 1;
+
+      const unsigned int old_n_segments = der_c_eta.size(0);
+      const unsigned int old_n_items    = der_c_eta.size(1);
+
+      // Switch to a better data structure, Table is not appropriate
+      if (old_n_items != n_items || old_n_segments != n_segments)
+        {
+          der_c_eta.reinit({n_segments, n_items}, true);
+
+          if (n_segments > old_n_segments)
+            for (unsigned int i = old_n_segments; i < n_segments; ++i)
+              for (unsigned int j = 0; j < old_n_items; ++j)
+                {
+                  if (der_c_eta[i][j] == nullptr)
+                    der_c_eta[i][j] = std::make_shared<BlockVectorType>();
+
+                  if (old_n_segments != 0)
+                    der_c_eta[i][j]->reinit(*der_c_eta[0][0],
+                                            omit_zeroing_entries);
+                }
+
+          if (n_items > old_n_items)
+            for (unsigned int i = 0; i < n_segments; ++i)
+              for (unsigned int j = old_n_items; j < n_items; ++j)
+                {
+                  if (der_c_eta[i][j] == nullptr)
+                    der_c_eta[i][j] = std::make_shared<BlockVectorType>();
+
+                  if (old_n_items != 0)
+                    der_c_eta[i][j]->reinit(*der_c_eta[0][0],
+                                            omit_zeroing_entries);
+                }
+        }
+    }
+
+    void
+    reinit_derivatives(
+      const unsigned int                                  cell,
+      const MatrixFree<dim, Number, VectorizedArrayType> &matrix_free) const
+    {
+      current_cell_data_der.fill(cell, der_c_eta, matrix_free);
+    }
+
+    void
+    reinit(
+      const unsigned int                                  cell,
+      const MatrixFree<dim, Number, VectorizedArrayType> &matrix_free) const
     {
       current_cell_data.resize(n_active_order_parameters);
-      current_cell_data_der.resize(n_active_order_parameters);
 
-      if (init_forces == false && init_derivatives == false)
-        return;
+      current_cell_data_der.reinit(der_c_eta.size(0),
+                                   n_active_order_parameters,
+                                   matrix_free.get_n_q_points());
 
       for (unsigned int op = 0; op < n_active_order_parameters; ++op)
         {
-          if (init_derivatives)
-            current_cell_data_der[op].reinit(n_active_order_parameters);
-
           unsigned int i = 0;
 
           for (; i < matrix_free.n_active_entries_per_cell_batch(cell); ++i)
@@ -271,26 +324,15 @@ namespace Sintering
                     grain_tracker.get_segment_center(grain_and_segment.first,
                                                      grain_and_segment.second);
 
-                  if (init_forces)
-                    current_cell_data[op].fill(
-                      i,
-                      rc_i,
-                      grain_data(grain_and_segment.first,
-                                 grain_and_segment.second));
-
-                  if (init_derivatives)
-                    current_cell_data_der[op].fill(
-                      i,
-                      grain_data_derivative(grain_and_segment.first,
-                                            grain_and_segment.second));
+                  current_cell_data[op].fill(
+                    i,
+                    rc_i,
+                    grain_data(grain_and_segment.first,
+                               grain_and_segment.second));
                 }
               else
                 {
-                  if (init_forces)
-                    current_cell_data[op].nullify(i);
-
-                  if (init_derivatives)
-                    current_cell_data_der[op].nullify(i);
+                  current_cell_data[op].nullify(i);
                 }
             }
 
@@ -298,12 +340,6 @@ namespace Sintering
           for (; i < VectorizedArrayType::size(); ++i)
             current_cell_data[op].nullify(i);
         }
-    }
-
-    bool
-    has_velocity(const unsigned int order_parameter_id) const
-    {
-      return !current_cell_data.at(order_parameter_id).is_zero();
     }
 
     Tensor<1, dim, VectorizedArrayType>
@@ -328,55 +364,66 @@ namespace Sintering
       return v_adv;
     }
 
-    Tensor<2, dim, VectorizedArrayType>
-    get_velocity_derivative(const unsigned int                     op_id_i,
-                            const unsigned int                     op_id_j,
-                            const Point<dim, VectorizedArrayType> &r) const
+    Tensor<1, dim, VectorizedArrayType>
+    get_velocity_derivative_eta(const unsigned int                     op_id_i,
+                                const unsigned int                     op_id_j,
+                                const unsigned int                     q,
+                                const Point<dim, VectorizedArrayType> &r) const
     {
-      const auto &op_cell_data     = current_cell_data.at(op_id_i);
-      const auto &op_cell_data_der = current_cell_data_der.at(op_id_i);
+      const auto &op_cell_data = current_cell_data.at(op_id_i);
 
-      //const double gamma_ij = (op_id_i == op_id_j) ? 1. : -1.;
-      const double gamma_ij = 1.;
+      const auto &df_etaj =
+        current_cell_data_der.df_deta(op_id_i, op_id_j, q); // vector
+      const auto &dt_etaj =
+        current_cell_data_der.dt_deta(op_id_i, op_id_j, q); // vector
 
-      const auto &s = op_cell_data_der.df_dgrad_eta[op_id_j]; // scalar
-      const auto &h = op_cell_data_der.dt_dgrad_eta[op_id_j]; // vector
-
-      const auto S = diagonal_matrix<dim, VectorizedArrayType>(
-        mt / op_cell_data.volume * gamma_ij * s);
+      // Translational velocity derivative
+      const auto dvt_detaj = mt / op_cell_data.volume * df_etaj;
 
       // Get vector from the particle center to the current point
       const auto p = r - op_cell_data.rc;
 
-      auto PH = double_cross_tensor(p, h);
-      PH *= -mr / op_cell_data.volume;
+      // Rotational velocity derivative
+      const auto dvr_detaj =
+        mr / op_cell_data.volume * cross_product(dt_etaj, p);
 
-      const auto tangent = S + PH;
+      // Total advection velocity derivative
+      const auto dv_adv_detaj = dvt_detaj + dvr_detaj;
 
-      return tangent;
+      return dv_adv_detaj;
     }
 
     Tensor<1, dim, VectorizedArrayType>
-    get_velocity_derivative(const unsigned int                     op_id_i,
-                            const Point<dim, VectorizedArrayType> &r) const
+    get_velocity_derivative_c(const unsigned int                     op_id_i,
+                              const unsigned int                     q,
+                              const Point<dim, VectorizedArrayType> &r) const
     {
-      const auto &op_cell_data     = current_cell_data.at(op_id_i);
-      const auto &op_cell_data_der = current_cell_data_der.at(op_id_i);
+      const auto &op_cell_data = current_cell_data.at(op_id_i);
 
       // Translational velocity derivative
-      const auto dvt_dc = mt / op_cell_data.volume * op_cell_data_der.df_dc;
+      const auto dvt_dc =
+        mt / op_cell_data.volume * current_cell_data_der.df_dc(op_id_i, q);
 
       // Get vector from the particle center to the current point
       const auto p = r - op_cell_data.rc;
 
       // Rotational velocity derivative
       const auto dvr_dc =
-        mr / op_cell_data.volume * cross_product(op_cell_data_der.dt_dc, p);
+        mr / op_cell_data.volume *
+        cross_product(current_cell_data_der.dt_dc(op_id_i, q), p);
 
       // Total advection velocity derivative
       const auto dv_adv_dc = dvt_dc + dvr_dc;
 
       return dv_adv_dc;
+    }
+
+    void
+    nullify_derivatives()
+    {
+      for (unsigned int i = 0; i < der_c_eta.size(0); ++i)
+        for (unsigned int j = 0; j < der_c_eta.size(1); ++j)
+          *der_c_eta[i][j] = 0;
     }
 
     void
@@ -386,19 +433,6 @@ namespace Sintering
       n_active_order_parameters = n_order_parameters;
 
       grains_data.assign(n_comp_volume_force_torque * n_segments, 0);
-    }
-
-    void
-    nullify_data_derivatives(const unsigned int n_segments,
-                             const unsigned int n_order_parameters)
-    {
-      (void)n_order_parameters;
-      AssertDimension(n_active_order_parameters, n_order_parameters);
-
-      grains_data_derivatives.assign(
-        (n_comp_der_grad_eta * n_active_order_parameters + n_comp_der_c) *
-          n_segments,
-        0);
     }
 
     Number *
@@ -419,30 +453,6 @@ namespace Sintering
       return &grains_data[n_comp_volume_force_torque * index];
     }
 
-    Number *
-    grain_data_derivative(const unsigned int grain_id,
-                          const unsigned int segment_id)
-    {
-      const unsigned int index =
-        grain_tracker.get_grain_segment_index(grain_id, segment_id);
-
-      return &grains_data_derivatives
-        [(n_comp_der_grad_eta * n_active_order_parameters + n_comp_der_c) *
-         index];
-    }
-
-    const Number *
-    grain_data_derivative(const unsigned int grain_id,
-                          const unsigned int segment_id) const
-    {
-      const unsigned int index =
-        grain_tracker.get_grain_segment_index(grain_id, segment_id);
-
-      return &grains_data_derivatives
-        [(n_comp_der_grad_eta * n_active_order_parameters + n_comp_der_c) *
-         index];
-    }
-
     std::vector<Number> &
     get_grains_data()
     {
@@ -455,22 +465,22 @@ namespace Sintering
       return grains_data;
     }
 
-    std::vector<Number> &
-    get_grains_data_derivatives()
-    {
-      return grains_data_derivatives;
-    }
-
-    const std::vector<Number> &
-    get_grains_data_derivatives() const
-    {
-      return grains_data_derivatives;
-    }
-
     bool
     enabled() const
     {
       return is_active;
+    }
+
+    const Table<2, std::shared_ptr<BlockVectorType>> &
+    get_der_c_eta() const
+    {
+      return der_c_eta;
+    }
+
+    Table<2, std::shared_ptr<BlockVectorType>> &
+    get_der_c_eta()
+    {
+      return der_c_eta;
     }
 
   private:
@@ -483,7 +493,7 @@ namespace Sintering
     mutable std::vector<AdvectionCellData<dim, Number, VectorizedArrayType>>
       current_cell_data;
 
-    mutable std::vector<AdvectionCellDataDer<dim, Number, VectorizedArrayType>>
+    mutable AdvectionCellDataDer<dim, Number, VectorizedArrayType>
       current_cell_data_der;
 
     const GrainTracker::Tracker<dim, Number> &grain_tracker;
@@ -491,6 +501,7 @@ namespace Sintering
     unsigned int n_active_order_parameters;
 
     std::vector<Number> grains_data;
-    std::vector<Number> grains_data_derivatives;
+
+    Table<2, std::shared_ptr<BlockVectorType>> der_c_eta;
   };
 } // namespace Sintering

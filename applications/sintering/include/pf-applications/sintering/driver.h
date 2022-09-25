@@ -797,6 +797,9 @@ namespace Sintering
         params.advection_data.mr,
         grain_tracker);
 
+      advection_mechanism.resize_storage(n_initial_components - 2,
+                                         n_initial_components - 2);
+
       // ... non-linear operator
       NonLinearOperator nonlinear_operator(matrix_free,
                                            constraints,
@@ -961,6 +964,21 @@ namespace Sintering
         sintering_data,
         grain_tracker);
 
+      if (params.advection_data.enable)
+        {
+          additional_initializations.emplace_back(
+            [&advection_mechanism, &advection_operator]() {
+              for (unsigned int i = 0;
+                   i < advection_mechanism.get_der_c_eta().size(0);
+                   ++i)
+                for (unsigned int j = 0;
+                     j < advection_mechanism.get_der_c_eta().size(1);
+                     ++j)
+                  advection_operator.initialize_dof_vector(
+                    *advection_mechanism.get_der_c_eta()(i, j));
+            });
+        }
+
       non_linear_solver->residual = [&](const auto &src, auto &dst) {
         MyScope scope(timer, "time_loop::newton::residual");
 
@@ -1066,7 +1084,7 @@ namespace Sintering
                 }
             }
 
-          // Compute forces drivatives
+          // Compute forces derivatives
           if (params.advection_data.enable)
             advection_operator.evaluate_forces_derivatives(advection_mechanism);
 
@@ -1456,6 +1474,11 @@ namespace Sintering
 
         solution.zero_out_ghost_values();
         old_old_solutions.update_ghost_values();
+
+        if (params.advection_data.enable)
+          advection_mechanism.resize_storage(
+            grain_tracker.n_segments(),
+            grain_tracker.get_active_order_parameters().size());
       };
 
       // Initialize all solutions except the evry old one, it will get
