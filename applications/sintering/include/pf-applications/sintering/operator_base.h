@@ -9,14 +9,8 @@
 #include <pf-applications/numerics/functions.h>
 #include <pf-applications/numerics/vector_tools.h>
 
-#include <pf-applications/sintering/advection.h>
-#include <pf-applications/sintering/tools.h>
-
 #include <pf-applications/dofs/dof_tools.h>
-#include <pf-applications/grain_tracker/tracker.h>
 #include <pf-applications/matrix_free/tools.h>
-#include <pf-applications/time_integration/solution_history.h>
-#include <pf-applications/time_integration/time_integrators.h>
 
 #include <fstream>
 
