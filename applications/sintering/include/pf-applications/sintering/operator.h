@@ -11,6 +11,7 @@
 
 #include <pf-applications/sintering/tools.h>
 
+#include <pf-applications/sintering/advection.h>
 #include <pf-applications/sintering/tools.h>
 
 #include <pf-applications/dofs/dof_tools.h>
