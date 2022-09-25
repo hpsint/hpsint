@@ -2885,11 +2885,12 @@ namespace Sintering
 
                           // Filter to detect grain boundary
                           auto etai_etaj = eta_i * eta_j;
+
+                          // Disable this normalization
                           /*
                           etai_etaj      = compare_and_apply_mask<
                             SIMDComparison::greater_than>(etai_etaj,
                                                           cgb_lim,
-                                                          etai_etaj,
                                                           ones,
                                                           zeros);
                           */
