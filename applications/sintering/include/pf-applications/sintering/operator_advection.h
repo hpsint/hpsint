@@ -1,5 +1,10 @@
 #pragma once
 
+#include <pf-applications/sintering/operator_base.h>
+#include <pf-applications/sintering/sintering_data.h>
+
+#include <pf-applications/grain_tracker/tracker.h>
+
 namespace Sintering
 {
   using namespace dealii;
