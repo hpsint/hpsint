@@ -1,5 +1,7 @@
 #pragma once
 
+#include <deal.II/matrix_free/fe_evaluation.h>
+
 namespace dealii
 {
 #if defined(FE_DEGREE) && defined(N_Q_POINTS_1D)
