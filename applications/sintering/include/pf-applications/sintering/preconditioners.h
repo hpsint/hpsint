@@ -3,6 +3,9 @@
 #include <pf-applications/lac/dynamic_block_vector.h>
 #include <pf-applications/lac/preconditioners.h>
 
+#include <pf-applications/sintering/operator_base.h>
+#include <pf-applications/sintering/sintering_data.h>
+
 namespace Sintering
 {
   using namespace dealii;
