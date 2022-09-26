@@ -9,6 +9,7 @@
 #include <pf-applications/numerics/functions.h>
 #include <pf-applications/numerics/vector_tools.h>
 
+#include <pf-applications/sintering/advection.h>
 #include <pf-applications/sintering/tools.h>
 
 #include <pf-applications/dofs/dof_tools.h>
@@ -556,7 +557,7 @@ namespace Sintering
 
       // Volumetric and vaporization parts, the same as for isotropic
       Tensor<2, dim, VectorizedArrayType> M =
-        unit_matrix(Mvol * phi + Mvap * (1.0 - phi));
+        diagonal_matrix(Mvol * phi + Mvap * (1.0 - phi));
 
       // Surface anisotropic part
       VectorizedArrayType fsurf = Msurf * (c * c) * ((1. - c) * (1. - c));
@@ -594,7 +595,7 @@ namespace Sintering
         phi, VectorizedArrayType(1.0), VectorizedArrayType(1.0), phi);
 
       // Volumetric and vaporization parts, the same as for isotropic
-      Tensor<2, dim, VectorizedArrayType> M = unit_matrix(Mvol * phi);
+      Tensor<2, dim, VectorizedArrayType> M = diagonal_matrix(Mvol * phi);
 
       return M;
     }
@@ -610,7 +611,8 @@ namespace Sintering
         phi, VectorizedArrayType(1.0), VectorizedArrayType(1.0), phi);
 
       // Volumetric and vaporization parts, the same as for isotropic
-      Tensor<2, dim, VectorizedArrayType> M = unit_matrix(Mvap * (1. - phi));
+      Tensor<2, dim, VectorizedArrayType> M =
+        diagonal_matrix(Mvap * (1. - phi));
 
       return M;
     }
@@ -671,7 +673,7 @@ namespace Sintering
 
       // Volumetric and vaporization parts, the same as for isotropic
       Tensor<2, dim, VectorizedArrayType> dMdc =
-        unit_matrix((Mvol - Mvap) * dphidc);
+        diagonal_matrix((Mvol - Mvap) * dphidc);
 
       // Surface part
       VectorizedArrayType fsurf  = Msurf * c2_1minusc2;
@@ -703,7 +705,7 @@ namespace Sintering
       Tensor<2, dim, VectorizedArrayType> M  = projector_matrix(nc, 1. / nrm);
 
       Tensor<2, dim, VectorizedArrayType> T =
-        unit_matrix(mu_grad * nc) + outer_product(nc, mu_grad);
+        diagonal_matrix(mu_grad * nc) + outer_product(nc, mu_grad);
       T *= -fsurf;
 
       return T * M;
@@ -743,57 +745,6 @@ namespace Sintering
     Lgb() const
     {
       return L;
-    }
-
-  private:
-    DEAL_II_ALWAYS_INLINE Tensor<2, dim, VectorizedArrayType>
-                          unit_matrix(const VectorizedArrayType &fac = 1.) const
-    {
-      Tensor<2, dim, VectorizedArrayType> I;
-
-      for (unsigned int d = 0; d < dim; d++)
-        {
-          I[d][d] = fac;
-        }
-
-      return I;
-    }
-
-    DEAL_II_ALWAYS_INLINE Tensor<1, dim, VectorizedArrayType>
-    unit_vector(const Tensor<1, dim, VectorizedArrayType> &vec) const
-    {
-      VectorizedArrayType nrm = vec.norm();
-      VectorizedArrayType filter;
-
-      VectorizedArrayType zeros(0.0);
-      VectorizedArrayType ones(1.0);
-      VectorizedArrayType zero_tol(1e-4);
-
-      Tensor<1, dim, VectorizedArrayType> n = vec;
-
-      filter = compare_and_apply_mask<SIMDComparison::greater_than>(nrm,
-                                                                    zero_tol,
-                                                                    ones,
-                                                                    zeros);
-      nrm    = compare_and_apply_mask<SIMDComparison::less_than>(nrm,
-                                                              zero_tol,
-                                                              ones,
-                                                              nrm);
-
-      n /= nrm;
-      n *= filter;
-
-      return n;
-    }
-
-    DEAL_II_ALWAYS_INLINE Tensor<2, dim, VectorizedArrayType>
-    projector_matrix(const Tensor<1, dim, VectorizedArrayType> vec,
-                     const VectorizedArrayType &               fac = 1.) const
-    {
-      auto tensor = unit_matrix() - dealii::outer_product(vec, vec);
-      tensor *= fac;
-
-      return tensor;
     }
   };
 
@@ -2753,7 +2704,7 @@ namespace Sintering
     using vector_type = VectorType;
 
     // Force, torque and grain volume
-    static constexpr unsigned int n_force_comp = (dim == 3 ? 7 : 4);
+    static constexpr unsigned int n_comp_total = (dim == 3 ? 6 : 3);
 
     AdvectionOperator(
       const double                                           k,
@@ -2813,7 +2764,7 @@ namespace Sintering
     unsigned int
     n_components() const override
     {
-      return n_force_comp;
+      return n_comp_total;
     }
 
     unsigned int
@@ -2826,7 +2777,7 @@ namespace Sintering
     n_grains_to_n_components(const unsigned int n_grains)
     {
       (void)n_grains;
-      return n_force_comp;
+      return n_comp_total;
     }
 
   private:
@@ -2843,11 +2794,15 @@ namespace Sintering
       FECellIntegrator<dim, 2 + n_grains, Number, VectorizedArrayType> phi_sint(
         matrix_free, this->dof_index);
 
-      FECellIntegrator<dim, this->n_force_comp, Number, VectorizedArrayType>
+      FECellIntegrator<dim,
+                       advection_mechanism.n_comp_volume_force_torque,
+                       Number,
+                       VectorizedArrayType>
         phi_ft(matrix_free, this->dof_index);
 
       VectorizedArrayType cgb_lim(cgb);
       VectorizedArrayType zeros(0.0);
+      VectorizedArrayType ones(1.0);
 
       for (auto cell = range.first; cell < range.second; ++cell)
         {
@@ -2906,9 +2861,13 @@ namespace Sintering
 
                   const auto &r = phi_sint.quadrature_point(q);
 
-                  Tensor<1, n_force_comp, VectorizedArrayType> value_result;
-                  Tensor<1, dim, VectorizedArrayType>          force;
-                  Tensor<1, dim, VectorizedArrayType>          torque;
+                  Tensor<1,
+                         advection_mechanism.n_comp_volume_force_torque,
+                         VectorizedArrayType>
+                                                      value_result;
+                  Tensor<1, dim, VectorizedArrayType> force;
+                  moment_t<dim, VectorizedArrayType>  torque;
+                  torque = 0;
 
                   // Compute force and torque acting on grain i from each of the
                   // other grains
@@ -2925,11 +2884,15 @@ namespace Sintering
 
                           // Filter to detect grain boundary
                           auto etai_etaj = eta_i * eta_j;
+
+                          // Disable this normalization
+                          /*
                           etai_etaj      = compare_and_apply_mask<
                             SIMDComparison::greater_than>(etai_etaj,
                                                           cgb_lim,
-                                                          etai_etaj,
+                                                          ones,
                                                           zeros);
+                          */
 
                           // Compute force component per cell
                           dF *= k * (c - ceq) * etai_etaj;
@@ -2942,11 +2905,7 @@ namespace Sintering
 
                           // Torque as cross product
                           // (scalar in 2D and vector in 3D)
-                          if (dim == 2)
-                            value_result[dim + 1] +=
-                              dF[1] * r_rc[0] - dF[0] * r_rc[1];
-                          else if (dim == 3)
-                            torque += cross_product_3d(r_rc, dF);
+                          torque += cross_product(r_rc, dF);
                         }
                     }
 
@@ -2958,8 +2917,12 @@ namespace Sintering
                     value_result[d + 1] = force[d];
 
                   // Torque acting on grain i
-                  if (dim == 3)
-                    for (unsigned int d = 0; d < dim; ++d)
+                  if constexpr (moment_s<dim, VectorizedArrayType> == 1)
+                    value_result[dim + 1] = torque;
+                  else
+                    for (unsigned int d = 0;
+                         d < moment_s<dim, VectorizedArrayType>;
+                         ++d)
                       value_result[d + dim + 1] = torque[d];
 
                   phi_ft.submit_value(value_result, q);
@@ -2972,7 +2935,9 @@ namespace Sintering
                   const auto &grain_and_segment = segments[i];
 
                   if (grain_and_segment.first != numbers::invalid_unsigned_int)
-                    for (unsigned int d = 0; d < this->n_force_comp; ++d)
+                    for (unsigned int d = 0;
+                         d < advection_mechanism.n_comp_volume_force_torque;
+                         ++d)
                       advection_mechanism.grain_data(
                         grain_and_segment.first, grain_and_segment.second)[d] +=
                         volume_force_torque[d][i];
