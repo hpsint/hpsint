@@ -282,6 +282,37 @@ namespace Sintering
       return is_active;
     }
 
+    template <typename Stream>
+    void
+    print_forces(Stream &out) const
+    {
+      out << std::endl;
+      out << "Grains segments volumes, forces and torques:" << std::endl;
+
+      for (const auto &[grain_id, grain] : grain_tracker.get_grains())
+        {
+          for (unsigned int segment_id = 0;
+               segment_id < grain.get_segments().size();
+               segment_id++)
+            {
+              const Number *data = grain_data(grain_id, segment_id);
+
+              Number                 volume(*data++);
+              Tensor<1, dim, Number> force(make_array_view(data, data + dim));
+              moment_t<dim, Number>  torque(
+                create_moment_from_buffer<dim>(data + dim));
+
+              out << "Grain id = " << grain_id
+                  << ", segment id = " << segment_id << ": "
+                  << "volume = " << volume << " | "
+                  << "force  = " << force << " | "
+                  << "torque = " << torque << std::endl;
+            }
+        }
+
+      out << std::endl;
+    }
+
   private:
     mutable Tensor<1, dim, VectorizedArrayType> current_velocity_derivative;
 
