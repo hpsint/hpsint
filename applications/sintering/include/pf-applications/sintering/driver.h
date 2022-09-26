@@ -70,7 +70,9 @@
 
 #include <pf-applications/sintering/advection.h>
 #include <pf-applications/sintering/initial_values.h>
-#include <pf-applications/sintering/operator.h>
+#include <pf-applications/sintering/operator_advection.h>
+#include <pf-applications/sintering/operator_postproc.h>
+#include <pf-applications/sintering/operator_sintering.h>
 #include <pf-applications/sintering/parameters.h>
 #include <pf-applications/sintering/postprocessors.h>
 #include <pf-applications/sintering/preconditioners.h>
