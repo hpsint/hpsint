@@ -321,6 +321,16 @@ namespace Sintering
     return a[1] * b[0] - a[0] * b[1];
   }
 
+  template <int dim, typename Number>
+  auto
+  create_moment_from_buffer(const Number *buffer)
+  {
+    if constexpr (dim == 3)
+      return Tensor<1, 3, Number>(make_array_view(buffer, buffer + dim));
+    else
+      return *buffer;
+  }
+
   template <typename Number>
   Tensor<1, 3, Number>
   cross_product(const Tensor<1, 3, Number> &a, const Tensor<1, 3, Number> &b)

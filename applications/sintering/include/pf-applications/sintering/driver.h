@@ -1825,6 +1825,10 @@ namespace Sintering
                         postproc_linear_solver->solve(*view_lhs, *view_rhs);
                       }
                   }
+
+                // Print grain forces
+                if (params.advection_data.enable)
+                  advection_mechanism.print_forces(pcout);
               }
             catch (const NonLinearSolvers::ExcNewtonDidNotConverge &e)
               {
