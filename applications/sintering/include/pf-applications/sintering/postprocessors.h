@@ -833,8 +833,8 @@ namespace Sintering
 
       std::ofstream ofs;
       ofs.open(save_path,
-               is_new ? std::ofstream::app :
-                        std::ofstream::out | std::ofstream::trunc);
+               is_new ? std::ofstream::out | std::ofstream::trunc :
+                        std::ofstream::app);
 
       // Get header
       std::getline(ss, line);
