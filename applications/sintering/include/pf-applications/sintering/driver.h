@@ -2142,9 +2142,15 @@ namespace Sintering
 
           if (params.output_data.table)
             {
-              const std::vector labels = {"size_x", "size_y", "size_z"};
+              const std::vector labels = {"dim_x", "dim_y", "dim_z"};
+              typename VectorType::value_type volume = 1.;
               for (unsigned int d = 0; d < dim; ++d)
-                table.add_value(labels[d], bb.side_length(d));
+                {
+                  const auto size = bb.side_length(d);
+                  table.add_value(labels[d], size);
+                  volume *= size;
+                }
+              table.add_value("volume", volume);
             }
         }
 
