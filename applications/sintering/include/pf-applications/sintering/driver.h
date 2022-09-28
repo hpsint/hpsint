@@ -2027,6 +2027,9 @@ namespace Sintering
       if (counters.find(label) == counters.end())
         counters[label] = 0;
 
+      // Create table handler
+      TableHandler table;
+
       if (params.output_data.regular || label != "solution")
         {
           DataOutBase::VtkFlags flags;
@@ -2083,11 +2086,10 @@ namespace Sintering
 
           if (true)
             {
-              auto table = Postprocessors::prepare_table_data(solution,
-                                                              t,
-                                                              counters[label]);
-
-              Postprocessors::write_table(table, t, MPI_COMM_WORLD, label);
+              table.add_value("step", counters[label]);
+              table.add_value("time", t);
+              table.add_value(
+                "dt", sintering_operator.get_data().time_data.get_current_dt());
             }
         }
 
@@ -2137,6 +2139,11 @@ namespace Sintering
                                              dof_handler,
                                              solution,
                                              output);
+        }
+
+      if (true)
+        {
+          Postprocessors::write_table(table, t, MPI_COMM_WORLD, label);
         }
 
       counters[label]++;

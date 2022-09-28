@@ -797,22 +797,6 @@ namespace Sintering
       data_out.write_vtu_in_parallel(output, dof_handler.get_communicator());
     }
 
-    template <typename VectorType>
-    TableHandler
-    prepare_table_data(const VectorType & solution,
-                       const double       t,
-                       const unsigned int counter)
-    {
-      (void)solution;
-
-      TableHandler table;
-
-      table.add_value("step", counter);
-      table.add_value("time", t);
-
-      return table;
-    }
-
     void
     write_table(const TableHandler &table,
                 const double        t,
