@@ -1,6 +1,7 @@
 #pragma once
 
 #include <deal.II/base/geometry_info.h>
+#include <deal.II/base/table_handler.h>
 
 #include <deal.II/grid/grid_tools.h>
 
@@ -586,7 +587,23 @@ namespace Sintering
       data_out.write_vtu_in_parallel(output, dof_handler.get_communicator());
     }
 
+    template <int dim, typename Number>
+    void
+    write_bounding_box(const BoundingBox<dim, Number> &bb,
+                       const Mapping<dim> &            mapping,
+                       const DoFHandler<dim> &         dof_handler,
+                       const std::string               output)
+    {
+      Triangulation<dim> tria;
+      GridGenerator::hyper_rectangle(tria,
+                                     bb.get_boundary_points().first,
+                                     bb.get_boundary_points().second);
 
+      DataOut<dim> data_out;
+      data_out.attach_triangulation(tria);
+      data_out.build_patches(mapping);
+      data_out.write_vtu_in_parallel(output, dof_handler.get_communicator());
+    }
 
     template <int dim, typename VectorType>
     BoundingBox<dim, typename VectorType::value_type>
@@ -785,15 +802,42 @@ namespace Sintering
     {
       const auto bb = estimate_shrinkage(mapping, dof_handler, solution);
 
-      Triangulation<dim> tria;
-      GridGenerator::hyper_rectangle(tria,
-                                     bb.get_boundary_points().first,
-                                     bb.get_boundary_points().second);
+      write_bounding_box(bb, mapping, dof_handler, output);
+    }
 
-      DataOut<dim> data_out;
-      data_out.attach_triangulation(tria);
-      data_out.build_patches(mapping);
-      data_out.write_vtu_in_parallel(output, dof_handler.get_communicator());
+    void
+    write_table(const TableHandler &table,
+                const double        t,
+                const MPI_Comm &    comm,
+                const std::string   save_path)
+    {
+      if (Utilities::MPI::this_mpi_process(comm) != 0)
+        return;
+
+      const bool is_new = (t == 0);
+
+      std::stringstream ss;
+      table.write_text(ss);
+
+      std::string line;
+
+      std::ofstream ofs;
+      ofs.open(save_path,
+               is_new ? std::ofstream::out | std::ofstream::trunc :
+                        std::ofstream::app);
+
+      // Get header
+      std::getline(ss, line);
+
+      // Write header if we only start writing
+      if (is_new)
+        ofs << line << std::endl;
+
+      // Take the data itself
+      std::getline(ss, line);
+
+      ofs << line << std::endl;
+      ofs.close();
     }
 
   } // namespace Postprocessors

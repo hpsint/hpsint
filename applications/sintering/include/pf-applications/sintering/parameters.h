@@ -152,6 +152,7 @@ namespace Sintering
     unsigned int          n_coarsening_steps     = 0;
     bool                  porosity               = false;
     bool                  shrinkage              = false;
+    bool                  table                  = false;
     bool                  debug                  = false;
     bool                  higher_order_cells     = false;
     bool                  fluxes_divergences     = false;
@@ -609,6 +610,7 @@ namespace Sintering
       prm.add_parameter("Shrinkage",
                         output_data.shrinkage,
                         "Determine shrinkage.");
+      prm.add_parameter("Table", output_data.table, "Output table.");
       prm.add_parameter("Debug",
                         output_data.debug,
                         "Whether debug output is enabled.");
