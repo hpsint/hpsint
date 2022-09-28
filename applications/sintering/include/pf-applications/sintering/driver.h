@@ -2084,7 +2084,7 @@ namespace Sintering
 
           data_out.write_vtu_in_parallel(output, MPI_COMM_WORLD);
 
-          if (true)
+          if (params.output_data.table)
             {
               table.add_value("step", counters[label]);
               table.add_value("time", t);
@@ -2140,7 +2140,7 @@ namespace Sintering
 
           Postprocessors::write_bounding_box(bb, mapping, dof_handler, output);
 
-          if (true)
+          if (params.output_data.table)
             {
               const std::vector labels = {"size_x", "size_y", "size_z"};
               for (unsigned int d = 0; d < dim; ++d)
@@ -2148,7 +2148,7 @@ namespace Sintering
             }
         }
 
-      if (true)
+      if (params.output_data.table)
         {
           Postprocessors::write_table(table, t, MPI_COMM_WORLD, label);
         }
