@@ -20,9 +20,6 @@ n_files = len(args.files)
 colors = get_hex_colors(n_files)
 
 csv_header = ["dim_x", "dim_y", "dim_z", "volume", "shrinkage_x", "shrinkage_y", "shrinkage_z", "densification"]
-formats = ['f8']*len(csv_header)
-dtype = np.dtype({'names': csv_header, 'formats': formats})
-
 n_qtys = 4
 markers = ["s", "D", "o", "x"]
 
@@ -32,10 +29,6 @@ fig.suptitle('Shrinkage and densification')
 for f, clr in zip(args.files, colors):
 
     fdata = np.genfromtxt(f, dtype=None, names=True)
-
-    n_rows = fdata.shape[0]
-    n_cols = len(csv_header)
-    csv_data = np.zeros(shape=(n_rows,n_cols), dtype=dtype)
 
     alpha = 1
 
