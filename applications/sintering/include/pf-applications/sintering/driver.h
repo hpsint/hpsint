@@ -2080,6 +2080,15 @@ namespace Sintering
                 << std::endl;
 
           data_out.write_vtu_in_parallel(output, MPI_COMM_WORLD);
+
+          if (true)
+            {
+              auto table = Postprocessors::prepare_table_data(solution,
+                                                              t,
+                                                              counters[label]);
+
+              Postprocessors::write_table(table, t, MPI_COMM_WORLD, label);
+            }
         }
 
       if (params.output_data.contours || label != "solution")

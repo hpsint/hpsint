@@ -1,6 +1,7 @@
 #pragma once
 
 #include <deal.II/base/geometry_info.h>
+#include <deal.II/base/table_handler.h>
 
 #include <deal.II/grid/grid_tools.h>
 
@@ -794,6 +795,59 @@ namespace Sintering
       data_out.attach_triangulation(tria);
       data_out.build_patches(mapping);
       data_out.write_vtu_in_parallel(output, dof_handler.get_communicator());
+    }
+
+    template <typename VectorType>
+    TableHandler
+    prepare_table_data(const VectorType & solution,
+                       const double       t,
+                       const unsigned int counter)
+    {
+      (void)solution;
+
+      TableHandler table;
+
+      table.add_value("step", counter);
+      table.add_value("time", t);
+
+      return table;
+    }
+
+    void
+    write_table(const TableHandler &table,
+                const double        t,
+                const MPI_Comm &    comm,
+                const std::string   label = "solution")
+    {
+      if (Utilities::MPI::this_mpi_process(comm) != 0)
+        return;
+
+      const bool is_new = (t == 0);
+
+      std::string save_path = label + ".log";
+
+      std::stringstream ss;
+      table.write_text(ss);
+
+      std::string line;
+
+      std::ofstream ofs;
+      ofs.open(save_path,
+               is_new ? std::ofstream::app :
+                        std::ofstream::out | std::ofstream::trunc);
+
+      // Get header
+      std::getline(ss, line);
+
+      // Write header if we only start writing
+      if (is_new)
+        ofs << line << std::endl;
+
+      // Take the data itself
+      std::getline(ss, line);
+
+      ofs << line << std::endl;
+      ofs.close();
     }
 
   } // namespace Postprocessors
