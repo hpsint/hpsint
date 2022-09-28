@@ -587,7 +587,23 @@ namespace Sintering
       data_out.write_vtu_in_parallel(output, dof_handler.get_communicator());
     }
 
+    template <int dim, typename Number>
+    void
+    write_bounding_box(const BoundingBox<dim, Number> &bb,
+                       const Mapping<dim> &            mapping,
+                       const DoFHandler<dim> &         dof_handler,
+                       const std::string               output)
+    {
+      Triangulation<dim> tria;
+      GridGenerator::hyper_rectangle(tria,
+                                     bb.get_boundary_points().first,
+                                     bb.get_boundary_points().second);
 
+      DataOut<dim> data_out;
+      data_out.attach_triangulation(tria);
+      data_out.build_patches(mapping);
+      data_out.write_vtu_in_parallel(output, dof_handler.get_communicator());
+    }
 
     template <int dim, typename VectorType>
     BoundingBox<dim, typename VectorType::value_type>
@@ -786,15 +802,7 @@ namespace Sintering
     {
       const auto bb = estimate_shrinkage(mapping, dof_handler, solution);
 
-      Triangulation<dim> tria;
-      GridGenerator::hyper_rectangle(tria,
-                                     bb.get_boundary_points().first,
-                                     bb.get_boundary_points().second);
-
-      DataOut<dim> data_out;
-      data_out.attach_triangulation(tria);
-      data_out.build_patches(mapping);
-      data_out.write_vtu_in_parallel(output, dof_handler.get_communicator());
+      write_bounding_box(bb, mapping, dof_handler, output);
     }
 
     void

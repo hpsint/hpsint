@@ -2135,10 +2135,17 @@ namespace Sintering
           pcout << "Outputing data at t = " << t << " (" << output << ")"
                 << std::endl;
 
-          Postprocessors::estimate_shrinkage(mapping,
-                                             dof_handler,
-                                             solution,
-                                             output);
+          const auto bb =
+            Postprocessors::estimate_shrinkage(mapping, dof_handler, solution);
+
+          Postprocessors::write_bounding_box(bb, mapping, dof_handler, output);
+
+          if (true)
+            {
+              const std::vector labels = {"size_x", "size_y", "size_z"};
+              for (unsigned int d = 0; d < dim; ++d)
+                table.add_value(labels[d], bb.side_length(d));
+            }
         }
 
       if (true)
