@@ -2150,7 +2150,9 @@ namespace Sintering
 
       if (params.output_data.table)
         {
-          Postprocessors::write_table(table, t, MPI_COMM_WORLD, label);
+          std::string output =
+            params.output_data.vtk_path + "/" + label + ".log";
+          Postprocessors::write_table(table, t, MPI_COMM_WORLD, output);
         }
 
       counters[label]++;

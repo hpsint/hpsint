@@ -809,14 +809,12 @@ namespace Sintering
     write_table(const TableHandler &table,
                 const double        t,
                 const MPI_Comm &    comm,
-                const std::string   label = "solution")
+                const std::string   save_path)
     {
       if (Utilities::MPI::this_mpi_process(comm) != 0)
         return;
 
       const bool is_new = (t == 0);
-
-      std::string save_path = label + ".log";
 
       std::stringstream ss;
       table.write_text(ss);
