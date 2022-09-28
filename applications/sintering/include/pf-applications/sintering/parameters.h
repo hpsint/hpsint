@@ -610,9 +610,7 @@ namespace Sintering
       prm.add_parameter("Shrinkage",
                         output_data.shrinkage,
                         "Determine shrinkage.");
-      prm.add_parameter("Table",
-                        output_data.table,
-                        "Output table.");
+      prm.add_parameter("Table", output_data.table, "Output table.");
       prm.add_parameter("Debug",
                         output_data.debug,
                         "Whether debug output is enabled.");
