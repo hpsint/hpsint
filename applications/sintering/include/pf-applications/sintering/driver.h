@@ -1893,7 +1893,8 @@ namespace Sintering
             if ((params.output_data.output_time_interval > 0.0) &&
                 has_converged &&
                 (t >
-                 params.output_data.output_time_interval + time_last_output))
+                   params.output_data.output_time_interval + time_last_output ||
+                 is_last_time_step))
               {
                 time_last_output = t;
                 output_result(solution,
