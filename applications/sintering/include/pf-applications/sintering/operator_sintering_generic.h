@@ -2,9 +2,8 @@
 
 #include <pf-applications/sintering/advection.h>
 #include <pf-applications/sintering/operator_base.h>
-#include <pf-applications/sintering/sintering_data.h>
-
 #include <pf-applications/sintering/operator_sintering_base.h>
+#include <pf-applications/sintering/sintering_data.h>
 
 #include <pf-applications/time_integration/solution_history.h>
 
@@ -14,10 +13,11 @@ namespace Sintering
 
   template <int dim, typename Number, typename VectorizedArrayType>
   class SinteringOperatorGeneric
-    : public SinteringOperatorBase<dim,
-                          Number,
-                          VectorizedArrayType,
-                          SinteringOperatorGeneric<dim, Number, VectorizedArrayType>>
+    : public SinteringOperatorBase<
+        dim,
+        Number,
+        VectorizedArrayType,
+        SinteringOperatorGeneric<dim, Number, VectorizedArrayType>>
   {
   public:
     using T = SinteringOperatorGeneric<dim, Number, VectorizedArrayType>;
@@ -36,10 +36,11 @@ namespace Sintering
       const TimeIntegration::SolutionHistory<BlockVectorType> &   history,
       const AdvectionMechanism<dim, Number, VectorizedArrayType> &advection,
       const bool                                                  matrix_based)
-      : SinteringOperatorBase<dim,
-                     Number,
-                     VectorizedArrayType,
-                     SinteringOperatorGeneric<dim, Number, VectorizedArrayType>>(
+      : SinteringOperatorBase<
+          dim,
+          Number,
+          VectorizedArrayType,
+          SinteringOperatorGeneric<dim, Number, VectorizedArrayType>>(
           matrix_free,
           constraints,
           data,
@@ -113,8 +114,8 @@ namespace Sintering
       // Reinit advection data for the current cells batch
       if (this->advection.enabled())
         this->advection.reinit(cell,
-                         static_cast<unsigned int>(n_grains),
-                         phi.get_matrix_free());
+                               static_cast<unsigned int>(n_grains),
+                               phi.get_matrix_free());
 
       for (unsigned int q = 0; q < phi.n_q_points; ++q)
         {
@@ -182,8 +183,8 @@ namespace Sintering
                   const auto &velocity =
                     this->advection.get_velocity(ig, phi.quadrature_point(q));
                   const auto &velocity_derivative =
-                    this->advection.get_velocity_derivative(ig,
-                                                      phi.quadrature_point(q));
+                    this->advection.get_velocity_derivative(
+                      ig, phi.quadrature_point(q));
 
                   value_result[0] +=
                     velocity * gradient[0] + velocity_derivative * c_grad;
@@ -241,8 +242,8 @@ namespace Sintering
           // Reinit advection data for the current cells batch
           if (this->advection.enabled())
             this->advection.reinit(cell,
-                             static_cast<unsigned int>(n_grains),
-                             matrix_free);
+                                   static_cast<unsigned int>(n_grains),
+                                   matrix_free);
 
           for (unsigned int q = 0; q < phi.n_q_points; ++q)
             {
@@ -287,10 +288,12 @@ namespace Sintering
 
                   gradient_result[2 + ig] = L * kappa_p * grad[2 + ig];
 
-                  if (this->advection.enabled() && this->advection.has_velocity(ig))
+                  if (this->advection.enabled() &&
+                      this->advection.has_velocity(ig))
                     {
                       const auto &velocity =
-                        this->advection.get_velocity(ig, phi.quadrature_point(q));
+                        this->advection.get_velocity(ig,
+                                                     phi.quadrature_point(q));
 
                       value_result[0] += velocity * c_grad;
                       value_result[2 + ig] += velocity * grad[2 + ig];
