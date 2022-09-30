@@ -96,7 +96,11 @@ namespace Sintering
       const LinearAlgebra::distributed::DynamicBlockVector<Number> &src,
       const bool save_op_gradients = false)
     {
-      AssertDimension(src.n_blocks(), this->n_components());
+      AssertThrow(src.n_blocks() >= this->n_components(),
+                  ExcMessage("Source vector size (" +
+                             std::to_string(src.n_blocks()) +
+                             ") is too small to fill all the components (" +
+                             std::to_string(this->n_components()) + ")."));
 
       this->history_vector = src;
       this->history_vector.update_ghost_values();
