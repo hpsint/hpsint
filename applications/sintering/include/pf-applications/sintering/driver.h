@@ -2048,7 +2048,9 @@ namespace Sintering
 
           if (params.output_data.fields.count("AC"))
             {
-              for (unsigned int ig = 2; ig < solution.n_blocks(); ++ig)
+              for (unsigned int ig = 2;
+                   ig < sintering_operator.get_data().n_components();
+                   ++ig)
                 data_out.add_data_vector(dof_handler,
                                          solution.block(ig),
                                          "eta" + std::to_string(ig - 2));
