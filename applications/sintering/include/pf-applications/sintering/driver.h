@@ -72,7 +72,7 @@
 #include <pf-applications/sintering/initial_values.h>
 #include <pf-applications/sintering/operator_advection.h>
 #include <pf-applications/sintering/operator_postproc.h>
-#include <pf-applications/sintering/operator_sintering.h>
+#include <pf-applications/sintering/operator_sintering_generic.h>
 #include <pf-applications/sintering/parameters.h>
 #include <pf-applications/sintering/postprocessors.h>
 #include <pf-applications/sintering/preconditioners.h>
@@ -95,7 +95,7 @@ namespace Sintering
     using VectorType = LinearAlgebra::distributed::DynamicBlockVector<Number>;
 
     using NonLinearOperator =
-      SinteringOperator<dim, Number, VectorizedArrayType>;
+      SinteringOperatorGeneric<dim, Number, VectorizedArrayType>;
 
     const Parameters                          params;
     ConditionalOStream                        pcout;
