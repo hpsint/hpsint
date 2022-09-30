@@ -52,8 +52,8 @@
             "QVap": "100.0",
             "QSurf": "2.1266554",
             "QGb": "2.2902451",
-            "DGbMob0": "1e-9",
-            "QGbMob": "100.0"
+            "DGbMob0": "1.6e-32",
+            "QGbMob": "0"
         },
         "TimeScale": "1e2",
         "LengthScale": "1e-6",
@@ -75,7 +75,7 @@
         "Contour": "false",
         "ContourNCoarseningSteps": "0",
         "Debug": "false",
-        "Fields": "AC, CH, bnds, flux",
+        "Fields": "AC, CH, bnds, energy, flux",
         "HigherOrderCells": "true",
         "OutputTimeInterval": "5",
         "Regular": "true",
@@ -105,9 +105,9 @@
         "DesirableLinearIterations": "100",
         "DesirableNewtonIterations": "5",
         "GrowthFactor": "1.2",
-        "TimeEnd": "1000",
+        "TimeEnd": "72",
         "TimeStart": "0",
-        "TimeStepInit": "0.001",
+        "TimeStepInit": "0.01",
         "TimeStepMax": "100",
         "TimeStepMin": "1e-05"
     }
