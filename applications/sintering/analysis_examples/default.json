@@ -7,20 +7,30 @@
         "RefinementFrequency": "10",
         "TopFractionOfCells": "0.3"
     },
+    "Advection": {
+        "Enable": "true",
+        "Cgb": "0.14",
+        "Ceq": "1.0",
+        "K": "20",
+        "Mt": "1",
+        "Mr": "0"
+    },
     "Approximation": {
         "FEDegree": "1",
-        "NPoints1D": "2"
+        "NPoints1D": "2",
+        "NSubdivisions": "1"
     },
     "Geometry": {
         "BoundaryFactor": "0.5",
         "CustomBoundingBox": "false",
-        "DivisionsPerInterface": "3",
+        "DivisionsPerInterface": "4",
         "GlobalRefinement": "Base",
+        "HangingNodeWeight": "1",
         "InterfaceBufferRatio": "1",
-        "InterfaceWidth": "3",
-        "MinimizeOrderParameters": "true",
-        "MaxLevel0DivisionsPerInterface": 0.99999,
+        "InterfaceWidth": "2",
+        "MaxLevel0DivisionsPerInterface": "0.99999",
         "MaxPrime": "20",
+        "MinimizeOrderParameters": "true",
         "Periodic": "false",
         "BoundingBox": {
             "Xmax": "0",
@@ -33,82 +43,83 @@
     },
     "GrainTracker": {
         "BufferDistanceRatio": "0.05",
-        "GrainTrackerFrequency": "0",
+        "GrainTrackerFrequency": "10",
         "ThresholdLower": "0.01",
         "ThresholdUpper": "1.01"
     },
     "Material": {
-        "EnergyRealistic": {
-            "SurfaceEnergy": "1.2795e19",
-            "GrainBoundaryEnergy": "1.148e18"
+        "EnergyAbstract": {
+            "A": "16",
+            "B": "1",
+            "KappaC": "1",
+            "KappaP": "0.5"
         },
-        "MobilityRealistic": {
-            "Omega": "1.81e-29",
-            "DVol0": "19e-12",
-            "DVap0": "0.0",
-            "DSurf0": "5.408e-6",
-            "DGb0": "1.07398e-2",
-            "QVol": "1.58366",
-            "QVap": "100.0",
-            "QSurf": "2.1266554",
-            "QGb": "2.2902451",
-            "DGbMob0": "1.6e-32",
-            "QGbMob": "0"
+        "MobilityAbstract": {
+            "L": "1",
+            "Mgb": "0.4",
+            "Msurf": "4",
+            "Mvap": "1e-10",
+            "Mvol": "0.01"
         },
-        "TimeScale": "1e2",
-        "LengthScale": "1e-6",
-        "EnergyScale": "1e6",
-        "Temperature": "0: 1573, 5000: 1573",
-        "Type": "Realistic"
+        "Type": "Abstract"
     },
     "NonLinearData": {
-        "NonLinearSolverType": "damped",
-        "NewtonUseDamping": "false",
+        "FDMJacobianApproximation": false,
+        "LinearRelativeTolerance" : 1e-2,
+        "NewtonUseDamping" : true,
+        "NonLinearSolverType" : "damped",
         "NOXData": {
-            "DirectionMethod": "Newton",
             "LineSearchInterpolationType": "Cubic",
             "LineSearchMethod": "Full Step",
-            "OutputInformation": "0"
+            "OutputInformation": "0",
+            "DirectionMethod": "Newton"
         }
     },
     "Output": {
-        "Contour": "false",
+        "Contour": "true",
         "ContourNCoarseningSteps": "0",
         "Debug": "false",
-        "Fields": "AC, CH, bnds, energy, flux",
-        "HigherOrderCells": "true",
-        "OutputTimeInterval": "5",
+        "Fields": "CH,AC,bnds,dt,d2f,M,dM,kappa,L,subdomain",
+        "FluxesDivergences": "false",
+        "HigherOrderCells": "false",
+        "OutputTimeInterval": "10",
         "Regular": "true",
+        "Shrinkage": "true",
+        "Table": "true",
         "VtkPath": "."
     },
     "Preconditioners": {
         "OuterPreconditioner": "BlockPreconditioner2",
         "BlockPreconditioner2": {
             "Block0Preconditioner": "ILU",
-            "Block1Approximation": "all",
-            "Block1Preconditioner": "InverseDiagonalMatrix"
+            "Block1Approximation": "avg",
+            "Block1Preconditioner": "BlockILU"
         }
     },
     "Profiling": {
-        "OutputTimeInterval": "-1",
-        "RunVmults": "false"
+        "OutputTimeInterval": "900",
+        "RunVmults": "false",
+        "OutputMemoryConsumption" : "false"
     },
     "Restart": {
-        "FlexibleOutput": "false",
+        "FlexibleOutput": "true",
         "FullHistory": "true",
-        "Interval": "10",
+        "Interval": "500",
         "MaximalOutput": "0",
         "Prefix": "./restart",
         "Type": "never"
     },
     "TimeIntegration": {
+        "IntegrationScheme" : "BDF2",
         "DesirableLinearIterations": "100",
         "DesirableNewtonIterations": "5",
         "GrowthFactor": "1.2",
-        "TimeEnd": "72",
+        "Predictor": "None",
+        "TimeEnd": "1000",
         "TimeStart": "0",
         "TimeStepInit": "0.01",
         "TimeStepMax": "100",
-        "TimeStepMin": "1e-05"
+        "TimeStepMin": "1e-5",
+        "SanityCheck": "false"
     }
 }
