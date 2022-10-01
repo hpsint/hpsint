@@ -460,7 +460,7 @@ namespace Sintering
 
       // Volumetric and vaporization parts, the same as for isotropic
       Tensor<2, dim, VectorizedArrayType> M =
-        diagonal_matrix(Mvol * phi + Mvap * (1.0 - phi));
+        diagonal_matrix<dim>(Mvol * phi + Mvap * (1.0 - phi));
 
       // Surface anisotropic part
       VectorizedArrayType fsurf = Msurf * (c * c) * ((1. - c) * (1. - c));
@@ -498,7 +498,7 @@ namespace Sintering
         phi, VectorizedArrayType(1.0), VectorizedArrayType(1.0), phi);
 
       // Volumetric and vaporization parts, the same as for isotropic
-      Tensor<2, dim, VectorizedArrayType> M = diagonal_matrix(Mvol * phi);
+      Tensor<2, dim, VectorizedArrayType> M = diagonal_matrix<dim>(Mvol * phi);
 
       return M;
     }
@@ -515,7 +515,7 @@ namespace Sintering
 
       // Volumetric and vaporization parts, the same as for isotropic
       Tensor<2, dim, VectorizedArrayType> M =
-        diagonal_matrix(Mvap * (1. - phi));
+        diagonal_matrix<dim>(Mvap * (1. - phi));
 
       return M;
     }
@@ -576,7 +576,7 @@ namespace Sintering
 
       // Volumetric and vaporization parts, the same as for isotropic
       Tensor<2, dim, VectorizedArrayType> dMdc =
-        diagonal_matrix((Mvol - Mvap) * dphidc);
+        diagonal_matrix<dim>((Mvol - Mvap) * dphidc);
 
       // Surface part
       VectorizedArrayType fsurf  = Msurf * c2_1minusc2;
@@ -608,7 +608,7 @@ namespace Sintering
       Tensor<2, dim, VectorizedArrayType> M  = projector_matrix(nc, 1. / nrm);
 
       Tensor<2, dim, VectorizedArrayType> T =
-        diagonal_matrix(mu_grad * nc) + outer_product(nc, mu_grad);
+        outer_product(mu_grad, nc) + outer_product(nc, mu_grad);
       T *= -fsurf;
 
       return T * M;
