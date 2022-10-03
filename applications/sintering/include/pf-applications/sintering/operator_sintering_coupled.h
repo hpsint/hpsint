@@ -2,20 +2,24 @@
 
 #include <pf-applications/sintering/operator_sintering_base.h>
 
+#include <pf-applications/structural/stvenantkirchhoff.h>
+#include <pf-applications/structural/tools.h>
+
 namespace Sintering
 {
   using namespace dealii;
+  using namespace Structural;
 
   template <int dim, typename Number, typename VectorizedArrayType>
-  class SinteringOperatorGeneric
+  class SinteringOperatorCoupled
     : public SinteringOperatorBase<
         dim,
         Number,
         VectorizedArrayType,
-        SinteringOperatorGeneric<dim, Number, VectorizedArrayType>>
+        SinteringOperatorCoupled<dim, Number, VectorizedArrayType>>
   {
   public:
-    using T = SinteringOperatorGeneric<dim, Number, VectorizedArrayType>;
+    using T = SinteringOperatorCoupled<dim, Number, VectorizedArrayType>;
 
     using VectorType = LinearAlgebra::distributed::Vector<Number>;
     using BlockVectorType =
@@ -24,7 +28,7 @@ namespace Sintering
     using value_type  = Number;
     using vector_type = VectorType;
 
-    SinteringOperatorGeneric(
+    SinteringOperatorCoupled(
       const MatrixFree<dim, Number, VectorizedArrayType> &        matrix_free,
       const AffineConstraints<Number> &                           constraints,
       const SinteringOperatorData<dim, VectorizedArrayType> &     data,
@@ -35,16 +39,17 @@ namespace Sintering
           dim,
           Number,
           VectorizedArrayType,
-          SinteringOperatorGeneric<dim, Number, VectorizedArrayType>>(
+          SinteringOperatorCoupled<dim, Number, VectorizedArrayType>>(
           matrix_free,
           constraints,
           data,
           history,
           advection,
           matrix_based)
+      , material(1, 0.3, TWO_DIM_TYPE::PLAIN_STRESS)
     {}
 
-    ~SinteringOperatorGeneric()
+    ~SinteringOperatorCoupled()
     {}
 
     template <bool with_time_derivative = true>
@@ -59,7 +64,7 @@ namespace Sintering
 #define OPERATION(c, d)                                           \
   MyMatrixFreeTools::cell_loop_wrapper(                           \
     this->matrix_free,                                            \
-    &SinteringOperatorGeneric::                                   \
+    &SinteringOperatorCoupled::                                   \
       do_evaluate_nonlinear_residual<c, d, with_time_derivative>, \
     this,                                                         \
     dst,                                                          \
@@ -72,19 +77,19 @@ namespace Sintering
     unsigned int
     n_components() const override
     {
-      return this->data.n_components();
+      return this->data.n_components() + dim;
     }
 
     unsigned int
     n_grains() const
     {
-      return this->n_components() - 2;
+      return this->data.n_components() - 2;
     }
 
     static constexpr unsigned int
     n_grains_to_n_components(const unsigned int n_grains)
     {
-      return n_grains + 2;
+      return n_grains + 2 + dim;
     }
 
     template <int n_comp, int n_grains>
@@ -92,7 +97,7 @@ namespace Sintering
     do_vmult_kernel(
       FECellIntegrator<dim, n_comp, Number, VectorizedArrayType> &phi) const
     {
-      AssertDimension(n_comp - 2, n_grains);
+      AssertDimension(n_comp - 2 - dim, n_grains);
 
       const unsigned int cell = phi.get_current_cell_index();
 
@@ -189,6 +194,23 @@ namespace Sintering
                 }
             }
 
+          // Elasticity
+          Tensor<2, dim, VectorizedArrayType> H;
+          for (unsigned int d = 0; d < dim; d++)
+            H[d] = gradient[n_grains + 2 + d];
+
+          const auto E = apply_l(H);
+
+          // TODO: enable this later, this is to check that the matrix is
+          // assembled properly.
+          // const auto C = c * material.get_dSdE();
+          const auto C = material.get_dSdE();
+
+          const auto S = apply_l_transposed<dim>(C * E);
+
+          for (unsigned int d = 0; d < dim; d++)
+            gradient_result[n_grains + 2 + d] = S[d];
+
           phi.submit_value(value_result, q);
           phi.submit_gradient(gradient_result, q);
         }
@@ -203,7 +225,7 @@ namespace Sintering
       const BlockVectorType &                             src,
       const std::pair<unsigned int, unsigned int> &       range) const
     {
-      AssertDimension(n_comp - 2, n_grains);
+      AssertDimension(n_comp - 2 - dim, n_grains);
 
       FECellIntegrator<dim, n_comp, Number, VectorizedArrayType> phi(
         matrix_free, this->dof_index);
@@ -295,6 +317,22 @@ namespace Sintering
                     }
                 }
 
+              // Elasticity
+              Tensor<2, dim, VectorizedArrayType> H;
+              for (unsigned int d = 0; d < dim; d++)
+                H[d] = grad[n_grains + 2 + d];
+
+              const auto E = apply_l(H);
+
+              // update material
+              material.reinit(E);
+              const auto C = c * material.get_dSdE();
+
+              const auto S = apply_l_transposed<dim>(C * E);
+
+              for (unsigned int d = 0; d < dim; d++)
+                gradient_result[n_grains + 2 + d] = S[d];
+
               phi.submit_value(value_result, q);
               phi.submit_gradient(gradient_result, q);
             }
@@ -303,5 +341,7 @@ namespace Sintering
                                 dst);
         }
     }
+
+    const StVenantKirchhoff<dim, Number, VectorizedArrayType> material;
   };
 } // namespace Sintering

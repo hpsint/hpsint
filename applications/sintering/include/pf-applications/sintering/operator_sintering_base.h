@@ -388,7 +388,13 @@ namespace Sintering
     void
     sanity_check(BlockVectorType &solution) const
     {
-      for (unsigned int b = 0; b < solution.n_blocks(); ++b)
+      AssertThrow(solution.n_blocks() >= data.n_components(),
+                  ExcMessage("Solution vector size (" +
+                             std::to_string(solution.n_blocks()) +
+                             ") is too small to perform the sanity check (" +
+                             std::to_string(data.n_components()) + ")."));
+
+      for (unsigned int b = 0; b < data.n_components(); ++b)
         if (b != 1) // If not chemical potential
           for (auto &val : solution.block(b))
             {

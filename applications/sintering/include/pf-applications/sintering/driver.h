@@ -72,6 +72,7 @@
 #include <pf-applications/sintering/initial_values.h>
 #include <pf-applications/sintering/operator_advection.h>
 #include <pf-applications/sintering/operator_postproc.h>
+#include <pf-applications/sintering/operator_sintering_coupled.h>
 #include <pf-applications/sintering/operator_sintering_generic.h>
 #include <pf-applications/sintering/parameters.h>
 #include <pf-applications/sintering/postprocessors.h>
@@ -80,6 +81,8 @@
 
 #include <pf-applications/grain_tracker/tracker.h>
 #include <pf-applications/grid/constraint_helper.h>
+
+//#define COUPLED_MODEL
 
 namespace Sintering
 {
@@ -95,7 +98,11 @@ namespace Sintering
     using VectorType = LinearAlgebra::distributed::DynamicBlockVector<Number>;
 
     using NonLinearOperator =
+#ifdef COUPLED_MODEL
+      SinteringOperatorCoupled<dim, Number, VectorizedArrayType>;
+#else
       SinteringOperatorGeneric<dim, Number, VectorizedArrayType>;
+#endif
 
     const Parameters                          params;
     ConditionalOStream                        pcout;
@@ -2048,7 +2055,9 @@ namespace Sintering
 
           if (params.output_data.fields.count("AC"))
             {
-              for (unsigned int ig = 2; ig < solution.n_blocks(); ++ig)
+              for (unsigned int ig = 2;
+                   ig < sintering_operator.get_data().n_components();
+                   ++ig)
                 data_out.add_data_vector(dof_handler,
                                          solution.block(ig),
                                          "eta" + std::to_string(ig - 2));
