@@ -496,6 +496,7 @@ namespace Sintering
             DoFTools::extract_locally_relevant_dofs(dof_handler));
           DoFTools::make_hanging_node_constraints(dof_handler,
                                                   constraints_for_matrix);
+          add_matrix_constraints();
           constraints_for_matrix.close();
 
           dsp.reinit(dof_handler.locally_owned_dofs(),
@@ -537,6 +538,10 @@ namespace Sintering
 #undef OPERATION
       }
     }
+
+    virtual void
+    add_matrix_constraints() const
+    {}
 
     virtual void
     update_state(const BlockVectorType &solution)
