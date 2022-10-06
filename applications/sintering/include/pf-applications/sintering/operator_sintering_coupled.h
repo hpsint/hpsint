@@ -258,12 +258,11 @@ namespace Sintering
     {
       (void)src;
 
-      for (unsigned int i = 0; i < zero_c_constraints_indices.size(); ++i)
+      for (const unsigned int index : zero_c_constraints_indices)
         for (unsigned int d = 0; d < dim; ++d)
           {
-            const unsigned int index =
-              n_components() * zero_c_constraints_indices[i] + d +
-              this->data.n_components();
+            const unsigned int matrix_index =
+              n_components() * index + d + this->data.n_components();
             dst.local_element(index) = 0.0;
           }
     }
