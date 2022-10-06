@@ -263,7 +263,7 @@ namespace Sintering
           {
             const unsigned int matrix_index =
               n_components() * index + d + this->data.n_components();
-            dst.local_element(index) = 0.0;
+            dst.local_element(matrix_index) = 0.0;
           }
     }
 
