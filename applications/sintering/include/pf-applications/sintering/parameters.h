@@ -160,6 +160,7 @@ namespace Sintering
     std::string           vtk_path               = ".";
     std::set<std::string> fields                 = {"CH",
                                     "AC",
+                                    "displ",
                                     "bnds",
                                     "dt",
                                     "d2f",
@@ -627,7 +628,7 @@ namespace Sintering
                         output_data.vtk_path,
                         "Path to write VTK files.");
       const std::string output_fields_options =
-        "CH|AC|bnds|dt|d2f|M|dM|kappa|L|energy|flux|subdomain";
+        "CH|AC|displ|bnds|dt|d2f|M|dM|kappa|L|energy|flux|subdomain";
       prm.add_parameter("Fields",
                         output_data.fields,
                         "Fields to output.",

@@ -2063,6 +2063,15 @@ namespace Sintering
                                          "eta" + std::to_string(ig - 2));
             }
 
+          if (params.output_data.fields.count("displ"))
+            {
+              for (unsigned int b =
+                     sintering_operator.get_data().n_components();
+                   b < solution.n_blocks();
+                   ++b)
+                data_out.add_data_vector(dof_handler, solution.block(b), "u");
+            }
+
           sintering_operator.add_data_vectors(data_out,
                                               solution,
                                               params.output_data.fields);
