@@ -111,13 +111,12 @@ namespace Sintering
     void
     add_matrix_constraints() const override
     {
-      for (unsigned int i = 0; i < zero_c_constraints_indices.size(); ++i)
+      for (const unsigned int index : zero_c_constraints_indices)
         for (unsigned int d = 0; d < dim; ++d)
           {
-            const unsigned int index =
-              n_components() * zero_c_constraints_indices[i] + d +
-              this->data.n_components();
-            this->constraints_for_matrix.add_line(index);
+            const unsigned int matrix_index =
+              n_components() * index + d + this->data.n_components();
+            this->constraints_for_matrix.add_line(matrix_index);
           }
     }
 
@@ -127,10 +126,9 @@ namespace Sintering
     {
       (void)src;
 
-      for (unsigned int i = 0; i < zero_c_constraints_indices.size(); ++i)
+      for (const unsigned int index : zero_c_constraints_indices)
         for (unsigned int d = 0; d < dim; ++d)
-          dst.block(this->data.n_components() + d)
-            .local_element(zero_c_constraints_indices[i]) = 0.0;
+          dst.block(this->data.n_components() + d).local_element(index) = 0.0;
     }
 
     template <int n_comp, int n_grains>
