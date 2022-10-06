@@ -160,6 +160,16 @@ namespace Sintering
 
     static const int dimension = dim;
 
+    template <typename BlockVectorType_>
+    struct check
+    {
+      template <typename T_>
+      using do_post_vmult_t = decltype(
+        std::declval<T_ const>().template do_post_vmult<BlockVectorType_>(
+          std::declval<BlockVectorType_ &>(),
+          std::declval<BlockVectorType_ const &>()));
+    };
+
     OperatorBase(
       const MatrixFree<dim, Number, VectorizedArrayType> &matrix_free,
       const AffineConstraints<Number> &                   constraints,
@@ -320,6 +330,8 @@ namespace Sintering
         {
           system_matrix.vmult(dst, src);
         }
+
+      post_vmult(dst, src);
     }
 
     template <typename BlockVectorType_>
@@ -385,6 +397,8 @@ namespace Sintering
           this->vmult(dst_, src_);
           VectorTools::split_up_components_fast(dst_, dst); // TODO
         }
+
+      post_vmult(dst, src);
     }
 
     template <typename VectorType_>
@@ -743,6 +757,27 @@ namespace Sintering
                                   EvaluationFlags::EvaluationFlags::gradients,
                                 dst);
         }
+    }
+
+    virtual void
+    post_vmult(VectorType &dst, const VectorType &src) const
+    {
+      (void)dst;
+      (void)src;
+    }
+
+    template <typename BlockVectorType_>
+    void
+    post_vmult(BlockVectorType_ &dst, const BlockVectorType_ &src) const
+    {
+      (void)dst;
+      (void)src;
+
+      if constexpr (dealii::internal::is_supported_operation<
+                      check<BlockVectorType_>::template do_post_vmult_t,
+                      T>)
+        static_cast<const T &>(*this).template do_post_vmult<BlockVectorType_>(
+          dst, src);
     }
 
 
