@@ -106,6 +106,86 @@ namespace Sintering
           if (solution.block(0)[local_index] < c_min)
             zero_c_constraints_indices.emplace_back(local_index);
         }
+
+      if (true)
+        {
+          // Add central constraint
+          const auto bb_tria = GridTools::compute_bounding_box(
+            this->matrix_free.get_dof_handler().get_triangulation());
+
+          auto center = bb_tria.get_boundary_points().first +
+                        bb_tria.get_boundary_points().second;
+          center /= 2.;
+
+          std::vector<types::global_dof_index> local_face_dof_indices(
+            this->matrix_free.get_dofs_per_face());
+          std::set<types::global_dof_index> indices_to_add;
+
+          const unsigned int x_id = 0;
+
+          double       c_max_on_face    = 0.;
+          unsigned int id_c_max_on_face = numbers::invalid_unsigned_int;
+
+          // Apply constraints for displacement along x-axis
+          for (const auto &cell :
+               this->matrix_free.get_dof_handler().active_cell_iterators())
+            if (cell->is_locally_owned())
+              for (const auto &face : cell->face_iterators())
+                if (std::abs(face->center()(x_id) - center[x_id]) < 1e-9)
+                  {
+                    face->get_dof_indices(local_face_dof_indices);
+
+                    for (const auto i : local_face_dof_indices)
+                      {
+                        const auto local_index =
+                          partitioner->global_to_local(i);
+                        indices_to_add.insert(local_index);
+
+                        if (solution.block(0)[local_index] > c_max_on_face)
+                          {
+                            c_max_on_face    = solution.block(0)[local_index];
+                            id_c_max_on_face = local_index;
+                          }
+                      }
+                  }
+
+          const auto comm =
+            this->matrix_free.get_dof_handler().get_communicator();
+
+          const double global_c_max_on_face =
+            Utilities::MPI::max(c_max_on_face, comm);
+
+          unsigned int rank_having_c_max =
+            std::abs(global_c_max_on_face - c_max_on_face) < 1e-16 ?
+              Utilities::MPI::this_mpi_process(comm) :
+              numbers::invalid_unsigned_int;
+          rank_having_c_max = Utilities::MPI::min(c_max_on_face, comm);
+
+          // Append new indices only
+          auto iter_indices    = zero_c_constraints_indices.cbegin();
+          auto iter_candidates = indices_to_add.cbegin();
+          bool add_pointwise =
+            rank_having_c_max == Utilities::MPI::this_mpi_process(comm);
+
+          for (; iter_indices != zero_c_constraints_indices.cend();
+               ++iter_indices)
+            {
+              if (*iter_candidates == *iter_indices)
+                ++iter_candidates;
+              else
+                for (; *iter_candidates < *iter_indices &&
+                       iter_candidates != indices_to_add.cend();
+                     ++iter_candidates)
+                  displ_constraints_indices[x_id].push_back(*iter_candidates);
+
+              if (add_pointwise && id_c_max_on_face == *iter_indices)
+                add_pointwise = false;
+            }
+
+          if (add_pointwise)
+            for (unsigned int d = x_id + 1; d < dim; ++d)
+              displ_constraints_indices[d].push_back(id_c_max_on_face);
+        }
     }
 
     void
@@ -160,6 +240,10 @@ namespace Sintering
             dst.block(this->data.n_components() + d).local_element(index) =
               value[d];
         }
+
+      for (unsigned int d = 0; d < dim; ++d)
+        for (const unsigned int index : displ_constraints_indices[d])
+          dst.block(this->data.n_components() + d).local_element(index) = 0.0;
     }
 
     template <int n_comp, int n_grains>
@@ -325,6 +409,14 @@ namespace Sintering
               dst.local_element(matrix_index) = value[d];
             }
         }
+
+      for (unsigned int d = 0; d < dim; ++d)
+        for (const unsigned int index : displ_constraints_indices[d])
+          {
+            const unsigned int matrix_index =
+              n_components() * index + d + this->data.n_components();
+            dst.local_element(matrix_index) = 0.0;
+          }
     }
 
   private:
@@ -457,5 +549,7 @@ namespace Sintering
 
     std::vector<unsigned int>           zero_c_constraints_indices;
     mutable std::vector<Tensor<1, dim>> zero_c_constraints_values;
+
+    std::array<std::vector<unsigned int>, dim> displ_constraints_indices;
   };
 } // namespace Sintering
