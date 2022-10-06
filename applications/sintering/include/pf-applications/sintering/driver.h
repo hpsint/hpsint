@@ -989,6 +989,8 @@ namespace Sintering
               sintering_data.fill_quadrature_point_values(
                 matrix_free, current_u, params.advection_data.enable);
 
+              nonlinear_operator.update_state(current_u);
+
               nonlinear_operator.do_update();
 
               if (params.nonlinear_data.fdm_jacobian_approximation)

@@ -538,6 +538,12 @@ namespace Sintering
       }
     }
 
+    virtual void
+    update_state(const BlockVectorType &solution)
+    {
+      (void)solution;
+    }
+
     void
     clear_system_matrix() const
     {
