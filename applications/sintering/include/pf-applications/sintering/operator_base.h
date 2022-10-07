@@ -168,6 +168,12 @@ namespace Sintering
         std::declval<T_ const>().template do_post_vmult<BlockVectorType_>(
           std::declval<BlockVectorType_ &>(),
           std::declval<BlockVectorType_ const &>()));
+
+      template <typename T_>
+      using do_pre_vmult_t = decltype(
+        std::declval<T_ const>().template do_pre_vmult<BlockVectorType_>(
+          std::declval<BlockVectorType_ &>(),
+          std::declval<BlockVectorType_ const &>()));
     };
 
     OperatorBase(
@@ -270,6 +276,8 @@ namespace Sintering
     {
       MyScope scope(this->timer, label + "::vmult_", this->do_timing);
 
+      pre_vmult(dst, src);
+
       if (matrix_based == false)
         {
           if (constrained_indices.empty())
@@ -339,6 +347,8 @@ namespace Sintering
     vmult(BlockVectorType_ &dst, const BlockVectorType_ &src) const
     {
       MyScope scope(this->timer, label + "::vmult", this->do_timing);
+
+      pre_vmult(dst, src);
 
       if (matrix_based == false)
         {
@@ -768,6 +778,27 @@ namespace Sintering
                                   EvaluationFlags::EvaluationFlags::gradients,
                                 dst);
         }
+    }
+
+    virtual void
+    pre_vmult(VectorType &dst, const VectorType &src) const
+    {
+      (void)dst;
+      (void)src;
+    }
+
+    template <typename BlockVectorType_>
+    void
+    pre_vmult(BlockVectorType_ &dst, const BlockVectorType_ &src) const
+    {
+      (void)dst;
+      (void)src;
+
+      if constexpr (dealii::internal::is_supported_operation<
+                      check<BlockVectorType_>::template do_pre_vmult_t,
+                      T>)
+        static_cast<const T &>(*this).template do_pre_vmult<BlockVectorType_>(
+          dst, src);
     }
 
     virtual void
