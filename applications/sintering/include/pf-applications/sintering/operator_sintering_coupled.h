@@ -122,13 +122,42 @@ namespace Sintering
 
     template <typename BlockVectorType_>
     void
+    do_pre_vmult(BlockVectorType_ &dst, const BlockVectorType_ &src_in) const
+    {
+      (void)dst;
+
+      BlockVectorType_ &src = const_cast<BlockVectorType_ &>(src_in);
+
+      zero_c_constraints_values.clear();
+
+      for (const unsigned int index : zero_c_constraints_indices)
+        {
+          zero_c_constraints_values.push_back(Tensor<1, dim>());
+          for (unsigned int d = 0; d < dim; ++d)
+            {
+              zero_c_constraints_values.back()[d] =
+                src.block(this->data.n_components() + d).local_element(index);
+              src.block(this->data.n_components() + d).local_element(index) =
+                0.0;
+            }
+        }
+    }
+
+    template <typename BlockVectorType_>
+    void
     do_post_vmult(BlockVectorType_ &dst, const BlockVectorType_ &src) const
     {
       (void)src;
 
-      for (const unsigned int index : zero_c_constraints_indices)
-        for (unsigned int d = 0; d < dim; ++d)
-          dst.block(this->data.n_components() + d).local_element(index) = 0.0;
+      for (unsigned int i = 0; i < zero_c_constraints_indices.size(); ++i)
+        {
+          const auto &index = zero_c_constraints_indices[i];
+          const auto &value = zero_c_constraints_values[i];
+
+          for (unsigned int d = 0; d < dim; ++d)
+            dst.block(this->data.n_components() + d).local_element(index) =
+              value[d];
+        }
     }
 
     template <int n_comp, int n_grains>
@@ -254,17 +283,46 @@ namespace Sintering
 
   protected:
     void
+    pre_vmult(VectorType &dst, const VectorType &src_in) const override
+    {
+      (void)dst;
+
+      VectorType &src = const_cast<VectorType &>(src_in);
+
+      zero_c_constraints_values.clear();
+
+      for (const unsigned int index : zero_c_constraints_indices)
+        {
+          zero_c_constraints_values.push_back(Tensor<1, dim>());
+          for (unsigned int d = 0; d < dim; ++d)
+            {
+              const unsigned int matrix_index =
+                n_components() * index + d + this->data.n_components();
+
+              zero_c_constraints_values.back()[d] =
+                src.local_element(matrix_index);
+              src.local_element(matrix_index) = 0.0;
+            }
+        }
+    }
+
+    void
     post_vmult(VectorType &dst, const VectorType &src) const override
     {
       (void)src;
 
-      for (const unsigned int index : zero_c_constraints_indices)
-        for (unsigned int d = 0; d < dim; ++d)
-          {
-            const unsigned int matrix_index =
-              n_components() * index + d + this->data.n_components();
-            dst.local_element(matrix_index) = 0.0;
-          }
+      for (unsigned int i = 0; i < zero_c_constraints_indices.size(); ++i)
+        {
+          const auto &index = zero_c_constraints_indices[i];
+          const auto &value = zero_c_constraints_values[i];
+
+          for (unsigned int d = 0; d < dim; ++d)
+            {
+              const unsigned int matrix_index =
+                n_components() * index + d + this->data.n_components();
+              dst.local_element(matrix_index) = value[d];
+            }
+        }
     }
 
   private:
@@ -394,6 +452,8 @@ namespace Sintering
     }
 
     const StVenantKirchhoff<dim, Number, VectorizedArrayType> material;
-    std::vector<unsigned int> zero_c_constraints_indices;
+
+    std::vector<unsigned int>           zero_c_constraints_indices;
+    mutable std::vector<Tensor<1, dim>> zero_c_constraints_values;
   };
 } // namespace Sintering
