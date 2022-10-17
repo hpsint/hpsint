@@ -247,8 +247,6 @@ namespace NonLinearSolvers
 
       while (status == NewtonSolverSolverControl::iterate)
         {
-          status = check(it, norm_r, dst, vec_residual);
-
           // reset increment
           increment = 0.0;
 
@@ -330,6 +328,8 @@ namespace NonLinearSolvers
           // increment iteration counter
           ++it;
           ++history_newton_iterations;
+
+          status = check(it, norm_r, dst, vec_residual);
         }
 
       AssertThrow(status == NewtonSolverSolverControl::success,
