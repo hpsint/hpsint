@@ -74,4 +74,22 @@ namespace Structural
         AssertThrow(dim == 2 || dim == 3, ExcNotImplemented());
       }
   }
+
+  template <int dim, typename Number>
+  Tensor<2, dim, Number>
+  add_identity(Tensor<2, dim, Number> gradient)
+  {
+    for (unsigned int i = 0; i < dim; i++)
+      gradient[i][i] = gradient[i][i] + 1.0;
+    return gradient;
+  }
+
+  template <int dim, typename Number>
+  Tensor<2, dim, Number>
+  sub_identity(Tensor<2, dim, Number> gradient)
+  {
+    for (unsigned int i = 0; i < dim; i++)
+      gradient[i][i] = gradient[i][i] - 1.0;
+    return gradient;
+  }
 } // namespace Structural
