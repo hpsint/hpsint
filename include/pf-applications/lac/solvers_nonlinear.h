@@ -243,7 +243,7 @@ namespace NonLinearSolvers
       double   norm_r = vec_residual.l2_norm();
       unsigned it     = 0;
 
-      auto status = NewtonSolverSolverControl::iterate;
+      auto status = check(it, norm_r, dst, vec_residual);
 
       while (status == NewtonSolverSolverControl::iterate)
         {
