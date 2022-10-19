@@ -12,17 +12,20 @@ namespace Structural
                       Number       nu,
                       TWO_DIM_TYPE two_dim_type = TWO_DIM_TYPE::NONE)
 
-      : f0(make_vectorized_array(dim == 3 ?
-                                   E * (1 - nu) / (1 + nu) / (1 - 2 * nu) :
-                                   (two_dim_type == TWO_DIM_TYPE::PLAIN_STRESS ?
-                                      E * (1) / (1 - nu * nu) :
-                                      E * (1 - nu) / (1 + nu) / (1 - 2 * nu))))
-      , f1(make_vectorized_array(dim == 3 ?
-                                   E * (nu) / (1 + nu) / (1 - 2 * nu) :
-                                   (two_dim_type == TWO_DIM_TYPE::PLAIN_STRESS ?
-                                      E * (nu) / (1 - nu * nu) :
-                                      E * (nu) / (1 + nu) / (1 - 2 * nu))))
-      , f2(make_vectorized_array(
+      : f0(make_vectorized_array<typename VectorizedArrayType::value_type,
+                                 VectorizedArrayType::size()>(
+          dim == 3 ? E * (1 - nu) / (1 + nu) / (1 - 2 * nu) :
+                     (two_dim_type == TWO_DIM_TYPE::PLAIN_STRESS ?
+                        E * (1) / (1 - nu * nu) :
+                        E * (1 - nu) / (1 + nu) / (1 - 2 * nu))))
+      , f1(make_vectorized_array<typename VectorizedArrayType::value_type,
+                                 VectorizedArrayType::size()>(
+          dim == 3 ? E * (nu) / (1 + nu) / (1 - 2 * nu) :
+                     (two_dim_type == TWO_DIM_TYPE::PLAIN_STRESS ?
+                        E * (nu) / (1 - nu * nu) :
+                        E * (nu) / (1 + nu) / (1 - 2 * nu))))
+      , f2(make_vectorized_array<typename VectorizedArrayType::value_type,
+                                 VectorizedArrayType::size()>(
           dim == 3 ? E * (1 - 2 * nu) / 2 / (1 + nu) / (1 - 2 * nu) :
                      (two_dim_type == TWO_DIM_TYPE::PLAIN_STRESS ?
                         E * (1 - nu) / 2 / (1 - nu * nu) :
