@@ -128,10 +128,12 @@ namespace Sintering
 
       BlockVectorType_ &src = const_cast<BlockVectorType_ &>(src_in);
 
-      zero_c_constraints_values.clear();
+      zero_c_constraints_values.resize(zero_c_constraints_indices.size());
 
-      for (const unsigned int index : zero_c_constraints_indices)
+      for (unsigned int i = 0; i < zero_c_constraints_indices.size(); ++i)
         {
+          const unsigned int index = zero_c_constraints_indices[i];
+
           zero_c_constraints_values.push_back(Tensor<1, dim>());
           for (unsigned int d = 0; d < dim; ++d)
             {
@@ -289,10 +291,12 @@ namespace Sintering
 
       VectorType &src = const_cast<VectorType &>(src_in);
 
-      zero_c_constraints_values.clear();
+      zero_c_constraints_values.resize(zero_c_constraints_indices.size());
 
-      for (const unsigned int index : zero_c_constraints_indices)
+      for (unsigned int i = 0; i < zero_c_constraints_indices.size(); ++i)
         {
+          const unsigned int index = zero_c_constraints_indices[i];
+
           zero_c_constraints_values.push_back(Tensor<1, dim>());
           for (unsigned int d = 0; d < dim; ++d)
             {
