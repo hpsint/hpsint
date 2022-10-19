@@ -134,10 +134,9 @@ namespace Sintering
         {
           const unsigned int index = zero_c_constraints_indices[i];
 
-          zero_c_constraints_values.push_back(Tensor<1, dim>());
           for (unsigned int d = 0; d < dim; ++d)
             {
-              zero_c_constraints_values.back()[d] =
+              zero_c_constraints_values[i][d] =
                 src.block(this->data.n_components() + d).local_element(index);
               src.block(this->data.n_components() + d).local_element(index) =
                 0.0;
@@ -297,13 +296,12 @@ namespace Sintering
         {
           const unsigned int index = zero_c_constraints_indices[i];
 
-          zero_c_constraints_values.push_back(Tensor<1, dim>());
           for (unsigned int d = 0; d < dim; ++d)
             {
               const unsigned int matrix_index =
                 n_components() * index + d + this->data.n_components();
 
-              zero_c_constraints_values.back()[d] =
+              zero_c_constraints_values[i][d] =
                 src.local_element(matrix_index);
               src.local_element(matrix_index) = 0.0;
             }
