@@ -2,6 +2,8 @@
 
 #include <deal.II/base/tensor.h>
 
+#include <pf-applications/numerics/functions.h>
+
 #include <pf-applications/sintering/tools.h>
 
 namespace Sintering
