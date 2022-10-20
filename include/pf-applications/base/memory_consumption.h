@@ -1,5 +1,7 @@
 #pragma once
 
+#include <deal.II/base/mg_level_object.h>
+
 /**
  * Similar to the dealii::MemoryConsumption namespace but values
  * of smared pointers are counted.
