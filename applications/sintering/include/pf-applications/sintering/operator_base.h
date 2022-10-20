@@ -98,7 +98,7 @@ constexpr bool has_n_grains_method =
 namespace Sintering
 {
   using namespace dealii;
-  
+
   namespace internal
   {
     template <typename Number>
