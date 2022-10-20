@@ -2,9 +2,21 @@
 
 #include <deal.II/base/mpi_compute_index_owner_internal.h>
 
+#include <deal.II/lac/precondition.h>
+#include <deal.II/lac/trilinos_precondition.h>
+#include <deal.II/lac/trilinos_sparse_matrix.h>
+
+#include <deal.II/multigrid/mg_coarse.h>
+#include <deal.II/multigrid/mg_matrix.h>
+#include <deal.II/multigrid/mg_smoother.h>
+#include <deal.II/multigrid/mg_transfer_global_coarsening.h>
+#include <deal.II/multigrid/multigrid.h>
+
 #include <pf-applications/base/timer.h>
 
 #include <pf-applications/lac/dynamic_block_vector.h>
+
+#include <pf-applications/numerics/vector_tools.h>
 
 namespace Preconditioners
 {

@@ -1,5 +1,8 @@
 #pragma once
 
+#include <deal.II/lac/solver_control.h>
+#include <deal.II/lac/solver_gmres.h>
+
 #include <pf-applications/base/timer.h>
 
 #include <pf-applications/lac/dynamic_block_vector.h>
