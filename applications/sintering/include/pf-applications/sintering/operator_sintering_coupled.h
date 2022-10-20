@@ -109,14 +109,15 @@ namespace Sintering
     }
 
     void
-    add_matrix_constraints() const override
+    post_system_matrix_compute() const override
     {
       for (const unsigned int index : zero_c_constraints_indices)
         for (unsigned int d = 0; d < dim; ++d)
           {
             const unsigned int matrix_index =
               n_components() * index + d + this->data.n_components();
-            this->constraints_for_matrix.add_line(matrix_index);
+
+            this->system_matrix.clear_row(matrix_index, 1.0);
           }
     }
 
@@ -301,8 +302,7 @@ namespace Sintering
               const unsigned int matrix_index =
                 n_components() * index + d + this->data.n_components();
 
-              zero_c_constraints_values[i][d] =
-                src.local_element(matrix_index);
+              zero_c_constraints_values[i][d] = src.local_element(matrix_index);
               src.local_element(matrix_index) = 0.0;
             }
         }

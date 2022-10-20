@@ -547,10 +547,22 @@ namespace Sintering
         EXPAND_OPERATIONS(OPERATION);
 #undef OPERATION
       }
+
+      {
+        MyScope scope(this->timer,
+                      label + "::matrix::post_compute",
+                      this->do_timing);
+
+        post_system_matrix_compute();
+      }
     }
 
     virtual void
     add_matrix_constraints() const
+    {}
+
+    virtual void
+    post_system_matrix_compute() const
     {}
 
     virtual void
