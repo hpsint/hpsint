@@ -82,8 +82,6 @@
 #include <pf-applications/grain_tracker/tracker.h>
 #include <pf-applications/grid/constraint_helper.h>
 
-//#define COUPLED_MODEL
-
 namespace Sintering
 {
   using namespace dealii;
