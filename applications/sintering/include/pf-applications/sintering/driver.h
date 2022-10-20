@@ -82,8 +82,6 @@
 #include <pf-applications/grain_tracker/tracker.h>
 #include <pf-applications/grid/constraint_helper.h>
 
-//#define COUPLED_MODEL
-
 namespace Sintering
 {
   using namespace dealii;
@@ -988,6 +986,8 @@ namespace Sintering
 
               sintering_data.fill_quadrature_point_values(
                 matrix_free, current_u, params.advection_data.enable);
+
+              nonlinear_operator.update_state(current_u);
 
               nonlinear_operator.do_update();
 

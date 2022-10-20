@@ -47,7 +47,7 @@ namespace Sintering
     do_update()
     {
       if (this->matrix_based)
-        this->get_system_matrix(); // assemble matrix
+        this->initialize_system_matrix(); // assemble matrix
     }
 
     const SinteringOperatorData<dim, VectorizedArrayType> &

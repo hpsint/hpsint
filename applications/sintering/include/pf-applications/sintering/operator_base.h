@@ -162,6 +162,22 @@ namespace Sintering
 
     static const int dimension = dim;
 
+    template <typename BlockVectorType_>
+    struct check
+    {
+      template <typename T_>
+      using do_post_vmult_t = decltype(
+        std::declval<T_ const>().template do_post_vmult<BlockVectorType_>(
+          std::declval<BlockVectorType_ &>(),
+          std::declval<BlockVectorType_ const &>()));
+
+      template <typename T_>
+      using do_pre_vmult_t = decltype(
+        std::declval<T_ const>().template do_pre_vmult<BlockVectorType_>(
+          std::declval<BlockVectorType_ &>(),
+          std::declval<BlockVectorType_ const &>()));
+    };
+
     OperatorBase(
       const MatrixFree<dim, Number, VectorizedArrayType> &matrix_free,
       const AffineConstraints<Number> &                   constraints,
@@ -262,6 +278,8 @@ namespace Sintering
     {
       MyScope scope(this->timer, label + "::vmult_", this->do_timing);
 
+      pre_vmult(dst, src);
+
       if (matrix_based == false)
         {
           if (constrained_indices.empty())
@@ -322,6 +340,8 @@ namespace Sintering
         {
           system_matrix.vmult(dst, src);
         }
+
+      post_vmult(dst, src);
     }
 
     template <typename BlockVectorType_>
@@ -329,6 +349,8 @@ namespace Sintering
     vmult(BlockVectorType_ &dst, const BlockVectorType_ &src) const
     {
       MyScope scope(this->timer, label + "::vmult", this->do_timing);
+
+      pre_vmult(dst, src);
 
       if (matrix_based == false)
         {
@@ -387,6 +409,8 @@ namespace Sintering
           this->vmult(dst_, src_);
           VectorTools::split_up_components_fast(dst_, dst); // TODO
         }
+
+      post_vmult(dst, src);
     }
 
     template <typename VectorType_>
@@ -484,6 +508,7 @@ namespace Sintering
             DoFTools::extract_locally_relevant_dofs(dof_handler));
           DoFTools::make_hanging_node_constraints(dof_handler,
                                                   constraints_for_matrix);
+          add_matrix_constraints();
           constraints_for_matrix.close();
 
           dsp.reinit(dof_handler.locally_owned_dofs(),
@@ -524,6 +549,28 @@ namespace Sintering
         EXPAND_OPERATIONS(OPERATION);
 #undef OPERATION
       }
+
+      {
+        MyScope scope(this->timer,
+                      label + "::matrix::post_compute",
+                      this->do_timing);
+
+        post_system_matrix_compute();
+      }
+    }
+
+    virtual void
+    add_matrix_constraints() const
+    {}
+
+    virtual void
+    post_system_matrix_compute() const
+    {}
+
+    virtual void
+    update_state(const BlockVectorType &solution)
+    {
+      (void)solution;
     }
 
     void
@@ -745,6 +792,48 @@ namespace Sintering
                                   EvaluationFlags::EvaluationFlags::gradients,
                                 dst);
         }
+    }
+
+    virtual void
+    pre_vmult(VectorType &dst, const VectorType &src) const
+    {
+      (void)dst;
+      (void)src;
+    }
+
+    template <typename BlockVectorType_>
+    void
+    pre_vmult(BlockVectorType_ &dst, const BlockVectorType_ &src) const
+    {
+      (void)dst;
+      (void)src;
+
+      if constexpr (dealii::internal::is_supported_operation<
+                      check<BlockVectorType_>::template do_pre_vmult_t,
+                      T>)
+        static_cast<const T &>(*this).template do_pre_vmult<BlockVectorType_>(
+          dst, src);
+    }
+
+    virtual void
+    post_vmult(VectorType &dst, const VectorType &src) const
+    {
+      (void)dst;
+      (void)src;
+    }
+
+    template <typename BlockVectorType_>
+    void
+    post_vmult(BlockVectorType_ &dst, const BlockVectorType_ &src) const
+    {
+      (void)dst;
+      (void)src;
+
+      if constexpr (dealii::internal::is_supported_operation<
+                      check<BlockVectorType_>::template do_post_vmult_t,
+                      T>)
+        static_cast<const T &>(*this).template do_post_vmult<BlockVectorType_>(
+          dst, src);
     }
 
 
