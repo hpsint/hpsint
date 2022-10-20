@@ -231,15 +231,7 @@ public:
         constraints.set_zero(const_cast<VectorType &>(src).block(b));
 
       const unsigned int n_iterations = linear_solver->solve(dst, src);
-      /*
-            std::cout << "increment:" << std::endl;
-            for (unsigned int b = 0; b < dst.n_blocks(); ++b)
-              {
-                std::cout << "  - block " << b << ":" << std::endl;
-                dst.block(b).print(std::cout);
-              }
-            std::cout << std::endl;
-      */
+
       for (unsigned int b = 0; b < src.n_blocks(); ++b)
         constraints.distribute(dst.block(b));
 
@@ -259,14 +251,6 @@ public:
               << std::endl;
     std::cout << "Residual evaluations:  "
               << statistics.n_residual_evaluations() << std::endl;
-    /*
-        std::cout << "solution:" << std::endl;
-        for (unsigned int b = 0; b < solution.n_blocks(); ++b)
-          {
-            std::cout << "  - block " << b << ":" << std::endl;
-            solution.block(b).print(std::cout);
-          }
-    */
   }
 };
 
