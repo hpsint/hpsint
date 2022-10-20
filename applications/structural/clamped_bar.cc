@@ -22,12 +22,6 @@
 #include <deal.II/matrix_free/fe_evaluation.h>
 #include <deal.II/matrix_free/matrix_free.h>
 
-//#include <deal.II/multigrid/mg_coarse.h>
-//#include <deal.II/multigrid/mg_matrix.h>
-//#include <deal.II/multigrid/mg_smoother.h>
-//#include <deal.II/multigrid/mg_transfer_global_coarsening.h>
-//#include <deal.II/multigrid/multigrid.h>
-
 #include <deal.II/numerics/vector_tools.h>
 
 #include <pf-applications/base/fe_integrator.h>
@@ -37,9 +31,6 @@
 #include <pf-applications/lac/solvers_nonlinear.h>
 
 #include <pf-applications/numerics/data_out.h>
-#include <pf-applications/numerics/functions.h> // should be inside mobility
-
-#include <pf-applications/sintering/sintering_data.h> // should be inside preconditionetrs
 
 #include <pf-applications/structural/operator_elastic_linear.h>
 #include <pf-applications/structural/stvenantkirchhoff.h>
