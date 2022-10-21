@@ -200,13 +200,14 @@ namespace Sintering
             this->system_matrix.clear_row(matrix_index, 1.0);
           }
 
-      for (const unsigned int index : displ_constraints_indices[d])
-        {
-          const unsigned int matrix_index =
-            n_components() * index + d + this->data.n_components();
+      for (unsigned int d = 0; d < dim; ++d)
+        for (const unsigned int index : displ_constraints_indices[d])
+          {
+            const unsigned int matrix_index =
+              n_components() * index + d + this->data.n_components();
 
-          this->system_matrix.clear_row(matrix_index, 1.0);
-        }
+            this->system_matrix.clear_row(matrix_index, 1.0);
+          }
     }
 
     template <typename BlockVectorType_>
