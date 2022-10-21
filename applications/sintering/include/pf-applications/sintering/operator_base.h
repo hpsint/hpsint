@@ -508,7 +508,7 @@ namespace Sintering
             DoFTools::extract_locally_relevant_dofs(dof_handler));
           DoFTools::make_hanging_node_constraints(dof_handler,
                                                   constraints_for_matrix);
-          add_matrix_constraints();
+          add_matrix_constraints(dof_handler, constraints_for_matrix);
           constraints_for_matrix.close();
 
           dsp.reinit(dof_handler.locally_owned_dofs(),
@@ -560,8 +560,12 @@ namespace Sintering
     }
 
     virtual void
-    add_matrix_constraints() const
-    {}
+    add_matrix_constraints(const DoFHandler<dim> &    dof_handler,
+                           AffineConstraints<Number> &matrix_constraints) const
+    {
+      (void)dof_handler;
+      (void)matrix_constraints;
+    }
 
     virtual void
     post_system_matrix_compute() const
