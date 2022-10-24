@@ -79,6 +79,7 @@
 #include <pf-applications/sintering/preconditioners.h>
 #include <pf-applications/sintering/tools.h>
 
+#include <deal.II/trilinos/nox.h>
 #include <pf-applications/grain_tracker/tracker.h>
 #include <pf-applications/grid/constraint_helper.h>
 
@@ -974,7 +975,6 @@ namespace Sintering
 
           non_linear_solver =
             std::make_unique<NonLinearSolvers::NOXSolver<VectorType>>(
-              statistics,
               non_linear_parameters,
               NonLinearSolvers::NewtonSolverAdditionalData(
                 params.nonlinear_data.newton_do_update,
@@ -982,6 +982,18 @@ namespace Sintering
                 params.nonlinear_data.newton_threshold_linear_iter,
                 params.nonlinear_data.newton_reuse_preconditioner,
                 params.nonlinear_data.newton_use_damping));
+          /*
+                    TrilinosWrappers::NOXSolver<VectorType>::AdditionalData
+                      additional_data(params.nonlinear_data.nl_max_iter,
+                                      params.nonlinear_data.nl_abs_tol,
+                                      params.nonlinear_data.nl_rel_tol,
+                                      params.nonlinear_data.newton_threshold_newton_iter,
+                                      params.nonlinear_data.newton_threshold_linear_iter);
+
+                    non_linear_solver =
+                      std::make_unique<TrilinosWrappers::NOXSolver<VectorType>>(
+                        additional_data, non_linear_parameters);
+                    */
         }
       else
         AssertThrow(false, ExcNotImplemented());
@@ -1009,6 +1021,8 @@ namespace Sintering
           advection_operator.evaluate_forces(src, advection_mechanism);
 
         nonlinear_operator.evaluate_nonlinear_residual(dst, src);
+
+        statistics.increment_residual_evaluations(1);
       };
 
       non_linear_solver->setup_jacobian =
@@ -1176,6 +1190,8 @@ namespace Sintering
                 solver_control_l.get_history_data());
             res_history.clear();
           }
+
+        statistics.increment_linear_iterations(n_iterations);
 
         return n_iterations;
       };
@@ -1812,6 +1828,9 @@ namespace Sintering
             try
               {
                 MyScope scope(timer, "time_loop::newton");
+
+                // Reset statistics
+                statistics.clear();
 
                 // note: input/output (solution) needs/has the right
                 // constraints applied

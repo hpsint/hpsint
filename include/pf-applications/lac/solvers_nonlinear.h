@@ -59,6 +59,24 @@ namespace NonLinearSolvers
       return residual_evaluations;
     }
 
+    void
+    increment_newton_iterations(const unsigned int num)
+    {
+      newton_iterations += num;
+    }
+
+    void
+    increment_linear_iterations(const unsigned int num)
+    {
+      linear_iterations += num;
+    }
+
+    void
+    increment_residual_evaluations(const unsigned int num)
+    {
+      residual_evaluations += num;
+    }
+
     template <typename VectorType>
     State
     check(const unsigned int step,
@@ -238,7 +256,6 @@ namespace NonLinearSolvers
 
       // evaluate residual using the given estimate of the solution
       this->residual(dst, vec_residual);
-      ++statistics.residual_evaluations;
 
       double   norm_r = vec_residual.l2_norm();
       unsigned it     = 0;
@@ -267,8 +284,6 @@ namespace NonLinearSolvers
           history_linear_iterations_last =
             this->solve_with_jacobian(vec_residual, increment);
 
-          statistics.linear_iterations += history_linear_iterations_last;
-
           if (this->solver_data.use_damping)
             {
               // damped Newton scheme
@@ -289,7 +304,6 @@ namespace NonLinearSolvers
 
                   // evaluate residual using the temporary solution
                   this->residual(tmp, vec_residual);
-                  ++statistics.residual_evaluations;
 
                   // calculate norm of residual (for temporary solution)
                   norm_r_tmp = vec_residual.l2_norm();
@@ -319,7 +333,6 @@ namespace NonLinearSolvers
 
               // evaluate residual
               this->residual(dst, vec_residual);
-              ++statistics.residual_evaluations;
 
               // calculate norm of residual
               norm_r = vec_residual.l2_norm();
@@ -1033,12 +1046,11 @@ namespace NonLinearSolvers
   class NOXSolver : public NewtonSolver<VectorType>
   {
   public:
-    NOXSolver(NewtonSolverSolverControl &                 statistics,
+    NOXSolver(const NewtonSolverSolverControl &           statistics,
               const Teuchos::RCP<Teuchos::ParameterList> &non_linear_parameters,
               const NewtonSolverAdditionalData &          solver_data_in =
                 NewtonSolverAdditionalData())
-      : statistics(statistics)
-      , non_linear_parameters(non_linear_parameters)
+      : non_linear_parameters(non_linear_parameters)
       , solver_data(solver_data_in)
     {}
 
@@ -1048,15 +1060,11 @@ namespace NonLinearSolvers
       if (this->solver_data.reuse_preconditioner == false)
         clear();
 
-      unsigned int linear_iterations    = 0;
-      unsigned int residual_evaluations = 0;
-
       // create group
       const auto group =
         Teuchos::rcp(new internal::NOXWrapper::Group<VectorType>(
           solution,
           [&](const VectorType &src, VectorType &dst) {
-            residual_evaluations++;
             this->residual(src, dst);
           },
           [&](const VectorType &src, const bool /*flag*/) {
@@ -1072,7 +1080,6 @@ namespace NonLinearSolvers
           [&](const VectorType &src, VectorType &dst) -> unsigned int {
             history_linear_iterations_last =
               this->solve_with_jacobian(src, dst);
-            linear_iterations += history_linear_iterations_last;
             return 0; // dummy value
           }));
 
@@ -1107,10 +1114,7 @@ namespace NonLinearSolvers
       AssertThrow(status == NOX::StatusTest::Converged,
                   ExcNewtonDidNotConverge("Newton"));
 
-      history_newton_iterations       = solver->getNumIterations();
-      statistics.newton_iterations    = solver->getNumIterations();
-      statistics.linear_iterations    = linear_iterations;
-      statistics.residual_evaluations = residual_evaluations;
+      history_newton_iterations = solver->getNumIterations();
     }
 
     void
@@ -1121,7 +1125,6 @@ namespace NonLinearSolvers
     }
 
   private:
-    NewtonSolverSolverControl &                statistics;
     const Teuchos::RCP<Teuchos::ParameterList> non_linear_parameters;
     const NewtonSolverAdditionalData           solver_data;
 
