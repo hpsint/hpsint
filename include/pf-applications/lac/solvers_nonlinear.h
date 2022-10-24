@@ -141,15 +141,6 @@ namespace NonLinearSolvers
     unsigned int newton_iterations    = 0;
     unsigned int linear_iterations    = 0;
     unsigned int residual_evaluations = 0;
-
-    template <typename>
-    friend class NewtonSolver;
-
-    template <typename>
-    friend class DampedNewtonSolver;
-
-    template <typename>
-    friend class NOXSolver;
   };
 
 
