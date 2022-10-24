@@ -1033,7 +1033,8 @@ namespace NonLinearSolvers
               const Teuchos::RCP<Teuchos::ParameterList> &non_linear_parameters,
               const NewtonSolverAdditionalData &          solver_data_in =
                 NewtonSolverAdditionalData())
-      : non_linear_parameters(non_linear_parameters)
+      : statistics(statistics)
+      , non_linear_parameters(non_linear_parameters)
       , solver_data(solver_data_in)
     {}
 
@@ -1108,6 +1109,8 @@ namespace NonLinearSolvers
     }
 
   private:
+    const NewtonSolverSolverControl &statistics;
+
     const Teuchos::RCP<Teuchos::ParameterList> non_linear_parameters;
     const NewtonSolverAdditionalData           solver_data;
 

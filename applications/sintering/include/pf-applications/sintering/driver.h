@@ -79,7 +79,7 @@
 #include <pf-applications/sintering/preconditioners.h>
 #include <pf-applications/sintering/tools.h>
 
-#include <deal.II/trilinos/nox.h>
+//#include <deal.II/trilinos/nox.h>
 #include <pf-applications/grain_tracker/tracker.h>
 #include <pf-applications/grid/constraint_helper.h>
 
@@ -975,6 +975,7 @@ namespace Sintering
 
           non_linear_solver =
             std::make_unique<NonLinearSolvers::NOXSolver<VectorType>>(
+              statistics,
               non_linear_parameters,
               NonLinearSolvers::NewtonSolverAdditionalData(
                 params.nonlinear_data.newton_do_update,
