@@ -918,10 +918,8 @@ namespace NonLinearSolvers
                                                             const double,
                                                             const VectorType &,
                                                             const VectorType &)>
-                  check_iteration_status,
-             bool as_dummy = false)
+               check_iteration_status)
       : check_iteration_status(check_iteration_status)
-      , as_dummy(as_dummy)
       , status(NOX::StatusTest::Unevaluated)
     {}
 
@@ -977,9 +975,6 @@ namespace NonLinearSolvers
             }
         }
 
-      if (as_dummy)
-        status = NOX::StatusTest::Unconverged;
-
       return status;
     }
 
@@ -1013,8 +1008,7 @@ namespace NonLinearSolvers
       for (int j = 0; j < indent; j++)
         stream << ' ';
       stream << status;
-      stream << "check_iteration_status() = " << state_str
-             << " (dummy = " << (as_dummy ? "yes" : "no") << ")";
+      stream << "check_iteration_status() = " << state_str;
       stream << std::endl;
 
       return stream;
@@ -1026,8 +1020,6 @@ namespace NonLinearSolvers
                                                    const VectorType &,
                                                    const VectorType &)>
       check_iteration_status = {};
-
-    const bool as_dummy = false;
 
     NOX::StatusTest::StatusType      status;
     NewtonSolverSolverControl::State state;
@@ -1085,7 +1077,7 @@ namespace NonLinearSolvers
         Teuchos::rcp(new NOX::StatusTest::MaxIters(statistics.get_max_iter()));
 
       const auto info =
-        Teuchos::rcp(new NOXCheck(this->check_iteration_status, true));
+        Teuchos::rcp(new NOXCheck(this->check_iteration_status));
 
       auto check =
         Teuchos::rcp(new NOX::StatusTest::Combo(NOX::StatusTest::Combo::OR));

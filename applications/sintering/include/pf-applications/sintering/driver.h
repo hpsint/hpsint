@@ -1269,7 +1269,16 @@ namespace Sintering
                   step_linear_iter);
             }
 
-          return NonLinearSolvers::NewtonSolverSolverControl::success;
+          /* This function does not really test anything and simply prints more
+           * details on the residual evolution. We have different return status
+           * here due to the fact that our DampedNewtonSolver::check() works
+           * slightly differently in comparison to
+           * NOX::StatusTest::Combo(NOX::StatusTest::Combo::OR). The latter has
+           * a bit strange not very obvious logic.
+           */
+          return params.nonlinear_data.nonlinear_solver_type == "NOX" ?
+                   NonLinearSolvers::NewtonSolverSolverControl::iterate :
+                   NonLinearSolvers::NewtonSolverSolverControl::success;
         };
 
 
