@@ -1214,8 +1214,8 @@ namespace Sintering
          * a bit strange not very obvious logic.
          */
         return params.nonlinear_data.nonlinear_solver_type == "NOX" ?
-                 NonLinearSolvers::NewtonSolverSolverControl::iterate :
-                 NonLinearSolvers::NewtonSolverSolverControl::success;
+                 SolverControl::iterate :
+                 SolverControl::success;
       };
 
       std::unique_ptr<NonLinearSolvers::NewtonSolver<VectorType>>

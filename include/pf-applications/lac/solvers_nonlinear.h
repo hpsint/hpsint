@@ -1,5 +1,6 @@
 #pragma once
 
+#include <deal.II/lac/solver_control.h>
 #include <deal.II/lac/vector.h>
 
 #include <pf-applications/base/timer.h>
@@ -18,13 +19,6 @@ namespace NonLinearSolvers
   struct NewtonSolverSolverControl
   {
   public:
-    enum State
-    {
-      iterate,
-      success,
-      failure
-    };
-
     NewtonSolverSolverControl(const unsigned int max_iter = 10,
                               const double       abs_tol  = 1.e-20,
                               const double       rel_tol  = 1.e-5)
@@ -78,7 +72,7 @@ namespace NonLinearSolvers
     }
 
     template <typename VectorType>
-    State
+    SolverControl::State
     check(const unsigned int step,
           const double       check_value,
           const VectorType & solution,
@@ -96,15 +90,15 @@ namespace NonLinearSolvers
 
       if (check_value > abs_tol && check_value / check_value_0 > rel_tol &&
           newton_iterations < max_iter)
-        return iterate;
+        return SolverControl::iterate;
 
       if (check_value <= abs_tol || check_value / check_value_0 <= rel_tol)
-        return success;
+        return SolverControl::success;
 
-      return failure;
+      return SolverControl::failure;
     }
 
-    State
+    SolverControl::State
     check()
     {
       Vector<double> dummy;
@@ -212,10 +206,10 @@ namespace NonLinearSolvers
     std::function<int(const VectorType &)> setup_preconditioner         = {};
     std::function<int(const VectorType &, VectorType &)> solve_with_jacobian =
       {};
-    std::function<NewtonSolverSolverControl::State(const unsigned int,
-                                                   const double,
-                                                   const VectorType &,
-                                                   const VectorType &)>
+    std::function<SolverControl::State(const unsigned int,
+                                       const double,
+                                       const VectorType &,
+                                       const VectorType &)>
       check_iteration_status = {};
   };
 
@@ -254,7 +248,7 @@ namespace NonLinearSolvers
 
       auto status = check(it, norm_r, dst, vec_residual);
 
-      while (status == NewtonSolverSolverControl::iterate)
+      while (status == SolverControl::iterate)
         {
           // reset increment
           increment = 0.0;
@@ -340,7 +334,7 @@ namespace NonLinearSolvers
           status = check(it, norm_r, dst, vec_residual);
         }
 
-      AssertThrow(status == NewtonSolverSolverControl::success,
+      AssertThrow(status == SolverControl::success,
                   ExcNewtonDidNotConverge("Newton"));
     }
 
@@ -352,7 +346,7 @@ namespace NonLinearSolvers
     }
 
   private:
-    NewtonSolverSolverControl::State
+    SolverControl::State
     check(const unsigned int step,
           const double       check_value,
           const VectorType & x,
@@ -364,14 +358,14 @@ namespace NonLinearSolvers
       const auto state1 = statistics.check(step, check_value, x, r);
       const auto state2 = this->check_iteration_status(step, check_value, x, r);
 
-      if ((state1 == NewtonSolverSolverControl::failure) ||
-          (state2 == NewtonSolverSolverControl::failure))
-        return NewtonSolverSolverControl::failure;
-      else if ((state1 == NewtonSolverSolverControl::iterate) ||
-               (state2 == NewtonSolverSolverControl::iterate))
-        return NewtonSolverSolverControl::iterate;
+      if ((state1 == SolverControl::failure) ||
+          (state2 == SolverControl::failure))
+        return SolverControl::failure;
+      else if ((state1 == SolverControl::iterate) ||
+               (state2 == SolverControl::iterate))
+        return SolverControl::iterate;
       else
-        return NewtonSolverSolverControl::success;
+        return SolverControl::success;
     }
 
     NewtonSolverSolverControl &      statistics;
@@ -402,7 +396,7 @@ namespace NonLinearSolvers
     }
 
   private:
-    SolverType solver;
+    mutable SolverType solver;
   };
 } // namespace NonLinearSolvers
 
@@ -942,10 +936,10 @@ namespace NonLinearSolvers
   class NOXCheck : public NOX::StatusTest::Generic
   {
   public:
-    NOXCheck(std::function<NewtonSolverSolverControl::State(const unsigned int,
-                                                            const double,
-                                                            const VectorType &,
-                                                            const VectorType &)>
+    NOXCheck(std::function<SolverControl::State(const unsigned int,
+                                                const double,
+                                                const VectorType &,
+                                                const VectorType &)>
                check_iteration_status)
       : check_iteration_status(check_iteration_status)
       , status(NOX::StatusTest::Unevaluated)
@@ -988,13 +982,13 @@ namespace NonLinearSolvers
 
               switch (state)
                 {
-                  case NewtonSolverSolverControl::iterate:
+                  case SolverControl::iterate:
                     status = NOX::StatusTest::Unconverged;
                     break;
-                  case NewtonSolverSolverControl::failure:
+                  case SolverControl::failure:
                     status = NOX::StatusTest::Failed;
                     break;
-                  case NewtonSolverSolverControl::success:
+                  case SolverControl::success:
                     status = NOX::StatusTest::Converged;
                     break;
                   default:
@@ -1020,13 +1014,13 @@ namespace NonLinearSolvers
       std::string state_str;
       switch (state)
         {
-          case NewtonSolverSolverControl::iterate:
+          case SolverControl::iterate:
             state_str = "iterate";
             break;
-          case NewtonSolverSolverControl::failure:
+          case SolverControl::failure:
             state_str = "failure";
             break;
-          case NewtonSolverSolverControl::success:
+          case SolverControl::success:
             state_str = "success";
             break;
           default:
@@ -1043,14 +1037,14 @@ namespace NonLinearSolvers
     }
 
   private:
-    std::function<NewtonSolverSolverControl::State(const unsigned int,
-                                                   const double,
-                                                   const VectorType &,
-                                                   const VectorType &)>
+    std::function<SolverControl::State(const unsigned int,
+                                       const double,
+                                       const VectorType &,
+                                       const VectorType &)>
       check_iteration_status = {};
 
-    NOX::StatusTest::StatusType      status;
-    NewtonSolverSolverControl::State state;
+    NOX::StatusTest::StatusType status;
+    SolverControl::State        state;
   };
 
   template <typename VectorType>
