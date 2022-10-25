@@ -206,11 +206,12 @@ namespace NonLinearSolvers
     virtual void
     clear() const = 0;
 
-    std::function<void(VectorType &)>                     reinit_vector  = {};
-    std::function<void(const VectorType &, VectorType &)> residual       = {};
-    std::function<void(const VectorType &, const bool)>   setup_jacobian = {};
-    std::function<unsigned int(const VectorType &, VectorType &)>
-      solve_with_jacobian = {};
+    std::function<void(VectorType &)>                    reinit_vector  = {};
+    std::function<int(const VectorType &, VectorType &)> residual       = {};
+    std::function<int(const VectorType &)>               setup_jacobian = {};
+    std::function<int(const VectorType &)> setup_preconditioner         = {};
+    std::function<int(const VectorType &, VectorType &)> solve_with_jacobian =
+      {};
     std::function<NewtonSolverSolverControl::State(const unsigned int,
                                                    const double,
                                                    const VectorType &,
@@ -269,8 +270,11 @@ namespace NonLinearSolvers
             (history_linear_iterations_last >
              solver_data.threshold_linear_iter);
 
-          this->setup_jacobian(dst,
-                               solver_data.do_update && threshold_exceeded);
+          this->setup_jacobian(dst);
+
+          if (this->setup_preconditioner && solver_data.do_update &&
+              threshold_exceeded)
+            this->setup_preconditioner(dst);
 
           history_linear_iterations_last =
             this->solve_with_jacobian(vec_residual, increment);
@@ -375,6 +379,30 @@ namespace NonLinearSolvers
 
     mutable unsigned int history_linear_iterations_last = 0;
     mutable unsigned int history_newton_iterations      = 0;
+  };
+
+  template <typename VectorType, typename SolverType>
+  class NonLinearSolverWrapper : public NewtonSolver<VectorType>
+  {
+  public:
+    NonLinearSolverWrapper(SolverType &&solver)
+      : solver(std::move(solver))
+    {}
+
+    void
+    clear() const override
+    {
+      solver.clear();
+    }
+
+    void
+    solve(VectorType &dst) const override
+    {
+      solver.solve(dst);
+    }
+
+  private:
+    SolverType solver;
   };
 } // namespace NonLinearSolvers
 

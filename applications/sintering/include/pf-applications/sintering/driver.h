@@ -79,7 +79,7 @@
 #include <pf-applications/sintering/preconditioners.h>
 #include <pf-applications/sintering/tools.h>
 
-//#include <deal.II/trilinos/nox.h>
+#include <deal.II/trilinos/nox.h>
 #include <pf-applications/grain_tracker/tracker.h>
 #include <pf-applications/grid/constraint_helper.h>
 
@@ -928,83 +928,6 @@ namespace Sintering
             });
         }
 
-      // ... non-linear Newton solver
-      NonLinearSolvers::NewtonSolverSolverControl statistics(
-        params.nonlinear_data.nl_max_iter,
-        params.nonlinear_data.nl_abs_tol,
-        params.nonlinear_data.nl_rel_tol);
-
-      std::unique_ptr<NonLinearSolvers::NewtonSolver<VectorType>>
-        non_linear_solver;
-
-      if (params.nonlinear_data.nonlinear_solver_type == "damped")
-        non_linear_solver =
-          std::make_unique<NonLinearSolvers::DampedNewtonSolver<VectorType>>(
-            statistics,
-            NonLinearSolvers::NewtonSolverAdditionalData(
-              params.nonlinear_data.newton_do_update,
-              params.nonlinear_data.newton_threshold_newton_iter,
-              params.nonlinear_data.newton_threshold_linear_iter,
-              params.nonlinear_data.newton_reuse_preconditioner,
-              params.nonlinear_data.newton_use_damping));
-      else if (params.nonlinear_data.nonlinear_solver_type == "NOX")
-        {
-          Teuchos::RCP<Teuchos::ParameterList> non_linear_parameters =
-            Teuchos::rcp(new Teuchos::ParameterList);
-
-          non_linear_parameters->set("Nonlinear Solver", "Line Search Based");
-
-          auto &printParams = non_linear_parameters->sublist("Printing");
-          printParams.set("Output Information",
-                          params.nonlinear_data.nox_data.output_information);
-
-          auto &dir_parameters = non_linear_parameters->sublist("Direction");
-          dir_parameters.set("Method",
-                             params.nonlinear_data.nox_data.direction_method);
-
-          auto &search_parameters =
-            non_linear_parameters->sublist("Line Search");
-          search_parameters.set(
-            "Method", params.nonlinear_data.nox_data.line_search_method);
-
-          // Params for polynomial
-          auto &poly_params = search_parameters.sublist("Polynomial");
-          poly_params.set(
-            "Interpolation Type",
-            params.nonlinear_data.nox_data.line_search_interpolation_type);
-
-          non_linear_solver =
-            std::make_unique<NonLinearSolvers::NOXSolver<VectorType>>(
-              statistics,
-              non_linear_parameters,
-              NonLinearSolvers::NewtonSolverAdditionalData(
-                params.nonlinear_data.newton_do_update,
-                params.nonlinear_data.newton_threshold_newton_iter,
-                params.nonlinear_data.newton_threshold_linear_iter,
-                params.nonlinear_data.newton_reuse_preconditioner,
-                params.nonlinear_data.newton_use_damping));
-          /*
-                    TrilinosWrappers::NOXSolver<VectorType>::AdditionalData
-                      additional_data(params.nonlinear_data.nl_max_iter,
-                                      params.nonlinear_data.nl_abs_tol,
-                                      params.nonlinear_data.nl_rel_tol,
-                                      params.nonlinear_data.newton_threshold_newton_iter,
-                                      params.nonlinear_data.newton_threshold_linear_iter);
-
-                    non_linear_solver =
-                      std::make_unique<TrilinosWrappers::NOXSolver<VectorType>>(
-                        additional_data, non_linear_parameters);
-                    */
-        }
-      else
-        AssertThrow(false, ExcNotImplemented());
-
-      non_linear_solver->reinit_vector = [&](auto &vector) {
-        MyScope scope(timer, "time_loop::newton::reinit_vector");
-
-        nonlinear_operator.initialize_dof_vector(vector);
-      };
-
       AdvectionOperator<dim, Number, VectorizedArrayType> advection_operator(
         params.advection_data.k,
         params.advection_data.cgb,
@@ -1014,7 +937,14 @@ namespace Sintering
         sintering_data,
         grain_tracker);
 
-      non_linear_solver->residual = [&](const auto &src, auto &dst) {
+      // ... non-linear Newton solver
+      NonLinearSolvers::NewtonSolverSolverControl statistics(
+        params.nonlinear_data.nl_max_iter,
+        params.nonlinear_data.nl_abs_tol,
+        params.nonlinear_data.nl_rel_tol);
+
+      // Lambda to compute residual
+      auto nl_residual = [&](const auto &src, auto &dst) -> int {
         MyScope scope(timer, "time_loop::newton::residual");
 
         // Compute forces
@@ -1024,13 +954,15 @@ namespace Sintering
         nonlinear_operator.evaluate_nonlinear_residual(dst, src);
 
         statistics.increment_residual_evaluations(1);
+
+        return 0;
       };
 
-      non_linear_solver->setup_jacobian =
-        [&](const auto &current_u, const bool do_update_preconditioner) {
-          if (true)
-            {
-              MyScope scope(timer, "time_loop::newton::setup_jacobian");
+      // Lambda to set up jacobian
+      auto nl_setup_jacobian = [&](const auto &current_u) -> int {
+        if (true)
+          {
+            MyScope scope(timer, "time_loop::newton::setup_jacobian");
 
               sintering_data.fill_quadrature_point_values(
                 matrix_free,
@@ -1038,117 +970,119 @@ namespace Sintering
                 params.advection_data.enable,
                 save_all_blocks);
 
-              nonlinear_operator.update_state(current_u);
+            nonlinear_operator.update_state(current_u);
 
-              nonlinear_operator.do_update();
+            nonlinear_operator.do_update();
 
-              if (params.nonlinear_data.fdm_jacobian_approximation)
-                {
-                  AssertThrow(params.matrix_based, ExcNotImplemented());
+            if (params.nonlinear_data.fdm_jacobian_approximation)
+              {
+                AssertThrow(params.matrix_based, ExcNotImplemented());
 
-                  const double epsilon   = 1e-7;
-                  const double tolerance = 1e-12;
+                const double epsilon   = 1e-7;
+                const double tolerance = 1e-12;
 
-                  auto &system_matrix = nonlinear_operator.get_system_matrix();
+                auto &system_matrix = nonlinear_operator.get_system_matrix();
 
-                  const unsigned int n_blocks = current_u.n_blocks();
+                const unsigned int n_blocks = current_u.n_blocks();
 
-                  // for (unsigned int b = 0; b < n_blocks; ++b)
-                  //  for (unsigned int i = 0; i < current_u.block(b).size();
-                  //  ++i)
-                  //    if(constraints.is_constrained (i))
-                  //                system_matrix.set(b + i * n_blocks,
-                  //                                  b + i * n_blocks,
-                  //                                  1.0);
+                // for (unsigned int b = 0; b < n_blocks; ++b)
+                //  for (unsigned int i = 0; i < current_u.block(b).size();
+                //  ++i)
+                //    if(constraints.is_constrained (i))
+                //                system_matrix.set(b + i * n_blocks,
+                //                                  b + i * n_blocks,
+                //                                  1.0);
 
-                  system_matrix = 0.0;
+                system_matrix = 0.0;
 
-                  VectorType src, dst, dst_;
-                  src.reinit(current_u);
-                  dst.reinit(current_u);
-                  dst_.reinit(current_u);
+                VectorType src, dst, dst_;
+                src.reinit(current_u);
+                dst.reinit(current_u);
+                dst_.reinit(current_u);
 
-                  src.copy_locally_owned_data_from(current_u);
+                src.copy_locally_owned_data_from(current_u);
 
-                  non_linear_solver->residual(src, dst_);
+                nl_residual(src, dst_);
 
-                  const auto locally_owned_dofs =
-                    dof_handler.locally_owned_dofs();
+                const auto locally_owned_dofs =
+                  dof_handler.locally_owned_dofs();
 
-                  for (unsigned int b = 0; b < n_blocks; ++b)
-                    for (unsigned int i = 0; i < current_u.block(b).size(); ++i)
-                      {
-                        if (locally_owned_dofs.is_element(i))
-                          src.block(b)[i] += epsilon;
-
-                        non_linear_solver->residual(src, dst);
-
-                        if (locally_owned_dofs.is_element(i))
-                          src.block(b)[i] -= epsilon;
-
-                        for (unsigned int b_ = 0; b_ < n_blocks; ++b_)
-                          for (unsigned int i_ = 0;
-                               i_ < current_u.block(b).size();
-                               ++i_)
-                            if (locally_owned_dofs.is_element(i_))
-                              {
-                                if (nonlinear_operator.get_sparsity_pattern()
-                                      .exists(b_ + i_ * n_blocks,
-                                              b + i * n_blocks))
-                                  {
-                                    const Number value =
-                                      (dst.block(b_)[i_] - dst_.block(b_)[i_]) /
-                                      epsilon;
-
-                                    if (std::abs(value) > tolerance)
-                                      system_matrix.set(b_ + i_ * n_blocks,
-                                                        b + i * n_blocks,
-                                                        value);
-                                    else if ((b == b_) && (i == i_))
-                                      system_matrix.set(b_ + i_ * n_blocks,
-                                                        b + i * n_blocks,
-                                                        1.0);
-                                  }
-                              }
-                      }
-                }
-            }
-
-          if (do_update_preconditioner)
-            {
-              MyScope scope(timer, "time_loop::newton::setup_preconditioner");
-
-              if (transfer) // update multigrid levels
-                {
-                  const unsigned int min_level = transfers.min_level();
-                  const unsigned int max_level = transfers.max_level();
-                  const unsigned int n_blocks  = current_u.n_blocks();
-
-                  for (unsigned int l = min_level; l <= max_level; ++l)
-                    mg_sintering_data[l].time_data.set_all_dt(dts);
-
-                  MGLevelObject<VectorType> mg_current_u(min_level, max_level);
-
-                  // acitve level
-                  mg_current_u[max_level].reinit(n_blocks);
-                  for (unsigned int b = 0; b < n_blocks; ++b)
-                    mg_matrix_free[max_level].initialize_dof_vector(
-                      mg_current_u[max_level].block(b));
-                  mg_current_u[max_level].copy_locally_owned_data_from(
-                    current_u);
-
-                  // coarser levels
-                  for (unsigned int l = max_level; l > min_level; --l)
+                for (unsigned int b = 0; b < n_blocks; ++b)
+                  for (unsigned int i = 0; i < current_u.block(b).size(); ++i)
                     {
-                      mg_current_u[l - 1].reinit(n_blocks);
-                      for (unsigned int b = 0; b < n_blocks; ++b)
-                        mg_matrix_free[l - 1].initialize_dof_vector(
-                          mg_current_u[l - 1].block(b));
+                      if (locally_owned_dofs.is_element(i))
+                        src.block(b)[i] += epsilon;
 
-                      for (unsigned int b = 0; b < n_blocks; ++b)
-                        transfers[l].interpolate(mg_current_u[l - 1].block(b),
-                                                 mg_current_u[l].block(b));
+                      nl_residual(src, dst);
+
+                      if (locally_owned_dofs.is_element(i))
+                        src.block(b)[i] -= epsilon;
+
+                      for (unsigned int b_ = 0; b_ < n_blocks; ++b_)
+                        for (unsigned int i_ = 0;
+                             i_ < current_u.block(b).size();
+                             ++i_)
+                          if (locally_owned_dofs.is_element(i_))
+                            {
+                              if (nonlinear_operator.get_sparsity_pattern()
+                                    .exists(b_ + i_ * n_blocks,
+                                            b + i * n_blocks))
+                                {
+                                  const Number value =
+                                    (dst.block(b_)[i_] - dst_.block(b_)[i_]) /
+                                    epsilon;
+
+                                  if (std::abs(value) > tolerance)
+                                    system_matrix.set(b_ + i_ * n_blocks,
+                                                      b + i * n_blocks,
+                                                      value);
+                                  else if ((b == b_) && (i == i_))
+                                    system_matrix.set(b_ + i_ * n_blocks,
+                                                      b + i * n_blocks,
+                                                      1.0);
+                                }
+                            }
                     }
+              }
+          }
+
+        return 0;
+      };
+
+      // Lambda to update preconditioner
+      auto nl_setup_preconditioner = [&](const auto &current_u) -> int {
+        MyScope scope(timer, "time_loop::newton::setup_preconditioner");
+
+        if (transfer) // update multigrid levels
+          {
+            const unsigned int min_level = transfers.min_level();
+            const unsigned int max_level = transfers.max_level();
+            const unsigned int n_blocks  = current_u.n_blocks();
+
+            for (unsigned int l = min_level; l <= max_level; ++l)
+              mg_sintering_data[l].time_data.set_all_dt(dts);
+
+            MGLevelObject<VectorType> mg_current_u(min_level, max_level);
+
+            // acitve level
+            mg_current_u[max_level].reinit(n_blocks);
+            for (unsigned int b = 0; b < n_blocks; ++b)
+              mg_matrix_free[max_level].initialize_dof_vector(
+                mg_current_u[max_level].block(b));
+            mg_current_u[max_level].copy_locally_owned_data_from(current_u);
+
+            // coarser levels
+            for (unsigned int l = max_level; l > min_level; --l)
+              {
+                mg_current_u[l - 1].reinit(n_blocks);
+                for (unsigned int b = 0; b < n_blocks; ++b)
+                  mg_matrix_free[l - 1].initialize_dof_vector(
+                    mg_current_u[l - 1].block(b));
+
+                for (unsigned int b = 0; b < n_blocks; ++b)
+                  transfers[l].interpolate(mg_current_u[l - 1].block(b),
+                                           mg_current_u[l].block(b));
+              }
 
                   for (unsigned int l = min_level; l <= max_level; ++l)
                     {
@@ -1162,11 +1096,13 @@ namespace Sintering
                     }
                 }
 
-              preconditioner->do_update();
-            }
-        };
+        preconditioner->do_update();
 
-      non_linear_solver->solve_with_jacobian = [&](const auto &src, auto &dst) {
+        return 0;
+      };
+
+      // Lambda to solve system using jacobian
+      auto nl_solve_with_jacobian = [&](const auto &src, auto &dst) -> int {
         MyScope scope(timer, "time_loop::newton::solve_with_jacobian");
 
         // note: we mess with the input here, since we know that Newton does not
@@ -1197,6 +1133,7 @@ namespace Sintering
         return n_iterations;
       };
 
+      // Lambda to check iterations and output stats
       double check_value_0     = 0.0;
       double check_value_0_ch  = 0.0;
       double check_value_0_ac  = 0.0;
@@ -1204,26 +1141,25 @@ namespace Sintering
 
       unsigned int previous_linear_iter = 0;
 
-      if (params.nonlinear_data.verbosity >= 1) // TODO
-        non_linear_solver->check_iteration_status = [&](const auto  step,
-                                                        const auto  check_value,
-                                                        const auto &x,
-                                                        auto &      r) {
-          (void)x;
+      auto nl_check_iteration_status = [&](const auto  step,
+                                           const auto  check_value,
+                                           const auto &x,
+                                           auto &      r) {
+        (void)x;
 
-          const double check_value_ch =
-            std::sqrt(r.block(0).norm_sqr() + r.block(0).norm_sqr());
+        const double check_value_ch =
+          std::sqrt(r.block(0).norm_sqr() + r.block(0).norm_sqr());
 
-          double check_value_ac = 0;
-          for (unsigned int b = 2; b < sintering_data.n_components(); ++b)
-            check_value_ac += r.block(b).norm_sqr();
-          check_value_ac = std::sqrt(check_value_ac);
+        double check_value_ac = 0;
+        for (unsigned int b = 2; b < sintering_data.n_components(); ++b)
+          check_value_ac += r.block(b).norm_sqr();
+        check_value_ac = std::sqrt(check_value_ac);
 
-          double check_value_mec = 0;
-          for (unsigned int b = sintering_data.n_components(); b < r.n_blocks();
-               ++b)
-            check_value_mec += r.block(b).norm_sqr();
-          check_value_mec = std::sqrt(check_value_mec);
+        double check_value_mec = 0;
+        for (unsigned int b = sintering_data.n_components(); b < r.n_blocks();
+             ++b)
+          check_value_mec += r.block(b).norm_sqr();
+        check_value_mec = std::sqrt(check_value_mec);
 
           if (step == 0)
             {
@@ -1270,18 +1206,122 @@ namespace Sintering
                   step_linear_iter);
             }
 
-          /* This function does not really test anything and simply prints more
-           * details on the residual evolution. We have different return status
-           * here due to the fact that our DampedNewtonSolver::check() works
-           * slightly differently in comparison to
-           * NOX::StatusTest::Combo(NOX::StatusTest::Combo::OR). The latter has
-           * a bit strange not very obvious logic.
-           */
-          return params.nonlinear_data.nonlinear_solver_type == "NOX" ?
-                   NonLinearSolvers::NewtonSolverSolverControl::iterate :
-                   NonLinearSolvers::NewtonSolverSolverControl::success;
-        };
+        /* This function does not really test anything and simply prints more
+         * details on the residual evolution. We have different return status
+         * here due to the fact that our DampedNewtonSolver::check() works
+         * slightly differently in comparison to
+         * NOX::StatusTest::Combo(NOX::StatusTest::Combo::OR). The latter has
+         * a bit strange not very obvious logic.
+         */
+        return params.nonlinear_data.nonlinear_solver_type == "NOX" ?
+                 NonLinearSolvers::NewtonSolverSolverControl::iterate :
+                 NonLinearSolvers::NewtonSolverSolverControl::success;
+      };
 
+      std::unique_ptr<NonLinearSolvers::NewtonSolver<VectorType>>
+        non_linear_solver_executor;
+
+      if (params.nonlinear_data.nonlinear_solver_type == "damped")
+        {
+          NonLinearSolvers::DampedNewtonSolver<VectorType> non_linear_solver(
+            statistics,
+            NonLinearSolvers::NewtonSolverAdditionalData(
+              params.nonlinear_data.newton_do_update,
+              params.nonlinear_data.newton_threshold_newton_iter,
+              params.nonlinear_data.newton_threshold_linear_iter,
+              params.nonlinear_data.newton_reuse_preconditioner,
+              params.nonlinear_data.newton_use_damping));
+
+          non_linear_solver.reinit_vector = [&](auto &vector) {
+            MyScope scope(timer, "time_loop::newton::reinit_vector");
+
+            nonlinear_operator.initialize_dof_vector(vector);
+          };
+
+          non_linear_solver.residual             = nl_residual;
+          non_linear_solver.setup_jacobian       = nl_setup_jacobian;
+          non_linear_solver.setup_preconditioner = nl_setup_preconditioner;
+          non_linear_solver.solve_with_jacobian  = nl_solve_with_jacobian;
+
+          if (params.nonlinear_data.verbosity >= 1) // TODO
+            non_linear_solver.check_iteration_status =
+              nl_check_iteration_status;
+
+          non_linear_solver_executor =
+            std::make_unique<NonLinearSolvers::NonLinearSolverWrapper<
+              VectorType,
+              NonLinearSolvers::DampedNewtonSolver<VectorType>>>(
+              std::move(non_linear_solver));
+        }
+      else if (params.nonlinear_data.nonlinear_solver_type == "NOX")
+        {
+          Teuchos::RCP<Teuchos::ParameterList> non_linear_parameters =
+            Teuchos::rcp(new Teuchos::ParameterList);
+
+          non_linear_parameters->set("Nonlinear Solver", "Line Search Based");
+
+          auto &printParams = non_linear_parameters->sublist("Printing");
+          printParams.set("Output Information",
+                          params.nonlinear_data.nox_data.output_information);
+
+          auto &dir_parameters = non_linear_parameters->sublist("Direction");
+          dir_parameters.set("Method",
+                             params.nonlinear_data.nox_data.direction_method);
+
+          auto &search_parameters =
+            non_linear_parameters->sublist("Line Search");
+          search_parameters.set(
+            "Method", params.nonlinear_data.nox_data.line_search_method);
+
+          // Params for polynomial
+          auto &poly_params = search_parameters.sublist("Polynomial");
+          poly_params.set(
+            "Interpolation Type",
+            params.nonlinear_data.nox_data.line_search_interpolation_type);
+          /*
+                    non_linear_solver =
+                      std::make_unique<NonLinearSolvers::NOXSolver<VectorType>>(
+                        statistics,
+                        non_linear_parameters,
+                        NonLinearSolvers::NewtonSolverAdditionalData(
+                          params.nonlinear_data.newton_do_update,
+                          params.nonlinear_data.newton_threshold_newton_iter,
+                          params.nonlinear_data.newton_threshold_linear_iter,
+                          params.nonlinear_data.newton_reuse_preconditioner,
+                          params.nonlinear_data.newton_use_damping));
+          */
+          typename TrilinosWrappers::NOXSolver<VectorType>::AdditionalData
+            additional_data(params.nonlinear_data.nl_max_iter,
+                            params.nonlinear_data.nl_abs_tol,
+                            params.nonlinear_data.nl_rel_tol,
+                            params.nonlinear_data.newton_threshold_newton_iter,
+                            params.nonlinear_data.newton_threshold_linear_iter);
+
+          TrilinosWrappers::NOXSolver<VectorType> non_linear_solver(
+            additional_data, non_linear_parameters);
+
+          non_linear_solver.residual             = nl_residual;
+          non_linear_solver.setup_jacobian       = nl_setup_jacobian;
+          non_linear_solver.setup_preconditioner = nl_setup_preconditioner;
+          non_linear_solver.solve_with_jacobian_and_track_n_linear_iterations =
+            [&](const auto &src, auto &dst, const double tolerance) {
+              (void)tolerance;
+
+              return nl_solve_with_jacobian(src, dst);
+            };
+
+          if (params.nonlinear_data.verbosity >= 1) // TODO
+            non_linear_solver.check_iteration_status =
+              nl_check_iteration_status;
+
+          non_linear_solver_executor =
+            std::make_unique<NonLinearSolvers::NonLinearSolverWrapper<
+              VectorType,
+              TrilinosWrappers::NOXSolver<VectorType>>>(
+              std::move(non_linear_solver));
+        }
+      else
+        AssertThrow(false, ExcNotImplemented());
 
       // set initial condition
 
@@ -1427,7 +1467,7 @@ namespace Sintering
           initialize(solution.n_blocks());
 
           nonlinear_operator.clear();
-          non_linear_solver->clear();
+          non_linear_solver_executor->clear();
           preconditioner->clear();
 
           mass_operator.clear();
@@ -1513,7 +1553,7 @@ namespace Sintering
                                        ")."));
 
                 nonlinear_operator.clear();
-                non_linear_solver->clear();
+                non_linear_solver_executor->clear();
                 preconditioner->clear();
 
                 /**
@@ -1844,7 +1884,7 @@ namespace Sintering
 
                 // note: input/output (solution) needs/has the right
                 // constraints applied
-                non_linear_solver->solve(solution);
+                non_linear_solver_executor->solve(solution);
 
                 has_converged = true;
 
