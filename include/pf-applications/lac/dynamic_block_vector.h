@@ -292,6 +292,15 @@ namespace dealii
         }
 
         void
+        equ(const T a, const DynamicBlockVector<T> &v)
+        {
+          *this = v;
+
+          for (unsigned int b = 0; b < n_blocks(); ++b)
+            block(b) *= a;
+        }
+
+        void
         operator*=(const T factor)
         {
           for (unsigned int b = 0; b < n_blocks(); ++b)
