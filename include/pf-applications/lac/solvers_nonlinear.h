@@ -5,6 +5,8 @@
 
 #include <pf-applications/base/timer.h>
 
+#include <deal.II/trilinos/nox.h>
+
 namespace NonLinearSolvers
 {
   using namespace dealii;
@@ -397,6 +399,37 @@ namespace NonLinearSolvers
 
   private:
     mutable SolverType solver;
+  };
+
+  template <typename VectorType>
+  class NonLinearSolverWrapper<VectorType,
+                               TrilinosWrappers::NOXSolver<VectorType>>
+    : public NewtonSolver<VectorType>
+  {
+  public:
+    NonLinearSolverWrapper(TrilinosWrappers::NOXSolver<VectorType> &&solver,
+                           NewtonSolverSolverControl &               statistics)
+      : solver(std::move(solver))
+      , statistics(statistics)
+    {}
+
+    void
+    clear() const override
+    {
+      solver.clear();
+    }
+
+    void
+    solve(VectorType &dst) const override
+    {
+      const unsigned int n_newton_iterations = solver.solve(dst);
+      statistics.increment_newton_iterations(n_newton_iterations);
+    }
+
+  private:
+    mutable TrilinosWrappers::NOXSolver<VectorType> solver;
+
+    NewtonSolverSolverControl &statistics;
   };
 } // namespace NonLinearSolvers
 

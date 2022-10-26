@@ -1334,7 +1334,7 @@ namespace Sintering
             std::make_unique<NonLinearSolvers::NonLinearSolverWrapper<
               VectorType,
               TrilinosWrappers::NOXSolver<VectorType>>>(
-              std::move(non_linear_solver));
+              std::move(non_linear_solver), statistics);
         }
       else
         AssertThrow(false, ExcNotImplemented());
