@@ -1320,6 +1320,12 @@ namespace Sintering
               return nl_solve_with_jacobian(src, dst);
             };
 
+          non_linear_solver.apply_jacobian =
+            [&nonlinear_operator](const auto &src, auto &dst) {
+              nonlinear_operator.vmult(dst, src);
+              return 0;
+            };
+
           if (params.nonlinear_data.verbosity >= 1) // TODO
             non_linear_solver.check_iteration_status =
               nl_check_iteration_status;
