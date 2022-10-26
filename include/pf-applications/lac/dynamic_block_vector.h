@@ -329,7 +329,7 @@ namespace dealii
         }
 
         T
-        operator*(const DynamicBlockVector<T> &V)
+        operator*(const DynamicBlockVector<T> &V) const
         {
           AssertDimension(n_blocks(), V.n_blocks());
 
