@@ -200,10 +200,10 @@ namespace NonLinearSolvers
     virtual void
     clear() const = 0;
 
-    std::function<void(VectorType &)>                    reinit_vector  = {};
-    std::function<int(const VectorType &, VectorType &)> residual       = {};
-    std::function<int(const VectorType &)>               setup_jacobian = {};
-    std::function<int(const VectorType &)> setup_preconditioner         = {};
+    std::function<void(VectorType &)>                     reinit_vector  = {};
+    std::function<void(const VectorType &, VectorType &)> residual       = {};
+    std::function<void(const VectorType &)>               setup_jacobian = {};
+    std::function<void(const VectorType &)> setup_preconditioner         = {};
     std::function<int(const VectorType &, VectorType &)> solve_with_jacobian =
       {};
     std::function<SolverControl::State(const unsigned int,

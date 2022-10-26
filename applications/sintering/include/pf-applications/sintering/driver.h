@@ -944,7 +944,7 @@ namespace Sintering
         params.nonlinear_data.nl_rel_tol);
 
       // Lambda to compute residual
-      auto nl_residual = [&](const auto &src, auto &dst) -> int {
+      auto nl_residual = [&](const auto &src, auto &dst) {
         MyScope scope(timer, "time_loop::newton::residual");
 
         // Compute forces
@@ -954,12 +954,10 @@ namespace Sintering
         nonlinear_operator.evaluate_nonlinear_residual(dst, src);
 
         statistics.increment_residual_evaluations(1);
-
-        return 0;
       };
 
       // Lambda to set up jacobian
-      auto nl_setup_jacobian = [&](const auto &current_u) -> int {
+      auto nl_setup_jacobian = [&](const auto &current_u) {
         if (true)
           {
             MyScope scope(timer, "time_loop::newton::setup_jacobian");
@@ -1045,12 +1043,10 @@ namespace Sintering
                     }
               }
           }
-
-        return 0;
       };
 
       // Lambda to update preconditioner
-      auto nl_setup_preconditioner = [&](const auto &current_u) -> int {
+      auto nl_setup_preconditioner = [&](const auto &current_u) {
         MyScope scope(timer, "time_loop::newton::setup_preconditioner");
 
         if (transfer) // update multigrid levels
@@ -1097,12 +1093,10 @@ namespace Sintering
                 }
 
         preconditioner->do_update();
-
-        return 0;
       };
 
       // Lambda to solve system using jacobian
-      auto nl_solve_with_jacobian = [&](const auto &src, auto &dst) -> int {
+      auto nl_solve_with_jacobian = [&](const auto &src, auto &dst) {
         MyScope scope(timer, "time_loop::newton::solve_with_jacobian");
 
         // note: we mess with the input here, since we know that Newton does not
@@ -1300,13 +1294,29 @@ namespace Sintering
           TrilinosWrappers::NOXSolver<VectorType> non_linear_solver(
             additional_data, non_linear_parameters);
 
-          non_linear_solver.residual             = nl_residual;
-          non_linear_solver.setup_jacobian       = nl_setup_jacobian;
-          non_linear_solver.setup_preconditioner = nl_setup_preconditioner;
-          non_linear_solver.solve_with_jacobian_and_track_n_linear_iterations =
-            [&](const auto &src, auto &dst, const double tolerance) {
-              (void)tolerance;
+          non_linear_solver.residual = [&nl_residual](const auto &src,
+                                                      auto &      dst) {
+            nl_residual(src, dst);
+            return 0;
+          };
 
+          non_linear_solver.setup_jacobian =
+            [&nl_setup_jacobian](const auto &current_u) {
+              nl_setup_jacobian(current_u);
+              return 0;
+            };
+
+          non_linear_solver.setup_preconditioner =
+            [&nl_setup_preconditioner](const auto &current_u) {
+              nl_setup_preconditioner(current_u);
+              return 0;
+            };
+
+          non_linear_solver.solve_with_jacobian_and_track_n_linear_iterations =
+            [&nl_solve_with_jacobian](const auto & src,
+                                      auto &       dst,
+                                      const double tolerance) {
+              (void)tolerance;
               return nl_solve_with_jacobian(src, dst);
             };
 
