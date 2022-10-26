@@ -204,8 +204,8 @@ namespace NonLinearSolvers
     std::function<void(const VectorType &, VectorType &)> residual       = {};
     std::function<void(const VectorType &)>               setup_jacobian = {};
     std::function<void(const VectorType &)> setup_preconditioner         = {};
-    std::function<int(const VectorType &, VectorType &)> solve_with_jacobian =
-      {};
+    std::function<unsigned int(const VectorType &, VectorType &)>
+      solve_with_jacobian = {};
     std::function<SolverControl::State(const unsigned int,
                                        const double,
                                        const VectorType &,
