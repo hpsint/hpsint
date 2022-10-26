@@ -292,6 +292,15 @@ namespace dealii
         }
 
         void
+        equ(const T a, const DynamicBlockVector<T> &v)
+        {
+          *this = v;
+
+          for (unsigned int b = 0; b < n_blocks(); ++b)
+            block(b) *= a;
+        }
+
+        void
         operator*=(const T factor)
         {
           for (unsigned int b = 0; b < n_blocks(); ++b)
@@ -320,7 +329,7 @@ namespace dealii
         }
 
         T
-        operator*(const DynamicBlockVector<T> &V)
+        operator*(const DynamicBlockVector<T> &V) const
         {
           AssertDimension(n_blocks(), V.n_blocks());
 
