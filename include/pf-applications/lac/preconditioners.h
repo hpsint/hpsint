@@ -58,8 +58,7 @@ namespace Preconditioners
 
 
   template <typename Operator>
-  class Identity
-    : public PreconditionerBase<typename Operator::value_type>
+  class Identity : public PreconditionerBase<typename Operator::value_type>
   {
   public:
     using VectorType      = typename Operator::VectorType;
@@ -71,8 +70,7 @@ namespace Preconditioners
 
     virtual void
     clear()
-    {
-    }
+    {}
 
     void
     vmult(VectorType &dst, const VectorType &src) const override
@@ -88,8 +86,7 @@ namespace Preconditioners
 
     void
     do_update() override
-    {
-    }
+    {}
 
     virtual std::size_t
     memory_consumption() const
