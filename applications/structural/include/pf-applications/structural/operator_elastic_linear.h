@@ -82,6 +82,13 @@ namespace Structural
 
       src.zero_out_ghost_values();
       dst.compress(VectorOperation::add);
+
+      // Apply manual constraints
+      for (unsigned int d = 0; d < dim; ++d)
+        for (unsigned int i = 0; i < dirichlet_constraints_indices[d].size();
+             ++i)
+          dst.block(d).local_element(dirichlet_constraints_indices[d][i]) =
+            dirichlet_constraints_values[d][i];
     }
 
     void
@@ -143,6 +150,119 @@ namespace Structural
         }
     }
 
+    template <typename BlockVectorType_>
+    void
+    do_pre_vmult(BlockVectorType_ &dst, const BlockVectorType_ &src_in) const
+    {
+      (void)dst;
+
+      BlockVectorType_ &src = const_cast<BlockVectorType_ &>(src_in);
+
+      // apply inhomogeneous DBC on source vector
+      for (unsigned int d = 0; d < dim; ++d)
+        for (unsigned int i = 0; i < dirichlet_constraints_indices[d].size();
+             ++i)
+          src.block(d).local_element(dirichlet_constraints_indices[d][i]) =
+            dirichlet_constraints_values[d][i];
+    }
+
+    template <typename BlockVectorType_>
+    void
+    do_post_vmult(BlockVectorType_ &dst, const BlockVectorType_ &src_in) const
+    {
+      BlockVectorType_ &src = const_cast<BlockVectorType_ &>(src_in);
+
+      for (unsigned int d = 0; d < dim; ++d)
+        for (unsigned int i = 0; i < dirichlet_constraints_indices[d].size();
+             ++i)
+          {
+            src.block(d).local_element(dirichlet_constraints_indices[d][i]) =
+              0.0;
+            dst.block(d).local_element(dirichlet_constraints_indices[d][i]) =
+              dirichlet_constraints_values[d][i];
+          }
+    }
+
+    void
+    post_system_matrix_compute() const override
+    {
+      for (unsigned int d = 0; d < dim; ++d)
+        for (unsigned int i = 0; i < dirichlet_constraints_indices[d].size();
+             ++i)
+          {
+            const unsigned int matrix_index =
+              dim * dirichlet_constraints_indices[d][i] + d;
+
+            this->system_matrix.clear_row(matrix_index, 1.0);
+          }
+    }
+
+    void
+    attach_dirichlet_boundary_conditions(const AffineConstraints<Number> &ac,
+                                         const unsigned int               d)
+    {
+      AssertIndexRange(d, dim);
+
+      // clear old contents
+      dirichlet_constraints_indices[d].clear();
+      dirichlet_constraints_values[d].clear();
+
+      // loop over locally-owned indices and collect constrained indices and
+      // possibly the corresponding inhomogenity
+      const auto &partitioner = this->matrix_free.get_vector_partitioner();
+      for (const auto i : partitioner->locally_owned_range())
+        {
+          if (ac.is_constrained(i))
+            {
+              Number value = 0.0;
+
+              if (ac.is_inhomogeneously_constrained(i))
+                value = ac.get_inhomogeneity(i);
+
+              dirichlet_constraints_indices[d].emplace_back(
+                partitioner->global_to_local(i));
+              dirichlet_constraints_values[d].emplace_back(value);
+            }
+        }
+    }
+
+  protected:
+    void
+    pre_vmult(VectorType &dst, const VectorType &src_in) const override
+    {
+      (void)dst;
+
+      VectorType &src = const_cast<VectorType &>(src_in);
+
+      // apply inhomogeneous DBC on source vector
+      for (unsigned int d = 0; d < dim; ++d)
+        for (unsigned int i = 0; i < dirichlet_constraints_indices[d].size();
+             ++i)
+          {
+            const unsigned int matrix_index =
+              dim * dirichlet_constraints_indices[d][i] + d;
+            src.local_element(matrix_index) =
+              dirichlet_constraints_values[d][i];
+          }
+    }
+
+    void
+    post_vmult(VectorType &dst, const VectorType &src_in) const override
+    {
+      VectorType &src = const_cast<VectorType &>(src_in);
+
+      for (unsigned int d = 0; d < dim; ++d)
+        for (unsigned int i = 0; i < dirichlet_constraints_indices[d].size();
+             ++i)
+          {
+            const unsigned int matrix_index =
+              dim * dirichlet_constraints_indices[d][i] + d;
+            src.local_element(matrix_index) = 0.0;
+            dst.local_element(matrix_index) =
+              dirichlet_constraints_values[d][i];
+          }
+    }
+
   private:
     void
     do_evaluate_nonlinear_residual(
@@ -191,5 +311,8 @@ namespace Structural
 
     const ConstraintsCallback     constraints_imposition;
     const ExternalLoadingCallback external_loading;
+
+    std::array<std::vector<unsigned int>, dim> dirichlet_constraints_indices;
+    std::array<std::vector<Number>, dim>       dirichlet_constraints_values;
   };
 } // namespace Structural
