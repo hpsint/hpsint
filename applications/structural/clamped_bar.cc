@@ -50,7 +50,7 @@ public:
   using VectorType = LinearAlgebra::distributed::DynamicBlockVector<Number>;
 
   void
-  run(const bool matrix_based)
+  run(const bool matrix_based, const bool manual_constraints)
   {
     ConditionalOStream pcout(std::cout,
                              Utilities::MPI::this_mpi_process(MPI_COMM_WORLD) ==
@@ -102,15 +102,22 @@ public:
 
     AffineConstraints<Number> constraints;
 
-    // Apply DBC
-    auto constraints_imposition =
-      [&](const DoFHandler<dim> &    local_dof_handler,
-          AffineConstraints<Number> &local_constraints) {
-        DoFTools::make_zero_boundary_constraints(local_dof_handler,
-                                                 1,
-                                                 local_constraints);
-      };
-    constraints_imposition(dof_handler, constraints);
+    std::function<void(const DoFHandler<dim> &dof_handler,
+                       AffineConstraints<Number> &)>
+      constraints_imposition = {};
+
+    if (!manual_constraints)
+      {
+        // Apply DBC
+        constraints_imposition =
+          [&](const DoFHandler<dim> &    local_dof_handler,
+              AffineConstraints<Number> &local_constraints) {
+            DoFTools::make_zero_boundary_constraints(local_dof_handler,
+                                                     1,
+                                                     local_constraints);
+          };
+        constraints_imposition(dof_handler, constraints);
+      }
 
     constraints.close();
 
@@ -150,6 +157,20 @@ public:
 
     // Initialize
     nonlinear_operator.initialize_dof_vector(solution);
+
+    // Apply constraints manually
+    if (manual_constraints)
+      {
+        AffineConstraints<Number> constraints_dbc;
+        DoFTools::make_zero_boundary_constraints(dof_handler,
+                                                 1,
+                                                 constraints_dbc);
+        constraints_dbc.close();
+
+        for (unsigned int d = 0; d < dim; ++d)
+          nonlinear_operator.attach_dirichlet_boundary_conditions(
+            constraints_dbc, d);
+      }
 
     const auto output_result = [&](const double t) {
       DataOutBase::VtkFlags flags;
@@ -239,6 +260,9 @@ public:
 
     std::cout << "Solver type:           "
               << (matrix_based ? "matrix-based" : "matrix-free") << std::endl;
+    std::cout << "Constraints:           "
+              << (manual_constraints ? "manual" : "via AffineConstraints")
+              << std::endl;
     std::cout << "Linear iterations:     " << statistics.n_linear_iterations()
               << std::endl;
     std::cout << "Non-linear iterations: " << statistics.n_newton_iterations()
@@ -251,10 +275,14 @@ public:
 int
 main(int argc, char **argv)
 {
-  bool matrix_based = false;
+  bool matrix_based       = false;
+  bool manual_constraints = false;
 
   if (argc >= 2 && std::string(argv[1]) == "--matrix-based")
     matrix_based = true;
+
+  if (argc >= 3 && std::string(argv[2]) == "--manual-constraints")
+    manual_constraints = true;
 
   Utilities::MPI::MPI_InitFinalize mpi_init(argc, argv, 1);
 
@@ -263,5 +291,5 @@ main(int argc, char **argv)
   constexpr int n_points_1D = fe_degree + 1;
 
   Test<dim, fe_degree, n_points_1D, double, VectorizedArray<double, 4>> runner;
-  runner.run(matrix_based);
+  runner.run(matrix_based, manual_constraints);
 }
