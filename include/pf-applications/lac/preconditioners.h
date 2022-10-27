@@ -57,6 +57,44 @@ namespace Preconditioners
   };
 
 
+  template <typename Operator>
+  class Identity : public PreconditionerBase<typename Operator::value_type>
+  {
+  public:
+    using VectorType      = typename Operator::VectorType;
+    using BlockVectorType = typename PreconditionerBase<
+      typename Operator::value_type>::BlockVectorType;
+
+    Identity()
+    {}
+
+    virtual void
+    clear()
+    {}
+
+    void
+    vmult(VectorType &dst, const VectorType &src) const override
+    {
+      dst = src;
+    }
+
+    void
+    vmult(BlockVectorType &dst, const BlockVectorType &src) const override
+    {
+      dst = src;
+    }
+
+    void
+    do_update() override
+    {}
+
+    virtual std::size_t
+    memory_consumption() const
+    {
+      return 0;
+    }
+  };
+
 
   template <typename Operator>
   class InverseDiagonalMatrix
@@ -1101,6 +1139,8 @@ namespace Preconditioners
       return std::make_unique<ILU<T>>(op);
     else if (label == "BlockILU")
       return std::make_unique<BlockILU<T>>(op);
+    else if (label == "Identity")
+      return std::make_unique<Identity<T>>();
 
     AssertThrow(false,
                 ExcMessage("Preconditioner << " + label + " >> not known!"));
