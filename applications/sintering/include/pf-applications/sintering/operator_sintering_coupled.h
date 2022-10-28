@@ -38,6 +38,8 @@ namespace Sintering
       const SinteringOperatorData<dim, VectorizedArrayType> &     data,
       const TimeIntegration::SolutionHistory<BlockVectorType> &   history,
       const AdvectionMechanism<dim, Number, VectorizedArrayType> &advection,
+      const double                                                E,
+      const double                                                nu,
       const bool                                                  matrix_based,
       ExternalLoadingCallback                                     loading = {})
       : SinteringOperatorBase<
@@ -51,6 +53,7 @@ namespace Sintering
           history,
           advection,
           matrix_based)
+      , material(E, nu, TWO_DIM_TYPE::PLAIN_STRAIN)
       , external_loading(loading)
     {}
 
