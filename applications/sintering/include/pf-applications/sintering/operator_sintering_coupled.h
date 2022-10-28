@@ -28,13 +28,18 @@ namespace Sintering
     using value_type  = Number;
     using vector_type = VectorType;
 
+    using ExternalLoadingCallback =
+      std::function<Tensor<1, dim, VectorizedArrayType>(
+        const Point<dim, VectorizedArrayType> &p)>;
+
     SinteringOperatorCoupled(
       const MatrixFree<dim, Number, VectorizedArrayType> &        matrix_free,
       const AffineConstraints<Number> &                           constraints,
       const SinteringOperatorData<dim, VectorizedArrayType> &     data,
       const TimeIntegration::SolutionHistory<BlockVectorType> &   history,
       const AdvectionMechanism<dim, Number, VectorizedArrayType> &advection,
-      const bool                                                  matrix_based)
+      const bool                                                  matrix_based,
+      ExternalLoadingCallback                                     loading = {})
       : SinteringOperatorBase<
           dim,
           Number,
@@ -46,7 +51,7 @@ namespace Sintering
           history,
           advection,
           matrix_based)
-      , material(1, 0.3, TWO_DIM_TYPE::PLAIN_STRESS)
+      , external_loading(loading)
     {}
 
     ~SinteringOperatorCoupled()
@@ -477,6 +482,16 @@ namespace Sintering
               for (unsigned int d = 0; d < dim; d++)
                 gradient_result[n_grains + 2 + d] = S[d];
 
+              // apply body force
+              if (external_loading)
+                {
+                  const auto body_force =
+                    external_loading(phi.quadrature_point(q));
+
+                  for (unsigned int d = 0; d < dim; d++)
+                    value_result[n_grains + 2 + d] = body_force[d];
+                }
+
               phi.submit_value(value_result, q);
               phi.submit_gradient(gradient_result, q);
             }
@@ -490,6 +505,8 @@ namespace Sintering
 
     std::vector<unsigned int>           zero_c_constraints_indices;
     mutable std::vector<Tensor<1, dim>> zero_c_constraints_values;
+
+    const ExternalLoadingCallback external_loading;
 
     std::array<std::vector<unsigned int>, dim> displ_constraints_indices;
   };
