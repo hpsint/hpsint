@@ -77,6 +77,11 @@ namespace Sintering
     true);
       EXPAND_OPERATIONS(OPERATION);
 #undef OPERATION
+
+      // Apply manual constraints
+      for (unsigned int d = 0; d < dim; ++d)
+        for (const unsigned int index : displ_constraints_indices[d])
+          dst.block(this->data.n_components() + d).local_element(index) = 0.0;
     }
 
     unsigned int
@@ -157,6 +162,10 @@ namespace Sintering
                 0.0;
             }
         }
+
+      for (unsigned int d = 0; d < dim; ++d)
+        for (const unsigned int index : displ_constraints_indices[d])
+          src.block(this->data.n_components() + d).local_element(index) = 0.0;
     }
 
     template <typename BlockVectorType_>
@@ -336,6 +345,14 @@ namespace Sintering
               src.local_element(matrix_index) = 0.0;
             }
         }
+
+      for (unsigned int d = 0; d < dim; ++d)
+        for (const unsigned int index : displ_constraints_indices[d])
+          {
+            const unsigned int matrix_index =
+              n_components() * index + d + this->data.n_components();
+            src.local_element(matrix_index) = 0.0;
+          }
     }
 
     void
