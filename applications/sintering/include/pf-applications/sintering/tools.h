@@ -428,4 +428,85 @@ namespace Sintering
     return tensor;
   }
 
+  template <int dim,
+            typename Number,
+            typename VectorType,
+            typename VectorizedArrayType>
+  void
+  clamp_central_section(
+    std::array<std::vector<unsigned int>, dim> &displ_constraints_indices,
+    const MatrixFree<dim, Number, VectorizedArrayType> &matrix_free,
+    const VectorType &                                  concentration,
+    const unsigned int                                  direction = 0)
+  {
+    // Add central constraints
+    const auto bb_tria = GridTools::compute_bounding_box(
+      matrix_free.get_dof_handler().get_triangulation());
+
+    auto center = bb_tria.get_boundary_points().first +
+                  bb_tria.get_boundary_points().second;
+    center /= 2.;
+
+    std::vector<types::global_dof_index> local_face_dof_indices(
+      matrix_free.get_dofs_per_face());
+    std::set<types::global_dof_index> indices_to_add;
+
+    const unsigned int x_id = 0;
+
+    double       c_max_on_face    = 0.;
+    unsigned int id_c_max_on_face = numbers::invalid_unsigned_int;
+
+    // Apply constraints for displacement along the direction axis
+    const auto &partitioner = matrix_free.get_vector_partitioner();
+
+    for (const auto &cell :
+         matrix_free.get_dof_handler().active_cell_iterators())
+      if (cell->is_locally_owned())
+        for (const auto &face : cell->face_iterators())
+          if (std::abs(face->center()(direction) - center[direction]) < 1e-9)
+            {
+              face->get_dof_indices(local_face_dof_indices);
+
+              for (const auto i : local_face_dof_indices)
+                {
+                  const auto local_index = partitioner->global_to_local(i);
+                  indices_to_add.insert(local_index);
+
+                  if (concentration[local_index] > c_max_on_face)
+                    {
+                      c_max_on_face    = concentration[local_index];
+                      id_c_max_on_face = local_index;
+                    }
+                }
+            }
+
+    const auto comm = matrix_free.get_dof_handler().get_communicator();
+
+    const double global_c_max_on_face =
+      Utilities::MPI::max(c_max_on_face, comm);
+
+    unsigned int rank_having_c_max =
+      std::abs(global_c_max_on_face - c_max_on_face) < 1e-16 ?
+        Utilities::MPI::this_mpi_process(comm) :
+        numbers::invalid_unsigned_int;
+    rank_having_c_max = Utilities::MPI::min(c_max_on_face, comm);
+
+    // Remove previous costraionts
+    for (unsigned int d = 0; d < dim; ++d)
+      displ_constraints_indices[d].clear();
+
+    // Add cross-section constraints
+    std::copy(indices_to_add.begin(),
+              indices_to_add.end(),
+              std::back_inserter(displ_constraints_indices[direction]));
+
+    // Add pointwise constraints
+    bool add_pointwise =
+      rank_having_c_max == Utilities::MPI::this_mpi_process(comm);
+    if (add_pointwise)
+      for (unsigned int d = 0; d < dim; ++d)
+        if (d != direction)
+          displ_constraints_indices[d].push_back(id_c_max_on_face);
+  }
+
 } // namespace Sintering
