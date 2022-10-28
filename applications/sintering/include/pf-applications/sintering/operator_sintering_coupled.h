@@ -38,9 +38,9 @@ namespace Sintering
       const SinteringOperatorData<dim, VectorizedArrayType> &     data,
       const TimeIntegration::SolutionHistory<BlockVectorType> &   history,
       const AdvectionMechanism<dim, Number, VectorizedArrayType> &advection,
-      const double                                                E,
-      const double                                                nu,
       const bool                                                  matrix_based,
+      const double                                                E  = 1.0,
+      const double                                                nu = 0.25,
       ExternalLoadingCallback                                     loading = {})
       : SinteringOperatorBase<
           dim,
@@ -483,6 +483,10 @@ namespace Sintering
 
                       value_result[0] += velocity * c_grad;
                       value_result[2 + ig] += velocity * grad[2 + ig];
+
+                      // Try to apply velocity as force along x axis DEBUG
+                      // for (unsigned int d = 0; d < dim; ++d)
+                      // value_result[n_grains + 2 + d] += velocity[d];
                     }
                 }
 

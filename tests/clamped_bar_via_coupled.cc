@@ -283,9 +283,9 @@ public:
                                          sintering_data,
                                          solution_history,
                                          advection_mechanism,
+                                         matrix_based,
                                          E,
                                          nu,
-                                         matrix_based,
                                          body_force_x);
 
     std::function<void(VectorType &)> f_init =
