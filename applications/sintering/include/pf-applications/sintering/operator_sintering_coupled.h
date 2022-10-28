@@ -296,6 +296,18 @@ namespace Sintering
         }
     }
 
+    std::array<std::vector<unsigned int>, dim> &
+    get_zero_constraints_indices()
+    {
+      return displ_constraints_indices;
+    }
+
+    const std::array<std::vector<unsigned int>, dim> &
+    get_zero_constraints_indices() const
+    {
+      return displ_constraints_indices;
+    }
+
   protected:
     void
     pre_vmult(VectorType &dst, const VectorType &src_in) const override
