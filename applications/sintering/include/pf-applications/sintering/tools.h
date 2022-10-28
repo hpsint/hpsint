@@ -451,8 +451,6 @@ namespace Sintering
       matrix_free.get_dofs_per_face());
     std::set<types::global_dof_index> indices_to_add;
 
-    const unsigned int x_id = 0;
-
     double       c_max_on_face    = 0.;
     unsigned int id_c_max_on_face = numbers::invalid_unsigned_int;
 
