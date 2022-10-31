@@ -483,10 +483,6 @@ namespace Sintering
 
                       value_result[0] += velocity * c_grad;
                       value_result[2 + ig] += velocity * grad[2 + ig];
-
-                      // Try to apply velocity as force along x axis DEBUG
-                      // for (unsigned int d = 0; d < dim; ++d)
-                      // value_result[n_grains + 2 + d] += velocity[d];
                     }
                 }
 
