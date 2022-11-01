@@ -245,6 +245,10 @@ main(int argc, char **argv)
           params.geometry_data.minimize_order_parameters,
           params.geometry_data.interface_buffer_ratio);
 
+      AssertThrow(initial_solution->n_contacts() > 0,
+                  ExcMessage(
+                    "No particles in contact, check the packing geometry!"));
+
       AssertThrow(
         initial_solution->n_order_parameters() <= MAX_SINTERING_GRAINS,
         Sintering::ExcMaxGrainsExceeded(initial_solution->n_order_parameters(),
