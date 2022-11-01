@@ -155,7 +155,7 @@ main(int argc, char **argv)
                                                    op_offset);
 
   solution.update_ghost_values();
-  grain_tracker.initial_setup(solution);
+  grain_tracker.initial_setup(solution, initial_solution.n_order_parameters());
   grain_tracker.print_current_grains(pcout, true);
   solution.zero_out_ghost_values();
 }
