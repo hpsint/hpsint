@@ -1384,8 +1384,9 @@ namespace Sintering
         const auto time_total = std::chrono::system_clock::now();
 
         const auto [has_reassigned_grains, has_op_number_changed] =
-          do_initialize ? grain_tracker.initial_setup(solution) :
-                          grain_tracker.track(solution);
+          do_initialize ?
+            grain_tracker.initial_setup(solution, sintering_data.n_grains()) :
+            grain_tracker.track(solution, sintering_data.n_grains());
 
         const double time_total_double =
           std::chrono::duration_cast<std::chrono::nanoseconds>(

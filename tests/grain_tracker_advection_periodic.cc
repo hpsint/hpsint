@@ -226,8 +226,8 @@ main(int argc, char **argv)
 
           const auto [has_reassigned_grains, has_op_number_changed] =
             std::abs(t - t_start) < 1e-16 ?
-              grain_tracker.initial_setup(solution) :
-              grain_tracker.track(solution);
+              grain_tracker.initial_setup(solution, initial_solution->n_order_parameters()) :
+              grain_tracker.track(solution, solution.n_blocks() - 2);
 
           pcout << "Time t = " << t << std::endl;
           grain_tracker.print_current_grains(pcout, true);
