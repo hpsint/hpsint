@@ -1409,11 +1409,9 @@ namespace Sintering
               {
                 const unsigned int n_grains_new =
                   grain_tracker.get_active_order_parameters().size();
-                const unsigned int n_components_new =
-                  nonlinear_operator.n_components() -
-                  sintering_data.n_grains() + n_grains_new;
-
                 const unsigned int n_components_old = solution.n_blocks();
+                const unsigned int n_components_new =
+                  n_components_old - sintering_data.n_grains() + n_grains_new;
 
                 pcout << "\033[34mChanging number of components from "
                       << n_components_old << " to " << n_components_new
