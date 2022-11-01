@@ -168,6 +168,25 @@ namespace dealii
           return block_counter;
         }
 
+        /* Move block to a new place */
+        void
+        move_block(const unsigned int from, const unsigned int to)
+        {
+          AssertIndexRange(from, n_blocks());
+          AssertIndexRange(to, n_blocks());
+
+          auto tmp = blocks[from];
+
+          if (from > to)
+            for (unsigned int i = from; i > to; --i)
+              blocks[i] = blocks[i - 1];
+          else if (from < to)
+            for (unsigned int i = from; i < to; ++i)
+              blocks[i] = blocks[i + 1];
+
+          blocks[to] = tmp;
+        }
+
         /**
          * Communication.
          */
