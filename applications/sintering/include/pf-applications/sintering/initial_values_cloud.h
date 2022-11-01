@@ -172,10 +172,6 @@ namespace Sintering
             }
         }
 
-      AssertThrow(contacts.empty() == false,
-                  ExcMessage(
-                    "No particles in contact, check the packing geometry!"));
-
       // Build colorization if compressed
       if (minimize_order_parameters)
         {
