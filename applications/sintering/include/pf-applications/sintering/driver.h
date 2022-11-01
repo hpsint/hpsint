@@ -1247,7 +1247,7 @@ namespace Sintering
           // 2) estimate errors
           Vector<float> estimated_error_per_cell(tria.n_active_cells());
 
-          for (unsigned int b = 2; b < solution.n_blocks(); ++b)
+          for (unsigned int b = 2; b < sintering_data.n_components(); ++b)
             {
               Vector<float> estimated_error_per_cell_temp(
                 tria.n_active_cells());
@@ -1287,7 +1287,7 @@ namespace Sintering
               if (cell->is_locally_owned() == false || cell->refine_flag_set())
                 continue;
 
-              for (unsigned int b = 2; b < solution.n_blocks(); ++b)
+              for (unsigned int b = 2; b < sintering_data.n_components(); ++b)
                 {
                   cell->get_dof_values(solution_dealii.block(b), values);
 
