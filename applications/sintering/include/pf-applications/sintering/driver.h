@@ -1407,22 +1407,24 @@ namespace Sintering
 
             if (has_op_number_changed)
               {
+                const unsigned int n_grains_new =
+                  grain_tracker.get_active_order_parameters().size();
                 const unsigned int n_components_new =
-                  grain_tracker.get_active_order_parameters().size() + 2;
+                  nonlinear_operator.n_components() -
+                  sintering_data.n_grains() + n_grains_new;
+
                 const unsigned int n_components_old = solution.n_blocks();
 
                 pcout << "\033[34mChanging number of components from "
                       << n_components_old << " to " << n_components_new
                       << "\033[0m" << std::endl;
 
-                AssertThrow((n_components_new - 2) <= MAX_SINTERING_GRAINS,
+                AssertThrow(n_grains_new <= MAX_SINTERING_GRAINS,
                             ExcMessage("Number of grains (" +
-                                       std::to_string(n_components_new - 2) +
+                                       std::to_string(n_grains_new) +
                                        ") exceeds the maximum value (" +
                                        std::to_string(MAX_SINTERING_GRAINS) +
                                        ")."));
-
-                sintering_data.set_n_components(n_components_new);
 
                 nonlinear_operator.clear();
                 non_linear_solver->clear();
@@ -1435,19 +1437,45 @@ namespace Sintering
                  * add new blocks to the solution vector prior to remapping.
                  */
 
+                const unsigned int distance =
+                  nonlinear_operator.n_components() -
+                  sintering_data.n_components();
+
                 const auto remap = [&](auto &solution) {
                   if (has_reassigned_grains &&
                       n_components_new < n_components_old)
-                    grain_tracker.remap(solution);
+                    {
+                      grain_tracker.remap(solution);
 
+                      // Move the to be deleted components to the end
+                      if (distance > 0)
+                        for (unsigned int i = sintering_data.n_components() - 1;
+                             i >= n_components_new;
+                             --i)
+                          solution.move_block(i, i + distance);
+                    }
+
+                  // Resize solution vector (delete or add blocks)
                   solution.reinit(n_components_new);
 
                   if (has_reassigned_grains &&
                       n_components_new > n_components_old)
-                    grain_tracker.remap(solution);
+                    {
+                      // Move the newly created before displacements
+                      if (distance > 0)
+                        for (unsigned int i = nonlinear_operator.n_components();
+                             i < n_components_new;
+                             ++i)
+                          solution.move_block(i, i - distance);
+
+                      grain_tracker.remap(solution);
+                    }
                 };
 
                 solutions_except_recent.apply([&](auto &sol) { remap(sol); });
+
+                // Change number of components after remapping completed
+                sintering_data.set_n_components(n_grains_new + 2);
               }
             else if (has_reassigned_grains)
               {
