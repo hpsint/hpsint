@@ -74,7 +74,7 @@ namespace GrainTracker
      * number of active order parameters has been changed.
      */
     std::tuple<bool, bool>
-    track(const BlockVectorType &solution)
+    track(const BlockVectorType &solution, const unsigned int n_order_params)
     {
       // Copy old grains
       old_grains = grains;
@@ -83,7 +83,8 @@ namespace GrainTracker
       // Now we do not assign grain indices when searching for grains
       const bool assign_indices = false;
 
-      const auto new_grains = detect_grains(solution, assign_indices);
+      const auto new_grains =
+        detect_grains(solution, n_order_params, assign_indices);
 
       // Numberer for new grains
       unsigned int grain_numberer = old_grains.rbegin()->first + 1;
@@ -222,11 +223,12 @@ namespace GrainTracker
      * and if the number of active order parameters has been changed.
      */
     std::tuple<bool, bool>
-    initial_setup(const BlockVectorType &solution)
+    initial_setup(const BlockVectorType &solution,
+                  const unsigned int     n_order_params)
     {
       const bool assign_indices = true;
 
-      grains = detect_grains(solution, assign_indices);
+      grains = detect_grains(solution, n_order_params, assign_indices);
 
       // The rest is the same as was before
 
@@ -723,7 +725,9 @@ namespace GrainTracker
     }
 
     std::map<unsigned int, Grain<dim>>
-    detect_grains(const BlockVectorType &solution, const bool assign_indices)
+    detect_grains(const BlockVectorType &solution,
+                  const unsigned int     n_order_params,
+                  const bool             assign_indices)
     {
       std::map<unsigned int, Grain<dim>> new_grains;
 
@@ -731,9 +735,6 @@ namespace GrainTracker
 
       // Numerator
       unsigned int grains_numerator = 0;
-
-      const unsigned int n_order_params =
-        solution.n_blocks() - order_parameters_offset;
 
       // Order parameter indices stored per cell
       op_particle_ids.reinit(n_order_params);
