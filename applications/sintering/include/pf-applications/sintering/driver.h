@@ -1495,6 +1495,18 @@ namespace Sintering
 
           old_old_solutions.update_ghost_values();
 
+        // Update mechanical constraints for the coupled model
+#ifdef COUPLED_MODEL
+          auto &displ_constraints_indices =
+            nonlinear_operator.get_zero_constraints_indices();
+
+          const unsigned int direction = 0;
+          clamp_central_section<dim>(displ_constraints_indices,
+                                     matrix_free,
+                                     solution.block(0),
+                                     direction);
+#endif
+
           output_result(solution, nonlinear_operator, t, "refinement");
 
           if (params.output_data.mesh_overhead_estimate)
