@@ -1008,7 +1008,7 @@ namespace Sintering
                 matrix_free,
                 current_u,
                 params.advection_data.enable,
-                params.advection_data.enable);
+                save_all_blocks);
 
               nonlinear_operator.update_state(current_u);
 
@@ -1130,7 +1130,7 @@ namespace Sintering
                         mg_matrix_free[l],
                         mg_current_u[l],
                         params.advection_data.enable,
-                        params.advection_data.enable);
+                        save_all_blocks);
                     }
                 }
 
@@ -1684,7 +1684,7 @@ namespace Sintering
                   matrix_free,
                   solution,
                   params.advection_data.enable,
-                  params.advection_data.enable);
+                  save_all_blocks);
 
                 VectorType dst, src;
 
