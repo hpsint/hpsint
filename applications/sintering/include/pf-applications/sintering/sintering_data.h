@@ -94,7 +94,8 @@ namespace Sintering
     fill_quadrature_point_values(
       const MatrixFree<dim, Number, VectorizedArrayType> &          matrix_free,
       const LinearAlgebra::distributed::DynamicBlockVector<Number> &src,
-      const bool save_op_gradients = false)
+      const bool save_op_gradients = false,
+      const bool save_all_blocks   = false)
     {
       AssertThrow(src.n_blocks() >= this->n_components(),
                   ExcMessage("Source vector size (" +
@@ -108,14 +109,16 @@ namespace Sintering
       const unsigned n_cells             = matrix_free.n_cell_batches();
       const unsigned n_quadrature_points = matrix_free.get_quadrature().size();
 
-      nonlinear_values.reinit(
-        {n_cells, n_quadrature_points, this->n_components()});
+      const unsigned n_components_save =
+        save_all_blocks ? src.n_blocks() : this->n_components();
 
-      nonlinear_gradients.reinit({n_cells,
-                                  n_quadrature_points,
-                                  use_tensorial_mobility || save_op_gradients ?
-                                    this->n_components() :
-                                    2});
+      nonlinear_values.reinit(
+        {n_cells, n_quadrature_points, n_components_save});
+
+      nonlinear_gradients.reinit(
+        {n_cells,
+         n_quadrature_points,
+         use_tensorial_mobility || save_op_gradients ? n_components_save : 2});
 
       FECellIntegrator<dim, 1, Number, VectorizedArrayType> phi(matrix_free);
 
@@ -125,7 +128,7 @@ namespace Sintering
         {
           phi.reinit(cell);
 
-          for (unsigned int c = 0; c < this->n_components(); ++c)
+          for (unsigned int c = 0; c < n_components_save; ++c)
             {
               phi.read_dof_values_plain(src.block(c));
               phi.evaluate(EvaluationFlags::values |
