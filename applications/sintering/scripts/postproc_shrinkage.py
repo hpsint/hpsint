@@ -2,6 +2,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 import argparse
 import colorsys
+import collections.abc
 
 def get_hex_colors(N):
     hsv_tuples = [(x * 1.0 / N, 0.5, 0.5) for x in range(N)]
@@ -13,8 +14,13 @@ def get_hex_colors(N):
 
 parser = argparse.ArgumentParser(description='Process shrinkage data')
 parser.add_argument("-f", "--files", dest="files", nargs='+', required=True, help="Source filename")
+parser.add_argument("-d", "--directions", dest="directions", nargs='+',
+    required=False, default="all", help="Directions", choices=['x', 'y', 'z', 'vol', 'all'])
 
 args = parser.parse_args()
+
+if not isinstance(args.directions, collections.abc.Sequence):
+    args.directions = [args.directions]
 
 n_files = len(args.files)
 colors = get_hex_colors(n_files)
@@ -22,6 +28,11 @@ colors = get_hex_colors(n_files)
 csv_header = ["dim_x", "dim_y", "dim_z", "volume", "shrinkage_x", "shrinkage_y", "shrinkage_z", "densification"]
 n_qtys = 4
 markers = ["s", "D", "o", "x"]
+
+if 'all' in args.directions:
+    active = True*[n_qtys]
+else:
+    active = [(item in args.directions) for item in ['x', 'y', 'z', 'vol']]
 
 fig, axes = plt.subplots(nrows=1, ncols=2)
 fig.suptitle('Shrinkage and densification')
@@ -33,7 +44,7 @@ for f, clr in zip(args.files, colors):
     alpha = 1
 
     for i in range(n_qtys):
-        if csv_header[i] in fdata.dtype.names:
+        if csv_header[i] in fdata.dtype.names and active[i]:
             qty_name = csv_header[i]
 
             ref0 = fdata[qty_name][0]
