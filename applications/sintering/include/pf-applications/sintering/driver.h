@@ -804,6 +804,23 @@ namespace Sintering
         params.advection_data.mr,
         grain_tracker);
 
+#ifdef COUPLED_MODEL
+
+      const double E  = 1.;
+      const double nu = 0.25;
+
+      // ... non-linear operator
+      NonLinearOperator nonlinear_operator(matrix_free,
+                                           constraints,
+                                           sintering_data,
+                                           solution_history,
+                                           advection_mechanism,
+                                           params.matrix_based,
+                                           E,
+                                           nu);
+
+      const bool save_all_blocks = params.advection_data.enable;
+#else
       // ... non-linear operator
       NonLinearOperator nonlinear_operator(matrix_free,
                                            constraints,
@@ -811,6 +828,9 @@ namespace Sintering
                                            solution_history,
                                            advection_mechanism,
                                            params.matrix_based);
+
+      const bool save_all_blocks = false;
+#endif
 
       // ... preconditioner
       std::unique_ptr<Preconditioners::PreconditionerBase<Number>>
