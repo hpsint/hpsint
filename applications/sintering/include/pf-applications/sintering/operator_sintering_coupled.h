@@ -502,7 +502,7 @@ namespace Sintering
 
                           // Apply Wang velocity as body force
                           for (unsigned int d = 0; d < dim; ++d)
-                            value_result[n_grains + 2 + d] += -velocity[d];
+                            value_result[n_grains + 2 + d] -= velocity[d];
                         }
                     }
                 }
