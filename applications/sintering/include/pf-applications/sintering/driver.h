@@ -985,7 +985,10 @@ namespace Sintering
               MyScope scope(timer, "time_loop::newton::setup_jacobian");
 
               sintering_data.fill_quadrature_point_values(
-                matrix_free, current_u, params.advection_data.enable);
+                matrix_free,
+                current_u,
+                params.advection_data.enable,
+                params.advection_data.enable);
 
               nonlinear_operator.update_state(current_u);
 
@@ -1106,6 +1109,7 @@ namespace Sintering
                       mg_sintering_data[l].fill_quadrature_point_values(
                         mg_matrix_free[l],
                         mg_current_u[l],
+                        params.advection_data.enable,
                         params.advection_data.enable);
                     }
                 }
@@ -1657,7 +1661,10 @@ namespace Sintering
                   nonlinear_operator.set_timing(false);
 
                 sintering_data.fill_quadrature_point_values(
-                  matrix_free, solution, params.advection_data.enable);
+                  matrix_free,
+                  solution,
+                  params.advection_data.enable,
+                  params.advection_data.enable);
 
                 VectorType dst, src;
 
