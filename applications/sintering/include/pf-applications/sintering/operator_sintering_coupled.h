@@ -308,7 +308,12 @@ namespace Sintering
 
           const auto E = apply_l(H);
 
-          const auto C = c * material.get_dSdE();
+          // const auto C = c * material.get_dSdE();
+          // DEBUG
+          // const auto C = material.get_dSdE();
+          const auto cl = compare_and_apply_mask<SIMDComparison::less_than>(
+            c, VectorizedArrayType(0.1), VectorizedArrayType(0.1), c);
+          const auto C = cl * material.get_dSdE();
 
           const auto S = apply_l_transposed<dim>(C * E);
 
@@ -516,7 +521,13 @@ namespace Sintering
 
               // update material
               material.reinit(E);
-              const auto C = c * material.get_dSdE();
+
+              // const auto C = c * material.get_dSdE();
+              // DEBUG
+              // const auto C = material.get_dSdE();
+              const auto cl = compare_and_apply_mask<SIMDComparison::less_than>(
+                c, VectorizedArrayType(0.1), VectorizedArrayType(0.1), c);
+              const auto C = cl * material.get_dSdE();
 
               const auto S = apply_l_transposed<dim>(C * E);
 
