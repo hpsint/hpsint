@@ -968,7 +968,8 @@ namespace Sintering
               params.advection_data.enable,
               save_all_blocks);
 
-            nonlinear_operator.update_state(current_u);
+            // DEBUG disable this call
+            // nonlinear_operator.update_state(current_u);
 
             nonlinear_operator.do_update();
 
