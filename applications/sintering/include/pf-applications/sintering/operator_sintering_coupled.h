@@ -210,6 +210,7 @@ namespace Sintering
       const auto &kappa_p     = this->data.kappa_p;
       const auto  weight      = this->data.time_data.get_primary_weight();
       const auto &L           = mobility.Lgb();
+      const auto  dt          = this->data.time_data.get_current_dt();
 
       // Reinit advection data for the current cells batch
       if (this->advection.enabled())
@@ -241,6 +242,19 @@ namespace Sintering
             etas_grad = &gradient_lin[2];
 
           const auto etaPower2Sum = PowerHelper<n_grains, 2>::power_sum(etas);
+
+          // Displacement field
+          Tensor<1, dim, VectorizedArrayType> v_adv;
+          Tensor<1, dim, VectorizedArrayType> v_adv_lin;
+          for (unsigned int d = 0; d < dim; ++d)
+            {
+              v_adv[d]     = value[n_grains + 2 + d];
+              v_adv_lin[d] = value_lin[n_grains + 2 + d];
+            }
+
+          // Advection velocity
+          v_adv *= 1. / dt;
+          v_adv_lin *= 1. / dt;
 
           value_result[0] = value[0] * weight;
           value_result[1] = -value[1] + free_energy.d2f_dc2(c, etas) * value[0];
@@ -278,19 +292,12 @@ namespace Sintering
                   value_result[jg + 2] += L * d2f_detaidetaj * value[ig + 2];
                 }
 
-              if (this->advection.enabled() && this->advection.has_velocity(ig))
+              if (this->advection.enabled())
                 {
-                  const auto &velocity =
-                    this->advection.get_velocity(ig, phi.quadrature_point(q));
-                  const auto &velocity_derivative =
-                    this->advection.get_velocity_derivative(
-                      ig, phi.quadrature_point(q));
+                  value_result[0] += v_adv * c_grad + v_adv_lin * gradient[0];
 
-                  value_result[0] +=
-                    velocity * gradient[0] + velocity_derivative * c_grad;
-
-                  value_result[ig + 2] += velocity * gradient[ig + 2] +
-                                          velocity_derivative * etas_grad[ig];
+                  value_result[ig + 2] +=
+                    v_adv * etas_grad[ig] + v_adv_lin * gradient[ig + 2];
                 }
             }
 
@@ -407,6 +414,7 @@ namespace Sintering
       const auto &kappa_p     = this->data.kappa_p;
       const auto &order       = this->data.time_data.get_order();
       const auto &L           = mobility.Lgb();
+      const auto  dt          = this->data.time_data.get_current_dt();
 
       const auto old_solutions = this->history.get_old_solutions();
 
@@ -450,6 +458,14 @@ namespace Sintering
                   etas_grad[ig] = grad[2 + ig];
                 }
 
+              // Displacement field
+              Tensor<1, dim, VectorizedArrayType> v_adv;
+              for (unsigned int d = 0; d < dim; ++d)
+                v_adv[d] = val[n_grains + 2 + d];
+
+              // Advection velocity
+              v_adv *= 1. / dt;
+
               Tensor<1, n_comp, VectorizedArrayType> value_result;
               Tensor<1, n_comp, Tensor<1, dim, VectorizedArrayType>>
                 gradient_result;
@@ -474,15 +490,20 @@ namespace Sintering
 
                   gradient_result[2 + ig] = L * kappa_p * grad[2 + ig];
 
-                  if (this->advection.enabled() &&
-                      this->advection.has_velocity(ig))
+                  if (this->advection.enabled())
                     {
-                      const auto &velocity =
-                        this->advection.get_velocity(ig,
-                                                     phi.quadrature_point(q));
+                      value_result[0] += v_adv * c_grad;
+                      value_result[2 + ig] += v_adv * grad[2 + ig];
 
-                      value_result[0] += velocity * c_grad;
-                      value_result[2 + ig] += velocity * grad[2 + ig];
+                      if (this->advection.has_velocity(ig))
+                        {
+                          const auto &velocity = this->advection.get_velocity(
+                            ig, phi.quadrature_point(q));
+
+                          // Apply Wang velocity as body force
+                          for (unsigned int d = 0; d < dim; ++d)
+                            value_result[n_grains + 2 + d] += -velocity[d];
+                        }
                     }
                 }
 
