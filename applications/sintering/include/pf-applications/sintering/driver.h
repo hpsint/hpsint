@@ -962,11 +962,11 @@ namespace Sintering
           {
             MyScope scope(timer, "time_loop::newton::setup_jacobian");
 
-              sintering_data.fill_quadrature_point_values(
-                matrix_free,
-                current_u,
-                params.advection_data.enable,
-                save_all_blocks);
+            sintering_data.fill_quadrature_point_values(
+              matrix_free,
+              current_u,
+              params.advection_data.enable,
+              save_all_blocks);
 
             nonlinear_operator.update_state(current_u);
 
@@ -1080,17 +1080,17 @@ namespace Sintering
                                            mg_current_u[l].block(b));
               }
 
-                  for (unsigned int l = min_level; l <= max_level; ++l)
-                    {
-                      mg_sintering_data[l].set_n_components(
-                        sintering_data.n_components());
-                      mg_sintering_data[l].fill_quadrature_point_values(
-                        mg_matrix_free[l],
-                        mg_current_u[l],
-                        params.advection_data.enable,
-                        save_all_blocks);
-                    }
-                }
+            for (unsigned int l = min_level; l <= max_level; ++l)
+              {
+                mg_sintering_data[l].set_n_components(
+                  sintering_data.n_components());
+                mg_sintering_data[l].fill_quadrature_point_values(
+                  mg_matrix_free[l],
+                  mg_current_u[l],
+                  params.advection_data.enable,
+                  save_all_blocks);
+              }
+          }
 
         preconditioner->do_update();
       };
