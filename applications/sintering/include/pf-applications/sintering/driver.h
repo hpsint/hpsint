@@ -1159,6 +1159,8 @@ namespace Sintering
       double check_value_0_ac  = 0.0;
       double check_value_0_mec = 0.0;
 
+      unsigned int previous_linear_iter = 0;
+
       if (params.nonlinear_data.verbosity >= 1) // TODO
         non_linear_solver->check_iteration_status = [&](const auto  step,
                                                         const auto  check_value,
@@ -1186,33 +1188,43 @@ namespace Sintering
               check_value_0_ch  = check_value_ch;
               check_value_0_ac  = check_value_ac;
               check_value_0_mec = check_value_mec;
+
+              previous_linear_iter = 0;
             }
+
+          const unsigned int step_linear_iter =
+            statistics.n_linear_iterations() - previous_linear_iter;
+
+          previous_linear_iter = statistics.n_linear_iterations();
 
           if (pcout.is_active())
             {
               if (step == 0)
                 printf(
-                  "\nit      res_abs      res_rel   ch_rel_abs   ch_res_rel   ac_rel_abs   ac_res_rel  mec_rel_abs  mec_res_rel\n");
+                  "\nit      res_abs      res_rel   ch_rel_abs   ch_res_rel   ac_rel_abs   ac_res_rel  mec_rel_abs  mec_res_rel  linear_iter\n");
 
               if (step == 0)
                 printf(
-                  "%2d %.6e ------------ %.6e ------------ %.6e ------------ %.6e ------------\n",
+                  "%2d %.6e ------------ %.6e ------------ %.6e ------------ %.6e ------------ %12d\n",
                   step,
                   check_value,
                   check_value_ch,
                   check_value_ac,
-                  check_value_mec);
+                  check_value_mec,
+                  step_linear_iter);
               else
-                printf("%2d %.6e %.6e %.6e %.6e %.6e %.6e %.6e %.6e\n",
-                       step,
-                       check_value,
-                       check_value / check_value_0,
-                       check_value_ch,
-                       check_value_ch / check_value_0_ch,
-                       check_value_ac,
-                       check_value_ac / check_value_0_ac,
-                       check_value_mec,
-                       check_value_mec / check_value_0_mec);
+                printf(
+                  "%2d %.6e %.6e %.6e %.6e %.6e %.6e %.6e %.6e %12d\n",
+                  step,
+                  check_value,
+                  check_value_0 ? check_value / check_value_0 : 0.,
+                  check_value_ch,
+                  check_value_0_ch ? check_value_ch / check_value_0_ch : 0.,
+                  check_value_ac,
+                  check_value_0_ac ? check_value_ac / check_value_0_ac : 0.,
+                  check_value_mec,
+                  check_value_0_mec ? check_value_mec / check_value_0_mec : 0.,
+                  step_linear_iter);
             }
 
           return NonLinearSolvers::NewtonSolverSolverControl::success;
