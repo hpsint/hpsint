@@ -40,7 +40,7 @@ namespace Sintering
       const auto eps_inelastic =
         v_val * chi(etas, etas_size, etas_grad, div_gb, div_vol);
 
-      return epsInelastic;
+      return eps_inelastic;
     }
 
     template <typename VectorTypeValue, typename VectorTypeGradient>
