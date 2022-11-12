@@ -38,6 +38,7 @@ namespace Sintering
       , kappa_p(kappa_p)
       , time_data(integration_order)
       , mobility(mobility_provider)
+      , t(0.0)
     {}
 
     const FreeEnergy<VectorizedArrayType> free_energy;
@@ -163,7 +164,14 @@ namespace Sintering
     void
     set_time(const double time)
     {
+      t = time;
       mobility.update(time);
+    }
+
+    double
+    get_time() const
+    {
+      return t;
     }
 
     const MobilityType &
@@ -182,5 +190,7 @@ namespace Sintering
     unsigned int number_of_components;
 
     LinearAlgebra::distributed::DynamicBlockVector<Number> history_vector;
+
+    double t;
   };
 } // namespace Sintering
