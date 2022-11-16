@@ -867,6 +867,11 @@ namespace Sintering
       ReductionControl solver_control_l(params.nonlinear_data.l_max_iter,
                                         params.nonlinear_data.l_abs_tol,
                                         params.nonlinear_data.l_rel_tol);
+
+      // Enable tracking residual evolution
+      if (params.nonlinear_data.verbosity >= 2) // TODO
+        solver_control_l.enable_history_data();
+
       std::unique_ptr<LinearSolvers::LinearSolverBase<Number>> linear_solver;
 
       if (true)
@@ -889,6 +894,7 @@ namespace Sintering
       MassMatrix<dim, Number, VectorizedArrayType> mass_operator(matrix_free,
                                                                  constraints);
 
+      std::unique_ptr<ReductionControl> postproc_solver_control_l;
       std::unique_ptr<Preconditioners::PreconditionerBase<Number>>
         postproc_preconditioner;
       std::unique_ptr<LinearSolvers::LinearSolverBase<Number>>
@@ -898,6 +904,11 @@ namespace Sintering
 
       if (params.output_data.fluxes_divergences)
         {
+          postproc_solver_control_l =
+            std::make_unique<ReductionControl>(params.nonlinear_data.l_max_iter,
+                                               params.nonlinear_data.l_abs_tol,
+                                               params.nonlinear_data.l_rel_tol);
+
           postproc_preconditioner =
             Preconditioners::create(mass_operator, "InverseDiagonalMatrix");
 
@@ -905,7 +916,9 @@ namespace Sintering
             std::make_unique<LinearSolvers::SolverGMRESWrapper<
               MassMatrix<dim, Number, VectorizedArrayType>,
               Preconditioners::PreconditionerBase<Number>>>(
-              mass_operator, *postproc_preconditioner, solver_control_l);
+              mass_operator,
+              *postproc_preconditioner,
+              *postproc_solver_control_l);
 
           additional_initializations.emplace_back(
             [&postproc_operator, &postproc_lhs, &postproc_rhs]() {
@@ -1150,6 +1163,19 @@ namespace Sintering
 
         for (unsigned int b = 0; b < src.n_blocks(); ++b)
           constraints.distribute(dst.block(b));
+
+        if (!solver_control_l.get_history_data().empty())
+          {
+            pcout << " - Linear residual evolution: ";
+            for (const auto res : solver_control_l.get_history_data())
+              pcout << res << " ";
+            pcout << std::endl;
+
+            std::vector<double> &res_history =
+              const_cast<std::vector<double> &>(
+                solver_control_l.get_history_data());
+            res_history.clear();
+          }
 
         return n_iterations;
       };
