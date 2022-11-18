@@ -1166,7 +1166,7 @@ namespace Sintering
 
         if (!solver_control_l.get_history_data().empty())
           {
-            pcout << " - Linear residual evolution: ";
+            pcout << " - l_res_abs: ";
             for (const auto res : solver_control_l.get_history_data())
               pcout << res << " ";
             pcout << std::endl;
