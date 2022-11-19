@@ -1155,50 +1155,50 @@ namespace Sintering
           check_value_mec += r.block(b).norm_sqr();
         check_value_mec = std::sqrt(check_value_mec);
 
-          if (step == 0)
-            {
-              check_value_0     = check_value;
-              check_value_0_ch  = check_value_ch;
-              check_value_0_ac  = check_value_ac;
-              check_value_0_mec = check_value_mec;
+        if (step == 0)
+          {
+            check_value_0     = check_value;
+            check_value_0_ch  = check_value_ch;
+            check_value_0_ac  = check_value_ac;
+            check_value_0_mec = check_value_mec;
 
-              previous_linear_iter = 0;
-            }
+            previous_linear_iter = 0;
+          }
 
-          const unsigned int step_linear_iter =
-            statistics.n_linear_iterations() - previous_linear_iter;
+        const unsigned int step_linear_iter =
+          statistics.n_linear_iterations() - previous_linear_iter;
 
-          previous_linear_iter = statistics.n_linear_iterations();
+        previous_linear_iter = statistics.n_linear_iterations();
 
-          if (pcout.is_active())
-            {
-              if (step == 0)
-                printf(
-                  "\nit      res_abs      res_rel   ch_rel_abs   ch_res_rel   ac_rel_abs   ac_res_rel  mec_rel_abs  mec_res_rel  linear_iter\n");
+        if (pcout.is_active())
+          {
+            if (step == 0)
+              printf(
+                "\nit      res_abs      res_rel   ch_rel_abs   ch_res_rel   ac_rel_abs   ac_res_rel  mec_rel_abs  mec_res_rel  linear_iter\n");
 
-              if (step == 0)
-                printf(
-                  "%2d %.6e ------------ %.6e ------------ %.6e ------------ %.6e ------------ %12d\n",
-                  step,
-                  check_value,
-                  check_value_ch,
-                  check_value_ac,
-                  check_value_mec,
-                  step_linear_iter);
-              else
-                printf(
-                  "%2d %.6e %.6e %.6e %.6e %.6e %.6e %.6e %.6e %12d\n",
-                  step,
-                  check_value,
-                  check_value_0 ? check_value / check_value_0 : 0.,
-                  check_value_ch,
-                  check_value_0_ch ? check_value_ch / check_value_0_ch : 0.,
-                  check_value_ac,
-                  check_value_0_ac ? check_value_ac / check_value_0_ac : 0.,
-                  check_value_mec,
-                  check_value_0_mec ? check_value_mec / check_value_0_mec : 0.,
-                  step_linear_iter);
-            }
+            if (step == 0)
+              printf(
+                "%2d %.6e ------------ %.6e ------------ %.6e ------------ %.6e ------------ %12d\n",
+                step,
+                check_value,
+                check_value_ch,
+                check_value_ac,
+                check_value_mec,
+                step_linear_iter);
+            else
+              printf("%2d %.6e %.6e %.6e %.6e %.6e %.6e %.6e %.6e %12d\n",
+                     step,
+                     check_value,
+                     check_value_0 ? check_value / check_value_0 : 0.,
+                     check_value_ch,
+                     check_value_0_ch ? check_value_ch / check_value_0_ch : 0.,
+                     check_value_ac,
+                     check_value_0_ac ? check_value_ac / check_value_0_ac : 0.,
+                     check_value_mec,
+                     check_value_0_mec ? check_value_mec / check_value_0_mec :
+                                         0.,
+                     step_linear_iter);
+          }
 
         /* This function does not really test anything and simply prints more
          * details on the residual evolution. We have different return status
