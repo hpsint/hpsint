@@ -472,9 +472,9 @@ namespace Sintering
                   const auto local_index = partitioner->global_to_local(i);
                   indices_to_add.insert(local_index);
 
-                  if (concentration[local_index] > c_max_on_face)
+                  if (concentration.local_element(local_index) > c_max_on_face)
                     {
-                      c_max_on_face    = concentration[local_index];
+                      c_max_on_face = concentration.local_element(local_index);
                       id_c_max_on_face = local_index;
                     }
                 }
