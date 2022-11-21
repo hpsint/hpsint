@@ -1109,7 +1109,8 @@ namespace Sintering
         for (unsigned int b = 0; b < src.n_blocks(); ++b)
           constraints.distribute(dst.block(b));
 
-        if (!solver_control_l.get_history_data().empty())
+        if (params.nonlinear_data.verbosity >= 2 &&
+            !solver_control_l.get_history_data().empty())
           {
             pcout << " - l_res_abs: ";
             for (const auto res : solver_control_l.get_history_data())
