@@ -48,8 +48,9 @@ namespace Sintering
           constraints,
           data,
           history,
-          matrix_based)
-      , material(E, nu, TWO_DIM_TYPE::PLAIN_STRAIN)
+          matrix_based,
+          E,
+          nu)
       , advection(advection)
       , external_loading(loading)
     {}
@@ -224,7 +225,7 @@ namespace Sintering
 
           const auto E = apply_l(H);
 
-          const auto C = c * material.get_dSdE();
+          const auto C = c * this->material.get_dSdE();
 
           const auto S = apply_l_transposed<dim>(C * E);
 
@@ -359,8 +360,8 @@ namespace Sintering
               const auto E = apply_l(H);
 
               // update material
-              material.reinit(E);
-              const auto C = c * material.get_dSdE();
+              this->material.reinit(E);
+              const auto C = c * this->material.get_dSdE();
 
               const auto S = apply_l_transposed<dim>(C * E);
 

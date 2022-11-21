@@ -10,17 +10,11 @@ namespace Sintering
   using namespace dealii;
   using namespace Structural;
 
-  template <int dim, typename Number, typename VectorizedArrayType>
+  template <int dim, typename Number, typename VectorizedArrayType, typename T>
   class SinteringOperatorCoupledBase
-    : public SinteringOperatorBase<
-        dim,
-        Number,
-        VectorizedArrayType,
-        SinteringOperatorCoupledBase<dim, Number, VectorizedArrayType>>
+    : public SinteringOperatorBase<dim, Number, VectorizedArrayType, T>
   {
   public:
-    using T = SinteringOperatorCoupledBase<dim, Number, VectorizedArrayType>;
-
     using VectorType = LinearAlgebra::distributed::Vector<Number>;
     using BlockVectorType =
       LinearAlgebra::distributed::DynamicBlockVector<Number>;
@@ -36,16 +30,11 @@ namespace Sintering
       const bool                                               matrix_based,
       const double                                             E  = 1.0,
       const double                                             nu = 0.25)
-      : SinteringOperatorBase<
-          dim,
-          Number,
-          VectorizedArrayType,
-          SinteringOperatorCoupledBase<dim, Number, VectorizedArrayType>>(
-          matrix_free,
-          constraints,
-          data,
-          history,
-          matrix_based)
+      : SinteringOperatorBase<dim, Number, VectorizedArrayType, T>(matrix_free,
+                                                                   constraints,
+                                                                   data,
+                                                                   history,
+                                                                   matrix_based)
       , material(E, nu, TWO_DIM_TYPE::PLAIN_STRAIN)
     {}
 
