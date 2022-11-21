@@ -1272,18 +1272,7 @@ namespace Sintering
           poly_params.set(
             "Interpolation Type",
             params.nonlinear_data.nox_data.line_search_interpolation_type);
-          /*
-                    non_linear_solver =
-                      std::make_unique<NonLinearSolvers::NOXSolver<VectorType>>(
-                        statistics,
-                        non_linear_parameters,
-                        NonLinearSolvers::NewtonSolverAdditionalData(
-                          params.nonlinear_data.newton_do_update,
-                          params.nonlinear_data.newton_threshold_newton_iter,
-                          params.nonlinear_data.newton_threshold_linear_iter,
-                          params.nonlinear_data.newton_reuse_preconditioner,
-                          params.nonlinear_data.newton_use_damping));
-          */
+
           typename TrilinosWrappers::NOXSolver<VectorType>::AdditionalData
             additional_data(params.nonlinear_data.nl_max_iter,
                             params.nonlinear_data.nl_abs_tol,
