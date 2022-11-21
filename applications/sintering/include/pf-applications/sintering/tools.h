@@ -439,6 +439,8 @@ namespace Sintering
     const VectorType &                                  concentration,
     const unsigned int                                  direction = 0)
   {
+    concentration.update_ghost_values();
+
     // Add central constraints
     const auto bb_tria = GridTools::compute_bounding_box(
       matrix_free.get_dof_handler().get_triangulation());
@@ -470,9 +472,9 @@ namespace Sintering
                   const auto local_index = partitioner->global_to_local(i);
                   indices_to_add.insert(local_index);
 
-                  if (concentration[local_index] > c_max_on_face)
+                  if (concentration.local_element(local_index) > c_max_on_face)
                     {
-                      c_max_on_face    = concentration[local_index];
+                      c_max_on_face = concentration.local_element(local_index);
                       id_c_max_on_face = local_index;
                     }
                 }
@@ -505,6 +507,8 @@ namespace Sintering
       for (unsigned int d = 0; d < dim; ++d)
         if (d != direction)
           displ_constraints_indices[d].push_back(id_c_max_on_face);
+
+    concentration.zero_out_ghost_values();
   }
 
 } // namespace Sintering
