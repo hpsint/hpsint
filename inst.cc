@@ -3,8 +3,6 @@
 #include <deal.II/trilinos/nox.h>
 #include <deal.II/trilinos/nox.templates.h>
 
-#include <memory>
-
 using namespace dealii;
 
 template class TrilinosWrappers::NOXSolver<
