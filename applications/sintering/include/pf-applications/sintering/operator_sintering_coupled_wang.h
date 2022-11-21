@@ -85,6 +85,12 @@ namespace Sintering
     }
 
     unsigned int
+    n_additional_components() const override
+    {
+      return 0;
+    }
+
+    unsigned int
     n_components() const override
     {
       return this->data.n_components() + dim;
