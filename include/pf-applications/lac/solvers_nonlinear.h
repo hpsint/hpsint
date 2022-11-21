@@ -1,8 +1,11 @@
 #pragma once
 
+#include <deal.II/lac/solver_control.h>
 #include <deal.II/lac/vector.h>
 
 #include <pf-applications/base/timer.h>
+
+#include <deal.II/trilinos/nox.h>
 
 namespace NonLinearSolvers
 {
@@ -18,13 +21,6 @@ namespace NonLinearSolvers
   struct NewtonSolverSolverControl
   {
   public:
-    enum State
-    {
-      iterate,
-      success,
-      failure
-    };
-
     NewtonSolverSolverControl(const unsigned int max_iter = 10,
                               const double       abs_tol  = 1.e-20,
                               const double       rel_tol  = 1.e-5)
@@ -59,8 +55,26 @@ namespace NonLinearSolvers
       return residual_evaluations;
     }
 
+    void
+    increment_newton_iterations(const unsigned int num)
+    {
+      newton_iterations += num;
+    }
+
+    void
+    increment_linear_iterations(const unsigned int num)
+    {
+      linear_iterations += num;
+    }
+
+    void
+    increment_residual_evaluations(const unsigned int num)
+    {
+      residual_evaluations += num;
+    }
+
     template <typename VectorType>
-    State
+    SolverControl::State
     check(const unsigned int step,
           const double       check_value,
           const VectorType & solution,
@@ -78,15 +92,15 @@ namespace NonLinearSolvers
 
       if (check_value > abs_tol && check_value / check_value_0 > rel_tol &&
           newton_iterations < max_iter)
-        return iterate;
+        return SolverControl::iterate;
 
       if (check_value <= abs_tol || check_value / check_value_0 <= rel_tol)
-        return success;
+        return SolverControl::success;
 
-      return failure;
+      return SolverControl::failure;
     }
 
-    State
+    SolverControl::State
     check()
     {
       Vector<double> dummy;
@@ -123,15 +137,6 @@ namespace NonLinearSolvers
     unsigned int newton_iterations    = 0;
     unsigned int linear_iterations    = 0;
     unsigned int residual_evaluations = 0;
-
-    template <typename>
-    friend class NewtonSolver;
-
-    template <typename>
-    friend class DampedNewtonSolver;
-
-    template <typename>
-    friend class NOXSolver;
   };
 
 
@@ -199,13 +204,14 @@ namespace NonLinearSolvers
 
     std::function<void(VectorType &)>                     reinit_vector  = {};
     std::function<void(const VectorType &, VectorType &)> residual       = {};
-    std::function<void(const VectorType &, const bool)>   setup_jacobian = {};
+    std::function<void(const VectorType &)>               setup_jacobian = {};
+    std::function<void(const VectorType &)> setup_preconditioner         = {};
     std::function<unsigned int(const VectorType &, VectorType &)>
       solve_with_jacobian = {};
-    std::function<NewtonSolverSolverControl::State(const unsigned int,
-                                                   const double,
-                                                   const VectorType &,
-                                                   const VectorType &)>
+    std::function<SolverControl::State(const unsigned int,
+                                       const double,
+                                       const VectorType &,
+                                       const VectorType &)>
       check_iteration_status = {};
   };
 
@@ -238,14 +244,13 @@ namespace NonLinearSolvers
 
       // evaluate residual using the given estimate of the solution
       this->residual(dst, vec_residual);
-      ++statistics.residual_evaluations;
 
       double   norm_r = vec_residual.l2_norm();
       unsigned it     = 0;
 
       auto status = check(it, norm_r, dst, vec_residual);
 
-      while (status == NewtonSolverSolverControl::iterate)
+      while (status == SolverControl::iterate)
         {
           // reset increment
           increment = 0.0;
@@ -261,13 +266,14 @@ namespace NonLinearSolvers
             (history_linear_iterations_last >
              solver_data.threshold_linear_iter);
 
-          this->setup_jacobian(dst,
-                               solver_data.do_update && threshold_exceeded);
+          this->setup_jacobian(dst);
+
+          if (this->setup_preconditioner && solver_data.do_update &&
+              threshold_exceeded)
+            this->setup_preconditioner(dst);
 
           history_linear_iterations_last =
             this->solve_with_jacobian(vec_residual, increment);
-
-          statistics.linear_iterations += history_linear_iterations_last;
 
           if (this->solver_data.use_damping)
             {
@@ -289,7 +295,6 @@ namespace NonLinearSolvers
 
                   // evaluate residual using the temporary solution
                   this->residual(tmp, vec_residual);
-                  ++statistics.residual_evaluations;
 
                   // calculate norm of residual (for temporary solution)
                   norm_r_tmp = vec_residual.l2_norm();
@@ -319,7 +324,6 @@ namespace NonLinearSolvers
 
               // evaluate residual
               this->residual(dst, vec_residual);
-              ++statistics.residual_evaluations;
 
               // calculate norm of residual
               norm_r = vec_residual.l2_norm();
@@ -332,7 +336,7 @@ namespace NonLinearSolvers
           status = check(it, norm_r, dst, vec_residual);
         }
 
-      AssertThrow(status == NewtonSolverSolverControl::success,
+      AssertThrow(status == SolverControl::success,
                   ExcNewtonDidNotConverge("Newton"));
     }
 
@@ -344,7 +348,7 @@ namespace NonLinearSolvers
     }
 
   private:
-    NewtonSolverSolverControl::State
+    SolverControl::State
     check(const unsigned int step,
           const double       check_value,
           const VectorType & x,
@@ -356,14 +360,14 @@ namespace NonLinearSolvers
       const auto state1 = statistics.check(step, check_value, x, r);
       const auto state2 = this->check_iteration_status(step, check_value, x, r);
 
-      if ((state1 == NewtonSolverSolverControl::failure) ||
-          (state2 == NewtonSolverSolverControl::failure))
-        return NewtonSolverSolverControl::failure;
-      else if ((state1 == NewtonSolverSolverControl::iterate) ||
-               (state2 == NewtonSolverSolverControl::iterate))
-        return NewtonSolverSolverControl::iterate;
+      if ((state1 == SolverControl::failure) ||
+          (state2 == SolverControl::failure))
+        return SolverControl::failure;
+      else if ((state1 == SolverControl::iterate) ||
+               (state2 == SolverControl::iterate))
+        return SolverControl::iterate;
       else
-        return NewtonSolverSolverControl::success;
+        return SolverControl::success;
     }
 
     NewtonSolverSolverControl &      statistics;
@@ -371,6 +375,61 @@ namespace NonLinearSolvers
 
     mutable unsigned int history_linear_iterations_last = 0;
     mutable unsigned int history_newton_iterations      = 0;
+  };
+
+  template <typename VectorType, typename SolverType>
+  class NonLinearSolverWrapper : public NewtonSolver<VectorType>
+  {
+  public:
+    NonLinearSolverWrapper(SolverType &&solver)
+      : solver(std::move(solver))
+    {}
+
+    void
+    clear() const override
+    {
+      solver.clear();
+    }
+
+    void
+    solve(VectorType &dst) const override
+    {
+      solver.solve(dst);
+    }
+
+  private:
+    mutable SolverType solver;
+  };
+
+  template <typename VectorType>
+  class NonLinearSolverWrapper<VectorType,
+                               TrilinosWrappers::NOXSolver<VectorType>>
+    : public NewtonSolver<VectorType>
+  {
+  public:
+    NonLinearSolverWrapper(TrilinosWrappers::NOXSolver<VectorType> &&solver,
+                           NewtonSolverSolverControl &               statistics)
+      : solver(std::move(solver))
+      , statistics(statistics)
+    {}
+
+    void
+    clear() const override
+    {
+      solver.clear();
+    }
+
+    void
+    solve(VectorType &dst) const override
+    {
+      const unsigned int n_newton_iterations = solver.solve(dst);
+      statistics.increment_newton_iterations(n_newton_iterations);
+    }
+
+  private:
+    mutable TrilinosWrappers::NOXSolver<VectorType> solver;
+
+    NewtonSolverSolverControl &statistics;
   };
 } // namespace NonLinearSolvers
 
@@ -910,14 +969,12 @@ namespace NonLinearSolvers
   class NOXCheck : public NOX::StatusTest::Generic
   {
   public:
-    NOXCheck(std::function<NewtonSolverSolverControl::State(const unsigned int,
-                                                            const double,
-                                                            const VectorType &,
-                                                            const VectorType &)>
-                  check_iteration_status,
-             bool as_dummy = false)
+    NOXCheck(std::function<SolverControl::State(const unsigned int,
+                                                const double,
+                                                const VectorType &,
+                                                const VectorType &)>
+               check_iteration_status)
       : check_iteration_status(check_iteration_status)
-      , as_dummy(as_dummy)
       , status(NOX::StatusTest::Unevaluated)
     {}
 
@@ -958,13 +1015,13 @@ namespace NonLinearSolvers
 
               switch (state)
                 {
-                  case NewtonSolverSolverControl::iterate:
+                  case SolverControl::iterate:
                     status = NOX::StatusTest::Unconverged;
                     break;
-                  case NewtonSolverSolverControl::failure:
+                  case SolverControl::failure:
                     status = NOX::StatusTest::Failed;
                     break;
-                  case NewtonSolverSolverControl::success:
+                  case SolverControl::success:
                     status = NOX::StatusTest::Converged;
                     break;
                   default:
@@ -972,9 +1029,6 @@ namespace NonLinearSolvers
                 }
             }
         }
-
-      if (as_dummy)
-        status = NOX::StatusTest::Unconverged;
 
       return status;
     }
@@ -993,13 +1047,13 @@ namespace NonLinearSolvers
       std::string state_str;
       switch (state)
         {
-          case NewtonSolverSolverControl::iterate:
+          case SolverControl::iterate:
             state_str = "iterate";
             break;
-          case NewtonSolverSolverControl::failure:
+          case SolverControl::failure:
             state_str = "failure";
             break;
-          case NewtonSolverSolverControl::success:
+          case SolverControl::success:
             state_str = "success";
             break;
           default:
@@ -1009,31 +1063,28 @@ namespace NonLinearSolvers
       for (int j = 0; j < indent; j++)
         stream << ' ';
       stream << status;
-      stream << "check_iteration_status() = " << state_str
-             << " (dummy = " << (as_dummy ? "yes" : "no") << ")";
+      stream << "check_iteration_status() = " << state_str;
       stream << std::endl;
 
       return stream;
     }
 
   private:
-    std::function<NewtonSolverSolverControl::State(const unsigned int,
-                                                   const double,
-                                                   const VectorType &,
-                                                   const VectorType &)>
+    std::function<SolverControl::State(const unsigned int,
+                                       const double,
+                                       const VectorType &,
+                                       const VectorType &)>
       check_iteration_status = {};
 
-    const bool as_dummy = false;
-
-    NOX::StatusTest::StatusType      status;
-    NewtonSolverSolverControl::State state;
+    NOX::StatusTest::StatusType status;
+    SolverControl::State        state;
   };
 
   template <typename VectorType>
   class NOXSolver : public NewtonSolver<VectorType>
   {
   public:
-    NOXSolver(NewtonSolverSolverControl &                 statistics,
+    NOXSolver(const NewtonSolverSolverControl &           statistics,
               const Teuchos::RCP<Teuchos::ParameterList> &non_linear_parameters,
               const NewtonSolverAdditionalData &          solver_data_in =
                 NewtonSolverAdditionalData())
@@ -1048,15 +1099,11 @@ namespace NonLinearSolvers
       if (this->solver_data.reuse_preconditioner == false)
         clear();
 
-      unsigned int linear_iterations    = 0;
-      unsigned int residual_evaluations = 0;
-
       // create group
       const auto group =
         Teuchos::rcp(new internal::NOXWrapper::Group<VectorType>(
           solution,
           [&](const VectorType &src, VectorType &dst) {
-            residual_evaluations++;
             this->residual(src, dst);
           },
           [&](const VectorType &src, const bool /*flag*/) {
@@ -1072,7 +1119,6 @@ namespace NonLinearSolvers
           [&](const VectorType &src, VectorType &dst) -> unsigned int {
             history_linear_iterations_last =
               this->solve_with_jacobian(src, dst);
-            linear_iterations += history_linear_iterations_last;
             return 0; // dummy value
           }));
 
@@ -1087,7 +1133,7 @@ namespace NonLinearSolvers
         Teuchos::rcp(new NOX::StatusTest::MaxIters(statistics.get_max_iter()));
 
       const auto info =
-        Teuchos::rcp(new NOXCheck(this->check_iteration_status, true));
+        Teuchos::rcp(new NOXCheck(this->check_iteration_status));
 
       auto check =
         Teuchos::rcp(new NOX::StatusTest::Combo(NOX::StatusTest::Combo::OR));
@@ -1107,10 +1153,7 @@ namespace NonLinearSolvers
       AssertThrow(status == NOX::StatusTest::Converged,
                   ExcNewtonDidNotConverge("Newton"));
 
-      history_newton_iterations       = solver->getNumIterations();
-      statistics.newton_iterations    = solver->getNumIterations();
-      statistics.linear_iterations    = linear_iterations;
-      statistics.residual_evaluations = residual_evaluations;
+      history_newton_iterations = solver->getNumIterations();
     }
 
     void
@@ -1121,7 +1164,8 @@ namespace NonLinearSolvers
     }
 
   private:
-    NewtonSolverSolverControl &                statistics;
+    const NewtonSolverSolverControl &statistics;
+
     const Teuchos::RCP<Teuchos::ParameterList> non_linear_parameters;
     const NewtonSolverAdditionalData           solver_data;
 

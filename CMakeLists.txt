@@ -30,7 +30,7 @@ CONFIGURE_FILE(
   ${CMAKE_CURRENT_BINARY_DIR}/include/pf-applications/base/revision.h
   )
 
-SET( TARGET_SRC dummy.cc)
+SET(TARGET_SRC inst.cc)
 
 PROJECT(pf-applications)
 
