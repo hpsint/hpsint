@@ -13,10 +13,10 @@ namespace Sintering
         dim,
         Number,
         VectorizedArrayType,
-        SinteringOperatorCoupled<dim, Number, VectorizedArrayType>>
+        SinteringOperatorCoupledWang<dim, Number, VectorizedArrayType>>
   {
   public:
-    using T = SinteringOperatorCoupled<dim, Number, VectorizedArrayType>;
+    using T = SinteringOperatorCoupledWang<dim, Number, VectorizedArrayType>;
 
     using VectorType = LinearAlgebra::distributed::Vector<Number>;
     using BlockVectorType =
@@ -69,7 +69,7 @@ namespace Sintering
 #define OPERATION(c, d)                                           \
   MyMatrixFreeTools::cell_loop_wrapper(                           \
     this->matrix_free,                                            \
-    &SinteringOperatorCoupled::                                   \
+    &SinteringOperatorCoupledWang::                               \
       do_evaluate_nonlinear_residual<c, d, with_time_derivative>, \
     this,                                                         \
     dst,                                                          \
