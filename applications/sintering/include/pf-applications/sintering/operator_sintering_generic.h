@@ -1,5 +1,6 @@
 #pragma once
 
+#include <pf-applications/sintering/advection.h>
 #include <pf-applications/sintering/operator_sintering_base.h>
 
 namespace Sintering
@@ -40,8 +41,8 @@ namespace Sintering
           constraints,
           data,
           history,
-          advection,
           matrix_based)
+      , advection(advection)
     {}
 
     ~SinteringOperatorGeneric()
@@ -303,5 +304,7 @@ namespace Sintering
                                 dst);
         }
     }
+
+    const AdvectionMechanism<dim, Number, VectorizedArrayType> &advection;
   };
 } // namespace Sintering
