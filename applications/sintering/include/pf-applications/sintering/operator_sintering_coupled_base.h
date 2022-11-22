@@ -3,12 +3,10 @@
 #include <pf-applications/sintering/operator_sintering_base.h>
 
 #include <pf-applications/structural/stvenantkirchhoff.h>
-#include <pf-applications/structural/tools.h>
 
 namespace Sintering
 {
   using namespace dealii;
-  using namespace Structural;
 
   template <int dim, typename Number, typename VectorizedArrayType, typename T>
   class SinteringOperatorCoupledBase
@@ -35,7 +33,7 @@ namespace Sintering
                                                                    data,
                                                                    history,
                                                                    matrix_based)
-      , material(E, nu, TWO_DIM_TYPE::PLAIN_STRAIN)
+      , material(E, nu, Structural::TWO_DIM_TYPE::PLAIN_STRAIN)
     {}
 
     ~SinteringOperatorCoupledBase()
@@ -214,7 +212,8 @@ namespace Sintering
     }
 
   protected:
-    const StVenantKirchhoff<dim, Number, VectorizedArrayType> material;
+    const Structural::StVenantKirchhoff<dim, Number, VectorizedArrayType>
+      material;
 
     std::vector<unsigned int>           zero_c_constraints_indices;
     mutable std::vector<Tensor<1, dim>> zero_c_constraints_values;

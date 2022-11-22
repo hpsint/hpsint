@@ -2,10 +2,10 @@
 
 #include <pf-applications/sintering/operator_sintering_coupled_base.h>
 
+#include <pf-applications/structural/tools.h>
 namespace Sintering
 {
   using namespace dealii;
-  using namespace Structural;
 
   template <int dim, typename Number, typename VectorizedArrayType>
   class SinteringOperatorCoupledWang
@@ -227,7 +227,7 @@ namespace Sintering
 
           const auto C = c * this->material.get_dSdE();
 
-          const auto S = apply_l_transposed<dim>(C * E);
+          const auto S = Structural::apply_l_transposed<dim>(C * E);
 
           for (unsigned int d = 0; d < dim; d++)
             gradient_result[n_grains + 2 + d] = S[d];
@@ -363,7 +363,7 @@ namespace Sintering
               this->material.reinit(E);
               const auto C = c * this->material.get_dSdE();
 
-              const auto S = apply_l_transposed<dim>(C * E);
+              const auto S = Structural::apply_l_transposed<dim>(C * E);
 
               for (unsigned int d = 0; d < dim; d++)
                 gradient_result[n_grains + 2 + d] = S[d];
