@@ -72,7 +72,7 @@
 #include <pf-applications/sintering/initial_values.h>
 #include <pf-applications/sintering/operator_advection.h>
 #include <pf-applications/sintering/operator_postproc.h>
-#include <pf-applications/sintering/operator_sintering_coupled.h>
+#include <pf-applications/sintering/operator_sintering_coupled_wang.h>
 #include <pf-applications/sintering/operator_sintering_generic.h>
 #include <pf-applications/sintering/parameters.h>
 #include <pf-applications/sintering/postprocessors.h>
@@ -98,7 +98,7 @@ namespace Sintering
 
     using NonLinearOperator =
 #ifdef COUPLED_MODEL
-      SinteringOperatorCoupled<dim, Number, VectorizedArrayType>;
+      SinteringOperatorCoupledWang<dim, Number, VectorizedArrayType>;
 #else
       SinteringOperatorGeneric<dim, Number, VectorizedArrayType>;
 #endif

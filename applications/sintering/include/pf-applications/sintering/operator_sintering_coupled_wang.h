@@ -1,25 +1,22 @@
 #pragma once
 
-#include <pf-applications/sintering/operator_sintering_base.h>
+#include <pf-applications/sintering/operator_sintering_coupled_base.h>
 
-#include <pf-applications/structural/stvenantkirchhoff.h>
 #include <pf-applications/structural/tools.h>
-
 namespace Sintering
 {
   using namespace dealii;
-  using namespace Structural;
 
   template <int dim, typename Number, typename VectorizedArrayType>
-  class SinteringOperatorCoupled
-    : public SinteringOperatorBase<
+  class SinteringOperatorCoupledWang
+    : public SinteringOperatorCoupledBase<
         dim,
         Number,
         VectorizedArrayType,
-        SinteringOperatorCoupled<dim, Number, VectorizedArrayType>>
+        SinteringOperatorCoupledWang<dim, Number, VectorizedArrayType>>
   {
   public:
-    using T = SinteringOperatorCoupled<dim, Number, VectorizedArrayType>;
+    using T = SinteringOperatorCoupledWang<dim, Number, VectorizedArrayType>;
 
     using VectorType = LinearAlgebra::distributed::Vector<Number>;
     using BlockVectorType =
@@ -32,7 +29,7 @@ namespace Sintering
       std::function<Tensor<1, dim, VectorizedArrayType>(
         const Point<dim, VectorizedArrayType> &p)>;
 
-    SinteringOperatorCoupled(
+    SinteringOperatorCoupledWang(
       const MatrixFree<dim, Number, VectorizedArrayType> &        matrix_free,
       const AffineConstraints<Number> &                           constraints,
       const SinteringOperatorData<dim, VectorizedArrayType> &     data,
@@ -42,22 +39,23 @@ namespace Sintering
       const double                                                E  = 1.0,
       const double                                                nu = 0.25,
       ExternalLoadingCallback                                     loading = {})
-      : SinteringOperatorBase<
+      : SinteringOperatorCoupledBase<
           dim,
           Number,
           VectorizedArrayType,
-          SinteringOperatorCoupled<dim, Number, VectorizedArrayType>>(
+          SinteringOperatorCoupledWang<dim, Number, VectorizedArrayType>>(
           matrix_free,
           constraints,
           data,
           history,
-          advection,
-          matrix_based)
-      , material(E, nu, TWO_DIM_TYPE::PLAIN_STRAIN)
+          matrix_based,
+          E,
+          nu)
+      , advection(advection)
       , external_loading(loading)
     {}
 
-    ~SinteringOperatorCoupled()
+    ~SinteringOperatorCoupledWang()
     {}
 
     template <bool with_time_derivative = true>
@@ -72,7 +70,7 @@ namespace Sintering
 #define OPERATION(c, d)                                           \
   MyMatrixFreeTools::cell_loop_wrapper(                           \
     this->matrix_free,                                            \
-    &SinteringOperatorCoupled::                                   \
+    &SinteringOperatorCoupledWang::                               \
       do_evaluate_nonlinear_residual<c, d, with_time_derivative>, \
     this,                                                         \
     dst,                                                          \
@@ -83,8 +81,14 @@ namespace Sintering
 
       // Apply manual constraints
       for (unsigned int d = 0; d < dim; ++d)
-        for (const unsigned int index : displ_constraints_indices[d])
+        for (const unsigned int index : this->get_zero_constraints_indices()[d])
           dst.block(this->data.n_components() + d).local_element(index) = 0.0;
+    }
+
+    unsigned int
+    n_additional_components() const override
+    {
+      return 0;
     }
 
     unsigned int
@@ -103,93 +107,6 @@ namespace Sintering
     n_grains_to_n_components(const unsigned int n_grains)
     {
       return n_grains + 2 + dim;
-    }
-
-    void
-    update_state(const BlockVectorType &solution) override
-    {
-      const double c_min = 0.1;
-
-      zero_c_constraints_indices.clear();
-
-      const auto &partitioner = this->matrix_free.get_vector_partitioner();
-      for (const auto i : partitioner->locally_owned_range())
-        {
-          const auto local_index = partitioner->global_to_local(i);
-          if (solution.block(0)[local_index] < c_min)
-            zero_c_constraints_indices.emplace_back(local_index);
-        }
-    }
-
-    void
-    post_system_matrix_compute() const override
-    {
-      for (const unsigned int index : zero_c_constraints_indices)
-        for (unsigned int d = 0; d < dim; ++d)
-          {
-            const unsigned int matrix_index =
-              n_components() * index + d + this->data.n_components();
-
-            this->system_matrix.clear_row(matrix_index, 1.0);
-          }
-
-      for (unsigned int d = 0; d < dim; ++d)
-        for (const unsigned int index : displ_constraints_indices[d])
-          {
-            const unsigned int matrix_index =
-              n_components() * index + d + this->data.n_components();
-
-            this->system_matrix.clear_row(matrix_index, 1.0);
-          }
-    }
-
-    template <typename BlockVectorType_>
-    void
-    do_pre_vmult(BlockVectorType_ &dst, const BlockVectorType_ &src_in) const
-    {
-      (void)dst;
-
-      BlockVectorType_ &src = const_cast<BlockVectorType_ &>(src_in);
-
-      zero_c_constraints_values.resize(zero_c_constraints_indices.size());
-
-      for (unsigned int i = 0; i < zero_c_constraints_indices.size(); ++i)
-        {
-          const unsigned int index = zero_c_constraints_indices[i];
-
-          for (unsigned int d = 0; d < dim; ++d)
-            {
-              zero_c_constraints_values[i][d] =
-                src.block(this->data.n_components() + d).local_element(index);
-              src.block(this->data.n_components() + d).local_element(index) =
-                0.0;
-            }
-        }
-
-      for (unsigned int d = 0; d < dim; ++d)
-        for (const unsigned int index : displ_constraints_indices[d])
-          src.block(this->data.n_components() + d).local_element(index) = 0.0;
-    }
-
-    template <typename BlockVectorType_>
-    void
-    do_post_vmult(BlockVectorType_ &dst, const BlockVectorType_ &src) const
-    {
-      (void)src;
-
-      for (unsigned int i = 0; i < zero_c_constraints_indices.size(); ++i)
-        {
-          const auto &index = zero_c_constraints_indices[i];
-          const auto &value = zero_c_constraints_values[i];
-
-          for (unsigned int d = 0; d < dim; ++d)
-            dst.block(this->data.n_components() + d).local_element(index) =
-              value[d];
-        }
-
-      for (unsigned int d = 0; d < dim; ++d)
-        for (const unsigned int index : displ_constraints_indices[d])
-          dst.block(this->data.n_components() + d).local_element(index) = 0.0;
     }
 
     template <int n_comp, int n_grains>
@@ -308,9 +225,9 @@ namespace Sintering
 
           const auto E = apply_l(H);
 
-          const auto C = c * material.get_dSdE();
+          const auto C = c * this->material.get_dSdE();
 
-          const auto S = apply_l_transposed<dim>(C * E);
+          const auto S = Structural::apply_l_transposed<dim>(C * E);
 
           for (unsigned int d = 0; d < dim; d++)
             gradient_result[n_grains + 2 + d] = S[d];
@@ -318,78 +235,6 @@ namespace Sintering
           phi.submit_value(value_result, q);
           phi.submit_gradient(gradient_result, q);
         }
-    }
-
-    std::array<std::vector<unsigned int>, dim> &
-    get_zero_constraints_indices()
-    {
-      return displ_constraints_indices;
-    }
-
-    const std::array<std::vector<unsigned int>, dim> &
-    get_zero_constraints_indices() const
-    {
-      return displ_constraints_indices;
-    }
-
-  protected:
-    void
-    pre_vmult(VectorType &dst, const VectorType &src_in) const override
-    {
-      (void)dst;
-
-      VectorType &src = const_cast<VectorType &>(src_in);
-
-      zero_c_constraints_values.resize(zero_c_constraints_indices.size());
-
-      for (unsigned int i = 0; i < zero_c_constraints_indices.size(); ++i)
-        {
-          const unsigned int index = zero_c_constraints_indices[i];
-
-          for (unsigned int d = 0; d < dim; ++d)
-            {
-              const unsigned int matrix_index =
-                n_components() * index + d + this->data.n_components();
-
-              zero_c_constraints_values[i][d] = src.local_element(matrix_index);
-              src.local_element(matrix_index) = 0.0;
-            }
-        }
-
-      for (unsigned int d = 0; d < dim; ++d)
-        for (const unsigned int index : displ_constraints_indices[d])
-          {
-            const unsigned int matrix_index =
-              n_components() * index + d + this->data.n_components();
-            src.local_element(matrix_index) = 0.0;
-          }
-    }
-
-    void
-    post_vmult(VectorType &dst, const VectorType &src) const override
-    {
-      (void)src;
-
-      for (unsigned int i = 0; i < zero_c_constraints_indices.size(); ++i)
-        {
-          const auto &index = zero_c_constraints_indices[i];
-          const auto &value = zero_c_constraints_values[i];
-
-          for (unsigned int d = 0; d < dim; ++d)
-            {
-              const unsigned int matrix_index =
-                n_components() * index + d + this->data.n_components();
-              dst.local_element(matrix_index) = value[d];
-            }
-        }
-
-      for (unsigned int d = 0; d < dim; ++d)
-        for (const unsigned int index : displ_constraints_indices[d])
-          {
-            const unsigned int matrix_index =
-              n_components() * index + d + this->data.n_components();
-            dst.local_element(matrix_index) = 0.0;
-          }
     }
 
   private:
@@ -515,10 +360,10 @@ namespace Sintering
               const auto E = apply_l(H);
 
               // update material
-              material.reinit(E);
-              const auto C = c * material.get_dSdE();
+              this->material.reinit(E);
+              const auto C = c * this->material.get_dSdE();
 
-              const auto S = apply_l_transposed<dim>(C * E);
+              const auto S = Structural::apply_l_transposed<dim>(C * E);
 
               for (unsigned int d = 0; d < dim; d++)
                 gradient_result[n_grains + 2 + d] = S[d];
@@ -542,13 +387,8 @@ namespace Sintering
         }
     }
 
-    const StVenantKirchhoff<dim, Number, VectorizedArrayType> material;
-
-    std::vector<unsigned int>           zero_c_constraints_indices;
-    mutable std::vector<Tensor<1, dim>> zero_c_constraints_values;
+    const AdvectionMechanism<dim, Number, VectorizedArrayType> &advection;
 
     const ExternalLoadingCallback external_loading;
-
-    std::array<std::vector<unsigned int>, dim> displ_constraints_indices;
   };
 } // namespace Sintering

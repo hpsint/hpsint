@@ -34,7 +34,7 @@
 
 #include <pf-applications/sintering/advection.h>
 #include <pf-applications/sintering/initial_values.h>
-#include <pf-applications/sintering/operator_sintering_coupled.h>
+#include <pf-applications/sintering/operator_sintering_coupled_wang.h>
 #include <pf-applications/sintering/tools.h>
 
 #include <pf-applications/structural/stvenantkirchhoff.h>
@@ -272,7 +272,7 @@ public:
     };
 
     using NonLinearOperator =
-      SinteringOperatorCoupled<dim, Number, VectorizedArrayType>;
+      SinteringOperatorCoupledWang<dim, Number, VectorizedArrayType>;
 
     // Elastic material properties
     double E  = 1;

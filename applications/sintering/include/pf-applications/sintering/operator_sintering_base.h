@@ -1,6 +1,5 @@
 #pragma once
 
-#include <pf-applications/sintering/advection.h>
 #include <pf-applications/sintering/operator_base.h>
 #include <pf-applications/sintering/sintering_data.h>
 
@@ -23,12 +22,11 @@ namespace Sintering
     using vector_type = VectorType;
 
     SinteringOperatorBase(
-      const MatrixFree<dim, Number, VectorizedArrayType> &        matrix_free,
-      const AffineConstraints<Number> &                           constraints,
-      const SinteringOperatorData<dim, VectorizedArrayType> &     data,
-      const TimeIntegration::SolutionHistory<BlockVectorType> &   history,
-      const AdvectionMechanism<dim, Number, VectorizedArrayType> &advection,
-      const bool                                                  matrix_based)
+      const MatrixFree<dim, Number, VectorizedArrayType> &     matrix_free,
+      const AffineConstraints<Number> &                        constraints,
+      const SinteringOperatorData<dim, VectorizedArrayType> &  data,
+      const TimeIntegration::SolutionHistory<BlockVectorType> &history,
+      const bool                                               matrix_based)
       : OperatorBase<dim, Number, VectorizedArrayType, T>(matrix_free,
                                                           constraints,
                                                           0,
@@ -37,7 +35,6 @@ namespace Sintering
       , data(data)
       , history(history)
       , time_integrator(data.time_data, history)
-      , advection(advection)
     {}
 
     ~SinteringOperatorBase()
@@ -409,7 +406,6 @@ namespace Sintering
     const SinteringOperatorData<dim, VectorizedArrayType> &  data;
     const TimeIntegration::SolutionHistory<BlockVectorType> &history;
     const TimeIntegration::BDFIntegrator<dim, Number, VectorizedArrayType>
-                                                                time_integrator;
-    const AdvectionMechanism<dim, Number, VectorizedArrayType> &advection;
+      time_integrator;
   };
 } // namespace Sintering
