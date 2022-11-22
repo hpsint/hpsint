@@ -4,6 +4,7 @@
 
 #include <pf-applications/numerics/functions.h>
 
+#include <pf-applications/sintering/sintering_data.h>
 #include <pf-applications/sintering/tools.h>
 
 #include <pf-applications/stuctural/tools.h>
@@ -11,15 +12,13 @@
 namespace Sintering
 {
   using namespace dealii;
-
   template <int dim, typename Number, typename VectorizedArrayType>
   class InelasticStrains
   {
   public:
-    InelasticStrains(
-      const TimeIntegration::TimeIntegratorData<Number> &time_data,
-      const double                                       rho)
-      : time_data(time_data)
+    InelasticStrains(const SinteringOperatorData<Number> &sintering_data,
+                     const double                         rho)
+      : sintering_data(sintering_data)
       , rho(rho)
     {}
 
@@ -32,7 +31,7 @@ namespace Sintering
                  const VectorizedArrayType &div_gb,
                  const VectorizedArrayType &div_vol) const
     {
-      if (time_data.get_time() < time_start)
+      if (sintering_data.get_time() < time_start)
         return Tensor<1, voigt_size<dim>, VectorizedArrayType>();
 
       const auto v_val = v(c);
@@ -52,7 +51,7 @@ namespace Sintering
                     const VectorizedArrayType &div_gb,
                     const VectorizedArrayType &div_vol) const
     {
-      if (time_data.get_time() < time_start)
+      if (sintering_data.get_time() < time_start)
         return Tensor<1, voigt_size<dim>, VectorizedArrayType>();
 
       const auto dvdc = dv_dc(c);
@@ -76,7 +75,7 @@ namespace Sintering
                        const VectorizedArrayType &div_vol,
                        const unsigned int         index_i) const
     {
-      if (time_data.get_time() < time_start)
+      if (sintering_data.get_time() < time_start)
         return Tensor<1, voigt_size<dim>, VectorizedArrayType>();
 
       const auto dgdetai = dg_detai(etas, etas_size, index_i);
@@ -108,7 +107,7 @@ namespace Sintering
                          const VectorTypeValue &    etas,
                          const unsigned int         etas_size) const
     {
-      if (time_data.get_time() < time_start)
+      if (sintering_data.get_time() < time_start)
         return Tensor<1, voigt_size<dim>, VectorizedArrayType>();
 
       const auto v_val = v(c);
@@ -126,7 +125,7 @@ namespace Sintering
                           const VectorTypeValue &    etas,
                           const unsigned int         etas_size) const
     {
-      if (time_data.get_time() < time_start)
+      if (sintering_data.get_time() < time_start)
         return Tensor<1, voigt_size<dim>, VectorizedArrayType>();
 
       const auto v_val = v(c);
@@ -276,7 +275,7 @@ namespace Sintering
       return 2 * c;
     }
 
-    const TimeIntegration::TimeIntegratorData<Number> &time_data;
+    const SinteringOperatorData<Number> &sintering_data;
 
     const double rho;
 
