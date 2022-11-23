@@ -407,23 +407,28 @@ public:
 
       nonlinear_operator.evaluate_nonlinear_residual(dst, src);
 
+      statistics.increment_residual_evaluations(1);
+
       std::cout << "residual:" << std::endl;
       for (unsigned int b = 0; b < dst.n_blocks(); ++b)
         dst.block(b).print(std::cout);
       std::cout << std::endl;
     };
 
-    non_linear_solver->setup_jacobian =
-      [&](const auto &current_u, const bool do_update_preconditioner) {
-        (void)current_u;
-        nonlinear_operator.do_update();
+    non_linear_solver->setup_jacobian = [&](const auto &current_u) {
+      (void)current_u;
+      nonlinear_operator.do_update();
+    };
 
-        if (do_update_preconditioner)
-          preconditioner->do_update();
-      };
+    non_linear_solver->setup_preconditioner = [&](const auto &current_u) {
+      (void)current_u;
+      preconditioner->do_update();
+    };
 
     non_linear_solver->solve_with_jacobian = [&](const auto &src, auto &dst) {
       const unsigned int n_iterations = linear_solver->solve(dst, src);
+
+      statistics.increment_linear_iterations(n_iterations);
 
       return n_iterations;
     };
