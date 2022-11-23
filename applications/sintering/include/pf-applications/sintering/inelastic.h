@@ -23,7 +23,7 @@ namespace Sintering
     {}
 
     template <typename VectorTypeValue, typename VectorTypeGradient>
-    Tensor<1, voigt_size<dim>, VectorizedArrayType>
+    Tensor<2, dim, VectorizedArrayType>
     flux_eps_dot(const VectorizedArrayType &c,
                  const VectorTypeValue &    etas,
                  const unsigned int         etas_size,
@@ -32,7 +32,7 @@ namespace Sintering
                  const VectorizedArrayType &div_vol) const
     {
       if (sintering_data.get_time() < time_start)
-        return Tensor<1, voigt_size<dim>, VectorizedArrayType>();
+        return Tensor<2, dim, VectorizedArrayType>();
 
       const auto v_val = v(c);
 
@@ -43,7 +43,7 @@ namespace Sintering
     }
 
     template <typename VectorTypeValue, typename VectorTypeGradient>
-    Tensor<1, voigt_size<dim>, VectorizedArrayType>
+    Tensor<2, dim, VectorizedArrayType>
     flux_eps_dot_dc(const VectorizedArrayType &c,
                     const VectorTypeValue &    etas,
                     const unsigned int         etas_size,
@@ -52,7 +52,7 @@ namespace Sintering
                     const VectorizedArrayType &div_vol) const
     {
       if (sintering_data.get_time() < time_start)
-        return Tensor<1, voigt_size<dim>, VectorizedArrayType>();
+        return Tensor<2, dim, VectorizedArrayType>();
 
       const auto dvdc = dv_dc(c);
 
@@ -62,11 +62,11 @@ namespace Sintering
       auto NNS = eps_inelastic;
       NNS *= dvdc;
 
-      return Structural::apply_l(NNS);
+      return NNS;
     }
 
     template <typename VectorTypeValue, typename VectorTypeGradient>
-    Tensor<1, voigt_size<dim>, VectorizedArrayType>
+    Tensor<2, dim, VectorizedArrayType>
     flux_eps_dot_detai(const VectorizedArrayType &c,
                        const VectorTypeValue &    etas,
                        const unsigned int         etas_size,
@@ -76,7 +76,7 @@ namespace Sintering
                        const unsigned int         index_i) const
     {
       if (sintering_data.get_time() < time_start)
-        return Tensor<1, voigt_size<dim>, VectorizedArrayType>();
+        return Tensor<2, dim, VectorizedArrayType>();
 
       const auto dgdetai = dg_detai(etas, etas_size, index_i);
 
@@ -98,17 +98,17 @@ namespace Sintering
       auto NNS = KN_NK + NN + D;
       NNS *= v_val;
 
-      return Structural::apply_l(NNS);
+      return NNS;
     }
 
     template <typename VectorTypeValue, typename VectorTypeGradient>
-    Tensor<1, voigt_size<dim>, VectorizedArrayType>
+    Tensor<2, dim, VectorizedArrayType>
     flux_eps_dot_ddiv_gb(const VectorizedArrayType &c,
                          const VectorTypeValue &    etas,
                          const unsigned int         etas_size) const
     {
       if (sintering_data.get_time() < time_start)
-        return Tensor<1, voigt_size<dim>, VectorizedArrayType>();
+        return Tensor<2, dim, VectorizedArrayType>();
 
       const auto v_val = v(c);
       const auto g_val = g(etas, etas_size);
@@ -120,13 +120,13 @@ namespace Sintering
     }
 
     template <typename VectorTypeValue, typename VectorTypeGradient>
-    Tensor<1, voigt_size<dim>, VectorizedArrayType>
+    Tensor<2, dim, VectorizedArrayType>
     flux_eps_dot_ddiv_vol(const VectorizedArrayType &c,
                           const VectorTypeValue &    etas,
                           const unsigned int         etas_size) const
     {
       if (sintering_data.get_time() < time_start)
-        return Tensor<1, voigt_size<dim>, VectorizedArrayType>();
+        return Tensor<2, dim, VectorizedArrayType>();
 
       const auto v_val = v(c);
       const auto g_val = g(etas, etas_size);
@@ -134,7 +134,7 @@ namespace Sintering
       auto NNS = diagonal_matrix<dim>();
       NNS *= v_val * (1. - g_val) / volume_denominator;
 
-      return Structural::apply_l(NNS);
+      return NNS;
     }
 
   private:
