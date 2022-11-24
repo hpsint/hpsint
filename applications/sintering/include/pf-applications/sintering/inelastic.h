@@ -95,8 +95,8 @@ namespace Sintering
       auto NN = outer_product(n, n);
       NN *= rho * div_gb * dgdetai * fac_gb;
 
-      auto D = diagonal_matrix<dim>();
-      D *= dgdetai * div_vol / volume_denominator * fac_vol;
+      auto D =
+        diagonal_matrix<dim>(dgdetai * div_vol / volume_denominator * fac_vol);
 
       const auto v_val = v(c);
 
@@ -118,10 +118,9 @@ namespace Sintering
       const auto v_val = v(c);
       const auto g_val = g(etas, etas_size);
 
-      auto NNS = diagonal_matrix<dim>();
-      NNS *= v_val * g_val * rho;
+      auto NNS = diagonal_matrix<dim>(v_val * g_val * rho);
 
-      return Structural::apply_l(NNS);
+      return NNS;
     }
 
     template <typename VectorTypeValue>
@@ -136,8 +135,8 @@ namespace Sintering
       const auto v_val = v(c);
       const auto g_val = g(etas, etas_size);
 
-      auto NNS = diagonal_matrix<dim>();
-      NNS *= v_val * (1. - g_val) / volume_denominator;
+      auto NNS =
+        diagonal_matrix<dim>(v_val * (1. - g_val) / volume_denominator);
 
       return NNS;
     }
@@ -160,7 +159,7 @@ namespace Sintering
       eps_dot_gb *= rho * div_gb * g_val * fac_gb;
 
       const auto eps_dot_vol = diagonal_matrix<dim>(
-        -div_vol / volume_denominator * (1 - g_val) * fac_vol);
+        -div_vol / volume_denominator * (1. - g_val) * fac_vol);
 
       const auto eps_dot_inelastic = eps_dot_gb + eps_dot_vol;
 
@@ -173,7 +172,7 @@ namespace Sintering
             const unsigned int        etas_size,
             const VectorTypeGradient &etas_grad) const
     {
-      Tensor<1, dim, VectorTypeValue> n;
+      Tensor<1, dim, VectorizedArrayType> n;
 
       for (unsigned int i = 0; i < etas_size; i++)
         for (unsigned int j = i + 1; j < etas_size; j++)
@@ -205,7 +204,7 @@ namespace Sintering
 
       // The term id disabled temporary
 
-      Tensor<1, dim, VectorTypeValue> k;
+      Tensor<1, dim, VectorizedArrayType> k;
 
       return k;
     }
@@ -236,9 +235,18 @@ namespace Sintering
 
       for (unsigned int i = 0; i < etas_size; i++)
         for (unsigned int j = i + 1; j < etas_size; j++)
-          g_val += std::pow(2 * 4 * etas[i] * etas[j], 4);
+          {
+            const auto etai_etaj = etas[i] * etas[j];
+            g_val += etai_etaj * etai_etaj * etai_etaj * etai_etaj;
+
+            // other version
+            // g_val += etai_etaj;
+          }
+
+      g_val *= std::pow(2. * 4., 4);
+
       // other version
-      // g_val += 4 * etas[i] * etas[j];
+      // g_val *= 4;
 
       return g_val;
     }
@@ -274,7 +282,7 @@ namespace Sintering
     VectorizedArrayType
     dv_dc(const VectorizedArrayType &c) const
     {
-      return 2 * c;
+      return 2. * c;
     }
 
     const SinteringOperatorData<dim, VectorizedArrayType> &sintering_data;
