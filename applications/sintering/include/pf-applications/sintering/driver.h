@@ -1151,8 +1151,9 @@ namespace Sintering
         check_value_ac = std::sqrt(check_value_ac);
 
         double check_value_mec = 0;
-        for (unsigned int b = r.n_blocks() - dim; b < r.n_blocks(); ++b)
-          check_value_mec += r.block(b).norm_sqr();
+        if (nonlinear_operator.n_components() > sintering_data.n_components())
+          for (unsigned int b = r.n_blocks() - dim; b < r.n_blocks(); ++b)
+            check_value_mec += r.block(b).norm_sqr();
         check_value_mec = std::sqrt(check_value_mec);
 
         if (step == 0)
@@ -2240,7 +2241,9 @@ namespace Sintering
                                          "eta" + std::to_string(ig - 2));
             }
 
-          if (params.output_data.fields.count("displ"))
+          if (params.output_data.fields.count("displ") &&
+              sintering_operator.n_components() >
+                sintering_operator.get_data().n_components())
             {
               for (unsigned int b = solution.n_blocks() - dim;
                    b < solution.n_blocks();
