@@ -16,8 +16,9 @@ namespace Sintering
   class InelasticStrains
   {
   public:
-    InelasticStrains(const SinteringOperatorData<Number> &sintering_data,
-                     const double                         rho)
+    InelasticStrains(
+      const SinteringOperatorData<dim, VectorizedArrayType> &sintering_data,
+      const double                                           rho)
       : sintering_data(sintering_data)
       , rho(rho)
     {}
@@ -275,7 +276,7 @@ namespace Sintering
       return 2 * c;
     }
 
-    const SinteringOperatorData<Number> &sintering_data;
+    const SinteringOperatorData<dim, VectorizedArrayType> &sintering_data;
 
     const double rho;
 
