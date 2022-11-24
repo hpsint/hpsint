@@ -18,9 +18,11 @@ namespace Sintering
   public:
     InelasticStrains(
       const SinteringOperatorData<dim, VectorizedArrayType> &sintering_data,
-      const double                                           rho)
+      const double                                           rho,
+      const double                                           time_start = 0.0)
       : sintering_data(sintering_data)
       , rho(rho)
+      , time_start(time_start)
     {}
 
     template <typename VectorTypeValue, typename VectorTypeGradient>
@@ -279,6 +281,7 @@ namespace Sintering
     const SinteringOperatorData<dim, VectorizedArrayType> &sintering_data;
 
     const double rho;
+    const double time_start;
 
     const double fac_gb             = 1.; // 1 - enabled, 0 - disabled
     const double fac_vol            = 1.; // 1 - enabled, 0 - disabled
