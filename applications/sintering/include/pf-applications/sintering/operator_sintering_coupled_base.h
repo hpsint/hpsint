@@ -211,6 +211,25 @@ namespace Sintering
           }
     }
 
+    Tensor<2, Structural::voigt_size<dim>, VectorizedArrayType>
+    dSdE(const Tensor<1, voigt_size<dim>, VectorizedArrayType> &E,
+         const VectorizedArrayType &                            c) const
+    {
+      // This is not thread-safe
+      material.reinit(E);
+
+      // It should pefectly work this way
+      // const auto C = c * material.get_dSdE();
+
+      const double c_min = 0.1;
+
+      const auto cl = compare_and_apply_mask<SIMDComparison::less_than>(
+        c, VectorizedArrayType(c_min), VectorizedArrayType(c_min), c);
+      const auto C = cl * material.get_dSdE();
+
+      return C;
+    }
+
   protected:
     const Structural::StVenantKirchhoff<dim, Number, VectorizedArrayType>
       material;
