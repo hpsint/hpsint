@@ -292,6 +292,7 @@ namespace Sintering
       const auto &kappa_p     = this->data.kappa_p;
       const auto &order       = this->data.time_data.get_order();
       const auto &L           = mobility.Lgb();
+      const auto  dt          = this->data.time_data.get_current_dt();
       const auto  inv_dt      = 1. / this->data.time_data.get_current_dt();
 
       const auto old_solutions = this->history.get_old_solutions();

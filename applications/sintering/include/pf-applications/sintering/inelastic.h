@@ -83,10 +83,12 @@ namespace Sintering
 
       const auto dgdetai = dg_detai(etas, etas_size, index_i);
 
-      const auto n = gb_norm(etas, etas_size, etas_grads);
-      const auto k = gb_norm_detai(etas, etas_size, etas_grads, index_i);
+      const auto n = gb_norm(etas, etas_size, etas_grad);
+      const auto k = gb_norm_detai(etas, etas_size, etas_grad, index_i);
 
       auto KN_NK = outer_product(k, n) + outer_product(n, k);
+
+      const auto g_val = g(etas, etas_size);
 
       KN_NK *= rho * div_gb * g_val * fac_gb;
 
@@ -149,7 +151,7 @@ namespace Sintering
         const VectorizedArrayType &div_gb,
         const VectorizedArrayType &div_vol) const
     {
-      const auto normal = gb_norm(etas, etas_size, etas_grads);
+      const auto normal = gb_norm(etas, etas_size, etas_grad);
 
       const auto g_val = g(etas, etas_size);
 
@@ -235,11 +237,6 @@ namespace Sintering
           g_val += std::pow(2 * 4 * etas[i] * etas[j], 4);
       // other version
       // g_val += 4 * etas[i] * etas[j];
-
-      phi = compare_and_apply_mask<SIMDComparison::less_than>(
-        phi, VectorizedArrayType(0.0), VectorizedArrayType(0.0), phi);
-      phi = compare_and_apply_mask<SIMDComparison::greater_than>(
-        phi, VectorizedArrayType(1.0), VectorizedArrayType(1.0), phi);
 
       return g_val;
     }
