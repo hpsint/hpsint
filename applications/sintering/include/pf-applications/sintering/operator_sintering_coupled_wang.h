@@ -224,9 +224,7 @@ namespace Sintering
             H[d] = gradient[n_grains + 2 + d];
 
           const auto E = apply_l(H);
-
-          const auto C = c * this->material.get_dSdE();
-
+          const auto C = this->dSdE(E, c);
           const auto S = Structural::apply_l_transposed<dim>(C * E);
 
           for (unsigned int d = 0; d < dim; d++)
@@ -358,11 +356,7 @@ namespace Sintering
                 H[d] = grad[n_grains + 2 + d];
 
               const auto E = apply_l(H);
-
-              // update material
-              this->material.reinit(E);
-              const auto C = c * this->material.get_dSdE();
-
+              const auto C = this->dSdE(E, c);
               const auto S = Structural::apply_l_transposed<dim>(C * E);
 
               for (unsigned int d = 0; d < dim; d++)
