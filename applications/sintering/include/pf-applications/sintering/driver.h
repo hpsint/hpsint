@@ -1151,8 +1151,7 @@ namespace Sintering
         check_value_ac = std::sqrt(check_value_ac);
 
         double check_value_mec = 0;
-        for (unsigned int b = sintering_data.n_components(); b < r.n_blocks();
-             ++b)
+        for (unsigned int b = r.n_blocks() - dim; b < r.n_blocks(); ++b)
           check_value_mec += r.block(b).norm_sqr();
         check_value_mec = std::sqrt(check_value_mec);
 
@@ -2243,8 +2242,7 @@ namespace Sintering
 
           if (params.output_data.fields.count("displ"))
             {
-              for (unsigned int b =
-                     sintering_operator.get_data().n_components();
+              for (unsigned int b = solution.n_blocks() - dim;
                    b < solution.n_blocks();
                    ++b)
                 data_out.add_data_vector(dof_handler, solution.block(b), "u");
