@@ -101,7 +101,7 @@ namespace Sintering
     static constexpr unsigned int
     n_grains_to_n_components(const unsigned int n_grains)
     {
-      return n_grains + 2 + n_additional_components() + dim;
+      return n_grains + 2 + 2 + dim;
     }
 
     template <int n_comp, int n_grains>
@@ -234,7 +234,7 @@ namespace Sintering
             H[d] = gradient[this->data.n_components() +
                             n_additional_components() + d];
 
-          const auto E = apply_l(H);
+          const auto E = Structural::apply_l(H);
           const auto C = this->dSdE(E, c);
           const auto S = Structural::apply_l_transposed<dim>(C * E);
 
@@ -396,7 +396,7 @@ namespace Sintering
 
               H += eps_inelastic;
 
-              const auto E = apply_l(H);
+              const auto E = Structural::apply_l(H);
               const auto C = this->dSdE(E, c);
               const auto S = Structural::apply_l_transposed<dim>(C * E);
 

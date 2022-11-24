@@ -106,7 +106,7 @@ namespace Sintering
       return NNS;
     }
 
-    template <typename VectorTypeValue, typename VectorTypeGradient>
+    template <typename VectorTypeValue>
     Tensor<2, dim, VectorizedArrayType>
     flux_eps_dot_ddiv_gb(const VectorizedArrayType &c,
                          const VectorTypeValue &    etas,
@@ -124,7 +124,7 @@ namespace Sintering
       return Structural::apply_l(NNS);
     }
 
-    template <typename VectorTypeValue, typename VectorTypeGradient>
+    template <typename VectorTypeValue>
     Tensor<2, dim, VectorizedArrayType>
     flux_eps_dot_ddiv_vol(const VectorizedArrayType &c,
                           const VectorTypeValue &    etas,
@@ -215,6 +215,8 @@ namespace Sintering
     gb_indicator(const VectorTypeValue &etas,
                  const unsigned int     etas_size) const
     {
+      VectorizedArrayType gb(0.0);
+
       for (unsigned int i = 0; i < etas_size; i++)
         for (unsigned int j = 0; j < etas_size; j++)
           if (i != j)
