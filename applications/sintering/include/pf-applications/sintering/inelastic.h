@@ -7,7 +7,7 @@
 #include <pf-applications/sintering/sintering_data.h>
 #include <pf-applications/sintering/tools.h>
 
-#include <pf-applications/stuctural/tools.h>
+#include <pf-applications/structural/tools.h>
 
 namespace Sintering
 {
