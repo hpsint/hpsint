@@ -171,6 +171,18 @@ namespace Sintering
 
           gradient_result[1] = kappa_c * gradient[0];
 
+          // Diffusion fluxes terms
+          value_result[this->data.n_components() + 0] =
+            value[this->data.n_components() + 0];
+          gradient_result[this->data.n_components() + 0] =
+            -mobility.M_gb(etas, n_grains, etas_grad) * gradient[1];
+
+          value_result[this->data.n_components() + 1] =
+            value[this->data.n_components() + 1];
+          gradient_result[this->data.n_components() + 1] =
+            -mobility.M_vol(c) * gradient[1] -
+            mobility.dM_vol_dc(c) * mu_grad * value[0];
+
           for (unsigned int ig = 0; ig < n_grains; ++ig)
             {
               value_result[1] +=
@@ -187,6 +199,10 @@ namespace Sintering
                 mu_grad * value[ig + 2];
 
               gradient_result[ig + 2] = L * kappa_p * gradient[ig + 2];
+
+              gradient_result[this->data.n_components() + 0] -=
+                mobility.dM_detai(c, etas, n_grains, c_grad, etas_grad, ig) *
+                mu_grad * value[ig + 2];
 
               for (unsigned int jg = 0; jg < ig; ++jg)
                 {
