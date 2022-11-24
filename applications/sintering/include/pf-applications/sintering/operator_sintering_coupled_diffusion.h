@@ -17,7 +17,8 @@ namespace Sintering
         SinteringOperatorCoupledDiffusion<dim, Number, VectorizedArrayType>>
   {
   public:
-    using T = SinteringOperatorCoupledDiffusion<dim, Number, VectorizedArrayType>;
+    using T =
+      SinteringOperatorCoupledDiffusion<dim, Number, VectorizedArrayType>;
 
     using VectorType = LinearAlgebra::distributed::Vector<Number>;
     using BlockVectorType =
@@ -27,13 +28,13 @@ namespace Sintering
     using vector_type = VectorType;
 
     SinteringOperatorCoupledDiffusion(
-      const MatrixFree<dim, Number, VectorizedArrayType> &        matrix_free,
-      const AffineConstraints<Number> &                           constraints,
-      const SinteringOperatorData<dim, VectorizedArrayType> &     data,
-      const TimeIntegration::SolutionHistory<BlockVectorType> &   history,
-      const bool                                                  matrix_based,
-      const double                                                E  = 1.0,
-      const double                                                nu = 0.25)
+      const MatrixFree<dim, Number, VectorizedArrayType> &     matrix_free,
+      const AffineConstraints<Number> &                        constraints,
+      const SinteringOperatorData<dim, VectorizedArrayType> &  data,
+      const TimeIntegration::SolutionHistory<BlockVectorType> &history,
+      const bool                                               matrix_based,
+      const double                                             E  = 1.0,
+      const double                                             nu = 0.25)
       : SinteringOperatorCoupledBase<
           dim,
           Number,
@@ -64,7 +65,7 @@ namespace Sintering
 #define OPERATION(c, d)                                           \
   MyMatrixFreeTools::cell_loop_wrapper(                           \
     this->matrix_free,                                            \
-    &SinteringOperatorCoupledDiffusion::                               \
+    &SinteringOperatorCoupledDiffusion::                          \
       do_evaluate_nonlinear_residual<c, d, with_time_derivative>, \
     this,                                                         \
     dst,                                                          \
