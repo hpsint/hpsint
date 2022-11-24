@@ -259,11 +259,14 @@ namespace Sintering
               value[ig + 2];
 
           eps_inelastic_deriv *= dt;
-          const auto CE = C * eps_inelastic_deriv;
+
+          const auto eps_voigt = Structural::apply_l(eps_inelastic_deriv);
+          const auto S_deriv =
+            Structural::apply_l_transposed<dim>(C * eps_voigt);
 
           for (unsigned int d = 0; d < dim; d++)
-            value_result[this->data.n_components() + n_additional_components() +
-                         d] = CE[d];
+            gradient_result[this->data.n_components() +
+                            n_additional_components() + d] += S_deriv[d];
 
           phi.submit_value(value_result, q);
           phi.submit_gradient(gradient_result, q);
