@@ -1,5 +1,6 @@
 #pragma once
 
+#include <pf-applications/sintering/inelastic.h>
 #include <pf-applications/sintering/operator_sintering_coupled_base.h>
 
 #include <pf-applications/structural/tools.h>
@@ -45,6 +46,7 @@ namespace Sintering
           matrix_based,
           E,
           nu)
+      , inelastic(data, /*rho = */ 1.0)
     {}
 
     ~SinteringOperatorCoupledDiffusion()
@@ -366,5 +368,7 @@ namespace Sintering
                                 dst);
         }
     }
+
+    InelasticStrains<dim, Number, VectorizedArrayType> inelastic;
   };
 } // namespace Sintering
