@@ -73,6 +73,7 @@
 #include <pf-applications/sintering/operator_advection.h>
 #include <pf-applications/sintering/operator_postproc.h>
 #include <pf-applications/sintering/operator_sintering_coupled_wang.h>
+#include <pf-applications/sintering/operator_sintering_coupled_diffusion.h>
 #include <pf-applications/sintering/operator_sintering_generic.h>
 #include <pf-applications/sintering/parameters.h>
 #include <pf-applications/sintering/postprocessors.h>
