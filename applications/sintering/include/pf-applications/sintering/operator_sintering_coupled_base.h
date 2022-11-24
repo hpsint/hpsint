@@ -212,8 +212,8 @@ namespace Sintering
     }
 
     Tensor<2, Structural::voigt_size<dim>, VectorizedArrayType>
-    dSdE(const Tensor<1, voigt_size<dim>, VectorizedArrayType> &E,
-         const VectorizedArrayType &                            c) const
+    dSdE(const Tensor<1, Structural::voigt_size<dim>, VectorizedArrayType> &E,
+         const VectorizedArrayType &c) const
     {
       // This is not thread-safe
       material.reinit(E);
