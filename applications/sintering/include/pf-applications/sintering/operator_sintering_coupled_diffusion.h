@@ -143,12 +143,9 @@ namespace Sintering
           const auto &div_gb  = value_lin[this->data.n_components() + 0];
           const auto &div_vol = value_lin[this->data.n_components() + 1];
 
-          const VectorizedArrayType *                etas      = &value_lin[2];
-          const Tensor<1, dim, VectorizedArrayType> *etas_grad = nullptr;
-
-          if (SinteringOperatorData<dim, VectorizedArrayType>::
-                use_tensorial_mobility)
-            etas_grad = &gradient_lin[2];
+          const VectorizedArrayType *                etas = &value_lin[2];
+          const Tensor<1, dim, VectorizedArrayType> *etas_grad =
+            &gradient_lin[2];
 
           const auto etaPower2Sum = PowerHelper<n_grains, 2>::power_sum(etas);
 
