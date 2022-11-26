@@ -99,7 +99,8 @@ namespace Sintering
 
     using NonLinearOperator =
 #ifdef COUPLED_MODEL
-      SinteringOperatorCoupledWang<dim, Number, VectorizedArrayType>;
+      //SinteringOperatorCoupledWang<dim, Number, VectorizedArrayType>;
+      SinteringOperatorCoupledDiffusion<dim, Number, VectorizedArrayType>;
 #else
       SinteringOperatorGeneric<dim, Number, VectorizedArrayType>;
 #endif
@@ -816,7 +817,7 @@ namespace Sintering
                                            constraints,
                                            sintering_data,
                                            solution_history,
-                                           advection_mechanism,
+                                           //advection_mechanism,
                                            params.matrix_based,
                                            E,
                                            nu);
