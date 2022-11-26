@@ -47,7 +47,7 @@ namespace Sintering
           matrix_based,
           E,
           nu)
-      , inelastic(data, /*rho = */ 1.0)
+      , inelastic(data, /*rho = */ 1.0, /*time_start = */ 0.0)
     {}
 
     ~SinteringOperatorCoupledDiffusion()
