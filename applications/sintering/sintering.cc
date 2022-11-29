@@ -36,7 +36,7 @@ static_assert(false, "No grains number has been given!");
 #define WITH_TIMING
 //#define WITH_TIMING_OUTPUT
 
-#define COUPLED_MODEL
+//#define COUPLED_MODEL
 
 #include <deal.II/base/revision.h>
 
