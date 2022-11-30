@@ -106,11 +106,12 @@ namespace Sintering
       return NNS;
     }
 
-    template <typename VectorTypeValue>
+    template <typename VectorTypeValue, typename VectorTypeGradient>
     Tensor<2, dim, VectorizedArrayType>
-    flux_eps_dot_ddiv_gb(const VectorizedArrayType &c,
-                         const VectorTypeValue &    etas,
-                         const unsigned int         etas_size) const
+    flux_eps_dot_ddiv_gb(
+      const VectorizedArrayType &        c,
+      const VectorTypeValue &            etas,
+      const unsigned int etas_size const VectorTypeGradient &etas_grad) const
     {
       if (sintering_data.get_time() < time_start)
         return Tensor<2, dim, VectorizedArrayType>();
@@ -118,7 +119,10 @@ namespace Sintering
       const auto v_val = v(c);
       const auto g_val = g(etas, etas_size);
 
-      auto NNS = diagonal_matrix<dim>(v_val * g_val * rho);
+      const auto normal = gb_norm(etas, etas_size, etas_grad);
+
+      auto NNS = outer_product(normal, normal);
+      NNS *= v_val * g_val * rho;
 
       return NNS;
     }
@@ -136,7 +140,7 @@ namespace Sintering
       const auto g_val = g(etas, etas_size);
 
       auto NNS =
-        diagonal_matrix<dim>(v_val * (1. - g_val) / volume_denominator);
+        diagonal_matrix<dim>(-v_val * (1. - g_val) / volume_denominator);
 
       return NNS;
     }
@@ -243,10 +247,15 @@ namespace Sintering
             // g_val += etai_etaj;
           }
 
-      g_val *= std::pow(2. * 4., 4);
+      g_val *= std::pow(4., 4);
 
       // other version
       // g_val *= 4;
+
+      g_val = compare_and_apply_mask<SIMDComparison::less_than>(
+        g_val, VectorizedArrayType(0.0), VectorizedArrayType(0.0), g_val);
+      g_val = compare_and_apply_mask<SIMDComparison::greater_than>(
+        g_val, VectorizedArrayType(1.0), VectorizedArrayType(1.0), g_val);
 
       return g_val;
     }
@@ -261,9 +270,9 @@ namespace Sintering
 
       for (unsigned int j = 0; j < etas_size; j++)
         if (j != index_i)
-          dg_val += etas[j];
+          dg_val += etas[j] * etas[j] * etas[j] * etas[j];
 
-      dg_val *= 4.;
+      dg_val *= std::pow(4., 5) * etas[index_i] * etas[index_i] * etas[index_i];
 
       return dg_val;
     }

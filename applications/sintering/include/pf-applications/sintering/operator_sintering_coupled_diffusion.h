@@ -245,7 +245,7 @@ namespace Sintering
             inelastic.flux_eps_dot_dc(
               c, etas, n_grains, etas_grad, div_gb, div_vol) *
               value[0] +
-            inelastic.flux_eps_dot_ddiv_gb(c, etas, n_grains) *
+            inelastic.flux_eps_dot_ddiv_gb(c, etas, n_grains, etas_grad) *
               value[this->data.n_components() + 0] +
             inelastic.flux_eps_dot_ddiv_vol(c, etas, n_grains) *
               value[this->data.n_components() + 1];
