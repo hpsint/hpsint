@@ -35,7 +35,7 @@ namespace Sintering
                  const VectorizedArrayType &div_vol) const
     {
       if (sintering_data.get_time() < time_start)
-        return Tensor<2, dim, VectorizedArrayType>();
+        return {};
 
       const auto v_val = v(c);
 
@@ -55,7 +55,7 @@ namespace Sintering
                     const VectorizedArrayType &div_vol) const
     {
       if (sintering_data.get_time() < time_start)
-        return Tensor<2, dim, VectorizedArrayType>();
+        return {};
 
       const auto dvdc = dv_dc(c);
 
@@ -79,7 +79,7 @@ namespace Sintering
                        const unsigned int         index_i) const
     {
       if (sintering_data.get_time() < time_start)
-        return Tensor<2, dim, VectorizedArrayType>();
+        return {};
 
       const auto dgdetai = dg_detai(etas, etas_size, index_i);
 
@@ -114,7 +114,7 @@ namespace Sintering
       const unsigned int etas_size const VectorTypeGradient &etas_grad) const
     {
       if (sintering_data.get_time() < time_start)
-        return Tensor<2, dim, VectorizedArrayType>();
+        return {};
 
       const auto v_val = v(c);
       const auto g_val = g(etas, etas_size);
@@ -134,7 +134,7 @@ namespace Sintering
                           const unsigned int         etas_size) const
     {
       if (sintering_data.get_time() < time_start)
-        return Tensor<2, dim, VectorizedArrayType>();
+        return {};
 
       const auto v_val = v(c);
       const auto g_val = g(etas, etas_size);
