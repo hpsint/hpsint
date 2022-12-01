@@ -231,14 +231,6 @@ namespace Sintering
             H[d] = gradient[this->data.n_components() +
                             n_additional_components() + d];
 
-          const auto E = Structural::apply_l(H);
-          const auto C = this->dSdE(E, c);
-          const auto S = Structural::apply_l_transposed<dim>(C * E);
-
-          for (unsigned int d = 0; d < dim; d++)
-            gradient_result[this->data.n_components() +
-                            n_additional_components() + d] = S[d];
-
           // Diffusion strain
           auto eps_inelastic_deriv =
             inelastic.flux_eps_dot_dc(
@@ -257,13 +249,15 @@ namespace Sintering
 
           eps_inelastic_deriv *= dt;
 
-          const auto eps_voigt = Structural::apply_l(eps_inelastic_deriv);
-          const auto S_deriv =
-            Structural::apply_l_transposed<dim>(C * eps_voigt);
+          H += eps_inelastic;
+
+          const auto E = Structural::apply_l(H);
+          const auto C = this->dSdE(E, c);
+          const auto S = Structural::apply_l_transposed<dim>(C * E);
 
           for (unsigned int d = 0; d < dim; d++)
             gradient_result[this->data.n_components() +
-                            n_additional_components() + d] += S_deriv[d];
+                            n_additional_components() + d] = S[d];
 
           phi.submit_value(value_result, q);
           phi.submit_gradient(gradient_result, q);
