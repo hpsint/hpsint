@@ -241,16 +241,19 @@ namespace Sintering
         for (unsigned int j = i + 1; j < etas_size; j++)
           {
             const auto etai_etaj = etas[i] * etas[j];
-            g_val += etai_etaj * etai_etaj * etai_etaj * etai_etaj;
 
-            // other version
-            // g_val += etai_etaj;
+            // Sharper filter
+            // g_val += etai_etaj * etai_etaj * etai_etaj * etai_etaj;
+
+            // Smoother filter
+            g_val += etai_etaj;
           }
 
-      g_val *= std::pow(4., 4);
+      // Sharper filter
+      // g_val *= std::pow(4., 4);
 
-      // other version
-      // g_val *= 4;
+      // Smoother filter
+      g_val *= 4;
 
       g_val = compare_and_apply_mask<SIMDComparison::less_than>(
         g_val, VectorizedArrayType(0.0), VectorizedArrayType(0.0), g_val);
@@ -270,9 +273,17 @@ namespace Sintering
 
       for (unsigned int j = 0; j < etas_size; j++)
         if (j != index_i)
-          dg_val += etas[j] * etas[j] * etas[j] * etas[j];
+          // Sharper filter
+          // dg_val += etas[j] * etas[j] * etas[j] * etas[j];
+          // Smoother filter
+          dg_val += etas[j];
 
-      dg_val *= std::pow(4., 5) * etas[index_i] * etas[index_i] * etas[index_i];
+      // Sharper filter
+      // dg_val *= std::pow(4., 5) * etas[index_i] * etas[index_i] *
+      // etas[index_i];
+
+      // Smoother filter
+      dg_val *= 4.;
 
       return dg_val;
     }
