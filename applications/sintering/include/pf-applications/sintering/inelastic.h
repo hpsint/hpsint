@@ -108,10 +108,10 @@ namespace Sintering
 
     template <typename VectorTypeValue, typename VectorTypeGradient>
     Tensor<2, dim, VectorizedArrayType>
-    flux_eps_dot_ddiv_gb(
-      const VectorizedArrayType &        c,
-      const VectorTypeValue &            etas,
-      const unsigned int etas_size const VectorTypeGradient &etas_grad) const
+    flux_eps_dot_ddiv_gb(const VectorizedArrayType &c,
+                         const VectorTypeValue &    etas,
+                         const unsigned int         etas_size,
+                         const VectorTypeGradient & etas_grad) const
     {
       if (sintering_data.get_time() < time_start)
         return {};

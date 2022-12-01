@@ -249,7 +249,7 @@ namespace Sintering
 
           eps_inelastic_deriv *= dt;
 
-          H += eps_inelastic;
+          H += eps_inelastic_deriv;
 
           const auto E = Structural::apply_l(H);
           const auto C = this->dSdE(E, c);
