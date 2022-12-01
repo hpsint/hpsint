@@ -72,6 +72,7 @@
 #include <pf-applications/sintering/initial_values.h>
 #include <pf-applications/sintering/operator_advection.h>
 #include <pf-applications/sintering/operator_postproc.h>
+#include <pf-applications/sintering/operator_sintering_coupled_diffusion.h>
 #include <pf-applications/sintering/operator_sintering_coupled_wang.h>
 #include <pf-applications/sintering/operator_sintering_generic.h>
 #include <pf-applications/sintering/parameters.h>
@@ -98,7 +99,8 @@ namespace Sintering
 
     using NonLinearOperator =
 #ifdef COUPLED_MODEL
-      SinteringOperatorCoupledWang<dim, Number, VectorizedArrayType>;
+      // SinteringOperatorCoupledWang<dim, Number, VectorizedArrayType>;
+      SinteringOperatorCoupledDiffusion<dim, Number, VectorizedArrayType>;
 #else
       SinteringOperatorGeneric<dim, Number, VectorizedArrayType>;
 #endif
@@ -815,7 +817,7 @@ namespace Sintering
                                            constraints,
                                            sintering_data,
                                            solution_history,
-                                           advection_mechanism,
+                                           // advection_mechanism,
                                            params.matrix_based,
                                            E,
                                            nu);
@@ -968,7 +970,8 @@ namespace Sintering
               params.advection_data.enable,
               save_all_blocks);
 
-            nonlinear_operator.update_state(current_u);
+            // TODO disable this feature for a while, fix later
+            // nonlinear_operator.update_state(current_u);
 
             nonlinear_operator.do_update();
 
@@ -1151,9 +1154,9 @@ namespace Sintering
         check_value_ac = std::sqrt(check_value_ac);
 
         double check_value_mec = 0;
-        for (unsigned int b = sintering_data.n_components(); b < r.n_blocks();
-             ++b)
-          check_value_mec += r.block(b).norm_sqr();
+        if (nonlinear_operator.n_components() > sintering_data.n_components())
+          for (unsigned int b = r.n_blocks() - dim; b < r.n_blocks(); ++b)
+            check_value_mec += r.block(b).norm_sqr();
         check_value_mec = std::sqrt(check_value_mec);
 
         if (step == 0)
@@ -1494,6 +1497,19 @@ namespace Sintering
             constraints.distribute(*solution_ptr[b]);
 
           old_old_solutions.update_ghost_values();
+
+        // Update mechanical constraints for the coupled model
+        // Currently only fixing the central section along x-axis
+#ifdef COUPLED_MODEL
+          auto &displ_constraints_indices =
+            nonlinear_operator.get_zero_constraints_indices();
+
+          const unsigned int direction = 0;
+          clamp_central_section<dim>(displ_constraints_indices,
+                                     matrix_free,
+                                     solution.block(0),
+                                     direction);
+#endif
 
           output_result(solution, nonlinear_operator, t, "refinement");
 
@@ -2241,10 +2257,11 @@ namespace Sintering
                                          "eta" + std::to_string(ig - 2));
             }
 
-          if (params.output_data.fields.count("displ"))
+          if (params.output_data.fields.count("displ") &&
+              sintering_operator.n_components() >
+                sintering_operator.get_data().n_components())
             {
-              for (unsigned int b =
-                     sintering_operator.get_data().n_components();
+              for (unsigned int b = solution.n_blocks() - dim;
                    b < solution.n_blocks();
                    ++b)
                 data_out.add_data_vector(dof_handler, solution.block(b), "u");

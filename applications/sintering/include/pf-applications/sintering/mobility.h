@@ -428,6 +428,15 @@ namespace Sintering
       return MetajSum;
     }
 
+    DEAL_II_ALWAYS_INLINE VectorizedArrayType
+    dM_vol_dc(const VectorizedArrayType &c) const
+    {
+      const VectorizedArrayType dphidc = 30.0 * c * c * (1.0 - c) * (1.0 - c);
+      const VectorizedArrayType dMdc   = Mvol * dphidc;
+
+      return dMdc;
+    }
+
     double
     Lgb() const
     {
@@ -644,6 +653,17 @@ namespace Sintering
       M *= 2. * Mgb;
 
       return M;
+    }
+
+    DEAL_II_ALWAYS_INLINE Tensor<2, dim, VectorizedArrayType>
+                          dM_vol_dc(const VectorizedArrayType &c) const
+    {
+      const VectorizedArrayType dphidc = 30.0 * c * c * (1.0 - c) * (1.0 - c);
+
+      Tensor<2, dim, VectorizedArrayType> dMdc =
+        diagonal_matrix<dim>(Mvol * dphidc);
+
+      return dMdc;
     }
 
     double
