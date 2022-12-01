@@ -50,8 +50,7 @@ namespace Sintering
       , inelastic(data, /*rho = */ 1.0, /*time_start = */ 0.0)
     {}
 
-    ~SinteringOperatorCoupledDiffusion()
-    {}
+    SinteringOperatorCoupledDiffusion() = default;
 
     template <bool with_time_derivative = true>
     void
