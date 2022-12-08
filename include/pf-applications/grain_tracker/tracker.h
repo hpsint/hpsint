@@ -1430,8 +1430,11 @@ namespace GrainTracker
       std::vector<unsigned int>                         ordered_grains;
       std::map<unsigned int, std::vector<unsigned int>> ordered_segments;
 
-      for (const auto &[grain_id, grain] : current_grains)
+      for (const auto &pair_gid_grain : current_grains)
         {
+          const auto &grain_id = pair_gid_grain.first;
+          const auto &grain    = pair_gid_grain.second;
+
           ordered_grains.push_back(grain_id);
 
           ordered_segments.emplace(grain_id, std::vector<unsigned int>());
