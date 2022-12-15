@@ -433,21 +433,14 @@ namespace Sintering
             typename VectorType,
             typename VectorizedArrayType>
   void
-  clamp_central_section(
+  clamp_section(
     std::array<std::vector<unsigned int>, dim> &displ_constraints_indices,
     const MatrixFree<dim, Number, VectorizedArrayType> &matrix_free,
     const VectorType &                                  concentration,
+    const Point<dim> &                                  origin,
     const unsigned int                                  direction = 0)
   {
     concentration.update_ghost_values();
-
-    // Add central constraints
-    const auto bb_tria = GridTools::compute_bounding_box(
-      matrix_free.get_dof_handler().get_triangulation());
-
-    auto center = bb_tria.get_boundary_points().first +
-                  bb_tria.get_boundary_points().second;
-    center /= 2.;
 
     std::vector<types::global_dof_index> local_face_dof_indices(
       matrix_free.get_dofs_per_face());
@@ -463,7 +456,7 @@ namespace Sintering
          matrix_free.get_dof_handler().active_cell_iterators())
       if (cell->is_locally_owned())
         for (const auto &face : cell->face_iterators())
-          if (std::abs(face->center()(direction) - center[direction]) < 1e-9)
+          if (std::abs(face->center()(direction) - origin[direction]) < 1e-9)
             {
               face->get_dof_indices(local_face_dof_indices);
 
@@ -509,6 +502,29 @@ namespace Sintering
           displ_constraints_indices[d].push_back(id_c_max_on_face);
 
     concentration.zero_out_ghost_values();
+  }
+
+  template <int dim,
+            typename Number,
+            typename VectorType,
+            typename VectorizedArrayType>
+  void
+  clamp_central_section(
+    std::array<std::vector<unsigned int>, dim> &displ_constraints_indices,
+    const MatrixFree<dim, Number, VectorizedArrayType> &matrix_free,
+    const VectorType &                                  concentration,
+    const unsigned int                                  direction = 0)
+  {
+    // Add central constraints
+    const auto bb_tria = GridTools::compute_bounding_box(
+      matrix_free.get_dof_handler().get_triangulation());
+
+    auto center = bb_tria.get_boundary_points().first +
+                  bb_tria.get_boundary_points().second;
+    center /= 2.;
+
+    clamp_section<dim>(
+      displ_constraints_indices, matrix_free, concentration, center, direction);
   }
 
 } // namespace Sintering
