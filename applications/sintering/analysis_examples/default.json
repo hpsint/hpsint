@@ -54,6 +54,10 @@
             "KappaC": "1",
             "KappaP": "0.5"
         },
+        "Mechanics": {
+            "E": "1",
+            "nu": "0.25"
+        },
         "MobilityAbstract": {
             "L": "1",
             "Mgb": "0.4",

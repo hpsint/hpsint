@@ -100,6 +100,12 @@ namespace Sintering
     std::string arrhenius_unit = "Boltzmann";
   };
 
+  struct MechanicsData
+  {
+    double E  = 1.0;
+    double nu = 0.25;
+  };
+
   struct MaterialData
   {
     std::string type = "Abstract";
@@ -115,6 +121,8 @@ namespace Sintering
 
     MobilityAbstractData  mobility_abstract_data;
     MobilityRealisticData mobility_realistic_data;
+
+    MechanicsData  mechanics_data;
   };
 
   struct AdvectionData
@@ -537,6 +545,12 @@ namespace Sintering
       prm.add_parameter("QGbMob",
                         material_data.mobility_realistic_data.Q_gb_mob,
                         "Grain boundary mobility activation energy.");
+
+      prm.leave_subsection();
+
+      prm.enter_subsection("Mechanics");
+      prm.add_parameter("E", material_data.mechanics_data.E, "Young modulus.");
+      prm.add_parameter("nu", material_data.mechanics_data.nu, "Poisson ratio.");
       prm.leave_subsection();
 
       prm.leave_subsection();
