@@ -257,6 +257,7 @@ namespace Sintering
       const auto &kappa_p     = this->data.kappa_p;
       const auto &order       = this->data.time_data.get_order();
       const auto &L           = mobility.Lgb();
+      const auto  dt          = this->data.time_data.get_current_dt();
       const auto  inv_dt      = 1. / this->data.time_data.get_current_dt();
 
       const auto old_solutions = this->history.get_old_solutions();
@@ -343,9 +344,12 @@ namespace Sintering
                           const auto &velocity = this->advection.get_velocity(
                             ig, phi.quadrature_point(q));
 
+                          // The force works as like in the case of creep
+                          const auto force = velocity * dt;
+
                           // Apply Wang velocity as body force
                           for (unsigned int d = 0; d < dim; ++d)
-                            value_result[n_grains + 2 + d] -= velocity[d];
+                            value_result[n_grains + 2 + d] -= force[d];
                         }
                     }
                 }
