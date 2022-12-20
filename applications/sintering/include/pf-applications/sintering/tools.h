@@ -5,6 +5,8 @@
 #include <deal.II/grid/grid_generator.h>
 #include <deal.II/grid/grid_tools.h>
 
+#include <pf-applications/grain_tracker/tracker.h>
+
 namespace Sintering
 {
   using namespace dealii;
@@ -525,6 +527,168 @@ namespace Sintering
 
     clamp_section<dim>(
       displ_constraints_indices, matrix_free, concentration, center, direction);
+  }
+
+  template <int dim,
+            typename Number,
+            typename BlockVectorType,
+            typename VectorizedArrayType>
+  void
+  clamp_section_within_particle(
+    std::array<std::vector<unsigned int>, dim> &displ_constraints_indices,
+    const MatrixFree<dim, Number, VectorizedArrayType> &   matrix_free,
+    const SinteringOperatorData<dim, VectorizedArrayType> &data,
+    const GrainTracker::Tracker<dim, Number> &             grain_tracker,
+    const BlockVectorType &                                solution,
+    const Point<dim> &                                     origin_in,
+    const unsigned int                                     direction = 0)
+  {
+    const Number order_parameter_threshold = 0.5;
+
+    for (unsigned int b = 2; b < data.n_components(); ++b)
+      solution.block(b).update_ghost_values();
+
+    const auto &partitioner = matrix_free.get_vector_partitioner();
+
+    const auto comm = matrix_free.get_dof_handler().get_communicator();
+
+    // Find closest vertex, the corresponding vertex index and containing cell
+    const auto containing_cell = GridTools::find_active_cell_around_point(
+      matrix_free.get_dof_handler().get_triangulation(), origin_in);
+
+    types::global_dof_index global_vertex_index =
+      dealii::numbers::invalid_size_type;
+    Point<dim> origin;
+
+    if (containing_cell->is_locally_owned())
+      {
+        Number dist_min = std::numeric_limits<Number>::max();
+
+        const unsigned int ref_component_num = 0;
+
+        for (unsigned int v = 0; v < containing_cell->n_vertices(); ++v)
+          {
+            const auto dist = point.distance(containing_cell->vertex(v));
+            if (dist < dist_min)
+              {
+                global_vertex_index =
+                  containing_cell->vertex_dof_index(v, ref_component_num);
+                origin   = containing_cell->vertex(v);
+                dist_min = dist;
+              }
+          }
+      }
+
+    // What rank actualy owns this vertex
+    unsigned int rank_having_vertex =
+      global_vertex_index != numbers::invalid_unsigned_int ?
+        Utilities::MPI::this_mpi_process(comm) :
+        numbers::invalid_unsigned_int;
+    rank_having_vertex = Utilities::MPI::min(rank_having_vertex, comm);
+
+    // Broadcast origin point to all ranks
+    origin = Utilities::MPI::broadcast(comm, origin, rank_having_vertex);
+
+    // The owner of the origin finds the corresponding order parameter and
+    // particle ids
+    unsigned int primary_order_parameter_id = numbers::invalid_size_type;
+    unsigned int primary_particle_id        = numbers::invalid_size_type;
+
+    if (global_vertex_index != numbers::invalid_size_type)
+      {
+        const auto local_vertex_index =
+          partitioner->global_to_local(global_vertex_index);
+
+        Number op_max_value = 0;
+        for (unsigned int b = 2; b < data.n_components(); ++b)
+          {
+            const auto op_value =
+              solution.block(b).local_element(local_vertex_index);
+
+            if (op_max_value < op_value)
+              {
+                op_max_value               = op_value;
+                primary_order_parameter_id = b - 2;
+              }
+          }
+
+        AssertThrow(op_max_value > order_parameter_threshold,
+                    ExcMessage(
+                      "Origin of the section should be inside a particle"));
+
+        primary_particle_id =
+          grain_tracker.get_particle_index(primary_order_parameter_id,
+                                           containing_cell);
+      }
+
+    // Broadcast order parameter and particle ids to all ranks
+    primary_order_parameter_id =
+      Utilities::MPI::broadcast(comm,
+                                primary_order_parameter_id,
+                                rank_having_vertex);
+    primary_particle_id =
+      Utilities::MPI::broadcast(comm, primary_particle_id, rank_having_vertex);
+
+    // Prepare structures for collecting indices
+    std::vector<types::global_dof_index> local_face_dof_indices(
+      matrix_free.get_dofs_per_face());
+    std::set<types::global_dof_index> indices_to_add;
+
+    // Apply constraints for displacement along the direction axis
+    const auto &concentration = solution.block(op_max_index + 2);
+
+    for (const auto &cell :
+         matrix_free.get_dof_handler().active_cell_iterators())
+      if (cell->is_locally_owned())
+        {
+          const auto cell_index = cell->global_active_cell_index();
+
+          const unsigned int particle_id =
+            grain_tracker.get_particle_index(primary_order_parameter_id,
+                                             cell_index);
+
+          if (particle_id == primary_particle_id)
+            for (const auto &face : cell->face_iterators())
+              if (std::abs(face->center()(direction) - origin[direction]) <
+                  1e-9)
+                {
+                  face->get_dof_indices(local_face_dof_indices);
+
+                  for (const auto i : local_face_dof_indices)
+                    {
+                      const auto local_index = partitioner->global_to_local(i);
+
+                      if (concentration.local_element(local_index) >
+                          order_parameter_threshold)
+                        indices_to_add.insert(local_index);
+                    }
+                }
+        }
+
+    // Remove previous costraionts
+    for (unsigned int d = 0; d < dim; ++d)
+      displ_constraints_indices[d].clear();
+
+    // Add cross-section constraints
+    std::copy(indices_to_add.begin(),
+              indices_to_add.end(),
+              std::back_inserter(displ_constraints_indices[direction]));
+
+    // Add pointwise constraints
+    bool add_pointwise =
+      rank_having_vertex == Utilities::MPI::this_mpi_process(comm);
+    if (add_pointwise)
+      {
+        const auto local_vertex_index =
+          partitioner->global_to_local(global_vertex_index);
+
+        for (unsigned int d = 0; d < dim; ++d)
+          if (d != direction)
+            displ_constraints_indices[d].push_back(local_vertex_index);
+      }
+
+    for (unsigned int b = 2; b < data.n_components(); ++b)
+      solution.block(b).zero_out_ghost_values();
   }
 
 } // namespace Sintering
