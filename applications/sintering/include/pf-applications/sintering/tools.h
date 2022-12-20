@@ -564,17 +564,14 @@ namespace Sintering
       {
         Number dist_min = std::numeric_limits<Number>::max();
 
-        const unsigned int ref_component_num = 0;
-
         for (unsigned int v = 0; v < containing_cell->n_vertices(); ++v)
           {
-            const auto dist = point.distance(containing_cell->vertex(v));
+            const auto dist = origin_in.distance(containing_cell->vertex(v));
             if (dist < dist_min)
               {
-                global_vertex_index =
-                  containing_cell->vertex_dof_index(v, ref_component_num);
-                origin   = containing_cell->vertex(v);
-                dist_min = dist;
+                global_vertex_index = containing_cell->vertex_index(v);
+                origin              = containing_cell->vertex(v);
+                dist_min            = dist;
               }
           }
       }
@@ -616,9 +613,9 @@ namespace Sintering
                     ExcMessage(
                       "Origin of the section should be inside a particle"));
 
-        primary_particle_id =
-          grain_tracker.get_particle_index(primary_order_parameter_id,
-                                           containing_cell);
+        primary_particle_id = grain_tracker.get_particle_index(
+          primary_order_parameter_id,
+          containing_cell->global_active_cell_index());
       }
 
     // Broadcast order parameter and particle ids to all ranks
@@ -635,7 +632,7 @@ namespace Sintering
     std::set<types::global_dof_index> indices_to_add;
 
     // Apply constraints for displacement along the direction axis
-    const auto &concentration = solution.block(op_max_index + 2);
+    const auto &concentration = solution.block(primary_order_parameter_id + 2);
 
     for (const auto &cell :
          matrix_free.get_dof_handler().active_cell_iterators())
