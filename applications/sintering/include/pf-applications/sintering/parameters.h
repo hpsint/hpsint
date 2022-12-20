@@ -122,7 +122,7 @@ namespace Sintering
     MobilityAbstractData  mobility_abstract_data;
     MobilityRealisticData mobility_realistic_data;
 
-    MechanicsData  mechanics_data;
+    MechanicsData mechanics_data;
   };
 
   struct AdvectionData
@@ -550,7 +550,9 @@ namespace Sintering
 
       prm.enter_subsection("Mechanics");
       prm.add_parameter("E", material_data.mechanics_data.E, "Young modulus.");
-      prm.add_parameter("nu", material_data.mechanics_data.nu, "Poisson ratio.");
+      prm.add_parameter("nu",
+                        material_data.mechanics_data.nu,
+                        "Poisson ratio.");
       prm.leave_subsection();
 
       prm.leave_subsection();
