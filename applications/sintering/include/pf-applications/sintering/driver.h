@@ -1514,15 +1514,6 @@ namespace Sintering
                                          matrix_free,
                                          solution.block(0),
                                          direction);
-
-              /*
-              Point<dim> origin;
-              clamp_section<dim>(displ_constraints_indices,
-                                         matrix_free,
-                                         solution.block(0),
-                                         origin,
-                                         direction);
-                                         */
             }
 
           output_result(solution, nonlinear_operator, t, "refinement");
