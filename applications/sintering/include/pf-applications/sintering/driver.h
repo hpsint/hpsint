@@ -69,6 +69,7 @@
 #include <pf-applications/numerics/vector_tools.h>
 
 #include <pf-applications/sintering/advection.h>
+#include <pf-applications/sintering/creator.h>
 #include <pf-applications/sintering/initial_values.h>
 #include <pf-applications/sintering/operator_advection.h>
 #include <pf-applications/sintering/operator_postproc.h>
@@ -84,6 +85,11 @@
 #include <pf-applications/grain_tracker/tracker.h>
 #include <pf-applications/grid/constraint_helper.h>
 
+// Available sintering operators
+#define OPERATOR_GENERIC 1
+#define OPERATOR_COUPLED_WANG 2
+#define OPERATOR_COUPLED_DIFFUSION 3
+
 namespace Sintering
 {
   using namespace dealii;
@@ -97,12 +103,16 @@ namespace Sintering
   public:
     using VectorType = LinearAlgebra::distributed::DynamicBlockVector<Number>;
 
+    // Choose sintering operator
     using NonLinearOperator =
-#ifdef COUPLED_MODEL
-      // SinteringOperatorCoupledWang<dim, Number, VectorizedArrayType>;
+#if OPERATOR == OPERATOR_GENERIC
+      SinteringOperatorGeneric<dim, Number, VectorizedArrayType>;
+#elif OPERATOR == OPERATOR_COUPLED_WANG
+      SinteringOperatorCoupledWang<dim, Number, VectorizedArrayType>;
+#elif OPERATOR == OPERATOR_COUPLED_DIFFUSION
       SinteringOperatorCoupledDiffusion<dim, Number, VectorizedArrayType>;
 #else
-      SinteringOperatorGeneric<dim, Number, VectorizedArrayType>;
+#  error "Option OPERATOR has to be specified"
 #endif
 
     const Parameters                          params;
@@ -807,33 +817,21 @@ namespace Sintering
         params.advection_data.mr,
         grain_tracker);
 
-#ifdef COUPLED_MODEL
-
-      const double E  = 1.;
-      const double nu = 0.25;
-
-      // ... non-linear operator
-      NonLinearOperator nonlinear_operator(matrix_free,
-                                           constraints,
-                                           sintering_data,
-                                           solution_history,
-                                           // advection_mechanism,
-                                           params.matrix_based,
-                                           E,
-                                           nu);
+      auto nonlinear_operator = create_sintering_operator<dim,
+                                                          Number,
+                                                          VectorizedArrayType,
+                                                          VectorType,
+                                                          NonLinearOperator>(
+        matrix_free,
+        constraints,
+        sintering_data,
+        solution_history,
+        advection_mechanism,
+        params.matrix_based,
+        params.material_data.mechanics_data.E,
+        params.material_data.mechanics_data.nu);
 
       const bool save_all_blocks = params.advection_data.enable;
-#else
-      // ... non-linear operator
-      NonLinearOperator nonlinear_operator(matrix_free,
-                                           constraints,
-                                           sintering_data,
-                                           solution_history,
-                                           advection_mechanism,
-                                           params.matrix_based);
-
-      const bool save_all_blocks = false;
-#endif
 
       // ... preconditioner
       std::unique_ptr<Preconditioners::PreconditionerBase<Number>>
@@ -1498,18 +1496,34 @@ namespace Sintering
 
           old_old_solutions.update_ghost_values();
 
-        // Update mechanical constraints for the coupled model
-        // Currently only fixing the central section along x-axis
-#ifdef COUPLED_MODEL
-          auto &displ_constraints_indices =
-            nonlinear_operator.get_zero_constraints_indices();
+          // Update mechanical constraints for the coupled model
+          // Currently only fixing the central section along x-axis
+          if constexpr (std::is_base_of_v<
+                          SinteringOperatorCoupledBase<dim,
+                                                       Number,
+                                                       VectorizedArrayType,
+                                                       NonLinearOperator>,
+                          NonLinearOperator>)
+            {
+              auto &displ_constraints_indices =
+                nonlinear_operator.get_zero_constraints_indices();
 
-          const unsigned int direction = 0;
-          clamp_central_section<dim>(displ_constraints_indices,
-                                     matrix_free,
-                                     solution.block(0),
-                                     direction);
-#endif
+              const unsigned int direction = 0;
+
+              clamp_central_section<dim>(displ_constraints_indices,
+                                         matrix_free,
+                                         solution.block(0),
+                                         direction);
+
+              /*
+              Point<dim> origin;
+              clamp_section<dim>(displ_constraints_indices,
+                                         matrix_free,
+                                         solution.block(0),
+                                         origin,
+                                         direction);
+                                         */
+            }
 
           output_result(solution, nonlinear_operator, t, "refinement");
 
