@@ -831,7 +831,13 @@ namespace Sintering
         params.material_data.mechanics_data.E,
         params.material_data.mechanics_data.nu);
 
-      const bool save_all_blocks = params.advection_data.enable;
+      // Save all blocks at quadrature points if either the advection mechanism
+      // is enabled or the coupled diffusion based sintering operator is used
+      const bool save_all_blocks =
+        params.advection_data.enable ||
+        std::is_same_v<
+          SinteringOperatorCoupledDiffusion<dim, Number, VectorizedArrayType>,
+          NonLinearOperator>;
 
       // ... preconditioner
       std::unique_ptr<Preconditioners::PreconditionerBase<Number>>
@@ -1514,6 +1520,15 @@ namespace Sintering
                                          matrix_free,
                                          solution.block(0),
                                          direction);
+
+              /*
+              Point<dim> origin;
+              clamp_section<dim>(displ_constraints_indices,
+                                         matrix_free,
+                                         solution.block(0),
+                                         origin,
+                                         direction);
+                                         */
             }
 
           output_result(solution, nonlinear_operator, t, "refinement");
