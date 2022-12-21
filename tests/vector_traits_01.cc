@@ -5,23 +5,34 @@
 
 using namespace dealii;
 
+template <typename VectorType, typename Enable = void>
+struct is_dealii_compatible_vector;
 
 template <typename VectorType>
-constexpr bool is_dealii_compatible_vector =
-  std::is_same<
+struct is_dealii_compatible_vector<
+  VectorType,
+  typename std::enable_if<!internal::is_block_vector<VectorType>>::type>
+{
+  static constexpr bool value = std::is_same<
     VectorType,
     LinearAlgebra::distributed::Vector<typename VectorType::value_type,
-                                       MemorySpace::Host>>::value ||
-  std::is_same<VectorType,
-               LinearAlgebra::distributed::BlockVector<
-                 typename VectorType::value_type>>::value ||
-  std::is_same<VectorType,
-               LinearAlgebra::distributed::DynamicBlockVector<
-                 typename VectorType::value_type>>::value;
+                                       MemorySpace::Host>>::value;
+};
+
+template <typename VectorType>
+struct is_dealii_compatible_vector<
+  VectorType,
+  typename std::enable_if<internal::is_block_vector<VectorType>>::type>
+{
+  static constexpr bool value = std::is_same<
+    typename VectorType::BlockType,
+    LinearAlgebra::distributed::Vector<typename VectorType::value_type,
+                                       MemorySpace::Host>>::value;
+};
 
 template <typename VectorType,
-          std::enable_if_t<!is_dealii_compatible_vector<VectorType>, VectorType>
-            * = nullptr>
+          std::enable_if_t<!is_dealii_compatible_vector<VectorType>::value,
+                           VectorType> * = nullptr>
 void
 test(const VectorType &)
 {
@@ -29,8 +40,8 @@ test(const VectorType &)
 }
 
 template <typename VectorType,
-          std::enable_if_t<is_dealii_compatible_vector<VectorType>, VectorType>
-            * = nullptr>
+          std::enable_if_t<is_dealii_compatible_vector<VectorType>::value,
+                           VectorType> * = nullptr>
 void
 test(const VectorType &)
 {
