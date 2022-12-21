@@ -69,6 +69,7 @@
 #include <pf-applications/numerics/vector_tools.h>
 
 #include <pf-applications/sintering/advection.h>
+#include <pf-applications/sintering/boundary_conditions.h>
 #include <pf-applications/sintering/creator.h>
 #include <pf-applications/sintering/initial_values.h>
 #include <pf-applications/sintering/operator_advection.h>
