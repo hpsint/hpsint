@@ -123,10 +123,9 @@ namespace Sintering
     const GrainTracker::Tracker<dim, Number> &             grain_tracker,
     const BlockVectorType &                                solution,
     const Point<dim> &                                     origin_in,
-    const unsigned int                                     direction = 0)
+    const unsigned int                                     direction = 0,
+    const Number order_parameter_threshold                           = 0.1)
   {
-    const Number order_parameter_threshold = 0.5;
-
     for (unsigned int b = 2; b < data.n_components(); ++b)
       solution.block(b).update_ghost_values();
 
@@ -138,9 +137,8 @@ namespace Sintering
     const auto containing_cell = GridTools::find_active_cell_around_point(
       matrix_free.get_dof_handler().get_triangulation(), origin_in);
 
-    types::global_dof_index global_vertex_index =
-      dealii::numbers::invalid_size_type;
-    Point<dim> origin;
+    types::global_dof_index global_vertex_index = numbers::invalid_unsigned_int;
+    Point<dim>              origin;
 
     if (containing_cell->is_locally_owned())
       {
@@ -170,34 +168,40 @@ namespace Sintering
 
     // The owner of the origin finds the corresponding order parameter and
     // particle ids
-    unsigned int primary_order_parameter_id = numbers::invalid_size_type;
-    unsigned int primary_particle_id        = numbers::invalid_size_type;
+    unsigned int primary_order_parameter_id = numbers::invalid_unsigned_int;
+    unsigned int primary_particle_id        = numbers::invalid_unsigned_int;
 
-    if (global_vertex_index != numbers::invalid_size_type)
+    if (global_vertex_index != numbers::invalid_unsigned_int)
       {
-        const auto local_vertex_index =
-          partitioner->global_to_local(global_vertex_index);
-
-        Number op_max_value = 0;
-        for (unsigned int b = 2; b < data.n_components(); ++b)
+        const auto cell_index = containing_cell->global_active_cell_index();
+        for (unsigned int ig = 0; ig < data.n_grains(); ++ig)
           {
-            const auto op_value =
-              solution.block(b).local_element(local_vertex_index);
+            const auto particle_id_for_op =
+              grain_tracker.get_particle_index(ig, cell_index);
 
-            if (op_max_value < op_value)
+            if (particle_id_for_op != numbers::invalid_unsigned_int)
               {
-                op_max_value               = op_value;
-                primary_order_parameter_id = b - 2;
+                if (primary_order_parameter_id == numbers::invalid_unsigned_int)
+                  {
+                    primary_order_parameter_id = ig;
+                    primary_particle_id        = particle_id_for_op;
+                  }
+                else
+                  {
+                    AssertThrow(
+                      false,
+                      ExcMessage(
+                        "Multiple particles located at the origin point, "
+                        "the clamping constraints can be imposed only at "
+                        "points which are not shared"));
+                  }
               }
           }
 
-        AssertThrow(op_max_value > order_parameter_threshold,
-                    ExcMessage(
-                      "Origin of the section should be inside a particle"));
-
-        primary_particle_id = grain_tracker.get_particle_index(
-          primary_order_parameter_id,
-          containing_cell->global_active_cell_index());
+        AssertThrow(primary_order_parameter_id !=
+                        numbers::invalid_unsigned_int &&
+                      primary_particle_id != numbers::invalid_unsigned_int,
+                    ExcMessage("No particle detected at the origin point"));
       }
 
     // Broadcast order parameter and particle ids to all ranks
@@ -242,6 +246,7 @@ namespace Sintering
                       const auto concentration_local =
                         concentration.local_element(local_index);
 
+                      // Restrain only points inside a particle
                       if (concentration_local > order_parameter_threshold)
                         {
                           indices_to_add.insert(local_index);
