@@ -635,11 +635,11 @@ namespace GrainTracker
     get_particle_index(const unsigned int order_parameter,
                        const unsigned int cell_index) const
     {
-      AssertThrow(order_parameter < op_particle_ids.size(),
+      AssertThrow(order_parameter < op_particle_ids.n_blocks(),
                   ExcMessage("Invalid order_parameter id = " +
                              std::to_string(order_parameter) +
                              " provided, total number of particles = " +
-                             std::to_string(op_particle_ids.size())));
+                             std::to_string(op_particle_ids.n_blocks())));
       const auto &particle_ids = op_particle_ids.block(order_parameter);
 
       AssertThrow(cell_index < particle_ids.size(),
