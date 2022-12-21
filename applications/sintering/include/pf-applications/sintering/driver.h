@@ -1721,6 +1721,10 @@ namespace Sintering
           {
             TimerOutput::Scope scope(timer(), "time_loop");
 
+            // Perform sanity check
+            if (params.time_integration_data.sanity_check_solution)
+              nonlinear_operator.sanity_check(solution);
+
             if (n_timestep != 0 &&
                 params.adaptivity_data.refinement_frequency > 0 &&
                 n_timestep % params.adaptivity_data.refinement_frequency == 0)
@@ -1751,10 +1755,6 @@ namespace Sintering
                     AssertThrow(false, ExcMessage(ex.what()));
                   }
               }
-
-            // Perform sanity check
-            if (params.time_integration_data.sanity_check_solution)
-              nonlinear_operator.sanity_check(solution);
 
             // Set timesteps in order to update weights
             sintering_data.time_data.set_all_dt(dts);
