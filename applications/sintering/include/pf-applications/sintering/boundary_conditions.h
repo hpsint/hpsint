@@ -216,6 +216,9 @@ namespace Sintering
     // Apply constraints for displacement along the direction axis
     const auto &concentration = solution.block(primary_order_parameter_id + 2);
 
+    double       c_max_on_face    = 0.;
+    unsigned int id_c_max_on_face = numbers::invalid_unsigned_int;
+
     for (const auto &cell :
          matrix_free.get_dof_handler().active_cell_iterators())
       if (cell->is_locally_owned())
@@ -236,13 +239,31 @@ namespace Sintering
                   for (const auto i : local_face_dof_indices)
                     {
                       const auto local_index = partitioner->global_to_local(i);
+                      const auto concentration_local =
+                        concentration.local_element(local_index);
 
-                      if (concentration.local_element(local_index) >
-                          order_parameter_threshold)
-                        indices_to_add.insert(local_index);
+                      if (concentration_local > order_parameter_threshold)
+                        {
+                          indices_to_add.insert(local_index);
+
+                          if (concentration_local > c_max_on_face)
+                            {
+                              c_max_on_face    = concentration_local;
+                              id_c_max_on_face = local_index;
+                            }
+                        }
                     }
                 }
         }
+
+    const double global_c_max_on_face =
+      Utilities::MPI::max(c_max_on_face, comm);
+
+    unsigned int rank_having_c_max =
+      std::abs(global_c_max_on_face - c_max_on_face) < 1e-16 ?
+        Utilities::MPI::this_mpi_process(comm) :
+        numbers::invalid_unsigned_int;
+    rank_having_c_max = Utilities::MPI::min(rank_having_c_max, comm);
 
     // Remove previous costraionts
     for (unsigned int d = 0; d < dim; ++d)
@@ -255,16 +276,11 @@ namespace Sintering
 
     // Add pointwise constraints
     bool add_pointwise =
-      rank_having_vertex == Utilities::MPI::this_mpi_process(comm);
+      rank_having_c_max == Utilities::MPI::this_mpi_process(comm);
     if (add_pointwise)
-      {
-        const auto local_vertex_index =
-          partitioner->global_to_local(global_vertex_index);
-
-        for (unsigned int d = 0; d < dim; ++d)
-          if (d != direction)
-            displ_constraints_indices[d].push_back(local_vertex_index);
-      }
+      for (unsigned int d = 0; d < dim; ++d)
+        if (d != direction)
+          displ_constraints_indices[d].push_back(id_c_max_on_face);
 
     for (unsigned int b = 2; b < data.n_components(); ++b)
       solution.block(b).zero_out_ghost_values();
