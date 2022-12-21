@@ -66,7 +66,7 @@ namespace Sintering
       std::abs(global_c_max_on_face - c_max_on_face) < 1e-16 ?
         Utilities::MPI::this_mpi_process(comm) :
         numbers::invalid_unsigned_int;
-    rank_having_c_max = Utilities::MPI::min(c_max_on_face, comm);
+    rank_having_c_max = Utilities::MPI::min(rank_having_c_max, comm);
 
     // Remove previous costraionts
     for (unsigned int d = 0; d < dim; ++d)
