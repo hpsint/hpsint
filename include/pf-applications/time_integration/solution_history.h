@@ -153,6 +153,12 @@ namespace TimeIntegration
                                                       solutions.end());
     }
 
+    std::vector<std::shared_ptr<VectorType>>
+    get_all_solutions() const
+    {
+      return solutions;
+    }
+
     virtual std::size_t
     memory_consumption() const
     {
