@@ -2123,7 +2123,8 @@ namespace Sintering
                               additional_output);
               }
 
-            if (is_last_time_step || restart_predicate.now(t))
+            if (has_converged &&
+                (is_last_time_step || restart_predicate.now(t)))
               {
                 unsigned int current_restart_count = restart_counter++;
 
