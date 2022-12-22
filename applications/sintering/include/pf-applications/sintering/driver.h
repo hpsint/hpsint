@@ -1604,38 +1604,41 @@ namespace Sintering
                   nonlinear_operator.n_components() -
                   sintering_data.n_components();
 
-                const auto remap = [&](auto &solution) {
-                  if (has_reassigned_grains &&
-                      n_components_new < n_components_old)
-                    {
-                      grain_tracker.remap(solution);
+                // Perform remapping
+                auto all_solution_vectors =
+                  solutions_except_recent.get_all_solutions();
 
-                      // Move the to be deleted components to the end
-                      if (distance > 0)
+                if (has_reassigned_grains &&
+                    n_components_new < n_components_old)
+                  {
+                    grain_tracker.remap(all_solution_vectors);
+
+                    // Move the to be deleted components to the end
+                    if (distance > 0)
+                      for (auto &sol : all_solution_vectors)
                         for (unsigned int i = sintering_data.n_components() - 1;
                              i >= n_components_new;
                              --i)
-                          solution.move_block(i, i + distance);
-                    }
+                          sol->move_block(i, i + distance);
+                  }
 
-                  // Resize solution vector (delete or add blocks)
-                  solution.reinit(n_components_new);
+                // Resize solution vector (delete or add blocks)
+                solutions_except_recent.apply(
+                  [&](auto &sol) { sol.reinit(n_components_new); });
 
-                  if (has_reassigned_grains &&
-                      n_components_new > n_components_old)
-                    {
-                      // Move the newly created before displacements
-                      if (distance > 0)
+                if (has_reassigned_grains &&
+                    n_components_new > n_components_old)
+                  {
+                    // Move the newly created before displacements
+                    if (distance > 0)
+                      for (auto &sol : all_solution_vectors)
                         for (unsigned int i = nonlinear_operator.n_components();
                              i < n_components_new;
                              ++i)
-                          solution.move_block(i, i - distance);
+                          sol->move_block(i, i - distance);
 
-                      grain_tracker.remap(solution);
-                    }
-                };
-
-                solutions_except_recent.apply([&](auto &sol) { remap(sol); });
+                    grain_tracker.remap(all_solution_vectors);
+                  }
 
                 // Change number of components after remapping completed
                 sintering_data.set_n_components(n_grains_new + 2);

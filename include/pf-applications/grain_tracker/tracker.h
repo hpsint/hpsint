@@ -257,6 +257,20 @@ namespace GrainTracker
 
     // Remap state vectors
     void
+    remap(std::vector<std::shared_ptr<BlockVectorType>> solutions) const
+    {
+      std::vector<BlockVectorType *> raw_ptrs;
+
+      std::transform(solutions.begin(),
+                     solutions.end(),
+                     std::back_inserter(raw_ptrs),
+                     [](auto &sol) { return sol.get(); });
+
+      remap(raw_ptrs);
+    }
+
+    // Remap state vectors
+    void
     remap(std::vector<BlockVectorType *> solutions) const
     {
       // Logging for remapping
