@@ -274,7 +274,7 @@ namespace GrainTracker
             BlockVectorType *solution)> callback) {
           // clang-format on
 
-          double transfer_buffer = grain.transfer_buffer();
+          const double transfer_buffer = grain.transfer_buffer();
 
           for (auto &cell : dof_handler.active_cell_iterators())
             {
@@ -1252,7 +1252,7 @@ namespace GrainTracker
                    gr_base.get_old_order_parameter_id() ==
                      gr_other.get_old_order_parameter_id()))
                 {
-                  gr_base.add_neighbor(&gr_other);
+                  gr_base.add_neighbor(gr_other);
                 }
             }
         }
