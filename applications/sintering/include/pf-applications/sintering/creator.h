@@ -73,8 +73,7 @@ namespace Sintering
         solution_history,
         matrix_based,
         E,
-        nu,
-        loading);
+        nu);
   }
 
 } // namespace Sintering
