@@ -1556,6 +1556,11 @@ namespace Sintering
         const bool has_reassigned_grains = std::get<0>(gt_status);
         const bool has_op_number_changed = std::get<1>(gt_status);
 
+        pcout << std::boolalpha
+              << "has_reassigned_grains = " << has_reassigned_grains << " | "
+              << "has_op_number_changed = " << has_op_number_changed
+              << std::noboolalpha << std::endl;
+
         const double time_total_double =
           std::chrono::duration_cast<std::chrono::nanoseconds>(
             std::chrono::system_clock::now() - time_total)
@@ -1654,6 +1659,8 @@ namespace Sintering
 
             output_result(solution, nonlinear_operator, t, "remap");
           }
+
+        pcout << std::endl;
 
         solution.zero_out_ghost_values();
         old_old_solutions.update_ghost_values();
