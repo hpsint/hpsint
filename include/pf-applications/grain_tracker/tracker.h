@@ -274,7 +274,7 @@ namespace GrainTracker
             BlockVectorType *solution)> callback) {
           // clang-format on
 
-          double transfer_buffer = grain.transfer_buffer();
+          const double transfer_buffer = grain.transfer_buffer();
 
           for (auto &cell : dof_handler.active_cell_iterators())
             {
