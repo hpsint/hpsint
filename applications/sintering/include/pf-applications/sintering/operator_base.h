@@ -54,7 +54,7 @@ constexpr bool has_n_grains_method =
         {                                                                                                             \
           case  1:                                                                                                    \
             AssertThrow(n_grains > 1,                                                                                 \
-              ExcMessage("A single grain is in the domain, sintering analysis is irrelevant, solution terminated.")); \
+              ExcMessage("A single grain case could not be compiled due to code restrictions."));                     \
           case  2: OPERATION(T::n_grains_to_n_components(std::min(max_grains,  2)), std::min(max_grains,  2)); break; \
           case  3: OPERATION(T::n_grains_to_n_components(std::min(max_grains,  3)), std::min(max_grains,  3)); break; \
           case  4: OPERATION(T::n_grains_to_n_components(std::min(max_grains,  4)), std::min(max_grains,  4)); break; \
