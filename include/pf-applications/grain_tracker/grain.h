@@ -138,38 +138,22 @@ namespace GrainTracker
     }
 
     /* Add a grain's neighbor. Neighbors are grains having the same order
-     * parameter id.
+     * parameter id. We do need to store the complete list of neighbors,
+     * we only need to know the distance to the nearest one.
      */
     void
-    add_neighbor(const Grain *neighbor)
+    add_neighbor(const Grain<dim> &neighbor)
     {
-      AssertThrow(this != neighbor,
-                  ExcMessage("Grain can not be added as a neighbot to itself"));
+      AssertThrow(this != &neighbor,
+                  ExcMessage("Grain can not be added as a neighbor to itself"));
       AssertThrow(
-        order_parameter_id == neighbor->get_order_parameter_id() ||
-          old_order_parameter_id == neighbor->get_old_order_parameter_id(),
+        order_parameter_id == neighbor.get_order_parameter_id() ||
+          old_order_parameter_id == neighbor.get_old_order_parameter_id(),
         ExcMessage(
           "Neighbors should have the same order parameter (current or old)."));
 
-      neighbors.insert(neighbors.end(), neighbor);
-    }
-
-    /* Get distance to the nearest neighbor. This is used to check whether any
-     * of the two grains assigned to the same order parameter are getting too
-     * close. If so, then for either of the two grains the order parameter has
-     * to be changed.
-     */
-    double
-    distance_to_nearest_neighbor() const
-    {
-      double dist = std::numeric_limits<double>::max();
-
-      for (const auto nb : neighbors)
-        {
-          dist = std::min(dist, distance(*nb));
-        }
-
-      return dist;
+      distance_to_nearest_neighbor =
+        std::min(distance_to_nearest_neighbor, distance(neighbor));
     }
 
     /* Get transfer buffer. A zone around the grain which will be moved to
@@ -178,7 +162,7 @@ namespace GrainTracker
     double
     transfer_buffer() const
     {
-      return std::max(0.0, distance_to_nearest_neighbor() / 2.0);
+      return std::max(0.0, distance_to_nearest_neighbor / 2.0);
     }
 
   private:
@@ -190,8 +174,8 @@ namespace GrainTracker
 
     std::vector<Segment<dim>> segments;
 
-    std::set<const Grain *> neighbors;
-
     double max_radius{0.0};
+
+    double distance_to_nearest_neighbor{std::numeric_limits<double>::max()};
   };
 } // namespace GrainTracker

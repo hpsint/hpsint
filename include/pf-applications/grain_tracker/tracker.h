@@ -1252,7 +1252,7 @@ namespace GrainTracker
                    gr_base.get_old_order_parameter_id() ==
                      gr_other.get_old_order_parameter_id()))
                 {
-                  gr_base.add_neighbor(&gr_other);
+                  gr_base.add_neighbor(gr_other);
                 }
             }
         }
