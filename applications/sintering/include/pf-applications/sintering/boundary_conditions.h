@@ -291,4 +291,43 @@ namespace Sintering
       solution.block(b).zero_out_ghost_values();
   }
 
+  template <int dim, typename Number>
+  Point<dim>
+  find_center_origin(const Triangulation<dim> &                triangulation,
+                     const GrainTracker::Tracker<dim, Number> &grain_tracker,
+                     const bool prefer_growing = false)
+  {
+    // Add central constraints
+    const auto bb_tria = GridTools::compute_bounding_box(triangulation);
+    const auto center  = bb_tria.center();
+
+    Point<dim> origin;
+
+    Number dist_min = std::numeric_limits<Number>::max();
+
+    typename GrainTracker::Grain<dim>::Dynamics dynamics_max =
+      GrainTracker::Grain<dim>::None;
+
+    for (const auto &[grain_id, grain] : grain_tracker.get_grains())
+      for (const auto &segment : grain.get_segments())
+        {
+          const Number dist = segment.get_center().distance(center);
+
+          const bool pick =
+            (!prefer_growing && dist < dist_min) ||
+            (prefer_growing &&
+             ((dist < dist_min && grain.get_dynamics() >= dynamics_max) ||
+              dist_min == std::numeric_limits<Number>::max()));
+
+          if (pick)
+            {
+              dist_min     = dist;
+              origin       = segment.get_center();
+              dynamics_max = grain.get_dynamics();
+            }
+        }
+
+    return origin;
+  }
+
 } // namespace Sintering
