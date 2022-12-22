@@ -2322,7 +2322,7 @@ namespace Sintering
             }
         }
 
-      if (params.output_data.contours || label != "solution")
+      if (params.output_data.contours)
         {
           std::string output = params.output_data.vtk_path + "/contour_" +
                                label + "." + std::to_string(counters[label]) +
@@ -2340,7 +2340,7 @@ namespace Sintering
             params.output_data.n_coarsening_steps);
         }
 
-      if (params.output_data.porosity || label != "solution")
+      if (params.output_data.porosity)
         {
           std::string output = params.output_data.vtk_path + "/porosity_" +
                                label + "." + std::to_string(counters[label]) +
@@ -2355,7 +2355,7 @@ namespace Sintering
                                             output);
         }
 
-      if (params.output_data.shrinkage || label != "solution")
+      if (params.output_data.shrinkage)
         {
           std::string output = params.output_data.vtk_path + "/shrinkage_" +
                                label + "." + std::to_string(counters[label]) +
