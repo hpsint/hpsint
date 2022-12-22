@@ -26,8 +26,8 @@ namespace GrainTracker
     enum Dynamics
     {
       Shrinking = -1,
-      None = 0,
-      Growing = 1
+      None      = 0,
+      Growing   = 1
     };
 
     Grain(const unsigned int grain_id, const unsigned int order_parameter_id)
