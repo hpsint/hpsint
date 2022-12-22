@@ -168,7 +168,10 @@ namespace GrainTracker
                   std::string("\r\n    new grain order parameter   = ") +
                   std::to_string(new_grain.get_order_parameter_id()) + 
                   std::string("\r\n    min_distance                = ") +
-                  std::to_string(min_distance)
+                  std::to_string(min_distance) + std::string("\r\n") + 
+                  std::string("This could have happened if track() or initial_setup()") +
+                  std::string("was invoked resulting in the grains reassignement but the") +
+                  std::string("subsequent remap() was not called for the solution vector(s).")
               ));
               // clang-format on
 
