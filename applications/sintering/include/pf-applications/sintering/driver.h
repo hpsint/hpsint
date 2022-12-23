@@ -2394,7 +2394,7 @@ namespace Sintering
           Postprocessors::write_table(table, t, MPI_COMM_WORLD, output);
         }
 
-      if (true)
+      if (params.output_data.quality)
         {
           std::string output = params.output_data.vtk_path + "/mesh_quality_" +
                                label + "." + std::to_string(counters[label]) +
