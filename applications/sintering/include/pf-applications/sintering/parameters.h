@@ -48,8 +48,8 @@ namespace Sintering
     unsigned int max_refinement_depth     = 0;
     unsigned int refinement_frequency     = 10; // 0 - no refinement
 
-    bool   quality_control   = false;
-    double quality_threshold = 0.5;
+    bool   quality_control = false;
+    double quality_min     = 0.5;
   };
 
   struct GrainTrackerData
@@ -437,10 +437,9 @@ namespace Sintering
       prm.add_parameter("QualityControl",
                         adaptivity_data.quality_control,
                         "Control automatically mesh quality.");
-      prm.add_parameter(
-        "QualityThreshold",
-        adaptivity_data.quality_threshold,
-        "Threshold value for cell quality (0 - low, 1 - high).");
+      prm.add_parameter("QualityMin",
+                        adaptivity_data.quality_min,
+                        "Minimum value for cell quality (0 - low, 1 - high).");
       prm.leave_subsection();
 
 
