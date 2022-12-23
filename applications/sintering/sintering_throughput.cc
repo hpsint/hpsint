@@ -203,6 +203,9 @@ main(int argc, char **argv)
     {
       const unsigned int n_components = n_grains + 2;
 
+      table.add_value("dim", dim);
+      table.add_value("fe_type", fe_type);
+      table.add_value("n_dofs", dof_handler.n_dofs());
       table.add_value("n_components", n_components);
 
       if (true) // test Helmholtz operator
