@@ -885,9 +885,11 @@ namespace Sintering
       if (true)
         linear_solver = std::make_unique<LinearSolvers::SolverGMRESWrapper<
           NonLinearOperator,
-          Preconditioners::PreconditionerBase<Number>>>(nonlinear_operator,
-                                                        *preconditioner,
-                                                        solver_control_l);
+          Preconditioners::PreconditionerBase<Number>>>(
+          nonlinear_operator,
+          *preconditioner,
+          solver_control_l,
+          params.nonlinear_data.gmres_data);
 
       MyTimerOutput timer;
       TimerCollection::configure(params.profiling_data.output_time_interval);
@@ -926,7 +928,8 @@ namespace Sintering
               Preconditioners::PreconditionerBase<Number>>>(
               mass_operator,
               *postproc_preconditioner,
-              *postproc_solver_control_l);
+              *postproc_solver_control_l,
+              params.nonlinear_data.gmres_data);
 
           additional_initializations.emplace_back(
             [&postproc_operator, &postproc_lhs, &postproc_rhs]() {

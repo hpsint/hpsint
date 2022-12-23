@@ -2,6 +2,8 @@
 
 #include <deal.II/base/parameter_handler.h>
 
+#include <pf-applications/lac/solvers_linear_parameters.h>
+
 #include <pf-applications/sintering/preconditioners.h>
 
 namespace Sintering
@@ -237,7 +239,8 @@ namespace Sintering
 
     unsigned int verbosity = 1;
 
-    NOXData nox_data;
+    NOXData                  nox_data;
+    LinearSolvers::GMRESData gmres_data;
   };
 
 
@@ -727,6 +730,14 @@ namespace Sintering
                         nonlinear_data.nox_data.line_search_interpolation_type,
                         "Polynomial line search interpolation type",
                         Patterns::Selection("Quadratic|Quadratic3|Cubic"));
+      prm.leave_subsection();
+
+      prm.enter_subsection("GMRESData");
+      prm.add_parameter("OrthogonalizationStrategy",
+                        nonlinear_data.gmres_data.orthogonalization_strategy,
+                        "Orthogonalization strategy",
+                        Patterns::Selection(
+                          "classical gram schmidt|modified gram schmidt"));
       prm.leave_subsection();
 
       prm.leave_subsection();
