@@ -113,6 +113,13 @@ run(const std::function<void()> &fu)
   return time;
 }
 
+
+// clang-format off
+/**
+ * likwid-mpirun -np 40 -f -g CACHES   -m -O ./applications/sintering/sintering-throughput
+ * likwid-mpirun -np 40 -f -g FLOPS_DP -m -O ./applications/sintering/sintering-throughput
+ */
+// clang-format on
 int
 main(int argc, char **argv)
 {
