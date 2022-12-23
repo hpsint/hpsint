@@ -1739,10 +1739,10 @@ namespace Sintering
 
                     const auto quality =
                       Postprocessors::estimate_mesh_quality_min(
-                        mapping, dof_handler, *only_order_parameters, output);
+                        mapping, dof_handler, *only_order_parameters);
 
                     do_mesh_refinement =
-                      quality < params.adaptivity_data.quality_threshold;
+                      quality < params.adaptivity_data.quality_min;
                   }
                 else
                   {

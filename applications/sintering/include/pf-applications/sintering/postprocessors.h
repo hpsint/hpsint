@@ -887,7 +887,7 @@ namespace Sintering
 
     /* Estimate min mesh quality: 0 - low, 1 - high */
     template <int dim, typename BlockVectorType>
-    typename BlockVectorType::velue_type
+    typename BlockVectorType::value_type
     estimate_mesh_quality_min(const Mapping<dim> &   mapping,
                               const DoFHandler<dim> &dof_handler,
                               const BlockVectorType &solution)
