@@ -87,6 +87,7 @@
         "FluxesDivergences": "false",
         "HigherOrderCells": "false",
         "OutputTimeInterval": "10",
+        "Quality": "true",
         "Regular": "true",
         "Shrinkage": "true",
         "Table": "true",
