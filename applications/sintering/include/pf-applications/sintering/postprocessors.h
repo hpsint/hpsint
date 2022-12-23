@@ -840,6 +840,7 @@ namespace Sintering
       ofs.close();
     }
 
+    /* Estimate mesh quality: 0 - low, 1 - high */
     template <int dim, typename BlockVectorType>
     void
     estimate_mesh_quality(const Mapping<dim> &   mapping,
@@ -874,7 +875,7 @@ namespace Sintering
               delta_cell = std::max(delta, delta_cell);
             }
 
-          quality[cell->active_cell_index()] = delta_cell;
+          quality[cell->active_cell_index()] = 1. - delta_cell;
         }
 
       DataOut<dim> data_out;
@@ -882,6 +883,47 @@ namespace Sintering
       data_out.add_data_vector(quality, "quality");
       data_out.build_patches(mapping);
       data_out.write_vtu_in_parallel(output, dof_handler.get_communicator());
+    }
+
+    /* Estimate min mesh quality: 0 - low, 1 - high */
+    template <int dim, typename BlockVectorType>
+    typename BlockVectorType::velue_type
+    estimate_mesh_quality_min(const Mapping<dim> &   mapping,
+                              const DoFHandler<dim> &dof_handler,
+                              const BlockVectorType &solution)
+    {
+      Vector<typename BlockVectorType::value_type> quality(
+        dof_handler.get_triangulation().n_active_cells());
+
+      Vector<typename BlockVectorType::value_type> values(
+        dof_handler.get_fe().n_dofs_per_cell());
+
+      typename BlockVectorType::value_type delta_cell = 0;
+
+      for (const auto &cell : dof_handler.active_cell_iterators())
+        {
+          if (cell->is_locally_owned() == false)
+            continue;
+
+          for (unsigned int b = 0; b < solution.n_blocks(); ++b)
+            {
+              cell->get_dof_values(solution.block(b), values);
+
+              const auto order_parameter_min =
+                *std::min_element(values.begin(), values.end());
+              const auto order_parameter_max =
+                *std::max_element(values.begin(), values.end());
+
+              const auto delta = order_parameter_max - order_parameter_min;
+
+              delta_cell = std::max(delta, delta_cell);
+            }
+        }
+
+      delta_cell =
+        Utilities::MPI::max(delta_cell, dof_handler.get_communicator());
+
+      return 1. - delta_cell;
     }
 
   } // namespace Postprocessors
