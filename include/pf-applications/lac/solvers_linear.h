@@ -6,6 +6,7 @@
 #include <pf-applications/base/timer.h>
 
 #include <pf-applications/lac/dynamic_block_vector.h>
+#include <pf-applications/lac/solvers_linear_parameters.h>
 
 namespace LinearSolvers
 {
@@ -38,12 +39,14 @@ namespace LinearSolvers
     using VectorType      = typename Operator::vector_type;
     using BlockVectorType = typename Operator::BlockVectorType;
 
-    SolverGMRESWrapper(const Operator &op,
-                       Preconditioner &preconditioner,
-                       SolverControl & solver_control)
+    SolverGMRESWrapper(const Operator & op,
+                       Preconditioner & preconditioner,
+                       SolverControl &  solver_control,
+                       const GMRESData &data = GMRESData())
       : op(op)
       , preconditioner(preconditioner)
       , solver_control(solver_control)
+      , data(data)
     {}
 
     unsigned int
@@ -51,7 +54,10 @@ namespace LinearSolvers
     {
       MyScope scope(timer, "gmres::solve");
 
-      SolverGMRES<VectorType> solver(solver_control);
+      typename SolverGMRES<VectorType>::AdditionalData additional_data;
+      fill_additional_data(additional_data);
+
+      SolverGMRES<VectorType> solver(solver_control, additional_data);
       solver.solve(op, dst, src, preconditioner);
 
       return solver_control.last_step();
@@ -62,15 +68,34 @@ namespace LinearSolvers
     {
       MyScope scope(timer, "gmres::solve");
 
-      SolverGMRES<BlockVectorType> solver(solver_control);
+      typename SolverGMRES<BlockVectorType>::AdditionalData additional_data;
+      fill_additional_data(additional_data);
+
+      SolverGMRES<BlockVectorType> solver(solver_control, additional_data);
       solver.solve(op, dst, src, preconditioner);
 
       return solver_control.last_step();
     }
 
+  private:
+    template <typename AdditionalData>
+    void
+    fill_additional_data(AdditionalData &additional_data) const
+    {
+      if (data.orthogonalization_strategy == "classical gram schmidt")
+        additional_data.orthogonalization_strategy =
+          AdditionalData::OrthogonalizationStrategy::classical_gram_schmidt;
+      else if (data.orthogonalization_strategy == "modified gram schmidt")
+        additional_data.orthogonalization_strategy =
+          AdditionalData::OrthogonalizationStrategy::modified_gram_schmidt;
+      else
+        AssertThrow(false, ExcNotImplemented());
+    }
+
     const Operator &op;
     Preconditioner &preconditioner;
     SolverControl & solver_control;
+    const GMRESData data;
 
     mutable MyTimerOutput timer;
   };
