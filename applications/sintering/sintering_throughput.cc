@@ -23,7 +23,7 @@ static_assert(false, "No dimension has been given!");
 static_assert(false, "No grains number has been given!");
 #endif
 
-//#define USE_FE_Q_iso_Q1
+#define USE_FE_Q_iso_Q1
 
 #ifdef USE_FE_Q_iso_Q1
 #  define FE_DEGREE 2
@@ -36,6 +36,7 @@ static_assert(false, "No grains number has been given!");
 #define WITH_TIMING
 //#define WITH_TIMING_OUTPUT
 
+#include <deal.II/base/convergence_table.h>
 #include <deal.II/base/mpi.h>
 #include <deal.II/base/revision.h>
 
@@ -48,22 +49,83 @@ static_assert(false, "No grains number has been given!");
 #include <pf-applications/sintering/advection.h>
 #include <pf-applications/sintering/mobility.h>
 #include <pf-applications/sintering/operator_sintering_generic.h>
+#include <pf-applications/sintering/preconditioners.h>
 #include <pf-applications/sintering/sintering_data.h>
 
 using namespace dealii;
 using namespace Sintering;
 
-static unsigned int likwid_counter;
+// helper function
+double
+run(const std::function<void()> &fu)
+{
+  const unsigned int n_repetitions = 100;
+
+  // warm up
+  for (unsigned int i = 0; i < 10; ++i)
+    fu();
+
+#ifdef LIKWID_PERFMON
+  const auto add_padding = [](const int value) -> std::string {
+    if (value < 10)
+      return "000" + std::to_string(value);
+    if (value < 100)
+      return "00" + std::to_string(value);
+    if (value < 1000)
+      return "0" + std::to_string(value);
+    if (value < 10000)
+      return "" + std::to_string(value);
+
+    AssertThrow(false, ExcInternalError());
+
+    return "";
+  };
+
+  static unsigned int likwid_counter = 0;
+
+  const std::string likwid_label =
+    "likwid_" + add_padding(likwid_counter); // TODO
+  likwid_counter++;
+#endif
+
+  MPI_Barrier(MPI_COMM_WORLD);
+
+#ifdef LIKWID_PERFMON
+  LIKWID_MARKER_START(likwid_label.c_str());
+#endif
+
+  const auto timer = std::chrono::system_clock::now();
+
+  for (unsigned int i = 0; i < n_repetitions; ++i)
+    fu();
+
+  MPI_Barrier(MPI_COMM_WORLD);
+
+#ifdef LIKWID_PERFMON
+  LIKWID_MARKER_STOP(likwid_label.c_str());
+#endif
+
+  const double time = std::chrono::duration_cast<std::chrono::nanoseconds>(
+                        std::chrono::system_clock::now() - timer)
+                        .count() /
+                      1e9;
+
+  return time;
+}
 
 int
 main(int argc, char **argv)
 {
   Utilities::MPI::MPI_InitFinalize mpi_init(argc, argv, 1);
 
+#ifdef LIKWID_PERFMON
+  LIKWID_MARKER_INIT;
+  LIKWID_MARKER_THREADINIT;
+#endif
+
   const unsigned int dim                  = SINTERING_DIM;
   const unsigned int fe_degree            = 1;
-  const unsigned int n_global_refinements = 3;
-  const unsigned int n_repetitions        = 100;
+  unsigned int       n_global_refinements = 7;
   using Number                            = double;
   using VectorizedArrayType               = VectorizedArray<Number>;
   using VectorType = LinearAlgebra::distributed::DynamicBlockVector<Number>;
@@ -110,6 +172,8 @@ main(int argc, char **argv)
       fe = std::make_unique<FE_Q_iso_Q1<dim>>(n_subdivisions);
       quadrature =
         std::make_unique<QIterated<dim>>(QGauss<1>(2), n_subdivisions);
+
+      n_global_refinements -= 1;
     }
   else
     {
@@ -133,96 +197,76 @@ main(int argc, char **argv)
   matrix_free.reinit(
     mapping, dof_handler, constraints, *quadrature, additional_data);
 
-  // helper function
-  const auto run = [&](const auto fu) {
-    // warm up
-    for (unsigned int i = 0; i < 10; ++i)
-      fu();
+  ConvergenceTable table;
 
-#ifdef LIKWID_PERFMON
-    const auto add_padding = [](const int value) -> std::string {
-      if (value < 10)
-        return "000" + std::to_string(value);
-      if (value < 100)
-        return "00" + std::to_string(value);
-      if (value < 1000)
-        return "0" + std::to_string(value);
-      if (value < 10000)
-        return "" + std::to_string(value);
-
-      AssertThrow(false, ExcInternalError());
-
-      return "";
-    };
-
-    const std::string likwid_label =
-      "likwid_" + add_padding(likwid_counter); // TODO
-    likwid_counter++;
-#endif
-
-    MPI_Barrier(MPI_COMM_WORLD);
-
-#ifdef LIKWID_PERFMON
-    LIKWID_MARKER_START(likwid_label.c_str());
-#endif
-
-    const auto timer = std::chrono::system_clock::now();
-
-    for (unsigned int i = 0; i < n_repetitions; ++i)
-      fu();
-
-    MPI_Barrier(MPI_COMM_WORLD);
-
-#ifdef LIKWID_PERFMON
-    LIKWID_MARKER_STOP(likwid_label.c_str());
-#endif
-
-    const double time = std::chrono::duration_cast<std::chrono::nanoseconds>(
-                          std::chrono::system_clock::now() - timer)
-                          .count() /
-                        1e9;
-
-    return time;
-  };
-
-  for (unsigned int n_grains = 2; n_grains < MAX_SINTERING_GRAINS; ++n_grains)
+  for (unsigned int n_grains = 2; n_grains <= MAX_SINTERING_GRAINS; ++n_grains)
     {
-      const std::shared_ptr<MobilityProvider> mobility_provider =
-        std::make_shared<ProviderAbstract>(Mvol, Mvap, Msurf, Mgb, L);
+      const unsigned int n_components = n_grains + 2;
 
-      TimeIntegration::SolutionHistory<VectorType> solution_history(
-        time_integration_order + 1);
+      table.add_value("n_components", n_components);
 
-      SinteringOperatorData<dim, VectorizedArrayType> sintering_data(
-        A, B, kappa_c, kappa_p, mobility_provider, time_integration_order);
+      if (true) // test Helmholtz operator
+        {
+          HelmholtzOperator<dim, Number, VectorizedArrayType>
+            helmholtz_operator(matrix_free, constraints, n_components);
 
-      sintering_data.set_n_components(n_grains + 2);
-      sintering_data.time_data.set_all_dt(dts);
-      sintering_data.set_time(t);
+          VectorType src, dst;
+          helmholtz_operator.initialize_dof_vector(src);
+          helmholtz_operator.initialize_dof_vector(dst);
+          src = 1.0;
 
-      AdvectionMechanism<dim, Number, VectorizedArrayType> advection;
+          const auto time = run([&]() { helmholtz_operator.vmult(dst, src); });
 
-      SinteringOperatorGeneric<dim, Number, VectorizedArrayType>
-        nonlinear_operator(matrix_free,
-                           constraints,
-                           sintering_data,
-                           solution_history,
-                           advection,
-                           false);
+          table.add_value("t_helmholtz", time);
+          table.set_scientific("t_helmholtz", true);
+        }
 
-      VectorType src, dst;
-      nonlinear_operator.initialize_dof_vector(src);
-      nonlinear_operator.initialize_dof_vector(dst);
+      if (true) // test sintering operator
+        {
+          const std::shared_ptr<MobilityProvider> mobility_provider =
+            std::make_shared<ProviderAbstract>(Mvol, Mvap, Msurf, Mgb, L);
 
-      src = 1.0;
+          TimeIntegration::SolutionHistory<VectorType> solution_history(
+            time_integration_order + 1);
 
-      sintering_data.fill_quadrature_point_values(matrix_free,
-                                                  src,
-                                                  false,
-                                                  false);
+          SinteringOperatorData<dim, VectorizedArrayType> sintering_data(
+            A, B, kappa_c, kappa_p, mobility_provider, time_integration_order);
 
-      const auto time = run([&]() { nonlinear_operator.vmult(dst, src); });
+          sintering_data.set_n_components(n_components);
+          sintering_data.time_data.set_all_dt(dts);
+          sintering_data.set_time(t);
 
-      std::cout << time << std::endl;
+          AdvectionMechanism<dim, Number, VectorizedArrayType> advection;
+
+          SinteringOperatorGeneric<dim, Number, VectorizedArrayType>
+            nonlinear_operator(matrix_free,
+                               constraints,
+                               sintering_data,
+                               solution_history,
+                               advection,
+                               false);
+
+          VectorType src, dst;
+          nonlinear_operator.initialize_dof_vector(src);
+          nonlinear_operator.initialize_dof_vector(dst);
+          src = 1.0;
+
+          sintering_data.fill_quadrature_point_values(matrix_free,
+                                                      src,
+                                                      false,
+                                                      false);
+
+          const auto time = run([&]() { nonlinear_operator.vmult(dst, src); });
+
+          table.add_value("t_sintering", time);
+          table.set_scientific("t_sintering", true);
+        }
     }
+
+  if (Utilities::MPI::this_mpi_process(MPI_COMM_WORLD) == 0)
+    table.write_text(std::cout, TableHandler::TextOutputFormat::org_mode_table);
+
+#ifdef LIKWID_PERFMON
+  LIKWID_MARKER_CLOSE;
+#endif
 }

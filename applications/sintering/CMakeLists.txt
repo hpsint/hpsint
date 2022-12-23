@@ -61,3 +61,11 @@ TARGET_COMPILE_DEFINITIONS(${executable_name} PUBLIC
 
 TARGET_LINK_LIBRARIES(${executable_name} "pf-applications")
 target_include_directories(${executable_name} PUBLIC "include/" "../structural/include/")
+
+FIND_LIBRARY(LIKWID likwid HINTS $ENV{LIKWID_LIB})
+    
+IF(LIKWID)
+  TARGET_COMPILE_DEFINITIONS(${executable_name} PUBLIC LIKWID_PERFMON)
+  TARGET_INCLUDE_DIRECTORIES(${executable_name} PUBLIC $ENV{LIKWID_INCLUDE})
+  TARGET_LINK_LIBRARIES(${executable_name} ${LIKWID})
+ENDIF()
