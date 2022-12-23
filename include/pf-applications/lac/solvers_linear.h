@@ -55,15 +55,7 @@ namespace LinearSolvers
       MyScope scope(timer, "gmres::solve");
 
       typename SolverGMRES<VectorType>::AdditionalData additional_data;
-
-      if (data.orthogonalization_strategy == "classical gram schmidt")
-        additional_data.orthogonalization_strategy = SolverGMRES<VectorType>::
-          AdditionalData::OrthogonalizationStrategy::classical_gram_schmidt;
-      else if (data.orthogonalization_strategy == "modified gram schmidt")
-        additional_data.orthogonalization_strategy = SolverGMRES<VectorType>::
-          AdditionalData::OrthogonalizationStrategy::modified_gram_schmidt;
-      else
-        AssertThrow(false, ExcNotImplemented());
+      fill_additional_data(additional_data);
 
       SolverGMRES<VectorType> solver(solver_control, additional_data);
       solver.solve(op, dst, src, preconditioner);
@@ -77,17 +69,7 @@ namespace LinearSolvers
       MyScope scope(timer, "gmres::solve");
 
       typename SolverGMRES<BlockVectorType>::AdditionalData additional_data;
-
-      if (data.orthogonalization_strategy == "classical gram schmidt")
-        additional_data.orthogonalization_strategy =
-          SolverGMRES<BlockVectorType>::AdditionalData::
-            OrthogonalizationStrategy::classical_gram_schmidt;
-      else if (data.orthogonalization_strategy == "modified gram schmidt")
-        additional_data.orthogonalization_strategy =
-          SolverGMRES<BlockVectorType>::AdditionalData::
-            OrthogonalizationStrategy::modified_gram_schmidt;
-      else
-        AssertThrow(false, ExcNotImplemented());
+      fill_additional_data(additional_data);
 
       SolverGMRES<BlockVectorType> solver(solver_control, additional_data);
       solver.solve(op, dst, src, preconditioner);
@@ -96,6 +78,20 @@ namespace LinearSolvers
     }
 
   private:
+    template <typename AdditionalData>
+    void
+    fill_additional_data(AdditionalData &additional_data) const
+    {
+      if (data.orthogonalization_strategy == "classical gram schmidt")
+        additional_data.orthogonalization_strategy =
+          AdditionalData::OrthogonalizationStrategy::classical_gram_schmidt;
+      else if (data.orthogonalization_strategy == "modified gram schmidt")
+        additional_data.orthogonalization_strategy =
+          AdditionalData::OrthogonalizationStrategy::modified_gram_schmidt;
+      else
+        AssertThrow(false, ExcNotImplemented());
+    }
+
     const Operator &op;
     Preconditioner &preconditioner;
     SolverControl & solver_control;
