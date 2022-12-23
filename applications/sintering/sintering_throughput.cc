@@ -41,10 +41,51 @@ static_assert(false, "No grains number has been given!");
 
 #include <pf-applications/base/revision.h>
 
+#include <pf-applications/sintering/advection.h>
+#include <pf-applications/sintering/mobility.h>
+#include <pf-applications/sintering/operator_sintering_generic.h>
+#include <pf-applications/sintering/sintering_data.h>
+
 using namespace dealii;
+using namespace Sintering;
 
 int
 main(int argc, char **argv)
 {
   Utilities::MPI::MPI_InitFinalize mpi_init(argc, argv, 1);
+
+  const unsigned int dim    = SINTERING_DIM;
+  using Number              = double;
+  using VectorizedArrayType = VectorizedArray<Number>;
+  using VectorType = LinearAlgebra::distributed::DynamicBlockVector<Number>;
+
+  // some arbitrary constants
+  const double A                      = 16;
+  const double B                      = 1;
+  const double kappa_c                = 1;
+  const double kappa_p                = 0.5;
+  const double Mvol                   = 1e-2;
+  const double Mvap                   = 1e-10;
+  const double Msurf                  = 4;
+  const double Mgb                    = 0.4;
+  const double L                      = 1;
+  const double time_integration_order = 1;
+
+  AffineConstraints<Number> constraints;
+
+  MatrixFree<dim, Number, VectorizedArrayType> matrix_free;
+
+  const std::shared_ptr<MobilityProvider> mobility_provider =
+    std::make_shared<ProviderAbstract>(Mvol, Mvap, Msurf, Mgb, L);
+
+  TimeIntegration::SolutionHistory<VectorType> solution_history(
+    time_integration_order + 1);
+
+  SinteringOperatorData<dim, VectorizedArrayType> data(
+    A, B, kappa_c, kappa_p, mobility_provider, time_integration_order);
+
+  AdvectionMechanism<dim, Number, VectorizedArrayType> advection;
+
+  SinteringOperatorGeneric<dim, Number, VectorizedArrayType> op_sintering(
+    matrix_free, constraints, data, solution_history, advection, false);
 }

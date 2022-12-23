@@ -2,6 +2,8 @@
 
 #include <deal.II/base/mpi_consensus_algorithms.h>
 
+#include <deal.II/dofs/dof_tools.h>
+
 #include <deal.II/grid/filtered_iterator.h>
 #include <deal.II/grid/grid_tools.h>
 

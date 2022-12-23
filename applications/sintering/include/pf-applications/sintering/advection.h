@@ -147,6 +147,13 @@ namespace Sintering
     static constexpr unsigned int n_comp_volume_force_torque =
       (dim == 3 ? 7 : 4);
 
+    AdvectionMechanism()
+      : is_active(false)
+      , mt(0.0)
+      , mr(0.0)
+      , grain_tracker(nullptr)
+    {}
+
     AdvectionMechanism(const bool                                enable,
                        const double                              mt,
                        const double                              mr,
@@ -154,7 +161,7 @@ namespace Sintering
       : is_active(enable)
       , mt(mt)
       , mr(mr)
-      , grain_tracker(grain_tracker)
+      , grain_tracker(&grain_tracker)
     {}
 
     void
@@ -175,16 +182,16 @@ namespace Sintering
               const auto cell_index = icell->global_active_cell_index();
 
               const unsigned int particle_id =
-                grain_tracker.get_particle_index(op, cell_index);
+                grain_tracker->get_particle_index(op, cell_index);
 
               if (particle_id != numbers::invalid_unsigned_int)
                 {
                   const auto grain_and_segment =
-                    grain_tracker.get_grain_and_segment(op, particle_id);
+                    grain_tracker->get_grain_and_segment(op, particle_id);
 
                   const auto &rc_i =
-                    grain_tracker.get_segment_center(grain_and_segment.first,
-                                                     grain_and_segment.second);
+                    grain_tracker->get_segment_center(grain_and_segment.first,
+                                                      grain_and_segment.second);
 
                   current_cell_data[op].fill(
                     i,
@@ -250,7 +257,7 @@ namespace Sintering
     grain_data(const unsigned int grain_id, const unsigned int segment_id)
     {
       const unsigned int index =
-        grain_tracker.get_grain_segment_index(grain_id, segment_id);
+        grain_tracker->get_grain_segment_index(grain_id, segment_id);
 
       return &grains_data[n_comp_volume_force_torque * index];
     }
@@ -259,7 +266,7 @@ namespace Sintering
     grain_data(const unsigned int grain_id, const unsigned int segment_id) const
     {
       const unsigned int index =
-        grain_tracker.get_grain_segment_index(grain_id, segment_id);
+        grain_tracker->get_grain_segment_index(grain_id, segment_id);
 
       return &grains_data[n_comp_volume_force_torque * index];
     }
@@ -289,7 +296,7 @@ namespace Sintering
       out << std::endl;
       out << "Grains segments volumes, forces and torques:" << std::endl;
 
-      for (const auto &[grain_id, grain] : grain_tracker.get_grains())
+      for (const auto &[grain_id, grain] : grain_tracker->get_grains())
         {
           for (unsigned int segment_id = 0;
                segment_id < grain.get_segments().size();
@@ -323,7 +330,7 @@ namespace Sintering
     mutable std::vector<AdvectionCellData<dim, Number, VectorizedArrayType>>
       current_cell_data;
 
-    const GrainTracker::Tracker<dim, Number> &grain_tracker;
+    const GrainTracker::Tracker<dim, Number> *grain_tracker;
 
     std::vector<Number> grains_data;
   };

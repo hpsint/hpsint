@@ -1,6 +1,8 @@
 #pragma once
 
+#include <deal.II/base/conditional_ostream.h>
 #include <deal.II/base/point.h>
+#include <deal.II/base/vectorization.h>
 
 #include <deal.II/grid/grid_generator.h>
 #include <deal.II/grid/grid_tools.h>
