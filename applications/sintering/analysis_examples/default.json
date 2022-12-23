@@ -4,6 +4,8 @@
         "BottomFractionOfCells": "0.1",
         "MaxRefinementDepth": "1",
         "MinRefinementDepth": "3",
+        "QualityControl": "false",
+        "QualityMin": "0.5",
         "RefinementFrequency": "10",
         "TopFractionOfCells": "0.3"
     },
