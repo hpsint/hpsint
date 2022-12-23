@@ -49,6 +49,9 @@ namespace Sintering
     unsigned int min_refinement_depth     = 3;
     unsigned int max_refinement_depth     = 0;
     unsigned int refinement_frequency     = 10; // 0 - no refinement
+
+    bool   quality_control = false;
+    double quality_min     = 0.5;
   };
 
   struct GrainTrackerData
@@ -162,6 +165,7 @@ namespace Sintering
     unsigned int          n_coarsening_steps     = 0;
     bool                  porosity               = false;
     bool                  shrinkage              = false;
+    bool                  quality                = false;
     bool                  table                  = false;
     bool                  debug                  = false;
     bool                  higher_order_cells     = false;
@@ -433,6 +437,12 @@ namespace Sintering
       prm.add_parameter("RefinementFrequency",
                         adaptivity_data.refinement_frequency,
                         "Refinement frequency (0 = no refinement).");
+      prm.add_parameter("QualityControl",
+                        adaptivity_data.quality_control,
+                        "Control automatically mesh quality.");
+      prm.add_parameter("QualityMin",
+                        adaptivity_data.quality_min,
+                        "Minimum value for cell quality (0 - low, 1 - high).");
       prm.leave_subsection();
 
 
@@ -630,6 +640,7 @@ namespace Sintering
       prm.add_parameter("Shrinkage",
                         output_data.shrinkage,
                         "Determine shrinkage.");
+      prm.add_parameter("Quality", output_data.quality, "Output mesh quality.");
       prm.add_parameter("Table", output_data.table, "Output table.");
       prm.add_parameter("Debug",
                         output_data.debug,

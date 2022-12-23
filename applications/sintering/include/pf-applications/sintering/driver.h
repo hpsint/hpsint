@@ -1731,19 +1731,45 @@ namespace Sintering
             if (params.time_integration_data.sanity_check_solution)
               nonlinear_operator.sanity_check(solution);
 
-            if (n_timestep != 0 &&
-                params.adaptivity_data.refinement_frequency > 0 &&
-                n_timestep % params.adaptivity_data.refinement_frequency == 0)
+            bool do_mesh_refinement = false;
+            if (n_timestep != 0)
+              {
+                // If quality control is enabled, then frequency is not used
+                if (params.adaptivity_data.quality_control)
+                  {
+                    const auto only_order_parameters =
+                      solution.create_view(2, sintering_data.n_components());
+
+                    const auto quality =
+                      Postprocessors::estimate_mesh_quality_min(
+                        dof_handler, *only_order_parameters);
+
+                    do_mesh_refinement =
+                      quality < params.adaptivity_data.quality_min;
+                  }
+                else
+                  {
+                    do_mesh_refinement =
+                      params.adaptivity_data.refinement_frequency > 0 &&
+                      n_timestep %
+                          params.adaptivity_data.refinement_frequency ==
+                        0;
+                  }
+              }
+
+            const bool do_grain_tracker =
+              n_timestep != 0 &&
+              params.grain_tracker_data.grain_tracker_frequency > 0 &&
+              n_timestep % params.grain_tracker_data.grain_tracker_frequency ==
+                0;
+
+            if (do_mesh_refinement)
               execute_coarsening_and_refinement(
                 t,
                 params.adaptivity_data.top_fraction_of_cells,
                 params.adaptivity_data.bottom_fraction_of_cells);
 
-            if (n_timestep != 0 &&
-                params.grain_tracker_data.grain_tracker_frequency > 0 &&
-                n_timestep %
-                    params.grain_tracker_data.grain_tracker_frequency ==
-                  0)
+            if (do_grain_tracker)
               {
                 try
                   {
@@ -2388,6 +2414,25 @@ namespace Sintering
                 }
               table.add_value("volume", volume);
             }
+        }
+
+      if (params.output_data.quality)
+        {
+          std::string output = params.output_data.vtk_path + "/mesh_quality_" +
+                               label + "." + std::to_string(counters[label]) +
+                               ".vtu";
+
+          pcout << "Outputing data at t = " << t << " (" << output << ")"
+                << std::endl;
+
+          const auto only_order_parameters =
+            solution.create_view(2,
+                                 sintering_operator.get_data().n_components());
+
+          Postprocessors::estimate_mesh_quality(mapping,
+                                                dof_handler,
+                                                *only_order_parameters,
+                                                output);
         }
 
       if (params.output_data.table)

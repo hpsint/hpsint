@@ -840,5 +840,93 @@ namespace Sintering
       ofs.close();
     }
 
+    namespace internal
+    {
+      template <int dim, typename BlockVectorType>
+      void
+      do_estimate_mesh_quality(
+        const DoFHandler<dim> &dof_handler,
+        const BlockVectorType &solution,
+        std::function<void(const typename BlockVectorType::value_type qval,
+                           const DoFCellAccessor<dim, dim, false> &)>
+          store_result)
+      {
+        Vector<typename BlockVectorType::value_type> values(
+          dof_handler.get_fe().n_dofs_per_cell());
+
+        for (const auto &cell : dof_handler.active_cell_iterators())
+          {
+            if (cell->is_locally_owned() == false)
+              continue;
+
+            typename BlockVectorType::value_type delta_cell = 0;
+
+            for (unsigned int b = 0; b < solution.n_blocks(); ++b)
+              {
+                cell->get_dof_values(solution.block(b), values);
+
+                const auto order_parameter_min =
+                  *std::min_element(values.begin(), values.end());
+                const auto order_parameter_max =
+                  *std::max_element(values.begin(), values.end());
+
+                const auto delta = order_parameter_max - order_parameter_min;
+
+                delta_cell = std::max(delta, delta_cell);
+              }
+
+            store_result(1. - delta_cell, *cell);
+          }
+      }
+    } // namespace internal
+
+    /* Estimate mesh quality: 0 - low, 1 - high */
+    template <int dim, typename BlockVectorType>
+    void
+    estimate_mesh_quality(const Mapping<dim> &   mapping,
+                          const DoFHandler<dim> &dof_handler,
+                          const BlockVectorType &solution,
+                          const std::string      output)
+    {
+      Vector<typename BlockVectorType::value_type> quality(
+        dof_handler.get_triangulation().n_active_cells());
+
+      auto callback =
+        [&quality](const typename BlockVectorType::value_type qval,
+                   const DoFCellAccessor<dim, dim, false> &   cell) {
+          quality[cell.active_cell_index()] = qval;
+        };
+
+      internal::do_estimate_mesh_quality<dim>(dof_handler, solution, callback);
+
+      DataOut<dim> data_out;
+      data_out.attach_triangulation(dof_handler.get_triangulation());
+      data_out.add_data_vector(quality, "quality");
+      data_out.build_patches(mapping);
+      data_out.write_vtu_in_parallel(output, dof_handler.get_communicator());
+    }
+
+    /* Estimate min mesh quality: 0 - low, 1 - high */
+    template <int dim, typename BlockVectorType>
+    typename BlockVectorType::value_type
+    estimate_mesh_quality_min(const DoFHandler<dim> &dof_handler,
+                              const BlockVectorType &solution)
+    {
+      typename BlockVectorType::value_type quality = 1.;
+
+      auto callback =
+        [&quality](const typename BlockVectorType::value_type qval,
+                   const DoFCellAccessor<dim, dim, false> &   cell) {
+          (void)cell;
+          quality = std::min(quality, qval);
+        };
+
+      internal::do_estimate_mesh_quality<dim>(dof_handler, solution, callback);
+
+      quality = Utilities::MPI::min(quality, dof_handler.get_communicator());
+
+      return quality;
+    }
+
   } // namespace Postprocessors
 } // namespace Sintering
