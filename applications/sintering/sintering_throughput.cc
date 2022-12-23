@@ -1,6 +1,6 @@
 // ---------------------------------------------------------------------
 //
-// Copyright (C) 2020 by the deal.II authors
+// Copyright (C) 2022 by the deal.II authors
 //
 // This file is part of the deal.II library.
 //
@@ -13,7 +13,7 @@
 //
 // ---------------------------------------------------------------------
 
-// Sintering of N particles loaded from a CSV file
+// Test performance of the sintering operator
 
 #ifndef SINTERING_DIM
 static_assert(false, "No dimension has been given!");
