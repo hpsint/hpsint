@@ -2394,6 +2394,25 @@ namespace Sintering
           Postprocessors::write_table(table, t, MPI_COMM_WORLD, output);
         }
 
+      if (true)
+        {
+          std::string output = params.output_data.vtk_path + "/mesh_quality_" +
+                               label + "." + std::to_string(counters[label]) +
+                               ".vtu";
+
+          pcout << "Outputing data at t = " << t << " (" << output << ")"
+                << std::endl;
+
+          const auto only_order_parameters =
+            solution.create_view(2,
+                                 sintering_operator.get_data().n_components());
+
+          Postprocessors::estimate_mesh_quality(mapping,
+                                                dof_handler,
+                                                *only_order_parameters,
+                                                output);
+        }
+
       counters[label]++;
     }
 
