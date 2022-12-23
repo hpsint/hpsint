@@ -10,8 +10,9 @@ namespace Sintering
   DeclException2(ExcMaxGrainsExceeded,
                  unsigned int,
                  unsigned int,
-                 << "The initial conditions contain too many order parameters:"
-                 << arg1 << "but has to be <= " << arg2 << std::endl
+                 << "The initial condition contains too many order parameters: "
+                 << arg1 << "; but only <= " << arg2 << " are allowed!"
+                 << std::endl
                  << std::endl
                  << "Try to enable compressed initialization if the chosen"
                  << " initial values class provides this feature."
