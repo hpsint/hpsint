@@ -2387,13 +2387,6 @@ namespace Sintering
             }
         }
 
-      if (params.output_data.table)
-        {
-          std::string output =
-            params.output_data.vtk_path + "/" + label + ".log";
-          Postprocessors::write_table(table, t, MPI_COMM_WORLD, output);
-        }
-
       if (params.output_data.quality)
         {
           std::string output = params.output_data.vtk_path + "/mesh_quality_" +
@@ -2411,6 +2404,13 @@ namespace Sintering
                                                 dof_handler,
                                                 *only_order_parameters,
                                                 output);
+        }
+
+      if (params.output_data.table)
+        {
+          std::string output =
+            params.output_data.vtk_path + "/" + label + ".log";
+          Postprocessors::write_table(table, t, MPI_COMM_WORLD, output);
         }
 
       counters[label]++;
