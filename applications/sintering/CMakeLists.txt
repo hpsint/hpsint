@@ -45,3 +45,19 @@ foreach(VAR_DIM ${VARIANTS_DIM})
     endforeach()
   endforeach()
 endforeach()
+
+
+### Throughput application
+set(executable_name "sintering-throughput")
+ADD_EXECUTABLE(${executable_name} "sintering_throughput.cc")
+DEAL_II_SETUP_TARGET(${executable_name})
+
+TARGET_COMPILE_DEFINITIONS(${executable_name} PUBLIC
+    -D SINTERING_DIM=3
+    -D MAX_SINTERING_GRAINS=${MAX_SINTERING_GRAINS}
+    -D${OPTION_MOB_SCALAR}
+    -D${OPTION_OP_GENERIC}
+)
+
+TARGET_LINK_LIBRARIES(${executable_name} "pf-applications")
+target_include_directories(${executable_name} PUBLIC "include/" "../structural/include/")
