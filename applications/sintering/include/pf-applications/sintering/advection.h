@@ -330,7 +330,7 @@ namespace Sintering
     mutable std::vector<AdvectionCellData<dim, Number, VectorizedArrayType>>
       current_cell_data;
 
-    const SmartPointer<GrainTracker::Tracker<dim, Number>> grain_tracker;
+    const SmartPointer<const GrainTracker::Tracker<dim, Number>> grain_tracker;
 
     std::vector<Number> grains_data;
   };
