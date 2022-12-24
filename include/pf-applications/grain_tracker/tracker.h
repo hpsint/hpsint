@@ -44,7 +44,7 @@ namespace GrainTracker
 
   /* The grain tracker algo itself. */
   template <int dim, typename Number>
-  class Tracker
+  class Tracker : public Subscriptor
   {
   public:
     using BlockVectorType =
