@@ -4,6 +4,7 @@
 
 #include <deal.II/lac/trilinos_sparsity_pattern.h>
 
+#include <pf-applications/base/fe_integrator.h>
 #include <pf-applications/base/timer.h>
 
 #include <pf-applications/numerics/functions.h>
