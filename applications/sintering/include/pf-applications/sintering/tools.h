@@ -317,14 +317,14 @@ namespace Sintering
                 const Tensor<1, dim, Number> &b);
 
   template <typename Number>
-  moment_t<2, Number>
+  DEAL_II_ALWAYS_INLINE inline moment_t<2, Number>
   cross_product(const Tensor<1, 2, Number> &a, const Tensor<1, 2, Number> &b)
   {
     return a[1] * b[0] - a[0] * b[1];
   }
 
   template <int dim, typename Number>
-  auto
+  DEAL_II_ALWAYS_INLINE inline auto
   create_moment_from_buffer(const Number *buffer)
   {
     if constexpr (dim == 3)
@@ -334,14 +334,14 @@ namespace Sintering
   }
 
   template <typename Number>
-  Tensor<1, 3, Number>
+  DEAL_II_ALWAYS_INLINE inline Tensor<1, 3, Number>
   cross_product(const Tensor<1, 3, Number> &a, const Tensor<1, 3, Number> &b)
   {
     return cross_product_3d(a, b);
   }
 
   template <typename Number>
-  Tensor<1, 2, Number>
+  DEAL_II_ALWAYS_INLINE inline Tensor<1, 2, Number>
   cross_product(const Number &a, const Tensor<1, 2, Number> &b)
   {
     Tensor<1, 2, Number> c;
@@ -355,7 +355,7 @@ namespace Sintering
 
   // Compute skew tensor of a vector
   template <typename Number>
-  Tensor<2, 3, Number>
+  DEAL_II_ALWAYS_INLINE inline Tensor<2, 3, Number>
   skew(const Tensor<1, 3, Number> &a)
   {
     Tensor<2, 3, Number> A;
@@ -370,7 +370,7 @@ namespace Sintering
   }
 
   template <typename Number>
-  Tensor<1, 2, Number>
+  DEAL_II_ALWAYS_INLINE inline Tensor<1, 2, Number>
   skew(const Tensor<1, 2, Number> &a)
   {
     Tensor<1, 2, Number> A;
@@ -381,7 +381,7 @@ namespace Sintering
   }
 
   template <int dim, typename Number>
-  Tensor<2, dim, Number>
+  DEAL_II_ALWAYS_INLINE inline Tensor<2, dim, Number>
   diagonal_matrix(const Number &fac = 1.)
   {
     Tensor<2, dim, Number> I;
@@ -393,7 +393,7 @@ namespace Sintering
   }
 
   template <int dim, typename Number>
-  Tensor<1, dim, Number>
+  DEAL_II_ALWAYS_INLINE inline Tensor<1, dim, Number>
   unit_vector(const Tensor<1, dim, Number> &vec)
   {
     Number nrm = vec.norm();
@@ -421,7 +421,7 @@ namespace Sintering
   }
 
   template <int dim, typename Number>
-  Tensor<2, dim, Number>
+  DEAL_II_ALWAYS_INLINE inline Tensor<2, dim, Number>
   projector_matrix(const Tensor<1, dim, Number> vec, const Number &fac = 1.)
   {
     auto tensor = diagonal_matrix<dim, Number>(1.) - outer_product(vec, vec);
