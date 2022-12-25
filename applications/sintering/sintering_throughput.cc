@@ -134,9 +134,12 @@ main(int argc, char **argv)
   const unsigned int dim                  = SINTERING_DIM;
   const unsigned int fe_degree            = 1;
   unsigned int       n_global_refinements = 7;
-  using Number                            = double;
-  using VectorizedArrayType               = VectorizedArray<Number>;
-  using VectorType = LinearAlgebra::distributed::Vector<Number>;
+  const unsigned int max_sintering_grains = MAX_SINTERING_GRAINS;
+  const unsigned int max_sintering_grains_mb =
+    std::min(4u, max_sintering_grains);
+  using Number              = double;
+  using VectorizedArrayType = VectorizedArray<Number>;
+  using VectorType          = LinearAlgebra::distributed::Vector<Number>;
   using BlockVectorType =
     LinearAlgebra::distributed::DynamicBlockVector<Number>;
 
@@ -224,7 +227,8 @@ main(int argc, char **argv)
         table.set_scientific("t_" + label + "_mf", true);
       }
 
-    if (true) // ... matrix-based
+    if (helmholtz_operator.n_components() <=
+        2 + max_sintering_grains_mb) // ... matrix-based
       {
         const auto &matrix = helmholtz_operator.get_system_matrix();
 
@@ -240,9 +244,13 @@ main(int argc, char **argv)
         table.add_value("t_" + label + "_mb", time);
         table.set_scientific("t_" + label + "_mb", true);
       }
+    else
+      {
+        table.add_value("t_" + label + "_mb", 0.0);
+      }
   };
 
-  for (unsigned int n_grains = 2; n_grains <= MAX_SINTERING_GRAINS; ++n_grains)
+  for (unsigned int n_grains = 2; n_grains <= max_sintering_grains; ++n_grains)
     {
       const unsigned int n_components = n_grains + 2;
 
@@ -277,16 +285,15 @@ main(int argc, char **argv)
           AdvectionMechanism<dim, Number, VectorizedArrayType> advection;
 
           SinteringOperatorGeneric<dim, Number, VectorizedArrayType>
-            nonlinear_operator(matrix_free,
+            sintering_operator(matrix_free,
                                constraints,
                                sintering_data,
                                solution_history,
                                advection,
                                false);
 
-          BlockVectorType src, dst;
-          nonlinear_operator.initialize_dof_vector(src);
-          nonlinear_operator.initialize_dof_vector(dst);
+          BlockVectorType src;
+          sintering_operator.initialize_dof_vector(src);
           src = 1.0;
 
           sintering_data.fill_quadrature_point_values(matrix_free,
@@ -294,10 +301,8 @@ main(int argc, char **argv)
                                                       false,
                                                       false);
 
-          const auto time = run([&]() { nonlinear_operator.vmult(dst, src); });
 
-          table.add_value("t_sintering", time);
-          table.set_scientific("t_sintering", true);
+          test_operator(sintering_operator, "sintering");
         }
     }
 
