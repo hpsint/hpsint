@@ -209,6 +209,39 @@ main(int argc, char **argv)
 
   ConvergenceTable table;
 
+  const auto test_operator = [&](const auto &      helmholtz_operator,
+                                 const std::string label) {
+    if (true) // ... matrix-free
+      {
+        BlockVectorType src, dst;
+        helmholtz_operator.initialize_dof_vector(src);
+        helmholtz_operator.initialize_dof_vector(dst);
+        src = 1.0;
+
+        const auto time = run([&]() { helmholtz_operator.vmult(dst, src); });
+
+        table.add_value("t_" + label + "_mf", time);
+        table.set_scientific("t_" + label + "_mf", true);
+      }
+
+    if (true) // ... matrix-based
+      {
+        const auto &matrix = helmholtz_operator.get_system_matrix();
+
+        const auto partitioner = helmholtz_operator.get_system_partitioner();
+
+        VectorType src, dst;
+        src.reinit(partitioner);
+        dst.reinit(partitioner);
+        src = 1.0;
+
+        const auto time = run([&]() { matrix.vmult(dst, src); });
+
+        table.add_value("t_" + label + "_mb", time);
+        table.set_scientific("t_" + label + "_mb", true);
+      }
+  };
+
   for (unsigned int n_grains = 2; n_grains <= MAX_SINTERING_GRAINS; ++n_grains)
     {
       const unsigned int n_components = n_grains + 2;
@@ -223,37 +256,7 @@ main(int argc, char **argv)
           HelmholtzOperator<dim, Number, VectorizedArrayType>
             helmholtz_operator(matrix_free, constraints, n_components);
 
-          if (true) // ... matrix-free
-            {
-              BlockVectorType src, dst;
-              helmholtz_operator.initialize_dof_vector(src);
-              helmholtz_operator.initialize_dof_vector(dst);
-              src = 1.0;
-
-              const auto time =
-                run([&]() { helmholtz_operator.vmult(dst, src); });
-
-              table.add_value("t_helmholtz_mf", time);
-              table.set_scientific("t_helmholtz_mf", true);
-            }
-
-          if (true) // ... matrix-based
-            {
-              const auto &matrix = helmholtz_operator.get_system_matrix();
-
-              const auto partitioner =
-                helmholtz_operator.get_system_partitioner();
-
-              VectorType src, dst;
-              src.reinit(partitioner);
-              dst.reinit(partitioner);
-              src = 1.0;
-
-              const auto time = run([&]() { matrix.vmult(dst, src); });
-
-              table.add_value("t_helmholtz_mb", time);
-              table.set_scientific("t_helmholtz_mb", true);
-            }
+          test_operator(helmholtz_operator, "helmholtz");
         }
 
       if (true) // test sintering operator
