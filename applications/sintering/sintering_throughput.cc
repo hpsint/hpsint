@@ -56,13 +56,6 @@ static_assert(false, "No grains number has been given!");
 #include <pf-applications/sintering/preconditioners.h>
 #include <pf-applications/sintering/sintering_data.h>
 
-#define OPERATOR 1
-
-// Available sintering operators
-#define OPERATOR_GENERIC 1
-#define OPERATOR_COUPLED_WANG 2
-#define OPERATOR_COUPLED_DIFFUSION 3
-
 using namespace dealii;
 using namespace Sintering;
 
@@ -152,17 +145,6 @@ main(int argc, char **argv)
   using VectorType          = LinearAlgebra::distributed::Vector<Number>;
   using BlockVectorType =
     LinearAlgebra::distributed::DynamicBlockVector<Number>;
-
-  using SinteringOperator =
-#if OPERATOR == OPERATOR_GENERIC
-    SinteringOperatorGeneric<dim, Number, VectorizedArrayType>;
-#elif OPERATOR == OPERATOR_COUPLED_WANG
-    SinteringOperatorCoupledWang<dim, Number, VectorizedArrayType>;
-#elif OPERATOR == OPERATOR_COUPLED_DIFFUSION
-    SinteringOperatorCoupledDiffusion<dim, Number, VectorizedArrayType>;
-#else
-#  error "Option OPERATOR has to be specified"
-#endif
 
   // some arbitrary constants
   const double        A                      = 16;
@@ -316,19 +298,13 @@ main(int argc, char **argv)
           AdvectionMechanism<dim, Number, VectorizedArrayType>
             advection_mechanism;
 
-          const auto sintering_operator =
-            create_sintering_operator<dim,
-                                      Number,
-                                      VectorizedArrayType,
-                                      BlockVectorType,
-                                      SinteringOperator>(matrix_free,
-                                                         constraints,
-                                                         sintering_data,
-                                                         solution_history,
-                                                         advection_mechanism,
-                                                         false,
-                                                         E,
-                                                         nu);
+          const SinteringOperatorGeneric<dim, Number, VectorizedArrayType>
+            sintering_operator(matrix_free,
+                               constraints,
+                               sintering_data,
+                               solution_history,
+                               advection_mechanism,
+                               false);
 
           BlockVectorType src;
           sintering_operator.initialize_dof_vector(src);
@@ -345,6 +321,52 @@ main(int argc, char **argv)
       else
         {
           test_operator_dummy("sintering");
+        }
+
+      if (n_components >= 4 + dim) // test coupled sintering operator
+        {
+          const std::shared_ptr<MobilityProvider> mobility_provider =
+            std::make_shared<ProviderAbstract>(Mvol, Mvap, Msurf, Mgb, L);
+
+          TimeIntegration::SolutionHistory<BlockVectorType> solution_history(
+            time_integration_order + 1);
+
+          SinteringOperatorData<dim, VectorizedArrayType> sintering_data(
+            A, B, kappa_c, kappa_p, mobility_provider, time_integration_order);
+
+          sintering_data.set_n_components(n_components - dim);
+          sintering_data.time_data.set_all_dt(dts);
+          sintering_data.set_time(t);
+
+          AdvectionMechanism<dim, Number, VectorizedArrayType>
+            advection_mechanism;
+
+          const SinteringOperatorCoupledWang<dim, Number, VectorizedArrayType>
+            sintering_operator(matrix_free,
+                               constraints,
+                               sintering_data,
+                               solution_history,
+                               advection_mechanism,
+                               false,
+                               E,
+                               nu,
+                               {});
+
+          BlockVectorType src;
+          sintering_operator.initialize_dof_vector(src);
+          src = 1.0;
+
+          sintering_data.fill_quadrature_point_values(matrix_free,
+                                                      src,
+                                                      false,
+                                                      false);
+
+
+          test_operator(sintering_operator, "coupled");
+        }
+      else
+        {
+          test_operator_dummy("coupled");
         }
     }
 
