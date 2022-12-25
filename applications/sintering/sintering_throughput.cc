@@ -23,7 +23,8 @@ static_assert(false, "No dimension has been given!");
 static_assert(false, "No grains number has been given!");
 #endif
 
-#define USE_FE_Q_iso_Q1
+//#define USE_FE_Q_iso_Q1
+//#define WITH_TENSORIAL_MOBILITY
 
 #ifdef USE_FE_Q_iso_Q1
 #  define FE_DEGREE 2
@@ -133,9 +134,14 @@ main(int argc, char **argv)
   const unsigned int dim                  = SINTERING_DIM;
   const unsigned int fe_degree            = 1;
   unsigned int       n_global_refinements = 7;
-  using Number                            = double;
-  using VectorizedArrayType               = VectorizedArray<Number>;
-  using VectorType = LinearAlgebra::distributed::DynamicBlockVector<Number>;
+  const unsigned int max_sintering_grains = MAX_SINTERING_GRAINS;
+  const unsigned int max_sintering_grains_mb =
+    std::min(4u, max_sintering_grains);
+  using Number              = double;
+  using VectorizedArrayType = VectorizedArray<Number>;
+  using VectorType          = LinearAlgebra::distributed::Vector<Number>;
+  using BlockVectorType =
+    LinearAlgebra::distributed::DynamicBlockVector<Number>;
 
   // some arbitrary constants
   const double        A                      = 16;
@@ -206,10 +212,56 @@ main(int argc, char **argv)
 
   ConvergenceTable table;
 
-  for (unsigned int n_grains = 2; n_grains <= MAX_SINTERING_GRAINS; ++n_grains)
-    {
-      const unsigned int n_components = n_grains + 2;
+  const auto test_operator = [&](const auto &op, const std::string label) {
+    if (true) // ... matrix-free
+      {
+        BlockVectorType src, dst;
+        op.initialize_dof_vector(src);
+        op.initialize_dof_vector(dst);
+        src = 1.0;
 
+        const auto time = run([&]() { op.vmult(dst, src); });
+
+        table.add_value("t_" + label + "_mf", time);
+        table.set_scientific("t_" + label + "_mf", true);
+      }
+
+    if (op.n_components() <= 2 + max_sintering_grains_mb) // ... matrix-based
+      {
+        const auto &matrix = op.get_system_matrix();
+
+        const auto partitioner = op.get_system_partitioner();
+
+        VectorType src, dst;
+        src.reinit(partitioner);
+        dst.reinit(partitioner);
+        src = 1.0;
+
+        const auto time = run([&]() { matrix.vmult(dst, src); });
+
+        table.add_value("t_" + label + "_mb", time);
+        table.set_scientific("t_" + label + "_mb", true);
+        table.add_value("nnz_" + label, matrix.n_nonzero_elements());
+      }
+    else
+      {
+        table.add_value("t_" + label + "_mb", 0.0);
+        table.set_scientific("t_" + label + "_mb", true);
+        table.add_value("nnz_" + label, 0);
+      }
+  };
+
+  const auto test_operator_dummy = [&](const std::string label) {
+    table.add_value("t_" + label + "_mf", 0);
+    table.set_scientific("t_" + label + "_mf", true);
+    table.add_value("t_" + label + "_mb", 0);
+    table.set_scientific("t_" + label + "_mb", true);
+    table.add_value("nnz_" + label, 0);
+  };
+
+  for (unsigned int n_components = 1; n_components <= max_sintering_grains + 2;
+       ++n_components)
+    {
       table.add_value("dim", dim);
       table.add_value("fe_type", fe_type);
       table.add_value("n_dofs", dof_handler.n_dofs());
@@ -220,23 +272,15 @@ main(int argc, char **argv)
           HelmholtzOperator<dim, Number, VectorizedArrayType>
             helmholtz_operator(matrix_free, constraints, n_components);
 
-          VectorType src, dst;
-          helmholtz_operator.initialize_dof_vector(src);
-          helmholtz_operator.initialize_dof_vector(dst);
-          src = 1.0;
-
-          const auto time = run([&]() { helmholtz_operator.vmult(dst, src); });
-
-          table.add_value("t_helmholtz", time);
-          table.set_scientific("t_helmholtz", true);
+          test_operator(helmholtz_operator, "helmholtz");
         }
 
-      if (true) // test sintering operator
+      if (n_components >= 4) // test sintering operator
         {
           const std::shared_ptr<MobilityProvider> mobility_provider =
             std::make_shared<ProviderAbstract>(Mvol, Mvap, Msurf, Mgb, L);
 
-          TimeIntegration::SolutionHistory<VectorType> solution_history(
+          TimeIntegration::SolutionHistory<BlockVectorType> solution_history(
             time_integration_order + 1);
 
           SinteringOperatorData<dim, VectorizedArrayType> sintering_data(
@@ -249,16 +293,15 @@ main(int argc, char **argv)
           AdvectionMechanism<dim, Number, VectorizedArrayType> advection;
 
           SinteringOperatorGeneric<dim, Number, VectorizedArrayType>
-            nonlinear_operator(matrix_free,
+            sintering_operator(matrix_free,
                                constraints,
                                sintering_data,
                                solution_history,
                                advection,
                                false);
 
-          VectorType src, dst;
-          nonlinear_operator.initialize_dof_vector(src);
-          nonlinear_operator.initialize_dof_vector(dst);
+          BlockVectorType src;
+          sintering_operator.initialize_dof_vector(src);
           src = 1.0;
 
           sintering_data.fill_quadrature_point_values(matrix_free,
@@ -266,10 +309,12 @@ main(int argc, char **argv)
                                                       false,
                                                       false);
 
-          const auto time = run([&]() { nonlinear_operator.vmult(dst, src); });
 
-          table.add_value("t_sintering", time);
-          table.set_scientific("t_sintering", true);
+          test_operator(sintering_operator, "sintering");
+        }
+      else
+        {
+          test_operator_dummy("sintering");
         }
     }
 
