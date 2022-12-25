@@ -57,7 +57,7 @@ namespace Sintering
     unsigned int
     n_components() const
     {
-      return n_order_parameters() + 2;
+      return n_order_parameters();
     }
 
     virtual unsigned int

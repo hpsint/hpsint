@@ -76,8 +76,7 @@ namespace Sintering
       // Apply manual constraints
       for (unsigned int d = 0; d < dim; ++d)
         for (const unsigned int index : this->get_zero_constraints_indices()[d])
-          dst.block(this->data.n_components() + n_additional_components() + d)
-            .local_element(index) = 0.0;
+          dst.block(this->n_components() - dim + d).local_element(index) = 0.0;
     }
 
     unsigned int
@@ -89,13 +88,13 @@ namespace Sintering
     unsigned int
     n_components() const override
     {
-      return this->data.n_components() + n_additional_components() + dim;
+      return this->data.n_components();
     }
 
     unsigned int
     n_grains() const
     {
-      return this->data.n_components() - 2;
+      return this->data.n_components() - 2 - 2 - dim;
     }
 
     static constexpr unsigned int
@@ -140,8 +139,8 @@ namespace Sintering
           const auto &c_grad  = gradient_lin[0];
           const auto &mu_grad = gradient_lin[1];
 
-          const auto &div_gb  = value_lin[this->data.n_components() + 0];
-          const auto &div_vol = value_lin[this->data.n_components() + 1];
+          const auto &div_gb  = value_lin[this->data.n_grains() + 2 + 0];
+          const auto &div_vol = value_lin[this->data.n_grains() + 2 + 1];
 
           const VectorizedArrayType *                etas = &value_lin[2];
           const Tensor<1, dim, VectorizedArrayType> *etas_grad =
@@ -154,10 +153,8 @@ namespace Sintering
           Tensor<1, dim, VectorizedArrayType> v_adv_lin;
           for (unsigned int d = 0; d < dim; ++d)
             {
-              v_adv[d]     = value[this->data.n_components() +
-                               n_additional_components() + d];
-              v_adv_lin[d] = value_lin[this->data.n_components() +
-                                       n_additional_components() + d];
+              v_adv[d]     = value[this->n_components() - dim + d];
+              v_adv_lin[d] = value_lin[this->n_components() - dim + d];
             }
 
           // Advection velocity
@@ -175,14 +172,14 @@ namespace Sintering
           gradient_result[1] = kappa_c * gradient[0];
 
           // Diffusion fluxes terms
-          value_result[this->data.n_components() + 0] =
-            value[this->data.n_components() + 0];
-          gradient_result[this->data.n_components() + 0] =
+          value_result[this->n_grains() + 2 + 0] =
+            value[this->n_grains() + 2 + 0];
+          gradient_result[this->n_grains() + 2 + 0] =
             -mobility.M_gb(etas, n_grains, etas_grad) * gradient[1];
 
-          value_result[this->data.n_components() + 1] =
-            value[this->data.n_components() + 1];
-          gradient_result[this->data.n_components() + 1] =
+          value_result[this->n_grains() + 2 + 1] =
+            value[this->n_grains() + 2 + 1];
+          gradient_result[this->n_grains() + 2 + 1] =
             -mobility.M_vol(c) * gradient[1] -
             mobility.dM_vol_dc(c) * mu_grad * value[0];
 
@@ -203,7 +200,7 @@ namespace Sintering
 
               gradient_result[ig + 2] = L * kappa_p * gradient[ig + 2];
 
-              gradient_result[this->data.n_components() + 0] -=
+              gradient_result[this->n_grains() + 2 + 0] -=
                 mobility.dM_detai(c, etas, n_grains, c_grad, etas_grad, ig) *
                 mu_grad * value[ig + 2];
 
@@ -228,8 +225,7 @@ namespace Sintering
           // Elasticity
           Tensor<2, dim, VectorizedArrayType> H;
           for (unsigned int d = 0; d < dim; d++)
-            H[d] = gradient[this->data.n_components() +
-                            n_additional_components() + d];
+            H[d] = gradient[this->n_components() - dim + d];
 
           // Diffusion strain
           auto eps_inelastic_deriv =
@@ -237,9 +233,9 @@ namespace Sintering
               c, etas, n_grains, etas_grad, div_gb, div_vol) *
               value[0] +
             inelastic.flux_eps_dot_ddiv_gb(c, etas, n_grains, etas_grad) *
-              value[this->data.n_components() + 0] +
+              value[this->data.n_grains() + 2 + 0] +
             inelastic.flux_eps_dot_ddiv_vol(c, etas, n_grains) *
-              value[this->data.n_components() + 1];
+              value[this->data.n_grains() + 2 + 1];
 
           for (unsigned int ig = 0; ig < n_grains; ++ig)
             eps_inelastic_deriv +=
@@ -256,8 +252,7 @@ namespace Sintering
           const auto S = Structural::apply_l_transposed<dim>(C * E);
 
           for (unsigned int d = 0; d < dim; d++)
-            gradient_result[this->data.n_components() +
-                            n_additional_components() + d] = S[d];
+            gradient_result[this->data.n_components() - dim + d] = S[d];
 
           phi.submit_value(value_result, q);
           phi.submit_gradient(gradient_result, q);
@@ -313,8 +308,8 @@ namespace Sintering
 
               auto &c       = val[0];
               auto &mu      = val[1];
-              auto &div_gb  = val[this->data.n_components() + 0];
-              auto &div_vol = val[this->data.n_components() + 1];
+              auto &div_gb  = val[this->data.n_grains() + 2 + 0];
+              auto &div_vol = val[this->data.n_grains() + 2 + 1];
               auto &c_grad  = grad[0];
               auto &mu_grad = grad[1];
 
@@ -331,8 +326,7 @@ namespace Sintering
               // Displacement field
               Tensor<1, dim, VectorizedArrayType> v_adv;
               for (unsigned int d = 0; d < dim; ++d)
-                v_adv[d] = val[this->data.n_components() +
-                               n_additional_components() + d];
+                v_adv[d] = val[this->n_components() - dim + d];
 
               // Advection velocity
               v_adv *= inv_dt;
@@ -368,19 +362,18 @@ namespace Sintering
                     }
                 }
 
-              value_result[this->data.n_components() + 0] = div_gb;
-              gradient_result[this->data.n_components() + 0] =
+              value_result[this->data.n_grains() + 2 + 0] = div_gb;
+              gradient_result[this->data.n_grains() + 2 + 0] =
                 -mobility.M_gb(etas, n_grains, etas_grad) * mu_grad;
 
-              value_result[this->data.n_components() + 1] = div_vol;
-              gradient_result[this->data.n_components() + 1] =
+              value_result[this->data.n_grains() + 2 + 1] = div_vol;
+              gradient_result[this->data.n_grains() + 2 + 1] =
                 -mobility.M_vol(c) * mu_grad;
 
               // Elasticity
               Tensor<2, dim, VectorizedArrayType> H;
               for (unsigned int d = 0; d < dim; d++)
-                H[d] = grad[this->data.n_components() +
-                            n_additional_components() + d];
+                H[d] = grad[this->n_components() - dim + d];
 
               // Diffusion strain
               auto eps_inelastic = inelastic.flux_eps_dot(
@@ -395,8 +388,7 @@ namespace Sintering
               const auto S = Structural::apply_l_transposed<dim>(C * E);
 
               for (unsigned int d = 0; d < dim; d++)
-                gradient_result[this->data.n_components() +
-                                n_additional_components() + d] = S[d];
+                gradient_result[this->n_components() - dim + d] = S[d];
 
               phi.submit_value(value_result, q);
               phi.submit_gradient(gradient_result, q);

@@ -82,7 +82,8 @@ namespace Sintering
       // Apply manual constraints
       for (unsigned int d = 0; d < dim; ++d)
         for (const unsigned int index : this->get_zero_constraints_indices()[d])
-          dst.block(this->data.n_components() + d).local_element(index) = 0.0;
+          dst.block(this->data.n_components() - dim + d).local_element(index) =
+            0.0;
     }
 
     unsigned int
@@ -94,13 +95,13 @@ namespace Sintering
     unsigned int
     n_components() const override
     {
-      return this->data.n_components() + dim;
+      return this->data.n_components();
     }
 
     unsigned int
     n_grains() const
     {
-      return this->data.n_components() - 2;
+      return this->data.n_components() - dim - 2;
     }
 
     static constexpr unsigned int

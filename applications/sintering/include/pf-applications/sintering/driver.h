@@ -278,7 +278,7 @@ namespace Sintering
 
       // 0) load internal state
       unsigned int n_ranks;
-      unsigned int n_initial_components;
+      unsigned int n_initial_grains;
       unsigned int n_blocks;
       unsigned int n_integration_order;
       bool         flexible_output;
@@ -300,7 +300,7 @@ namespace Sintering
           std::to_string(n_ranks) + "! But you have " +
           std::to_string(n_mpi_processes) + "!"));
 
-      fisb >> n_initial_components;
+      fisb >> n_initial_grains;
       fisb >> n_blocks;
 
       const unsigned int time_integration_order =
@@ -327,7 +327,10 @@ namespace Sintering
           // time integration order + 1, however, we skipped the recent old
           // solution since it will get overwritten anyway, so we neither save
           // it not load during restarts.
-          AssertDimension(this->dts.size(), n_blocks / n_initial_components);
+          AssertDimension(this->dts.size(),
+                          n_blocks /
+                            NonLinearOperator::n_grains_to_n_components(
+                              n_initial_grains));
 
           // We do resize anyways since the user might have changed the
           // integration scheme
@@ -400,7 +403,7 @@ namespace Sintering
         };
 
       // 5) run time loop
-      run(n_initial_components, initialize_solution);
+      run(n_initial_grains, initialize_solution);
     }
 
     template <class Archive>
@@ -685,7 +688,7 @@ namespace Sintering
     }
 
     void
-    run(const unsigned int n_initial_components,
+    run(const unsigned int n_initial_grains,
         const std::function<
           void(std::vector<typename VectorType::BlockType *> solution_ptr,
                MyTimerOutput &)> &initialize_solution)
@@ -785,7 +788,8 @@ namespace Sintering
             << std::endl;
       pcout << std::endl;
 
-      sintering_data.set_n_components(n_initial_components);
+      sintering_data.set_n_components(
+        NonLinearOperator::n_grains_to_n_components(n_initial_grains));
 
       // Reference to the current timestep for convinience
       auto &dt = dts[0];
@@ -1644,7 +1648,8 @@ namespace Sintering
                   }
 
                 // Change number of components after remapping completed
-                sintering_data.set_n_components(n_grains_new + 2);
+                sintering_data.set_n_components(
+                  NonLinearOperator::n_grains_to_n_components(n_grains_new));
               }
             else if (has_reassigned_grains)
               {
@@ -2215,7 +2220,7 @@ namespace Sintering
                 fosb << params.restart_data.flexible_output;
                 fosb << params.restart_data.full_history;
                 fosb << Utilities::MPI::n_mpi_processes(MPI_COMM_WORLD);
-                fosb << solution.n_blocks();
+                fosb << nonlinear_operator.n_grains();
                 fosb << static_cast<unsigned int>(solution_ptr.size());
 
                 if (params.restart_data.full_history)

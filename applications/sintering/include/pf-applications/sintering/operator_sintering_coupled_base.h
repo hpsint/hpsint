@@ -64,9 +64,8 @@ namespace Sintering
       for (const unsigned int index : zero_c_constraints_indices)
         for (unsigned int d = 0; d < dim; ++d)
           {
-            const unsigned int matrix_index = this->n_components() * index +
-                                              this->data.n_components() +
-                                              n_additional_components() + d;
+            const unsigned int matrix_index =
+              this->n_components() * (index + 1) - dim + d;
 
             this->system_matrix.clear_row(matrix_index, 1.0);
           }
@@ -74,9 +73,8 @@ namespace Sintering
       for (unsigned int d = 0; d < dim; ++d)
         for (const unsigned int index : displ_constraints_indices[d])
           {
-            const unsigned int matrix_index = this->n_components() * index +
-                                              this->data.n_components() +
-                                              n_additional_components() + d;
+            const unsigned int matrix_index =
+              this->n_components() * (index + 1) - dim + d;
 
             this->system_matrix.clear_row(matrix_index, 1.0);
           }
@@ -98,8 +96,7 @@ namespace Sintering
 
           for (unsigned int d = 0; d < dim; ++d)
             {
-              const unsigned int block_index =
-                this->data.n_components() + n_additional_components() + d;
+              const unsigned int block_index = this->n_components() - dim + d;
 
               zero_c_constraints_values[i][d] =
                 src.block(block_index).local_element(index);
@@ -109,8 +106,7 @@ namespace Sintering
 
       for (unsigned int d = 0; d < dim; ++d)
         for (const unsigned int index : displ_constraints_indices[d])
-          src.block(this->data.n_components() + n_additional_components() + d)
-            .local_element(index) = 0.0;
+          src.block(this->n_components() - dim + d).local_element(index) = 0.0;
     }
 
     template <typename BlockVectorType_>
@@ -125,14 +121,13 @@ namespace Sintering
           const auto &value = zero_c_constraints_values[i];
 
           for (unsigned int d = 0; d < dim; ++d)
-            dst.block(this->data.n_components() + n_additional_components() + d)
-              .local_element(index) = value[d];
+            dst.block(this->n_components() - dim + d).local_element(index) =
+              value[d];
         }
 
       for (unsigned int d = 0; d < dim; ++d)
         for (const unsigned int index : displ_constraints_indices[d])
-          dst.block(this->data.n_components() + n_additional_components() + d)
-            .local_element(index) = 0.0;
+          dst.block(this->n_components() - dim + d).local_element(index) = 0.0;
     }
 
     std::array<std::vector<unsigned int>, dim> &
@@ -163,9 +158,8 @@ namespace Sintering
 
           for (unsigned int d = 0; d < dim; ++d)
             {
-              const unsigned int matrix_index = this->n_components() * index +
-                                                this->data.n_components() +
-                                                n_additional_components() + d;
+              const unsigned int matrix_index =
+                this->n_components() * (index + 1) - dim + d;
 
               zero_c_constraints_values[i][d] = src.local_element(matrix_index);
               src.local_element(matrix_index) = 0.0;
@@ -175,9 +169,8 @@ namespace Sintering
       for (unsigned int d = 0; d < dim; ++d)
         for (const unsigned int index : displ_constraints_indices[d])
           {
-            const unsigned int matrix_index = this->n_components() * index +
-                                              this->data.n_components() +
-                                              n_additional_components() + d;
+            const unsigned int matrix_index =
+              this->n_components() * (index + 1) - dim + d;
             src.local_element(matrix_index) = 0.0;
           }
     }
@@ -194,9 +187,8 @@ namespace Sintering
 
           for (unsigned int d = 0; d < dim; ++d)
             {
-              const unsigned int matrix_index = this->n_components() * index +
-                                                n_additional_components() +
-                                                this->data.n_components() + d;
+              const unsigned int matrix_index =
+                this->n_components() * (index + 1) - dim + d;
               dst.local_element(matrix_index) = value[d];
             }
         }
@@ -204,9 +196,8 @@ namespace Sintering
       for (unsigned int d = 0; d < dim; ++d)
         for (const unsigned int index : displ_constraints_indices[d])
           {
-            const unsigned int matrix_index = this->n_components() * index +
-                                              n_additional_components() +
-                                              this->data.n_components() + d;
+            const unsigned int matrix_index =
+              this->n_components() * (index + 1) - dim + d;
             dst.local_element(matrix_index) = 0.0;
           }
     }
