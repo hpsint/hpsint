@@ -246,14 +246,22 @@ main(int argc, char **argv)
     else
       {
         table.add_value("t_" + label + "_mb", 0.0);
+        table.set_scientific("t_" + label + "_mb", true);
         table.add_value("nnz_" + label, 0);
       }
   };
 
-  for (unsigned int n_grains = 2; n_grains <= max_sintering_grains; ++n_grains)
-    {
-      const unsigned int n_components = n_grains + 2;
+  const auto test_operator_dummy = [&](const std::string label) {
+    table.add_value("t_" + label + "_mf", 0);
+    table.set_scientific("t_" + label + "_mf", true);
+    table.add_value("t_" + label + "_mb", 0);
+    table.set_scientific("t_" + label + "_mb", true);
+    table.add_value("nnz_" + label, 0);
+  };
 
+  for (unsigned int n_components = 1; n_components <= max_sintering_grains + 2;
+       ++n_components)
+    {
       table.add_value("dim", dim);
       table.add_value("fe_type", fe_type);
       table.add_value("n_dofs", dof_handler.n_dofs());
@@ -267,7 +275,7 @@ main(int argc, char **argv)
           test_operator(helmholtz_operator, "helmholtz");
         }
 
-      if (true) // test sintering operator
+      if (n_components >= 4) // test sintering operator
         {
           const std::shared_ptr<MobilityProvider> mobility_provider =
             std::make_shared<ProviderAbstract>(Mvol, Mvap, Msurf, Mgb, L);
@@ -303,6 +311,10 @@ main(int argc, char **argv)
 
 
           test_operator(sintering_operator, "sintering");
+        }
+      else
+        {
+          test_operator_dummy("sintering");
         }
     }
 
