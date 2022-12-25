@@ -23,7 +23,8 @@ static_assert(false, "No dimension has been given!");
 static_assert(false, "No grains number has been given!");
 #endif
 
-#define USE_FE_Q_iso_Q1
+//#define USE_FE_Q_iso_Q1
+//#define WITH_TENSORIAL_MOBILITY
 
 #ifdef USE_FE_Q_iso_Q1
 #  define FE_DEGREE 2
@@ -135,7 +136,9 @@ main(int argc, char **argv)
   unsigned int       n_global_refinements = 7;
   using Number                            = double;
   using VectorizedArrayType               = VectorizedArray<Number>;
-  using VectorType = LinearAlgebra::distributed::DynamicBlockVector<Number>;
+  using VectorType = LinearAlgebra::distributed::Vector<Number>;
+  using BlockVectorType =
+    LinearAlgebra::distributed::DynamicBlockVector<Number>;
 
   // some arbitrary constants
   const double        A                      = 16;
@@ -220,15 +223,37 @@ main(int argc, char **argv)
           HelmholtzOperator<dim, Number, VectorizedArrayType>
             helmholtz_operator(matrix_free, constraints, n_components);
 
-          VectorType src, dst;
-          helmholtz_operator.initialize_dof_vector(src);
-          helmholtz_operator.initialize_dof_vector(dst);
-          src = 1.0;
+          if (true) // ... matrix-free
+            {
+              BlockVectorType src, dst;
+              helmholtz_operator.initialize_dof_vector(src);
+              helmholtz_operator.initialize_dof_vector(dst);
+              src = 1.0;
 
-          const auto time = run([&]() { helmholtz_operator.vmult(dst, src); });
+              const auto time =
+                run([&]() { helmholtz_operator.vmult(dst, src); });
 
-          table.add_value("t_helmholtz", time);
-          table.set_scientific("t_helmholtz", true);
+              table.add_value("t_helmholtz_mf", time);
+              table.set_scientific("t_helmholtz_mf", true);
+            }
+
+          if (true) // ... matrix-based
+            {
+              const auto &matrix = helmholtz_operator.get_system_matrix();
+
+              const auto partitioner =
+                helmholtz_operator.get_system_partitioner();
+
+              VectorType src, dst;
+              src.reinit(partitioner);
+              dst.reinit(partitioner);
+              src = 1.0;
+
+              const auto time = run([&]() { matrix.vmult(dst, src); });
+
+              table.add_value("t_helmholtz_mb", time);
+              table.set_scientific("t_helmholtz_mb", true);
+            }
         }
 
       if (true) // test sintering operator
@@ -236,7 +261,7 @@ main(int argc, char **argv)
           const std::shared_ptr<MobilityProvider> mobility_provider =
             std::make_shared<ProviderAbstract>(Mvol, Mvap, Msurf, Mgb, L);
 
-          TimeIntegration::SolutionHistory<VectorType> solution_history(
+          TimeIntegration::SolutionHistory<BlockVectorType> solution_history(
             time_integration_order + 1);
 
           SinteringOperatorData<dim, VectorizedArrayType> sintering_data(
@@ -256,7 +281,7 @@ main(int argc, char **argv)
                                advection,
                                false);
 
-          VectorType src, dst;
+          BlockVectorType src, dst;
           nonlinear_operator.initialize_dof_vector(src);
           nonlinear_operator.initialize_dof_vector(dst);
           src = 1.0;
