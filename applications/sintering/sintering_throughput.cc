@@ -212,27 +212,25 @@ main(int argc, char **argv)
 
   ConvergenceTable table;
 
-  const auto test_operator = [&](const auto &      helmholtz_operator,
-                                 const std::string label) {
+  const auto test_operator = [&](const auto &op, const std::string label) {
     if (true) // ... matrix-free
       {
         BlockVectorType src, dst;
-        helmholtz_operator.initialize_dof_vector(src);
-        helmholtz_operator.initialize_dof_vector(dst);
+        op.initialize_dof_vector(src);
+        op.initialize_dof_vector(dst);
         src = 1.0;
 
-        const auto time = run([&]() { helmholtz_operator.vmult(dst, src); });
+        const auto time = run([&]() { op.vmult(dst, src); });
 
         table.add_value("t_" + label + "_mf", time);
         table.set_scientific("t_" + label + "_mf", true);
       }
 
-    if (helmholtz_operator.n_components() <=
-        2 + max_sintering_grains_mb) // ... matrix-based
+    if (op.n_components() <= 2 + max_sintering_grains_mb) // ... matrix-based
       {
-        const auto &matrix = helmholtz_operator.get_system_matrix();
+        const auto &matrix = op.get_system_matrix();
 
-        const auto partitioner = helmholtz_operator.get_system_partitioner();
+        const auto partitioner = op.get_system_partitioner();
 
         VectorType src, dst;
         src.reinit(partitioner);
