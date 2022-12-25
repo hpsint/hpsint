@@ -241,10 +241,12 @@ main(int argc, char **argv)
 
         table.add_value("t_" + label + "_mb", time);
         table.set_scientific("t_" + label + "_mb", true);
+        table.add_value("nnz_" + label, matrix.n_nonzero_elements());
       }
     else
       {
         table.add_value("t_" + label + "_mb", 0.0);
+        table.add_value("nnz_" + label, 0);
       }
   };
 
