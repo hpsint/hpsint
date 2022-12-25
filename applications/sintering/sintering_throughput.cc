@@ -48,10 +48,20 @@ static_assert(false, "No grains number has been given!");
 #include <pf-applications/base/revision.h>
 
 #include <pf-applications/sintering/advection.h>
+#include <pf-applications/sintering/creator.h>
 #include <pf-applications/sintering/mobility.h>
+#include <pf-applications/sintering/operator_sintering_coupled_diffusion.h>
+#include <pf-applications/sintering/operator_sintering_coupled_wang.h>
 #include <pf-applications/sintering/operator_sintering_generic.h>
 #include <pf-applications/sintering/preconditioners.h>
 #include <pf-applications/sintering/sintering_data.h>
+
+#define OPERATOR 1
+
+// Available sintering operators
+#define OPERATOR_GENERIC 1
+#define OPERATOR_COUPLED_WANG 2
+#define OPERATOR_COUPLED_DIFFUSION 3
 
 using namespace dealii;
 using namespace Sintering;
@@ -143,6 +153,17 @@ main(int argc, char **argv)
   using BlockVectorType =
     LinearAlgebra::distributed::DynamicBlockVector<Number>;
 
+  using SinteringOperator =
+#if OPERATOR == OPERATOR_GENERIC
+    SinteringOperatorGeneric<dim, Number, VectorizedArrayType>;
+#elif OPERATOR == OPERATOR_COUPLED_WANG
+    SinteringOperatorCoupledWang<dim, Number, VectorizedArrayType>;
+#elif OPERATOR == OPERATOR_COUPLED_DIFFUSION
+    SinteringOperatorCoupledDiffusion<dim, Number, VectorizedArrayType>;
+#else
+#  error "Option OPERATOR has to be specified"
+#endif
+
   // some arbitrary constants
   const double        A                      = 16;
   const double        B                      = 1;
@@ -154,6 +175,8 @@ main(int argc, char **argv)
   const double        Mgb                    = 0.4;
   const double        L                      = 1;
   const double        time_integration_order = 1;
+  const double        E                      = 1.0;
+  const double        nu                     = 0.25;
   const double        t                      = 0.0;
   const double        dt                     = 0.1;
   std::vector<double> dts(time_integration_order, 0.0);
@@ -290,15 +313,22 @@ main(int argc, char **argv)
           sintering_data.time_data.set_all_dt(dts);
           sintering_data.set_time(t);
 
-          AdvectionMechanism<dim, Number, VectorizedArrayType> advection;
+          AdvectionMechanism<dim, Number, VectorizedArrayType>
+            advection_mechanism;
 
-          SinteringOperatorGeneric<dim, Number, VectorizedArrayType>
-            sintering_operator(matrix_free,
-                               constraints,
-                               sintering_data,
-                               solution_history,
-                               advection,
-                               false);
+          const auto sintering_operator =
+            create_sintering_operator<dim,
+                                      Number,
+                                      VectorizedArrayType,
+                                      BlockVectorType,
+                                      SinteringOperator>(matrix_free,
+                                                         constraints,
+                                                         sintering_data,
+                                                         solution_history,
+                                                         advection_mechanism,
+                                                         false,
+                                                         E,
+                                                         nu);
 
           BlockVectorType src;
           sintering_operator.initialize_dof_vector(src);
