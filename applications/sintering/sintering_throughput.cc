@@ -59,6 +59,16 @@ static_assert(false, "No grains number has been given!");
 using namespace dealii;
 using namespace Sintering;
 
+template <typename T, typename VectorType>
+using evaluate_nonlinear_residual_t =
+  decltype(std::declval<T const>().evaluate_nonlinear_residual(
+    std::declval<VectorType &>(),
+    std::declval<const VectorType &>()));
+
+template <typename T, typename VectorType>
+constexpr bool has_evaluate_nonlinear_residual = dealii::internal::
+  is_supported_operation<evaluate_nonlinear_residual_t, T, VectorType>;
+
 // helper function
 double
 run(const std::function<void()> &fu)
@@ -222,7 +232,29 @@ main(int argc, char **argv)
   ConvergenceTable table;
 
   const auto test_operator = [&](const auto &op, const std::string label) {
-    if (true) // ... matrix-free
+    if constexpr (has_evaluate_nonlinear_residual<
+                    typename std::remove_cv<
+                      typename std::remove_reference<decltype(op)>::type>::type,
+                    BlockVectorType>) // ... matrix-free -> rhs
+      {
+        BlockVectorType src, dst;
+        op.initialize_dof_vector(src);
+        op.initialize_dof_vector(dst);
+        src = 1.0;
+
+        const auto time = run(
+          [&]() { op.template evaluate_nonlinear_residual<false>(dst, src); });
+
+        table.add_value("t_" + label + "_rhs", time);
+        table.set_scientific("t_" + label + "_rhs", true);
+      }
+    else
+      {
+        table.add_value("t_" + label + "_rhs", 0.0);
+        table.set_scientific("t_" + label + "_rhs", true);
+      }
+
+    if (true) // ... matrix-free -> Jacobian
       {
         BlockVectorType src, dst;
         op.initialize_dof_vector(src);
@@ -261,6 +293,8 @@ main(int argc, char **argv)
   };
 
   const auto test_operator_dummy = [&](const std::string label) {
+    table.add_value("t_" + label + "_rhs", 0.0);
+    table.set_scientific("t_" + label + "_rhs", true);
     table.add_value("t_" + label + "_mf", 0);
     table.set_scientific("t_" + label + "_mf", true);
     table.add_value("t_" + label + "_mb", 0);
