@@ -154,6 +154,19 @@ namespace Sintering
       , grain_tracker(nullptr)
     {}
 
+    AdvectionMechanism(
+      const double mt,
+      const double mr,
+      const std::vector<AdvectionCellData<dim, Number, VectorizedArrayType>>
+        &current_cell_data)
+      : is_active(true)
+      , mt(mt)
+      , mr(mr)
+      , grain_tracker(nullptr)
+    {
+      this->current_cell_data = current_cell_data;
+    }
+
     AdvectionMechanism(const bool                                enable,
                        const double                              mt,
                        const double                              mr,
@@ -170,44 +183,50 @@ namespace Sintering
       const unsigned int                                  n_order_parameters,
       const MatrixFree<dim, Number, VectorizedArrayType> &matrix_free) const
     {
-      current_cell_data.resize(n_order_parameters);
-
-      for (unsigned int op = 0; op < n_order_parameters; ++op)
+      if (grain_tracker)
         {
-          unsigned int i = 0;
+          current_cell_data.resize(n_order_parameters);
 
-          for (; i < matrix_free.n_active_entries_per_cell_batch(cell); ++i)
+          for (unsigned int op = 0; op < n_order_parameters; ++op)
             {
-              const auto icell      = matrix_free.get_cell_iterator(cell, i);
-              const auto cell_index = icell->global_active_cell_index();
+              unsigned int i = 0;
 
-              const unsigned int particle_id =
-                grain_tracker->get_particle_index(op, cell_index);
-
-              if (particle_id != numbers::invalid_unsigned_int)
+              for (; i < matrix_free.n_active_entries_per_cell_batch(cell); ++i)
                 {
-                  const auto grain_and_segment =
-                    grain_tracker->get_grain_and_segment(op, particle_id);
+                  const auto icell = matrix_free.get_cell_iterator(cell, i);
+                  const auto cell_index = icell->global_active_cell_index();
 
-                  const auto &rc_i =
-                    grain_tracker->get_segment_center(grain_and_segment.first,
-                                                      grain_and_segment.second);
+                  const unsigned int particle_id =
+                    grain_tracker->get_particle_index(op, cell_index);
 
-                  current_cell_data[op].fill(
-                    i,
-                    rc_i,
-                    grain_data(grain_and_segment.first,
-                               grain_and_segment.second));
+                  if (particle_id != numbers::invalid_unsigned_int)
+                    {
+                      const auto grain_and_segment =
+                        grain_tracker->get_grain_and_segment(op, particle_id);
+
+                      const auto &rc_i = grain_tracker->get_segment_center(
+                        grain_and_segment.first, grain_and_segment.second);
+
+                      current_cell_data[op].fill(
+                        i,
+                        rc_i,
+                        grain_data(grain_and_segment.first,
+                                   grain_and_segment.second));
+                    }
+                  else
+                    {
+                      current_cell_data[op].nullify(i);
+                    }
                 }
-              else
-                {
-                  current_cell_data[op].nullify(i);
-                }
+
+              // Initialize the rest for padding
+              for (; i < VectorizedArrayType::size(); ++i)
+                current_cell_data[op].nullify(i);
             }
-
-          // Initialize the rest for padding
-          for (; i < VectorizedArrayType::size(); ++i)
-            current_cell_data[op].nullify(i);
+        }
+      else
+        {
+          AssertDimension(current_cell_data.size(), n_order_parameters);
         }
     }
 
@@ -244,7 +263,7 @@ namespace Sintering
     {
       (void)order_parameter_id;
       (void)p;
-      return current_velocity_derivative;
+      return {};
     }
 
     void
@@ -321,8 +340,6 @@ namespace Sintering
     }
 
   private:
-    mutable Tensor<1, dim, VectorizedArrayType> current_velocity_derivative;
-
     const bool   is_active;
     const double mt;
     const double mr;
