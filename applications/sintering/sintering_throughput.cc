@@ -159,6 +159,8 @@ main(int argc, char **argv)
   const double        time_integration_order = 1;
   const double        E                      = 1.0;
   const double        nu                     = 0.25;
+  const double        mt                     = 1.0;
+  const double        mr                     = 1.0;
   const double        t                      = 0.0;
   const double        dt                     = 0.1;
   std::vector<double> dts(time_integration_order, 0.0);
@@ -209,6 +211,8 @@ main(int argc, char **argv)
 
   typename MatrixFree<dim, Number, VectorizedArrayType>::AdditionalData
     additional_data;
+  additional_data.mapping_update_flags =
+    update_values | update_gradients | update_quadrature_points;
   additional_data.overlap_communication_computation = false;
 
   MatrixFree<dim, Number, VectorizedArrayType> matrix_free;
@@ -321,6 +325,59 @@ main(int argc, char **argv)
       else
         {
           test_operator_dummy("sintering");
+        }
+
+      if (n_components >= 4) // test wang operator
+        {
+          const std::shared_ptr<MobilityProvider> mobility_provider =
+            std::make_shared<ProviderAbstract>(Mvol, Mvap, Msurf, Mgb, L);
+
+          TimeIntegration::SolutionHistory<BlockVectorType> solution_history(
+            time_integration_order + 1);
+
+          SinteringOperatorData<dim, VectorizedArrayType> sintering_data(
+            A, B, kappa_c, kappa_p, mobility_provider, time_integration_order);
+
+          sintering_data.set_n_components(n_components);
+          sintering_data.time_data.set_all_dt(dts);
+          sintering_data.set_time(t);
+
+          std::vector<AdvectionCellData<dim, Number, VectorizedArrayType>>
+            current_cell_data(n_components - 2);
+
+          for (auto &entry : current_cell_data)
+            {
+              entry.volume    = 1.0; // dummy values
+              entry.force[0]  = 1.0; //
+              entry.torque[0] = 1.0; //
+            }
+
+          AdvectionMechanism<dim, Number, VectorizedArrayType>
+            advection_mechanism(mt, mr, current_cell_data);
+
+          const SinteringOperatorGeneric<dim, Number, VectorizedArrayType>
+            sintering_operator(matrix_free,
+                               constraints,
+                               sintering_data,
+                               solution_history,
+                               advection_mechanism,
+                               false);
+
+          BlockVectorType src;
+          sintering_operator.initialize_dof_vector(src);
+          src = 1.0;
+
+          sintering_data.fill_quadrature_point_values(matrix_free,
+                                                      src,
+                                                      true /*TODO: gradient*/,
+                                                      false);
+
+
+          test_operator(sintering_operator, "wang");
+        }
+      else
+        {
+          test_operator_dummy("wang");
         }
 
       if (n_components >= 4 + dim) // test coupled sintering operator
