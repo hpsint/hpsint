@@ -138,6 +138,9 @@ namespace GrainTracker
                 }
             }
 
+          // Dynamics of the new grain
+          typename Grain<dim>::Dynamics new_dynamics = Grain<dim>::None;
+
           // Set up the grain number
           if (new_grain_id == std::numeric_limits<unsigned int>::max())
             {
@@ -168,9 +171,19 @@ namespace GrainTracker
                   std::string("\r\n    new grain order parameter   = ") +
                   std::to_string(new_grain.get_order_parameter_id()) + 
                   std::string("\r\n    min_distance                = ") +
-                  std::to_string(min_distance)
+                  std::to_string(min_distance) + std::string("\r\n") + 
+                  std::string("This could have happened if track() or initial_setup()") +
+                  std::string("was invoked resulting in the grains reassignement but the") +
+                  std::string("subsequent remap() was not called for the solution vector(s).")
               ));
               // clang-format on
+
+              // Check if the detected grain is growing or not
+              const bool is_growing =
+                new_grain.get_max_radius() >
+                old_grains.at(new_grain_id).get_max_radius();
+              new_dynamics =
+                is_growing ? Grain<dim>::Growing : Grain<dim>::Shrinking;
 
               grains_candidates.erase(new_grain_id);
             }
@@ -178,6 +191,7 @@ namespace GrainTracker
           // Insert new grain
           grains.emplace(std::make_pair(new_grain_id, new_grain));
           grains.at(new_grain_id).set_grain_id(new_grain_id);
+          grains.at(new_grain_id).set_dynamics(new_dynamics);
 
           // Update mapping since we changed the grain id
           if (new_grain_id != current_grain_id)

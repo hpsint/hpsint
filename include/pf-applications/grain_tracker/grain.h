@@ -23,6 +23,13 @@ namespace GrainTracker
   class Grain
   {
   public:
+    enum Dynamics
+    {
+      Shrinking = -1,
+      None      = 0,
+      Growing   = 1
+    };
+
     Grain(const unsigned int grain_id, const unsigned int order_parameter_id)
       : grain_id(grain_id)
       , order_parameter_id(order_parameter_id)
@@ -165,6 +172,22 @@ namespace GrainTracker
       return std::max(0.0, distance_to_nearest_neighbor / 2.0);
     }
 
+    /* Get grain dynamics. This property says whether the grain is growing or
+     * shrinking or has just been initiated.
+     */
+    Dynamics
+    get_dynamics() const
+    {
+      return dynamics;
+    }
+
+    /* Set grain dynamics. The dynamics is analyzed by the user. */
+    void
+    set_dynamics(const Dynamics new_dynamics)
+    {
+      dynamics = new_dynamics;
+    }
+
   private:
     unsigned int grain_id;
 
@@ -177,5 +200,7 @@ namespace GrainTracker
     double max_radius{0.0};
 
     double distance_to_nearest_neighbor{std::numeric_limits<double>::max()};
+
+    Dynamics dynamics{None};
   };
 } // namespace GrainTracker
