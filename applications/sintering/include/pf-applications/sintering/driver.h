@@ -1679,9 +1679,11 @@ namespace Sintering
           const double bottom_fraction_of_cells =
             params.adaptivity_data.bottom_fraction_of_cells;
           if (params.geometry_data.global_refinement == "None")
-            top_fraction_of_cells = 0.9;
+            top_fraction_of_cells *= 3;
           else if (params.geometry_data.global_refinement == "Base")
-            top_fraction_of_cells = 0.8;
+            top_fraction_of_cells *= 2.5;
+
+          top_fraction_of_cells = std::min(top_fraction_of_cells, 1.0);
 
           const unsigned int n_init_refinements =
             std::max(std::min(tria.n_global_levels() - 1,
