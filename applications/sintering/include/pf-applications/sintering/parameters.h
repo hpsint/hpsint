@@ -141,6 +141,12 @@ namespace Sintering
     double ceq = 1.;
   };
 
+  struct BoundaryConditionsData
+  {
+    std::string  type      = "Domain";
+    unsigned int direction = 0;
+  };
+
   struct TimeIntegrationData
   {
     std::string interation_scheme = "BDF2";
@@ -250,18 +256,19 @@ namespace Sintering
 
   struct Parameters
   {
-    ApproximationData   approximation_data;
-    GeometryData        geometry_data;
-    AdaptivityData      adaptivity_data;
-    GrainTrackerData    grain_tracker_data;
-    MaterialData        material_data;
-    AdvectionData       advection_data;
-    TimeIntegrationData time_integration_data;
-    OutputData          output_data;
-    RestartData         restart_data;
-    PreconditionersData preconditioners_data;
-    ProfilingData       profiling_data;
-    NonLinearData       nonlinear_data;
+    ApproximationData      approximation_data;
+    GeometryData           geometry_data;
+    AdaptivityData         adaptivity_data;
+    GrainTrackerData       grain_tracker_data;
+    MaterialData           material_data;
+    AdvectionData          advection_data;
+    BoundaryConditionsData boundary_conditions;
+    TimeIntegrationData    time_integration_data;
+    OutputData             output_data;
+    RestartData            restart_data;
+    PreconditionersData    preconditioners_data;
+    ProfilingData          profiling_data;
+    NonLinearData          nonlinear_data;
 
     bool matrix_based = false;
 
@@ -582,6 +589,18 @@ namespace Sintering
       prm.add_parameter("Ceq",
                         advection_data.ceq,
                         "Grain boundary equilibrium concentration.");
+      prm.leave_subsection();
+
+
+      prm.enter_subsection("BoundaryConditions");
+      prm.add_parameter("Type",
+                        boundary_conditions.type,
+                        "Type of boundary conditions for the coupled model",
+                        Patterns::Selection(
+                          "None|CentralSection|CentralParticle|Domain"));
+      prm.add_parameter("Direction",
+                        boundary_conditions.direction,
+                        "Primary direction for restraining displacements.");
       prm.leave_subsection();
 
 

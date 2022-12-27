@@ -1506,26 +1506,6 @@ namespace Sintering
 
           old_old_solutions.update_ghost_values();
 
-          // Update mechanical constraints for the coupled model
-          // Currently only fixing the central section along x-axis
-          if constexpr (std::is_base_of_v<
-                          SinteringOperatorCoupledBase<dim,
-                                                       Number,
-                                                       VectorizedArrayType,
-                                                       NonLinearOperator>,
-                          NonLinearOperator>)
-            {
-              auto &displ_constraints_indices =
-                nonlinear_operator.get_zero_constraints_indices();
-
-              const unsigned int direction = 0;
-
-              clamp_central_section<dim>(displ_constraints_indices,
-                                         matrix_free,
-                                         solution.block(0),
-                                         direction);
-            }
-
           output_result(solution, nonlinear_operator, t, "refinement");
 
           if (params.output_data.mesh_overhead_estimate)
@@ -1666,6 +1646,68 @@ namespace Sintering
         old_old_solutions.update_ghost_values();
       };
 
+      // Impose boundary conditions
+      const auto impose_boundary_conditions = [&](const double t) {
+        (void)t;
+
+        // Update mechanical constraints for the coupled model
+        // Currently only fixing the central section along x-axis
+        if constexpr (std::is_base_of_v<
+                        SinteringOperatorCoupledBase<dim,
+                                                     Number,
+                                                     VectorizedArrayType,
+                                                     NonLinearOperator>,
+                        NonLinearOperator>)
+          {
+            MyScope scope(timer, "impose_boundary_conditions");
+
+            pcout << "Impose boundary conditions:" << std::endl;
+            pcout << "  - type: " << params.boundary_conditions.type
+                  << std::endl;
+            pcout << "  - direction: " << params.boundary_conditions.direction
+                  << std::endl;
+
+            auto &displ_constraints_indices =
+              nonlinear_operator.get_zero_constraints_indices();
+
+            if (params.boundary_conditions.type == "CentralSection")
+              {
+                clamp_central_section<dim>(
+                  displ_constraints_indices,
+                  matrix_free,
+                  solution.block(0),
+                  params.boundary_conditions.direction);
+              }
+            else if (params.boundary_conditions.type == "CentralParticle")
+              {
+                AssertThrow(params.grain_tracker_data.grain_tracker_frequency >
+                              0,
+                            ExcMessage("Grain tracker has to be enabled"));
+
+                Point<dim> origin = find_center_origin(
+                  matrix_free.get_dof_handler().get_triangulation(),
+                  grain_tracker);
+                pcout << "  - origin for clamping the section: " << origin
+                      << std::endl;
+
+                clamp_section_within_particle<dim>(
+                  displ_constraints_indices,
+                  matrix_free,
+                  sintering_data,
+                  grain_tracker,
+                  solution,
+                  origin,
+                  params.boundary_conditions.direction);
+              }
+            else if (params.boundary_conditions.type == "Domain")
+              {
+                clamp_domain<dim>(displ_constraints_indices, matrix_free);
+              }
+
+            pcout << std::endl;
+          }
+      };
+
       // Initialize all solutions except the evry old one, it will get
       // overwritten anyway
       initialize_solution(
@@ -1713,6 +1755,9 @@ namespace Sintering
       // Grain tracker - first run after we have initial configuration defined
       if (params.grain_tracker_data.grain_tracker_frequency > 0)
         run_grain_tracker(t, /*do_initialize = */ true);
+
+      // Impose boundary conditions
+      impose_boundary_conditions(t);
 
       // Build additional output
       std::function<void(DataOut<dim> & data_out)> additional_output;
@@ -1796,6 +1841,10 @@ namespace Sintering
                     AssertThrow(false, ExcMessage(ex.what()));
                   }
               }
+
+            // Impose boundary conditions
+            if (do_mesh_refinement)
+              impose_boundary_conditions(t);
 
             // Set timesteps in order to update weights
             sintering_data.time_data.set_all_dt(dts);

@@ -291,4 +291,78 @@ namespace Sintering
       solution.block(b).zero_out_ghost_values();
   }
 
+  template <int dim, typename Number>
+  Point<dim>
+  find_center_origin(const Triangulation<dim> &                triangulation,
+                     const GrainTracker::Tracker<dim, Number> &grain_tracker,
+                     const bool prefer_growing = false)
+  {
+    // Add central constraints
+    const auto bb_tria = GridTools::compute_bounding_box(triangulation);
+    const auto center  = bb_tria.center();
+
+    Point<dim> origin;
+
+    Number dist_min = std::numeric_limits<Number>::max();
+
+    typename GrainTracker::Grain<dim>::Dynamics dynamics_max =
+      GrainTracker::Grain<dim>::None;
+
+    for (const auto &[grain_id, grain] : grain_tracker.get_grains())
+      for (const auto &segment : grain.get_segments())
+        {
+          const Number dist = segment.get_center().distance(center);
+
+          const bool pick =
+            (!prefer_growing && dist < dist_min) ||
+            (prefer_growing &&
+             ((dist < dist_min && grain.get_dynamics() >= dynamics_max) ||
+              dist_min == std::numeric_limits<Number>::max()));
+
+          if (pick)
+            {
+              dist_min     = dist;
+              origin       = segment.get_center();
+              dynamics_max = grain.get_dynamics();
+            }
+        }
+
+    return origin;
+  }
+
+  template <int dim, typename Number, typename VectorizedArrayType>
+  void
+  clamp_domain(
+    std::array<std::vector<unsigned int>, dim> &displ_constraints_indices,
+    const MatrixFree<dim, Number, VectorizedArrayType> &matrix_free)
+  {
+    const auto &partitioner = matrix_free.get_vector_partitioner();
+
+    // Remove previous costraionts
+    for (unsigned int d = 0; d < dim; ++d)
+      displ_constraints_indices[d].clear();
+
+    std::vector<types::global_dof_index> local_face_dof_indices(
+      matrix_free.get_dofs_per_face());
+
+    for (const auto &cell :
+         matrix_free.get_dof_handler().active_cell_iterators())
+      if (cell->is_locally_owned())
+        for (const auto &face : cell->face_iterators())
+          if (face->at_boundary())
+            for (unsigned int d = 0; d < dim; ++d)
+              // Default colorization is implied
+              if (face->boundary_id() == 2 * d)
+                {
+                  face->get_dof_indices(local_face_dof_indices);
+
+                  for (const auto i : local_face_dof_indices)
+                    {
+                      const auto local_index = partitioner->global_to_local(i);
+                      displ_constraints_indices[d].push_back(local_index);
+                    }
+                }
+  }
+
+
 } // namespace Sintering
