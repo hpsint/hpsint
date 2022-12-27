@@ -26,9 +26,6 @@ namespace Structural
 
     virtual Tensor<1, voigt_size<dim>, VectorizedArrayType>
     get_S() const = 0;
-
-    virtual const Tensor<2, voigt_size<dim>, VectorizedArrayType>
-    get_dSdE() const = 0;
   };
 
 } // namespace Structural

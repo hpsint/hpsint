@@ -55,12 +55,6 @@ namespace Structural
       return C * E;
     }
 
-    const Tensor<2, voigt_size<dim>, VectorizedArrayType>
-    get_dSdE() const override
-    {
-      return C;
-    }
-
   private:
     const VectorizedArrayType f0;
     const VectorizedArrayType f1;
