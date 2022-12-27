@@ -42,17 +42,34 @@ namespace Structural
     }
 
     Tensor<2, dim, VectorizedArrayType>
-    get_S(const Tensor<2, dim, VectorizedArrayType> &H) const override
+    get_S(const Tensor<2, dim, VectorizedArrayType> &E) const override
     {
       if (dim == 3 || two_dim_type == TWO_DIM_TYPE::NONE)
         {
-          AssertThrow(false, ExcNotImplemented());
-          return {};
+          VectorizedArrayType lambda, mu_x_2;
+
+          Tensor<2, dim, VectorizedArrayType> stress;
+
+          VectorizedArrayType trace = E[0][0];
+
+          for (unsigned int i = 1; i < dim; ++i)
+            trace += E[i][i];
+
+          for (unsigned int i = 0; i < dim; ++i)
+            for (unsigned int j = 0; j < dim; ++j)
+              {
+                if (j == 0)
+                  stress[i][i] = lambda * trace;
+
+                stress[i][j] += mu_x_2 * E[i][j];
+              }
+
+          return stress;
         }
       else
         {
           return Structural::apply_l_transposed<dim>(C *
-                                                     Structural::apply_l(H));
+                                                     Structural::apply_l(E));
         }
     }
 
