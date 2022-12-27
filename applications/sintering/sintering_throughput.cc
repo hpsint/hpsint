@@ -41,6 +41,9 @@ static_assert(false, "No grains number has been given!");
 #include <deal.II/base/mpi.h>
 #include <deal.II/base/revision.h>
 
+#include <deal.II/fe/fe_q.h>
+#include <deal.II/fe/fe_q_iso_q1.h>
+
 #ifdef LIKWID_PERFMON
 #  include <likwid.h>
 #endif
