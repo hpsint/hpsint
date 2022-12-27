@@ -220,8 +220,7 @@ namespace Sintering
       const auto cl = compare_and_apply_mask<SIMDComparison::less_than>(
         c, VectorizedArrayType(c_min), VectorizedArrayType(c_min), c);
 
-      return cl * Structural::apply_l_transposed<dim>(
-                    material.get_S(Structural::apply_l(H)));
+      return cl * material.get_S(H);
     }
 
   protected:

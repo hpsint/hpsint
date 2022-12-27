@@ -42,11 +42,10 @@ namespace Structural
         C[i][i] = f2;
     }
 
-    Tensor<1, voigt_size<dim>, VectorizedArrayType>
-    get_S(
-      const Tensor<1, voigt_size<dim>, VectorizedArrayType> &E) const override
+    Tensor<2, dim, VectorizedArrayType>
+    get_S(const Tensor<2, dim, VectorizedArrayType> &H) const override
     {
-      return C * E;
+      return Structural::apply_l_transposed<dim>(C * Structural::apply_l(H));
     }
 
   private:

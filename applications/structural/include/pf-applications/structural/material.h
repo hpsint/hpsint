@@ -20,9 +20,8 @@ namespace Structural
   class Material
   {
   public:
-    virtual Tensor<1, voigt_size<dim>, VectorizedArrayType>
-    get_S(const Tensor<1, voigt_size<dim>, VectorizedArrayType> &deformation)
-      const = 0;
+    virtual Tensor<2, dim, VectorizedArrayType>
+    get_S(const Tensor<2, dim, VectorizedArrayType> &deformation) const = 0;
   };
 
 } // namespace Structural
