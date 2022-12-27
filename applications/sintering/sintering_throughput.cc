@@ -159,6 +159,11 @@ main(int argc, char **argv)
   using BlockVectorType =
     LinearAlgebra::distributed::DynamicBlockVector<Number>;
 
+  constexpr bool test_helmholtz         = true;
+  constexpr bool test_sintering_generic = true;
+  constexpr bool test_sintering_wang    = false;
+  constexpr bool test_sintering_coupled = false;
+
   // some arbitrary constants
   const double        A                      = 16;
   const double        B                      = 1;
@@ -313,7 +318,7 @@ main(int argc, char **argv)
       table.add_value("n_dofs", dof_handler.n_dofs());
       table.add_value("n_components", n_components);
 
-      if (true) // test Helmholtz operator
+      if constexpr (test_helmholtz) // test Helmholtz operator
         {
           HelmholtzOperator<dim, Number, VectorizedArrayType>
             helmholtz_operator(matrix_free, constraints, n_components);
@@ -321,147 +326,165 @@ main(int argc, char **argv)
           test_operator(helmholtz_operator, "helmholtz");
         }
 
-      if (n_components >= 4) // test sintering operator
-        {
-          const std::shared_ptr<MobilityProvider> mobility_provider =
-            std::make_shared<ProviderAbstract>(Mvol, Mvap, Msurf, Mgb, L);
+      if constexpr (test_sintering_generic)
+        if (n_components >= 4) // test sintering operator
+          {
+            const std::shared_ptr<MobilityProvider> mobility_provider =
+              std::make_shared<ProviderAbstract>(Mvol, Mvap, Msurf, Mgb, L);
 
-          TimeIntegration::SolutionHistory<BlockVectorType> solution_history(
-            time_integration_order + 1);
+            TimeIntegration::SolutionHistory<BlockVectorType> solution_history(
+              time_integration_order + 1);
 
-          SinteringOperatorData<dim, VectorizedArrayType> sintering_data(
-            A, B, kappa_c, kappa_p, mobility_provider, time_integration_order);
+            SinteringOperatorData<dim, VectorizedArrayType> sintering_data(
+              A,
+              B,
+              kappa_c,
+              kappa_p,
+              mobility_provider,
+              time_integration_order);
 
-          sintering_data.set_n_components(n_components);
-          sintering_data.time_data.set_all_dt(dts);
-          sintering_data.set_time(t);
+            sintering_data.set_n_components(n_components);
+            sintering_data.time_data.set_all_dt(dts);
+            sintering_data.set_time(t);
 
-          AdvectionMechanism<dim, Number, VectorizedArrayType>
-            advection_mechanism;
+            AdvectionMechanism<dim, Number, VectorizedArrayType>
+              advection_mechanism;
 
-          const SinteringOperatorGeneric<dim, Number, VectorizedArrayType>
-            sintering_operator(matrix_free,
-                               constraints,
-                               sintering_data,
-                               solution_history,
-                               advection_mechanism,
-                               false);
+            const SinteringOperatorGeneric<dim, Number, VectorizedArrayType>
+              sintering_operator(matrix_free,
+                                 constraints,
+                                 sintering_data,
+                                 solution_history,
+                                 advection_mechanism,
+                                 false);
 
-          BlockVectorType src;
-          sintering_operator.initialize_dof_vector(src);
-          src = 1.0;
+            BlockVectorType src;
+            sintering_operator.initialize_dof_vector(src);
+            src = 1.0;
 
-          sintering_data.fill_quadrature_point_values(matrix_free,
-                                                      src,
-                                                      false,
-                                                      false);
-
-
-          test_operator(sintering_operator, "sintering");
-        }
-      else
-        {
-          test_operator_dummy("sintering");
-        }
-
-      if (n_components >= 4) // test wang operator
-        {
-          const std::shared_ptr<MobilityProvider> mobility_provider =
-            std::make_shared<ProviderAbstract>(Mvol, Mvap, Msurf, Mgb, L);
-
-          TimeIntegration::SolutionHistory<BlockVectorType> solution_history(
-            time_integration_order + 1);
-
-          SinteringOperatorData<dim, VectorizedArrayType> sintering_data(
-            A, B, kappa_c, kappa_p, mobility_provider, time_integration_order);
-
-          sintering_data.set_n_components(n_components);
-          sintering_data.time_data.set_all_dt(dts);
-          sintering_data.set_time(t);
-
-          std::vector<AdvectionCellData<dim, Number, VectorizedArrayType>>
-            current_cell_data(n_components - 2);
-
-          for (auto &entry : current_cell_data)
-            {
-              entry.volume    = 1.0; // dummy values
-              entry.force[0]  = 1.0; //
-              entry.torque[0] = 1.0; //
-            }
-
-          AdvectionMechanism<dim, Number, VectorizedArrayType>
-            advection_mechanism(mt, mr, current_cell_data);
-
-          const SinteringOperatorGeneric<dim, Number, VectorizedArrayType>
-            sintering_operator(matrix_free,
-                               constraints,
-                               sintering_data,
-                               solution_history,
-                               advection_mechanism,
-                               false);
-
-          BlockVectorType src;
-          sintering_operator.initialize_dof_vector(src);
-          src = 1.0;
-
-          sintering_data.fill_quadrature_point_values(matrix_free,
-                                                      src,
-                                                      true /*TODO: gradient*/,
-                                                      false);
+            sintering_data.fill_quadrature_point_values(matrix_free,
+                                                        src,
+                                                        false,
+                                                        false);
 
 
-          test_operator(sintering_operator, "wang");
-        }
-      else
-        {
-          test_operator_dummy("wang");
-        }
+            test_operator(sintering_operator, "sintering");
+          }
+        else
+          {
+            test_operator_dummy("sintering");
+          }
 
-      if (n_components >= 4 + dim) // test coupled sintering operator
-        {
-          const std::shared_ptr<MobilityProvider> mobility_provider =
-            std::make_shared<ProviderAbstract>(Mvol, Mvap, Msurf, Mgb, L);
+      if constexpr (test_sintering_wang)
+        if (n_components >= 4) // test wang operator
+          {
+            const std::shared_ptr<MobilityProvider> mobility_provider =
+              std::make_shared<ProviderAbstract>(Mvol, Mvap, Msurf, Mgb, L);
 
-          TimeIntegration::SolutionHistory<BlockVectorType> solution_history(
-            time_integration_order + 1);
+            TimeIntegration::SolutionHistory<BlockVectorType> solution_history(
+              time_integration_order + 1);
 
-          SinteringOperatorData<dim, VectorizedArrayType> sintering_data(
-            A, B, kappa_c, kappa_p, mobility_provider, time_integration_order);
+            SinteringOperatorData<dim, VectorizedArrayType> sintering_data(
+              A,
+              B,
+              kappa_c,
+              kappa_p,
+              mobility_provider,
+              time_integration_order);
 
-          sintering_data.set_n_components(n_components - dim);
-          sintering_data.time_data.set_all_dt(dts);
-          sintering_data.set_time(t);
+            sintering_data.set_n_components(n_components);
+            sintering_data.time_data.set_all_dt(dts);
+            sintering_data.set_time(t);
 
-          AdvectionMechanism<dim, Number, VectorizedArrayType>
-            advection_mechanism;
+            std::vector<AdvectionCellData<dim, Number, VectorizedArrayType>>
+              current_cell_data(n_components - 2);
 
-          const SinteringOperatorCoupledWang<dim, Number, VectorizedArrayType>
-            sintering_operator(matrix_free,
-                               constraints,
-                               sintering_data,
-                               solution_history,
-                               advection_mechanism,
-                               false,
-                               E,
-                               nu,
-                               {});
+            for (auto &entry : current_cell_data)
+              {
+                entry.volume    = 1.0; // dummy values
+                entry.force[0]  = 1.0; //
+                entry.torque[0] = 1.0; //
+              }
 
-          BlockVectorType src;
-          sintering_operator.initialize_dof_vector(src);
-          src = 1.0;
+            AdvectionMechanism<dim, Number, VectorizedArrayType>
+              advection_mechanism(mt, mr, current_cell_data);
 
-          sintering_data.fill_quadrature_point_values(matrix_free,
-                                                      src,
-                                                      false,
-                                                      false);
+            const SinteringOperatorGeneric<dim, Number, VectorizedArrayType>
+              sintering_operator(matrix_free,
+                                 constraints,
+                                 sintering_data,
+                                 solution_history,
+                                 advection_mechanism,
+                                 false);
+
+            BlockVectorType src;
+            sintering_operator.initialize_dof_vector(src);
+            src = 1.0;
+
+            sintering_data.fill_quadrature_point_values(matrix_free,
+                                                        src,
+                                                        true /*TODO: gradient*/,
+                                                        false);
 
 
-          test_operator(sintering_operator, "coupled");
-        }
-      else
-        {
-          test_operator_dummy("coupled");
-        }
+            test_operator(sintering_operator, "wang");
+          }
+        else
+          {
+            test_operator_dummy("wang");
+          }
+
+      if constexpr (test_sintering_coupled)
+        if (n_components >= 4 + dim) // test coupled sintering operator
+          {
+            const std::shared_ptr<MobilityProvider> mobility_provider =
+              std::make_shared<ProviderAbstract>(Mvol, Mvap, Msurf, Mgb, L);
+
+            TimeIntegration::SolutionHistory<BlockVectorType> solution_history(
+              time_integration_order + 1);
+
+            SinteringOperatorData<dim, VectorizedArrayType> sintering_data(
+              A,
+              B,
+              kappa_c,
+              kappa_p,
+              mobility_provider,
+              time_integration_order);
+
+            sintering_data.set_n_components(n_components - dim);
+            sintering_data.time_data.set_all_dt(dts);
+            sintering_data.set_time(t);
+
+            AdvectionMechanism<dim, Number, VectorizedArrayType>
+              advection_mechanism;
+
+            const SinteringOperatorCoupledWang<dim, Number, VectorizedArrayType>
+              sintering_operator(matrix_free,
+                                 constraints,
+                                 sintering_data,
+                                 solution_history,
+                                 advection_mechanism,
+                                 false,
+                                 E,
+                                 nu,
+                                 {});
+
+            BlockVectorType src;
+            sintering_operator.initialize_dof_vector(src);
+            src = 1.0;
+
+            sintering_data.fill_quadrature_point_values(matrix_free,
+                                                        src,
+                                                        false,
+                                                        false);
+
+
+            test_operator(sintering_operator, "coupled");
+          }
+        else
+          {
+            test_operator_dummy("coupled");
+          }
     }
 
   if (Utilities::MPI::this_mpi_process(MPI_COMM_WORLD) == 0)
