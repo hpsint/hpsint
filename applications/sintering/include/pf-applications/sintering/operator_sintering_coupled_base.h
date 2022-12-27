@@ -212,14 +212,12 @@ namespace Sintering
     }
 
     Tensor<2, Structural::voigt_size<dim>, VectorizedArrayType>
-    dSdE(const Tensor<1, Structural::voigt_size<dim>, VectorizedArrayType> &E,
-         const VectorizedArrayType &c) const
+    get_stress(
+      const Tensor<1, Structural::voigt_size<dim>, VectorizedArrayType> &E,
+      const VectorizedArrayType &c) const
     {
       // This is not thread-safe
       material.reinit(E);
-
-      // It should pefectly work this way
-      // const auto C = c * material.get_dSdE();
 
       const double c_min = 0.1;
 
