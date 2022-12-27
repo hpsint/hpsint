@@ -215,14 +215,13 @@ namespace Sintering
     get_stress(const Tensor<2, dim, VectorizedArrayType> &H,
                const VectorizedArrayType &                c) const
     {
-      material.reinit(Structural::apply_l(H));
-
       const double c_min = 0.1;
 
       const auto cl = compare_and_apply_mask<SIMDComparison::less_than>(
         c, VectorizedArrayType(c_min), VectorizedArrayType(c_min), c);
 
-      return cl * Structural::apply_l_transposed<dim>(material.get_S());
+      return cl * Structural::apply_l_transposed<dim>(
+                    material.get_S(Structural::apply_l(H)));
     }
 
   protected:

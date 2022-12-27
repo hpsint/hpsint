@@ -42,15 +42,9 @@ namespace Structural
         C[i][i] = f2;
     }
 
-    void
-    reinit(const Tensor<1, voigt_size<dim>, VectorizedArrayType> &E_in)
-      const override
-    {
-      E = E_in;
-    }
-
     Tensor<1, voigt_size<dim>, VectorizedArrayType>
-    get_S() const override
+    get_S(
+      const Tensor<1, voigt_size<dim>, VectorizedArrayType> &E) const override
     {
       return C * E;
     }
@@ -61,6 +55,5 @@ namespace Structural
     const VectorizedArrayType f2;
 
     mutable Tensor<2, voigt_size<dim>, VectorizedArrayType> C;
-    mutable Tensor<1, voigt_size<dim>, VectorizedArrayType> E;
   };
 } // namespace Structural
