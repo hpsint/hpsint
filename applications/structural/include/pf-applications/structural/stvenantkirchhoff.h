@@ -12,25 +12,24 @@ namespace Structural
                       Number       nu,
                       TWO_DIM_TYPE two_dim_type = TWO_DIM_TYPE::NONE)
 
-      : f0(make_vectorized_array<typename VectorizedArrayType::value_type,
-                                 VectorizedArrayType::size()>(
-          dim == 3 ? E * (1 - nu) / (1 + nu) / (1 - 2 * nu) :
-                     (two_dim_type == TWO_DIM_TYPE::PLAIN_STRESS ?
-                        E * (1) / (1 - nu * nu) :
-                        E * (1 - nu) / (1 + nu) / (1 - 2 * nu))))
-      , f1(make_vectorized_array<typename VectorizedArrayType::value_type,
-                                 VectorizedArrayType::size()>(
-          dim == 3 ? E * (nu) / (1 + nu) / (1 - 2 * nu) :
-                     (two_dim_type == TWO_DIM_TYPE::PLAIN_STRESS ?
-                        E * (nu) / (1 - nu * nu) :
-                        E * (nu) / (1 + nu) / (1 - 2 * nu))))
-      , f2(make_vectorized_array<typename VectorizedArrayType::value_type,
-                                 VectorizedArrayType::size()>(
-          dim == 3 ? E * (1 - 2 * nu) / 2 / (1 + nu) / (1 - 2 * nu) :
-                     (two_dim_type == TWO_DIM_TYPE::PLAIN_STRESS ?
-                        E * (1 - nu) / 2 / (1 - nu * nu) :
-                        E * (1 - 2 * nu) / 2 / (1 + nu) / (1 - 2 * nu))))
+      : two_dim_type(two_dim_type)
     {
+      const VectorizedArrayType f0 =
+        dim == 3 ? E * (1 - nu) / (1 + nu) / (1 - 2 * nu) :
+                   (two_dim_type == TWO_DIM_TYPE::PLAIN_STRESS ?
+                      E * (1) / (1 - nu * nu) :
+                      E * (1 - nu) / (1 + nu) / (1 - 2 * nu));
+      const VectorizedArrayType f1 =
+        dim == 3 ? E * (nu) / (1 + nu) / (1 - 2 * nu) :
+                   (two_dim_type == TWO_DIM_TYPE::PLAIN_STRESS ?
+                      E * (nu) / (1 - nu * nu) :
+                      E * (nu) / (1 + nu) / (1 - 2 * nu));
+      const VectorizedArrayType f2 =
+        dim == 3 ? E * (1 - 2 * nu) / 2 / (1 + nu) / (1 - 2 * nu) :
+                   (two_dim_type == TWO_DIM_TYPE::PLAIN_STRESS ?
+                      E * (1 - nu) / 2 / (1 - nu * nu) :
+                      E * (1 - 2 * nu) / 2 / (1 + nu) / (1 - 2 * nu));
+
       for (unsigned int i = 0; i < dim; i++)
         for (unsigned int j = 0; j < dim; j++)
           if (i == j)
@@ -45,14 +44,20 @@ namespace Structural
     Tensor<2, dim, VectorizedArrayType>
     get_S(const Tensor<2, dim, VectorizedArrayType> &H) const override
     {
-      return Structural::apply_l_transposed<dim>(C * Structural::apply_l(H));
+      if (dim == 3 || two_dim_type == TWO_DIM_TYPE::NONE)
+        {
+          AssertThrow(false, ExcNotImplemented());
+          return {};
+        }
+      else
+        {
+          return Structural::apply_l_transposed<dim>(C *
+                                                     Structural::apply_l(H));
+        }
     }
 
   private:
-    const VectorizedArrayType f0;
-    const VectorizedArrayType f1;
-    const VectorizedArrayType f2;
-
-    mutable Tensor<2, voigt_size<dim>, VectorizedArrayType> C;
+    const TWO_DIM_TYPE                              two_dim_type;
+    Tensor<2, voigt_size<dim>, VectorizedArrayType> C;
   };
 } // namespace Structural
