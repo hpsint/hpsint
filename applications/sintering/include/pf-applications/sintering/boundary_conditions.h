@@ -330,4 +330,45 @@ namespace Sintering
     return origin;
   }
 
+  template <int dim, typename Number, typename VectorizedArrayType>
+  void
+  clamp_domain(
+    std::array<std::vector<unsigned int>, dim> &displ_constraints_indices,
+    const MatrixFree<dim, Number, VectorizedArrayType> &matrix_free)
+  {
+    const auto &partitioner = matrix_free.get_vector_partitioner();
+
+    // Remove previous costraionts
+    for (unsigned int d = 0; d < dim; ++d)
+      displ_constraints_indices[d].clear();
+
+    std::vector<types::global_dof_index> local_face_dof_indices(
+      matrix_free.get_dofs_per_face());
+
+    for (const auto &cell :
+         matrix_free.get_dof_handler().active_cell_iterators())
+      if (cell->is_locally_owned())
+        {
+          const auto cell_index = cell->global_active_cell_index();
+
+          for (const auto &face : cell->face_iterators())
+
+            if (face->at_boundary())
+              for (unsigned int d = 0; d < dim; ++d)
+                // Default colorization is implied
+                if (face->boundary_id() == 2 * d)
+                  {
+                    face->get_dof_indices(local_face_dof_indices);
+
+                    for (const auto i : local_face_dof_indices)
+                      {
+                        const auto local_index =
+                          partitioner->global_to_local(i);
+                        displ_constraints_indices[d].push_back(local_index);
+                      }
+                  }
+        }
+  }
+
+
 } // namespace Sintering
