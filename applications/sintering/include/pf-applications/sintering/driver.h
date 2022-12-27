@@ -1662,43 +1662,49 @@ namespace Sintering
             MyScope scope(timer, "impose_boundary_conditions");
 
             pcout << "Impose boundary conditions:" << std::endl;
+            pcout << "  - type: " << params.boundary_conditions.type
+                  << std::endl;
+            pcout << "  - direction: " << params.boundary_conditions.direction
+                  << std::endl;
 
             auto &displ_constraints_indices =
               nonlinear_operator.get_zero_constraints_indices();
 
-            const unsigned int direction = 0;
+            if (params.boundary_conditions.type == "CentralSection")
+              {
+                clamp_central_section<dim>(
+                  displ_constraints_indices,
+                  matrix_free,
+                  solution.block(0),
+                  params.boundary_conditions.direction);
+              }
+            else if (params.boundary_conditions.type == "CentralParticle")
+              {
+                AssertThrow(params.grain_tracker_data.grain_tracker_frequency >
+                              0,
+                            ExcMessage("Grain tracker has to be enabled"));
 
-            /*
-                          clamp_central_section<dim>(displ_constraints_indices,
-                                                     matrix_free,
-                                                     solution.block(0),
-                                                     direction);
-            */
-            /*
-                          Point<dim> origin;
-                          clamp_section<dim>(displ_constraints_indices,
-                                                     matrix_free,
-                                                     solution.block(0),
-                                                     origin,
-                                                     direction);
-            */
-            // Impose kinematic constraints on the section in a particle
+                Point<dim> origin = find_center_origin(
+                  matrix_free.get_dof_handler().get_triangulation(),
+                  grain_tracker);
+                pcout << "  - origin for clamping the section: " << origin
+                      << std::endl;
 
-            AssertThrow(params.grain_tracker_data.grain_tracker_frequency > 0,
-                        ExcMessage("Grain tracker has to be enabled"));
+                clamp_section_within_particle<dim>(
+                  displ_constraints_indices,
+                  matrix_free,
+                  sintering_data,
+                  grain_tracker,
+                  solution,
+                  origin,
+                  params.boundary_conditions.direction);
+              }
+            else if (params.boundary_conditions.type == "Domain")
+              {
+                clamp_domain<dim>(displ_constraints_indices, matrix_free);
+              }
 
-            // static Point<dim> origin; //(7.816, 7.637);
-            Point<dim> origin = find_center_origin(
-              matrix_free.get_dof_handler().get_triangulation(), grain_tracker);
-            pcout << "Origin for clamping the section: " << origin << std::endl;
-
-            clamp_section_within_particle<dim>(displ_constraints_indices,
-                                               matrix_free,
-                                               sintering_data,
-                                               grain_tracker,
-                                               solution,
-                                               origin,
-                                               direction);
+            pcout << std::endl;
           }
       };
 
