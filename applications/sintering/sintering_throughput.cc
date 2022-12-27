@@ -161,8 +161,8 @@ main(int argc, char **argv)
 
   constexpr bool test_helmholtz         = true;
   constexpr bool test_sintering_generic = true;
-  constexpr bool test_sintering_wang    = false;
-  constexpr bool test_sintering_coupled = false;
+  constexpr bool test_sintering_wang    = true;
+  constexpr bool test_sintering_coupled = true;
 
   // some arbitrary constants
   const double        A                      = 16;
@@ -256,11 +256,6 @@ main(int argc, char **argv)
         table.add_value("t_" + label + "_rhs", time);
         table.set_scientific("t_" + label + "_rhs", true);
       }
-    else
-      {
-        table.add_value("t_" + label + "_rhs", 0.0);
-        table.set_scientific("t_" + label + "_rhs", true);
-      }
 
     if (true) // ... matrix-free -> Jacobian
       {
@@ -301,7 +296,7 @@ main(int argc, char **argv)
   };
 
   const auto test_operator_dummy = [&](const std::string label) {
-    table.add_value("t_" + label + "_rhs", 0.0);
+    table.add_value("t_" + label + "_rhs", 0);
     table.set_scientific("t_" + label + "_rhs", true);
     table.add_value("t_" + label + "_mf", 0);
     table.set_scientific("t_" + label + "_mf", true);
