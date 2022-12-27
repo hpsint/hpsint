@@ -13,6 +13,8 @@ namespace Structural
                       TWO_DIM_TYPE two_dim_type = TWO_DIM_TYPE::NONE)
 
       : two_dim_type(two_dim_type)
+      , lambda(E * nu / (1 + nu) / (1 - (dim - 1) * nu))
+      , mu_x_2(E / (1 + nu))
     {
       const VectorizedArrayType f0 =
         dim == 3 ? E * (1 - nu) / (1 + nu) / (1 - 2 * nu) :
@@ -46,8 +48,6 @@ namespace Structural
     {
       if (dim == 3 || two_dim_type == TWO_DIM_TYPE::NONE)
         {
-          VectorizedArrayType lambda, mu_x_2;
-
           Tensor<2, dim, VectorizedArrayType> stress;
 
           VectorizedArrayType trace = E[0][0];
@@ -57,12 +57,10 @@ namespace Structural
 
           for (unsigned int i = 0; i < dim; ++i)
             for (unsigned int j = 0; j < dim; ++j)
-              {
-                if (j == 0)
-                  stress[i][i] = lambda * trace;
+              stress[i][j] = mu_x_2 * E[i][j];
 
-                stress[i][j] += mu_x_2 * E[i][j];
-              }
+          for (unsigned int i = 0; i < dim; ++i)
+            stress[i][i] += lambda * trace;
 
           return stress;
         }
@@ -75,6 +73,8 @@ namespace Structural
 
   private:
     const TWO_DIM_TYPE                              two_dim_type;
+    const VectorizedArrayType                       lambda;
+    const VectorizedArrayType                       mu_x_2;
     Tensor<2, voigt_size<dim>, VectorizedArrayType> C;
   };
 } // namespace Structural
