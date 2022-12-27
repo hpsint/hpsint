@@ -1836,6 +1836,10 @@ namespace Sintering
                   }
               }
 
+            // Impose boundary conditions
+            if (do_mesh_refinement)
+              impose_boundary_conditions(t);
+
             // Set timesteps in order to update weights
             sintering_data.time_data.set_all_dt(dts);
 
