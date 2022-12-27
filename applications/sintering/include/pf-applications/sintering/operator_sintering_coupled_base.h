@@ -211,11 +211,12 @@ namespace Sintering
           }
     }
 
-    Tensor<2, Structural::voigt_size<dim>, VectorizedArrayType>
-    get_stress(
-      const Tensor<1, Structural::voigt_size<dim>, VectorizedArrayType> &E,
-      const VectorizedArrayType &c) const
+    Tensor<2, dim, VectorizedArrayType>
+    get_stress(const Tensor<2, dim, VectorizedArrayType> &H,
+               const VectorizedArrayType &                c) const
     {
+      const auto E = Structural::apply_l(H);
+
       // This is not thread-safe
       material.reinit(E);
 
@@ -225,7 +226,7 @@ namespace Sintering
         c, VectorizedArrayType(c_min), VectorizedArrayType(c_min), c);
       const auto C = cl * material.get_dSdE();
 
-      return C;
+      return Structural::apply_l_transposed<dim>(C * E);
     }
 
   protected:

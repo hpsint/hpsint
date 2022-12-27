@@ -251,9 +251,7 @@ namespace Sintering
 
           H += eps_inelastic_deriv;
 
-          const auto E = Structural::apply_l(H);
-          const auto C = this->get_stress(E, c);
-          const auto S = Structural::apply_l_transposed<dim>(C * E);
+          const auto S = this->get_stress(H, c);
 
           for (unsigned int d = 0; d < dim; d++)
             gradient_result[this->data.n_components() +
@@ -390,9 +388,7 @@ namespace Sintering
 
               H += eps_inelastic;
 
-              const auto E = Structural::apply_l(H);
-              const auto C = this->get_stress(E, c);
-              const auto S = Structural::apply_l_transposed<dim>(C * E);
+              const auto S = this->get_stress(H, c);
 
               for (unsigned int d = 0; d < dim; d++)
                 gradient_result[this->data.n_components() +
