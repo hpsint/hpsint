@@ -1257,7 +1257,7 @@ namespace NonLinearSolvers
     using BlockVectorType = typename JacobianBase<Number>::BlockVectorType;
 
     JacobianFree(const OperatorType &op,
-                 const std::string   step_length_algo = "BS")
+                 const std::string   step_length_algo = "pw")
       : op(op)
       , step_length_algo(step_length_algo)
     {}
@@ -1272,7 +1272,7 @@ namespace NonLinearSolvers
     vmult(BlockVectorType &dst, const BlockVectorType &src) const override
     {
       // 1) determine step length
-      double h = 1e-8;
+      value_type h = 1e-8;
 
       if (step_length_algo == "bs") // cost: 2r + global reduction
         {
@@ -1281,36 +1281,50 @@ namespace NonLinearSolvers
           const auto       a_l2_norm = src.l2_norm();
           const value_type u_min     = 1e-6;
 
-          if (std::abs(ua) > u_min * a_l1_norm)
+          if (a_l2_norm == 0)
+            h = 0.0;
+          else if (std::abs(ua) > u_min * a_l1_norm)
             h *= ua / (a_l2_norm * a_l2_norm);
           else
-            h *= u_min * (ua > 0.0 ? 1.0 : -1) * a_l1_norm /
+            h *= u_min * (ua >= 0.0 ? 1.0 : -1.0) * a_l1_norm /
                  (a_l2_norm * a_l2_norm);
         }
       else if (step_length_algo == "pw") // cost: 1r + global reduction
         {
-          h *= std::sqrt(1 + u_l2_norm) / src.l2_norm();
+          const auto a_l2_norm = src.l2_norm();
+
+          if (a_l2_norm == 0)
+            h = 0.0;
+          else
+            h *= std::sqrt(1.0 + u_l2_norm) / a_l2_norm;
         }
       else
         {
           AssertThrow(false, ExcNotImplemented());
         }
 
-      // 2) approximate Jacobian-vector product
-      //    cost: 3r + 2w
+      if (h == 0.0)
+        {
+          op.vmult(dst, src);
+        }
+      else
+        {
+          // 2) approximate Jacobian-vector product
+          //    cost: 3r + 2w
 
-      // 2a) perturb linerization point -> pre
-      u.add(h, src);
+          // 2a) perturb linerization point -> pre
+          u.add(h, src);
 
-      // 2b) evalute residual
-      op.evaluate_nonlinear_residual(dst, u);
+          // 2b) evalute residual
+          op.evaluate_nonlinear_residual(dst, u);
 
-      // 2c) take finite difference -> post
-      dst.add(-1.0, residual_u);
-      dst *= 1.0 / h;
+          // 2c) take finite difference -> post
+          dst.add(-1.0, residual_u);
+          dst *= 1.0 / h;
 
-      // 2d) cleanup -> post
-      u.add(-h, src);
+          // 2d) cleanup -> post
+          u.add(-h, src);
+        }
     }
 
     void
