@@ -1305,7 +1305,7 @@ namespace NonLinearSolvers
 
       if (h == 0.0)
         {
-          op.vmult(dst, src);
+          dst = 0.0;
         }
       else
         {
