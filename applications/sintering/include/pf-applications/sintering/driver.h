@@ -832,6 +832,17 @@ namespace Sintering
         params.material_data.mechanics_data.E,
         params.material_data.mechanics_data.nu);
 
+      std::unique_ptr<NonLinearSolvers::JacobianBase<Number>> jacobian_operator;
+
+      if (params.nonlinear_data.jacobi_free == false)
+        jacobian_operator = std::make_unique<
+          NonLinearSolvers::JacobianWrapper<Number, NonLinearOperator>>(
+          nonlinear_operator);
+      else
+        jacobian_operator = std::make_unique<
+          NonLinearSolvers::JacobianFree<Number, NonLinearOperator>>(
+          nonlinear_operator);
+
       // Save all blocks at quadrature points if either the advection mechanism
       // is enabled or the coupled diffusion based sintering operator is used
       const bool save_all_blocks =
@@ -884,23 +895,23 @@ namespace Sintering
 
       if (params.nonlinear_data.l_solver == "GMRES")
         linear_solver = std::make_unique<LinearSolvers::SolverGMRESWrapper<
-          NonLinearOperator,
+          NonLinearSolvers::JacobianBase<Number>,
           Preconditioners::PreconditionerBase<Number>>>(
-          nonlinear_operator,
+          *jacobian_operator,
           *preconditioner,
           solver_control_l,
           params.nonlinear_data.gmres_data);
       else if (params.nonlinear_data.l_solver == "IDR")
         linear_solver = std::make_unique<LinearSolvers::SolverIDRWrapper<
-          NonLinearOperator,
-          Preconditioners::PreconditionerBase<Number>>>(nonlinear_operator,
+          NonLinearSolvers::JacobianBase<Number>,
+          Preconditioners::PreconditionerBase<Number>>>(*jacobian_operator,
                                                         *preconditioner,
                                                         solver_control_l);
       else if (params.nonlinear_data.l_solver == "Bicgstab")
         linear_solver = std::make_unique<LinearSolvers::SolverBicgstabWrapper<
-          NonLinearOperator,
+          NonLinearSolvers::JacobianBase<Number>,
           Preconditioners::PreconditionerBase<Number>>>(
-          nonlinear_operator,
+          *jacobian_operator,
           *preconditioner,
           solver_control_l,
           params.nonlinear_data.l_bisgstab_tries);
@@ -1062,6 +1073,8 @@ namespace Sintering
                         }
                 }
           }
+
+        jacobian_operator->reinit(current_u);
       };
 
       // Lambda to update preconditioner
@@ -1330,8 +1343,8 @@ namespace Sintering
             };
 
           non_linear_solver.apply_jacobian =
-            [&nonlinear_operator](const auto &src, auto &dst) {
-              nonlinear_operator.vmult(dst, src);
+            [&jacobian_operator](const auto &src, auto &dst) {
+              jacobian_operator->vmult(dst, src);
               return 0;
             };
 

@@ -1180,4 +1180,181 @@ namespace NonLinearSolvers
     mutable unsigned int history_linear_iterations_last = 0;
     mutable unsigned int history_newton_iterations      = 0;
   };
+
+  template <typename Number>
+  class JacobianBase
+  {
+  public:
+    using value_type  = Number;
+    using vector_type = LinearAlgebra::distributed::Vector<Number>;
+    using VectorType  = vector_type;
+    using BlockVectorType =
+      LinearAlgebra::distributed::DynamicBlockVector<Number>;
+
+    virtual void
+    vmult(VectorType &dst, const VectorType &src) const = 0;
+
+    virtual void
+    vmult(BlockVectorType &dst, const BlockVectorType &src) const = 0;
+
+    virtual void
+    reinit(const VectorType &vec) = 0;
+
+    virtual void
+    reinit(const BlockVectorType &vec) = 0;
+  };
+
+  template <typename Number, typename OperatorType>
+  class JacobianWrapper : public JacobianBase<Number>
+  {
+  public:
+    using value_type      = typename JacobianBase<Number>::value_type;
+    using vector_type     = typename JacobianBase<Number>::vector_type;
+    using VectorType      = typename JacobianBase<Number>::VectorType;
+    using BlockVectorType = typename JacobianBase<Number>::BlockVectorType;
+
+    JacobianWrapper(const OperatorType &op)
+      : op(op)
+    {}
+
+    void
+    vmult(VectorType &dst, const VectorType &src) const override
+    {
+      op.vmult(dst, src);
+    }
+
+    void
+    vmult(BlockVectorType &dst, const BlockVectorType &src) const override
+    {
+      op.vmult(dst, src);
+    }
+
+    void
+    reinit(const VectorType &) override
+    {
+      // TODO: nothing to do, since done elsewhere dirictly on the
+      // operator
+    }
+
+    void
+    reinit(const BlockVectorType &) override
+    {
+      // TODO: nothing to do, since done elsewhere dirictly on the
+      // operator
+    }
+
+  private:
+    const OperatorType &op;
+  };
+
+  template <typename Number, typename OperatorType>
+  class JacobianFree : public JacobianBase<Number>
+  {
+  public:
+    using value_type      = typename JacobianBase<Number>::value_type;
+    using vector_type     = typename JacobianBase<Number>::vector_type;
+    using VectorType      = typename JacobianBase<Number>::VectorType;
+    using BlockVectorType = typename JacobianBase<Number>::BlockVectorType;
+
+    JacobianFree(const OperatorType &op,
+                 const std::string   step_length_algo = "pw")
+      : op(op)
+      , step_length_algo(step_length_algo)
+    {}
+
+    void
+    vmult(VectorType &, const VectorType &) const override
+    {
+      AssertThrow(false, ExcNotImplemented());
+    }
+
+    void
+    vmult(BlockVectorType &dst, const BlockVectorType &src) const override
+    {
+      // 1) determine step length
+      value_type h = 1e-8;
+
+      if (step_length_algo == "bs") // cost: 2r + global reduction
+        {
+          const auto       ua        = u * src;
+          const auto       a_l1_norm = src.l1_norm();
+          const auto       a_l2_norm = src.l2_norm();
+          const value_type u_min     = 1e-6;
+
+          if (a_l2_norm == 0)
+            h = 0.0;
+          else if (std::abs(ua) > u_min * a_l1_norm)
+            h *= ua / (a_l2_norm * a_l2_norm);
+          else
+            h *= u_min * (ua >= 0.0 ? 1.0 : -1.0) * a_l1_norm /
+                 (a_l2_norm * a_l2_norm);
+        }
+      else if (step_length_algo == "pw") // cost: 1r + global reduction
+        {
+          const auto a_l2_norm = src.l2_norm();
+
+          if (a_l2_norm == 0)
+            h = 0.0;
+          else
+            h *= std::sqrt(1.0 + u_l2_norm) / a_l2_norm;
+        }
+      else
+        {
+          AssertThrow(false, ExcNotImplemented());
+        }
+
+      if (h == 0.0)
+        {
+          dst = 0.0;
+        }
+      else
+        {
+          // 2) approximate Jacobian-vector product
+          //    cost: 3r + 2w
+
+          // 2a) perturb linerization point -> pre
+          u.add(h, src);
+
+          // 2b) evalute residual
+          op.evaluate_nonlinear_residual(dst, u);
+
+          // 2c) take finite difference -> post
+          dst.add(-1.0, residual_u);
+          dst *= 1.0 / h;
+
+          // 2d) cleanup -> post
+          u.add(-h, src);
+        }
+    }
+
+    void
+    reinit(const VectorType &) override
+    {
+      AssertThrow(false, ExcNotImplemented());
+    }
+
+    void
+    reinit(const BlockVectorType &u) override
+    {
+      this->u = u;
+
+      if (step_length_algo == "pw")
+        this->u_l2_norm = u.l2_norm();
+
+      this->residual_u.reinit(u);
+      op.evaluate_nonlinear_residual(this->residual_u, u);
+    }
+
+  private:
+    const OperatorType &op;
+    const std::string   step_length_algo;
+
+    mutable BlockVectorType u;
+    mutable BlockVectorType residual_u;
+
+    mutable value_type u_l2_norm;
+  };
+
+
+
 } // namespace NonLinearSolvers
