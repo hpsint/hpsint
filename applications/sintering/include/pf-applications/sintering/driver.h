@@ -834,7 +834,7 @@ namespace Sintering
 
       std::unique_ptr<NonLinearSolvers::JacobianBase<Number>> jacobian_operator;
 
-      if (true)
+      if (params.nonlinear_data.jacobi_free == false)
         jacobian_operator = std::make_unique<
           NonLinearSolvers::JacobianWrapper<Number, NonLinearOperator>>(
           nonlinear_operator);
