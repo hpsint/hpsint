@@ -1180,4 +1180,73 @@ namespace NonLinearSolvers
     mutable unsigned int history_linear_iterations_last = 0;
     mutable unsigned int history_newton_iterations      = 0;
   };
+
+  template <typename Number>
+  class JacobianBase
+  {
+  public:
+    using value_type  = Number;
+    using vector_type = LinearAlgebra::distributed::Vector<Number>;
+    using VectorType  = vector_type;
+    using BlockVectorType =
+      LinearAlgebra::distributed::DynamicBlockVector<Number>;
+
+    virtual void
+    vmult(VectorType &dst, const VectorType &src) const = 0;
+
+    virtual void
+    vmult(BlockVectorType &dst, const BlockVectorType &src) const = 0;
+
+    virtual void
+    reinit(const VectorType &vec) = 0;
+
+    virtual void
+    reinit(const BlockVectorType &vec) = 0;
+  };
+
+  template <typename Number, typename OperatorType>
+  class JacobianWrapper : public JacobianBase<Number>
+  {
+  public:
+    using value_type      = typename JacobianBase<Number>::value_type;
+    using vector_type     = typename JacobianBase<Number>::vector_type;
+    using VectorType      = typename JacobianBase<Number>::VectorType;
+    using BlockVectorType = typename JacobianBase<Number>::BlockVectorType;
+
+    JacobianWrapper(const OperatorType &op)
+      : op(op)
+    {}
+
+    void
+    vmult(VectorType &dst, const VectorType &src) const override
+    {
+      op.vmult(dst, src);
+    }
+
+    void
+    vmult(BlockVectorType &dst, const BlockVectorType &src) const override
+    {
+      op.vmult(dst, src);
+    }
+
+    void
+    reinit(const VectorType &) override
+    {
+      // TODO: nothing to do, since done elsewhere dirictly on the
+      // operator
+    }
+
+    void
+    reinit(const BlockVectorType &) override
+    {
+      // TODO: nothing to do, since done elsewhere dirictly on the
+      // operator
+    }
+
+  private:
+    const OperatorType &op;
+  };
+
+
+
 } // namespace NonLinearSolvers
