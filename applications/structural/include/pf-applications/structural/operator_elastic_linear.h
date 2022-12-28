@@ -136,14 +136,7 @@ namespace Structural
       for (unsigned int q = 0; q < phi.n_q_points; ++q)
         {
           const auto grad = phi.get_gradient(q);
-
-          const auto E = apply_l(grad);
-
-          // update material
-          material.reinit(E);
-
-          const auto C = material.get_dSdE();
-          const auto S = apply_l_transposed<dim>(C * E);
+          const auto S    = material.get_S(grad);
 
           phi.submit_gradient(S, q);
           phi.submit_value(zero_result, q);
@@ -283,14 +276,9 @@ namespace Structural
 
           for (unsigned int q = 0; q < phi.n_q_points; ++q)
             {
-              const auto C = material.get_dSdE();
-
               const auto grad = phi.get_gradient(q);
-              const auto E    = apply_l(grad);
-              // update material
-              material.reinit(E);
 
-              const auto S = apply_l_transposed<dim>(C * E);
+              const auto S = material.get_S(grad);
 
               phi.submit_gradient(S, q);
 
