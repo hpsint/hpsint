@@ -236,6 +236,8 @@ public:
 
     non_linear_solver->residual = [&](const auto &src, auto &dst) {
       nonlinear_operator.evaluate_nonlinear_residual(dst, src);
+
+      statistics.increment_residual_evaluations(1);
     };
 
     non_linear_solver->setup_jacobian = [&](const auto &current_u) {
@@ -250,6 +252,8 @@ public:
 
     non_linear_solver->solve_with_jacobian = [&](const auto &src, auto &dst) {
       const unsigned int n_iterations = linear_solver->solve(dst, src);
+
+      statistics.increment_linear_iterations(n_iterations);
 
       return n_iterations;
     };
