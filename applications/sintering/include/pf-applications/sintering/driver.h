@@ -1637,6 +1637,16 @@ namespace Sintering
                   [&](auto &sol) { grain_tracker.remap(sol); });
               }
 
+            // We need to call track again if advection mechanism is used
+            // in order to keep op_particle_ids in sync
+            if (params.advection_data.enable)
+              {
+                const bool skip_reassignment = false;
+                grain_tracker.track(solution,
+                                    sintering_data.n_grains(),
+                                    skip_reassignment);
+              }
+
             output_result(solution, nonlinear_operator, t, "remap");
           }
 
