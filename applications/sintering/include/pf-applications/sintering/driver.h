@@ -954,7 +954,7 @@ namespace Sintering
         params.nonlinear_data.nl_rel_tol);
 
       // Lambda to compute residual
-      auto nl_residual = [&](const auto &src, auto &dst) {
+      const auto nl_residual = [&](const auto &src, auto &dst) {
         MyScope scope(timer, "time_loop::newton::residual");
 
         // Compute forces
@@ -967,97 +967,91 @@ namespace Sintering
       };
 
       // Lambda to set up jacobian
-      auto nl_setup_jacobian = [&](const auto &current_u) {
-        if (true)
+      const auto nl_setup_jacobian = [&](const auto &current_u) {
+        MyScope scope(timer, "time_loop::newton::setup_jacobian");
+
+        sintering_data.fill_quadrature_point_values(
+          matrix_free,
+          current_u,
+          params.advection_data.enable,
+          save_all_blocks);
+
+        // TODO disable this feature for a while, fix later
+        // nonlinear_operator.update_state(current_u);
+
+        nonlinear_operator.do_update();
+
+        if (params.nonlinear_data.fdm_jacobian_approximation)
           {
-            MyScope scope(timer, "time_loop::newton::setup_jacobian");
+            AssertThrow(params.matrix_based, ExcNotImplemented());
 
-            sintering_data.fill_quadrature_point_values(
-              matrix_free,
-              current_u,
-              params.advection_data.enable,
-              save_all_blocks);
+            const double epsilon   = 1e-7;
+            const double tolerance = 1e-12;
 
-            // TODO disable this feature for a while, fix later
-            // nonlinear_operator.update_state(current_u);
+            auto &system_matrix = nonlinear_operator.get_system_matrix();
 
-            nonlinear_operator.do_update();
+            const unsigned int n_blocks = current_u.n_blocks();
 
-            if (params.nonlinear_data.fdm_jacobian_approximation)
-              {
-                AssertThrow(params.matrix_based, ExcNotImplemented());
+            // for (unsigned int b = 0; b < n_blocks; ++b)
+            //  for (unsigned int i = 0; i < current_u.block(b).size();
+            //  ++i)
+            //    if(constraints.is_constrained (i))
+            //                system_matrix.set(b + i * n_blocks,
+            //                                  b + i * n_blocks,
+            //                                  1.0);
 
-                const double epsilon   = 1e-7;
-                const double tolerance = 1e-12;
+            system_matrix = 0.0;
 
-                auto &system_matrix = nonlinear_operator.get_system_matrix();
+            VectorType src, dst, dst_;
+            src.reinit(current_u);
+            dst.reinit(current_u);
+            dst_.reinit(current_u);
 
-                const unsigned int n_blocks = current_u.n_blocks();
+            src.copy_locally_owned_data_from(current_u);
 
-                // for (unsigned int b = 0; b < n_blocks; ++b)
-                //  for (unsigned int i = 0; i < current_u.block(b).size();
-                //  ++i)
-                //    if(constraints.is_constrained (i))
-                //                system_matrix.set(b + i * n_blocks,
-                //                                  b + i * n_blocks,
-                //                                  1.0);
+            nl_residual(src, dst_);
 
-                system_matrix = 0.0;
+            const auto locally_owned_dofs = dof_handler.locally_owned_dofs();
 
-                VectorType src, dst, dst_;
-                src.reinit(current_u);
-                dst.reinit(current_u);
-                dst_.reinit(current_u);
+            for (unsigned int b = 0; b < n_blocks; ++b)
+              for (unsigned int i = 0; i < current_u.block(b).size(); ++i)
+                {
+                  if (locally_owned_dofs.is_element(i))
+                    src.block(b)[i] += epsilon;
 
-                src.copy_locally_owned_data_from(current_u);
+                  nl_residual(src, dst);
 
-                nl_residual(src, dst_);
+                  if (locally_owned_dofs.is_element(i))
+                    src.block(b)[i] -= epsilon;
 
-                const auto locally_owned_dofs =
-                  dof_handler.locally_owned_dofs();
-
-                for (unsigned int b = 0; b < n_blocks; ++b)
-                  for (unsigned int i = 0; i < current_u.block(b).size(); ++i)
-                    {
-                      if (locally_owned_dofs.is_element(i))
-                        src.block(b)[i] += epsilon;
-
-                      nl_residual(src, dst);
-
-                      if (locally_owned_dofs.is_element(i))
-                        src.block(b)[i] -= epsilon;
-
-                      for (unsigned int b_ = 0; b_ < n_blocks; ++b_)
-                        for (unsigned int i_ = 0;
-                             i_ < current_u.block(b).size();
-                             ++i_)
-                          if (locally_owned_dofs.is_element(i_))
+                  for (unsigned int b_ = 0; b_ < n_blocks; ++b_)
+                    for (unsigned int i_ = 0; i_ < current_u.block(b).size();
+                         ++i_)
+                      if (locally_owned_dofs.is_element(i_))
+                        {
+                          if (nonlinear_operator.get_sparsity_pattern().exists(
+                                b_ + i_ * n_blocks, b + i * n_blocks))
                             {
-                              if (nonlinear_operator.get_sparsity_pattern()
-                                    .exists(b_ + i_ * n_blocks,
-                                            b + i * n_blocks))
-                                {
-                                  const Number value =
-                                    (dst.block(b_)[i_] - dst_.block(b_)[i_]) /
-                                    epsilon;
+                              const Number value =
+                                (dst.block(b_)[i_] - dst_.block(b_)[i_]) /
+                                epsilon;
 
-                                  if (std::abs(value) > tolerance)
-                                    system_matrix.set(b_ + i_ * n_blocks,
-                                                      b + i * n_blocks,
-                                                      value);
-                                  else if ((b == b_) && (i == i_))
-                                    system_matrix.set(b_ + i_ * n_blocks,
-                                                      b + i * n_blocks,
-                                                      1.0);
-                                }
+                              if (std::abs(value) > tolerance)
+                                system_matrix.set(b_ + i_ * n_blocks,
+                                                  b + i * n_blocks,
+                                                  value);
+                              else if ((b == b_) && (i == i_))
+                                system_matrix.set(b_ + i_ * n_blocks,
+                                                  b + i * n_blocks,
+                                                  1.0);
                             }
-                    }
-              }
+                        }
+                }
           }
       };
 
       // Lambda to update preconditioner
-      auto nl_setup_preconditioner = [&](const auto &current_u) {
+      const auto nl_setup_preconditioner = [&](const auto &current_u) {
         MyScope scope(timer, "time_loop::newton::setup_preconditioner");
 
         if (transfer) // update multigrid levels
@@ -1107,7 +1101,7 @@ namespace Sintering
       };
 
       // Lambda to solve system using jacobian
-      auto nl_solve_with_jacobian = [&](const auto &src, auto &dst) {
+      const auto nl_solve_with_jacobian = [&](const auto &src, auto &dst) {
         MyScope scope(timer, "time_loop::newton::solve_with_jacobian");
 
         // note: we mess with the input here, since we know that Newton does not
@@ -1147,10 +1141,10 @@ namespace Sintering
 
       unsigned int previous_linear_iter = 0;
 
-      auto nl_check_iteration_status = [&](const auto  step,
-                                           const auto  check_value,
-                                           const auto &x,
-                                           auto &      r) {
+      const auto nl_check_iteration_status = [&](const auto  step,
+                                                 const auto  check_value,
+                                                 const auto &x,
+                                                 auto &      r) {
         (void)x;
 
         const double check_value_ch =
