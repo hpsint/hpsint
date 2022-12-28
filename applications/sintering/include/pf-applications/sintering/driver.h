@@ -838,6 +838,10 @@ namespace Sintering
         jacobian_operator = std::make_unique<
           NonLinearSolvers::JacobianWrapper<Number, NonLinearOperator>>(
           nonlinear_operator);
+      else
+        jacobian_operator = std::make_unique<
+          NonLinearSolvers::JacobianFree<Number, NonLinearOperator>>(
+          nonlinear_operator);
 
       // Save all blocks at quadrature points if either the advection mechanism
       // is enabled or the coupled diffusion based sintering operator is used

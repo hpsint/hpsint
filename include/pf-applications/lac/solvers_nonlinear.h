@@ -1247,6 +1247,49 @@ namespace NonLinearSolvers
     const OperatorType &op;
   };
 
+  template <typename Number, typename OperatorType>
+  class JacobianFree : public JacobianBase<Number>
+  {
+  public:
+    using value_type      = typename JacobianBase<Number>::value_type;
+    using vector_type     = typename JacobianBase<Number>::vector_type;
+    using VectorType      = typename JacobianBase<Number>::VectorType;
+    using BlockVectorType = typename JacobianBase<Number>::BlockVectorType;
+
+    JacobianFree(const OperatorType &op)
+      : op(op)
+    {}
+
+    void
+    vmult(VectorType &dst, const VectorType &src) const override
+    {
+      op.vmult(dst, src);
+    }
+
+    void
+    vmult(BlockVectorType &dst, const BlockVectorType &src) const override
+    {
+      op.vmult(dst, src);
+    }
+
+    void
+    reinit(const VectorType &) override
+    {
+      // TODO: nothing to do, since done elsewhere dirictly on the
+      // operator
+    }
+
+    void
+    reinit(const BlockVectorType &) override
+    {
+      // TODO: nothing to do, since done elsewhere dirictly on the
+      // operator
+    }
+
+  private:
+    const OperatorType &op;
+  };
+
 
 
 } // namespace NonLinearSolvers
