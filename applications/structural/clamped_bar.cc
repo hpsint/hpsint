@@ -28,6 +28,7 @@
 
 #include <pf-applications/lac/preconditioners.h>
 #include <pf-applications/lac/solvers_linear.h>
+#include <pf-applications/lac/solvers_linear_parameters.h>
 #include <pf-applications/lac/solvers_nonlinear.h>
 
 #include <pf-applications/numerics/data_out.h>
@@ -201,11 +202,15 @@ public:
 
     auto preconditioner = Preconditioners::create(nonlinear_operator, "ILU");
 
+    LinearSolvers::GMRESData gmres_data;
+    gmres_data.orthogonalization_strategy = "modified gram schmidt";
+
     auto linear_solver = std::make_unique<LinearSolvers::SolverGMRESWrapper<
       NonLinearOperator,
       Preconditioners::PreconditionerBase<Number>>>(nonlinear_operator,
                                                     *preconditioner,
-                                                    solver_control_l);
+                                                    solver_control_l,
+                                                    gmres_data);
 
     const unsigned int                          nl_max_iter = 100;
     const double                                nl_abs_tol  = 1e-9;
@@ -236,6 +241,8 @@ public:
 
     non_linear_solver->residual = [&](const auto &src, auto &dst) {
       nonlinear_operator.evaluate_nonlinear_residual(dst, src);
+
+      statistics.increment_residual_evaluations(1);
     };
 
     non_linear_solver->setup_jacobian = [&](const auto &current_u) {
@@ -250,6 +257,8 @@ public:
 
     non_linear_solver->solve_with_jacobian = [&](const auto &src, auto &dst) {
       const unsigned int n_iterations = linear_solver->solve(dst, src);
+
+      statistics.increment_linear_iterations(n_iterations);
 
       return n_iterations;
     };
