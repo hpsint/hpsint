@@ -28,6 +28,7 @@
 
 #include <pf-applications/lac/preconditioners.h>
 #include <pf-applications/lac/solvers_linear.h>
+#include <pf-applications/lac/solvers_linear_parameters.h>
 #include <pf-applications/lac/solvers_nonlinear.h>
 
 #include <pf-applications/numerics/data_out.h>
@@ -366,11 +367,15 @@ public:
 
     auto preconditioner = Preconditioners::create(nonlinear_operator, "ILU");
 
+    LinearSolvers::GMRESData gmres_data;
+    gmres_data.orthogonalization_strategy = "modified gram schmidt";
+
     auto linear_solver = std::make_unique<LinearSolvers::SolverGMRESWrapper<
       NonLinearOperator,
       Preconditioners::PreconditionerBase<Number>>>(nonlinear_operator,
                                                     *preconditioner,
-                                                    solver_control_l);
+                                                    solver_control_l,
+                                                    gmres_data);
 
     const unsigned int                          nl_max_iter = 100;
     const double                                nl_abs_tol  = 1e-9;
