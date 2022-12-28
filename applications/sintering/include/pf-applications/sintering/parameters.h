@@ -233,9 +233,11 @@ namespace Sintering
     double nl_abs_tol  = 1.e-20;
     double nl_rel_tol  = 1.e-5;
 
-    int    l_max_iter = 1000;
-    double l_abs_tol  = 1.e-10;
-    double l_rel_tol  = 1.e-2;
+    int          l_max_iter       = 1000;
+    double       l_abs_tol        = 1.e-10;
+    double       l_rel_tol        = 1.e-2;
+    std::string  l_solver         = "GMRES";
+    unsigned int l_bisgstab_tries = 30;
 
     bool         newton_do_update             = true;
     unsigned int newton_threshold_newton_iter = 100;
@@ -726,6 +728,14 @@ namespace Sintering
       prm.add_parameter("LinearAbsoluteTolerance", nonlinear_data.l_abs_tol);
       prm.add_parameter("LinearRelativeTolerance", nonlinear_data.l_rel_tol);
       prm.add_parameter("NewtonDoUpdate", nonlinear_data.newton_do_update);
+      prm.add_parameter("LinearSolver",
+                        nonlinear_data.l_solver,
+                        "Name of linear solver.",
+                        Patterns::Selection("GMRES|IDR|Bicgstab"));
+      prm.add_parameter("LinearSolver",
+                        nonlinear_data.l_bisgstab_tries,
+                        "Number of Bicgstab before switching to GMRES.");
+
       prm.add_parameter("NewtonThresholdNewtonIterations",
                         nonlinear_data.newton_threshold_newton_iter);
       prm.add_parameter("NewtonThresholdLinearIterations",
