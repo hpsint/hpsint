@@ -372,6 +372,14 @@ namespace dealii
           return MyMemoryConsumption::memory_consumption(blocks);
         }
 
+        void
+        swap(DynamicBlockVector &V)
+        {
+          std::swap(this->block_counter, V.block_counter);
+          std::swap(this->blocks, V.blocks);
+          std::swap(this->size_, V.size_);
+        }
+
       private:
         unsigned int                            block_counter;
         std::vector<std::shared_ptr<BlockType>> blocks;

@@ -882,7 +882,7 @@ namespace Sintering
 
       std::unique_ptr<LinearSolvers::LinearSolverBase<Number>> linear_solver;
 
-      if (true)
+      if (params.nonlinear_data.l_solver == "GMRES")
         linear_solver = std::make_unique<LinearSolvers::SolverGMRESWrapper<
           NonLinearOperator,
           Preconditioners::PreconditionerBase<Number>>>(
@@ -890,6 +890,20 @@ namespace Sintering
           *preconditioner,
           solver_control_l,
           params.nonlinear_data.gmres_data);
+      else if (params.nonlinear_data.l_solver == "IDR")
+        linear_solver = std::make_unique<LinearSolvers::SolverIDRWrapper<
+          NonLinearOperator,
+          Preconditioners::PreconditionerBase<Number>>>(nonlinear_operator,
+                                                        *preconditioner,
+                                                        solver_control_l);
+      else if (params.nonlinear_data.l_solver == "Bicgstab")
+        linear_solver = std::make_unique<LinearSolvers::SolverBicgstabWrapper<
+          NonLinearOperator,
+          Preconditioners::PreconditionerBase<Number>>>(
+          nonlinear_operator,
+          *preconditioner,
+          solver_control_l,
+          params.nonlinear_data.l_bisgstab_tries);
 
       MyTimerOutput timer;
       TimerCollection::configure(params.profiling_data.output_time_interval);
