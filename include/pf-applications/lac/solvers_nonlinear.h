@@ -1271,6 +1271,8 @@ namespace NonLinearSolvers
     void
     vmult(BlockVectorType &dst, const BlockVectorType &src) const override
     {
+      MyScope scope(timer, "jacobi_free::vmult");
+
       // 1) determine step length
       value_type h = 1e-8;
 
@@ -1310,7 +1312,7 @@ namespace NonLinearSolvers
       else
         {
           // 2) approximate Jacobian-vector product
-          //    cost: 3r + 2w
+          //    cost: 4r + 2w
 
           // 2a) perturb linerization point -> pre
           u.add(h, src);
@@ -1336,6 +1338,8 @@ namespace NonLinearSolvers
     void
     reinit(const BlockVectorType &u) override
     {
+      MyScope scope(timer, "jacobi_free::reinit");
+
       this->u = u;
 
       if (step_length_algo == "pw")
@@ -1353,6 +1357,8 @@ namespace NonLinearSolvers
     mutable BlockVectorType residual_u;
 
     mutable value_type u_l2_norm;
+
+    mutable MyTimerOutput timer;
   };
 
 
