@@ -8,9 +8,9 @@ namespace Structural
   class StVenantKirchhoff : public Material<dim, VectorizedArrayType>
   {
   public:
-    StVenantKirchhoff(Number       E,
-                      Number       nu,
-                      TWO_DIM_TYPE two_dim_type = TWO_DIM_TYPE::NONE)
+    StVenantKirchhoff(Number            E,
+                      Number            nu,
+                      MaterialPlaneType two_dim_type = MaterialPlaneType::none)
 
       : two_dim_type(two_dim_type)
       , lambda(E * nu / (1 + nu) / (1 - (dim - 1) * nu))
@@ -18,17 +18,17 @@ namespace Structural
     {
       const VectorizedArrayType f0 =
         dim == 3 ? E * (1 - nu) / (1 + nu) / (1 - 2 * nu) :
-                   (two_dim_type == TWO_DIM_TYPE::PLAIN_STRESS ?
+                   (two_dim_type == MaterialPlaneType::plane_stress ?
                       E * (1) / (1 - nu * nu) :
                       E * (1 - nu) / (1 + nu) / (1 - 2 * nu));
       const VectorizedArrayType f1 =
         dim == 3 ? E * (nu) / (1 + nu) / (1 - 2 * nu) :
-                   (two_dim_type == TWO_DIM_TYPE::PLAIN_STRESS ?
+                   (two_dim_type == MaterialPlaneType::plane_stress ?
                       E * (nu) / (1 - nu * nu) :
                       E * (nu) / (1 + nu) / (1 - 2 * nu));
       const VectorizedArrayType f2 =
         dim == 3 ? E * (1 - 2 * nu) / 2 / (1 + nu) / (1 - 2 * nu) :
-                   (two_dim_type == TWO_DIM_TYPE::PLAIN_STRESS ?
+                   (two_dim_type == MaterialPlaneType::plane_stress ?
                       E * (1 - nu) / 2 / (1 - nu * nu) :
                       E * (1 - 2 * nu) / 2 / (1 + nu) / (1 - 2 * nu));
 
@@ -46,7 +46,7 @@ namespace Structural
     Tensor<2, dim, VectorizedArrayType>
     get_S(const Tensor<2, dim, VectorizedArrayType> &E) const override
     {
-      if (dim == 3 || two_dim_type == TWO_DIM_TYPE::NONE)
+      if (dim == 3 || two_dim_type == MaterialPlaneType::none)
         {
           Tensor<2, dim, VectorizedArrayType> stress;
 
@@ -72,7 +72,7 @@ namespace Structural
     }
 
   private:
-    const TWO_DIM_TYPE                              two_dim_type;
+    const MaterialPlaneType                         two_dim_type;
     const VectorizedArrayType                       lambda;
     const VectorizedArrayType                       mu_x_2;
     Tensor<2, voigt_size<dim>, VectorizedArrayType> C;
