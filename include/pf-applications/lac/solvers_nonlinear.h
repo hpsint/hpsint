@@ -1256,38 +1256,89 @@ namespace NonLinearSolvers
     using VectorType      = typename JacobianBase<Number>::VectorType;
     using BlockVectorType = typename JacobianBase<Number>::BlockVectorType;
 
-    JacobianFree(const OperatorType &op)
+    JacobianFree(const OperatorType &op,
+                 const std::string   step_length_algo = "BS")
       : op(op)
+      , step_length_algo(step_length_algo)
     {}
 
     void
-    vmult(VectorType &dst, const VectorType &src) const override
+    vmult(VectorType &, const VectorType &) const override
     {
-      op.vmult(dst, src);
+      AssertThrow(false, ExcNotImplemented());
     }
 
     void
     vmult(BlockVectorType &dst, const BlockVectorType &src) const override
     {
-      op.vmult(dst, src);
+      // 1) determine step length
+      double h = 1e-8;
+
+      if (step_length_algo == "bs") // cost: 2r + global reduction
+        {
+          const auto       ua        = u * src;
+          const auto       a_l1_norm = src.l1_norm();
+          const auto       a_l2_norm = src.l2_norm();
+          const value_type u_min     = 1e-6;
+
+          if (std::abs(ua) > u_min * a_l1_norm)
+            h *= ua / (a_l2_norm * a_l2_norm);
+          else
+            h *= u_min * (ua > 0.0 ? 1.0 : -1) * a_l1_norm /
+                 (a_l2_norm * a_l2_norm);
+        }
+      else if (step_length_algo == "pw") // cost: 1r + global reduction
+        {
+          h *= std::sqrt(1 + u_l2_norm) / src.l2_norm();
+        }
+      else
+        {
+          AssertThrow(false, ExcNotImplemented());
+        }
+
+      // 2) approximate Jacobian-vector product
+      //    cost: 3r + 2w
+
+      // 2a) perturb linerization point -> pre
+      u.add(h, src);
+
+      // 2b) evalute residual
+      op.evaluate_nonlinear_residual(dst, u);
+
+      // 2c) take finite difference -> post
+      dst.add(-1.0, residual_u);
+      dst *= 1.0 / h;
+
+      // 2d) cleanup -> post
+      u.add(-h, src);
     }
 
     void
     reinit(const VectorType &) override
     {
-      // TODO: nothing to do, since done elsewhere dirictly on the
-      // operator
+      AssertThrow(false, ExcNotImplemented());
     }
 
     void
-    reinit(const BlockVectorType &) override
+    reinit(const BlockVectorType &u) override
     {
-      // TODO: nothing to do, since done elsewhere dirictly on the
-      // operator
+      this->u = u;
+
+      if (step_length_algo == "pw")
+        this->u_l2_norm = u.l2_norm();
+
+      this->residual_u.reinit(u);
+      op.evaluate_nonlinear_residual(this->residual_u, u);
     }
 
   private:
     const OperatorType &op;
+    const std::string   step_length_algo;
+
+    mutable BlockVectorType u;
+    mutable BlockVectorType residual_u;
+
+    mutable value_type u_l2_norm;
   };
 
 
