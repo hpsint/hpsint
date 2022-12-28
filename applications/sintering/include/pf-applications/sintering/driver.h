@@ -832,6 +832,8 @@ namespace Sintering
         params.material_data.mechanics_data.E,
         params.material_data.mechanics_data.nu);
 
+      auto &jacobian_operator = nonlinear_operator;
+
       // Save all blocks at quadrature points if either the advection mechanism
       // is enabled or the coupled diffusion based sintering operator is used
       const bool save_all_blocks =
@@ -886,21 +888,21 @@ namespace Sintering
         linear_solver = std::make_unique<LinearSolvers::SolverGMRESWrapper<
           NonLinearOperator,
           Preconditioners::PreconditionerBase<Number>>>(
-          nonlinear_operator,
+          jacobian_operator,
           *preconditioner,
           solver_control_l,
           params.nonlinear_data.gmres_data);
       else if (params.nonlinear_data.l_solver == "IDR")
         linear_solver = std::make_unique<LinearSolvers::SolverIDRWrapper<
           NonLinearOperator,
-          Preconditioners::PreconditionerBase<Number>>>(nonlinear_operator,
+          Preconditioners::PreconditionerBase<Number>>>(jacobian_operator,
                                                         *preconditioner,
                                                         solver_control_l);
       else if (params.nonlinear_data.l_solver == "Bicgstab")
         linear_solver = std::make_unique<LinearSolvers::SolverBicgstabWrapper<
           NonLinearOperator,
           Preconditioners::PreconditionerBase<Number>>>(
-          nonlinear_operator,
+          jacobian_operator,
           *preconditioner,
           solver_control_l,
           params.nonlinear_data.l_bisgstab_tries);
@@ -1330,8 +1332,8 @@ namespace Sintering
             };
 
           non_linear_solver.apply_jacobian =
-            [&nonlinear_operator](const auto &src, auto &dst) {
-              nonlinear_operator.vmult(dst, src);
+            [&jacobian_operator](const auto &src, auto &dst) {
+              jacobian_operator.vmult(dst, src);
               return 0;
             };
 
