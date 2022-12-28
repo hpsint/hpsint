@@ -12,25 +12,26 @@ namespace Structural
                       Number       nu,
                       TWO_DIM_TYPE two_dim_type = TWO_DIM_TYPE::NONE)
 
-      : f0(make_vectorized_array<typename VectorizedArrayType::value_type,
-                                 VectorizedArrayType::size()>(
-          dim == 3 ? E * (1 - nu) / (1 + nu) / (1 - 2 * nu) :
-                     (two_dim_type == TWO_DIM_TYPE::PLAIN_STRESS ?
-                        E * (1) / (1 - nu * nu) :
-                        E * (1 - nu) / (1 + nu) / (1 - 2 * nu))))
-      , f1(make_vectorized_array<typename VectorizedArrayType::value_type,
-                                 VectorizedArrayType::size()>(
-          dim == 3 ? E * (nu) / (1 + nu) / (1 - 2 * nu) :
-                     (two_dim_type == TWO_DIM_TYPE::PLAIN_STRESS ?
-                        E * (nu) / (1 - nu * nu) :
-                        E * (nu) / (1 + nu) / (1 - 2 * nu))))
-      , f2(make_vectorized_array<typename VectorizedArrayType::value_type,
-                                 VectorizedArrayType::size()>(
-          dim == 3 ? E * (1 - 2 * nu) / 2 / (1 + nu) / (1 - 2 * nu) :
-                     (two_dim_type == TWO_DIM_TYPE::PLAIN_STRESS ?
-                        E * (1 - nu) / 2 / (1 - nu * nu) :
-                        E * (1 - 2 * nu) / 2 / (1 + nu) / (1 - 2 * nu))))
+      : two_dim_type(two_dim_type)
+      , lambda(E * nu / (1 + nu) / (1 - (dim - 1) * nu))
+      , mu_x_2(E / (1 + nu))
     {
+      const VectorizedArrayType f0 =
+        dim == 3 ? E * (1 - nu) / (1 + nu) / (1 - 2 * nu) :
+                   (two_dim_type == TWO_DIM_TYPE::PLAIN_STRESS ?
+                      E * (1) / (1 - nu * nu) :
+                      E * (1 - nu) / (1 + nu) / (1 - 2 * nu));
+      const VectorizedArrayType f1 =
+        dim == 3 ? E * (nu) / (1 + nu) / (1 - 2 * nu) :
+                   (two_dim_type == TWO_DIM_TYPE::PLAIN_STRESS ?
+                      E * (nu) / (1 - nu * nu) :
+                      E * (nu) / (1 + nu) / (1 - 2 * nu));
+      const VectorizedArrayType f2 =
+        dim == 3 ? E * (1 - 2 * nu) / 2 / (1 + nu) / (1 - 2 * nu) :
+                   (two_dim_type == TWO_DIM_TYPE::PLAIN_STRESS ?
+                      E * (1 - nu) / 2 / (1 - nu * nu) :
+                      E * (1 - 2 * nu) / 2 / (1 + nu) / (1 - 2 * nu));
+
       for (unsigned int i = 0; i < dim; i++)
         for (unsigned int j = 0; j < dim; j++)
           if (i == j)
@@ -42,31 +43,38 @@ namespace Structural
         C[i][i] = f2;
     }
 
-    void
-    reinit(const Tensor<1, voigt_size<dim>, VectorizedArrayType> &E_in)
-      const override
+    Tensor<2, dim, VectorizedArrayType>
+    get_S(const Tensor<2, dim, VectorizedArrayType> &E) const override
     {
-      E = E_in;
-    }
+      if (dim == 3 || two_dim_type == TWO_DIM_TYPE::NONE)
+        {
+          Tensor<2, dim, VectorizedArrayType> stress;
 
-    Tensor<1, voigt_size<dim>, VectorizedArrayType>
-    get_S() const override
-    {
-      return C * E;
-    }
+          VectorizedArrayType trace = E[0][0];
 
-    const Tensor<2, voigt_size<dim>, VectorizedArrayType>
-    get_dSdE() const override
-    {
-      return C;
+          for (unsigned int i = 1; i < dim; ++i)
+            trace += E[i][i];
+
+          for (unsigned int i = 0; i < dim; ++i)
+            for (unsigned int j = 0; j < dim; ++j)
+              stress[i][j] = mu_x_2 * E[i][j];
+
+          for (unsigned int i = 0; i < dim; ++i)
+            stress[i][i] += lambda * trace;
+
+          return stress;
+        }
+      else
+        {
+          return Structural::apply_l_transposed<dim>(C *
+                                                     Structural::apply_l(E));
+        }
     }
 
   private:
-    const VectorizedArrayType f0;
-    const VectorizedArrayType f1;
-    const VectorizedArrayType f2;
-
-    mutable Tensor<2, voigt_size<dim>, VectorizedArrayType> C;
-    mutable Tensor<1, voigt_size<dim>, VectorizedArrayType> E;
+    const TWO_DIM_TYPE                              two_dim_type;
+    const VectorizedArrayType                       lambda;
+    const VectorizedArrayType                       mu_x_2;
+    Tensor<2, voigt_size<dim>, VectorizedArrayType> C;
   };
 } // namespace Structural
