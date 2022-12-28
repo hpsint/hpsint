@@ -76,7 +76,9 @@ namespace GrainTracker
      * number of active order parameters has been changed.
      */
     std::tuple<bool, bool>
-    track(const BlockVectorType &solution, const unsigned int n_order_params)
+    track(const BlockVectorType &solution,
+          const unsigned int     n_order_params,
+          const bool             skip_reassignment = false)
     {
       // Copy old grains
       old_grains = grains;
@@ -215,21 +217,33 @@ namespace GrainTracker
             }
         }
 
-      /* For tracking we want the grains assigned to the same order parameter to
-       * be as far from each other as possible to reduce the number of costly
-       * grains reassignment.
-       */
-      const bool force_reassignment = false;
+      // Variables to return the result
+      bool grains_reassigned = false;
+      bool op_number_changed = false;
 
-      // Reassign grains
-      const bool grains_reassigned = reassign_grains(force_reassignment);
+      if (skip_reassignment == false)
+        {
+          /* For tracking we want the grains assigned to the same order
+           * parameter to be as far from each other as possible to reduce the
+           * number of costly grains reassignment.
+           */
+          const bool force_reassignment = false;
 
-      // Check if number of order parameters has changed
-      bool op_number_changed =
-        (active_order_parameters.size() !=
-           build_old_order_parameter_ids(grains).size() ||
-         active_order_parameters.size() !=
-           build_active_order_parameter_ids(old_grains).size());
+          // Reassign grains
+          grains_reassigned = reassign_grains(force_reassignment);
+
+          // Check if number of order parameters has changed
+          op_number_changed =
+            (active_order_parameters.size() !=
+               build_old_order_parameter_ids(grains).size() ||
+             active_order_parameters.size() !=
+               build_active_order_parameter_ids(old_grains).size());
+        }
+      else
+        {
+          // Build active order parameters
+          active_order_parameters = build_active_order_parameter_ids(grains);
+        }
 
       return std::make_tuple(grains_reassigned, op_number_changed);
     }
