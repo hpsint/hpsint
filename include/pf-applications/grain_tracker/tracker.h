@@ -54,6 +54,7 @@ namespace GrainTracker
             const parallel::TriangulationBase<dim> &tria,
             const bool                              greedy_init,
             const bool                              allow_new_grains,
+            const bool                              fast_reassignment,
             const unsigned int                      max_order_parameters_num,
             const double                            threshold_lower = 0.01,
             const double                            threshold_upper = 1.01,
@@ -63,6 +64,7 @@ namespace GrainTracker
       , tria(tria)
       , greedy_init(greedy_init)
       , allow_new_grains(allow_new_grains)
+      , fast_reassignment(fast_reassignment)
       , max_order_parameters_num(max_order_parameters_num)
       , threshold_lower(threshold_lower)
       , threshold_upper(threshold_upper)
@@ -230,7 +232,8 @@ namespace GrainTracker
           const bool force_reassignment = false;
 
           // Reassign grains
-          grains_reassigned = reassign_grains(force_reassignment);
+          grains_reassigned =
+            reassign_grains(force_reassignment, fast_reassignment);
 
           // Check if number of order parameters has changed
           op_number_changed =
@@ -268,7 +271,8 @@ namespace GrainTracker
       const bool force_reassignment = greedy_init;
 
       // Reassign grains
-      const bool grains_reassigned = reassign_grains(force_reassignment);
+      const bool grains_reassigned =
+        reassign_grains(force_reassignment, fast_reassignment);
 
       // Check if number of order parameters has changed
       const bool op_number_changed =
@@ -1178,7 +1182,8 @@ namespace GrainTracker
 
     // Reassign grains order parameters to prevent collision
     bool
-    reassign_grains(const bool force_reassignment)
+    reassign_grains(const bool force_reassignment,
+                    const bool try_fast_reassignment)
     {
       bool grains_reassigned = false;
 
@@ -1698,6 +1703,9 @@ namespace GrainTracker
 
     // Are new grains allowed to emerge
     const bool allow_new_grains;
+
+    // Use fast grains reassignment strategy
+    const bool fast_reassignment;
 
     // Maximum number of order parameters available
     const unsigned int max_order_parameters_num;
