@@ -1198,10 +1198,16 @@ namespace GrainTracker
                        return std::make_pair(a.first, id_counter++);
                      });
 
+      // Build active order parameters
+      active_order_parameters = build_active_order_parameter_ids(grains);
+      unsigned int n_order_parameters = active_order_parameters.size();
+
       /* If we force grains reassignment, then we set up this flag so the
        * colorization algorithm is forced to be executed
        */
       bool overlap_detected = force_reassignment;
+
+      std::set<unsigned int> remap_candidates;
 
       // Base grain to compare with
       for (auto &[g_base_id, gr_base] : grains)
@@ -1247,6 +1253,9 @@ namespace GrainTracker
                           log.emplace_back(ss.str());
 
                           overlap_detected = true;
+
+                          if (gr_other.get_grain_id() > gr_base.get_grain_id())
+                            remap_candidates.insert(gr_other.get_grain_id());
                         }
                     }
                 }
@@ -1258,24 +1267,105 @@ namespace GrainTracker
           SparsityPattern sp;
           sp.copy_from(dsp);
 
-          std::vector<unsigned int> color_indices(n_grains);
+          /* If we want to try at first a simplified remapping instead of
+           * building the entire graph coloring. The disadvantage of the latter
+           * approach is that it can lead to many subsequent costly remappings.
+           * However, the simplified strategy may render a higher number of
+           * order parameters in use. Anyway, if the simplified strategy renders
+           * too large number of order parameters exceeding the maximum allowed
+           * limit, the complete graph colorization is then attempted to be
+           * performed. */
+          bool perform_coloring = !try_fast_reassignment;
 
-          unsigned n_colors =
-            SparsityTools::color_sparsity_pattern(sp, color_indices);
-          AssertThrow(n_colors <= max_order_parameters_num,
-                      ExcMessage(
-                        "Maximum number of order parameters exceeded!"));
-
-          for (auto &[gid, grain] : grains)
+          if (try_fast_reassignment)
             {
-              const unsigned int new_order_parmeter =
-                color_indices[grains_to_sparsity.at(gid)] - 1;
-
-              if (grain.get_order_parameter_id() != new_order_parmeter)
+              /* Since this strategy may fail, the new order parameters are not
+               * assigned directly to the grains but only gathered in a map. */
+              std::map<unsigned int, unsigned int>
+                new_order_parameters_for_grains;
+              for (const auto &grain_id : remap_candidates)
                 {
-                  grain.set_order_parameter_id(new_order_parmeter);
+                  auto available_colors = active_order_parameters;
+
+                  for (auto it = sp.begin(grain_id); it != sp.end(grain_id);
+                       ++it)
+                    {
+                      const auto neighbor_order_parameter =
+                        grains.at(it->index()).get_order_parameter_id();
+                      available_colors.erase(neighbor_order_parameter);
+                    }
+
+                  unsigned int new_order_parameter;
+                  if (!available_colors.empty())
+                    {
+                      new_order_parameter = *available_colors.begin();
+                    }
+                  else
+                    {
+                      new_order_parameter = n_order_parameters;
+                      ++n_order_parameters;
+                      active_order_parameters.insert(new_order_parameter);
+
+                      if (n_order_parameters > max_order_parameters_num)
+                        {
+                          perform_coloring = true;
+
+                          std::ostringstream ss;
+                          ss
+                            << "The simplified reassignment strategy exceeded "
+                            << "the maximum number of order parameters allowed. "
+                            << "Switching to the complete graph coloring."
+                            << std::endl;
+                          log.emplace_back(ss.str());
+
+                          break;
+                        }
+                    }
+
+                  if (grains.at(grain_id).get_order_parameter_id() !=
+                      new_order_parameter)
+                    new_order_parameters_for_grains[grain_id] =
+                      new_order_parameter;
+                }
+
+              if (!perform_coloring && !new_order_parameters_for_grains.empty())
+                {
+                  for (const auto &[grain_id, new_order_parameter] :
+                       new_order_parameters_for_grains)
+                    grains.at(grain_id).set_order_parameter_id(
+                      new_order_parameter);
+
                   grains_reassigned = true;
                 }
+            }
+
+          if (perform_coloring)
+            {
+              std::vector<unsigned int> color_indices(n_grains);
+
+              unsigned n_colors =
+                SparsityTools::color_sparsity_pattern(sp, color_indices);
+              AssertThrow(n_colors <= max_order_parameters_num,
+                          ExcMessage(
+                            "Maximum number of order parameters exceeded!"));
+
+              for (auto &[gid, grain] : grains)
+                {
+                  const unsigned int new_order_parmeter =
+                    color_indices[grains_to_sparsity.at(gid)] - 1;
+
+                  if (grain.get_order_parameter_id() != new_order_parmeter)
+                    {
+                      grain.set_order_parameter_id(new_order_parmeter);
+                      grains_reassigned = true;
+                    }
+                }
+
+              // Rebuild completely active order parameters if remapping
+              // has been performed via coloring
+              active_order_parameters =
+                build_active_order_parameter_ids(grains);
+              n_order_parameters = active_order_parameters.size();
             }
         }
 
@@ -1301,11 +1391,7 @@ namespace GrainTracker
             }
         }
 
-      // Build active order parameters
-      active_order_parameters = build_active_order_parameter_ids(grains);
-
       // Remove dangling order parameters if any
-      const unsigned int n_order_parameters = active_order_parameters.size();
       const unsigned int max_order_parameter_id =
         *active_order_parameters.rbegin();
       const int mismatch = max_order_parameter_id - (n_order_parameters - 1);
