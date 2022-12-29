@@ -1535,7 +1535,7 @@ namespace Sintering
 
       const auto run_grain_tracker = [&](const double t,
                                          const bool   do_initialize = false) {
-        MyScope scope(timer, "run_grain_tracker");
+        MyScope scope(timer, "time_loop::grain_tracker");
 
         pcout << "Execute grain tracker:" << std::endl;
 
@@ -1549,10 +1549,19 @@ namespace Sintering
 
         const auto time_total = std::chrono::system_clock::now();
 
-        const auto gt_status =
-          do_initialize ?
-            grain_tracker.initial_setup(solution, sintering_data.n_grains()) :
-            grain_tracker.track(solution, sintering_data.n_grains());
+        std::tuple<bool, bool> gt_status;
+        if (do_initialize)
+          {
+            MyScope scope(timer, "time_loop::grain_tracker::initial_setup");
+            gt_status =
+              grain_tracker.initial_setup(solution, sintering_data.n_grains());
+          }
+        else
+          {
+            MyScope scope(timer, "time_loop::grain_tracker::track");
+            gt_status =
+              grain_tracker.track(solution, sintering_data.n_grains());
+          }
 
         const bool has_reassigned_grains = std::get<0>(gt_status);
         const bool has_op_number_changed = std::get<1>(gt_status);
@@ -1620,6 +1629,8 @@ namespace Sintering
                 if (has_reassigned_grains &&
                     n_components_new < n_components_old)
                   {
+                    MyScope scope(timer, "time_loop::grain_tracker::remap");
+
                     grain_tracker.remap(all_solution_vectors);
 
                     // Move the to be deleted components to the end
@@ -1638,6 +1649,8 @@ namespace Sintering
                 if (has_reassigned_grains &&
                     n_components_new > n_components_old)
                   {
+                    MyScope scope(timer, "time_loop::grain_tracker::remap");
+
                     // Move the newly created before displacements
                     if (distance > 0)
                       for (auto &sol : all_solution_vectors)
@@ -1654,6 +1667,8 @@ namespace Sintering
               }
             else if (has_reassigned_grains)
               {
+                MyScope scope(timer, "time_loop::grain_tracker::remap");
+
                 // Perform remapping
                 auto all_solution_vectors =
                   solutions_except_recent.get_all_solutions();
@@ -1665,6 +1680,8 @@ namespace Sintering
             // in order to keep op_particle_ids in sync
             if (params.advection_data.enable)
               {
+                MyScope scope(timer, "time_loop::grain_tracker::track_fast");
+
                 const bool skip_reassignment = false;
                 grain_tracker.track(solution,
                                     sintering_data.n_grains(),
