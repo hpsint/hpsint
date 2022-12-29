@@ -1654,8 +1654,11 @@ namespace Sintering
               }
             else if (has_reassigned_grains)
               {
-                solutions_except_recent.apply(
-                  [&](auto &sol) { grain_tracker.remap(sol); });
+                // Perform remapping
+                auto all_solution_vectors =
+                  solutions_except_recent.get_all_solutions();
+
+                grain_tracker.remap(all_solution_vectors);
               }
 
             // We need to call track again if advection mechanism is used
