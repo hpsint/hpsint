@@ -9,11 +9,11 @@ namespace Structural
 {
   using namespace dealii;
 
-  enum class TWO_DIM_TYPE
+  enum class MaterialPlaneType
   {
-    PLAIN_STRESS,
-    PLAIN_STRAIN,
-    NONE
+    plane_stress,
+    plane_strain,
+    none
   };
 
   template <int dim, typename VectorizedArrayType>

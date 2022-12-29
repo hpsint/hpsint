@@ -33,7 +33,7 @@ namespace Sintering
                                                                    data,
                                                                    history,
                                                                    matrix_based)
-      , material(E, nu, Structural::TWO_DIM_TYPE::PLAIN_STRAIN)
+      , material(E, nu, Structural::MaterialPlaneType::plane_strain)
     {}
 
     ~SinteringOperatorCoupledBase()

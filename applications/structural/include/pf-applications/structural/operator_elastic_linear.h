@@ -54,7 +54,7 @@ namespace Structural
           0,
           "elastic_linear_op",
           matrix_based)
-      , material(E, nu, TWO_DIM_TYPE::PLAIN_STRAIN)
+      , material(E, nu, MaterialPlaneType::plane_strain)
       , constraints_imposition(imposition)
       , external_loading(loading)
     {}
