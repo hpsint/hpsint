@@ -426,7 +426,6 @@ namespace NonLinearSolvers
           const unsigned int n_newton_iterations = solver.solve(dst);
           statistics.increment_newton_iterations(n_newton_iterations);
         }
-
       catch (const TrilinosWrappers::ExcNOXNoConvergence &e)
         {
           AssertThrow(false, ExcNewtonDidNotConverge("NOX"));
@@ -467,6 +466,10 @@ namespace NonLinearSolvers
           statistics.increment_newton_iterations(n_newton_iterations);
         }
       catch (const ExcPETScError &e)
+        {
+          AssertThrow(false, ExcNewtonDidNotConverge("SNES"));
+        }
+      catch (const ExcSNESNoConvergence &e)
         {
           AssertThrow(false, ExcNewtonDidNotConverge("SNES"));
         }

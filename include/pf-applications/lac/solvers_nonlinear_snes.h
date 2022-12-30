@@ -13,6 +13,8 @@ namespace NonLinearSolvers
 {
   using namespace dealii;
 
+  DeclException0(ExcSNESNoConvergence);
+
   template <typename VectorType>
   struct PETSCVectorTraits;
 
@@ -33,6 +35,7 @@ namespace NonLinearSolvers
     static void
     copy(PVectorType &dst, const VectorType &src)
     {
+      dst = 0.0;
       for (const auto i : src.locally_owned_elements())
         dst[i] = src[i];
       dst.compress(VectorOperation::insert);
@@ -57,7 +60,8 @@ namespace NonLinearSolvers
     static void
     copy(VectorType &dst, const PVectorType &src)
     {
-      for (unsigned int b = 0; b < src.n_blocks(); ++b)
+      dst = 0.0;
+      for (unsigned int b = 0; b < dst.n_blocks(); ++b)
         for (const auto i : dst.block(b).locally_owned_elements())
           dst.block(b)[i] = src.block(b)[i];
     }
@@ -65,6 +69,7 @@ namespace NonLinearSolvers
     static void
     copy(PVectorType &dst, const VectorType &src)
     {
+      dst = 0.0;
       for (unsigned int b = 0; b < src.n_blocks(); ++b)
         for (const auto i : src.block(b).locally_owned_elements())
           dst.block(b)[i] = src.block(b)[i];
@@ -79,8 +84,13 @@ namespace NonLinearSolvers
       for (unsigned int b = 0; b < vector.n_blocks(); ++b)
         index_sets[b] = vector.block(b).locally_owned_elements();
 
-      return std::make_shared<PVectorType>(
-        index_sets, vector.block(0).get_mpi_communicator());
+      auto new_vector =
+        std::make_shared<PVectorType>(index_sets,
+                                      vector.block(0).get_mpi_communicator());
+
+      new_vector->collect_sizes();
+
+      return new_vector;
     }
   };
 
@@ -246,9 +256,9 @@ namespace NonLinearSolvers
         ExcMessage(
           "No setup_jacobian function has been attached to the SNESSolver object."));
 
-      VectorTraits::copy(tmp_1, X);
+      VectorTraits::copy(tmp_0, X);
 
-      auto flag = this->setup_jacobian(tmp_1);
+      auto flag = this->setup_jacobian(tmp_0);
 
       if (flag != 0)
         return flag;
@@ -269,7 +279,7 @@ namespace NonLinearSolvers
             update_preconditioner = update_preconditioner_predicate();
 
           if (update_preconditioner) // update preconditioner
-            flag = setup_preconditioner(tmp_1);
+            flag = setup_preconditioner(tmp_0);
         }
 
       return flag;
@@ -354,6 +364,10 @@ namespace NonLinearSolvers
     VectorTraits::copy(*pvector, vector);
     const unsigned int n_iterations = solver.solve(*pvector);
     VectorTraits::copy(vector, *pvector);
+
+    AssertThrow(additional_data.max_iter == 0 ||
+                  n_iterations < additional_data.max_iter,
+                ExcSNESNoConvergence());
 
     return n_iterations;
   }
