@@ -231,7 +231,7 @@ namespace Sintering
 
   struct SNESData
   {
-    std::string solver_name = "";
+    std::string solver_name = "newtonls";
   };
 
   struct NonLinearData
