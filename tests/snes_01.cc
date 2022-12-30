@@ -12,7 +12,10 @@ template <typename VectorType>
 void
 test()
 {
-  NonLinearSolvers::SNESSolver<VectorType> solver;
+  typename NonLinearSolvers::SNESSolver<VectorType>::AdditionalData
+    additional_data;
+
+  NonLinearSolvers::SNESSolver<VectorType> solver(additional_data);
 
   solver.residual = [&](const VectorType &X, VectorType &F) -> int {
     (void)X;
