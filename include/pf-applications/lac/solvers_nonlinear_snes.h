@@ -191,6 +191,9 @@ namespace NonLinearSolvers
   unsigned int
   SNESSolver<VectorType>::solve(VectorType &vector)
   {
+    if (additional_data.reuse_solver == false)
+      clear(); // clear state
+
     PETScWrappers::NonlinearSolver<PVectorType, PMatrixType> solver;
 
     // create a temporal PETSc vector
@@ -203,20 +206,52 @@ namespace NonLinearSolvers
 
     // wrap deal.II functions
     solver.residual = [&](const PVectorType &X, PVectorType &F) -> int {
+      Assert(
+        residual,
+        ExcMessage(
+          "No residual function has been attached to the SNESSolver object."));
+
+      n_residual_evaluations++;
+
       VectorTraits::copy(tmp_0, X);
-      const auto ierr = this->residual(tmp_0, tmp_1);
+      const auto flag = this->residual(tmp_0, tmp_1);
       VectorTraits::copy(F, tmp_1);
-      return ierr;
+      return flag;
     };
 
     solver.setup_jacobian = [&](const PVectorType &X) -> int {
+      Assert(
+        setup_jacobian,
+        ExcMessage(
+          "No setup_jacobian function has been attached to the SNESSolver object."));
+
       VectorTraits::copy(tmp_1, X);
-      const auto ierr = this->setup_jacobian(tmp_1);
+
+      auto flag = this->setup_jacobian(tmp_1);
+
+      if (flag != 0)
+        return flag;
 
       if (setup_preconditioner)
-        setup_preconditioner(tmp_1);
+        {
+          // check if preconditioner needs to be updated
+          bool update_preconditioner =
+            ((additional_data.threshold_nonlinear_iterations > 0) &&
+             ((n_nonlinear_iterations %
+               additional_data.threshold_nonlinear_iterations) == 0)) ||
+            (solve_with_jacobian_and_track_n_linear_iterations &&
+             (n_last_linear_iterations >
+              additional_data.threshold_n_linear_iterations));
 
-      return ierr;
+          if ((update_preconditioner == false) &&
+              (update_preconditioner_predicate != nullptr))
+            update_preconditioner = update_preconditioner_predicate();
+
+          if (update_preconditioner) // update preconditioner
+            flag = setup_preconditioner(tmp_1);
+        }
+
+      return flag;
     };
 
     solver.solve_for_jacobian_system = [&](const PVectorType &src,
@@ -224,10 +259,52 @@ namespace NonLinearSolvers
       // TODO: tolerance not used
       const double tolerance = 0.0;
 
-      VectorTraits::copy(tmp_0, src);
-      const auto ierr = this->solve_with_jacobian(tmp_0, tmp_1, tolerance);
-      VectorTraits::copy(dst, tmp_1);
-      return ierr;
+      n_nonlinear_iterations++;
+
+      // invert Jacobian
+      if (solve_with_jacobian)
+        {
+          Assert(
+            !solve_with_jacobian_and_track_n_linear_iterations,
+            ExcMessage(
+              "It does not make sense to provide both solve_with_jacobian and "
+              "solve_with_jacobian_and_track_n_linear_iterations!"));
+
+          // without tracking of linear iterations
+          VectorTraits::copy(tmp_0, src);
+          const auto flag = solve_with_jacobian(tmp_0, tmp_1, tolerance);
+          VectorTraits::copy(dst, tmp_1);
+
+          return flag;
+        }
+      else if (solve_with_jacobian_and_track_n_linear_iterations)
+        {
+          // with tracking of linear iterations
+          VectorTraits::copy(tmp_0, src);
+          const int n_linear_iterations =
+            solve_with_jacobian_and_track_n_linear_iterations(tmp_0,
+                                                              tmp_1,
+                                                              tolerance);
+          VectorTraits::copy(dst, tmp_1);
+
+          if (n_linear_iterations == -1)
+            return 1;
+
+          this->n_last_linear_iterations = n_linear_iterations;
+
+          return 0;
+        }
+      else
+        {
+          Assert(false,
+                 ExcMessage(
+                   "Neither a solve_with_jacobian or a "
+                   "solve_with_jacobian_and_track_n_linear_iterations function "
+                   "has been attached to the SNESSolver object."));
+
+          Assert(false, ExcNotImplemented());
+          return 1;
+        }
     };
 
     // solve
