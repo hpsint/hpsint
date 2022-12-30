@@ -237,6 +237,7 @@ public:
     const double       buffer_distance_ratio    = 0.05;
     const bool         allow_new_grains         = false;
     const bool         greedy_init              = false;
+    const bool         fast_reassignment        = false;
     const unsigned int op_offset                = 2;
     const unsigned int max_order_parameters_num = 2;
 
@@ -244,6 +245,7 @@ public:
                                                      tria,
                                                      greedy_init,
                                                      allow_new_grains,
+                                                     fast_reassignment,
                                                      max_order_parameters_num,
                                                      threshold_lower,
                                                      threshold_upper,

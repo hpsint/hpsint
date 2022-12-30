@@ -60,6 +60,8 @@ namespace Sintering
     double       threshold_upper         = 1.01;
     double       buffer_distance_ratio   = 0.05;
     unsigned int grain_tracker_frequency = 10; // 0 - no grain tracker
+
+    bool fast_reassignment = false;
   };
 
   struct EnergyAbstractData
@@ -469,6 +471,9 @@ namespace Sintering
       prm.add_parameter("GrainTrackerFrequency",
                         grain_tracker_data.grain_tracker_frequency,
                         "Grain tracker frequency (0 = no grain tracking).");
+      prm.add_parameter("FastReassignment",
+                        grain_tracker_data.fast_reassignment,
+                        "Use fast grain reassignment strategy.");
       prm.leave_subsection();
 
 
