@@ -11,138 +11,147 @@
 
 using namespace dealii;
 
-template <typename VectorType>
-struct PETSCVectorTraits;
-
-template <typename Number>
-struct PETSCVectorTraits<LinearAlgebra::distributed::Vector<Number>>
+namespace NonLinearSolvers
 {
-  using VectorType  = LinearAlgebra::distributed::Vector<Number>;
-  using PVectorType = PETScWrappers::MPI::Vector;
-  using PMatrixType = PETScWrappers::MatrixBase; // not needed!?
+  template <typename VectorType>
+  struct PETSCVectorTraits;
 
-  static void
-  copy(VectorType &dst, const PVectorType &src)
+  template <typename Number>
+  struct PETSCVectorTraits<LinearAlgebra::distributed::Vector<Number>>
   {
-    for (const auto i : dst.locally_owned_elements())
-      dst[i] = src[i];
-  }
+    using VectorType  = LinearAlgebra::distributed::Vector<Number>;
+    using PVectorType = PETScWrappers::MPI::Vector;
+    using PMatrixType = PETScWrappers::MatrixBase; // not needed!?
 
-  static void
-  copy(PVectorType &dst, const VectorType &src)
+    static void
+    copy(VectorType &dst, const PVectorType &src)
+    {
+      for (const auto i : dst.locally_owned_elements())
+        dst[i] = src[i];
+    }
+
+    static void
+    copy(PVectorType &dst, const VectorType &src)
+    {
+      for (const auto i : src.locally_owned_elements())
+        dst[i] = src[i];
+      dst.compress(VectorOperation::insert);
+    }
+
+    static std::shared_ptr<PVectorType>
+    create(const VectorType &vector)
+    {
+      return std::make_shared<PVectorType>(vector.locally_owned_elements(),
+                                           vector.get_mpi_communicator());
+    }
+  };
+
+  template <typename Number>
+  struct PETSCVectorTraits<
+    LinearAlgebra::distributed::DynamicBlockVector<Number>>
   {
-    for (const auto i : src.locally_owned_elements())
-      dst[i] = src[i];
-    dst.compress(VectorOperation::insert);
-  }
+    using VectorType  = LinearAlgebra::distributed::DynamicBlockVector<Number>;
+    using PVectorType = PETScWrappers::MPI::BlockVector;
+    using PMatrixType = PETScWrappers::MPI::BlockSparseMatrix; // not needed!?
 
-  static std::shared_ptr<PVectorType>
-  create(const VectorType &vector)
+    static void
+    copy(VectorType &dst, const PVectorType &src)
+    {
+      for (unsigned int b = 0; b < src.n_blocks(); ++b)
+        for (const auto i : dst.block(b).locally_owned_elements())
+          dst.block(b)[i] = src.block(b)[i];
+    }
+
+    static void
+    copy(PVectorType &dst, const VectorType &src)
+    {
+      for (unsigned int b = 0; b < src.n_blocks(); ++b)
+        for (const auto i : src.block(b).locally_owned_elements())
+          dst.block(b)[i] = src.block(b)[i];
+      dst.compress(VectorOperation::insert);
+    }
+
+    static std::shared_ptr<PVectorType>
+    create(const VectorType &vector)
+    {
+      std::vector<IndexSet> index_sets(vector.n_blocks());
+
+      for (unsigned int b = 0; b < vector.n_blocks(); ++b)
+        index_sets[b] = vector.block(b).locally_owned_elements();
+
+      return std::make_shared<PVectorType>(
+        index_sets, vector.block(0).get_mpi_communicator());
+    }
+  };
+
+  template <typename VectorType>
+  class SNESSolver
   {
-    return std::make_shared<PVectorType>(vector.locally_owned_elements(),
-                                         vector.get_mpi_communicator());
-  }
-};
+  private:
+    // TODO: generalize for block vectors
+    using VectorTraits = PETSCVectorTraits<VectorType>;
+    using PVectorType  = typename VectorTraits::PVectorType;
+    using PMatrixType  = typename VectorTraits::PMatrixType; // not needed!?
 
-template <typename Number>
-struct PETSCVectorTraits<LinearAlgebra::distributed::DynamicBlockVector<Number>>
-{
-  using VectorType  = LinearAlgebra::distributed::DynamicBlockVector<Number>;
-  using PVectorType = PETScWrappers::MPI::BlockVector;
-  using PMatrixType = PETScWrappers::MPI::BlockSparseMatrix; // not needed!?
+  public:
+    void
+    solve(VectorType &vector)
+    {
+      PETScWrappers::NonlinearSolver<PVectorType, PMatrixType> solver;
 
-  static void
-  copy(VectorType &dst, const PVectorType &src)
-  {
-    for (unsigned int b = 0; b < src.n_blocks(); ++b)
-      for (const auto i : dst.block(b).locally_owned_elements())
-        dst.block(b)[i] = src.block(b)[i];
-  }
+      // create a temporal PETSc vector
+      auto pvector = VectorTraits::create(vector);
 
-  static void
-  copy(PVectorType &dst, const VectorType &src)
-  {
-    for (unsigned int b = 0; b < src.n_blocks(); ++b)
-      for (const auto i : src.block(b).locally_owned_elements())
-        dst.block(b)[i] = src.block(b)[i];
-    dst.compress(VectorOperation::insert);
-  }
+      // create temporal deal.II vectors
+      VectorType tmp_0, tmp_1;
+      tmp_0.reinit(vector);
+      tmp_1.reinit(vector);
 
-  static std::shared_ptr<PVectorType>
-  create(const VectorType &vector)
-  {
-    std::vector<IndexSet> index_sets(vector.n_blocks());
+      // wrap deal.II functions
+      solver.residual = [&](const PVectorType &X, PVectorType &F) -> int {
+        VectorTraits::copy(tmp_0, X);
+        const auto ierr = this->residual(tmp_0, tmp_1);
+        VectorTraits::copy(F, tmp_1);
+        return ierr;
+      };
 
-    for (unsigned int b = 0; b < vector.n_blocks(); ++b)
-      index_sets[b] = vector.block(b).locally_owned_elements();
+      solver.setup_jacobian = [&](const PVectorType &X) -> int {
+        VectorTraits::copy(tmp_1, X);
+        const auto ierr = this->setup_jacobian(tmp_1);
+        return ierr;
+      };
 
-    return std::make_shared<PVectorType>(
-      index_sets, vector.block(0).get_mpi_communicator());
-  }
-};
+      solver.solve_for_jacobian_system = [&](const PVectorType &src,
+                                             PVectorType &      dst) -> int {
+        VectorTraits::copy(tmp_0, src);
+        const auto ierr = this->solve_with_jacobian(tmp_0, tmp_1, 0.1 /*TODO*/);
+        VectorTraits::copy(dst, tmp_1);
+        return ierr;
+      };
 
-template <typename VectorType>
-class MyNonlinearSolver
-{
-private:
-  // TODO: generalize for block vectors
-  using VectorTraits = PETSCVectorTraits<VectorType>;
-  using PVectorType  = typename VectorTraits::PVectorType;
-  using PMatrixType  = typename VectorTraits::PMatrixType; // not needed!?
+      // solve
+      VectorTraits::copy(*pvector, vector);
+      solver.solve(*pvector);
+      VectorTraits::copy(vector, *pvector);
+    }
 
-public:
-  void
-  solve(VectorType &vector)
-  {
-    PETScWrappers::NonlinearSolver<PVectorType, PMatrixType> solver;
+    std::function<int(const VectorType &x, VectorType &f)> residual;
 
-    // create a temporal PETSc vector
-    auto pvector = VectorTraits::create(vector);
+    std::function<int(const VectorType &x)> setup_jacobian;
 
-    // create temporal deal.II vectors
-    VectorType tmp_0, tmp_1;
-    tmp_0.reinit(vector);
-    tmp_1.reinit(vector);
+    std::function<int(const VectorType &x)> setup_preconditioner;
 
-    // wrap deal.II functions
-    solver.residual = [&](const PVectorType &X, PVectorType &F) -> int {
-      VectorTraits::copy(tmp_0, X);
-      const auto ierr = this->residual(tmp_0, tmp_1);
-      VectorTraits::copy(F, tmp_1);
-      return ierr;
-    };
-
-    solver.setup_jacobian = [&](const PVectorType &X) -> int {
-      VectorTraits::copy(tmp_1, X);
-      const auto ierr = this->setup_jacobian(tmp_1);
-      return ierr;
-    };
-
-    solver.solve_for_jacobian_system = [&](const PVectorType &src,
-                                           PVectorType &      dst) -> int {
-      VectorTraits::copy(tmp_0, src);
-      const auto ierr = this->solve_for_jacobian_system(tmp_0, tmp_1);
-      VectorTraits::copy(dst, tmp_1);
-      return ierr;
-    };
-
-    // solve
-    VectorTraits::copy(*pvector, vector);
-    solver.solve(*pvector);
-    VectorTraits::copy(vector, *pvector);
-  }
-
-  std::function<int(const VectorType &X, VectorType &F)> residual;
-  std::function<int(const VectorType &X)>                setup_jacobian;
-  std::function<int(const VectorType &src, VectorType &dst)>
-    solve_for_jacobian_system;
-};
+    std::function<
+      int(const VectorType &f, VectorType &x, const double tolerance)>
+      solve_with_jacobian;
+  };
+} // namespace NonLinearSolvers
 
 template <typename VectorType>
 void
 test()
 {
-  MyNonlinearSolver<VectorType> solver;
+  NonLinearSolvers::SNESSolver<VectorType> solver;
 
   solver.residual = [&](const VectorType &X, VectorType &F) -> int {
     (void)X;
@@ -157,8 +166,8 @@ test()
     return 0;
   };
 
-  solver.solve_for_jacobian_system = [&](const VectorType &src,
-                                         VectorType &      dst) -> int {
+  solver.solve_with_jacobian =
+    [&](const VectorType &src, VectorType &dst, const double) -> int {
     (void)src;
     (void)dst;
 
