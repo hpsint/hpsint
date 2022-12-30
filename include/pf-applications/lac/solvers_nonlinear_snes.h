@@ -98,7 +98,6 @@ namespace NonLinearSolvers
   class SNESSolver
   {
   private:
-    // TODO: generalize for block vectors
     using VectorTraits = PETSCVectorTraits<VectorType>;
     using PVectorType  = typename VectorTraits::PVectorType;
     using PMatrixType  = typename VectorTraits::PMatrixType; // not needed!?
