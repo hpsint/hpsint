@@ -229,6 +229,11 @@ namespace Sintering
     std::string line_search_interpolation_type = "Cubic";
   };
 
+  struct SNESData
+  {
+    std::string solver_name = "";
+  };
+
   struct NonLinearData
   {
     int    nl_max_iter = 10;
@@ -255,6 +260,7 @@ namespace Sintering
     unsigned int verbosity = 1;
 
     NOXData                  nox_data;
+    SNESData                 snes_data;
     LinearSolvers::GMRESData gmres_data;
   };
 
@@ -753,7 +759,7 @@ namespace Sintering
       prm.add_parameter("NonLinearSolverType",
                         nonlinear_data.nonlinear_solver_type,
                         "Type of the non-linear solver.",
-                        Patterns::Selection("damped|NOX"));
+                        Patterns::Selection("damped|NOX|SNES"));
 
       prm.add_parameter("FDMJacobianApproximation",
                         nonlinear_data.fdm_jacobian_approximation);
@@ -777,6 +783,12 @@ namespace Sintering
                         nonlinear_data.nox_data.line_search_interpolation_type,
                         "Polynomial line search interpolation type",
                         Patterns::Selection("Quadratic|Quadratic3|Cubic"));
+      prm.leave_subsection();
+
+      prm.enter_subsection("SNESData");
+      prm.add_parameter("SolverName",
+                        nonlinear_data.snes_data.solver_name,
+                        "SNES solver name");
       prm.leave_subsection();
 
       prm.enter_subsection("GMRESData");

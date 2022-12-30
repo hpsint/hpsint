@@ -439,6 +439,8 @@ namespace NonLinearSolvers
     NewtonSolverSolverControl &statistics;
   };
 
+#ifdef DEAL_II_WITH_PETSC
+
   template <typename VectorType>
   class NonLinearSolverWrapper<VectorType, SNESSolver<VectorType>>
     : public NewtonSolver<VectorType>
@@ -475,6 +477,8 @@ namespace NonLinearSolvers
 
     NewtonSolverSolverControl &statistics;
   };
+
+#endif
 
   template <typename Number>
   class JacobianBase : public Subscriptor

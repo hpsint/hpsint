@@ -1364,6 +1364,7 @@ namespace Sintering
               TrilinosWrappers::NOXSolver<VectorType>>>(
               std::move(non_linear_solver), statistics);
         }
+#ifdef DEAL_II_WITH_PETSC
       else if (params.nonlinear_data.nonlinear_solver_type == "SNES")
         {
           typename NonLinearSolvers::SNESSolver<VectorType>::AdditionalData
@@ -1374,7 +1375,7 @@ namespace Sintering
                             params.nonlinear_data.newton_threshold_linear_iter);
 
           NonLinearSolvers::SNESSolver<VectorType> non_linear_solver(
-            additional_data);
+            additional_data, params.nonlinear_data.snes_data.solver_name);
 
           non_linear_solver.residual = [&nl_residual](const auto &src,
                                                       auto &      dst) {
@@ -1408,6 +1409,7 @@ namespace Sintering
               NonLinearSolvers::SNESSolver<VectorType>>>(
               std::move(non_linear_solver), statistics);
         }
+#endif
       else
         AssertThrow(false, ExcNotImplemented());
 
