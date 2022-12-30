@@ -135,6 +135,12 @@ namespace NonLinearSolvers
       int(const VectorType &f, VectorType &x, const double tolerance)>
       solve_with_jacobian_and_track_n_linear_iterations;
 
+    std::function<SolverControl::State(const unsigned int i,
+                                       const double       norm_f,
+                                       const VectorType & x,
+                                       const VectorType & f)>
+      check_iteration_status;
+
     std::function<bool()> update_preconditioner_predicate;
 
   private:
@@ -321,6 +327,28 @@ namespace NonLinearSolvers
           return 1;
         }
     };
+
+    if (check_iteration_status)
+      solver.monitor = [&](const PVectorType &x,
+                           const unsigned int step_number,
+                           double             fval) -> int {
+        VectorTraits::copy(tmp_0, x);
+
+        if (false)
+          {
+            this->residual(tmp_0, tmp_1);
+            this->check_iteration_status(step_number, fval, tmp_0, tmp_1);
+          }
+        else
+          {
+            this->check_iteration_status(step_number,
+                                         fval,
+                                         tmp_0,
+                                         VectorType());
+          }
+
+        return 0;
+      };
 
     // solve
     VectorTraits::copy(*pvector, vector);

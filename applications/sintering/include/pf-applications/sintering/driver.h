@@ -1177,22 +1177,28 @@ namespace Sintering
       const auto nl_check_iteration_status = [&](const auto  step,
                                                  const auto  check_value,
                                                  const auto &x,
-                                                 auto &      r) {
+                                                 const auto &r) {
         (void)x;
 
-        const double check_value_ch =
-          std::sqrt(r.block(0).norm_sqr() + r.block(0).norm_sqr());
+        double check_value_ch  = 0.0;
+        double check_value_ac  = 0.0;
+        double check_value_mec = 0.0;
 
-        double check_value_ac = 0;
-        for (unsigned int b = 2; b < sintering_data.n_components(); ++b)
-          check_value_ac += r.block(b).norm_sqr();
-        check_value_ac = std::sqrt(check_value_ac);
+        if (r.n_blocks() > 0)
+          {
+            check_value_ch =
+              std::sqrt(r.block(0).norm_sqr() + r.block(0).norm_sqr());
 
-        double check_value_mec = 0;
-        if (nonlinear_operator.n_components() > sintering_data.n_components())
-          for (unsigned int b = r.n_blocks() - dim; b < r.n_blocks(); ++b)
-            check_value_mec += r.block(b).norm_sqr();
-        check_value_mec = std::sqrt(check_value_mec);
+            for (unsigned int b = 2; b < sintering_data.n_components(); ++b)
+              check_value_ac += r.block(b).norm_sqr();
+            check_value_ac = std::sqrt(check_value_ac);
+
+            if (nonlinear_operator.n_components() >
+                sintering_data.n_components())
+              for (unsigned int b = r.n_blocks() - dim; b < r.n_blocks(); ++b)
+                check_value_mec += r.block(b).norm_sqr();
+            check_value_mec = std::sqrt(check_value_mec);
+          }
 
         if (step == 0)
           {
@@ -1402,6 +1408,10 @@ namespace Sintering
               (void)tolerance;
               return nl_solve_with_jacobian(src, dst);
             };
+
+          if (params.nonlinear_data.verbosity >= 1) // TODO
+            non_linear_solver.check_iteration_status =
+              nl_check_iteration_status;
 
           non_linear_solver_executor =
             std::make_unique<NonLinearSolvers::NonLinearSolverWrapper<
