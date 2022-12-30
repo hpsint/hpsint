@@ -1,5 +1,9 @@
 #pragma once
 
+#include <deal.II/lac/petsc_block_sparse_matrix.h>
+#include <deal.II/lac/petsc_block_vector.h>
+#include <deal.II/lac/petsc_snes.h>
+#include <deal.II/lac/petsc_vector.h>
 #include <deal.II/lac/solver_control.h>
 #include <deal.II/lac/vector.h>
 
