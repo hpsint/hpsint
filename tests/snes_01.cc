@@ -118,6 +118,10 @@ namespace NonLinearSolvers
       solver.setup_jacobian = [&](const PVectorType &X) -> int {
         VectorTraits::copy(tmp_1, X);
         const auto ierr = this->setup_jacobian(tmp_1);
+
+        if (setup_preconditioner)
+          setup_preconditioner(tmp_1);
+
         return ierr;
       };
 
@@ -144,6 +148,12 @@ namespace NonLinearSolvers
     std::function<
       int(const VectorType &f, VectorType &x, const double tolerance)>
       solve_with_jacobian;
+
+    std::function<
+      int(const VectorType &f, VectorType &x, const double tolerance)>
+      solve_with_jacobian_and_track_n_linear_iterations; // TODO: use
+
+    std::function<bool()> update_preconditioner_predicate; // TODO: use
   };
 } // namespace NonLinearSolvers
 
