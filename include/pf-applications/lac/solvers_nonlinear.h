@@ -1,15 +1,13 @@
 #pragma once
 
-#include <deal.II/lac/petsc_block_sparse_matrix.h>
-#include <deal.II/lac/petsc_block_vector.h>
-#include <deal.II/lac/petsc_snes.h>
-#include <deal.II/lac/petsc_vector.h>
 #include <deal.II/lac/solver_control.h>
 #include <deal.II/lac/vector.h>
 
 #include <pf-applications/base/timer.h>
 
 #include <deal.II/trilinos/nox.h>
+
+#include "solvers_nonlinear_snes.h"
 
 namespace NonLinearSolvers
 {
@@ -437,6 +435,44 @@ namespace NonLinearSolvers
 
   private:
     mutable TrilinosWrappers::NOXSolver<VectorType> solver;
+
+    NewtonSolverSolverControl &statistics;
+  };
+
+  template <typename VectorType>
+  class NonLinearSolverWrapper<VectorType, SNESSolver<VectorType>>
+    : public NewtonSolver<VectorType>
+  {
+  public:
+    NonLinearSolverWrapper(SNESSolver<VectorType> &&  solver,
+                           NewtonSolverSolverControl &statistics)
+      : solver(std::move(solver))
+      , statistics(statistics)
+    {}
+
+    void
+    clear() const override
+    {
+      solver.clear();
+    }
+
+    void
+    solve(VectorType &dst) const override
+    {
+      // try
+      //  {
+      const unsigned int n_newton_iterations = solver.solve(dst);
+      statistics.increment_newton_iterations(n_newton_iterations);
+      //  }
+      //
+      // catch (const TrilinosWrappers::ExcNOXNoConvergence &e)
+      //  {
+      //    AssertThrow(false, ExcNewtonDidNotConverge("NOX"));
+      //  }
+    }
+
+  private:
+    mutable SNESSolver<VectorType> solver;
 
     NewtonSolverSolverControl &statistics;
   };

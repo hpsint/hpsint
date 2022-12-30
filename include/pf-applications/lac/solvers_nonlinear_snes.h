@@ -1,9 +1,16 @@
 #pragma once
 
+#include <deal.II/lac/petsc_block_sparse_matrix.h>
+#include <deal.II/lac/petsc_block_vector.h>
+#include <deal.II/lac/petsc_snes.h>
+#include <deal.II/lac/petsc_vector.h>
+
 #include <pf-applications/lac/dynamic_block_vector.h>
 
 namespace NonLinearSolvers
 {
+  using namespace dealii;
+
   template <typename VectorType>
   struct PETSCVectorTraits;
 
@@ -86,6 +93,10 @@ namespace NonLinearSolvers
 
   public:
     void
+    clear()
+    {}
+
+    unsigned int
     solve(VectorType &vector)
     {
       PETScWrappers::NonlinearSolver<PVectorType, PMatrixType> solver;
@@ -126,8 +137,10 @@ namespace NonLinearSolvers
 
       // solve
       VectorTraits::copy(*pvector, vector);
-      solver.solve(*pvector);
+      const unsigned int n_iterations = solver.solve(*pvector);
       VectorTraits::copy(vector, *pvector);
+
+      return n_iterations;
     }
 
     std::function<int(const VectorType &x, VectorType &f)> residual;

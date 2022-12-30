@@ -1364,6 +1364,42 @@ namespace Sintering
               TrilinosWrappers::NOXSolver<VectorType>>>(
               std::move(non_linear_solver), statistics);
         }
+      else if (params.nonlinear_data.nonlinear_solver_type == "SNES")
+        {
+          NonLinearSolvers::SNESSolver<VectorType> non_linear_solver;
+
+          non_linear_solver.residual = [&nl_residual](const auto &src,
+                                                      auto &      dst) {
+            nl_residual(src, dst);
+            return 0;
+          };
+
+          non_linear_solver.setup_jacobian =
+            [&nl_setup_jacobian](const auto &current_u) {
+              nl_setup_jacobian(current_u);
+              return 0;
+            };
+
+          non_linear_solver.setup_preconditioner =
+            [&nl_setup_preconditioner](const auto &current_u) {
+              nl_setup_preconditioner(current_u);
+              return 0;
+            };
+
+          non_linear_solver.solve_with_jacobian_and_track_n_linear_iterations =
+            [&nl_solve_with_jacobian](const auto & src,
+                                      auto &       dst,
+                                      const double tolerance) {
+              (void)tolerance;
+              return nl_solve_with_jacobian(src, dst);
+            };
+
+          non_linear_solver_executor =
+            std::make_unique<NonLinearSolvers::NonLinearSolverWrapper<
+              VectorType,
+              NonLinearSolvers::SNESSolver<VectorType>>>(
+              std::move(non_linear_solver), statistics);
+        }
       else
         AssertThrow(false, ExcNotImplemented());
 
