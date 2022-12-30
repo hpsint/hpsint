@@ -110,7 +110,8 @@ namespace NonLinearSolvers
       bool         reuse_solver;
     };
 
-    SNESSolver(const AdditionalData &additional_data);
+    SNESSolver(const AdditionalData &additional_data,
+               const std::string &   snes_type = "");
 
     void
     clear();
@@ -136,6 +137,8 @@ namespace NonLinearSolvers
 
   private:
     AdditionalData additional_data;
+
+    const std::string snes_type;
 
     unsigned int n_residual_evaluations;
     unsigned int n_jacobian_applications;
@@ -164,8 +167,10 @@ namespace NonLinearSolvers
 
 
   template <typename VectorType>
-  SNESSolver<VectorType>::SNESSolver(const AdditionalData &additional_data)
+  SNESSolver<VectorType>::SNESSolver(const AdditionalData &additional_data,
+                                     const std::string &   snes_type)
     : additional_data(additional_data)
+    , snes_type(snes_type)
     , n_residual_evaluations(0)
     , n_jacobian_applications(0)
     , n_nonlinear_iterations(0)
@@ -194,7 +199,15 @@ namespace NonLinearSolvers
     if (additional_data.reuse_solver == false)
       clear(); // clear state
 
-    PETScWrappers::NonlinearSolver<PVectorType, PMatrixType> solver;
+    typename PETScWrappers::NonlinearSolverData p_additional_data;
+
+    p_additional_data.snestype           = snes_type;
+    p_additional_data.absolute_tolerance = additional_data.abs_tol;
+    p_additional_data.relative_tolerance = additional_data.rel_tol;
+    p_additional_data.max_it             = additional_data.max_iter;
+
+    PETScWrappers::NonlinearSolver<PVectorType, PMatrixType> solver(
+      p_additional_data);
 
     // create a temporal PETSc vector
     auto pvector = VectorTraits::create(vector);

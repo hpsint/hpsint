@@ -459,16 +459,15 @@ namespace NonLinearSolvers
     void
     solve(VectorType &dst) const override
     {
-      // try
-      //  {
-      const unsigned int n_newton_iterations = solver.solve(dst);
-      statistics.increment_newton_iterations(n_newton_iterations);
-      //  }
-      //
-      // catch (const TrilinosWrappers::ExcNOXNoConvergence &e)
-      //  {
-      //    AssertThrow(false, ExcNewtonDidNotConverge("SNES"));
-      //  }
+      try
+        {
+          const unsigned int n_newton_iterations = solver.solve(dst);
+          statistics.increment_newton_iterations(n_newton_iterations);
+        }
+      catch (const ExcPETScError &e)
+        {
+          AssertThrow(false, ExcNewtonDidNotConverge("SNES"));
+        }
     }
 
   private:
