@@ -1366,7 +1366,15 @@ namespace Sintering
         }
       else if (params.nonlinear_data.nonlinear_solver_type == "SNES")
         {
-          NonLinearSolvers::SNESSolver<VectorType> non_linear_solver;
+          typename NonLinearSolvers::SNESSolver<VectorType>::AdditionalData
+            additional_data(params.nonlinear_data.nl_max_iter,
+                            params.nonlinear_data.nl_abs_tol,
+                            params.nonlinear_data.nl_rel_tol,
+                            params.nonlinear_data.newton_threshold_newton_iter,
+                            params.nonlinear_data.newton_threshold_linear_iter);
+
+          NonLinearSolvers::SNESSolver<VectorType> non_linear_solver(
+            additional_data);
 
           non_linear_solver.residual = [&nl_residual](const auto &src,
                                                       auto &      dst) {

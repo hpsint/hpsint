@@ -467,7 +467,7 @@ namespace NonLinearSolvers
       //
       // catch (const TrilinosWrappers::ExcNOXNoConvergence &e)
       //  {
-      //    AssertThrow(false, ExcNewtonDidNotConverge("NOX"));
+      //    AssertThrow(false, ExcNewtonDidNotConverge("SNES"));
       //  }
     }
 

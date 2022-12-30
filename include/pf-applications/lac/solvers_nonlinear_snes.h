@@ -92,56 +92,31 @@ namespace NonLinearSolvers
     using PMatrixType  = typename VectorTraits::PMatrixType; // not needed!?
 
   public:
+    struct AdditionalData
+    {
+    public:
+      AdditionalData(const unsigned int max_iter                       = 10,
+                     const double       abs_tol                        = 1.e-20,
+                     const double       rel_tol                        = 1.e-5,
+                     const unsigned int threshold_nonlinear_iterations = 1,
+                     const unsigned int threshold_n_linear_iterations  = 0,
+                     const bool         reuse_solver                   = false);
+
+      unsigned int max_iter;
+      double       abs_tol;
+      double       rel_tol;
+      unsigned int threshold_nonlinear_iterations;
+      unsigned int threshold_n_linear_iterations;
+      bool         reuse_solver;
+    };
+
+    SNESSolver(const AdditionalData &additional_data);
+
     void
-    clear()
-    {}
+    clear();
 
     unsigned int
-    solve(VectorType &vector)
-    {
-      PETScWrappers::NonlinearSolver<PVectorType, PMatrixType> solver;
-
-      // create a temporal PETSc vector
-      auto pvector = VectorTraits::create(vector);
-
-      // create temporal deal.II vectors
-      VectorType tmp_0, tmp_1;
-      tmp_0.reinit(vector);
-      tmp_1.reinit(vector);
-
-      // wrap deal.II functions
-      solver.residual = [&](const PVectorType &X, PVectorType &F) -> int {
-        VectorTraits::copy(tmp_0, X);
-        const auto ierr = this->residual(tmp_0, tmp_1);
-        VectorTraits::copy(F, tmp_1);
-        return ierr;
-      };
-
-      solver.setup_jacobian = [&](const PVectorType &X) -> int {
-        VectorTraits::copy(tmp_1, X);
-        const auto ierr = this->setup_jacobian(tmp_1);
-
-        if (setup_preconditioner)
-          setup_preconditioner(tmp_1);
-
-        return ierr;
-      };
-
-      solver.solve_for_jacobian_system = [&](const PVectorType &src,
-                                             PVectorType &      dst) -> int {
-        VectorTraits::copy(tmp_0, src);
-        const auto ierr = this->solve_with_jacobian(tmp_0, tmp_1, 0.1 /*TODO*/);
-        VectorTraits::copy(dst, tmp_1);
-        return ierr;
-      };
-
-      // solve
-      VectorTraits::copy(*pvector, vector);
-      const unsigned int n_iterations = solver.solve(*pvector);
-      VectorTraits::copy(vector, *pvector);
-
-      return n_iterations;
-    }
+    solve(VectorType &vector);
 
     std::function<int(const VectorType &x, VectorType &f)> residual;
 
@@ -155,9 +130,112 @@ namespace NonLinearSolvers
 
     std::function<
       int(const VectorType &f, VectorType &x, const double tolerance)>
-      solve_with_jacobian_and_track_n_linear_iterations; // TODO: use
+      solve_with_jacobian_and_track_n_linear_iterations;
 
-    std::function<bool()> update_preconditioner_predicate; // TODO: use
+    std::function<bool()> update_preconditioner_predicate;
+
+  private:
+    AdditionalData additional_data;
+
+    unsigned int n_residual_evaluations;
+    unsigned int n_jacobian_applications;
+    unsigned int n_nonlinear_iterations;
+    unsigned int n_last_linear_iterations;
   };
+
+
+
+  template <typename VectorType>
+  SNESSolver<VectorType>::AdditionalData::AdditionalData(
+    const unsigned int max_iter,
+    const double       abs_tol,
+    const double       rel_tol,
+    const unsigned int threshold_nonlinear_iterations,
+    const unsigned int threshold_n_linear_iterations,
+    const bool         reuse_solver)
+    : max_iter(max_iter)
+    , abs_tol(abs_tol)
+    , rel_tol(rel_tol)
+    , threshold_nonlinear_iterations(threshold_nonlinear_iterations)
+    , threshold_n_linear_iterations(threshold_n_linear_iterations)
+    , reuse_solver(reuse_solver)
+  {}
+
+
+
+  template <typename VectorType>
+  SNESSolver<VectorType>::SNESSolver(const AdditionalData &additional_data)
+    : additional_data(additional_data)
+    , n_residual_evaluations(0)
+    , n_jacobian_applications(0)
+    , n_nonlinear_iterations(0)
+    , n_last_linear_iterations(0)
+  {}
+
+
+
+  template <typename VectorType>
+  void
+  SNESSolver<VectorType>::clear()
+  {
+    // clear interal counters
+    n_residual_evaluations   = 0;
+    n_jacobian_applications  = 0;
+    n_nonlinear_iterations   = 0;
+    n_last_linear_iterations = 0;
+  }
+
+
+
+  template <typename VectorType>
+  unsigned int
+  SNESSolver<VectorType>::solve(VectorType &vector)
+  {
+    PETScWrappers::NonlinearSolver<PVectorType, PMatrixType> solver;
+
+    // create a temporal PETSc vector
+    auto pvector = VectorTraits::create(vector);
+
+    // create temporal deal.II vectors
+    VectorType tmp_0, tmp_1;
+    tmp_0.reinit(vector);
+    tmp_1.reinit(vector);
+
+    // wrap deal.II functions
+    solver.residual = [&](const PVectorType &X, PVectorType &F) -> int {
+      VectorTraits::copy(tmp_0, X);
+      const auto ierr = this->residual(tmp_0, tmp_1);
+      VectorTraits::copy(F, tmp_1);
+      return ierr;
+    };
+
+    solver.setup_jacobian = [&](const PVectorType &X) -> int {
+      VectorTraits::copy(tmp_1, X);
+      const auto ierr = this->setup_jacobian(tmp_1);
+
+      if (setup_preconditioner)
+        setup_preconditioner(tmp_1);
+
+      return ierr;
+    };
+
+    solver.solve_for_jacobian_system = [&](const PVectorType &src,
+                                           PVectorType &      dst) -> int {
+      // TODO: tolerance not used
+      const double tolerance = 0.0;
+
+      VectorTraits::copy(tmp_0, src);
+      const auto ierr = this->solve_with_jacobian(tmp_0, tmp_1, tolerance);
+      VectorTraits::copy(dst, tmp_1);
+      return ierr;
+    };
+
+    // solve
+    VectorTraits::copy(*pvector, vector);
+    const unsigned int n_iterations = solver.solve(*pvector);
+    VectorTraits::copy(vector, *pvector);
+
+    return n_iterations;
+  }
 
 } // namespace NonLinearSolvers
