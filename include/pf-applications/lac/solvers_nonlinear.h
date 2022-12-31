@@ -438,7 +438,7 @@ namespace NonLinearSolvers
   };
 
   template <typename Number>
-  class JacobianBase
+  class JacobianBase : public Subscriptor
   {
   public:
     using value_type  = Number;
