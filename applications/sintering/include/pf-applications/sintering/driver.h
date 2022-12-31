@@ -902,6 +902,11 @@ namespace Sintering
           *preconditioner,
           solver_control_l,
           params.nonlinear_data.gmres_data);
+      else if (params.nonlinear_data.l_solver == "Relaxation")
+        linear_solver = std::make_unique<LinearSolvers::SolverRelaxation<
+          NonLinearSolvers::JacobianBase<Number>,
+          Preconditioners::PreconditionerBase<Number>>>(*jacobian_operator,
+                                                        *preconditioner);
       else if (params.nonlinear_data.l_solver == "IDR")
         linear_solver = std::make_unique<LinearSolvers::SolverIDRWrapper<
           NonLinearSolvers::JacobianBase<Number>,

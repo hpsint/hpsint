@@ -98,6 +98,67 @@ namespace LinearSolvers
 
 
   template <typename Operator, typename Preconditioner>
+  class SolverRelaxation
+    : public LinearSolverBase<typename Operator::value_type>
+  {
+  public:
+    using VectorType      = typename Operator::vector_type;
+    using BlockVectorType = typename Operator::BlockVectorType;
+
+    SolverRelaxation(const Operator &   op,
+                     Preconditioner &   preconditioner,
+                     const double       relaxation   = 1.,
+                     const unsigned int n_iterations = 1)
+      : op(op)
+      , preconditioner(preconditioner)
+      , relaxation(relaxation)
+      , n_iterations(n_iterations)
+    {}
+
+    unsigned int
+    solve(VectorType &dst, const VectorType &src) override
+    {
+      return solve_internal(dst, src);
+    }
+
+    unsigned int
+    solve(BlockVectorType &dst, const BlockVectorType &src) override
+    {
+      return solve_internal(dst, src);
+    }
+
+  private:
+    template <typename T>
+    unsigned int
+    solve_internal(T &dst, const T &src)
+    {
+      MyScope scope(timer, "relaxation::solve");
+
+      typename PreconditionRelaxation<Operator, Preconditioner>::AdditionalData
+        additional_data;
+      additional_data.relaxation   = relaxation;
+      additional_data.n_iterations = n_iterations;
+      additional_data.preconditioner =
+        std::shared_ptr<Preconditioner>(&preconditioner, [](const auto &) {});
+
+      PreconditionRelaxation<Operator, Preconditioner> solver;
+      solver.initialize(op, additional_data);
+      solver.vmult(dst, src);
+
+      return n_iterations;
+    }
+
+    const Operator &   op;
+    Preconditioner &   preconditioner;
+    const double       relaxation;
+    const unsigned int n_iterations;
+
+    mutable MyTimerOutput timer;
+  };
+
+
+
+  template <typename Operator, typename Preconditioner>
   class SolverIDRWrapper
     : public LinearSolverBase<typename Operator::value_type>
   {

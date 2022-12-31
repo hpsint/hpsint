@@ -737,7 +737,7 @@ namespace Sintering
       prm.add_parameter("LinearSolver",
                         nonlinear_data.l_solver,
                         "Name of linear solver.",
-                        Patterns::Selection("GMRES|IDR|Bicgstab"));
+                        Patterns::Selection("GMRES|IDR|Bicgstab|Relaxation"));
       prm.add_parameter("LinearSolver",
                         nonlinear_data.l_bisgstab_tries,
                         "Number of Bicgstab before switching to GMRES.");
