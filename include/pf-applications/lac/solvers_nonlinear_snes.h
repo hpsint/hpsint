@@ -111,6 +111,7 @@ namespace NonLinearSolvers
                      const double       rel_tol                        = 1.e-5,
                      const unsigned int threshold_nonlinear_iterations = 1,
                      const unsigned int threshold_n_linear_iterations  = 0,
+                     const std::string &line_search_type               = "bt",
                      const bool         reuse_solver                   = false);
 
       unsigned int max_iter;
@@ -118,6 +119,7 @@ namespace NonLinearSolvers
       double       rel_tol;
       unsigned int threshold_nonlinear_iterations;
       unsigned int threshold_n_linear_iterations;
+      std::string  line_search_type;
       bool         reuse_solver;
     };
 
@@ -172,12 +174,14 @@ namespace NonLinearSolvers
     const double       rel_tol,
     const unsigned int threshold_nonlinear_iterations,
     const unsigned int threshold_n_linear_iterations,
+    const std::string &line_search_type,
     const bool         reuse_solver)
     : max_iter(max_iter)
     , abs_tol(abs_tol)
     , rel_tol(rel_tol)
     , threshold_nonlinear_iterations(threshold_nonlinear_iterations)
     , threshold_n_linear_iterations(threshold_n_linear_iterations)
+    , line_search_type(line_search_type)
     , reuse_solver(reuse_solver)
   {}
 
@@ -225,6 +229,15 @@ namespace NonLinearSolvers
 
     PETScWrappers::NonlinearSolver<PVectorType, PMatrixType> solver(
       p_additional_data);
+
+    if (additional_data.line_search_type.size())
+      {
+        SNESLineSearch linesearch;
+        SNESGetLineSearch(solver.petsc_snes(), &linesearch);
+        AssertSNES(
+          SNESLineSearchSetType(linesearch,
+                                additional_data.line_search_type.c_str()));
+      }
 
     // create a temporal PETSc vector
     auto pvector = VectorTraits::create(vector);

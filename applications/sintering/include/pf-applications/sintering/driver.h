@@ -1378,7 +1378,8 @@ namespace Sintering
                             params.nonlinear_data.nl_abs_tol,
                             params.nonlinear_data.nl_rel_tol,
                             params.nonlinear_data.newton_threshold_newton_iter,
-                            params.nonlinear_data.newton_threshold_linear_iter);
+                            params.nonlinear_data.newton_threshold_linear_iter,
+                            params.nonlinear_data.snes_data.line_search_name);
 
           NonLinearSolvers::SNESSolver<VectorType> non_linear_solver(
             additional_data, params.nonlinear_data.snes_data.solver_name);

@@ -231,7 +231,8 @@ namespace Sintering
 
   struct SNESData
   {
-    std::string solver_name = "newtonls";
+    std::string solver_name      = "newtonls";
+    std::string line_search_name = "bt";
   };
 
   struct NonLinearData
@@ -789,6 +790,10 @@ namespace Sintering
       prm.add_parameter("SolverName",
                         nonlinear_data.snes_data.solver_name,
                         "SNES solver name");
+      prm.add_parameter("LineSearchName",
+                        nonlinear_data.snes_data.line_search_name,
+                        "SNES line search algorithm name",
+                        Patterns::Selection("bt|basic|none|l2|cp"));
       prm.leave_subsection();
 
       prm.enter_subsection("GMRESData");
