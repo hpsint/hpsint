@@ -244,6 +244,7 @@ namespace NonLinearSolvers
       n_residual_evaluations++;
 
       VectorTraits::copy(tmp_0, X);
+      VectorTraits::copy(tmp_1, F);
       const auto flag = this->residual(tmp_0, tmp_1);
       VectorTraits::copy(F, tmp_1);
       return flag;
@@ -302,6 +303,7 @@ namespace NonLinearSolvers
 
           // without tracking of linear iterations
           VectorTraits::copy(tmp_0, src);
+          VectorTraits::copy(tmp_1, dst);
           const auto flag = solve_with_jacobian(tmp_0, tmp_1, tolerance);
           VectorTraits::copy(dst, tmp_1);
 
@@ -311,6 +313,7 @@ namespace NonLinearSolvers
         {
           // with tracking of linear iterations
           VectorTraits::copy(tmp_0, src);
+          VectorTraits::copy(tmp_1, dst);
           const int n_linear_iterations =
             solve_with_jacobian_and_track_n_linear_iterations(tmp_0,
                                                               tmp_1,
