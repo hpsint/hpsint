@@ -1481,12 +1481,15 @@ namespace Sintering
                         }
                     }
 
-                  // In case if a cell has values, e.g., close to 0 or 1
-                  val_avg /= values.size();
-                  if (val_min < val_avg && val_avg < val_max)
+                  if (!cell->refine_flag_set())
                     {
-                      cell->clear_coarsen_flag();
-                      cell->set_refine_flag();
+                      // In case if a cell has values, e.g., close to 0 or 1
+                      val_avg /= values.size();
+                      if (val_min < val_avg && val_avg < val_max)
+                        {
+                          cell->clear_coarsen_flag();
+                          cell->set_refine_flag();
+                        }
                     }
 
                   if (cell->refine_flag_set())
