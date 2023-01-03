@@ -138,6 +138,9 @@ namespace NonLinearSolvers
 
     std::function<int(const VectorType &x)> setup_preconditioner;
 
+    // TODO: not uses yet
+    std::function<int(const VectorType &x, VectorType &v)> apply_jacobian;
+
     std::function<
       int(const VectorType &f, VectorType &x, const double tolerance)>
       solve_with_jacobian;
