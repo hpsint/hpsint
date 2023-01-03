@@ -1847,6 +1847,7 @@ namespace Sintering
               nonlinear_operator.sanity_check(solution);
 
             bool do_mesh_refinement = false;
+            bool do_grain_tracker   = false;
             if (n_timestep != 0)
               {
                 // If quality control is enabled, then frequency is not used
@@ -1870,13 +1871,23 @@ namespace Sintering
                           params.adaptivity_data.refinement_frequency ==
                         0;
                   }
-              }
 
-            const bool do_grain_tracker =
-              n_timestep != 0 &&
-              params.grain_tracker_data.grain_tracker_frequency > 0 &&
-              n_timestep % params.grain_tracker_data.grain_tracker_frequency ==
-                0;
+                // If advection is enabled, then execute grain tracker
+                if (params.advection_data.enable)
+                  do_grain_tracker = true;
+                // If mesh quality control is enabled and grain tracker is asked
+                // to run at the same time, then execute it synchronously
+                else if (params.adaptivity_data.quality_control &&
+                         params.grain_tracker_data.track_with_quality)
+                  do_grain_tracker = do_mesh_refinement;
+                // Otherwise use the default frequency settings
+                else
+                  do_grain_tracker =
+                    params.grain_tracker_data.grain_tracker_frequency > 0 &&
+                    n_timestep %
+                        params.grain_tracker_data.grain_tracker_frequency ==
+                      0;
+              }
 
             if (do_mesh_refinement)
               execute_coarsening_and_refinement(
