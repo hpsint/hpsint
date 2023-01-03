@@ -62,7 +62,8 @@ namespace Sintering
     double       buffer_distance_fixed   = 0.0;
     unsigned int grain_tracker_frequency = 10; // 0 - no grain tracker
 
-    bool fast_reassignment = false;
+    bool fast_reassignment  = false;
+    bool track_with_quality = false;
   };
 
   struct EnergyAbstractData
@@ -478,6 +479,10 @@ namespace Sintering
       prm.add_parameter("FastReassignment",
                         grain_tracker_data.fast_reassignment,
                         "Use fast grain reassignment strategy.");
+      prm.add_parameter(
+        "TrackWithQuality",
+        grain_tracker_data.track_with_quality,
+        "Run grain tracker if the mesh refinement is triggered by the quality control.");
       prm.leave_subsection();
 
 
