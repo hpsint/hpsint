@@ -86,10 +86,9 @@ namespace Sintering
       return 4;
     }
 
-    template <int n_comp, int n_grains>
+    template <int n_comp, int n_grains, typename FECellIntegratorType>
     void
-    do_vmult_kernel(
-      FECellIntegrator<dim, n_comp, Number, VectorizedArrayType> &phi) const
+    do_vmult_kernel(FECellIntegratorType &) const
     {
       AssertThrow(false, ExcNotImplemented());
     }

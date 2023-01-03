@@ -51,10 +51,9 @@ namespace Sintering
       return 2;
     }
 
-    template <int n_comp, int n_grains>
+    template <int n_comp, int n_grains, typename FECellIntegratorType>
     void
-    do_vmult_kernel(
-      FECellIntegrator<dim, n_comp, Number, VectorizedArrayType> &phi) const
+    do_vmult_kernel(FECellIntegratorType &phi) const
     {
       static_assert(n_grains != -1);
       const unsigned int cell = phi.get_current_cell_index();
@@ -89,9 +88,8 @@ namespace Sintering
                 etas_grad[ig] = grad[2 + ig];
             }
 
-          Tensor<1, n_comp, VectorizedArrayType> value_result;
-          Tensor<1, n_comp, Tensor<1, dim, VectorizedArrayType>>
-            gradient_result;
+          typename FECellIntegratorType::value_type    value_result;
+          typename FECellIntegratorType::gradient_type gradient_result;
 
 #if true
           // CH with all terms
@@ -169,10 +167,9 @@ namespace Sintering
       return n_grains;
     }
 
-    template <int n_comp, int n_grains>
+    template <int n_comp, int n_grains, typename FECellIntegratorType>
     void
-    do_vmult_kernel(
-      FECellIntegrator<dim, n_comp, Number, VectorizedArrayType> &phi) const
+    do_vmult_kernel(FECellIntegratorType &phi) const
     {
       static_assert(n_comp == n_grains);
 
@@ -195,9 +192,8 @@ namespace Sintering
           for (unsigned int ig = 0; ig < n_grains; ++ig)
             etas[ig] = val[2 + ig];
 
-          Tensor<1, n_comp, VectorizedArrayType> value_result;
-          Tensor<1, n_comp, Tensor<1, dim, VectorizedArrayType>>
-            gradient_result;
+          typename FECellIntegratorType::value_type    value_result;
+          typename FECellIntegratorType::gradient_type gradient_result;
 
           for (unsigned int ig = 0; ig < n_grains; ++ig)
             {
@@ -298,10 +294,9 @@ namespace Sintering
       return n_grains;
     }
 
-    template <int n_comp, int n_grains>
+    template <int n_comp, int n_grains, typename FECellIntegratorType>
     void
-    do_vmult_kernel(
-      FECellIntegrator<dim, n_comp, Number, VectorizedArrayType> &phi) const
+    do_vmult_kernel(FECellIntegratorType &phi) const
     {
       static_assert(n_comp == n_grains);
 
@@ -324,9 +319,8 @@ namespace Sintering
           for (unsigned int ig = 0; ig < n_grains; ++ig)
             etas[ig] = val[2 + ig];
 
-          Tensor<1, n_comp, VectorizedArrayType> value_result;
-          Tensor<1, n_comp, Tensor<1, dim, VectorizedArrayType>>
-            gradient_result;
+          typename FECellIntegratorType::value_type    value_result;
+          typename FECellIntegratorType::gradient_type gradient_result;
 
           for (unsigned int ig = 0; ig < n_grains; ++ig)
             {
@@ -611,22 +605,17 @@ namespace Sintering
       return 1;
     }
 
-    template <int n_comp, int n_grains>
+    template <int n_comp, int n_grains, typename FECellIntegratorType>
     void
-    do_vmult_kernel(
-      FECellIntegrator<dim, n_comp, Number, VectorizedArrayType> &phi) const
+    do_vmult_kernel(FECellIntegratorType &phi) const
     {
       static_assert(n_grains == -1);
 
       for (unsigned int q = 0; q < phi.n_q_points; ++q)
         {
           phi.submit_value(phi.get_value(q), q);
-          phi.submit_gradient(
-            typename FECellIntegrator<dim,
-                                      n_comp,
-                                      Number,
-                                      VectorizedArrayType>::gradient_type(),
-            q);
+          phi.submit_gradient(typename FECellIntegratorType::gradient_type(),
+                              q);
         }
     }
   };
@@ -908,10 +897,9 @@ namespace Sintering
       return n_components_;
     }
 
-    template <int n_comp, int n_grains>
+    template <int n_comp, int n_grains, typename FECellIntegratorType>
     void
-    do_vmult_kernel(
-      FECellIntegrator<dim, n_comp, Number, VectorizedArrayType> &phi) const
+    do_vmult_kernel(FECellIntegratorType &phi) const
     {
       static_assert(n_grains == -1);
 
