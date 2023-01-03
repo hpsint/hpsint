@@ -1454,6 +1454,9 @@ namespace Sintering
 
           // make sure that cells close to the interfaces are refined, ...
           Vector<Number> values(dof_handler.get_fe().n_dofs_per_cell());
+          const Number   val_min = 0.05;
+          const Number   val_max = 0.95;
+
           for (const auto &cell : dof_handler.active_cell_iterators())
             {
               if (cell->is_locally_owned() == false || cell->refine_flag_set())
@@ -1463,14 +1466,28 @@ namespace Sintering
                 {
                   cell->get_dof_values(solution_dealii.block(b), values);
 
-                  for (unsigned int i = 0; i < values.size(); ++i)
-                    if (0.05 < values[i] && values[i] < 0.95)
-                      {
-                        cell->clear_coarsen_flag();
-                        cell->set_refine_flag();
+                  Number val_avg = 0;
 
-                        break;
-                      }
+                  for (unsigned int i = 0; i < values.size(); ++i)
+                    {
+                      val_avg += values[i];
+
+                      if (val_min < values[i] && values[i] < val_max)
+                        {
+                          cell->clear_coarsen_flag();
+                          cell->set_refine_flag();
+
+                          break;
+                        }
+                    }
+
+                  // In case if a cell has values, e.g., close to 0 or 1
+                  val_avg /= values.size();
+                  if (val_min < val_avg && val_avg < val_max)
+                    {
+                      cell->clear_coarsen_flag();
+                      cell->set_refine_flag();
+                    }
 
                   if (cell->refine_flag_set())
                     break;
