@@ -1295,8 +1295,9 @@ namespace GrainTracker
                   for (auto it = sp.begin(grain_id); it != sp.end(grain_id);
                        ++it)
                     {
+                      const auto neighbor_index = it->column();
                       const auto neighbor_order_parameter =
-                        grains.at(it->index()).get_order_parameter_id();
+                        grains.at(neighbor_index).get_order_parameter_id();
                       available_colors.erase(neighbor_order_parameter);
                     }
 
