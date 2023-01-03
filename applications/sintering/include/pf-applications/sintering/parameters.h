@@ -745,7 +745,7 @@ namespace Sintering
                         nonlinear_data.l_solver,
                         "Name of linear solver.",
                         Patterns::Selection("GMRES|IDR|Bicgstab|Relaxation"));
-      prm.add_parameter("LinearSolver",
+      prm.add_parameter("LinearSolverBicgstabTries",
                         nonlinear_data.l_bisgstab_tries,
                         "Number of Bicgstab before switching to GMRES.");
 
@@ -787,9 +787,15 @@ namespace Sintering
       prm.leave_subsection();
 
       prm.enter_subsection("SNESData");
+
+      // see: https://petsc.org/main/docs/manual/snes/#the-nonlinear-solvers
       prm.add_parameter("SolverName",
                         nonlinear_data.snes_data.solver_name,
-                        "SNES solver name");
+                        "SNES solver name",
+                        Patterns::Selection(
+                          "newtonls|newtontr|ngmres|anderson"));
+
+      // see: https://petsc.org/main/docs/manual/snes/#line-search-newton
       prm.add_parameter("LineSearchName",
                         nonlinear_data.snes_data.line_search_name,
                         "SNES line search algorithm name",
