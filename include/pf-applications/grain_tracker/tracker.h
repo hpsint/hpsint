@@ -1262,8 +1262,9 @@ namespace GrainTracker
 
                           overlap_detected = true;
 
-                          if (gr_other.get_grain_id() > gr_base.get_grain_id())
-                            remap_candidates.insert(gr_other.get_grain_id());
+                          if (g_other_id > g_base_id)
+                            remap_candidates.insert(
+                              grains_to_sparsity.at(g_other_id));
                         }
                     }
                 }
@@ -1291,16 +1292,30 @@ namespace GrainTracker
                * assigned directly to the grains but only gathered in a map. */
               std::map<unsigned int, unsigned int>
                 new_order_parameters_for_grains;
-              for (const auto &grain_id : remap_candidates)
+
+              /* We also need to inverse the grains_to_sparsity map */
+              std::map<unsigned int, unsigned int> sparsity_to_grains;
+
+              std::transform(grains_to_sparsity.begin(),
+                             grains_to_sparsity.end(),
+                             std::inserter(sparsity_to_grains,
+                                           sparsity_to_grains.end()),
+                             [](const auto &a) {
+                               return std::make_pair(a.second, a.first);
+                             });
+
+              for (const auto &row_id : remap_candidates)
                 {
+                  const auto grain_id = sparsity_to_grains.at(row_id);
+
                   auto available_colors = active_order_parameters;
 
-                  for (auto it = sp.begin(grain_id); it != sp.end(grain_id);
-                       ++it)
+                  for (auto it = sp.begin(row_id); it != sp.end(row_id); ++it)
                     {
-                      const auto neighbor_index = it->column();
+                      const auto neighbor_id =
+                        sparsity_to_grains.at(it->column());
                       const auto neighbor_order_parameter =
-                        grains.at(neighbor_index).get_order_parameter_id();
+                        grains.at(neighbor_id).get_order_parameter_id();
                       available_colors.erase(neighbor_order_parameter);
                     }
 
