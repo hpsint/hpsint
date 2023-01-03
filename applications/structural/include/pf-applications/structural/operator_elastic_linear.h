@@ -126,12 +126,11 @@ namespace Structural
         constraints_imposition(dof_handler, matrix_constraints);
     }
 
-    template <int n_comp, int n_grains>
+    template <int n_comp, int n_grains, typename FECellIntegratorType>
     void
-    do_vmult_kernel(
-      FECellIntegrator<dim, n_comp, Number, VectorizedArrayType> &phi) const
+    do_vmult_kernel(FECellIntegratorType &phi) const
     {
-      Tensor<1, dim, VectorizedArrayType> zero_result;
+      typename FECellIntegratorType::value_type zero_result;
 
       for (unsigned int q = 0; q < phi.n_q_points; ++q)
         {
