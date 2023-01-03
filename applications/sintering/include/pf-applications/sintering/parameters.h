@@ -59,6 +59,7 @@ namespace Sintering
     double       threshold_lower         = 0.01;
     double       threshold_upper         = 1.01;
     double       buffer_distance_ratio   = 0.05;
+    double       buffer_distance_fixed   = 0.0;
     unsigned int grain_tracker_frequency = 10; // 0 - no grain tracker
 
     bool fast_reassignment = false;
@@ -468,6 +469,9 @@ namespace Sintering
       prm.add_parameter("BufferDistanceRatio",
                         grain_tracker_data.buffer_distance_ratio,
                         "Ratio of the transfer buffer (to the grain radius).");
+      prm.add_parameter("BufferDistanceFixed",
+                        grain_tracker_data.buffer_distance_fixed,
+                        "Fixed size of the transfer buffer.");
       prm.add_parameter("GrainTrackerFrequency",
                         grain_tracker_data.grain_tracker_frequency,
                         "Grain tracker frequency (0 = no grain tracking).");

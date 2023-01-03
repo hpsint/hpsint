@@ -59,6 +59,7 @@ namespace GrainTracker
             const double                            threshold_lower = 0.01,
             const double                            threshold_upper = 1.01,
             const double       buffer_distance_ratio                = 0.05,
+            const double       buffer_distance_fixed                = 0.0,
             const unsigned int op_offset                            = 2)
       : dof_handler(dof_handler)
       , tria(tria)
@@ -69,6 +70,7 @@ namespace GrainTracker
       , threshold_lower(threshold_lower)
       , threshold_upper(threshold_upper)
       , buffer_distance_ratio(buffer_distance_ratio)
+      , buffer_distance_fixed(buffer_distance_fixed)
       , order_parameters_offset(op_offset)
       , pcout(std::cout, Utilities::MPI::this_mpi_process(MPI_COMM_WORLD) == 0)
     {}
@@ -1230,17 +1232,18 @@ namespace GrainTracker
                    * the cells inside the buffer zone are transfered to a
                    * new one.
                    */
-                  double buffer_distance_base =
+                  const double buffer_distance_base =
                     buffer_distance_ratio * gr_base.get_max_radius();
-                  double buffer_distance_other =
+                  const double buffer_distance_other =
                     buffer_distance_ratio * gr_other.get_max_radius();
 
                   /* If two grains sharing the same order parameter are
                    * too close to each other, then try to change the
                    * order parameter of the secondary grain
                    */
-                  if (min_distance <
-                      buffer_distance_base + buffer_distance_other)
+                  if (min_distance < buffer_distance_base +
+                                       buffer_distance_other +
+                                       buffer_distance_fixed)
                     {
                       dsp.add(grains_to_sparsity.at(g_base_id),
                               grains_to_sparsity.at(g_other_id));
@@ -1717,8 +1720,11 @@ namespace GrainTracker
     // Maximum value of order parameter value
     const double threshold_upper;
 
-    // Buffer zone around the grain
+    // Buffer zone around the grain - ratio value
     const double buffer_distance_ratio;
+
+    // Buffer zone around the grain - fixed value
+    const double buffer_distance_fixed;
 
     // Order parameters offset in FESystem
     const unsigned int order_parameters_offset;
