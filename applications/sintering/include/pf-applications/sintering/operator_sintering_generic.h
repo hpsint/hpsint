@@ -88,10 +88,9 @@ namespace Sintering
       return n_grains + 2;
     }
 
-    template <int n_comp, int n_grains>
+    template <int n_comp, int n_grains, typename FECellIntegratorType>
     void
-    do_vmult_kernel(
-      FECellIntegrator<dim, n_comp, Number, VectorizedArrayType> &phi) const
+    do_vmult_kernel(FECellIntegratorType &phi) const
     {
       AssertDimension(n_comp - 2, n_grains);
 
@@ -115,9 +114,8 @@ namespace Sintering
 
       for (unsigned int q = 0; q < phi.n_q_points; ++q)
         {
-          Tensor<1, n_comp, VectorizedArrayType> value_result;
-          Tensor<1, n_comp, Tensor<1, dim, VectorizedArrayType>>
-            gradient_result;
+          typename FECellIntegratorType::value_type    value_result;
+          typename FECellIntegratorType::gradient_type gradient_result;
 
           const auto  value        = phi.get_value(q);
           const auto  gradient     = phi.get_gradient(q);
