@@ -162,11 +162,22 @@ namespace GrainTracker
                 }
               else
                 {
+                  std::ostringstream ss;
+                  ss << "Unable to match a new grain with an old one "
+                     << "from the previous configuration!" << std::endl;
+                  ss << std::endl;
+
+                  ss << "Problematic grain:" << std::endl;
+                  print_grain(new_grain, ss);
+                  ss << std::endl;
+
+                  ss << "Grains which have been assigned so far:" << std::endl;
+                  print_grains(grains, ss);
+
                   // Check if we have found anything
-                  AssertThrow(
-                    new_grain_id != std::numeric_limits<unsigned int>::max(),
-                    ExcGrainsInconsistency(
-                      "Unable to match a new grain with an old one from the previous configuration!"));
+                  AssertThrow(new_grain_id !=
+                                std::numeric_limits<unsigned int>::max(),
+                              ExcGrainsInconsistency(ss.str()));
                 }
             }
           else
@@ -1566,6 +1577,23 @@ namespace GrainTracker
       counter++;
     }
 
+    // Print a single grain
+    template <typename Stream>
+    void
+    print_grain(const Grain<dim> &grain, Stream &out) const
+    {
+      out << "op_index_current = " << grain.get_order_parameter_id()
+          << " | op_index_old = " << grain.get_old_order_parameter_id()
+          << " | segments = " << grain.get_segments().size()
+          << " | grain_index = " << grain.get_grain_id() << std::endl;
+
+      for (const auto &segment : grain.get_segments())
+        {
+          out << "    segment: center = " << segment.get_center()
+              << " | radius = " << segment.get_radius() << std::endl;
+        }
+    }
+
     // Print current grains
     template <typename Stream>
     void
@@ -1579,15 +1607,7 @@ namespace GrainTracker
       for (const auto &[gid, gr] : current_grains)
         {
           (void)gid;
-          out << "op_index_current = " << gr.get_order_parameter_id()
-              << " | op_index_old = " << gr.get_old_order_parameter_id()
-              << " | segments = " << gr.get_segments().size()
-              << " | grain_index = " << gr.get_grain_id() << std::endl;
-          for (const auto &segment : gr.get_segments())
-            {
-              out << "    segment: center = " << segment.get_center()
-                  << " | radius = " << segment.get_radius() << std::endl;
-            }
+          print_grain(gr, out);
         }
     }
 
