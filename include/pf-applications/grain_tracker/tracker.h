@@ -59,6 +59,7 @@ namespace GrainTracker
             const double                            threshold_lower = 0.01,
             const double                            threshold_upper = 1.01,
             const double       buffer_distance_ratio                = 0.05,
+            const double       buffer_distance_fixed                = 0.0,
             const unsigned int op_offset                            = 2)
       : dof_handler(dof_handler)
       , tria(tria)
@@ -69,6 +70,7 @@ namespace GrainTracker
       , threshold_lower(threshold_lower)
       , threshold_upper(threshold_upper)
       , buffer_distance_ratio(buffer_distance_ratio)
+      , buffer_distance_fixed(buffer_distance_fixed)
       , order_parameters_offset(op_offset)
       , pcout(std::cout, Utilities::MPI::this_mpi_process(MPI_COMM_WORLD) == 0)
     {}
@@ -127,16 +129,22 @@ namespace GrainTracker
                 {
                   const auto &old_grain = old_grains.at(old_grain_id);
 
-                  for (const auto &old_segment : old_grain.get_segments())
+                  if (new_grain.get_order_parameter_id() ==
+                      old_grain.get_order_parameter_id())
                     {
-                      const double distance = new_segment.get_center().distance(
-                        old_segment.get_center());
-
-                      if (distance < new_segment.get_radius() &&
-                          distance < min_distance)
+                      for (const auto &old_segment : old_grain.get_segments())
                         {
-                          min_distance = distance;
-                          new_grain_id = old_grain.get_grain_id();
+                          const double distance =
+                            new_segment.get_center().distance(
+                              old_segment.get_center());
+
+                          if (distance < std::max(new_segment.get_radius(),
+                                                  old_segment.get_radius()) &&
+                              distance < min_distance)
+                            {
+                              min_distance = distance;
+                              new_grain_id = old_grain.get_grain_id();
+                            }
                         }
                     }
                 }
@@ -154,11 +162,22 @@ namespace GrainTracker
                 }
               else
                 {
+                  std::ostringstream ss;
+                  ss << "Unable to match a new grain with an old one "
+                     << "from the previous configuration!" << std::endl;
+                  ss << std::endl;
+
+                  ss << "Problematic grain:" << std::endl;
+                  print_grain(new_grain, ss);
+                  ss << std::endl;
+
+                  ss << "Grains which have been assigned so far:" << std::endl;
+                  print_grains(grains, ss);
+
                   // Check if we have found anything
-                  AssertThrow(
-                    new_grain_id != std::numeric_limits<unsigned int>::max(),
-                    ExcGrainsInconsistency(
-                      "Unable to match a new grain with an old one from the previous configuration!"));
+                  AssertThrow(new_grain_id !=
+                                std::numeric_limits<unsigned int>::max(),
+                              ExcGrainsInconsistency(ss.str()));
                 }
             }
           else
@@ -1230,17 +1249,18 @@ namespace GrainTracker
                    * the cells inside the buffer zone are transfered to a
                    * new one.
                    */
-                  double buffer_distance_base =
+                  const double buffer_distance_base =
                     buffer_distance_ratio * gr_base.get_max_radius();
-                  double buffer_distance_other =
+                  const double buffer_distance_other =
                     buffer_distance_ratio * gr_other.get_max_radius();
 
                   /* If two grains sharing the same order parameter are
                    * too close to each other, then try to change the
                    * order parameter of the secondary grain
                    */
-                  if (min_distance <
-                      buffer_distance_base + buffer_distance_other)
+                  if (min_distance < buffer_distance_base +
+                                       buffer_distance_other +
+                                       buffer_distance_fixed)
                     {
                       dsp.add(grains_to_sparsity.at(g_base_id),
                               grains_to_sparsity.at(g_other_id));
@@ -1259,8 +1279,9 @@ namespace GrainTracker
 
                           overlap_detected = true;
 
-                          if (gr_other.get_grain_id() > gr_base.get_grain_id())
-                            remap_candidates.insert(gr_other.get_grain_id());
+                          if (g_other_id > g_base_id)
+                            remap_candidates.insert(
+                              grains_to_sparsity.at(g_other_id));
                         }
                     }
                 }
@@ -1288,15 +1309,30 @@ namespace GrainTracker
                * assigned directly to the grains but only gathered in a map. */
               std::map<unsigned int, unsigned int>
                 new_order_parameters_for_grains;
-              for (const auto &grain_id : remap_candidates)
+
+              /* We also need to inverse the grains_to_sparsity map */
+              std::map<unsigned int, unsigned int> sparsity_to_grains;
+
+              std::transform(grains_to_sparsity.begin(),
+                             grains_to_sparsity.end(),
+                             std::inserter(sparsity_to_grains,
+                                           sparsity_to_grains.end()),
+                             [](const auto &a) {
+                               return std::make_pair(a.second, a.first);
+                             });
+
+              for (const auto &row_id : remap_candidates)
                 {
+                  const auto grain_id = sparsity_to_grains.at(row_id);
+
                   auto available_colors = active_order_parameters;
 
-                  for (auto it = sp.begin(grain_id); it != sp.end(grain_id);
-                       ++it)
+                  for (auto it = sp.begin(row_id); it != sp.end(row_id); ++it)
                     {
+                      const auto neighbor_id =
+                        sparsity_to_grains.at(it->column());
                       const auto neighbor_order_parameter =
-                        grains.at(it->index()).get_order_parameter_id();
+                        grains.at(neighbor_id).get_order_parameter_id();
                       available_colors.erase(neighbor_order_parameter);
                     }
 
@@ -1541,6 +1577,23 @@ namespace GrainTracker
       counter++;
     }
 
+    // Print a single grain
+    template <typename Stream>
+    void
+    print_grain(const Grain<dim> &grain, Stream &out) const
+    {
+      out << "op_index_current = " << grain.get_order_parameter_id()
+          << " | op_index_old = " << grain.get_old_order_parameter_id()
+          << " | segments = " << grain.get_segments().size()
+          << " | grain_index = " << grain.get_grain_id() << std::endl;
+
+      for (const auto &segment : grain.get_segments())
+        {
+          out << "    segment: center = " << segment.get_center()
+              << " | radius = " << segment.get_radius() << std::endl;
+        }
+    }
+
     // Print current grains
     template <typename Stream>
     void
@@ -1554,15 +1607,7 @@ namespace GrainTracker
       for (const auto &[gid, gr] : current_grains)
         {
           (void)gid;
-          out << "op_index_current = " << gr.get_order_parameter_id()
-              << " | op_index_old = " << gr.get_old_order_parameter_id()
-              << " | segments = " << gr.get_segments().size()
-              << " | grain_index = " << gr.get_grain_id() << std::endl;
-          for (const auto &segment : gr.get_segments())
-            {
-              out << "    segment: center = " << segment.get_center()
-                  << " | radius = " << segment.get_radius() << std::endl;
-            }
+          print_grain(gr, out);
         }
     }
 
@@ -1716,8 +1761,11 @@ namespace GrainTracker
     // Maximum value of order parameter value
     const double threshold_upper;
 
-    // Buffer zone around the grain
+    // Buffer zone around the grain - ratio value
     const double buffer_distance_ratio;
+
+    // Buffer zone around the grain - fixed value
+    const double buffer_distance_fixed;
 
     // Order parameters offset in FESystem
     const unsigned int order_parameters_offset;

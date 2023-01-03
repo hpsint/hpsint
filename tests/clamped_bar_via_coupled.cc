@@ -235,6 +235,7 @@ public:
     const double       threshold_lower          = 1e-15;
     const double       threshold_upper          = 1.01;
     const double       buffer_distance_ratio    = 0.05;
+    const double       buffer_distance_fixed    = 0.0;
     const bool         allow_new_grains         = false;
     const bool         greedy_init              = false;
     const bool         fast_reassignment        = false;
@@ -250,6 +251,7 @@ public:
                                                      threshold_lower,
                                                      threshold_upper,
                                                      buffer_distance_ratio,
+                                                     buffer_distance_fixed,
                                                      op_offset);
 
     const bool   enable = false;

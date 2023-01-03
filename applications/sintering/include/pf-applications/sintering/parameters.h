@@ -59,9 +59,11 @@ namespace Sintering
     double       threshold_lower         = 0.01;
     double       threshold_upper         = 1.01;
     double       buffer_distance_ratio   = 0.05;
+    double       buffer_distance_fixed   = 0.0;
     unsigned int grain_tracker_frequency = 10; // 0 - no grain tracker
 
-    bool fast_reassignment = false;
+    bool fast_reassignment  = false;
+    bool track_with_quality = false;
   };
 
   struct EnergyAbstractData
@@ -468,12 +470,19 @@ namespace Sintering
       prm.add_parameter("BufferDistanceRatio",
                         grain_tracker_data.buffer_distance_ratio,
                         "Ratio of the transfer buffer (to the grain radius).");
+      prm.add_parameter("BufferDistanceFixed",
+                        grain_tracker_data.buffer_distance_fixed,
+                        "Fixed size of the transfer buffer.");
       prm.add_parameter("GrainTrackerFrequency",
                         grain_tracker_data.grain_tracker_frequency,
                         "Grain tracker frequency (0 = no grain tracking).");
       prm.add_parameter("FastReassignment",
                         grain_tracker_data.fast_reassignment,
                         "Use fast grain reassignment strategy.");
+      prm.add_parameter(
+        "TrackWithQuality",
+        grain_tracker_data.track_with_quality,
+        "Run grain tracker if the mesh refinement is triggered by the quality control.");
       prm.leave_subsection();
 
 
