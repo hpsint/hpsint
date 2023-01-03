@@ -129,16 +129,22 @@ namespace GrainTracker
                 {
                   const auto &old_grain = old_grains.at(old_grain_id);
 
-                  for (const auto &old_segment : old_grain.get_segments())
+                  if (new_grain.get_order_parameter_id() ==
+                      old_grain.get_order_parameter_id())
                     {
-                      const double distance = new_segment.get_center().distance(
-                        old_segment.get_center());
-
-                      if (distance < new_segment.get_radius() &&
-                          distance < min_distance)
+                      for (const auto &old_segment : old_grain.get_segments())
                         {
-                          min_distance = distance;
-                          new_grain_id = old_grain.get_grain_id();
+                          const double distance =
+                            new_segment.get_center().distance(
+                              old_segment.get_center());
+
+                          if (distance < std::max(new_segment.get_radius(),
+                                                  old_segment.get_radius()) &&
+                              distance < min_distance)
+                            {
+                              min_distance = distance;
+                              new_grain_id = old_grain.get_grain_id();
+                            }
                         }
                     }
                 }
