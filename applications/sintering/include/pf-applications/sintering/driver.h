@@ -884,9 +884,10 @@ namespace Sintering
           nonlinear_operator, params.preconditioners_data.outer_preconditioner);
 
       // ... linear solver
-      ReductionControl solver_control_l(params.nonlinear_data.l_max_iter,
-                                        params.nonlinear_data.l_abs_tol,
-                                        params.nonlinear_data.l_rel_tol);
+      // ReductionControl solver_control_l(params.nonlinear_data.l_max_iter,
+      //                                  params.nonlinear_data.l_abs_tol,
+      //                                  params.nonlinear_data.l_rel_tol);
+      IterationNumberControl solver_control_l(10);
 
       // Enable tracking residual evolution
       if (params.nonlinear_data.verbosity >= 2) // TODO
@@ -1370,7 +1371,7 @@ namespace Sintering
               TrilinosWrappers::NOXSolver<VectorType>>>(
               std::move(non_linear_solver), statistics);
         }
-#ifdef DEAL_II_WITH_PETSC
+#if defined(DEAL_II_WITH_PETSC) && defined(USE_SNES)
       else if (params.nonlinear_data.nonlinear_solver_type == "SNES")
         {
           typename NonLinearSolvers::SNESSolver<VectorType>::AdditionalData

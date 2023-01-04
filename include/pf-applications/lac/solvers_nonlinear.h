@@ -438,7 +438,7 @@ namespace NonLinearSolvers
     NewtonSolverSolverControl &statistics;
   };
 
-#ifdef DEAL_II_WITH_PETSC
+#if defined(DEAL_II_WITH_PETSC) && defined(USE_SNES)
 
   template <typename VectorType>
   class NonLinearSolverWrapper<VectorType, SNESSolver<VectorType>>

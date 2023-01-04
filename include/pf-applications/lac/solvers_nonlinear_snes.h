@@ -2,7 +2,7 @@
 
 #include <pf-applications/lac/dynamic_block_vector.h>
 
-#ifdef DEAL_II_WITH_PETSC
+#if defined(DEAL_II_WITH_PETSC) && defined(USE_SNES)
 
 #  include <deal.II/lac/petsc_block_sparse_matrix.h>
 #  include <deal.II/lac/petsc_block_vector.h>
