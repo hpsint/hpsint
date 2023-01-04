@@ -7,6 +7,8 @@
 
 #include <deal.II/trilinos/nox.h>
 
+#include "solvers_nonlinear_snes.h"
+
 namespace NonLinearSolvers
 {
   using namespace dealii;
@@ -424,7 +426,6 @@ namespace NonLinearSolvers
           const unsigned int n_newton_iterations = solver.solve(dst);
           statistics.increment_newton_iterations(n_newton_iterations);
         }
-
       catch (const TrilinosWrappers::ExcNOXNoConvergence &e)
         {
           AssertThrow(false, ExcNewtonDidNotConverge("NOX"));
@@ -436,6 +437,51 @@ namespace NonLinearSolvers
 
     NewtonSolverSolverControl &statistics;
   };
+
+#if defined(DEAL_II_WITH_PETSC) && defined(USE_SNES)
+
+  template <typename VectorType>
+  class NonLinearSolverWrapper<VectorType, SNESSolver<VectorType>>
+    : public NewtonSolver<VectorType>
+  {
+  public:
+    NonLinearSolverWrapper(SNESSolver<VectorType> &&  solver,
+                           NewtonSolverSolverControl &statistics)
+      : solver(std::move(solver))
+      , statistics(statistics)
+    {}
+
+    void
+    clear() const override
+    {
+      solver.clear();
+    }
+
+    void
+    solve(VectorType &dst) const override
+    {
+      try
+        {
+          const unsigned int n_newton_iterations = solver.solve(dst);
+          statistics.increment_newton_iterations(n_newton_iterations);
+        }
+      catch (const ExcPETScError &e)
+        {
+          AssertThrow(false, ExcNewtonDidNotConverge("SNES"));
+        }
+      catch (const ExcSNESNoConvergence &e)
+        {
+          AssertThrow(false, ExcNewtonDidNotConverge("SNES"));
+        }
+    }
+
+  private:
+    mutable SNESSolver<VectorType> solver;
+
+    NewtonSolverSolverControl &statistics;
+  };
+
+#endif
 
   template <typename Number>
   class JacobianBase : public Subscriptor

@@ -888,9 +888,10 @@ namespace Sintering
           nonlinear_operator, params.preconditioners_data.outer_preconditioner);
 
       // ... linear solver
-      ReductionControl solver_control_l(params.nonlinear_data.l_max_iter,
-                                        params.nonlinear_data.l_abs_tol,
-                                        params.nonlinear_data.l_rel_tol);
+      // ReductionControl solver_control_l(params.nonlinear_data.l_max_iter,
+      //                                  params.nonlinear_data.l_abs_tol,
+      //                                  params.nonlinear_data.l_rel_tol);
+      IterationNumberControl solver_control_l(10);
 
       // Enable tracking residual evolution
       if (params.nonlinear_data.verbosity >= 2) // TODO
@@ -1181,22 +1182,28 @@ namespace Sintering
       const auto nl_check_iteration_status = [&](const auto  step,
                                                  const auto  check_value,
                                                  const auto &x,
-                                                 auto &      r) {
+                                                 const auto &r) {
         (void)x;
 
-        const double check_value_ch =
-          std::sqrt(r.block(0).norm_sqr() + r.block(0).norm_sqr());
+        double check_value_ch  = 0.0;
+        double check_value_ac  = 0.0;
+        double check_value_mec = 0.0;
 
-        double check_value_ac = 0;
-        for (unsigned int b = 2; b < sintering_data.n_components(); ++b)
-          check_value_ac += r.block(b).norm_sqr();
-        check_value_ac = std::sqrt(check_value_ac);
+        if (r.n_blocks() > 0)
+          {
+            check_value_ch =
+              std::sqrt(r.block(0).norm_sqr() + r.block(0).norm_sqr());
 
-        double check_value_mec = 0;
-        if (nonlinear_operator.n_components() > sintering_data.n_components())
-          for (unsigned int b = r.n_blocks() - dim; b < r.n_blocks(); ++b)
-            check_value_mec += r.block(b).norm_sqr();
-        check_value_mec = std::sqrt(check_value_mec);
+            for (unsigned int b = 2; b < sintering_data.n_components(); ++b)
+              check_value_ac += r.block(b).norm_sqr();
+            check_value_ac = std::sqrt(check_value_ac);
+
+            if (nonlinear_operator.n_components() >
+                sintering_data.n_components())
+              for (unsigned int b = r.n_blocks() - dim; b < r.n_blocks(); ++b)
+                check_value_mec += r.block(b).norm_sqr();
+            check_value_mec = std::sqrt(check_value_mec);
+          }
 
         if (step == 0)
           {
@@ -1368,6 +1375,63 @@ namespace Sintering
               TrilinosWrappers::NOXSolver<VectorType>>>(
               std::move(non_linear_solver), statistics);
         }
+#if defined(DEAL_II_WITH_PETSC) && defined(USE_SNES)
+      else if (params.nonlinear_data.nonlinear_solver_type == "SNES")
+        {
+          typename NonLinearSolvers::SNESSolver<VectorType>::AdditionalData
+            additional_data(params.nonlinear_data.nl_max_iter,
+                            params.nonlinear_data.nl_abs_tol,
+                            params.nonlinear_data.nl_rel_tol,
+                            params.nonlinear_data.newton_threshold_newton_iter,
+                            params.nonlinear_data.newton_threshold_linear_iter,
+                            params.nonlinear_data.snes_data.line_search_name);
+
+          NonLinearSolvers::SNESSolver<VectorType> non_linear_solver(
+            additional_data, params.nonlinear_data.snes_data.solver_name);
+
+          non_linear_solver.residual = [&nl_residual](const auto &src,
+                                                      auto &      dst) {
+            nl_residual(src, dst);
+            return 0;
+          };
+
+          non_linear_solver.setup_jacobian =
+            [&nl_setup_jacobian](const auto &current_u) {
+              nl_setup_jacobian(current_u);
+              return 0;
+            };
+
+          non_linear_solver.setup_preconditioner =
+            [&nl_setup_preconditioner](const auto &current_u) {
+              nl_setup_preconditioner(current_u);
+              return 0;
+            };
+
+          non_linear_solver.solve_with_jacobian_and_track_n_linear_iterations =
+            [&nl_solve_with_jacobian](const auto & src,
+                                      auto &       dst,
+                                      const double tolerance) {
+              (void)tolerance;
+              return nl_solve_with_jacobian(src, dst);
+            };
+
+          non_linear_solver.apply_jacobian =
+            [&jacobian_operator](const auto &src, auto &dst) {
+              jacobian_operator->vmult(dst, src);
+              return 0;
+            };
+
+          if (params.nonlinear_data.verbosity >= 1) // TODO
+            non_linear_solver.check_iteration_status =
+              nl_check_iteration_status;
+
+          non_linear_solver_executor =
+            std::make_unique<NonLinearSolvers::NonLinearSolverWrapper<
+              VectorType,
+              NonLinearSolvers::SNESSolver<VectorType>>>(
+              std::move(non_linear_solver), statistics);
+        }
+#endif
       else
         AssertThrow(false, ExcNotImplemented());
 

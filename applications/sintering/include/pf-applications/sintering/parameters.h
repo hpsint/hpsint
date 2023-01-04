@@ -231,6 +231,12 @@ namespace Sintering
     std::string line_search_interpolation_type = "Cubic";
   };
 
+  struct SNESData
+  {
+    std::string solver_name      = "newtonls";
+    std::string line_search_name = "bt";
+  };
+
   struct NonLinearData
   {
     int    nl_max_iter = 10;
@@ -257,6 +263,7 @@ namespace Sintering
     unsigned int verbosity = 1;
 
     NOXData                  nox_data;
+    SNESData                 snes_data;
     LinearSolvers::GMRESData gmres_data;
   };
 
@@ -747,7 +754,7 @@ namespace Sintering
                         nonlinear_data.l_solver,
                         "Name of linear solver.",
                         Patterns::Selection("GMRES|IDR|Bicgstab|Relaxation"));
-      prm.add_parameter("LinearSolver",
+      prm.add_parameter("LinearSolverBicgstabTries",
                         nonlinear_data.l_bisgstab_tries,
                         "Number of Bicgstab before switching to GMRES.");
 
@@ -762,7 +769,7 @@ namespace Sintering
       prm.add_parameter("NonLinearSolverType",
                         nonlinear_data.nonlinear_solver_type,
                         "Type of the non-linear solver.",
-                        Patterns::Selection("damped|NOX"));
+                        Patterns::Selection("damped|NOX|SNES"));
 
       prm.add_parameter("FDMJacobianApproximation",
                         nonlinear_data.fdm_jacobian_approximation);
@@ -786,6 +793,22 @@ namespace Sintering
                         nonlinear_data.nox_data.line_search_interpolation_type,
                         "Polynomial line search interpolation type",
                         Patterns::Selection("Quadratic|Quadratic3|Cubic"));
+      prm.leave_subsection();
+
+      prm.enter_subsection("SNESData");
+
+      // see: https://petsc.org/main/docs/manual/snes/#the-nonlinear-solvers
+      prm.add_parameter("SolverName",
+                        nonlinear_data.snes_data.solver_name,
+                        "SNES solver name",
+                        Patterns::Selection(
+                          "newtonls|newtontr|ngmres|anderson"));
+
+      // see: https://petsc.org/main/docs/manual/snes/#line-search-newton
+      prm.add_parameter("LineSearchName",
+                        nonlinear_data.snes_data.line_search_name,
+                        "SNES line search algorithm name",
+                        Patterns::Selection("bt|basic|none|l2|cp"));
       prm.leave_subsection();
 
       prm.enter_subsection("GMRESData");
