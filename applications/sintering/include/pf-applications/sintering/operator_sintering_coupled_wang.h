@@ -171,30 +171,45 @@ namespace Sintering
           v_adv *= inv_dt;
           v_adv_lin *= inv_dt;
 
+
+
+          // 1) process c row
           value_result[0] = value[0] * weight;
-          value_result[1] = -value[1] + free_energy.d2f_dc2(c, etas) * value[0];
+
+          if (this->advection.enabled())
+            value_result[0] += v_adv * c_grad + v_adv_lin * gradient[0];
 
           gradient_result[0] =
             mobility.M(c, etas, n_grains, c_grad, etas_grad) * gradient[1] +
             mobility.dM_dc(c, etas, c_grad, etas_grad) * mu_grad * value[0] +
             mobility.dM_dgrad_c(c, c_grad, mu_grad) * gradient[0];
 
-          gradient_result[1] = kappa_c * gradient[0];
+          for (unsigned int ig = 0; ig < n_grains; ++ig)
+            gradient_result[0] +=
+              mobility.dM_detai(c, etas, n_grains, c_grad, etas_grad, ig) *
+              mu_grad * value[ig + 2];
+
+
+
+          // 2) process mu row
+          value_result[1] = -value[1] + free_energy.d2f_dc2(c, etas) * value[0];
 
           for (unsigned int ig = 0; ig < n_grains; ++ig)
-            {
-              value_result[1] +=
-                free_energy.d2f_dcdetai(c, etas, ig) * value[ig + 2];
+            value_result[1] +=
+              free_energy.d2f_dcdetai(c, etas, ig) * value[ig + 2];
 
+          gradient_result[1] = kappa_c * gradient[0];
+
+
+
+          // 3) process eta rows
+          for (unsigned int ig = 0; ig < n_grains; ++ig)
+            {
               value_result[ig + 2] +=
                 value[ig + 2] * weight +
                 L * free_energy.d2f_dcdetai(c, etas, ig) * value[0] +
                 L * free_energy.d2f_detai2(c, etas, etaPower2Sum, ig) *
                   value[ig + 2];
-
-              gradient_result[0] +=
-                mobility.dM_detai(c, etas, n_grains, c_grad, etas_grad, ig) *
-                mu_grad * value[ig + 2];
 
               gradient_result[ig + 2] = L * kappa_p * gradient[ig + 2];
 
@@ -208,15 +223,13 @@ namespace Sintering
                 }
 
               if (this->advection.enabled())
-                {
-                  value_result[0] += v_adv * c_grad + v_adv_lin * gradient[0];
-
-                  value_result[ig + 2] +=
-                    v_adv * etas_grad[ig] + v_adv_lin * gradient[ig + 2];
-                }
+                value_result[ig + 2] +=
+                  v_adv * etas_grad[ig] + v_adv_lin * gradient[ig + 2];
             }
 
-          // Elasticity
+
+
+          // 4) process elasticity rows
           Tensor<2, dim, VectorizedArrayType> H;
           for (unsigned int d = 0; d < dim; d++)
             H[d] = gradient[n_grains + 2 + d];
@@ -225,6 +238,8 @@ namespace Sintering
 
           for (unsigned int d = 0; d < dim; d++)
             gradient_result[n_grains + 2 + d] = S[d];
+
+
 
           phi.submit_value(value_result, q);
           phi.submit_gradient(gradient_result, q);

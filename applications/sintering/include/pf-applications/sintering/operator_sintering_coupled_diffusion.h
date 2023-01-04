@@ -162,48 +162,71 @@ namespace Sintering
           v_adv *= inv_dt;
           v_adv_lin *= inv_dt;
 
+
+
+          // 1) process c row
           value_result[0] = value[0] * weight;
-          value_result[1] = -value[1] + free_energy.d2f_dc2(c, etas) * value[0];
+          value_result[0] += v_adv * c_grad + v_adv_lin * gradient[0]; // TODO!?
 
           gradient_result[0] =
             mobility.M(c, etas, n_grains, c_grad, etas_grad) * gradient[1] +
             mobility.dM_dc(c, etas, c_grad, etas_grad) * mu_grad * value[0] +
             mobility.dM_dgrad_c(c, c_grad, mu_grad) * gradient[0];
 
+          for (unsigned int ig = 0; ig < n_grains; ++ig)
+            gradient_result[0] +=
+              mobility.dM_detai(c, etas, n_grains, c_grad, etas_grad, ig) *
+              mu_grad * value[ig + 2];
+
+
+
+          // 2) process mu row
+          value_result[1] = -value[1] + free_energy.d2f_dc2(c, etas) * value[0];
+
+          for (unsigned int ig = 0; ig < n_grains; ++ig)
+            value_result[1] +=
+              free_energy.d2f_dcdetai(c, etas, ig) * value[ig + 2];
+
           gradient_result[1] = kappa_c * gradient[0];
 
-          // Diffusion fluxes terms
+
+
+          // 3) process rows related to diffusion fluxes terms
           value_result[this->data.n_components() + 0] =
             value[this->data.n_components() + 0];
+
+          // ... TODO: also uses mobility
           gradient_result[this->data.n_components() + 0] =
             -mobility.M_gb(etas, n_grains, etas_grad) * gradient[1];
 
+          // ... TODO: also uses mobility
+          for (unsigned int ig = 0; ig < n_grains; ++ig)
+            gradient_result[this->data.n_components() + 0] -=
+              mobility.dM_detai(c, etas, n_grains, c_grad, etas_grad, ig) *
+              mu_grad * value[ig + 2];
+
+
+
           value_result[this->data.n_components() + 1] =
             value[this->data.n_components() + 1];
+
+          // ... TODO: also uses mobility
           gradient_result[this->data.n_components() + 1] =
             -mobility.M_vol(c) * gradient[1] -
             mobility.dM_vol_dc(c) * mu_grad * value[0];
 
+
+
+          // 4) process eta rows
           for (unsigned int ig = 0; ig < n_grains; ++ig)
             {
-              value_result[1] +=
-                free_energy.d2f_dcdetai(c, etas, ig) * value[ig + 2];
-
               value_result[ig + 2] +=
                 value[ig + 2] * weight +
                 L * free_energy.d2f_dcdetai(c, etas, ig) * value[0] +
                 L * free_energy.d2f_detai2(c, etas, etaPower2Sum, ig) *
                   value[ig + 2];
 
-              gradient_result[0] +=
-                mobility.dM_detai(c, etas, n_grains, c_grad, etas_grad, ig) *
-                mu_grad * value[ig + 2];
-
               gradient_result[ig + 2] = L * kappa_p * gradient[ig + 2];
-
-              gradient_result[this->data.n_components() + 0] -=
-                mobility.dM_detai(c, etas, n_grains, c_grad, etas_grad, ig) *
-                mu_grad * value[ig + 2];
 
               for (unsigned int jg = 0; jg < ig; ++jg)
                 {
@@ -214,16 +237,13 @@ namespace Sintering
                   value_result[jg + 2] += L * d2f_detaidetaj * value[ig + 2];
                 }
 
-              if (true)
-                {
-                  value_result[0] += v_adv * c_grad + v_adv_lin * gradient[0];
-
-                  value_result[ig + 2] +=
-                    v_adv * etas_grad[ig] + v_adv_lin * gradient[ig + 2];
-                }
+              value_result[ig + 2] +=
+                v_adv * etas_grad[ig] + v_adv_lin * gradient[ig + 2];
             }
 
-          // Elasticity
+
+
+          // 5) process elasticity rows
           Tensor<2, dim, VectorizedArrayType> H;
           for (unsigned int d = 0; d < dim; d++)
             H[d] = gradient[this->data.n_components() +
@@ -254,6 +274,8 @@ namespace Sintering
           for (unsigned int d = 0; d < dim; d++)
             gradient_result[this->data.n_components() +
                             n_additional_components() + d] = S[d];
+
+
 
           phi.submit_value(value_result, q);
           phi.submit_gradient(gradient_result, q);
