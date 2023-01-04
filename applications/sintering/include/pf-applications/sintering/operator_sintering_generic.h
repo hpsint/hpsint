@@ -329,12 +329,12 @@ namespace Sintering
                   if (this->advection.enabled() &&
                       this->advection.has_velocity(ig))
                     {
-                      const auto &velocity =
+                      const auto &velocity_ig =
                         this->advection.get_velocity(ig,
                                                      phi.quadrature_point(q));
 
-                      value_result[0] += velocity * c_grad;
-                      value_result[2 + ig] += velocity * grad[2 + ig];
+                      value_result[0] += velocity_ig * c_grad;
+                      value_result[2 + ig] += velocity_ig * grad[2 + ig];
                     }
                 }
 

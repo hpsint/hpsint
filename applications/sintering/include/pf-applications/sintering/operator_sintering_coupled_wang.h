@@ -333,13 +333,10 @@ namespace Sintering
                   etas_grad[ig] = grad[2 + ig];
                 }
 
-              // Displacement field
+              // Advection velocity
               Tensor<1, dim, VectorizedArrayType> v_adv;
               for (unsigned int d = 0; d < dim; ++d)
-                v_adv[d] = val[n_grains + 2 + d];
-
-              // Advection velocity
-              v_adv *= inv_dt;
+                v_adv[d] = val[n_grains + 2 + d] * inv_dt;
 
               Tensor<1, n_comp, VectorizedArrayType> value_result;
               Tensor<1, n_comp, Tensor<1, dim, VectorizedArrayType>>
@@ -348,6 +345,9 @@ namespace Sintering
               if (with_time_derivative)
                 this->time_integrator.compute_time_derivative(
                   value_result[0], val, time_phi, 0, q);
+
+              if (this->advection.enabled())
+                value_result[0] += v_adv * c_grad;
 
               value_result[1] = -mu + free_energy.df_dc(c, etas);
               gradient_result[0] =
@@ -367,7 +367,6 @@ namespace Sintering
 
                   if (this->advection.enabled())
                     {
-                      value_result[0] += v_adv * c_grad;
                       value_result[2 + ig] += v_adv * grad[2 + ig];
 
                       if (this->advection.has_velocity(ig))
