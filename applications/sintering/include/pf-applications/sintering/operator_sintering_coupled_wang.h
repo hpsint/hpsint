@@ -144,19 +144,21 @@ namespace Sintering
           const auto &lin_value    = nonlinear_values[cell][q];
           const auto &lin_gradient = nonlinear_gradients[cell][q];
 
-          const auto &lin_c_value       = lin_value[0];
+          const auto &lin_c_value     = lin_value[0];
           const auto &lin_c_gradient  = lin_gradient[0];
           const auto &mu_lin_gradient = lin_gradient[1];
 
-          const VectorizedArrayType *                lin_etas_value      = &lin_value[2];
-          const Tensor<1, dim, VectorizedArrayType> *lin_etas_gradient = nullptr;
+          const VectorizedArrayType *lin_etas_value = &lin_value[2];
+          const Tensor<1, dim, VectorizedArrayType> *lin_etas_gradient =
+            nullptr;
 
           if (SinteringOperatorData<dim, VectorizedArrayType>::
                 use_tensorial_mobility ||
               this->advection.enabled())
             lin_etas_gradient = &lin_gradient[2];
 
-          const auto lin_etas_value_power_2_sum = PowerHelper<n_grains, 2>::power_sum(lin_etas_value);
+          const auto lin_etas_value_power_2_sum =
+            PowerHelper<n_grains, 2>::power_sum(lin_etas_value);
 
           // Advection velocity
           Tensor<1, dim, VectorizedArrayType> v_adv;
@@ -176,23 +178,40 @@ namespace Sintering
             value_result[0] += v_adv * lin_c_gradient + lin_v_adv * gradient[0];
 
           gradient_result[0] =
-            mobility.M(lin_c_value, lin_etas_value, n_grains, lin_c_gradient, lin_etas_gradient) * gradient[1] +
-            mobility.dM_dc(lin_c_value, lin_etas_value, lin_c_gradient, lin_etas_gradient) * mu_lin_gradient * value[0] +
-            mobility.dM_dgrad_c(lin_c_value, lin_c_gradient, mu_lin_gradient) * gradient[0];
+            mobility.M(lin_c_value,
+                       lin_etas_value,
+                       n_grains,
+                       lin_c_gradient,
+                       lin_etas_gradient) *
+              gradient[1] +
+            mobility.dM_dc(lin_c_value,
+                           lin_etas_value,
+                           lin_c_gradient,
+                           lin_etas_gradient) *
+              mu_lin_gradient * value[0] +
+            mobility.dM_dgrad_c(lin_c_value, lin_c_gradient, mu_lin_gradient) *
+              gradient[0];
 
           for (unsigned int ig = 0; ig < n_grains; ++ig)
-            gradient_result[0] +=
-              mobility.dM_detai(lin_c_value, lin_etas_value, n_grains, lin_c_gradient, lin_etas_gradient, ig) *
-              mu_lin_gradient * value[ig + 2];
+            gradient_result[0] += mobility.dM_detai(lin_c_value,
+                                                    lin_etas_value,
+                                                    n_grains,
+                                                    lin_c_gradient,
+                                                    lin_etas_gradient,
+                                                    ig) *
+                                  mu_lin_gradient * value[ig + 2];
 
 
 
           // 2) process mu row
-          value_result[1] = -value[1] + free_energy.d2f_dc2(lin_c_value, lin_etas_value) * value[0];
+          value_result[1] =
+            -value[1] +
+            free_energy.d2f_dc2(lin_c_value, lin_etas_value) * value[0];
 
           for (unsigned int ig = 0; ig < n_grains; ++ig)
             value_result[1] +=
-              free_energy.d2f_dcdetai(lin_c_value, lin_etas_value, ig) * value[ig + 2];
+              free_energy.d2f_dcdetai(lin_c_value, lin_etas_value, ig) *
+              value[ig + 2];
 
           gradient_result[1] = kappa_c * gradient[0];
 
@@ -203,16 +222,21 @@ namespace Sintering
             {
               value_result[ig + 2] +=
                 value[ig + 2] * weight +
-                L * free_energy.d2f_dcdetai(lin_c_value, lin_etas_value, ig) * value[0] +
-                L * free_energy.d2f_detai2(lin_c_value, lin_etas_value, lin_etas_value_power_2_sum, ig) *
+                L * free_energy.d2f_dcdetai(lin_c_value, lin_etas_value, ig) *
+                  value[0] +
+                L *
+                  free_energy.d2f_detai2(lin_c_value,
+                                         lin_etas_value,
+                                         lin_etas_value_power_2_sum,
+                                         ig) *
                   value[ig + 2];
 
               gradient_result[ig + 2] = L * kappa_p * gradient[ig + 2];
 
               for (unsigned int jg = 0; jg < ig; ++jg)
                 {
-                  const auto d2f_detaidetaj =
-                    free_energy.d2f_detaidetaj(lin_c_value, lin_etas_value, ig, jg);
+                  const auto d2f_detaidetaj = free_energy.d2f_detaidetaj(
+                    lin_c_value, lin_etas_value, ig, jg);
 
                   value_result[ig + 2] += L * d2f_detaidetaj * value[jg + 2];
                   value_result[jg + 2] += L * d2f_detaidetaj * value[ig + 2];

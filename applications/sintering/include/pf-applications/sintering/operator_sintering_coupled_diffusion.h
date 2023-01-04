@@ -134,54 +134,75 @@ namespace Sintering
           const auto &lin_value    = nonlinear_values[cell][q];
           const auto &lin_gradient = nonlinear_gradients[cell][q];
 
-          const auto &lin_c_value       = lin_value[0];
+          const auto &lin_c_value     = lin_value[0];
           const auto &lin_c_gradient  = lin_gradient[0];
           const auto &mu_lin_gradient = lin_gradient[1];
 
           const auto &lin_div_gb  = lin_value[this->data.n_components() + 0];
           const auto &lin_div_vol = lin_value[this->data.n_components() + 1];
 
-          const VectorizedArrayType *                lin_etas_value = &lin_value[2];
+          const VectorizedArrayType *lin_etas_value = &lin_value[2];
           const Tensor<1, dim, VectorizedArrayType> *lin_etas_gradient =
             &lin_gradient[2];
 
-          const auto lin_etas_value_power_2_sum = PowerHelper<n_grains, 2>::power_sum(lin_etas_value);
+          const auto lin_etas_value_power_2_sum =
+            PowerHelper<n_grains, 2>::power_sum(lin_etas_value);
 
           // Advection velocity
           Tensor<1, dim, VectorizedArrayType> v_adv;
           Tensor<1, dim, VectorizedArrayType> lin_v_adv;
           for (unsigned int d = 0; d < dim; ++d)
             {
-              v_adv[d]     = value[this->data.n_components() +
-                               n_additional_components() + d] * inv_dt;
+              v_adv[d] = value[this->data.n_components() +
+                               n_additional_components() + d] *
+                         inv_dt;
               lin_v_adv[d] = lin_value[this->data.n_components() +
-                                       n_additional_components() + d] * inv_dt;
+                                       n_additional_components() + d] *
+                             inv_dt;
             }
 
 
 
           // 1) process c row
           value_result[0] = value[0] * weight;
-          value_result[0] += v_adv * lin_c_gradient + lin_v_adv * gradient[0]; // TODO!?
+          value_result[0] +=
+            v_adv * lin_c_gradient + lin_v_adv * gradient[0]; // TODO!?
 
           gradient_result[0] =
-            mobility.M(lin_c_value, lin_etas_value, n_grains, lin_c_gradient, lin_etas_gradient) * gradient[1] +
-            mobility.dM_dc(lin_c_value, lin_etas_value, lin_c_gradient, lin_etas_gradient) * mu_lin_gradient * value[0] +
-            mobility.dM_dgrad_c(lin_c_value, lin_c_gradient, mu_lin_gradient) * gradient[0];
+            mobility.M(lin_c_value,
+                       lin_etas_value,
+                       n_grains,
+                       lin_c_gradient,
+                       lin_etas_gradient) *
+              gradient[1] +
+            mobility.dM_dc(lin_c_value,
+                           lin_etas_value,
+                           lin_c_gradient,
+                           lin_etas_gradient) *
+              mu_lin_gradient * value[0] +
+            mobility.dM_dgrad_c(lin_c_value, lin_c_gradient, mu_lin_gradient) *
+              gradient[0];
 
           for (unsigned int ig = 0; ig < n_grains; ++ig)
-            gradient_result[0] +=
-              mobility.dM_detai(lin_c_value, lin_etas_value, n_grains, lin_c_gradient, lin_etas_gradient, ig) *
-              mu_lin_gradient * value[ig + 2];
+            gradient_result[0] += mobility.dM_detai(lin_c_value,
+                                                    lin_etas_value,
+                                                    n_grains,
+                                                    lin_c_gradient,
+                                                    lin_etas_gradient,
+                                                    ig) *
+                                  mu_lin_gradient * value[ig + 2];
 
 
 
           // 2) process mu row
-          value_result[1] = -value[1] + free_energy.d2f_dc2(lin_c_value, lin_etas_value) * value[0];
+          value_result[1] =
+            -value[1] +
+            free_energy.d2f_dc2(lin_c_value, lin_etas_value) * value[0];
 
           for (unsigned int ig = 0; ig < n_grains; ++ig)
             value_result[1] +=
-              free_energy.d2f_dcdetai(lin_c_value, lin_etas_value, ig) * value[ig + 2];
+              free_energy.d2f_dcdetai(lin_c_value, lin_etas_value, ig) *
+              value[ig + 2];
 
           gradient_result[1] = kappa_c * gradient[0];
 
@@ -193,12 +214,18 @@ namespace Sintering
 
           // ... TODO: also uses mobility
           gradient_result[this->data.n_components() + 0] =
-            -mobility.M_gb(lin_etas_value, n_grains, lin_etas_gradient) * gradient[1];
+            -mobility.M_gb(lin_etas_value, n_grains, lin_etas_gradient) *
+            gradient[1];
 
           // ... TODO: also uses mobility
           for (unsigned int ig = 0; ig < n_grains; ++ig)
             gradient_result[this->data.n_components() + 0] -=
-              mobility.dM_detai(lin_c_value, lin_etas_value, n_grains, lin_c_gradient, lin_etas_gradient, ig) *
+              mobility.dM_detai(lin_c_value,
+                                lin_etas_value,
+                                n_grains,
+                                lin_c_gradient,
+                                lin_etas_gradient,
+                                ig) *
               mu_lin_gradient * value[ig + 2];
 
 
@@ -218,16 +245,21 @@ namespace Sintering
             {
               value_result[ig + 2] +=
                 value[ig + 2] * weight +
-                L * free_energy.d2f_dcdetai(lin_c_value, lin_etas_value, ig) * value[0] +
-                L * free_energy.d2f_detai2(lin_c_value, lin_etas_value, lin_etas_value_power_2_sum, ig) *
+                L * free_energy.d2f_dcdetai(lin_c_value, lin_etas_value, ig) *
+                  value[0] +
+                L *
+                  free_energy.d2f_detai2(lin_c_value,
+                                         lin_etas_value,
+                                         lin_etas_value_power_2_sum,
+                                         ig) *
                   value[ig + 2];
 
               gradient_result[ig + 2] = L * kappa_p * gradient[ig + 2];
 
               for (unsigned int jg = 0; jg < ig; ++jg)
                 {
-                  const auto d2f_detaidetaj =
-                    free_energy.d2f_detaidetaj(lin_c_value, lin_etas_value, ig, jg);
+                  const auto d2f_detaidetaj = free_energy.d2f_detaidetaj(
+                    lin_c_value, lin_etas_value, ig, jg);
 
                   value_result[ig + 2] += L * d2f_detaidetaj * value[jg + 2];
                   value_result[jg + 2] += L * d2f_detaidetaj * value[ig + 2];
@@ -247,18 +279,32 @@ namespace Sintering
 
           // Diffusion strain
           auto eps_inelastic_deriv =
-            inelastic.flux_eps_dot_dc(
-              lin_c_value, lin_etas_value, n_grains, lin_etas_gradient, lin_div_gb, lin_div_vol) *
+            inelastic.flux_eps_dot_dc(lin_c_value,
+                                      lin_etas_value,
+                                      n_grains,
+                                      lin_etas_gradient,
+                                      lin_div_gb,
+                                      lin_div_vol) *
               value[0] +
-            inelastic.flux_eps_dot_ddiv_gb(lin_c_value, lin_etas_value, n_grains, lin_etas_gradient) *
+            inelastic.flux_eps_dot_ddiv_gb(lin_c_value,
+                                           lin_etas_value,
+                                           n_grains,
+                                           lin_etas_gradient) *
               value[this->data.n_components() + 0] +
-            inelastic.flux_eps_dot_ddiv_vol(lin_c_value, lin_etas_value, n_grains) *
+            inelastic.flux_eps_dot_ddiv_vol(lin_c_value,
+                                            lin_etas_value,
+                                            n_grains) *
               value[this->data.n_components() + 1];
 
           for (unsigned int ig = 0; ig < n_grains; ++ig)
             eps_inelastic_deriv +=
-              inelastic.flux_eps_dot_detai(
-                lin_c_value, lin_etas_value, n_grains, lin_etas_gradient, lin_div_gb, lin_div_vol, ig) *
+              inelastic.flux_eps_dot_detai(lin_c_value,
+                                           lin_etas_value,
+                                           n_grains,
+                                           lin_etas_gradient,
+                                           lin_div_gb,
+                                           lin_div_vol,
+                                           ig) *
               value[ig + 2];
 
           eps_inelastic_deriv *= dt;
