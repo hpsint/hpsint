@@ -619,7 +619,7 @@ namespace Sintering
       Tensor<2, dim, VectorizedArrayType> M  = projector_matrix(nc, 1. / nrm);
 
       Tensor<2, dim, VectorizedArrayType> T =
-        outer_product(mu_grad, nc) + outer_product(nc, mu_grad);
+        diagonal_matrix<dim>(nc * mu_grad) + outer_product(nc, mu_grad);
       T *= -fsurf;
 
       return T * M;
