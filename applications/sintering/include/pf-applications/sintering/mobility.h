@@ -487,8 +487,6 @@ namespace Sintering
       for (unsigned int i = 0; i < dim; ++i)
         M_vec[i] = (f_vol_vap + fsurf) * vec[i] - (fsurf * nc_vec) * nc[i];
 
-      Tensor<2, dim, VectorizedArrayType> M;
-
       // GB diffusion part
       for (unsigned int i = 0; i < etas_size; ++i)
         for (unsigned int j = 0; j < i; ++j)
@@ -496,10 +494,17 @@ namespace Sintering
             const auto fgb           = 2.0 * Mgb * etas[i] * etas[j];
             const auto eta_grad_diff = etas_grad[i] - etas_grad[j];
             const auto neta          = unit_vector(eta_grad_diff);
-            M += projector_matrix(neta, fgb);
+
+            VectorizedArrayType neta_vec =
+              neta[0] * vec[0]; // exploit tp structure
+            for (unsigned int i = 1; i < dim; ++i)
+              neta_vec += neta[i] * vec[i];
+
+            for (unsigned int i = 0; i < dim; ++i)
+              M_vec[i] += fgb * (vec[i] - neta_vec * neta[i]);
           }
 
-      return M_vec + M * vec;
+      return M_vec;
     }
 
 
