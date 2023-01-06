@@ -498,6 +498,9 @@ namespace Sintering
       return M;
     }
 
+
+
+    // note: only for postprocessing
     DEAL_II_ALWAYS_INLINE Tensor<2, dim, VectorizedArrayType>
                           M_vol(const VectorizedArrayType &c) const
     {
@@ -514,6 +517,9 @@ namespace Sintering
       return M;
     }
 
+
+
+    // note: only for postprocessing
     DEAL_II_ALWAYS_INLINE Tensor<2, dim, VectorizedArrayType>
                           M_vap(const VectorizedArrayType &c) const
     {
@@ -531,6 +537,9 @@ namespace Sintering
       return M;
     }
 
+
+
+    // note: only for postprocessing
     DEAL_II_ALWAYS_INLINE Tensor<2, dim, VectorizedArrayType>
                           M_surf(const VectorizedArrayType &                c,
                                  const Tensor<1, dim, VectorizedArrayType> &c_grad) const
@@ -543,6 +552,9 @@ namespace Sintering
       return M;
     }
 
+
+
+    // note: only for postprocessing
     template <typename VectorTypeValue, typename VectorTypeGradient>
     DEAL_II_ALWAYS_INLINE Tensor<2, dim, VectorizedArrayType>
                           M_gb(const VectorTypeValue &   etas,

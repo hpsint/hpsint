@@ -119,74 +119,118 @@ namespace Sintering
 
           const auto  value        = phi.get_value(q);
           const auto  gradient     = phi.get_gradient(q);
-          const auto &value_lin    = nonlinear_values[cell][q];
-          const auto &gradient_lin = nonlinear_gradients[cell][q];
+          const auto &lin_value    = nonlinear_values[cell][q];
+          const auto &lin_gradient = nonlinear_gradients[cell][q];
 
-          const auto &c       = value_lin[0];
-          const auto &c_grad  = gradient_lin[0];
-          const auto &mu_grad = gradient_lin[1];
+          const auto &lin_c_value     = lin_value[0];
+          const auto &lin_c_gardient  = lin_gradient[0];
+          const auto &lin_mu_gradient = lin_gradient[1];
 
-          const VectorizedArrayType *                etas      = &value_lin[2];
-          const Tensor<1, dim, VectorizedArrayType> *etas_grad = nullptr;
+          const VectorizedArrayType *lin_etas_value = &lin_value[2];
+          const Tensor<1, dim, VectorizedArrayType> *lin_etas_gradient =
+            nullptr;
 
           if (SinteringOperatorData<dim, VectorizedArrayType>::
                 use_tensorial_mobility ||
               this->advection.enabled())
-            etas_grad = &gradient_lin[2];
+            lin_etas_gradient = &lin_gradient[2];
 
-          const auto etaPower2Sum = PowerHelper<n_grains, 2>::power_sum(etas);
+          const auto lin_etas_value_power_2_sum =
+            PowerHelper<n_grains, 2>::power_sum(lin_etas_value);
 
+
+
+          // 1) process c row
           value_result[0] = value[0] * weight;
-          value_result[1] = -value[1] + free_energy.d2f_dc2(c, etas) * value[0];
 
           gradient_result[0] =
-            mobility.M(c, etas, n_grains, c_grad, etas_grad) * gradient[1] +
-            mobility.dM_dc(c, etas, c_grad, etas_grad) * mu_grad * value[0] +
-            mobility.dM_dgrad_c(c, c_grad, mu_grad) * gradient[0];
+            mobility.M(lin_c_value,
+                       lin_etas_value,
+                       n_grains,
+                       lin_c_gardient,
+                       lin_etas_gradient) *
+              gradient[1] +
+            mobility.dM_dc(lin_c_value,
+                           lin_etas_value,
+                           lin_c_gardient,
+                           lin_etas_gradient) *
+              lin_mu_gradient * value[0] +
+            mobility.dM_dgrad_c(lin_c_value, lin_c_gardient, lin_mu_gradient) *
+              gradient[0];
+
+          for (unsigned int ig = 0; ig < n_grains; ++ig)
+            gradient_result[0] += mobility.dM_detai(lin_c_value,
+                                                    lin_etas_value,
+                                                    n_grains,
+                                                    lin_c_gardient,
+                                                    lin_etas_gradient,
+                                                    ig) *
+                                  lin_mu_gradient * value[ig + 2];
+
+
+
+          // 2) process mu row
+          value_result[1] =
+            -value[1] +
+            free_energy.d2f_dc2(lin_c_value, lin_etas_value) * value[0];
+
+          for (unsigned int ig = 0; ig < n_grains; ++ig)
+            value_result[1] +=
+              free_energy.d2f_dcdetai(lin_c_value, lin_etas_value, ig) *
+              value[ig + 2];
 
           gradient_result[1] = kappa_c * gradient[0];
 
+
+
+          // 3) process eta rows
           for (unsigned int ig = 0; ig < n_grains; ++ig)
             {
-              value_result[1] +=
-                free_energy.d2f_dcdetai(c, etas, ig) * value[ig + 2];
-
               value_result[ig + 2] +=
                 value[ig + 2] * weight +
-                L * free_energy.d2f_dcdetai(c, etas, ig) * value[0] +
-                L * free_energy.d2f_detai2(c, etas, etaPower2Sum, ig) *
+                L * free_energy.d2f_dcdetai(lin_c_value, lin_etas_value, ig) *
+                  value[0] +
+                L *
+                  free_energy.d2f_detai2(lin_c_value,
+                                         lin_etas_value,
+                                         lin_etas_value_power_2_sum,
+                                         ig) *
                   value[ig + 2];
-
-              gradient_result[0] +=
-                mobility.dM_detai(c, etas, n_grains, c_grad, etas_grad, ig) *
-                mu_grad * value[ig + 2];
 
               gradient_result[ig + 2] = L * kappa_p * gradient[ig + 2];
 
               for (unsigned int jg = 0; jg < ig; ++jg)
                 {
-                  const auto d2f_detaidetaj =
-                    free_energy.d2f_detaidetaj(c, etas, ig, jg);
+                  const auto d2f_detaidetaj = free_energy.d2f_detaidetaj(
+                    lin_c_value, lin_etas_value, ig, jg);
 
                   value_result[ig + 2] += L * d2f_detaidetaj * value[jg + 2];
                   value_result[jg + 2] += L * d2f_detaidetaj * value[ig + 2];
                 }
+            }
 
-              if (this->advection.enabled() && this->advection.has_velocity(ig))
+
+
+          // 4) add advection contributations -> influences c AND etas
+          if (this->advection.enabled())
+            for (unsigned int ig = 0; ig < n_grains; ++ig)
+              if (this->advection.has_velocity(ig))
                 {
-                  const auto &velocity =
+                  const auto &velocity_ig =
                     this->advection.get_velocity(ig, phi.quadrature_point(q));
-                  const auto &velocity_derivative =
+                  const auto &velocity_derivative_ig =
                     this->advection.get_velocity_derivative(
                       ig, phi.quadrature_point(q));
 
-                  value_result[0] +=
-                    velocity * gradient[0] + velocity_derivative * c_grad;
+                  value_result[0] += velocity_ig * gradient[0] +
+                                     velocity_derivative_ig * lin_c_gardient;
 
-                  value_result[ig + 2] += velocity * gradient[ig + 2] +
-                                          velocity_derivative * etas_grad[ig];
+                  value_result[ig + 2] +=
+                    velocity_ig * gradient[ig + 2] +
+                    velocity_derivative_ig * lin_etas_gradient[ig];
                 }
-            }
+
+
 
           phi.submit_value(value_result, q);
           phi.submit_gradient(gradient_result, q);
@@ -285,12 +329,12 @@ namespace Sintering
                   if (this->advection.enabled() &&
                       this->advection.has_velocity(ig))
                     {
-                      const auto &velocity =
+                      const auto &velocity_ig =
                         this->advection.get_velocity(ig,
                                                      phi.quadrature_point(q));
 
-                      value_result[0] += velocity * c_grad;
-                      value_result[2 + ig] += velocity * grad[2 + ig];
+                      value_result[0] += velocity_ig * c_grad;
+                      value_result[2 + ig] += velocity_ig * grad[2 + ig];
                     }
                 }
 
