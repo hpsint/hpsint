@@ -75,3 +75,11 @@ IF(LIKWID)
   TARGET_INCLUDE_DIRECTORIES(${executable_name} PUBLIC $ENV{LIKWID_INCLUDE})
   TARGET_LINK_LIBRARIES(${executable_name} ${LIKWID})
 ENDIF()
+
+
+### Throughput application
+set(exe "sintering-print-particles")
+ADD_EXECUTABLE(${exe} "sintering_print_particles.cc")
+DEAL_II_SETUP_TARGET(${exe})
+TARGET_LINK_LIBRARIES(${exe} "pf-applications")
+target_include_directories(${exe} PUBLIC "include/" "../structural/include/")
