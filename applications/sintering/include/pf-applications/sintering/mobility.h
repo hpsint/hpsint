@@ -481,21 +481,16 @@ namespace Sintering
       M += projector_matrix(nc, fsurf);
 
       // GB diffusion part
-      for (unsigned int i = 0; i < etas_size; i++)
-        {
-          for (unsigned int j = 0; j < etas_size; j++)
-            {
-              if (i != j)
-                {
-                  VectorizedArrayType fgb = Mgb * (etas[i]) * (etas[j]);
-                  Tensor<1, dim, VectorizedArrayType> eta_grad_diff =
-                    (etas_grad[i]) - (etas_grad[j]);
-                  Tensor<1, dim, VectorizedArrayType> neta =
-                    unit_vector(eta_grad_diff);
-                  M += projector_matrix(neta, fgb);
-                }
-            }
-        }
+      for (unsigned int i = 0; i < etas_size; ++i)
+        for (unsigned int j = 0; j < i; ++j)
+          {
+            const VectorizedArrayType fgb = 2 * Mgb * (etas[i]) * (etas[j]);
+            const Tensor<1, dim, VectorizedArrayType> eta_grad_diff =
+              (etas_grad[i]) - (etas_grad[j]);
+            const Tensor<1, dim, VectorizedArrayType> neta =
+              unit_vector(eta_grad_diff);
+            M += projector_matrix(neta, fgb);
+          }
 
       return M * vec;
     }
