@@ -253,6 +253,12 @@ namespace Sintering
       return boundaries;
     }
 
+    std::map<unsigned int, std::vector<unsigned int>>
+    get_order_parameter_to_grains() const
+    {
+      return order_parameter_to_grains;
+    }
+
     double
     get_r_max() const final
     {
