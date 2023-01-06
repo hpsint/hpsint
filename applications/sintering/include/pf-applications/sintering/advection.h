@@ -257,15 +257,6 @@ namespace Sintering
       return v_adv;
     }
 
-    Tensor<1, dim, VectorizedArrayType>
-    get_velocity_derivative(const unsigned int order_parameter_id,
-                            const Point<dim, VectorizedArrayType> p) const
-    {
-      (void)order_parameter_id;
-      (void)p;
-      return {};
-    }
-
     void
     nullify_data(const unsigned int n_segments)
     {
