@@ -471,34 +471,35 @@ namespace Sintering
       phi = compare_and_apply_mask<SIMDComparison::greater_than>(
         phi, VectorizedArrayType(1.0), VectorizedArrayType(1.0), phi);
 
-      Tensor<1, dim, VectorizedArrayType> out;
-
-      const auto f_vol_vap = Mvol * phi + Mvap * (1.0 - phi);
+      Tensor<1, dim, VectorizedArrayType> M_vec;
 
       // Volumetric and vaporization parts, the same as for isotropic
-      for (unsigned int i = 0; i < dim; ++i)
-        {
-          out[i] = f_vol_vap * vec[i];
-        }
-
-      Tensor<2, dim, VectorizedArrayType> M;
+      const auto f_vol_vap = Mvol * phi + Mvap * (1.0 - phi);
 
       // Surface anisotropic part
       const auto fsurf = Msurf * (c * c) * ((1. - c) * (1. - c));
       const auto nc    = unit_vector(c_grad);
-      M += projector_matrix(nc, fsurf);
+
+      VectorizedArrayType nc_vec = nc[0] * vec[0]; // exploit tp structure
+      for (unsigned int i = 1; i < dim; ++i)
+        nc_vec += nc[i] * vec[i];
+
+      for (unsigned int i = 0; i < dim; ++i)
+        M_vec[i] = (f_vol_vap + fsurf) * vec[i] - (fsurf * nc_vec) * nc[i];
+
+      Tensor<2, dim, VectorizedArrayType> M;
 
       // GB diffusion part
       for (unsigned int i = 0; i < etas_size; ++i)
         for (unsigned int j = 0; j < i; ++j)
           {
-            const auto fgb           = (2.0 * Mgb) * (etas[i]) * (etas[j]);
-            const auto eta_grad_diff = (etas_grad[i]) - (etas_grad[j]);
+            const auto fgb           = 2.0 * Mgb * etas[i] * etas[j];
+            const auto eta_grad_diff = etas_grad[i] - etas_grad[j];
             const auto neta          = unit_vector(eta_grad_diff);
             M += projector_matrix(neta, fgb);
           }
 
-      return out + M * vec;
+      return M_vec + M * vec;
     }
 
 
