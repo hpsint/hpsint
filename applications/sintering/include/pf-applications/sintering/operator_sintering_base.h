@@ -205,8 +205,11 @@ namespace Sintering
                 {
                   if (entries_mask[FieldM])
                     {
-                      temp[counter++] =
-                        mobility.apply_M(c, etas, n_grains, c_grad, etas_grad);
+                      Tensor<1, dim, VectorizedArrayType> dummy;
+                      dummy[0] = 1.0;
+
+                      temp[counter++] = mobility.apply_M(
+                        c, etas, n_grains, c_grad, etas_grad, dummy)[0];
                     }
 
                   if (entries_mask[FieldDM])

@@ -147,8 +147,8 @@ namespace Sintering
                              lin_etas_value,
                              n_grains,
                              lin_c_gardient,
-                             lin_etas_gradient) *
-              gradient[1] +
+                             lin_etas_gradient,
+                             gradient[1]) +
             mobility.dM_dc(lin_c_value,
                            lin_etas_value,
                            lin_c_gardient,
@@ -305,8 +305,7 @@ namespace Sintering
 
               value_result[1] = -mu + free_energy.df_dc(c, etas);
               gradient_result[0] =
-                mobility.apply_M(c, etas, n_grains, c_grad, etas_grad) *
-                grad[1];
+                mobility.apply_M(c, etas, n_grains, c_grad, etas_grad, grad[1]);
               gradient_result[1] = kappa_c * grad[0];
 
               // AC equations
