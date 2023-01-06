@@ -471,9 +471,17 @@ namespace Sintering
       phi = compare_and_apply_mask<SIMDComparison::greater_than>(
         phi, VectorizedArrayType(1.0), VectorizedArrayType(1.0), phi);
 
+      Tensor<1, dim, VectorizedArrayType> out;
+
+      const auto f_vol_vap = Mvol * phi + Mvap * (1.0 - phi);
+
       // Volumetric and vaporization parts, the same as for isotropic
-      Tensor<2, dim, VectorizedArrayType> M =
-        diagonal_matrix<dim>(Mvol * phi + Mvap * (1.0 - phi));
+      for (unsigned int i = 0; i < dim; ++i)
+        {
+          out[i] = f_vol_vap * vec[i];
+        }
+
+      Tensor<2, dim, VectorizedArrayType> M;
 
       // Surface anisotropic part
       const auto fsurf = Msurf * (c * c) * ((1. - c) * (1. - c));
@@ -490,7 +498,7 @@ namespace Sintering
             M += projector_matrix(neta, fgb);
           }
 
-      return M * vec;
+      return out + M * vec;
     }
 
 
