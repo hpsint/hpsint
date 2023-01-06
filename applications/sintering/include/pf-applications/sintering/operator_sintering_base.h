@@ -206,7 +206,7 @@ namespace Sintering
                   if (entries_mask[FieldM])
                     {
                       temp[counter++] =
-                        mobility.M(c, etas, n_grains, c_grad, etas_grad);
+                        mobility.apply_M(c, etas, n_grains, c_grad, etas_grad);
                     }
 
                   if (entries_mask[FieldDM])

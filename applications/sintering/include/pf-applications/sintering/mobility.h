@@ -293,11 +293,11 @@ namespace Sintering
 
     template <typename VectorTypeValue, typename VectorTypeGradient>
     DEAL_II_ALWAYS_INLINE VectorizedArrayType
-    M(const VectorizedArrayType &                c,
-      const VectorTypeValue &                    etas,
-      const unsigned int                         etas_size,
-      const Tensor<1, dim, VectorizedArrayType> &c_grad,
-      const VectorTypeGradient &                 etas_grad) const
+    apply_M(const VectorizedArrayType &                c,
+            const VectorTypeValue &                    etas,
+            const unsigned int                         etas_size,
+            const Tensor<1, dim, VectorizedArrayType> &c_grad,
+            const VectorTypeGradient &                 etas_grad) const
     {
       (void)c_grad;
       (void)etas_grad;
@@ -456,11 +456,11 @@ namespace Sintering
 
     template <typename VectorTypeValue, typename VectorTypeGradient>
     DEAL_II_ALWAYS_INLINE Tensor<2, dim, VectorizedArrayType>
-                          M(const VectorizedArrayType &                c,
-                            const VectorTypeValue &                    etas,
-                            const unsigned int                         etas_size,
-                            const Tensor<1, dim, VectorizedArrayType> &c_grad,
-                            const VectorTypeGradient &                 etas_grad) const
+                          apply_M(const VectorizedArrayType &                c,
+                                  const VectorTypeValue &                    etas,
+                                  const unsigned int                         etas_size,
+                                  const Tensor<1, dim, VectorizedArrayType> &c_grad,
+                                  const VectorTypeGradient &                 etas_grad) const
     {
       VectorizedArrayType phi = c * c * c * (10.0 - 15.0 * c + 6.0 * c * c);
 
