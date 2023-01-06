@@ -476,19 +476,17 @@ namespace Sintering
         diagonal_matrix<dim>(Mvol * phi + Mvap * (1.0 - phi));
 
       // Surface anisotropic part
-      VectorizedArrayType fsurf = Msurf * (c * c) * ((1. - c) * (1. - c));
-      Tensor<1, dim, VectorizedArrayType> nc = unit_vector(c_grad);
+      const auto fsurf = Msurf * (c * c) * ((1. - c) * (1. - c));
+      const auto nc    = unit_vector(c_grad);
       M += projector_matrix(nc, fsurf);
 
       // GB diffusion part
       for (unsigned int i = 0; i < etas_size; ++i)
         for (unsigned int j = 0; j < i; ++j)
           {
-            const VectorizedArrayType fgb = 2 * Mgb * (etas[i]) * (etas[j]);
-            const Tensor<1, dim, VectorizedArrayType> eta_grad_diff =
-              (etas_grad[i]) - (etas_grad[j]);
-            const Tensor<1, dim, VectorizedArrayType> neta =
-              unit_vector(eta_grad_diff);
+            const auto fgb           = (2.0 * Mgb) * (etas[i]) * (etas[j]);
+            const auto eta_grad_diff = (etas_grad[i]) - (etas_grad[j]);
+            const auto neta          = unit_vector(eta_grad_diff);
             M += projector_matrix(neta, fgb);
           }
 
