@@ -131,8 +131,7 @@ namespace Sintering
             nullptr;
 
           if (SinteringOperatorData<dim, VectorizedArrayType>::
-                use_tensorial_mobility ||
-              this->advection.enabled())
+                use_tensorial_mobility)
             lin_etas_gradient = &lin_gradient[2];
 
           const auto lin_etas_value_power_2_sum =
@@ -218,16 +217,10 @@ namespace Sintering
                 {
                   const auto &velocity_ig =
                     this->advection.get_velocity(ig, phi.quadrature_point(q));
-                  const auto &velocity_derivative_ig =
-                    this->advection.get_velocity_derivative(
-                      ig, phi.quadrature_point(q));
 
-                  value_result[0] += velocity_ig * gradient[0] +
-                                     velocity_derivative_ig * lin_c_gardient;
+                  value_result[0] += velocity_ig * gradient[0];
 
-                  value_result[ig + 2] +=
-                    velocity_ig * gradient[ig + 2] +
-                    velocity_derivative_ig * lin_etas_gradient[ig];
+                  value_result[ig + 2] += velocity_ig * gradient[ig + 2];
                 }
 
 
