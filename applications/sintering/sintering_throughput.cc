@@ -450,8 +450,18 @@ main(int argc, char **argv)
             sintering_data.time_data.set_all_dt(dts);
             sintering_data.set_time(t);
 
+            std::vector<AdvectionCellData<dim, Number, VectorizedArrayType>>
+              current_cell_data(n_components - 2 - dim);
+
+            for (auto &entry : current_cell_data)
+              {
+                entry.volume    = 1.0; // dummy values
+                entry.force[0]  = 1.0; //
+                entry.torque[0] = 1.0; //
+              }
+
             AdvectionMechanism<dim, Number, VectorizedArrayType>
-              advection_mechanism;
+              advection_mechanism(mt, mr, current_cell_data);
 
             const SinteringOperatorCoupledWang<dim, Number, VectorizedArrayType>
               sintering_operator(matrix_free,
@@ -470,7 +480,7 @@ main(int argc, char **argv)
 
             sintering_data.fill_quadrature_point_values(matrix_free,
                                                         src,
-                                                        false,
+                                                        true /*TODO: gradient*/,
                                                         false);
 
 
