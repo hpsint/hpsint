@@ -509,21 +509,19 @@ namespace Sintering
       const auto fsurf = Msurf * (c * c) * ((1. - c) * (1. - c));
       const auto nc    = unit_vector(c_grad);
 
-      const auto nc_vec = nc * vec;
-
-      auto out = (f_vol_vap + fsurf) * vec - (fsurf * nc_vec) * nc;
+      const auto out = (f_vol_vap + fsurf) * vec - nc * (fsurf * (nc * vec));
 
       // GB diffusion part
+      Tensor<1, dim, VectorizedArrayType> out_gb;
       for (unsigned int i = 0; i < etas_size; ++i)
         for (unsigned int j = 0; j < i; ++j)
           {
             const auto eta_grad_diff = etas_grad[i] - etas_grad[j];
             const auto neta          = unit_vector(eta_grad_diff);
-            out +=
-              (vec - neta * (neta * vec)) * (2.0 * Mgb * etas[i] * etas[j]);
+            out_gb += (vec - neta * (neta * vec)) * (etas[i] * etas[j]);
           }
 
-      return out;
+      return out + out_gb * (2.0 * Mgb);
     }
 
 
