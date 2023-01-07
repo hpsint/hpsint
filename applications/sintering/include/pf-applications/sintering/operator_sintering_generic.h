@@ -291,6 +291,11 @@ namespace Sintering
                   etas_grad[ig] = gradient[2 + ig];
                 }
 
+              const auto etas_value_power_2_sum =
+                PowerHelper<n_grains, 2>::power_sum(etas);
+              const auto etas_value_power_3_sum =
+                PowerHelper<n_grains, 3>::power_sum(etas);
+
               Tensor<1, n_comp, VectorizedArrayType> value_result;
               Tensor<1, n_comp, Tensor<1, dim, VectorizedArrayType>>
                 gradient_result;
@@ -307,7 +312,11 @@ namespace Sintering
 
 
               // 2) process mu row
-              value_result[1] = -value[1] + free_energy.df_dc(value[0], etas);
+              value_result[1] =
+                -value[1] + free_energy.df_dc(value[0],
+                                              etas,
+                                              etas_value_power_2_sum,
+                                              etas_value_power_3_sum);
               gradient_result[1] = kappa_c * gradient[0];
 
 
@@ -316,7 +325,10 @@ namespace Sintering
               for (unsigned int ig = 0; ig < n_grains; ++ig)
                 {
                   value_result[2 + ig] =
-                    L * free_energy.df_detai(value[0], etas, ig);
+                    L * free_energy.df_detai(value[0],
+                                             etas,
+                                             etas_value_power_2_sum,
+                                             ig);
 
                   if (with_time_derivative)
                     this->time_integrator.compute_time_derivative(
