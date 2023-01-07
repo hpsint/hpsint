@@ -281,20 +281,14 @@ namespace Sintering
               const auto value    = phi.get_value(q);
               const auto gradient = phi.get_gradient(q);
 
-              std::array<VectorizedArrayType, n_grains> etas;
-              std::array<Tensor<1, dim, VectorizedArrayType>, n_grains>
-                etas_grad;
-
-              for (unsigned int ig = 0; ig < n_grains; ++ig)
-                {
-                  etas[ig]      = value[2 + ig];
-                  etas_grad[ig] = gradient[2 + ig];
-                }
+              const VectorizedArrayType *                etas_value = &value[2];
+              const Tensor<1, dim, VectorizedArrayType> *etas_gradient =
+                &gradient[2];
 
               const auto etas_value_power_2_sum =
-                PowerHelper<n_grains, 2>::power_sum(etas);
+                PowerHelper<n_grains, 2>::power_sum(etas_value);
               const auto etas_value_power_3_sum =
-                PowerHelper<n_grains, 3>::power_sum(etas);
+                PowerHelper<n_grains, 3>::power_sum(etas_value);
 
               Tensor<1, n_comp, VectorizedArrayType> value_result;
               Tensor<1, n_comp, Tensor<1, dim, VectorizedArrayType>>
@@ -306,15 +300,19 @@ namespace Sintering
               if (with_time_derivative)
                 this->time_integrator.compute_time_derivative(
                   value_result[0], value, time_phi, 0, q);
-              gradient_result[0] = mobility.apply_M(
-                value[0], etas, n_grains, gradient[0], etas_grad, gradient[1]);
+              gradient_result[0] = mobility.apply_M(value[0],
+                                                    etas_value,
+                                                    n_grains,
+                                                    gradient[0],
+                                                    etas_gradient,
+                                                    gradient[1]);
 
 
 
               // 2) process mu row
               value_result[1] =
                 -value[1] + free_energy.df_dc(value[0],
-                                              etas,
+                                              etas_value,
                                               etas_value_power_2_sum,
                                               etas_value_power_3_sum);
               gradient_result[1] = kappa_c * gradient[0];
@@ -326,7 +324,7 @@ namespace Sintering
                 {
                   value_result[2 + ig] =
                     L * free_energy.df_detai(value[0],
-                                             etas,
+                                             etas_value,
                                              etas_value_power_2_sum,
                                              ig);
 
