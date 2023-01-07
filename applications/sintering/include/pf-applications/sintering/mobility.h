@@ -429,6 +429,37 @@ namespace Sintering
       return MetajSum;
     }
 
+    template <typename VectorTypeValue, typename VectorTypeGradient>
+    DEAL_II_ALWAYS_INLINE Tensor<1, dim, VectorizedArrayType>
+                          dM_detai(const VectorizedArrayType &                c,
+                                   const VectorTypeValue &                    etas,
+                                   const unsigned int                         etas_size,
+                                   const Tensor<1, dim, VectorizedArrayType> &c_grad,
+                                   const VectorTypeGradient &                 etas_grad,
+                                   const Tensor<1, dim, VectorizedArrayType> &mu_grad,
+                                   const VectorizedArrayType *                value) const
+    {
+      (void)c;
+      (void)c_grad;
+      (void)etas_grad;
+
+      Tensor<1, dim, VectorizedArrayType> out;
+
+      for (unsigned int i = 0; i < etas_size; i++)
+        {
+          VectorizedArrayType etajSum = 0;
+          for (unsigned int j = 0; j < etas_size; ++j)
+            if (j != i)
+              etajSum += etas[j];
+
+          const auto MetajSum = 2.0 * Mgb * etajSum;
+
+          out += MetajSum * mu_grad * value[i]; // TODO: pull out mu_grad
+        }
+
+      return out;
+    }
+
     DEAL_II_ALWAYS_INLINE VectorizedArrayType
     dM_vol_dc(const VectorizedArrayType &c) const
     {
@@ -669,6 +700,42 @@ namespace Sintering
       M *= 2. * Mgb;
 
       return M;
+    }
+
+    template <typename VectorTypeValue, typename VectorTypeGradient>
+    DEAL_II_ALWAYS_INLINE Tensor<1, dim, VectorizedArrayType>
+                          dM_detai(const VectorizedArrayType &                c,
+                                   const VectorTypeValue &                    etas,
+                                   const unsigned int                         etas_size,
+                                   const Tensor<1, dim, VectorizedArrayType> &c_grad,
+                                   const VectorTypeGradient &                 etas_grad,
+                                   const Tensor<1, dim, VectorizedArrayType> &mu_grad,
+                                   const VectorizedArrayType *                value) const
+    {
+      (void)c;
+      (void)c_grad;
+
+      Tensor<1, dim, VectorizedArrayType> out;
+
+      for (unsigned int i = 0; i < etas_size; i++)
+        {
+          dealii::Tensor<2, dim, VectorizedArrayType> M;
+
+          for (unsigned int j = 0; j < etas_size; j++)
+            {
+              if (j != i)
+                {
+                  const auto eta_grad_diff = etas_grad[i] - etas_grad[j];
+                  const auto neta          = unit_vector(eta_grad_diff);
+                  M += projector_matrix(neta, etas[j]);
+                }
+            }
+          M *= 2. * Mgb;
+
+          out += M * mu_grad * value[i];
+        }
+
+      return out;
     }
 
     DEAL_II_ALWAYS_INLINE Tensor<2, dim, VectorizedArrayType>
