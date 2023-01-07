@@ -717,25 +717,21 @@ namespace Sintering
 
       Tensor<1, dim, VectorizedArrayType> out;
 
-      for (unsigned int i = 0; i < etas_size; i++)
+      for (unsigned int i = 0; i < etas_size; ++i)
         {
-          dealii::Tensor<2, dim, VectorizedArrayType> M;
-
-          for (unsigned int j = 0; j < etas_size; j++)
+          for (unsigned int j = 0; j < etas_size; ++j)
             {
               if (j != i)
                 {
                   const auto eta_grad_diff = etas_grad[i] - etas_grad[j];
                   const auto neta          = unit_vector(eta_grad_diff);
-                  M += projector_matrix(neta, etas[j]);
+                  const auto M             = projector_matrix(neta, etas[j]);
+                  out += M * mu_grad * value[i];
                 }
             }
-          M *= 2. * Mgb;
-
-          out += M * mu_grad * value[i];
         }
 
-      return out;
+      return out * 2. * Mgb;
     }
 
     DEAL_II_ALWAYS_INLINE Tensor<2, dim, VectorizedArrayType>
