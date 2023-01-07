@@ -291,6 +291,9 @@ namespace Sintering
       : Mobility(provider)
     {}
 
+
+
+    // note: only for postprocessing
     DEAL_II_ALWAYS_INLINE VectorizedArrayType
     M_vol(const VectorizedArrayType &c) const
     {
@@ -304,6 +307,9 @@ namespace Sintering
       return Mvol * phi;
     }
 
+
+
+    // note: only for postprocessing
     DEAL_II_ALWAYS_INLINE VectorizedArrayType
     M_vap(const VectorizedArrayType &c) const
     {
@@ -317,6 +323,9 @@ namespace Sintering
       return Mvap * (1.0 - phi);
     }
 
+
+
+    // note: only for postprocessing
     DEAL_II_ALWAYS_INLINE VectorizedArrayType
     M_surf(const VectorizedArrayType &                c,
            const Tensor<1, dim, VectorizedArrayType> &c_grad) const
@@ -326,6 +335,9 @@ namespace Sintering
       return Msurf * 4.0 * c * c * (1.0 - c) * (1.0 - c);
     }
 
+
+
+    // note: only for postprocessing
     template <typename VectorTypeValue, typename VectorTypeGradient>
     DEAL_II_ALWAYS_INLINE VectorizedArrayType
     M_gb(const VectorTypeValue &   etas,
@@ -343,6 +355,9 @@ namespace Sintering
       return Mgb * etaijSum;
     }
 
+
+
+    // TODO: replace by apply!?
     template <typename VectorTypeValue, typename VectorTypeGradient>
     DEAL_II_ALWAYS_INLINE VectorizedArrayType
     dM_dc(const VectorizedArrayType &                c,
@@ -362,6 +377,9 @@ namespace Sintering
       return dMdc;
     }
 
+
+
+    // TODO: replace by apply!?
     DEAL_II_ALWAYS_INLINE Tensor<2, dim, VectorizedArrayType>
                           dM_dgrad_c(const VectorizedArrayType &                c,
                                      const Tensor<1, dim, VectorizedArrayType> &c_grad,
@@ -374,6 +392,9 @@ namespace Sintering
       return Tensor<2, dim, VectorizedArrayType>();
     }
 
+
+
+    // TODO: replace by apply!?
     template <typename VectorTypeValue, typename VectorTypeGradient>
     DEAL_II_ALWAYS_INLINE VectorizedArrayType
     dM_detai(const VectorizedArrayType &                c,
@@ -397,6 +418,8 @@ namespace Sintering
       return MetajSum;
     }
 
+
+
     template <typename VectorTypeValue, typename VectorTypeGradient>
     DEAL_II_ALWAYS_INLINE Tensor<1, dim, VectorizedArrayType>
                           apply_M(const VectorizedArrayType &                c,
@@ -404,11 +427,13 @@ namespace Sintering
                                   const unsigned int                         etas_size,
                                   const Tensor<1, dim, VectorizedArrayType> &c_grad,
                                   const VectorTypeGradient &                 etas_grad,
-                                  const Tensor<1, dim, VectorizedArrayType> &vec) const
+                                  const Tensor<1, dim, VectorizedArrayType> &mu_grad) const
     {
       (void)c_grad;
       (void)etas_grad;
 
+      // warning: nested loop over grains; optimization: exploit symmetry
+      // and only loop over lower-triangular matrix
       VectorizedArrayType etaijSum = 0.0;
       for (unsigned int i = 0; i < etas_size; ++i)
         for (unsigned int j = 0; j < i; ++j)
@@ -425,8 +450,10 @@ namespace Sintering
         Mvol * phi + Mvap * (1.0 - phi) +
         Msurf * 4.0 * c * c * (1.0 - c) * (1.0 - c) + (2.0 * Mgb) * etaijSum;
 
-      return M * vec;
+      return M * mu_grad;
     }
+
+
 
     template <typename VectorTypeValue, typename VectorTypeGradient>
     DEAL_II_ALWAYS_INLINE Tensor<1, dim, VectorizedArrayType>
@@ -449,6 +476,8 @@ namespace Sintering
       return (dMdc * value) * mu_grad;
     }
 
+
+
     DEAL_II_ALWAYS_INLINE Tensor<1, dim, VectorizedArrayType>
                           apply_dM_dgrad_c(const VectorizedArrayType &                c,
                                            const Tensor<1, dim, VectorizedArrayType> &c_grad,
@@ -462,6 +491,8 @@ namespace Sintering
 
       return Tensor<1, dim, VectorizedArrayType>();
     }
+
+
 
     template <typename VectorTypeValue, typename VectorTypeGradient>
     DEAL_II_ALWAYS_INLINE Tensor<1, dim, VectorizedArrayType>
@@ -479,19 +510,19 @@ namespace Sintering
 
       VectorizedArrayType factor = 0.0;
 
-      for (unsigned int i = 0; i < etas_size; i++)
-        {
-          VectorizedArrayType etajSum = 0;
-          for (unsigned int j = 0; j < etas_size; ++j)
-            if (j != i)
-              etajSum += etas[j];
+      VectorizedArrayType eta_sum = etas[0];
+      for (unsigned int i = 1; i < etas_size; ++i)
+        eta_sum += etas[i];
 
-          factor += etajSum * value[i];
-        }
+      for (unsigned int i = 0; i < etas_size; ++i)
+        factor += (eta_sum - etas[i]) * value[i];
 
       return ((2.0 * Mgb) * factor) * mu_grad;
     }
 
+
+
+    // TODO: add apply!?
     DEAL_II_ALWAYS_INLINE VectorizedArrayType
     dM_vol_dc(const VectorizedArrayType &c) const
     {
@@ -500,6 +531,8 @@ namespace Sintering
 
       return dMdc;
     }
+
+
 
     double
     Lgb() const
@@ -584,9 +617,9 @@ namespace Sintering
       Tensor<2, dim, VectorizedArrayType> M;
 
       // GB diffusion part
-      for (unsigned int i = 0; i < etas_size; i++)
+      for (unsigned int i = 0; i < etas_size; ++i)
         {
-          for (unsigned int j = 0; j < etas_size; j++)
+          for (unsigned int j = 0; j < etas_size; ++j)
             {
               if (i != j)
                 {
@@ -603,6 +636,9 @@ namespace Sintering
       return M;
     }
 
+
+
+    // TODO: replace by apply!?
     template <typename VectorTypeValue, typename VectorTypeGradient>
     DEAL_II_ALWAYS_INLINE Tensor<2, dim, VectorizedArrayType>
                           dM_dc(const VectorizedArrayType &                c,
@@ -632,6 +668,9 @@ namespace Sintering
       return dMdc;
     }
 
+
+
+    // TODO: replace by apply!?
     DEAL_II_ALWAYS_INLINE Tensor<2, dim, VectorizedArrayType>
                           dM_dgrad_c(const VectorizedArrayType &                c,
                                      const Tensor<1, dim, VectorizedArrayType> &c_grad,
@@ -654,6 +693,9 @@ namespace Sintering
       return T * M;
     }
 
+
+
+    // TODO: replace by apply!?
     template <typename VectorTypeValue, typename VectorTypeGradient>
     DEAL_II_ALWAYS_INLINE Tensor<2, dim, VectorizedArrayType>
                           dM_detai(const VectorizedArrayType &                c,
@@ -668,7 +710,7 @@ namespace Sintering
 
       dealii::Tensor<2, dim, VectorizedArrayType> M;
 
-      for (unsigned int j = 0; j < etas_size; j++)
+      for (unsigned int j = 0; j < etas_size; ++j)
         {
           if (j != index_i)
             {
@@ -682,6 +724,8 @@ namespace Sintering
       return M;
     }
 
+
+
     template <typename VectorTypeValue, typename VectorTypeGradient>
     DEAL_II_ALWAYS_INLINE Tensor<1, dim, VectorizedArrayType>
                           apply_M(const VectorizedArrayType &                c,
@@ -689,7 +733,7 @@ namespace Sintering
                                   const unsigned int                         etas_size,
                                   const Tensor<1, dim, VectorizedArrayType> &c_grad,
                                   const VectorTypeGradient &                 etas_grad,
-                                  const Tensor<1, dim, VectorizedArrayType> &vec) const
+                                  const Tensor<1, dim, VectorizedArrayType> &mu_grad) const
     {
       VectorizedArrayType phi = c * c * c * (10.0 - 15.0 * c + 6.0 * c * c);
 
@@ -705,20 +749,26 @@ namespace Sintering
       const auto fsurf = Msurf * (c * c) * ((1. - c) * (1. - c));
       const auto nc    = unit_vector(c_grad);
 
-      const auto out = (f_vol_vap + fsurf) * vec - nc * (fsurf * (nc * vec));
+      const auto out =
+        (f_vol_vap + fsurf) * mu_grad - nc * (fsurf * (nc * mu_grad));
 
       // GB diffusion part
+      //
+      // warning: nested loop over grains; optimization: exploit symmetry
+      // and only loop over lower-triangular matrix
       Tensor<1, dim, VectorizedArrayType> out_gb;
       for (unsigned int i = 0; i < etas_size; ++i)
         for (unsigned int j = 0; j < i; ++j)
           {
             const auto eta_grad_diff = etas_grad[i] - etas_grad[j];
             const auto neta          = unit_vector(eta_grad_diff);
-            out_gb += (vec - neta * (neta * vec)) * (etas[i] * etas[j]);
+            out_gb += (mu_grad - neta * (neta * mu_grad)) * (etas[i] * etas[j]);
           }
 
       return out + out_gb * (2.0 * Mgb);
     }
+
+
 
     template <typename VectorTypeValue, typename VectorTypeGradient>
     DEAL_II_ALWAYS_INLINE Tensor<1, dim, VectorizedArrayType>
@@ -750,6 +800,8 @@ namespace Sintering
              value;
     }
 
+
+
     DEAL_II_ALWAYS_INLINE Tensor<1, dim, VectorizedArrayType>
                           apply_dM_dgrad_c(const VectorizedArrayType &                c,
                                            const Tensor<1, dim, VectorizedArrayType> &c_grad,
@@ -769,6 +821,8 @@ namespace Sintering
       return (-fsurf / nrm) * ((nc * mu_grad) * temp + nc * (mu_grad * temp));
     }
 
+
+
     template <typename VectorTypeValue, typename VectorTypeGradient>
     DEAL_II_ALWAYS_INLINE Tensor<1, dim, VectorizedArrayType>
                           apply_dM_detai(const VectorizedArrayType &                c,
@@ -784,6 +838,8 @@ namespace Sintering
 
       Tensor<1, dim, VectorizedArrayType> out;
 
+      // warning: nested loop over grains; optimization: exploit symmetry
+      // and only loop over lower-triangular matrix
       for (unsigned int i = 0; i < etas_size; ++i)
         for (unsigned int j = 0; j < i; ++j)
           {
@@ -796,6 +852,9 @@ namespace Sintering
       return out * (2.0 * Mgb);
     }
 
+
+
+    // TODO: add apply!?
     DEAL_II_ALWAYS_INLINE Tensor<2, dim, VectorizedArrayType>
                           dM_vol_dc(const VectorizedArrayType &c) const
     {
@@ -805,6 +864,8 @@ namespace Sintering
 
       return dMdc;
     }
+
+
 
     double
     Lgb() const
