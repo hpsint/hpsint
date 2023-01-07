@@ -718,18 +718,14 @@ namespace Sintering
       Tensor<1, dim, VectorizedArrayType> out;
 
       for (unsigned int i = 0; i < etas_size; ++i)
-        {
-          for (unsigned int j = 0; j < etas_size; ++j)
-            {
-              if (j != i)
-                {
-                  const auto eta_grad_diff = etas_grad[i] - etas_grad[j];
-                  const auto neta          = unit_vector(eta_grad_diff);
-                  const auto M             = projector_matrix(neta, etas[j]);
-                  out += M * mu_grad * value[i];
-                }
-            }
-        }
+        for (unsigned int j = 0; j < i; ++j)
+          {
+            const auto eta_grad_diff = etas_grad[i] - etas_grad[j];
+            const auto neta          = unit_vector(eta_grad_diff);
+            const auto Mj            = projector_matrix(neta, etas[j]);
+            const auto Mi            = projector_matrix(neta, etas[i]);
+            out += Mj * mu_grad * value[i] + Mi * mu_grad * value[j];
+          }
 
       return out * 2. * Mgb;
     }
