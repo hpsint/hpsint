@@ -299,16 +299,24 @@ namespace Sintering
               Tensor<1, n_comp, Tensor<1, dim, VectorizedArrayType>>
                 gradient_result;
 
+
+
+              // 1) process c row
               if (with_time_derivative)
                 this->time_integrator.compute_time_derivative(
                   value_result[0], val, time_phi, 0, q);
-
-              value_result[1] = -mu + free_energy.df_dc(c, etas);
               gradient_result[0] =
                 mobility.apply_M(c, etas, n_grains, c_grad, etas_grad, grad[1]);
+
+
+
+              // 2) process mu row
+              value_result[1]    = -mu + free_energy.df_dc(c, etas);
               gradient_result[1] = kappa_c * grad[0];
 
-              // AC equations
+
+
+              // 3) process eta rows
               for (unsigned int ig = 0; ig < n_grains; ++ig)
                 {
                   value_result[2 + ig] = L * free_energy.df_detai(c, etas, ig);
@@ -318,9 +326,14 @@ namespace Sintering
                       value_result[2 + ig], val, time_phi, 2 + ig, q);
 
                   gradient_result[2 + ig] = L * kappa_p * grad[2 + ig];
+                }
 
-                  if (this->advection.enabled() &&
-                      this->advection.has_velocity(ig))
+
+
+              // 4) add advection contributations -> influences c AND etas
+              if (this->advection.enabled())
+                for (unsigned int ig = 0; ig < n_grains; ++ig)
+                  if (this->advection.has_velocity(ig))
                     {
                       const auto &velocity_ig =
                         this->advection.get_velocity(ig,
@@ -329,7 +342,8 @@ namespace Sintering
                       value_result[0] += velocity_ig * c_grad;
                       value_result[2 + ig] += velocity_ig * grad[2 + ig];
                     }
-                }
+
+
 
               phi.submit_value(value_result, q);
               phi.submit_gradient(gradient_result, q);
