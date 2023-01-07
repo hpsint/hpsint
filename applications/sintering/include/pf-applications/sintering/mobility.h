@@ -749,7 +749,6 @@ namespace Sintering
         fsurf, VectorizedArrayType(1e-6), VectorizedArrayType(0.0), dfsurf);
 
       const auto nc = unit_vector(c_grad);
-
       return ((f_vol_vap + dfsurf) * mu_grad - nc * (dfsurf * (nc * mu_grad))) *
              value;
     }
@@ -768,13 +767,9 @@ namespace Sintering
       nrm = compare_and_apply_mask<SIMDComparison::less_than>(
         nrm, VectorizedArrayType(1e-4), VectorizedArrayType(1.0), nrm);
 
-      const auto nmr_inv = 1. / nrm;
-
-      const auto nc = unit_vector(c_grad);
-
-      const auto temp = nmr_inv * (gradient - nc * (nc * gradient));
-
-      return -fsurf * ((nc * mu_grad) * temp + nc * (mu_grad * temp));
+      const auto nc   = unit_vector(c_grad);
+      const auto temp = gradient - nc * (nc * gradient);
+      return (-fsurf / nrm) * ((nc * mu_grad) * temp + nc * (mu_grad * temp));
     }
 
     template <typename VectorTypeValue, typename VectorTypeGradient>
