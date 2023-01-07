@@ -722,18 +722,12 @@ namespace Sintering
           {
             const auto eta_grad_diff = etas_grad[i] - etas_grad[j];
             const auto neta          = unit_vector(eta_grad_diff);
-
-            auto neta_mu_grad = neta[0] * mu_grad[0];
-            for (unsigned int d = 1; d < dim; ++d)
-              neta_mu_grad += neta[d] * mu_grad[d];
-
-            const auto factor = etas[j] * value[i] + etas[i] * value[j];
-
-            for (unsigned int d = 0; d < dim; ++d)
-              out[d] += (mu_grad[d] - neta[d] * neta_mu_grad) * factor;
+            const auto neta_mu_grad  = neta * mu_grad;
+            out += (mu_grad - neta * neta_mu_grad) *
+                   (etas[j] * value[i] + etas[i] * value[j]);
           }
 
-      return out * 2. * Mgb;
+      return out * (2. * Mgb);
     }
 
     DEAL_II_ALWAYS_INLINE Tensor<2, dim, VectorizedArrayType>
