@@ -54,27 +54,31 @@ endforeach()
 
 
 ### Throughput application
-set(executable_name "sintering-throughput")
-ADD_EXECUTABLE(${executable_name} "sintering_throughput.cc")
-DEAL_II_SETUP_TARGET(${executable_name})
+foreach(VAR_MOB ${VARIANTS_MOBILITY})
 
-TARGET_COMPILE_DEFINITIONS(${executable_name} PUBLIC
-    -D SINTERING_DIM=3
-    -D MAX_SINTERING_GRAINS=${MAX_SINTERING_GRAINS}
-    -D${OPTION_MOB_SCALAR}
-    -D${OPTION_OP_GENERIC}
-)
+  string(TOUPPER ${VAR_MOB} VAR_MOB_UP)
 
-TARGET_LINK_LIBRARIES(${executable_name} "pf-applications")
-target_include_directories(${executable_name} PUBLIC "include/" "../structural/include/")
+  set(executable_name "sintering-throughput-${VAR_MOB}")
+  ADD_EXECUTABLE(${executable_name} "sintering_throughput.cc")
+  DEAL_II_SETUP_TARGET(${executable_name})
 
-FIND_LIBRARY(LIKWID likwid HINTS $ENV{LIKWID_LIB})
+  TARGET_COMPILE_DEFINITIONS(${executable_name} PUBLIC
+      -D SINTERING_DIM=3
+      -D MAX_SINTERING_GRAINS=${MAX_SINTERING_GRAINS}
+      -D${OPTION_MOB_${VAR_MOB_UP}}
+  )
+
+  TARGET_LINK_LIBRARIES(${executable_name} "pf-applications")
+  target_include_directories(${executable_name} PUBLIC "include/" "../structural/include/")
+
+  FIND_LIBRARY(LIKWID likwid HINTS $ENV{LIKWID_LIB})
     
-IF(LIKWID)
-  TARGET_COMPILE_DEFINITIONS(${executable_name} PUBLIC LIKWID_PERFMON)
-  TARGET_INCLUDE_DIRECTORIES(${executable_name} PUBLIC $ENV{LIKWID_INCLUDE})
-  TARGET_LINK_LIBRARIES(${executable_name} ${LIKWID})
-ENDIF()
+  IF(LIKWID)
+    TARGET_COMPILE_DEFINITIONS(${executable_name} PUBLIC LIKWID_PERFMON)
+    TARGET_INCLUDE_DIRECTORIES(${executable_name} PUBLIC $ENV{LIKWID_INCLUDE})
+    TARGET_LINK_LIBRARIES(${executable_name} ${LIKWID})
+  ENDIF()
+endforeach()
 
 
 ### Throughput application
