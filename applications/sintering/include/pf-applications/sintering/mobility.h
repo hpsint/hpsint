@@ -413,7 +413,6 @@ namespace Sintering
       for (unsigned int i = 0; i < etas_size; ++i)
         for (unsigned int j = 0; j < i; ++j)
           etaijSum += etas[i] * etas[j];
-      etaijSum *= 2.0;
 
       VectorizedArrayType phi = c * c * c * (10.0 - 15.0 * c + 6.0 * c * c);
 
@@ -424,7 +423,7 @@ namespace Sintering
 
       const VectorizedArrayType M =
         Mvol * phi + Mvap * (1.0 - phi) +
-        Msurf * 4.0 * c * c * (1.0 - c) * (1.0 - c) + Mgb * etaijSum;
+        Msurf * 4.0 * c * c * (1.0 - c) * (1.0 - c) + (2.0 * Mgb) * etaijSum;
 
       return M * vec;
     }
@@ -447,7 +446,7 @@ namespace Sintering
         Mvol * dphidc - Mvap * dphidc +
         Msurf * 8.0 * c * (1.0 - 3.0 * c + 2.0 * c * c);
 
-      return dMdc * mu_grad * value;
+      return (dMdc * value) * mu_grad;
     }
 
     DEAL_II_ALWAYS_INLINE Tensor<1, dim, VectorizedArrayType>
@@ -490,7 +489,7 @@ namespace Sintering
           factor += etajSum * value[i];
         }
 
-      return (2.0 * Mgb * factor) * mu_grad;
+      return ((2.0 * Mgb) * factor) * mu_grad;
     }
 
     DEAL_II_ALWAYS_INLINE VectorizedArrayType
@@ -794,7 +793,7 @@ namespace Sintering
                    (etas[j] * value[i] + etas[i] * value[j]);
           }
 
-      return out * (2. * Mgb);
+      return out * (2.0 * Mgb);
     }
 
     DEAL_II_ALWAYS_INLINE Tensor<2, dim, VectorizedArrayType>
