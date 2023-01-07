@@ -768,13 +768,13 @@ namespace Sintering
       nrm = compare_and_apply_mask<SIMDComparison::less_than>(
         nrm, VectorizedArrayType(1e-4), VectorizedArrayType(1.0), nrm);
 
+      const auto nmr_inv = 1. / nrm;
+
       const auto nc = unit_vector(c_grad);
-      const auto M  = projector_matrix(nc, 1. / nrm);
 
-      auto T = diagonal_matrix<dim>(nc * mu_grad) + outer_product(nc, mu_grad);
-      T *= -fsurf;
+      const auto temp = nmr_inv * (gradient - nc * (nc * gradient));
 
-      return T * M * gradient;
+      return -fsurf * ((nc * mu_grad) * temp + nc * (mu_grad * temp));
     }
 
     template <typename VectorTypeValue, typename VectorTypeGradient>
