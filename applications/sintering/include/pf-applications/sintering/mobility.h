@@ -602,22 +602,20 @@ namespace Sintering
       (void)etas;
       (void)etas_grad;
 
-      VectorizedArrayType c2_1minusc2 = c * c * (1. - c) * (1. - c);
-
-      VectorizedArrayType dphidc = 30.0 * c2_1minusc2;
+      const auto c2_1minusc2 = c * c * (1. - c) * (1. - c);
+      const auto dphidc      = 30.0 * c2_1minusc2;
 
       // Volumetric and vaporization parts, the same as for isotropic
-      Tensor<2, dim, VectorizedArrayType> dMdc =
-        diagonal_matrix<dim>((Mvol - Mvap) * dphidc);
+      auto dMdc = diagonal_matrix<dim>((Mvol - Mvap) * dphidc);
 
       // Surface part
-      VectorizedArrayType fsurf  = Msurf * c2_1minusc2;
-      VectorizedArrayType dfsurf = Msurf * 2. * c * (1. - c) * (1. - 2. * c);
+      const auto fsurf  = Msurf * c2_1minusc2;
+      auto       dfsurf = Msurf * 2. * c * (1. - c) * (1. - 2. * c);
 
       dfsurf = compare_and_apply_mask<SIMDComparison::less_than>(
         fsurf, VectorizedArrayType(1e-6), VectorizedArrayType(0.0), dfsurf);
 
-      Tensor<1, dim, VectorizedArrayType> nc = unit_vector(c_grad);
+      const auto nc = unit_vector(c_grad);
       dMdc += projector_matrix(nc, dfsurf);
 
       return dMdc;
@@ -628,19 +626,18 @@ namespace Sintering
                                      const Tensor<1, dim, VectorizedArrayType> &c_grad,
                                      const Tensor<1, dim, VectorizedArrayType> &mu_grad) const
     {
-      VectorizedArrayType fsurf = Msurf * (c * c) * ((1. - c) * (1. - c));
-      VectorizedArrayType nrm   = c_grad.norm();
+      auto fsurf = Msurf * (c * c) * ((1. - c) * (1. - c));
+      auto nrm   = c_grad.norm();
 
       fsurf = compare_and_apply_mask<SIMDComparison::less_than>(
         fsurf, VectorizedArrayType(1e-6), VectorizedArrayType(0.0), fsurf);
       nrm = compare_and_apply_mask<SIMDComparison::less_than>(
         nrm, VectorizedArrayType(1e-4), VectorizedArrayType(1.0), nrm);
 
-      Tensor<1, dim, VectorizedArrayType> nc = unit_vector(c_grad);
-      Tensor<2, dim, VectorizedArrayType> M  = projector_matrix(nc, 1. / nrm);
+      const auto nc = unit_vector(c_grad);
+      const auto M  = projector_matrix(nc, 1. / nrm);
 
-      Tensor<2, dim, VectorizedArrayType> T =
-        diagonal_matrix<dim>(nc * mu_grad) + outer_product(nc, mu_grad);
+      auto T = diagonal_matrix<dim>(nc * mu_grad) + outer_product(nc, mu_grad);
       T *= -fsurf;
 
       return T * M;
@@ -664,10 +661,8 @@ namespace Sintering
         {
           if (j != index_i)
             {
-              Tensor<1, dim, VectorizedArrayType> eta_grad_diff =
-                (etas_grad[index_i]) - (etas_grad[j]);
-              Tensor<1, dim, VectorizedArrayType> neta =
-                unit_vector(eta_grad_diff);
+              const auto eta_grad_diff = etas_grad[index_i] - etas_grad[j];
+              const auto neta          = unit_vector(eta_grad_diff);
               M += projector_matrix(neta, etas[j]);
             }
         }
@@ -679,10 +674,9 @@ namespace Sintering
     DEAL_II_ALWAYS_INLINE Tensor<2, dim, VectorizedArrayType>
                           dM_vol_dc(const VectorizedArrayType &c) const
     {
-      const VectorizedArrayType dphidc = 30.0 * c * c * (1.0 - c) * (1.0 - c);
+      const auto dphidc = 30.0 * c * c * (1.0 - c) * (1.0 - c);
 
-      Tensor<2, dim, VectorizedArrayType> dMdc =
-        diagonal_matrix<dim>(Mvol * dphidc);
+      const auto dMdc = diagonal_matrix<dim>(Mvol * dphidc);
 
       return dMdc;
     }
