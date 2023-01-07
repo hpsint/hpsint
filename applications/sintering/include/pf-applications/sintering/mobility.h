@@ -394,6 +394,27 @@ namespace Sintering
       return dMdc;
     }
 
+    template <typename VectorTypeValue, typename VectorTypeGradient>
+    DEAL_II_ALWAYS_INLINE Tensor<1, dim, VectorizedArrayType>
+                          apply_dM_dc(const VectorizedArrayType &                c,
+                                      const VectorTypeValue &                    etas,
+                                      const Tensor<1, dim, VectorizedArrayType> &c_grad,
+                                      const VectorTypeGradient &                 etas_grad,
+                                      const Tensor<1, dim, VectorizedArrayType> &mu_grad,
+                                      const VectorizedArrayType &                value) const
+    {
+      (void)etas;
+      (void)c_grad;
+      (void)etas_grad;
+
+      const VectorizedArrayType dphidc = 30.0 * c * c * (1.0 - c) * (1.0 - c);
+      const VectorizedArrayType dMdc =
+        Mvol * dphidc - Mvap * dphidc +
+        Msurf * 8.0 * c * (1.0 - 3.0 * c + 2.0 * c * c);
+
+      return dMdc * mu_grad * value;
+    }
+
     DEAL_II_ALWAYS_INLINE Tensor<2, dim, VectorizedArrayType>
                           dM_dgrad_c(const VectorizedArrayType &                c,
                                      const Tensor<1, dim, VectorizedArrayType> &c_grad,
@@ -686,6 +707,37 @@ namespace Sintering
           }
 
       return out + out_gb * (2.0 * Mgb);
+    }
+
+    template <typename VectorTypeValue, typename VectorTypeGradient>
+    DEAL_II_ALWAYS_INLINE Tensor<1, dim, VectorizedArrayType>
+                          apply_dM_dc(const VectorizedArrayType &                c,
+                                      const VectorTypeValue &                    etas,
+                                      const Tensor<1, dim, VectorizedArrayType> &c_grad,
+                                      const VectorTypeGradient &                 etas_grad,
+                                      const Tensor<1, dim, VectorizedArrayType> &mu_grad,
+                                      const VectorizedArrayType &                value) const
+    {
+      (void)etas;
+      (void)etas_grad;
+
+      const auto c2_1minusc2 = c * c * (1. - c) * (1. - c);
+      const auto dphidc      = 30.0 * c2_1minusc2;
+
+      // Volumetric and vaporization parts, the same as for isotropic
+      auto dMdc = diagonal_matrix<dim>((Mvol - Mvap) * dphidc);
+
+      // Surface part
+      const auto fsurf  = Msurf * c2_1minusc2;
+      auto       dfsurf = Msurf * 2. * c * (1. - c) * (1. - 2. * c);
+
+      dfsurf = compare_and_apply_mask<SIMDComparison::less_than>(
+        fsurf, VectorizedArrayType(1e-6), VectorizedArrayType(0.0), dfsurf);
+
+      const auto nc = unit_vector(c_grad);
+      dMdc += projector_matrix(nc, dfsurf);
+
+      return dMdc * mu_grad * value;
     }
 
     template <typename VectorTypeValue, typename VectorTypeGradient>
