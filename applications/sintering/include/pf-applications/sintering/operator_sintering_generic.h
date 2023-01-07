@@ -278,12 +278,8 @@ namespace Sintering
 
           for (unsigned int q = 0; q < phi.n_q_points; ++q)
             {
-              const auto val  = phi.get_value(q);
-              const auto grad = phi.get_gradient(q);
-
-              auto &c      = val[0];
-              auto &mu     = val[1];
-              auto &c_grad = grad[0];
+              const auto value    = phi.get_value(q);
+              const auto gradient = phi.get_gradient(q);
 
               std::array<VectorizedArrayType, n_grains> etas;
               std::array<Tensor<1, dim, VectorizedArrayType>, n_grains>
@@ -291,8 +287,8 @@ namespace Sintering
 
               for (unsigned int ig = 0; ig < n_grains; ++ig)
                 {
-                  etas[ig]      = val[2 + ig];
-                  etas_grad[ig] = grad[2 + ig];
+                  etas[ig]      = value[2 + ig];
+                  etas_grad[ig] = gradient[2 + ig];
                 }
 
               Tensor<1, n_comp, VectorizedArrayType> value_result;
@@ -304,28 +300,29 @@ namespace Sintering
               // 1) process c row
               if (with_time_derivative)
                 this->time_integrator.compute_time_derivative(
-                  value_result[0], val, time_phi, 0, q);
-              gradient_result[0] =
-                mobility.apply_M(c, etas, n_grains, c_grad, etas_grad, grad[1]);
+                  value_result[0], value, time_phi, 0, q);
+              gradient_result[0] = mobility.apply_M(
+                value[0], etas, n_grains, gradient[0], etas_grad, gradient[1]);
 
 
 
               // 2) process mu row
-              value_result[1]    = -mu + free_energy.df_dc(c, etas);
-              gradient_result[1] = kappa_c * grad[0];
+              value_result[1] = -value[1] + free_energy.df_dc(value[0], etas);
+              gradient_result[1] = kappa_c * gradient[0];
 
 
 
               // 3) process eta rows
               for (unsigned int ig = 0; ig < n_grains; ++ig)
                 {
-                  value_result[2 + ig] = L * free_energy.df_detai(c, etas, ig);
+                  value_result[2 + ig] =
+                    L * free_energy.df_detai(value[0], etas, ig);
 
                   if (with_time_derivative)
                     this->time_integrator.compute_time_derivative(
-                      value_result[2 + ig], val, time_phi, 2 + ig, q);
+                      value_result[2 + ig], value, time_phi, 2 + ig, q);
 
-                  gradient_result[2 + ig] = L * kappa_p * grad[2 + ig];
+                  gradient_result[2 + ig] = L * kappa_p * gradient[2 + ig];
                 }
 
 
@@ -339,8 +336,8 @@ namespace Sintering
                         this->advection.get_velocity(ig,
                                                      phi.quadrature_point(q));
 
-                      value_result[0] += velocity_ig * c_grad;
-                      value_result[2 + ig] += velocity_ig * grad[2 + ig];
+                      value_result[0] += velocity_ig * gradient[0];
+                      value_result[2 + ig] += velocity_ig * gradient[2 + ig];
                     }
 
 
