@@ -502,8 +502,6 @@ namespace Sintering
       phi = compare_and_apply_mask<SIMDComparison::greater_than>(
         phi, VectorizedArrayType(1.0), VectorizedArrayType(1.0), phi);
 
-      Tensor<1, dim, VectorizedArrayType> M_vec;
-
       // Volumetric and vaporization parts, the same as for isotropic
       const auto f_vol_vap = Mvol * phi + Mvap * (1.0 - phi);
 
@@ -511,31 +509,21 @@ namespace Sintering
       const auto fsurf = Msurf * (c * c) * ((1. - c) * (1. - c));
       const auto nc    = unit_vector(c_grad);
 
-      VectorizedArrayType nc_vec = nc[0] * vec[0]; // exploit tp structure
-      for (unsigned int i = 1; i < dim; ++i)
-        nc_vec += nc[i] * vec[i];
+      const auto nc_vec = nc * vec;
 
-      for (unsigned int i = 0; i < dim; ++i)
-        M_vec[i] = (f_vol_vap + fsurf) * vec[i] - (fsurf * nc_vec) * nc[i];
+      auto out = (f_vol_vap + fsurf) * vec - (fsurf * nc_vec) * nc;
 
       // GB diffusion part
       for (unsigned int i = 0; i < etas_size; ++i)
         for (unsigned int j = 0; j < i; ++j)
           {
-            const auto fgb           = 2.0 * Mgb * etas[i] * etas[j];
             const auto eta_grad_diff = etas_grad[i] - etas_grad[j];
             const auto neta          = unit_vector(eta_grad_diff);
-
-            VectorizedArrayType neta_vec =
-              neta[0] * vec[0]; // exploit tp structure
-            for (unsigned int i = 1; i < dim; ++i)
-              neta_vec += neta[i] * vec[i];
-
-            for (unsigned int i = 0; i < dim; ++i)
-              M_vec[i] += fgb * (vec[i] - neta_vec * neta[i]);
+            out +=
+              (vec - neta * (neta * vec)) * (2.0 * Mgb * etas[i] * etas[j]);
           }
 
-      return M_vec;
+      return out;
     }
 
 
@@ -722,8 +710,7 @@ namespace Sintering
           {
             const auto eta_grad_diff = etas_grad[i] - etas_grad[j];
             const auto neta          = unit_vector(eta_grad_diff);
-            const auto neta_mu_grad  = neta * mu_grad;
-            out += (mu_grad - neta * neta_mu_grad) *
+            out += (mu_grad - neta * (neta * mu_grad)) *
                    (etas[j] * value[i] + etas[i] * value[j]);
           }
 
