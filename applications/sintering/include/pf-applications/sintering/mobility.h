@@ -427,6 +427,20 @@ namespace Sintering
       return Tensor<2, dim, VectorizedArrayType>();
     }
 
+    DEAL_II_ALWAYS_INLINE Tensor<1, dim, VectorizedArrayType>
+                          apply_dM_dgrad_c(const VectorizedArrayType &                c,
+                                           const Tensor<1, dim, VectorizedArrayType> &c_grad,
+                                           const Tensor<1, dim, VectorizedArrayType> &mu_grad,
+                                           const Tensor<1, dim, VectorizedArrayType> &gradient) const
+    {
+      (void)c;
+      (void)c_grad;
+      (void)mu_grad;
+      (void)gradient;
+
+      return Tensor<1, dim, VectorizedArrayType>();
+    }
+
     template <typename VectorTypeValue, typename VectorTypeGradient>
     DEAL_II_ALWAYS_INLINE VectorizedArrayType
     dM_detai(const VectorizedArrayType &                c,
@@ -738,6 +752,29 @@ namespace Sintering
       dMdc += projector_matrix(nc, dfsurf);
 
       return dMdc * mu_grad * value;
+    }
+
+    DEAL_II_ALWAYS_INLINE Tensor<1, dim, VectorizedArrayType>
+                          apply_dM_dgrad_c(const VectorizedArrayType &                c,
+                                           const Tensor<1, dim, VectorizedArrayType> &c_grad,
+                                           const Tensor<1, dim, VectorizedArrayType> &mu_grad,
+                                           const Tensor<1, dim, VectorizedArrayType> &gradient) const
+    {
+      auto fsurf = Msurf * (c * c) * ((1. - c) * (1. - c));
+      auto nrm   = c_grad.norm();
+
+      fsurf = compare_and_apply_mask<SIMDComparison::less_than>(
+        fsurf, VectorizedArrayType(1e-6), VectorizedArrayType(0.0), fsurf);
+      nrm = compare_and_apply_mask<SIMDComparison::less_than>(
+        nrm, VectorizedArrayType(1e-4), VectorizedArrayType(1.0), nrm);
+
+      const auto nc = unit_vector(c_grad);
+      const auto M  = projector_matrix(nc, 1. / nrm);
+
+      auto T = diagonal_matrix<dim>(nc * mu_grad) + outer_product(nc, mu_grad);
+      T *= -fsurf;
+
+      return T * M * gradient;
     }
 
     template <typename VectorTypeValue, typename VectorTypeGradient>
