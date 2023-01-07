@@ -478,7 +478,7 @@ namespace Sintering
       (void)c_grad;
       (void)etas_grad;
 
-      Tensor<1, dim, VectorizedArrayType> out;
+      VectorizedArrayType factor = 0.0;
 
       for (unsigned int i = 0; i < etas_size; i++)
         {
@@ -487,12 +487,10 @@ namespace Sintering
             if (j != i)
               etajSum += etas[j];
 
-          const auto MetajSum = 2.0 * Mgb * etajSum;
-
-          out += MetajSum * mu_grad * value[i]; // TODO: pull out mu_grad
+          factor += etajSum * value[i];
         }
 
-      return out;
+      return (2.0 * Mgb * factor) * mu_grad;
     }
 
     DEAL_II_ALWAYS_INLINE VectorizedArrayType
