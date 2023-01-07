@@ -291,38 +291,6 @@ namespace Sintering
       : Mobility(provider)
     {}
 
-    template <typename VectorTypeValue, typename VectorTypeGradient>
-    DEAL_II_ALWAYS_INLINE Tensor<1, dim, VectorizedArrayType>
-                          apply_M(const VectorizedArrayType &                c,
-                                  const VectorTypeValue &                    etas,
-                                  const unsigned int                         etas_size,
-                                  const Tensor<1, dim, VectorizedArrayType> &c_grad,
-                                  const VectorTypeGradient &                 etas_grad,
-                                  const Tensor<1, dim, VectorizedArrayType> &vec) const
-    {
-      (void)c_grad;
-      (void)etas_grad;
-
-      VectorizedArrayType etaijSum = 0.0;
-      for (unsigned int i = 0; i < etas_size; ++i)
-        for (unsigned int j = 0; j < i; ++j)
-          etaijSum += etas[i] * etas[j];
-      etaijSum *= 2.0;
-
-      VectorizedArrayType phi = c * c * c * (10.0 - 15.0 * c + 6.0 * c * c);
-
-      phi = compare_and_apply_mask<SIMDComparison::less_than>(
-        phi, VectorizedArrayType(0.0), VectorizedArrayType(0.0), phi);
-      phi = compare_and_apply_mask<SIMDComparison::greater_than>(
-        phi, VectorizedArrayType(1.0), VectorizedArrayType(1.0), phi);
-
-      const VectorizedArrayType M =
-        Mvol * phi + Mvap * (1.0 - phi) +
-        Msurf * 4.0 * c * c * (1.0 - c) * (1.0 - c) + Mgb * etaijSum;
-
-      return M * vec;
-    }
-
     DEAL_II_ALWAYS_INLINE VectorizedArrayType
     M_vol(const VectorizedArrayType &c) const
     {
@@ -394,27 +362,6 @@ namespace Sintering
       return dMdc;
     }
 
-    template <typename VectorTypeValue, typename VectorTypeGradient>
-    DEAL_II_ALWAYS_INLINE Tensor<1, dim, VectorizedArrayType>
-                          apply_dM_dc(const VectorizedArrayType &                c,
-                                      const VectorTypeValue &                    etas,
-                                      const Tensor<1, dim, VectorizedArrayType> &c_grad,
-                                      const VectorTypeGradient &                 etas_grad,
-                                      const Tensor<1, dim, VectorizedArrayType> &mu_grad,
-                                      const VectorizedArrayType &                value) const
-    {
-      (void)etas;
-      (void)c_grad;
-      (void)etas_grad;
-
-      const VectorizedArrayType dphidc = 30.0 * c * c * (1.0 - c) * (1.0 - c);
-      const VectorizedArrayType dMdc =
-        Mvol * dphidc - Mvap * dphidc +
-        Msurf * 8.0 * c * (1.0 - 3.0 * c + 2.0 * c * c);
-
-      return dMdc * mu_grad * value;
-    }
-
     DEAL_II_ALWAYS_INLINE Tensor<2, dim, VectorizedArrayType>
                           dM_dgrad_c(const VectorizedArrayType &                c,
                                      const Tensor<1, dim, VectorizedArrayType> &c_grad,
@@ -425,20 +372,6 @@ namespace Sintering
       (void)mu_grad;
 
       return Tensor<2, dim, VectorizedArrayType>();
-    }
-
-    DEAL_II_ALWAYS_INLINE Tensor<1, dim, VectorizedArrayType>
-                          apply_dM_dgrad_c(const VectorizedArrayType &                c,
-                                           const Tensor<1, dim, VectorizedArrayType> &c_grad,
-                                           const Tensor<1, dim, VectorizedArrayType> &mu_grad,
-                                           const Tensor<1, dim, VectorizedArrayType> &gradient) const
-    {
-      (void)c;
-      (void)c_grad;
-      (void)mu_grad;
-      (void)gradient;
-
-      return Tensor<1, dim, VectorizedArrayType>();
     }
 
     template <typename VectorTypeValue, typename VectorTypeGradient>
@@ -462,6 +395,73 @@ namespace Sintering
       const auto MetajSum = 2.0 * Mgb * etajSum;
 
       return MetajSum;
+    }
+
+    template <typename VectorTypeValue, typename VectorTypeGradient>
+    DEAL_II_ALWAYS_INLINE Tensor<1, dim, VectorizedArrayType>
+                          apply_M(const VectorizedArrayType &                c,
+                                  const VectorTypeValue &                    etas,
+                                  const unsigned int                         etas_size,
+                                  const Tensor<1, dim, VectorizedArrayType> &c_grad,
+                                  const VectorTypeGradient &                 etas_grad,
+                                  const Tensor<1, dim, VectorizedArrayType> &vec) const
+    {
+      (void)c_grad;
+      (void)etas_grad;
+
+      VectorizedArrayType etaijSum = 0.0;
+      for (unsigned int i = 0; i < etas_size; ++i)
+        for (unsigned int j = 0; j < i; ++j)
+          etaijSum += etas[i] * etas[j];
+      etaijSum *= 2.0;
+
+      VectorizedArrayType phi = c * c * c * (10.0 - 15.0 * c + 6.0 * c * c);
+
+      phi = compare_and_apply_mask<SIMDComparison::less_than>(
+        phi, VectorizedArrayType(0.0), VectorizedArrayType(0.0), phi);
+      phi = compare_and_apply_mask<SIMDComparison::greater_than>(
+        phi, VectorizedArrayType(1.0), VectorizedArrayType(1.0), phi);
+
+      const VectorizedArrayType M =
+        Mvol * phi + Mvap * (1.0 - phi) +
+        Msurf * 4.0 * c * c * (1.0 - c) * (1.0 - c) + Mgb * etaijSum;
+
+      return M * vec;
+    }
+
+    template <typename VectorTypeValue, typename VectorTypeGradient>
+    DEAL_II_ALWAYS_INLINE Tensor<1, dim, VectorizedArrayType>
+                          apply_dM_dc(const VectorizedArrayType &                c,
+                                      const VectorTypeValue &                    etas,
+                                      const Tensor<1, dim, VectorizedArrayType> &c_grad,
+                                      const VectorTypeGradient &                 etas_grad,
+                                      const Tensor<1, dim, VectorizedArrayType> &mu_grad,
+                                      const VectorizedArrayType &                value) const
+    {
+      (void)etas;
+      (void)c_grad;
+      (void)etas_grad;
+
+      const VectorizedArrayType dphidc = 30.0 * c * c * (1.0 - c) * (1.0 - c);
+      const VectorizedArrayType dMdc =
+        Mvol * dphidc - Mvap * dphidc +
+        Msurf * 8.0 * c * (1.0 - 3.0 * c + 2.0 * c * c);
+
+      return dMdc * mu_grad * value;
+    }
+
+    DEAL_II_ALWAYS_INLINE Tensor<1, dim, VectorizedArrayType>
+                          apply_dM_dgrad_c(const VectorizedArrayType &                c,
+                                           const Tensor<1, dim, VectorizedArrayType> &c_grad,
+                                           const Tensor<1, dim, VectorizedArrayType> &mu_grad,
+                                           const Tensor<1, dim, VectorizedArrayType> &gradient) const
+    {
+      (void)c;
+      (void)c_grad;
+      (void)mu_grad;
+      (void)gradient;
+
+      return Tensor<1, dim, VectorizedArrayType>();
     }
 
     template <typename VectorTypeValue, typename VectorTypeGradient>
