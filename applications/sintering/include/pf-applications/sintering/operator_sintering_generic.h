@@ -156,13 +156,13 @@ namespace Sintering
               lin_mu_gradient * value[0] +
             mobility.dM_dgrad_c(lin_c_value, lin_c_gardient, lin_mu_gradient) *
               gradient[0] +
-            mobility.dM_detai(lin_c_value,
-                              lin_etas_value,
-                              n_grains,
-                              lin_c_gardient,
-                              lin_etas_gradient,
-                              lin_mu_gradient,
-                              &value[2]);
+            mobility.apply_dM_detai(lin_c_value,
+                                    lin_etas_value,
+                                    n_grains,
+                                    lin_c_gardient,
+                                    lin_etas_gradient,
+                                    lin_mu_gradient,
+                                    &value[2]);
 
 
 

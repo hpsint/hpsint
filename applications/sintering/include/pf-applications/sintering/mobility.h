@@ -431,13 +431,13 @@ namespace Sintering
 
     template <typename VectorTypeValue, typename VectorTypeGradient>
     DEAL_II_ALWAYS_INLINE Tensor<1, dim, VectorizedArrayType>
-                          dM_detai(const VectorizedArrayType &                c,
-                                   const VectorTypeValue &                    etas,
-                                   const unsigned int                         etas_size,
-                                   const Tensor<1, dim, VectorizedArrayType> &c_grad,
-                                   const VectorTypeGradient &                 etas_grad,
-                                   const Tensor<1, dim, VectorizedArrayType> &mu_grad,
-                                   const VectorizedArrayType *                value) const
+                          apply_dM_detai(const VectorizedArrayType &                c,
+                                         const VectorTypeValue &                    etas,
+                                         const unsigned int                         etas_size,
+                                         const Tensor<1, dim, VectorizedArrayType> &c_grad,
+                                         const VectorTypeGradient &                 etas_grad,
+                                         const Tensor<1, dim, VectorizedArrayType> &mu_grad,
+                                         const VectorizedArrayType *                value) const
     {
       (void)c;
       (void)c_grad;
@@ -690,13 +690,13 @@ namespace Sintering
 
     template <typename VectorTypeValue, typename VectorTypeGradient>
     DEAL_II_ALWAYS_INLINE Tensor<1, dim, VectorizedArrayType>
-                          dM_detai(const VectorizedArrayType &                c,
-                                   const VectorTypeValue &                    etas,
-                                   const unsigned int                         etas_size,
-                                   const Tensor<1, dim, VectorizedArrayType> &c_grad,
-                                   const VectorTypeGradient &                 etas_grad,
-                                   const Tensor<1, dim, VectorizedArrayType> &mu_grad,
-                                   const VectorizedArrayType *                value) const
+                          apply_dM_detai(const VectorizedArrayType &                c,
+                                         const VectorTypeValue &                    etas,
+                                         const unsigned int                         etas_size,
+                                         const Tensor<1, dim, VectorizedArrayType> &c_grad,
+                                         const VectorTypeGradient &                 etas_grad,
+                                         const Tensor<1, dim, VectorizedArrayType> &mu_grad,
+                                         const VectorizedArrayType *                value) const
     {
       (void)c;
       (void)c_grad;
