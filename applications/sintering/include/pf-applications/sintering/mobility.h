@@ -739,7 +739,7 @@ namespace Sintering
       const auto dphidc      = 30.0 * c2_1minusc2;
 
       // Volumetric and vaporization parts, the same as for isotropic
-      auto dMdc = diagonal_matrix<dim>((Mvol - Mvap) * dphidc);
+      const auto f_vol_vap = (Mvol - Mvap) * dphidc;
 
       // Surface part
       const auto fsurf  = Msurf * c2_1minusc2;
@@ -749,9 +749,9 @@ namespace Sintering
         fsurf, VectorizedArrayType(1e-6), VectorizedArrayType(0.0), dfsurf);
 
       const auto nc = unit_vector(c_grad);
-      dMdc += projector_matrix(nc, dfsurf);
 
-      return dMdc * mu_grad * value;
+      return ((f_vol_vap + dfsurf) * mu_grad - nc * (dfsurf * (nc * mu_grad))) *
+             value;
     }
 
     DEAL_II_ALWAYS_INLINE Tensor<1, dim, VectorizedArrayType>
