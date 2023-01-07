@@ -486,44 +486,6 @@ namespace Sintering
       : Mobility(provider)
     {}
 
-    template <typename VectorTypeValue, typename VectorTypeGradient>
-    DEAL_II_ALWAYS_INLINE Tensor<1, dim, VectorizedArrayType>
-                          apply_M(const VectorizedArrayType &                c,
-                                  const VectorTypeValue &                    etas,
-                                  const unsigned int                         etas_size,
-                                  const Tensor<1, dim, VectorizedArrayType> &c_grad,
-                                  const VectorTypeGradient &                 etas_grad,
-                                  const Tensor<1, dim, VectorizedArrayType> &vec) const
-    {
-      VectorizedArrayType phi = c * c * c * (10.0 - 15.0 * c + 6.0 * c * c);
-
-      phi = compare_and_apply_mask<SIMDComparison::less_than>(
-        phi, VectorizedArrayType(0.0), VectorizedArrayType(0.0), phi);
-      phi = compare_and_apply_mask<SIMDComparison::greater_than>(
-        phi, VectorizedArrayType(1.0), VectorizedArrayType(1.0), phi);
-
-      // Volumetric and vaporization parts, the same as for isotropic
-      const auto f_vol_vap = Mvol * phi + Mvap * (1.0 - phi);
-
-      // Surface anisotropic part
-      const auto fsurf = Msurf * (c * c) * ((1. - c) * (1. - c));
-      const auto nc    = unit_vector(c_grad);
-
-      const auto out = (f_vol_vap + fsurf) * vec - nc * (fsurf * (nc * vec));
-
-      // GB diffusion part
-      Tensor<1, dim, VectorizedArrayType> out_gb;
-      for (unsigned int i = 0; i < etas_size; ++i)
-        for (unsigned int j = 0; j < i; ++j)
-          {
-            const auto eta_grad_diff = etas_grad[i] - etas_grad[j];
-            const auto neta          = unit_vector(eta_grad_diff);
-            out_gb += (vec - neta * (neta * vec)) * (etas[i] * etas[j]);
-          }
-
-      return out + out_gb * (2.0 * Mgb);
-    }
-
 
 
     // note: only for postprocessing
@@ -686,6 +648,44 @@ namespace Sintering
       M *= 2. * Mgb;
 
       return M;
+    }
+
+    template <typename VectorTypeValue, typename VectorTypeGradient>
+    DEAL_II_ALWAYS_INLINE Tensor<1, dim, VectorizedArrayType>
+                          apply_M(const VectorizedArrayType &                c,
+                                  const VectorTypeValue &                    etas,
+                                  const unsigned int                         etas_size,
+                                  const Tensor<1, dim, VectorizedArrayType> &c_grad,
+                                  const VectorTypeGradient &                 etas_grad,
+                                  const Tensor<1, dim, VectorizedArrayType> &vec) const
+    {
+      VectorizedArrayType phi = c * c * c * (10.0 - 15.0 * c + 6.0 * c * c);
+
+      phi = compare_and_apply_mask<SIMDComparison::less_than>(
+        phi, VectorizedArrayType(0.0), VectorizedArrayType(0.0), phi);
+      phi = compare_and_apply_mask<SIMDComparison::greater_than>(
+        phi, VectorizedArrayType(1.0), VectorizedArrayType(1.0), phi);
+
+      // Volumetric and vaporization parts, the same as for isotropic
+      const auto f_vol_vap = Mvol * phi + Mvap * (1.0 - phi);
+
+      // Surface anisotropic part
+      const auto fsurf = Msurf * (c * c) * ((1. - c) * (1. - c));
+      const auto nc    = unit_vector(c_grad);
+
+      const auto out = (f_vol_vap + fsurf) * vec - nc * (fsurf * (nc * vec));
+
+      // GB diffusion part
+      Tensor<1, dim, VectorizedArrayType> out_gb;
+      for (unsigned int i = 0; i < etas_size; ++i)
+        for (unsigned int j = 0; j < i; ++j)
+          {
+            const auto eta_grad_diff = etas_grad[i] - etas_grad[j];
+            const auto neta          = unit_vector(eta_grad_diff);
+            out_gb += (vec - neta * (neta * vec)) * (etas[i] * etas[j]);
+          }
+
+      return out + out_gb * (2.0 * Mgb);
     }
 
     template <typename VectorTypeValue, typename VectorTypeGradient>
