@@ -876,29 +876,115 @@ namespace Sintering
                             const VectorizedArrayType *                value,
                             const Tensor<1, dim, VectorizedArrayType> *gradient) const
     {
-      return apply_M(lin_value[0],
-                     &lin_value[2],
-                     n_grains,
-                     lin_gradient[0],
-                     &lin_gradient[2],
-                     gradient[1]) +
-             apply_dM_dc(lin_value[0],
-                         &lin_value[2],
-                         lin_gradient[0],
-                         &lin_gradient[2],
-                         lin_gradient[1],
-                         value[0]) +
-             apply_dM_dgrad_c(lin_value[0],
-                              lin_gradient[0],
-                              lin_gradient[1],
-                              gradient[0]) +
-             apply_dM_detai(lin_value[0],
-                            &lin_value[2],
-                            n_grains,
-                            lin_gradient[0],
-                            &lin_gradient[2],
-                            lin_gradient[1],
-                            &value[2]);
+      const auto &lin_c_value       = lin_value[0];
+      const auto  lin_etas_value    = lin_value + 2;
+      const auto &lin_c_gradient    = lin_gradient[0];
+      const auto &lin_mu_gradient   = lin_gradient[1];
+      const auto &lin_etas_gradient = lin_gradient + 2;
+      const auto &c_value           = value[0];
+      const auto  etas_value        = value + 2;
+      const auto &c_gradient        = gradient[0];
+      const auto &mu_gradient       = gradient[1];
+
+      Tensor<1, dim, VectorizedArrayType> result;
+
+      {
+        VectorizedArrayType phi =
+          lin_c_value * lin_c_value * lin_c_value *
+          (10.0 - 15.0 * lin_c_value + 6.0 * lin_c_value * lin_c_value);
+
+        phi = compare_and_apply_mask<SIMDComparison::less_than>(
+          phi, VectorizedArrayType(0.0), VectorizedArrayType(0.0), phi);
+        phi = compare_and_apply_mask<SIMDComparison::greater_than>(
+          phi, VectorizedArrayType(1.0), VectorizedArrayType(1.0), phi);
+
+        // Volumetric and vaporization parts, the same as for isotropic
+        const auto f_vol_vap = Mvol * phi + Mvap * (1.0 - phi);
+
+        // Surface anisotropic part
+        const auto fsurf = Msurf * (lin_c_value * lin_c_value) *
+                           ((1. - lin_c_value) * (1. - lin_c_value));
+        const auto nc = unit_vector(lin_c_gradient);
+
+        result =
+          (f_vol_vap + fsurf) * mu_gradient - nc * (fsurf * (nc * mu_gradient));
+
+        // GB diffusion part
+        //
+        // warning: nested loop over grains; optimization: exploit symmetry
+        // and only loop over lower-triangular matrix
+        Tensor<1, dim, VectorizedArrayType> out_gb;
+        for (unsigned int i = 0; i < n_grains; ++i)
+          for (unsigned int j = 0; j < i; ++j)
+            {
+              const auto eta_grad_diff =
+                lin_etas_gradient[i] - lin_etas_gradient[j];
+              const auto neta = unit_vector(eta_grad_diff);
+              out_gb += (mu_gradient - neta * (neta * mu_gradient)) *
+                        (lin_etas_value[i] * lin_etas_value[j]);
+            }
+
+        result += out_gb * (2.0 * Mgb);
+      }
+
+      {
+        const auto c2_1minusc2 =
+          lin_c_value * lin_c_value * (1. - lin_c_value) * (1. - lin_c_value);
+        const auto dphidc = 30.0 * c2_1minusc2;
+
+        // Volumetric and vaporization parts, the same as for isotropic
+        const auto f_vol_vap = (Mvol - Mvap) * dphidc;
+
+        // Surface part
+        const auto fsurf  = Msurf * c2_1minusc2;
+        auto       dfsurf = Msurf * 2. * lin_c_value * (1. - lin_c_value) *
+                      (1. - 2. * lin_c_value);
+
+        dfsurf = compare_and_apply_mask<SIMDComparison::less_than>(
+          fsurf, VectorizedArrayType(1e-6), VectorizedArrayType(0.0), dfsurf);
+
+        const auto nc = unit_vector(lin_c_gradient);
+        result += ((f_vol_vap + dfsurf) * lin_mu_gradient -
+                   nc * (dfsurf * (nc * lin_mu_gradient))) *
+                  c_value;
+      }
+
+      {
+        auto fsurf = Msurf * (lin_c_value * lin_c_value) *
+                     ((1. - lin_c_value) * (1. - lin_c_value));
+        auto nrm = lin_c_gradient.norm();
+
+        fsurf = compare_and_apply_mask<SIMDComparison::less_than>(
+          fsurf, VectorizedArrayType(1e-6), VectorizedArrayType(0.0), fsurf);
+        nrm = compare_and_apply_mask<SIMDComparison::less_than>(
+          nrm, VectorizedArrayType(1e-4), VectorizedArrayType(1.0), nrm);
+
+        const auto nc   = unit_vector(lin_c_gradient);
+        const auto temp = c_gradient - nc * (nc * c_gradient);
+        result += (-fsurf / nrm) * ((nc * lin_mu_gradient) * temp +
+                                    nc * (lin_mu_gradient * temp));
+      }
+
+      {
+        Tensor<1, dim, VectorizedArrayType> out_gb;
+
+        // warning: nested loop over grains; optimization: exploit symmetry
+        // and only loop over lower-triangular matrix
+        for (unsigned int i = 0; i < n_grains; ++i)
+          for (unsigned int j = 0; j < i; ++j)
+            {
+              const auto eta_grad_diff =
+                lin_etas_gradient[i] - lin_etas_gradient[j];
+              const auto neta = unit_vector(eta_grad_diff);
+              out_gb += (lin_mu_gradient - neta * (neta * lin_mu_gradient)) *
+                        (lin_etas_value[j] * etas_value[i] +
+                         lin_etas_value[i] * etas_value[j]);
+            }
+
+        result += out_gb * (2.0 * Mgb);
+      }
+
+      return result;
     }
 
 
