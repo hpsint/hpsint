@@ -794,7 +794,9 @@ namespace Sintering
       const auto &c_gradient        = gradient[0];
       const auto &mu_gradient       = gradient[1];
 
-      Tensor<1, dim, VectorizedArrayType> result;
+      Tensor<1, dim, VectorizedArrayType> out, out_gb;
+
+      const auto nc = unit_vector(lin_c_gradient);
 
       {
         VectorizedArrayType phi =
@@ -812,27 +814,9 @@ namespace Sintering
         // Surface anisotropic part
         const auto fsurf = Msurf * (lin_c_value * lin_c_value) *
                            ((1. - lin_c_value) * (1. - lin_c_value));
-        const auto nc = unit_vector(lin_c_gradient);
 
-        result =
+        out =
           (f_vol_vap + fsurf) * mu_gradient - nc * (fsurf * (nc * mu_gradient));
-
-        // GB diffusion part
-        //
-        // warning: nested loop over grains; optimization: exploit symmetry
-        // and only loop over lower-triangular matrix
-        Tensor<1, dim, VectorizedArrayType> out_gb;
-        for (unsigned int i = 0; i < n_grains; ++i)
-          for (unsigned int j = 0; j < i; ++j)
-            {
-              const auto eta_grad_diff =
-                lin_etas_gradient[i] - lin_etas_gradient[j];
-              const auto neta = unit_vector(eta_grad_diff);
-              out_gb += (mu_gradient - neta * (neta * mu_gradient)) *
-                        (lin_etas_value[i] * lin_etas_value[j]);
-            }
-
-        result += out_gb * (2.0 * Mgb);
       }
 
       {
@@ -851,10 +835,9 @@ namespace Sintering
         dfsurf = compare_and_apply_mask<SIMDComparison::less_than>(
           fsurf, VectorizedArrayType(1e-6), VectorizedArrayType(0.0), dfsurf);
 
-        const auto nc = unit_vector(lin_c_gradient);
-        result += ((f_vol_vap + dfsurf) * lin_mu_gradient -
-                   nc * (dfsurf * (nc * lin_mu_gradient))) *
-                  c_value;
+        out += ((f_vol_vap + dfsurf) * lin_mu_gradient -
+                nc * (dfsurf * (nc * lin_mu_gradient))) *
+               c_value;
       }
 
       {
@@ -867,15 +850,12 @@ namespace Sintering
         nrm = compare_and_apply_mask<SIMDComparison::less_than>(
           nrm, VectorizedArrayType(1e-4), VectorizedArrayType(1.0), nrm);
 
-        const auto nc   = unit_vector(lin_c_gradient);
         const auto temp = c_gradient - nc * (nc * c_gradient);
-        result += (-fsurf / nrm) * ((nc * lin_mu_gradient) * temp +
-                                    nc * (lin_mu_gradient * temp));
+        out += (-fsurf / nrm) *
+               ((nc * lin_mu_gradient) * temp + nc * (lin_mu_gradient * temp));
       }
 
       {
-        Tensor<1, dim, VectorizedArrayType> out_gb;
-
         // warning: nested loop over grains; optimization: exploit symmetry
         // and only loop over lower-triangular matrix
         for (unsigned int i = 0; i < n_grains; ++i)
@@ -884,15 +864,17 @@ namespace Sintering
               const auto eta_grad_diff =
                 lin_etas_gradient[i] - lin_etas_gradient[j];
               const auto neta = unit_vector(eta_grad_diff);
+
+              out_gb += (mu_gradient - neta * (neta * mu_gradient)) *
+                        (lin_etas_value[i] * lin_etas_value[j]);
+
               out_gb += (lin_mu_gradient - neta * (neta * lin_mu_gradient)) *
                         (lin_etas_value[j] * etas_value[i] +
                          lin_etas_value[i] * etas_value[j]);
             }
-
-        result += out_gb * (2.0 * Mgb);
       }
 
-      return result;
+      return out + out_gb * (2.0 * Mgb);
     }
 
 
