@@ -888,14 +888,22 @@ namespace Sintering
           nonlinear_operator, params.preconditioners_data.outer_preconditioner);
 
       // ... linear solver
-      // ReductionControl solver_control_l(params.nonlinear_data.l_max_iter,
-      //                                  params.nonlinear_data.l_abs_tol,
-      //                                  params.nonlinear_data.l_rel_tol);
-      IterationNumberControl solver_control_l(10);
+      std::unique_ptr<SolverControl> solver_control_l;
+      if (true) // TODO: make parameter
+        {
+          solver_control_l =
+            std::make_unique<ReductionControl>(params.nonlinear_data.l_max_iter,
+                                               params.nonlinear_data.l_abs_tol,
+                                               params.nonlinear_data.l_rel_tol);
+        }
+      else
+        {
+          solver_control_l = std::make_unique<IterationNumberControl>(10);
+        }
 
       // Enable tracking residual evolution
       if (params.nonlinear_data.verbosity >= 2) // TODO
-        solver_control_l.enable_history_data();
+        solver_control_l->enable_history_data();
 
       std::unique_ptr<LinearSolvers::LinearSolverBase<Number>> linear_solver;
 
@@ -905,7 +913,7 @@ namespace Sintering
           Preconditioners::PreconditionerBase<Number>>>(
           *jacobian_operator,
           *preconditioner,
-          solver_control_l,
+          *solver_control_l,
           params.nonlinear_data.gmres_data);
       else if (params.nonlinear_data.l_solver == "Relaxation")
         linear_solver = std::make_unique<LinearSolvers::SolverRelaxation<
@@ -917,14 +925,14 @@ namespace Sintering
           NonLinearSolvers::JacobianBase<Number>,
           Preconditioners::PreconditionerBase<Number>>>(*jacobian_operator,
                                                         *preconditioner,
-                                                        solver_control_l);
+                                                        *solver_control_l);
       else if (params.nonlinear_data.l_solver == "Bicgstab")
         linear_solver = std::make_unique<LinearSolvers::SolverBicgstabWrapper<
           NonLinearSolvers::JacobianBase<Number>,
           Preconditioners::PreconditionerBase<Number>>>(
           *jacobian_operator,
           *preconditioner,
-          solver_control_l,
+          *solver_control_l,
           params.nonlinear_data.l_bisgstab_tries);
 
       MyTimerOutput timer;
@@ -1153,16 +1161,16 @@ namespace Sintering
           constraints.distribute(dst.block(b));
 
         if (params.nonlinear_data.verbosity >= 2 &&
-            !solver_control_l.get_history_data().empty())
+            !solver_control_l->get_history_data().empty())
           {
             pcout << " - l_res_abs: ";
-            for (const auto res : solver_control_l.get_history_data())
+            for (const auto res : solver_control_l->get_history_data())
               pcout << res << " ";
             pcout << std::endl;
 
             std::vector<double> &res_history =
               const_cast<std::vector<double> &>(
-                solver_control_l.get_history_data());
+                solver_control_l->get_history_data());
             res_history.clear();
           }
 
