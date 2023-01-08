@@ -38,10 +38,10 @@
     },
     "Material": {
         "EnergyAbstract": {
-            "A": "16",
-            "B": "0.5",
-            "KappaC": "4",
-            "KappaP": "1"
+            "A": "8.7",
+            "B": "0.3",
+            "KappaC": "4.5",
+            "KappaP": "0.9"
         },
         "MobilityAbstract": {
             "L": "1",
