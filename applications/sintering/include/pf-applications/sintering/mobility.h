@@ -798,6 +798,7 @@ namespace Sintering
 
       const auto nc = unit_vector(lin_c_gradient);
 
+      // 1) for M
       {
         VectorizedArrayType phi =
           lin_c_value * lin_c_value * lin_c_value *
@@ -819,6 +820,7 @@ namespace Sintering
           (f_vol_vap + fsurf) * mu_gradient - nc * (fsurf * (nc * mu_gradient));
       }
 
+      // 2) for dM_dc
       {
         const auto c2_1minusc2 =
           lin_c_value * lin_c_value * (1. - lin_c_value) * (1. - lin_c_value);
@@ -840,6 +842,7 @@ namespace Sintering
                c_value;
       }
 
+      // 3) for dM_dgrad_c
       {
         auto fsurf = Msurf * (lin_c_value * lin_c_value) *
                      ((1. - lin_c_value) * (1. - lin_c_value));
@@ -855,6 +858,7 @@ namespace Sintering
                ((nc * lin_mu_gradient) * temp + nc * (lin_mu_gradient * temp));
       }
 
+      // 4) for M (gb part) and for dM_detai
       {
         // warning: nested loop over grains; optimization: exploit symmetry
         // and only loop over lower-triangular matrix
