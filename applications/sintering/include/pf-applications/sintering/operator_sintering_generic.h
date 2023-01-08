@@ -122,17 +122,9 @@ namespace Sintering
           const auto &lin_value    = nonlinear_values[cell][q];
           const auto &lin_gradient = nonlinear_gradients[cell][q];
 
-          const auto &lin_c_value     = lin_value[0];
-          const auto &lin_c_gardient  = lin_gradient[0];
-          const auto &lin_mu_gradient = lin_gradient[1];
+          const auto &lin_c_value = lin_value[0];
 
           const VectorizedArrayType *lin_etas_value = &lin_value[2];
-          const Tensor<1, dim, VectorizedArrayType> *lin_etas_gradient =
-            nullptr;
-
-          if (SinteringOperatorData<dim, VectorizedArrayType>::
-                use_tensorial_mobility)
-            lin_etas_gradient = &lin_gradient[2];
 
           const auto lin_etas_value_power_2_sum =
             PowerHelper<n_grains, 2>::power_sum(lin_etas_value);
@@ -142,29 +134,8 @@ namespace Sintering
           // 1) process c row
           value_result[0] = value[0] * weight;
 
-          gradient_result[0] = mobility.apply_M(lin_c_value,
-                                                lin_etas_value,
-                                                n_grains,
-                                                lin_c_gardient,
-                                                lin_etas_gradient,
-                                                gradient[1]) +
-                               mobility.apply_dM_dc(lin_c_value,
-                                                    lin_etas_value,
-                                                    lin_c_gardient,
-                                                    lin_etas_gradient,
-                                                    lin_mu_gradient,
-                                                    value[0]) +
-                               mobility.apply_dM_dgrad_c(lin_c_value,
-                                                         lin_c_gardient,
-                                                         lin_mu_gradient,
-                                                         gradient[0]) +
-                               mobility.apply_dM_detai(lin_c_value,
-                                                       lin_etas_value,
-                                                       n_grains,
-                                                       lin_c_gardient,
-                                                       lin_etas_gradient,
-                                                       lin_mu_gradient,
-                                                       &value[2]);
+          gradient_result[0] = mobility.apply_M_derivative(
+            &lin_value[0], &lin_gradient[0], n_grains, &value[0], &gradient[0]);
 
 
 
@@ -203,8 +174,8 @@ namespace Sintering
                   const auto d2f_detaidetaj = free_energy.d2f_detaidetaj(
                     lin_c_value, lin_etas_value, ig, jg);
 
-                  value_result[ig + 2] += L * d2f_detaidetaj * value[jg + 2];
-                  value_result[jg + 2] += L * d2f_detaidetaj * value[ig + 2];
+                  value_result[ig + 2] += (L * d2f_detaidetaj) * value[jg + 2];
+                  value_result[jg + 2] += (L * d2f_detaidetaj) * value[ig + 2];
                 }
             }
 
