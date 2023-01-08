@@ -174,8 +174,8 @@ namespace Sintering
                   const auto d2f_detaidetaj = free_energy.d2f_detaidetaj(
                     lin_c_value, lin_etas_value, ig, jg);
 
-                  value_result[ig + 2] += L * d2f_detaidetaj * value[jg + 2];
-                  value_result[jg + 2] += L * d2f_detaidetaj * value[ig + 2];
+                  value_result[ig + 2] += (L * d2f_detaidetaj) * value[jg + 2];
+                  value_result[jg + 2] += (L * d2f_detaidetaj) * value[ig + 2];
                 }
             }
 

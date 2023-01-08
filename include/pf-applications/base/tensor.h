@@ -119,28 +119,20 @@ namespace Sintering
   DEAL_II_ALWAYS_INLINE inline Tensor<1, dim, Number>
   unit_vector(const Tensor<1, dim, Number> &vec)
   {
-    Number nrm = vec.norm();
-    Number filter;
+    const Number zeros    = 0.0;
+    const Number ones     = 1.0;
+    const Number zero_tol = 1e-4;
+    const Number nrm      = vec.norm();
 
-    Number zeros(0.0);
-    Number ones(1.0);
-    Number zero_tol(1e-4);
+    const auto filter = compare_and_apply_mask<SIMDComparison::greater_than>(
+      nrm, zero_tol, ones, zeros);
+    const auto filtered_norm =
+      compare_and_apply_mask<SIMDComparison::less_than>(nrm,
+                                                        zero_tol,
+                                                        ones,
+                                                        nrm);
 
-    Tensor<1, dim, Number> n = vec;
-
-    filter = compare_and_apply_mask<SIMDComparison::greater_than>(nrm,
-                                                                  zero_tol,
-                                                                  ones,
-                                                                  zeros);
-    nrm    = compare_and_apply_mask<SIMDComparison::less_than>(nrm,
-                                                            zero_tol,
-                                                            ones,
-                                                            nrm);
-
-    n /= nrm;
-    n *= filter;
-
-    return n;
+    return (vec / filtered_norm) * filter;
   }
 
   template <int dim, typename Number>
