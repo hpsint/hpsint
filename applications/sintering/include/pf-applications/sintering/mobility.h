@@ -522,6 +522,41 @@ namespace Sintering
 
 
 
+    DEAL_II_ALWAYS_INLINE Tensor<1, dim, VectorizedArrayType>
+                          apply_M_derivative(
+                            const VectorizedArrayType *                lin_value,
+                            const Tensor<1, dim, VectorizedArrayType> *lin_gradient,
+                            const unsigned int                         n_grains,
+                            const VectorizedArrayType *                value,
+                            const Tensor<1, dim, VectorizedArrayType> *gradient) const
+    {
+      return apply_M(lin_value[0],
+                     &lin_value[2],
+                     n_grains,
+                     lin_gradient[0],
+                     &lin_gradient[2],
+                     gradient[1]) +
+             apply_dM_dc(lin_value[0],
+                         &lin_value[2],
+                         lin_gradient[0],
+                         &lin_gradient[2],
+                         lin_gradient[1],
+                         value[0]) +
+             apply_dM_dgrad_c(lin_value[0],
+                              lin_gradient[0],
+                              lin_gradient[1],
+                              gradient[0]) +
+             apply_dM_detai(lin_value[0],
+                            &lin_value[2],
+                            n_grains,
+                            lin_gradient[0],
+                            &lin_gradient[2],
+                            lin_gradient[1],
+                            &value[2]);
+    }
+
+
+
     // TODO: add apply!?
     DEAL_II_ALWAYS_INLINE VectorizedArrayType
     dM_vol_dc(const VectorizedArrayType &c) const
@@ -850,6 +885,41 @@ namespace Sintering
           }
 
       return out * (2.0 * Mgb);
+    }
+
+
+
+    DEAL_II_ALWAYS_INLINE Tensor<1, dim, VectorizedArrayType>
+                          apply_M_derivative(
+                            const VectorizedArrayType *                lin_value,
+                            const Tensor<1, dim, VectorizedArrayType> *lin_gradient,
+                            const unsigned int                         n_grains,
+                            const VectorizedArrayType *                value,
+                            const Tensor<1, dim, VectorizedArrayType> *gradient) const
+    {
+      return apply_M(lin_value[0],
+                     &lin_value[2],
+                     n_grains,
+                     lin_gradient[0],
+                     &lin_gradient[2],
+                     gradient[1]) +
+             apply_dM_dc(lin_value[0],
+                         &lin_value[2],
+                         lin_gradient[0],
+                         &lin_gradient[2],
+                         lin_gradient[1],
+                         value[0]) +
+             apply_dM_dgrad_c(lin_value[0],
+                              lin_gradient[0],
+                              lin_gradient[1],
+                              gradient[0]) +
+             apply_dM_detai(lin_value[0],
+                            &lin_value[2],
+                            n_grains,
+                            lin_gradient[0],
+                            &lin_gradient[2],
+                            lin_gradient[1],
+                            &value[2]);
     }
 
 
