@@ -422,102 +422,93 @@ namespace Sintering
 
     template <typename VectorTypeValue, typename VectorTypeGradient>
     DEAL_II_ALWAYS_INLINE Tensor<1, dim, VectorizedArrayType>
-                          apply_M(const VectorizedArrayType &                c,
-                                  const VectorTypeValue &                    etas,
-                                  const unsigned int                         etas_size,
-                                  const Tensor<1, dim, VectorizedArrayType> &c_grad,
-                                  const VectorTypeGradient &                 etas_grad,
-                                  const Tensor<1, dim, VectorizedArrayType> &mu_grad) const
+                          apply_M(const VectorizedArrayType &                lin_c_value,
+                                  const VectorTypeValue &                    lin_etas_value,
+                                  const unsigned int                         n_grains,
+                                  const Tensor<1, dim, VectorizedArrayType> &lin_c_gradient,
+                                  const VectorTypeGradient &                 lin_etas_gradient,
+                                  const Tensor<1, dim, VectorizedArrayType> &mu_gradient) const
     {
-      (void)c_grad;
-      (void)etas_grad;
+      (void)lin_c_gradient;
+      (void)lin_etas_gradient;
 
       // warning: nested loop over grains; optimization: exploit symmetry
       // and only loop over lower-triangular matrix
       VectorizedArrayType etaijSum = 0.0;
-      for (unsigned int i = 0; i < etas_size; ++i)
+      for (unsigned int i = 0; i < n_grains; ++i)
         for (unsigned int j = 0; j < i; ++j)
-          etaijSum += etas[i] * etas[j];
+          etaijSum += lin_etas_value[i] * lin_etas_value[j];
 
-      VectorizedArrayType phi = c * c * c * (10.0 - 15.0 * c + 6.0 * c * c);
+      VectorizedArrayType phi =
+        lin_c_value * lin_c_value * lin_c_value *
+        (10.0 - 15.0 * lin_c_value + 6.0 * lin_c_value * lin_c_value);
 
       phi = compare_and_apply_mask<SIMDComparison::less_than>(
         phi, VectorizedArrayType(0.0), VectorizedArrayType(0.0), phi);
       phi = compare_and_apply_mask<SIMDComparison::greater_than>(
         phi, VectorizedArrayType(1.0), VectorizedArrayType(1.0), phi);
 
-      const VectorizedArrayType M =
-        Mvol * phi + Mvap * (1.0 - phi) +
-        Msurf * 4.0 * c * c * (1.0 - c) * (1.0 - c) + (2.0 * Mgb) * etaijSum;
+      const VectorizedArrayType M = Mvol * phi + Mvap * (1.0 - phi) +
+                                    Msurf * 4.0 * lin_c_value * lin_c_value *
+                                      (1.0 - lin_c_value) *
+                                      (1.0 - lin_c_value) +
+                                    (2.0 * Mgb) * etaijSum;
 
-      return M * mu_grad;
+      return M * mu_gradient;
     }
 
 
 
     template <typename VectorTypeValue, typename VectorTypeGradient>
     DEAL_II_ALWAYS_INLINE Tensor<1, dim, VectorizedArrayType>
-                          apply_dM_dc(const VectorizedArrayType &                c,
-                                      const VectorTypeValue &                    etas,
-                                      const Tensor<1, dim, VectorizedArrayType> &c_grad,
-                                      const VectorTypeGradient &                 etas_grad,
-                                      const Tensor<1, dim, VectorizedArrayType> &mu_grad,
-                                      const VectorizedArrayType &                value) const
+                          apply_dM_dc(const VectorizedArrayType &                lin_c_value,
+                                      const VectorTypeValue &                    lin_etas_value,
+                                      const Tensor<1, dim, VectorizedArrayType> &lin_c_gradient,
+                                      const VectorTypeGradient &                 lin_etas_gradient,
+                                      const Tensor<1, dim, VectorizedArrayType> &lin_mu_gradient,
+                                      const VectorizedArrayType &                c_gradient) const
     {
-      (void)etas;
-      (void)c_grad;
-      (void)etas_grad;
+      (void)lin_etas_value;
+      (void)lin_c_gradient;
+      (void)lin_etas_gradient;
 
-      const VectorizedArrayType dphidc = 30.0 * c * c * (1.0 - c) * (1.0 - c);
+      const VectorizedArrayType dphidc = 30.0 * lin_c_value * lin_c_value *
+                                         (1.0 - lin_c_value) *
+                                         (1.0 - lin_c_value);
       const VectorizedArrayType dMdc =
         Mvol * dphidc - Mvap * dphidc +
-        Msurf * 8.0 * c * (1.0 - 3.0 * c + 2.0 * c * c);
+        Msurf * 8.0 * lin_c_value *
+          (1.0 - 3.0 * lin_c_value + 2.0 * lin_c_value * lin_c_value);
 
-      return (dMdc * value) * mu_grad;
-    }
-
-
-
-    DEAL_II_ALWAYS_INLINE Tensor<1, dim, VectorizedArrayType>
-                          apply_dM_dgrad_c(const VectorizedArrayType &                c,
-                                           const Tensor<1, dim, VectorizedArrayType> &c_grad,
-                                           const Tensor<1, dim, VectorizedArrayType> &mu_grad,
-                                           const Tensor<1, dim, VectorizedArrayType> &gradient) const
-    {
-      (void)c;
-      (void)c_grad;
-      (void)mu_grad;
-      (void)gradient;
-
-      return Tensor<1, dim, VectorizedArrayType>();
+      return (dMdc * c_gradient) * lin_mu_gradient;
     }
 
 
 
     template <typename VectorTypeValue, typename VectorTypeGradient>
     DEAL_II_ALWAYS_INLINE Tensor<1, dim, VectorizedArrayType>
-                          apply_dM_detai(const VectorizedArrayType &                c,
-                                         const VectorTypeValue &                    etas,
-                                         const unsigned int                         etas_size,
-                                         const Tensor<1, dim, VectorizedArrayType> &c_grad,
-                                         const VectorTypeGradient &                 etas_grad,
-                                         const Tensor<1, dim, VectorizedArrayType> &mu_grad,
-                                         const VectorizedArrayType *                value) const
+                          apply_dM_detai(const VectorizedArrayType &                lin_c_value,
+                                         const VectorTypeValue &                    lin_etas_value,
+                                         const unsigned int                         n_grains,
+                                         const Tensor<1, dim, VectorizedArrayType> &lin_c_gradient,
+                                         const VectorTypeGradient &                 lin_etas_gradient,
+                                         const Tensor<1, dim, VectorizedArrayType> &lin_mu_gradient,
+                                         const VectorizedArrayType *eta_gradient) const
     {
-      (void)c;
-      (void)c_grad;
-      (void)etas_grad;
+      (void)lin_c_value;
+      (void)lin_c_gradient;
+      (void)lin_etas_gradient;
 
       VectorizedArrayType factor = 0.0;
 
-      VectorizedArrayType eta_sum = etas[0];
-      for (unsigned int i = 1; i < etas_size; ++i)
-        eta_sum += etas[i];
+      VectorizedArrayType eta_sum = lin_etas_value[0];
+      for (unsigned int i = 1; i < n_grains; ++i)
+        eta_sum += lin_etas_value[i];
 
-      for (unsigned int i = 0; i < etas_size; ++i)
-        factor += (eta_sum - etas[i]) * value[i];
+      for (unsigned int i = 0; i < n_grains; ++i)
+        factor += (eta_sum - lin_etas_value[i]) * eta_gradient[i];
 
-      return ((2.0 * Mgb) * factor) * mu_grad;
+      return ((2.0 * Mgb) * factor) * lin_mu_gradient;
     }
 
 
@@ -542,10 +533,6 @@ namespace Sintering
                          &lin_gradient[2],
                          lin_gradient[1],
                          value[0]) +
-             apply_dM_dgrad_c(lin_value[0],
-                              lin_gradient[0],
-                              lin_gradient[1],
-                              gradient[0]) +
              apply_dM_detai(lin_value[0],
                             &lin_value[2],
                             n_grains,
