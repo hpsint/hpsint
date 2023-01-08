@@ -18,7 +18,7 @@
         "DivisionsPerInterface": "3",
         "HangingNodeWeight": "1",
         "InterfaceBufferRatio": "1",
-        "InterfaceWidth": "4",
+        "InterfaceWidth": "6",
         "MinimizeOrderParameters": "true",
         "Periodic": "false",
         "BoundingBox": {
@@ -38,10 +38,10 @@
     },
     "Material": {
         "EnergyAbstract": {
-            "A": "16",
-            "B": "0.5",
-            "KappaC": "4",
-            "KappaP": "1"
+            "A": "5.8",
+            "B": "0.2",
+            "KappaC": "6.75",
+            "KappaP": "1.35"
         },
         "MobilityAbstract": {
             "L": "1",

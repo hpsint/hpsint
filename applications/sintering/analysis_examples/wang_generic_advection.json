@@ -1,0 +1,27 @@
+{
+    "Adaptivity": {
+        "MaxRefinementDepth": "1"
+    },
+    "Advection": {
+        "Enable": "true",
+        "K": "20"
+    },
+    "Geometry": {
+        "DivisionsPerInterface": "4",
+        "InterfaceWidth": "4"
+    },
+    "Material": {
+        "EnergyAbstract": {
+            "A": "8.7",
+            "B": "0.3",
+            "KappaC": "4.5",
+            "KappaP": "0.9"
+        }
+    },
+    "TimeIntegration": {
+        "TimeEnd": "200",
+        "TimeStepInit": "1e-2",
+        "DesirableNewtonIterations": "10",
+        "DesirableLinearIterations": "500"
+    }
+}

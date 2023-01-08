@@ -1,16 +1,13 @@
 {
     "MatrixBased": "false",
     "Adaptivity": {
-        "BottomFractionOfCells": "0.1",
-        "MaxRefinementDepth": "1",
-        "MinRefinementDepth": "3",
-        "RefinementFrequency": "10",
-        "TopFractionOfCells": "0.3"
+        "TopFractionOfCells": "0.0",
+        "BottomFractionOfCells": "1.0"
     },
     "Approximation": {
         "FEDegree": "1",
         "NPoints1D": "2",
-        "NSubdivisions": "1"
+        "NSubdivisions": "2"
     },
     "Geometry": {
         "BoundaryFactor": "0.5",
@@ -56,7 +53,7 @@
         "LinearRelativeTolerance" : 1e-2, "NewtonUseDamping" : true, "NonLinearSolverType" : "NOX"
     },
     "Output": {
-        "Contour": "false",
+        "Contour": "true",
         "ContourNCoarseningSteps": "0",
         "Debug": "false",
         "Fields": "bnds",
@@ -75,11 +72,11 @@
     },
     "Profiling": {
         "OutputTimeInterval": "900",
-        "RunVmults": "false",
+        "RunVmults": "true",
         "OutputMemoryConsumption" : "false"
     },
     "Restart": {
-        "Interval": "5000",
+        "Interval": "500",
         "MaximalOutput": "1",
         "Prefix": "./restart",
         "Type": "simulation_time"
@@ -89,7 +86,7 @@
         "DesirableLinearIterations": "100",
         "DesirableNewtonIterations": "5",
         "GrowthFactor": "1.2",
-        "TimeEnd": "1000",
+        "TimeEnd": "5000",
         "TimeStart": "0",
         "TimeStepInit": "0.1",
         "TimeStepMax": "100",
