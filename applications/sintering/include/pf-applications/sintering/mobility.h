@@ -459,60 +459,6 @@ namespace Sintering
 
 
 
-    template <typename VectorTypeValue, typename VectorTypeGradient>
-    DEAL_II_ALWAYS_INLINE Tensor<1, dim, VectorizedArrayType>
-                          apply_dM_dc(const VectorizedArrayType &                lin_c_value,
-                                      const VectorTypeValue &                    lin_etas_value,
-                                      const Tensor<1, dim, VectorizedArrayType> &lin_c_gradient,
-                                      const VectorTypeGradient &                 lin_etas_gradient,
-                                      const Tensor<1, dim, VectorizedArrayType> &lin_mu_gradient,
-                                      const VectorizedArrayType &                c_gradient) const
-    {
-      (void)lin_etas_value;
-      (void)lin_c_gradient;
-      (void)lin_etas_gradient;
-
-      const VectorizedArrayType dphidc = 30.0 * lin_c_value * lin_c_value *
-                                         (1.0 - lin_c_value) *
-                                         (1.0 - lin_c_value);
-      const VectorizedArrayType dMdc =
-        Mvol * dphidc - Mvap * dphidc +
-        Msurf * 8.0 * lin_c_value *
-          (1.0 - 3.0 * lin_c_value + 2.0 * lin_c_value * lin_c_value);
-
-      return (dMdc * c_gradient) * lin_mu_gradient;
-    }
-
-
-
-    template <typename VectorTypeValue, typename VectorTypeGradient>
-    DEAL_II_ALWAYS_INLINE Tensor<1, dim, VectorizedArrayType>
-                          apply_dM_detai(const VectorizedArrayType &                lin_c_value,
-                                         const VectorTypeValue &                    lin_etas_value,
-                                         const unsigned int                         n_grains,
-                                         const Tensor<1, dim, VectorizedArrayType> &lin_c_gradient,
-                                         const VectorTypeGradient &                 lin_etas_gradient,
-                                         const Tensor<1, dim, VectorizedArrayType> &lin_mu_gradient,
-                                         const VectorizedArrayType *eta_gradient) const
-    {
-      (void)lin_c_value;
-      (void)lin_c_gradient;
-      (void)lin_etas_gradient;
-
-      VectorizedArrayType factor = 0.0;
-
-      VectorizedArrayType eta_sum = lin_etas_value[0];
-      for (unsigned int i = 1; i < n_grains; ++i)
-        eta_sum += lin_etas_value[i];
-
-      for (unsigned int i = 0; i < n_grains; ++i)
-        factor += (eta_sum - lin_etas_value[i]) * eta_gradient[i];
-
-      return ((2.0 * Mgb) * factor) * lin_mu_gradient;
-    }
-
-
-
     DEAL_II_ALWAYS_INLINE Tensor<1, dim, VectorizedArrayType>
                           apply_M_derivative(
                             const VectorizedArrayType *                lin_value,
@@ -521,25 +467,67 @@ namespace Sintering
                             const VectorizedArrayType *                value,
                             const Tensor<1, dim, VectorizedArrayType> *gradient) const
     {
-      return apply_M(lin_value[0],
-                     &lin_value[2],
-                     n_grains,
-                     lin_gradient[0],
-                     &lin_gradient[2],
-                     gradient[1]) +
-             apply_dM_dc(lin_value[0],
-                         &lin_value[2],
-                         lin_gradient[0],
-                         &lin_gradient[2],
-                         lin_gradient[1],
-                         value[0]) +
-             apply_dM_detai(lin_value[0],
-                            &lin_value[2],
-                            n_grains,
-                            lin_gradient[0],
-                            &lin_gradient[2],
-                            lin_gradient[1],
-                            &value[2]);
+      const auto &lin_c_value     = lin_value[0];
+      const auto  lin_etas_value  = lin_value + 2;
+      const auto &lin_mu_gradient = lin_gradient[1];
+      const auto &c_value         = value[0];
+      const auto  etas_value      = value + 2;
+      const auto &mu_gradient     = gradient[1];
+
+      Tensor<1, dim, VectorizedArrayType> result;
+
+      {
+        // warning: nested loop over grains; optimization: exploit symmetry
+        // and only loop over lower-triangular matrix
+        VectorizedArrayType etaijSum = 0.0;
+        for (unsigned int i = 0; i < n_grains; ++i)
+          for (unsigned int j = 0; j < i; ++j)
+            etaijSum += lin_etas_value[i] * lin_etas_value[j];
+
+        VectorizedArrayType phi =
+          lin_c_value * lin_c_value * lin_c_value *
+          (10.0 - 15.0 * lin_c_value + 6.0 * lin_c_value * lin_c_value);
+
+        phi = compare_and_apply_mask<SIMDComparison::less_than>(
+          phi, VectorizedArrayType(0.0), VectorizedArrayType(0.0), phi);
+        phi = compare_and_apply_mask<SIMDComparison::greater_than>(
+          phi, VectorizedArrayType(1.0), VectorizedArrayType(1.0), phi);
+
+        const VectorizedArrayType M = Mvol * phi + Mvap * (1.0 - phi) +
+                                      Msurf * 4.0 * lin_c_value * lin_c_value *
+                                        (1.0 - lin_c_value) *
+                                        (1.0 - lin_c_value) +
+                                      (2.0 * Mgb) * etaijSum;
+
+        result = M * mu_gradient;
+      }
+
+      {
+        const VectorizedArrayType dphidc = 30.0 * lin_c_value * lin_c_value *
+                                           (1.0 - lin_c_value) *
+                                           (1.0 - lin_c_value);
+        const VectorizedArrayType dMdc =
+          Mvol * dphidc - Mvap * dphidc +
+          Msurf * 8.0 * lin_c_value *
+            (1.0 - 3.0 * lin_c_value + 2.0 * lin_c_value * lin_c_value);
+
+        result += (dMdc * c_value) * lin_mu_gradient;
+      }
+
+      {
+        VectorizedArrayType factor = 0.0;
+
+        VectorizedArrayType eta_sum = lin_etas_value[0];
+        for (unsigned int i = 1; i < n_grains; ++i)
+          eta_sum += lin_etas_value[i];
+
+        for (unsigned int i = 0; i < n_grains; ++i)
+          factor += (eta_sum - lin_etas_value[i]) * etas_value[i];
+
+        result += ((2.0 * Mgb) * factor) * lin_mu_gradient;
+      }
+
+      return result;
     }
 
 
