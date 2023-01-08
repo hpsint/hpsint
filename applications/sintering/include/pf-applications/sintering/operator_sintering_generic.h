@@ -142,29 +142,29 @@ namespace Sintering
           // 1) process c row
           value_result[0] = value[0] * weight;
 
-          gradient_result[0] =
-            mobility.M(lin_c_value,
-                       lin_etas_value,
-                       n_grains,
-                       lin_c_gardient,
-                       lin_etas_gradient) *
-              gradient[1] +
-            mobility.dM_dc(lin_c_value,
-                           lin_etas_value,
-                           lin_c_gardient,
-                           lin_etas_gradient) *
-              lin_mu_gradient * value[0] +
-            mobility.dM_dgrad_c(lin_c_value, lin_c_gardient, lin_mu_gradient) *
-              gradient[0];
-
-          for (unsigned int ig = 0; ig < n_grains; ++ig)
-            gradient_result[0] += mobility.dM_detai(lin_c_value,
+          gradient_result[0] = mobility.apply_M(lin_c_value,
+                                                lin_etas_value,
+                                                n_grains,
+                                                lin_c_gardient,
+                                                lin_etas_gradient,
+                                                gradient[1]) +
+                               mobility.apply_dM_dc(lin_c_value,
                                                     lin_etas_value,
-                                                    n_grains,
                                                     lin_c_gardient,
                                                     lin_etas_gradient,
-                                                    ig) *
-                                  lin_mu_gradient * value[ig + 2];
+                                                    lin_mu_gradient,
+                                                    value[0]) +
+                               mobility.apply_dM_dgrad_c(lin_c_value,
+                                                         lin_c_gardient,
+                                                         lin_mu_gradient,
+                                                         gradient[0]) +
+                               mobility.apply_dM_detai(lin_c_value,
+                                                       lin_etas_value,
+                                                       n_grains,
+                                                       lin_c_gardient,
+                                                       lin_etas_gradient,
+                                                       lin_mu_gradient,
+                                                       &value[2]);
 
 
 
@@ -278,58 +278,79 @@ namespace Sintering
 
           for (unsigned int q = 0; q < phi.n_q_points; ++q)
             {
-              const auto val  = phi.get_value(q);
-              const auto grad = phi.get_gradient(q);
+              const auto value    = phi.get_value(q);
+              const auto gradient = phi.get_gradient(q);
 
-              auto &c      = val[0];
-              auto &mu     = val[1];
-              auto &c_grad = grad[0];
+              const VectorizedArrayType *                etas_value = &value[2];
+              const Tensor<1, dim, VectorizedArrayType> *etas_gradient =
+                &gradient[2];
 
-              std::array<VectorizedArrayType, n_grains> etas;
-              std::array<Tensor<1, dim, VectorizedArrayType>, n_grains>
-                etas_grad;
-
-              for (unsigned int ig = 0; ig < n_grains; ++ig)
-                {
-                  etas[ig]      = val[2 + ig];
-                  etas_grad[ig] = grad[2 + ig];
-                }
+              const auto etas_value_power_2_sum =
+                PowerHelper<n_grains, 2>::power_sum(etas_value);
+              const auto etas_value_power_3_sum =
+                PowerHelper<n_grains, 3>::power_sum(etas_value);
 
               Tensor<1, n_comp, VectorizedArrayType> value_result;
               Tensor<1, n_comp, Tensor<1, dim, VectorizedArrayType>>
                 gradient_result;
 
+
+
+              // 1) process c row
               if (with_time_derivative)
                 this->time_integrator.compute_time_derivative(
-                  value_result[0], val, time_phi, 0, q);
+                  value_result[0], value, time_phi, 0, q);
+              gradient_result[0] = mobility.apply_M(value[0],
+                                                    etas_value,
+                                                    n_grains,
+                                                    gradient[0],
+                                                    etas_gradient,
+                                                    gradient[1]);
 
-              value_result[1] = -mu + free_energy.df_dc(c, etas);
-              gradient_result[0] =
-                mobility.M(c, etas, n_grains, c_grad, etas_grad) * grad[1];
-              gradient_result[1] = kappa_c * grad[0];
 
-              // AC equations
+
+              // 2) process mu row
+              value_result[1] =
+                -value[1] + free_energy.df_dc(value[0],
+                                              etas_value,
+                                              etas_value_power_2_sum,
+                                              etas_value_power_3_sum);
+              gradient_result[1] = kappa_c * gradient[0];
+
+
+
+              // 3) process eta rows
               for (unsigned int ig = 0; ig < n_grains; ++ig)
                 {
-                  value_result[2 + ig] = L * free_energy.df_detai(c, etas, ig);
+                  value_result[2 + ig] =
+                    L * free_energy.df_detai(value[0],
+                                             etas_value,
+                                             etas_value_power_2_sum,
+                                             ig);
 
                   if (with_time_derivative)
                     this->time_integrator.compute_time_derivative(
-                      value_result[2 + ig], val, time_phi, 2 + ig, q);
+                      value_result[2 + ig], value, time_phi, 2 + ig, q);
 
-                  gradient_result[2 + ig] = L * kappa_p * grad[2 + ig];
+                  gradient_result[2 + ig] = L * kappa_p * gradient[2 + ig];
+                }
 
-                  if (this->advection.enabled() &&
-                      this->advection.has_velocity(ig))
+
+
+              // 4) add advection contributations -> influences c AND etas
+              if (this->advection.enabled())
+                for (unsigned int ig = 0; ig < n_grains; ++ig)
+                  if (this->advection.has_velocity(ig))
                     {
                       const auto &velocity_ig =
                         this->advection.get_velocity(ig,
                                                      phi.quadrature_point(q));
 
-                      value_result[0] += velocity_ig * c_grad;
-                      value_result[2 + ig] += velocity_ig * grad[2 + ig];
+                      value_result[0] += velocity_ig * gradient[0];
+                      value_result[2 + ig] += velocity_ig * gradient[2 + ig];
                     }
-                }
+
+
 
               phi.submit_value(value_result, q);
               phi.submit_gradient(gradient_result, q);

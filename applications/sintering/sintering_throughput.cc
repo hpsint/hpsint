@@ -159,10 +159,14 @@ main(int argc, char **argv)
   using BlockVectorType =
     LinearAlgebra::distributed::DynamicBlockVector<Number>;
 
+  const bool scalar_mobility =
+    SinteringOperatorData<dim, VectorizedArrayType>::use_tensorial_mobility ==
+    false;
+
   constexpr bool test_helmholtz         = true;
   constexpr bool test_sintering_generic = true;
-  constexpr bool test_sintering_wang    = true;
-  constexpr bool test_sintering_coupled = true;
+  constexpr bool test_sintering_wang    = true & scalar_mobility;
+  constexpr bool test_sintering_coupled = true & scalar_mobility;
 
   // some arbitrary constants
   const double        A                      = 16;
