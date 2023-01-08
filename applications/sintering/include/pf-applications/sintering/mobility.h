@@ -474,60 +474,51 @@ namespace Sintering
       const auto  etas_value      = value + 2;
       const auto &mu_gradient     = gradient[1];
 
-      Tensor<1, dim, VectorizedArrayType> result;
-
-      {
-        // warning: nested loop over grains; optimization: exploit symmetry
-        // and only loop over lower-triangular matrix
-        VectorizedArrayType etaijSum = 0.0;
-        for (unsigned int i = 0; i < n_grains; ++i)
-          for (unsigned int j = 0; j < i; ++j)
-            etaijSum += lin_etas_value[i] * lin_etas_value[j];
-
-        VectorizedArrayType phi =
-          lin_c_value * lin_c_value * lin_c_value *
-          (10.0 - 15.0 * lin_c_value + 6.0 * lin_c_value * lin_c_value);
-
-        phi = compare_and_apply_mask<SIMDComparison::less_than>(
-          phi, VectorizedArrayType(0.0), VectorizedArrayType(0.0), phi);
-        phi = compare_and_apply_mask<SIMDComparison::greater_than>(
-          phi, VectorizedArrayType(1.0), VectorizedArrayType(1.0), phi);
-
-        const VectorizedArrayType M = Mvol * phi + Mvap * (1.0 - phi) +
-                                      Msurf * 4.0 * lin_c_value * lin_c_value *
-                                        (1.0 - lin_c_value) *
-                                        (1.0 - lin_c_value) +
-                                      (2.0 * Mgb) * etaijSum;
-
-        result = M * mu_gradient;
-      }
-
-      {
-        const VectorizedArrayType dphidc = 30.0 * lin_c_value * lin_c_value *
-                                           (1.0 - lin_c_value) *
-                                           (1.0 - lin_c_value);
-        const VectorizedArrayType dMdc =
-          Mvol * dphidc - Mvap * dphidc +
-          Msurf * 8.0 * lin_c_value *
-            (1.0 - 3.0 * lin_c_value + 2.0 * lin_c_value * lin_c_value);
-
-        result += (dMdc * c_value) * lin_mu_gradient;
-      }
-
-      {
-        VectorizedArrayType factor = 0.0;
-
-        VectorizedArrayType eta_sum = lin_etas_value[0];
-        for (unsigned int i = 1; i < n_grains; ++i)
+      // 1) for M
+      // warning: nested loop over grains; optimization: exploit symmetry
+      // and only loop over lower-triangular matrix
+      VectorizedArrayType eta_sum    = 0.0;
+      VectorizedArrayType eta_ij_sum = 0.0;
+      for (unsigned int i = 0; i < n_grains; ++i)
+        {
           eta_sum += lin_etas_value[i];
 
-        for (unsigned int i = 0; i < n_grains; ++i)
-          factor += (eta_sum - lin_etas_value[i]) * etas_value[i];
+          for (unsigned int j = 0; j < i; ++j)
+            eta_ij_sum += lin_etas_value[i] * lin_etas_value[j];
+        }
 
-        result += ((2.0 * Mgb) * factor) * lin_mu_gradient;
-      }
+      VectorizedArrayType phi =
+        lin_c_value * lin_c_value * lin_c_value *
+        (10.0 - 15.0 * lin_c_value + 6.0 * lin_c_value * lin_c_value);
 
-      return result;
+      phi = compare_and_apply_mask<SIMDComparison::less_than>(
+        phi, VectorizedArrayType(0.0), VectorizedArrayType(0.0), phi);
+      phi = compare_and_apply_mask<SIMDComparison::greater_than>(
+        phi, VectorizedArrayType(1.0), VectorizedArrayType(1.0), phi);
+
+      const VectorizedArrayType M = Mvol * phi + Mvap * (1.0 - phi) +
+                                    Msurf * 4.0 * lin_c_value * lin_c_value *
+                                      (1.0 - lin_c_value) *
+                                      (1.0 - lin_c_value) +
+                                    (2.0 * Mgb) * eta_ij_sum;
+
+      // 2) for dM_dc
+      const VectorizedArrayType dphidc = 30.0 * lin_c_value * lin_c_value *
+                                         (1.0 - lin_c_value) *
+                                         (1.0 - lin_c_value);
+      const VectorizedArrayType dMdc =
+        Mvol * dphidc - Mvap * dphidc +
+        Msurf * 8.0 * lin_c_value *
+          (1.0 - 3.0 * lin_c_value + 2.0 * lin_c_value * lin_c_value);
+
+      // 3) for dM_detai
+      VectorizedArrayType factor = 0.0;
+      for (unsigned int i = 0; i < n_grains; ++i)
+        factor += (eta_sum - lin_etas_value[i]) * etas_value[i];
+
+      // result
+      return M * mu_gradient +
+             (dMdc * c_value + (2.0 * Mgb) * factor) * lin_mu_gradient;
     }
 
 
