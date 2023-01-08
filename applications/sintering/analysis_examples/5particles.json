@@ -61,8 +61,8 @@
         "Contour": "false",
         "ContourNCoarseningSteps": "0",
         "Debug": "false",
-        "Fields": "bnds",
-        "HigherOrderCells": "false",
+        "Fields": "CH,AC,bnds",
+        "HigherOrderCells": "true",
         "OutputTimeInterval": "10",
         "Regular": "true",
         "VtkPath": "."
