@@ -59,9 +59,6 @@ namespace Sintering
                                const BlockVectorType &      vec,
                                const std::set<std::string> &fields_list) const
     {
-      data_out.attach_dof_handler(
-        this->matrix_free.get_dof_handler(this->dof_index));
-
       // Possible output options
       enum OutputFields
       {

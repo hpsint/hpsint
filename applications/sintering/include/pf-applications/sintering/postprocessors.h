@@ -8,6 +8,7 @@
 #include <deal.II/numerics/data_out.h>
 
 #include <pf-applications/grain_tracker/distributed_stitching.h>
+#include <pf-applications/grain_tracker/tracker.h>
 
 namespace dealii
 {
@@ -68,16 +69,18 @@ namespace Sintering
 {
   namespace Postprocessors
   {
-    template <int dim, typename VectorType>
+    template <int dim, typename VectorType, typename Number>
     void
     output_grain_contours(const Mapping<dim> &   mapping,
                           const DoFHandler<dim> &background_dof_handler,
                           const VectorType &     vector,
                           const double           iso_level,
                           const std::string      filename,
-                          const unsigned int     n_coarsening_steps = 0,
-                          const unsigned int     n_subdivisions     = 1,
-                          const double           tolerance          = 1e-10)
+                          const unsigned int     n_grains,
+                          GrainTracker::Tracker<dim, Number> &grain_tracker,
+                          const unsigned int n_coarsening_steps = 0,
+                          const unsigned int n_subdivisions     = 1,
+                          const double       tolerance          = 1e-10)
     {
       const bool has_ghost_elements = vector.has_ghost_elements();
 
@@ -173,7 +176,7 @@ namespace Sintering
         }
       else
         {
-          // TODO: run GT
+          grain_tracker.track(vector, n_grains, true); // TODO
         }
 
 
@@ -190,7 +193,7 @@ namespace Sintering
            n_subdivisions,
            tolerance);
 
-      for (unsigned int b = 0; b < vector_to_be_used->n_blocks() - 2; ++b)
+      for (unsigned int b = 0; b < n_grains; ++b)
         {
           for (const auto &cell :
                background_dof_handler_to_be_used->active_cell_iterators())
@@ -206,7 +209,16 @@ namespace Sintering
 
                 for (unsigned int i = old_size; i < cells.size(); ++i)
                   {
-                    cells[i].material_id = b;
+                    if (n_coarsening_steps == 0) // TODO
+                      {
+                        cells[i].material_id =
+                          grain_tracker
+                            .get_grain_and_segment(
+                              b,
+                              grain_tracker.get_particle_index(
+                                b, cell->global_active_cell_index()))
+                            .first;
+                      }
                     cells[i].manifold_id = b;
                   }
               }
@@ -221,11 +233,20 @@ namespace Sintering
 
       Vector<float> vector_grain_id(tria.n_active_cells());
       Vector<float> vector_order_parameter_id(tria.n_active_cells());
-      for (const auto &cell : tria.active_cell_iterators())
+
+      if (vertices.size() > 0)
         {
-          vector_grain_id[cell->active_cell_index()] = cell->material_id();
-          vector_order_parameter_id[cell->active_cell_index()] =
-            cell->manifold_id();
+          for (const auto &cell : tria.active_cell_iterators())
+            {
+              vector_grain_id[cell->active_cell_index()] = cell->material_id();
+              vector_order_parameter_id[cell->active_cell_index()] =
+                cell->manifold_id();
+            }
+        }
+      else
+        {
+          vector_grain_id           = -1.0; // initialized with dummy value
+          vector_order_parameter_id = -1.0;
         }
 
       Vector<float> vector_rank(tria.n_active_cells());

@@ -1472,7 +1472,8 @@ namespace Sintering
           auto solutions_except_recent = solution_history.filter(true, false);
           auto old_old_solutions       = solution_history.filter(false, false);
 
-          output_result(solution, nonlinear_operator, t, "refinement");
+          output_result(
+            solution, nonlinear_operator, grain_tracker, t, "refinement");
 
           // 1) copy solution so that it has the right ghosting
           const auto partitioner =
@@ -1629,7 +1630,8 @@ namespace Sintering
 
           old_old_solutions.update_ghost_values();
 
-          output_result(solution, nonlinear_operator, t, "refinement");
+          output_result(
+            solution, nonlinear_operator, grain_tracker, t, "refinement");
 
           if (params.output_data.mesh_overhead_estimate)
             Postprocessors::estimate_overhead(mapping, dof_handler, solution);
@@ -1688,7 +1690,8 @@ namespace Sintering
         // Rebuild data structures if grains have been reassigned
         if (has_reassigned_grains || has_op_number_changed)
           {
-            output_result(solution, nonlinear_operator, t, "remap");
+            output_result(
+              solution, nonlinear_operator, grain_tracker, t, "remap");
 
             if (has_op_number_changed)
               {
@@ -1790,7 +1793,8 @@ namespace Sintering
                                     skip_reassignment);
               }
 
-            output_result(solution, nonlinear_operator, t, "remap");
+            output_result(
+              solution, nonlinear_operator, grain_tracker, t, "remap");
           }
 
         pcout << std::endl;
@@ -1924,6 +1928,7 @@ namespace Sintering
       if (t == 0.0 && params.output_data.output_time_interval > 0.0)
         output_result(solution,
                       nonlinear_operator,
+                      grain_tracker,
                       time_last_output,
                       "solution",
                       additional_output);
@@ -1997,6 +2002,7 @@ namespace Sintering
                   {
                     output_result(solution,
                                   nonlinear_operator,
+                                  grain_tracker,
                                   time_last_output,
                                   "grains_inconsistency");
 
@@ -2318,6 +2324,7 @@ namespace Sintering
 
                 output_result(solution,
                               nonlinear_operator,
+                              grain_tracker,
                               time_last_output,
                               "newton_not_converged");
 
@@ -2344,6 +2351,7 @@ namespace Sintering
 
                 output_result(solution,
                               nonlinear_operator,
+                              grain_tracker,
                               time_last_output,
                               "linear_solver_not_converged");
 
@@ -2369,6 +2377,7 @@ namespace Sintering
                 time_last_output = t;
                 output_result(solution,
                               nonlinear_operator,
+                              grain_tracker,
                               time_last_output,
                               "solution",
                               additional_output);
@@ -2489,6 +2498,7 @@ namespace Sintering
     output_result(
       const VectorType &                          solution,
       const NonLinearOperator &                   sintering_operator,
+      GrainTracker::Tracker<dim, Number> &        grain_tracker,
       const double                                t,
       const std::string                           label = "solution",
       std::function<void(DataOut<dim> &data_out)> additional_output = {})
@@ -2509,12 +2519,13 @@ namespace Sintering
             params.output_data.higher_order_cells;
 
           DataOutWithRanges<dim> data_out;
+          data_out.attach_dof_handler(dof_handler);
           data_out.set_flags(flags);
 
           if (params.output_data.fields.count("CH"))
             {
-              data_out.add_data_vector(dof_handler, solution.block(0), "c");
-              data_out.add_data_vector(dof_handler, solution.block(1), "mu");
+              data_out.add_data_vector(solution.block(0), "c");
+              data_out.add_data_vector(solution.block(1), "mu");
             }
 
           if (params.output_data.fields.count("AC"))
@@ -2522,8 +2533,7 @@ namespace Sintering
               for (unsigned int ig = 2;
                    ig < sintering_operator.get_data().n_components();
                    ++ig)
-                data_out.add_data_vector(dof_handler,
-                                         solution.block(ig),
+                data_out.add_data_vector(solution.block(ig),
                                          "eta" + std::to_string(ig - 2));
             }
 
@@ -2534,7 +2544,7 @@ namespace Sintering
               for (unsigned int b = solution.n_blocks() - dim;
                    b < solution.n_blocks();
                    ++b)
-                data_out.add_data_vector(dof_handler, solution.block(b), "u");
+                data_out.add_data_vector(solution.block(b), "u");
             }
 
           sintering_operator.add_data_vectors(data_out,
@@ -2592,6 +2602,8 @@ namespace Sintering
             solution,
             0.5,
             output,
+            sintering_operator.n_grains(),
+            grain_tracker,
             params.output_data.n_coarsening_steps);
         }
 
