@@ -58,7 +58,7 @@ namespace Sintering
     ~SinteringOperatorCoupledWang()
     {}
 
-    template <bool with_time_derivative = true>
+    template <int with_time_derivative = 2>
     void
     evaluate_nonlinear_residual(BlockVectorType &      dst,
                                 const BlockVectorType &src) const
@@ -67,14 +67,16 @@ namespace Sintering
                     "sintering_op::nonlinear_residual",
                     this->do_timing);
 
-#define OPERATION(c, d)                                           \
-  MyMatrixFreeTools::cell_loop_wrapper(                           \
-    this->matrix_free,                                            \
-    &SinteringOperatorCoupledWang::                               \
-      do_evaluate_nonlinear_residual<c, d, with_time_derivative>, \
-    this,                                                         \
-    dst,                                                          \
-    src,                                                          \
+      AssertThrow(with_time_derivative != 1, ExcNotImplemented());
+
+#define OPERATION(c, d)                                                \
+  MyMatrixFreeTools::cell_loop_wrapper(                                \
+    this->matrix_free,                                                 \
+    &SinteringOperatorCoupledWang::                                    \
+      do_evaluate_nonlinear_residual<c, d, with_time_derivative == 2>, \
+    this,                                                              \
+    dst,                                                               \
+    src,                                                               \
     true);
       EXPAND_OPERATIONS(OPERATION);
 #undef OPERATION
