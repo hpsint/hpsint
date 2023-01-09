@@ -197,7 +197,10 @@ namespace Sintering
                      cells);
 
           for (unsigned int i = old_size; i < cells.size(); ++i)
-            cells[i].material_id = b;
+            {
+              cells[i].material_id = b;
+              cells[i].manifold_id = b;
+            }
         }
 
       Triangulation<dim - 1, dim> tria;
@@ -208,8 +211,13 @@ namespace Sintering
         GridGenerator::hyper_cube(tria, -1e-6, 1e-6);
 
       Vector<float> vector_grain_id(tria.n_active_cells());
+      Vector<float> vector_order_parameter_id(tria.n_active_cells());
       for (const auto &cell : tria.active_cell_iterators())
-        vector_grain_id[cell->active_cell_index()] = cell->material_id();
+        {
+          vector_grain_id[cell->active_cell_index()] = cell->material_id();
+          vector_order_parameter_id[cell->active_cell_index()] =
+            cell->manifold_id();
+        }
 
       Vector<float> vector_rank(tria.n_active_cells());
       vector_rank = Utilities::MPI::this_mpi_process(
@@ -219,6 +227,7 @@ namespace Sintering
       MyDataOut<dim - 1, dim> data_out;
       data_out.attach_triangulation(tria);
       data_out.add_data_vector(vector_grain_id, "grain_id");
+      data_out.add_data_vector(vector_order_parameter_id, "order_parameter_id");
       data_out.add_data_vector(vector_rank, "subdomain");
 
       data_out.build_patches();
