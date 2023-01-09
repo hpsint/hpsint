@@ -2498,7 +2498,7 @@ namespace Sintering
     output_result(
       const VectorType &                          solution,
       const NonLinearOperator &                   sintering_operator,
-      GrainTracker::Tracker<dim, Number> &        grain_tracker,
+      const GrainTracker::Tracker<dim, Number> &  grain_tracker,
       const double                                t,
       const std::string                           label = "solution",
       std::function<void(DataOut<dim> &data_out)> additional_output = {})

@@ -71,17 +71,22 @@ namespace Sintering
   {
     template <int dim, typename VectorType, typename Number>
     void
-    output_grain_contours(const Mapping<dim> &   mapping,
-                          const DoFHandler<dim> &background_dof_handler,
-                          const VectorType &     vector,
-                          const double           iso_level,
-                          const std::string      filename,
-                          const unsigned int     n_grains,
-                          GrainTracker::Tracker<dim, Number> &grain_tracker,
-                          const unsigned int n_coarsening_steps = 0,
-                          const unsigned int n_subdivisions     = 1,
-                          const double       tolerance          = 1e-10)
+    output_grain_contours(
+      const Mapping<dim> &                      mapping,
+      const DoFHandler<dim> &                   background_dof_handler,
+      const VectorType &                        vector,
+      const double                              iso_level,
+      const std::string                         filename,
+      const unsigned int                        n_grains,
+      const GrainTracker::Tracker<dim, Number> &grain_tracker_in,
+      const unsigned int                        n_coarsening_steps = 0,
+      const unsigned int                        n_subdivisions     = 1,
+      const double                              tolerance          = 1e-10)
     {
+      std::shared_ptr<GrainTracker::Tracker<dim, Number>> grain_tracker;
+      if (n_coarsening_steps == 0)
+        grain_tracker = grain_tracker_in.clone();
+
       const bool has_ghost_elements = vector.has_ghost_elements();
 
       if (has_ghost_elements == false)
@@ -174,10 +179,9 @@ namespace Sintering
           vector_to_be_used                 = &solution_dealii;
           background_dof_handler_to_be_used = &dof_handler_copy;
         }
-      else
-        {
-          grain_tracker.track(vector, n_grains, true); // TODO
-        }
+
+      if (grain_tracker)
+        grain_tracker->track(vector, n_grains, true);
 
 
 
@@ -209,16 +213,15 @@ namespace Sintering
 
                 for (unsigned int i = old_size; i < cells.size(); ++i)
                   {
-                    if (n_coarsening_steps == 0) // TODO
-                      {
-                        cells[i].material_id =
-                          grain_tracker
-                            .get_grain_and_segment(
-                              b,
-                              grain_tracker.get_particle_index(
-                                b, cell->global_active_cell_index()))
-                            .first;
-                      }
+                    if (grain_tracker)
+                      cells[i].material_id =
+                        grain_tracker
+                          ->get_grain_and_segment(
+                            b,
+                            grain_tracker->get_particle_index(
+                              b, cell->global_active_cell_index()))
+                          .first;
+
                     cells[i].manifold_id = b;
                   }
               }
