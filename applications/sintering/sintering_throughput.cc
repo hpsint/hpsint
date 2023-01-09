@@ -254,8 +254,8 @@ main(int argc, char **argv)
         op.initialize_dof_vector(dst);
         src = 1.0;
 
-        const auto time = run(
-          [&]() { op.template evaluate_nonlinear_residual<false>(dst, src); });
+        const auto time =
+          run([&]() { op.template evaluate_nonlinear_residual<1>(dst, src); });
 
         table.add_value("t_" + label + "_rhs", time);
         table.set_scientific("t_" + label + "_rhs", true);
