@@ -171,6 +171,10 @@ namespace Sintering
           vector_to_be_used                 = &solution_dealii;
           background_dof_handler_to_be_used = &dof_handler_copy;
         }
+      else
+        {
+          // TODO: run GT
+        }
 
 
 
@@ -188,19 +192,24 @@ namespace Sintering
 
       for (unsigned int b = 0; b < vector_to_be_used->n_blocks() - 2; ++b)
         {
-          const unsigned int old_size = cells.size();
+          for (const auto &cell :
+               background_dof_handler_to_be_used->active_cell_iterators())
+            if (cell->is_locally_owned())
+              {
+                const unsigned int old_size = cells.size();
 
-          mc.process(*background_dof_handler_to_be_used,
-                     vector_to_be_used->block(b + 2),
-                     iso_level,
-                     vertices,
-                     cells);
+                mc.process_cell(cell,
+                                vector_to_be_used->block(b + 2),
+                                iso_level,
+                                vertices,
+                                cells);
 
-          for (unsigned int i = old_size; i < cells.size(); ++i)
-            {
-              cells[i].material_id = b;
-              cells[i].manifold_id = b;
-            }
+                for (unsigned int i = old_size; i < cells.size(); ++i)
+                  {
+                    cells[i].material_id = b;
+                    cells[i].manifold_id = b;
+                  }
+              }
         }
 
       Triangulation<dim - 1, dim> tria;
