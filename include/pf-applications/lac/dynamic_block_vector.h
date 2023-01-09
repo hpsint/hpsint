@@ -2,6 +2,7 @@
 
 #include <deal.II/lac/block_vector_base.h>
 #include <deal.II/lac/la_parallel_block_vector.h>
+#include <deal.II/lac/la_parallel_vector.h>
 #include <deal.II/lac/vector_operation.h>
 
 #include <pf-applications/base/memory_consumption.h>
@@ -418,3 +419,85 @@ namespace dealii
 } // namespace dealii
 
 #include <deal.II/lac/vector_memory.templates.h>
+
+namespace Sintering
+{
+  using namespace dealii;
+
+
+  namespace internal
+  {
+    template <typename Number>
+    unsigned int
+    n_blocks(const LinearAlgebra::distributed::Vector<Number> &)
+    {
+      return 1;
+    }
+
+    template <typename Number>
+    unsigned int
+    n_blocks(const LinearAlgebra::distributed::BlockVector<Number> &vector)
+    {
+      return vector.n_blocks();
+    }
+
+    template <typename Number>
+    unsigned int
+    n_blocks(
+      const LinearAlgebra::distributed::DynamicBlockVector<Number> &vector)
+    {
+      return vector.n_blocks();
+    }
+
+    template <typename Number>
+    LinearAlgebra::distributed::Vector<Number> &
+    block(LinearAlgebra::distributed::Vector<Number> &vector,
+          const unsigned int                          b)
+    {
+      AssertThrow(b == 0, ExcInternalError());
+      return vector;
+    }
+
+    template <typename Number>
+    const LinearAlgebra::distributed::Vector<Number> &
+    block(const LinearAlgebra::distributed::Vector<Number> &vector,
+          const unsigned int                                b)
+    {
+      AssertThrow(b == 0, ExcInternalError());
+      return vector;
+    }
+
+    template <typename Number>
+    LinearAlgebra::distributed::Vector<Number> &
+    block(LinearAlgebra::distributed::BlockVector<Number> &vector,
+          const unsigned int                               b)
+    {
+      return vector.block(b);
+    }
+
+    template <typename Number>
+    const LinearAlgebra::distributed::Vector<Number> &
+    block(const LinearAlgebra::distributed::BlockVector<Number> &vector,
+          const unsigned int                                     b)
+    {
+      return vector.block(b);
+    }
+
+    template <typename Number>
+    LinearAlgebra::distributed::Vector<Number> &
+    block(LinearAlgebra::distributed::DynamicBlockVector<Number> &vector,
+          const unsigned int                                      b)
+    {
+      return vector.block(b);
+    }
+
+    template <typename Number>
+    const LinearAlgebra::distributed::Vector<Number> &
+    block(const LinearAlgebra::distributed::DynamicBlockVector<Number> &vector,
+          const unsigned int                                            b)
+    {
+      return vector.block(b);
+    }
+
+  } // namespace internal
+} // namespace Sintering
