@@ -8,6 +8,7 @@
 #include <deal.II/numerics/data_out.h>
 
 #include <pf-applications/grain_tracker/distributed_stitching.h>
+#include <pf-applications/grain_tracker/tracker.h>
 
 namespace dealii
 {
@@ -68,17 +69,24 @@ namespace Sintering
 {
   namespace Postprocessors
   {
-    template <int dim, typename VectorType>
+    template <int dim, typename VectorType, typename Number>
     void
-    output_grain_contours(const Mapping<dim> &   mapping,
-                          const DoFHandler<dim> &background_dof_handler,
-                          const VectorType &     vector,
-                          const double           iso_level,
-                          const std::string      filename,
-                          const unsigned int     n_coarsening_steps = 0,
-                          const unsigned int     n_subdivisions     = 1,
-                          const double           tolerance          = 1e-10)
+    output_grain_contours(
+      const Mapping<dim> &                      mapping,
+      const DoFHandler<dim> &                   background_dof_handler,
+      const VectorType &                        vector,
+      const double                              iso_level,
+      const std::string                         filename,
+      const unsigned int                        n_grains,
+      const GrainTracker::Tracker<dim, Number> &grain_tracker_in,
+      const unsigned int                        n_coarsening_steps = 0,
+      const unsigned int                        n_subdivisions     = 1,
+      const double                              tolerance          = 1e-10)
     {
+      std::shared_ptr<GrainTracker::Tracker<dim, Number>> grain_tracker;
+      if (n_coarsening_steps == 0)
+        grain_tracker = grain_tracker_in.clone();
+
       const bool has_ghost_elements = vector.has_ghost_elements();
 
       if (has_ghost_elements == false)
@@ -172,6 +180,9 @@ namespace Sintering
           background_dof_handler_to_be_used = &dof_handler_copy;
         }
 
+      if (grain_tracker)
+        grain_tracker->track(vector, n_grains, true);
+
 
 
       // step 1) create surface mesh
@@ -186,18 +197,34 @@ namespace Sintering
            n_subdivisions,
            tolerance);
 
-      for (unsigned int b = 0; b < vector_to_be_used->n_blocks() - 2; ++b)
+      for (unsigned int b = 0; b < n_grains; ++b)
         {
-          const unsigned int old_size = cells.size();
+          for (const auto &cell :
+               background_dof_handler_to_be_used->active_cell_iterators())
+            if (cell->is_locally_owned())
+              {
+                const unsigned int old_size = cells.size();
 
-          mc.process(*background_dof_handler_to_be_used,
-                     vector_to_be_used->block(b + 2),
-                     iso_level,
-                     vertices,
-                     cells);
+                mc.process_cell(cell,
+                                vector_to_be_used->block(b + 2),
+                                iso_level,
+                                vertices,
+                                cells);
 
-          for (unsigned int i = old_size; i < cells.size(); ++i)
-            cells[i].material_id = b;
+                for (unsigned int i = old_size; i < cells.size(); ++i)
+                  {
+                    if (grain_tracker)
+                      cells[i].material_id =
+                        grain_tracker
+                          ->get_grain_and_segment(
+                            b,
+                            grain_tracker->get_particle_index(
+                              b, cell->global_active_cell_index()))
+                          .first;
+
+                    cells[i].manifold_id = b;
+                  }
+              }
         }
 
       Triangulation<dim - 1, dim> tria;
@@ -208,8 +235,22 @@ namespace Sintering
         GridGenerator::hyper_cube(tria, -1e-6, 1e-6);
 
       Vector<float> vector_grain_id(tria.n_active_cells());
-      for (const auto &cell : tria.active_cell_iterators())
-        vector_grain_id[cell->active_cell_index()] = cell->material_id();
+      Vector<float> vector_order_parameter_id(tria.n_active_cells());
+
+      if (vertices.size() > 0)
+        {
+          for (const auto &cell : tria.active_cell_iterators())
+            {
+              vector_grain_id[cell->active_cell_index()] = cell->material_id();
+              vector_order_parameter_id[cell->active_cell_index()] =
+                cell->manifold_id();
+            }
+        }
+      else
+        {
+          vector_grain_id           = -1.0; // initialized with dummy value
+          vector_order_parameter_id = -1.0;
+        }
 
       Vector<float> vector_rank(tria.n_active_cells());
       vector_rank = Utilities::MPI::this_mpi_process(
@@ -219,6 +260,7 @@ namespace Sintering
       MyDataOut<dim - 1, dim> data_out;
       data_out.attach_triangulation(tria);
       data_out.add_data_vector(vector_grain_id, "grain_id");
+      data_out.add_data_vector(vector_order_parameter_id, "order_parameter_id");
       data_out.add_data_vector(vector_rank, "subdomain");
 
       data_out.build_patches();

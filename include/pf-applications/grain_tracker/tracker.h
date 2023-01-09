@@ -60,7 +60,7 @@ namespace GrainTracker
             const double                            threshold_upper = 1.01,
             const double       buffer_distance_ratio                = 0.05,
             const double       buffer_distance_fixed                = 0.0,
-            const unsigned int op_offset                            = 2)
+            const unsigned int order_parameters_offset              = 2)
       : dof_handler(dof_handler)
       , tria(tria)
       , greedy_init(greedy_init)
@@ -71,9 +71,37 @@ namespace GrainTracker
       , threshold_upper(threshold_upper)
       , buffer_distance_ratio(buffer_distance_ratio)
       , buffer_distance_fixed(buffer_distance_fixed)
-      , order_parameters_offset(op_offset)
+      , order_parameters_offset(order_parameters_offset)
       , pcout(std::cout, Utilities::MPI::this_mpi_process(MPI_COMM_WORLD) == 0)
     {}
+
+    std::shared_ptr<Tracker<dim, Number>>
+    clone() const
+    {
+      auto new_tracker =
+        std::make_shared<Tracker<dim, Number>>(dof_handler,
+                                               tria,
+                                               greedy_init,
+                                               allow_new_grains,
+                                               fast_reassignment,
+                                               max_order_parameters_num,
+                                               threshold_lower,
+                                               threshold_upper,
+                                               buffer_distance_ratio,
+                                               buffer_distance_fixed,
+                                               order_parameters_offset);
+
+      new_tracker->op_particle_ids           = this->op_particle_ids;
+      new_tracker->particle_ids_to_grain_ids = this->particle_ids_to_grain_ids;
+      new_tracker->grain_segment_ids_numbering =
+        this->grain_segment_ids_numbering;
+      new_tracker->n_total_segments        = this->n_total_segments;
+      new_tracker->grains                  = this->grains;
+      new_tracker->old_grains              = this->old_grains;
+      new_tracker->active_order_parameters = this->active_order_parameters;
+
+      return new_tracker;
+    }
 
     /* Track grains over timesteps. The function returns a tuple of bool
      * variables which signify if any grains have been reassigned and if the
