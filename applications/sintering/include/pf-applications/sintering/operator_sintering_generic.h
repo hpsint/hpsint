@@ -48,7 +48,7 @@ namespace Sintering
     ~SinteringOperatorGeneric()
     {}
 
-    template <bool with_time_derivative = true>
+    template <unsigned int with_time_derivative = 2>
     void
     evaluate_nonlinear_residual(BlockVectorType &      dst,
                                 const BlockVectorType &src) const
@@ -202,7 +202,7 @@ namespace Sintering
     }
 
   private:
-    template <int n_comp, int n_grains, bool with_time_derivative>
+    template <int n_comp, int n_grains, int with_time_derivative>
     void
     do_evaluate_nonlinear_residual(
       const MatrixFree<dim, Number, VectorizedArrayType> &matrix_free,
@@ -222,6 +222,7 @@ namespace Sintering
       const auto &kappa_c     = this->data.kappa_c;
       const auto &kappa_p     = this->data.kappa_p;
       const auto &order       = this->data.time_data.get_order();
+      const auto  weight      = this->data.time_data.get_primary_weight();
       const auto &L           = mobility.Lgb();
 
       const auto old_solutions = this->history.get_old_solutions();
@@ -233,7 +234,7 @@ namespace Sintering
                               EvaluationFlags::EvaluationFlags::values |
                                 EvaluationFlags::EvaluationFlags::gradients);
 
-          if (with_time_derivative)
+          if (with_time_derivative == 2)
             for (unsigned int i = 0; i < order; ++i)
               {
                 time_phi[i].reinit(cell);
@@ -268,9 +269,12 @@ namespace Sintering
 
 
               // 1) process c row
-              if (with_time_derivative)
+              if (with_time_derivative == 2)
                 this->time_integrator.compute_time_derivative(
                   value_result[0], value, time_phi, 0, q);
+              else if (with_time_derivative == 1)
+                value_result[0] = value[0] * weight;
+
               gradient_result[0] = mobility.apply_M(value[0],
                                                     etas_value,
                                                     n_grains,
@@ -299,9 +303,11 @@ namespace Sintering
                                              etas_value_power_2_sum,
                                              ig);
 
-                  if (with_time_derivative)
+                  if (with_time_derivative == 2)
                     this->time_integrator.compute_time_derivative(
                       value_result[2 + ig], value, time_phi, 2 + ig, q);
+                  else if (with_time_derivative == 1)
+                    value_result[ig + 2] += value[ig + 2] * weight;
 
                   gradient_result[2 + ig] = L * kappa_p * gradient[2 + ig];
                 }

@@ -620,7 +620,7 @@ namespace NonLinearSolvers
           u.add(h, src);
 
           // 2b) evalute residual
-          op.evaluate_nonlinear_residual(dst, u);
+          op.template evaluate_nonlinear_residual<1>(dst, u);
 
           // 2c) take finite difference -> post
           dst.add(-1.0, residual_u);
@@ -648,7 +648,7 @@ namespace NonLinearSolvers
         this->u_l2_norm = u.l2_norm();
 
       this->residual_u.reinit(u);
-      op.evaluate_nonlinear_residual(this->residual_u, u);
+      op.template evaluate_nonlinear_residual<1>(this->residual_u, u);
     }
 
   private:
