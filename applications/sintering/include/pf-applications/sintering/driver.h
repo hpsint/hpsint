@@ -279,7 +279,8 @@ namespace Sintering
       // 0) load internal state
       unsigned int n_ranks;
       unsigned int n_initial_components;
-      unsigned int n_blocks;
+      unsigned int n_blocks_per_vector;
+      unsigned int n_blocks_total;
       unsigned int n_integration_order;
       bool         flexible_output;
       bool         full_history;
@@ -301,7 +302,8 @@ namespace Sintering
           std::to_string(n_mpi_processes) + "!"));
 
       fisb >> n_initial_components;
-      fisb >> n_blocks;
+      fisb >> n_blocks_per_vector;
+      fisb >> n_blocks_total;
 
       const unsigned int time_integration_order =
         TimeIntegration::get_scheme_order(
@@ -327,7 +329,8 @@ namespace Sintering
           // time integration order + 1, however, we skipped the recent old
           // solution since it will get overwritten anyway, so we neither save
           // it not load during restarts.
-          AssertDimension(this->dts.size(), n_blocks / n_initial_components);
+          AssertDimension(this->dts.size(),
+                          n_blocks_total / n_blocks_per_vector);
 
           // We do resize anyways since the user might have changed the
           // integration scheme
@@ -357,13 +360,13 @@ namespace Sintering
 
       // 4) helper function to initialize solution vector
       const auto initialize_solution =
-        [&, flexible_output, n_blocks, restart_path](
+        [&, flexible_output, n_blocks_total, restart_path](
           std::vector<typename VectorType::BlockType *> solution_ptr,
           MyTimerOutput &                               timer) {
           MyScope scope(timer, "deserialize_solution");
 
-          if (n_blocks < solution_ptr.size())
-            solution_ptr.resize(n_blocks);
+          if (n_blocks_total < solution_ptr.size())
+            solution_ptr.resize(n_blocks_total);
 
           if (flexible_output)
             {
@@ -375,8 +378,9 @@ namespace Sintering
               // vectors which will get deleted at the end
               std::vector<std::shared_ptr<typename VectorType::BlockType>>
                 dummy_vecs;
-              if (n_blocks > solution_ptr.size())
-                for (unsigned int i = solution_ptr.size(); i < n_blocks; ++i)
+              if (n_blocks_total > solution_ptr.size())
+                for (unsigned int i = solution_ptr.size(); i < n_blocks_total;
+                     ++i)
                   {
                     auto dummy =
                       std::make_shared<typename VectorType::BlockType>(
@@ -2396,11 +2400,13 @@ namespace Sintering
                 std::vector<const typename VectorType::BlockType *>
                   solution_ptr;
 
+                if (solution.has_ghost_elements() == false)
+                  solution.update_ghost_values();
+
                 if (params.restart_data.full_history)
                   {
                     auto all_except_old =
                       solution_history.filter(true, false, true);
-                    all_except_old.update_ghost_values(true);
 
                     const auto history_all_blocks =
                       all_except_old.get_all_blocks();
@@ -2409,9 +2415,6 @@ namespace Sintering
                   }
                 else
                   {
-                    if (solution.has_ghost_elements() == false)
-                      solution.update_ghost_values();
-
                     solution_ptr.resize(solution.n_blocks());
                     for (unsigned int b = 0; b < solution.n_blocks(); ++b)
                       solution_ptr[b] = &solution.block(b);
@@ -2443,6 +2446,7 @@ namespace Sintering
                 fosb << params.restart_data.flexible_output;
                 fosb << params.restart_data.full_history;
                 fosb << Utilities::MPI::n_mpi_processes(MPI_COMM_WORLD);
+                fosb << sintering_data.n_components();
                 fosb << solution.n_blocks();
                 fosb << static_cast<unsigned int>(solution_ptr.size());
 
@@ -2451,16 +2455,8 @@ namespace Sintering
 
                 fosb << *this;
 
-                if (params.restart_data.full_history)
-                  {
-                    solution_history.filter(true, false, true)
-                      .zero_out_ghost_values(true);
-                  }
-                else
-                  {
-                    if (solution.has_ghost_elements() == false)
-                      solution.zero_out_ghost_values();
-                  }
+                if (solution.has_ghost_elements())
+                  solution.zero_out_ghost_values();
               }
 
             TimerCollection::print_all_wall_time_statistics();
