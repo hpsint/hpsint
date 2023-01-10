@@ -2420,7 +2420,7 @@ namespace Sintering
                       solution_ptr[b] = &solution.block(b);
                   }
 
-                if (params.restart_data.flexible_output == true)
+                if (params.restart_data.flexible_output)
                   {
                     parallel::distributed::
                       SolutionTransfer<dim, typename VectorType::BlockType>
