@@ -2400,9 +2400,6 @@ namespace Sintering
                 std::vector<const typename VectorType::BlockType *>
                   solution_ptr;
 
-                if (solution.has_ghost_elements() == false)
-                  solution.update_ghost_values();
-
                 if (params.restart_data.full_history)
                   {
                     auto all_except_old =
@@ -2422,12 +2419,17 @@ namespace Sintering
 
                 if (params.restart_data.flexible_output)
                   {
+                    if (!solution.has_ghost_elements())
+                      solution.update_ghost_values();
+
                     parallel::distributed::
                       SolutionTransfer<dim, typename VectorType::BlockType>
                         solution_transfer(dof_handler);
 
                     solution_transfer.prepare_for_serialization(solution_ptr);
                     tria.save(prefix + "_tria");
+
+                    solution.zero_out_ghost_values();
                   }
                 else
                   {
@@ -2454,9 +2456,6 @@ namespace Sintering
                   fosb << static_cast<unsigned int>(dts.size());
 
                 fosb << *this;
-
-                if (solution.has_ghost_elements())
-                  solution.zero_out_ghost_values();
               }
 
             TimerCollection::print_all_wall_time_statistics();
