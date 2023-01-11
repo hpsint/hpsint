@@ -296,6 +296,41 @@ namespace Sintering
             "reduced_mesh.0.vtu", background_dof_handler.get_communicator());
         }
 
+      {
+        std::vector<unsigned int> counters(
+          background_dof_handler.get_triangulation().n_active_cells(), 0);
+
+        for (unsigned int b = 0; b < vector.n_blocks() - 2; ++b)
+          {
+            Vector<Number> values(
+              background_dof_handler.get_fe().n_dofs_per_cell());
+            for (const auto &cell :
+                 background_dof_handler.active_cell_iterators())
+              {
+                if (cell->is_locally_owned() == false)
+                  continue;
+
+                cell->get_dof_values(vector.block(b + 2), values);
+
+                if (values.linfty_norm() > 0.01)
+                  counters[cell->active_cell_index()]++;
+              }
+          }
+
+        unsigned int max_value =
+          *std::max_element(counters.begin(), counters.end());
+        max_value =
+          Utilities::MPI::max(max_value,
+                              background_dof_handler.get_communicator());
+
+        ConditionalOStream pcout(std::cout,
+                                 Utilities::MPI::this_mpi_process(
+                                   background_dof_handler.get_communicator()) ==
+                                   0);
+
+        pcout << "Max grains: " << max_value << std::endl << std::endl;
+      }
+
       for (unsigned int b = 0; b < vector.n_blocks() - 2; ++b)
         {
           parallel::distributed::Triangulation<dim> tria_copy(
