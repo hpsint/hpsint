@@ -282,6 +282,8 @@ namespace Sintering
     {
       using Number = typename VectorType::value_type;
 
+      const auto comm = background_dof_handler.get_communicator();
+
       const std::int64_t n_active_cells_0 =
         background_dof_handler.get_triangulation().n_global_active_cells();
       std::int64_t n_active_cells_1 = 0;
@@ -292,8 +294,7 @@ namespace Sintering
           data_out.attach_triangulation(
             background_dof_handler.get_triangulation());
           data_out.build_patches(mapping);
-          data_out.write_vtu_in_parallel(
-            "reduced_mesh.0.vtu", background_dof_handler.get_communicator());
+          data_out.write_vtu_in_parallel("reduced_mesh.0.vtu", comm);
         }
 
       {
@@ -319,24 +320,33 @@ namespace Sintering
 
         unsigned int max_value =
           *std::max_element(counters.begin(), counters.end());
-        max_value =
-          Utilities::MPI::max(max_value,
-                              background_dof_handler.get_communicator());
+        max_value = Utilities::MPI::max(max_value, comm);
+
+        std::vector<unsigned int> max_values(max_value, 0);
+
+        for (const auto i : counters)
+          if (i != 0)
+            max_values[i - 1]++;
+
+        Utilities::MPI::sum(max_values, comm, max_values);
 
         ConditionalOStream pcout(std::cout,
-                                 Utilities::MPI::this_mpi_process(
-                                   background_dof_handler.get_communicator()) ==
-                                   0);
+                                 Utilities::MPI::this_mpi_process(comm) == 0);
 
-        pcout << "Max grains: " << max_value << std::endl << std::endl;
+        pcout << "Max grains per cell: " << max_value << " (";
+
+        pcout << (1) << ": " << max_values[0];
+        for (unsigned int i = 1; i < max_values.size(); ++i)
+          pcout << ", " << (i + 1) << ": " << max_values[i];
+
+        pcout << ")" << std::endl;
       }
 
       for (unsigned int b = 0; b < vector.n_blocks() - 2; ++b)
         {
-          parallel::distributed::Triangulation<dim> tria_copy(
-            background_dof_handler.get_communicator());
-          DoFHandler<dim> dof_handler_copy;
-          VectorType      solution_dealii;
+          parallel::distributed::Triangulation<dim> tria_copy(comm);
+          DoFHandler<dim>                           dof_handler_copy;
+          VectorType                                solution_dealii;
 
           tria_copy.copy_triangulation(
             background_dof_handler.get_triangulation());
@@ -349,7 +359,7 @@ namespace Sintering
             std::make_shared<Utilities::MPI::Partitioner>(
               dof_handler_copy.locally_owned_dofs(),
               DoFTools::extract_locally_relevant_dofs(dof_handler_copy),
-              dof_handler_copy.get_communicator());
+              comm);
 
           solution_dealii.reinit(vector.n_blocks());
 
@@ -405,7 +415,7 @@ namespace Sintering
                 std::make_shared<Utilities::MPI::Partitioner>(
                   dof_handler_copy.locally_owned_dofs(),
                   DoFTools::extract_locally_relevant_dofs(dof_handler_copy),
-                  dof_handler_copy.get_communicator());
+                  comm);
 
               for (unsigned int b = 0; b < solution_dealii.n_blocks(); ++b)
                 solution_dealii.block(b).reinit(partitioner);
@@ -431,16 +441,14 @@ namespace Sintering
               DataOut<dim> data_out;
               data_out.attach_triangulation(tria_copy);
               data_out.build_patches(mapping);
-              data_out.write_vtu_in_parallel(
-                "reduced_mesh." + std::to_string(b + 1) + ".vtu",
-                background_dof_handler.get_communicator());
+              data_out.write_vtu_in_parallel("reduced_mesh." +
+                                               std::to_string(b + 1) + ".vtu",
+                                             comm);
             }
         }
 
       ConditionalOStream pcout(std::cout,
-                               Utilities::MPI::this_mpi_process(
-                                 background_dof_handler.get_communicator()) ==
-                                 0);
+                               Utilities::MPI::this_mpi_process(comm) == 0);
 
       pcout << "Estimation of mesh overhead: "
             << std::to_string((n_active_cells_0 * vector.n_blocks()) * 100 /
