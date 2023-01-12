@@ -2180,6 +2180,8 @@ namespace Sintering
                 // Reset statistics
                 statistics.clear();
 
+                sintering_data.set_component_mask(matrix_free, solution);
+
                 // note: input/output (solution) needs/has the right
                 // constraints applied
                 non_linear_solver_executor->solve(solution);

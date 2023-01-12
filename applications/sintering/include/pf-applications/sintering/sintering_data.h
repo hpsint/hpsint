@@ -73,6 +73,12 @@ namespace Sintering
       return nonlinear_gradients;
     }
 
+    Table<2, bool> &
+    get_component_table() const
+    {
+      return component_table;
+    }
+
     void
     set_n_components(const unsigned int number_of_components)
     {
@@ -89,6 +95,15 @@ namespace Sintering
     n_grains() const
     {
       return number_of_components - 2;
+    }
+
+    void
+    set_component_mask(
+      const MatrixFree<dim, Number, VectorizedArrayType> &          matrix_free,
+      const LinearAlgebra::distributed::DynamicBlockVector<Number> &src)
+    {
+      (void)matrix_free;
+      (void)src;
     }
 
     void
@@ -186,6 +201,8 @@ namespace Sintering
     mutable Table<3, VectorizedArrayType> nonlinear_values;
     mutable Table<3, dealii::Tensor<1, dim, VectorizedArrayType>>
       nonlinear_gradients;
+
+    mutable Table<2, bool> component_table;
 
     unsigned int number_of_components;
 

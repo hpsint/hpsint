@@ -211,7 +211,6 @@ namespace Sintering
       const std::pair<unsigned int, unsigned int> &       range) const
     {
       AssertDimension(n_comp - 2, n_grains);
-
       FECellIntegrator<dim, n_comp, Number, VectorizedArrayType> phi(
         matrix_free, this->dof_index);
 
@@ -229,6 +228,8 @@ namespace Sintering
 
       for (auto cell = range.first; cell < range.second; ++cell)
         {
+          const auto &component_table = this->data.get_component_table()[cell];
+
           phi.reinit(cell);
           phi.gather_evaluate(src,
                               EvaluationFlags::EvaluationFlags::values |
@@ -250,8 +251,15 @@ namespace Sintering
 
           for (unsigned int q = 0; q < phi.n_q_points; ++q)
             {
-              const auto value    = phi.get_value(q);
-              const auto gradient = phi.get_gradient(q);
+              auto value    = phi.get_value(q);
+              auto gradient = phi.get_gradient(q);
+
+              for (unsigned int ig = 0; ig < n_grains; ++ig)
+                if (component_table[ig] == false)
+                  {
+                    value[ig + 2]    = VectorizedArrayType();
+                    gradient[ig + 2] = Tensor<1, dim, VectorizedArrayType>();
+                  }
 
               const VectorizedArrayType *                etas_value = &value[2];
               const Tensor<1, dim, VectorizedArrayType> *etas_gradient =
