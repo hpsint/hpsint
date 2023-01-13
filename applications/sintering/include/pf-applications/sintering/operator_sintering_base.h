@@ -1,5 +1,7 @@
 #pragma once
 
+#include <deal.II/base/table_handler.h>
+
 #include <pf-applications/sintering/operator_base.h>
 #include <pf-applications/sintering/sintering_data.h>
 
@@ -380,6 +382,60 @@ namespace Sintering
         {
           data_out.add_data_vector(data_vectors[c], names[c]);
         }
+    }
+
+    void
+    add_scalar_quantities(
+      TableHandler &               table,
+      const BlockVectorType &      vec,
+      const std::set<std::string> &fields_list,
+      typename OperatorBase<dim, Number, VectorizedArrayType, T>::
+        QuantityPredicate predicate = [](const Point<dim> &) { return true; })
+    {
+      std::vector<typename OperatorBase<dim, Number, VectorizedArrayType, T>::
+                    QuantityCallback>
+        quantities;
+
+      std::vector<std::string> labels;
+      std::copy(fields_list.begin(),
+                fields_list.end(),
+                std::back_inserter(labels));
+
+      for (const auto &qty : labels)
+        {
+          typename OperatorBase<dim, Number, VectorizedArrayType, T>::
+            QuantityCallback callback;
+
+          if (qty == "solid_vol")
+            callback = [](const VectorizedArrayType *                value,
+                          const Tensor<1, dim, VectorizedArrayType> *gradient,
+                          const unsigned int n_grains) { return value[0]; };
+          else if (qty == "surf_area")
+            callback = [](const VectorizedArrayType *                value,
+                          const Tensor<1, dim, VectorizedArrayType> *gradient,
+                          const unsigned int                         n_grains) {
+              return value[0] * (1. - value[0]);
+            };
+          else if (qty == "gb_area")
+            callback = [](const VectorizedArrayType *                value,
+                          const Tensor<1, dim, VectorizedArrayType> *gradient,
+                          const unsigned int                         n_grains) {
+              VectorizedArrayType eta_ij_sum = 0.0;
+              for (unsigned int i = 0; i < n_grains; ++i)
+                for (unsigned int j = 0; j < i; ++j)
+                  eta_ij_sum += value[i] * value[j];
+            };
+          else
+            AssertThrow(false,
+                        ExcMessage("Invalid domain integral provided: " + qty));
+
+          quantities.push_back(callback);
+        }
+
+      auto q_values = calc_domain_quantities(quantities, vec, predicate);
+
+      for (unsigned int i = 0; i < quantities.size(); ++i)
+        table.add_value(labels[i], q_values[i]);
     }
 
     void
