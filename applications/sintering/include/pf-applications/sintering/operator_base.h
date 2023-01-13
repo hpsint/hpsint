@@ -695,6 +695,18 @@ namespace Sintering
                                                                fields_list);
     }
 
+    /* Compute integrals over the domain */
+    std::vector<Number>
+    calc_domain_quantities(std::vector<QuantityCallback> &quantities,
+                           const BlockVectorType &        vec,
+                           QuantityPredicate              qp_predicate) const
+    {
+#define OPERATION(c, d) \
+  this->do_calc_domain_quantities<c, d>(quantities, vec, qp_predicate);
+      EXPAND_OPERATIONS(OPERATION);
+#undef OPERATION
+    }
+
     virtual std::size_t
     memory_consumption() const
     {
