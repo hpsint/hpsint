@@ -184,10 +184,20 @@ namespace Sintering
 
               for (unsigned int q = 0; q < phi.n_q_points; ++q)
                 {
-                  nonlinear_values(cell, q, c) = phi.get_value(q);
+                  auto value    = phi.get_value(q);
+                  auto gradient = phi.get_gradient(q);
+
+                  if ((component_table.size(0) > 0) && (c >= 2))
+                    if (component_table[cell][c - 2] == false)
+                      {
+                        value    = VectorizedArrayType();
+                        gradient = Tensor<1, dim, VectorizedArrayType>();
+                      }
+
+                  nonlinear_values(cell, q, c) = value;
 
                   if (use_tensorial_mobility || (c < 2) || save_op_gradients)
-                    nonlinear_gradients(cell, q, c) = phi.get_gradient(q);
+                    nonlinear_gradients(cell, q, c) = gradient;
                 }
             }
         }
