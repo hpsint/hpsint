@@ -867,7 +867,7 @@ namespace Sintering
     std::vector<Number>
     do_calc_domain_quantities(std::vector<QuantityCallback> &quantities,
                               const BlockVectorType &        vec,
-                              QuantityPredicate              qp_predicate)
+                              QuantityPredicate              qp_predicate) const
     {
       FECellIntegrator<dim, n_comp, Number, VectorizedArrayType> fe_eval_all(
         matrix_free);

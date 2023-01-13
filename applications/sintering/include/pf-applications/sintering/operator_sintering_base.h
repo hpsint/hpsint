@@ -390,7 +390,8 @@ namespace Sintering
       const BlockVectorType &      vec,
       const std::set<std::string> &fields_list,
       typename OperatorBase<dim, Number, VectorizedArrayType, T>::
-        QuantityPredicate predicate = [](const Point<dim> &) { return true; })
+        QuantityPredicate predicate =
+          [](const Point<dim> &) { return true; }) const
     {
       std::vector<typename OperatorBase<dim, Number, VectorizedArrayType, T>::
                     QuantityCallback>
@@ -432,7 +433,7 @@ namespace Sintering
           quantities.push_back(callback);
         }
 
-      auto q_values = calc_domain_quantities(quantities, vec, predicate);
+      auto q_values = this->calc_domain_quantities(quantities, vec, predicate);
 
       for (unsigned int i = 0; i < quantities.size(); ++i)
         table.add_value(labels[i], q_values[i]);
