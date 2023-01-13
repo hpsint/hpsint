@@ -224,12 +224,12 @@ namespace Sintering
       const auto  weight      = this->data.time_data.get_primary_weight();
       const auto &L           = mobility.Lgb();
 
+      const auto &component_table = this->data.get_component_table();
+
       const auto old_solutions = this->history.get_old_solutions();
 
       for (auto cell = range.first; cell < range.second; ++cell)
         {
-          const auto &component_table = this->data.get_component_table()[cell];
-
           phi.reinit(cell);
           phi.gather_evaluate(src,
                               EvaluationFlags::EvaluationFlags::values |
@@ -254,12 +254,13 @@ namespace Sintering
               auto value    = phi.get_value(q);
               auto gradient = phi.get_gradient(q);
 
-              for (unsigned int ig = 0; ig < n_grains; ++ig)
-                if (component_table[ig] == false)
-                  {
-                    value[ig + 2]    = VectorizedArrayType();
-                    gradient[ig + 2] = Tensor<1, dim, VectorizedArrayType>();
-                  }
+              if (component_table.size(0) > 0)
+                for (unsigned int ig = 0; ig < n_grains; ++ig)
+                  if (component_table[cell][ig] == false)
+                    {
+                      value[ig + 2]    = VectorizedArrayType();
+                      gradient[ig + 2] = Tensor<1, dim, VectorizedArrayType>();
+                    }
 
               const VectorizedArrayType *                etas_value = &value[2];
               const Tensor<1, dim, VectorizedArrayType> *etas_gradient =
@@ -336,13 +337,14 @@ namespace Sintering
                     }
 
 
-              for (unsigned int ig = 0; ig < n_grains; ++ig)
-                if (component_table[ig] == false)
-                  {
-                    value_result[ig + 2] = VectorizedArrayType();
-                    gradient_result[ig + 2] =
-                      Tensor<1, dim, VectorizedArrayType>();
-                  }
+              if (component_table.size(0) > 0)
+                for (unsigned int ig = 0; ig < n_grains; ++ig)
+                  if (component_table[cell][ig] == false)
+                    {
+                      value_result[ig + 2] = VectorizedArrayType();
+                      gradient_result[ig + 2] =
+                        Tensor<1, dim, VectorizedArrayType>();
+                    }
 
               phi.submit_value(value_result, q);
               phi.submit_gradient(gradient_result, q);

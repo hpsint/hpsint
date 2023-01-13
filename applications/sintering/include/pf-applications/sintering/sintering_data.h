@@ -100,7 +100,8 @@ namespace Sintering
     void
     set_component_mask(
       const MatrixFree<dim, Number, VectorizedArrayType> &          matrix_free,
-      const LinearAlgebra::distributed::DynamicBlockVector<Number> &src)
+      const LinearAlgebra::distributed::DynamicBlockVector<Number> &src,
+      const double grain_use_cut_off_tolerance)
     {
       src.update_ghost_values();
 
@@ -128,7 +129,7 @@ namespace Sintering
                 {
                   cell_iterator->get_dof_values(src.block(b + 2), values);
 
-                  if (values.linfty_norm() > 0.0001)
+                  if (values.linfty_norm() > grain_use_cut_off_tolerance)
                     component_table[cell][b] = true;
                 }
             }

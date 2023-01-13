@@ -284,7 +284,8 @@ namespace Sintering
     ProfilingData          profiling_data;
     NonLinearData          nonlinear_data;
 
-    bool matrix_based = false;
+    bool   matrix_based            = false;
+    double grain_cut_off_tolerance = 0.001;
 
     bool print_time_loop = true;
 
@@ -367,6 +368,9 @@ namespace Sintering
       prm.add_parameter("MatrixBased",
                         matrix_based,
                         "Run program matrix-based or matrix-free.");
+      prm.add_parameter("GrainCutOffTolerance",
+                        grain_cut_off_tolerance,
+                        "Grain cut-off tolerance.");
 
       prm.enter_subsection("Approximation");
       prm.add_parameter("FEDegree",
