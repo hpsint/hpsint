@@ -105,12 +105,14 @@ namespace Sintering
     {
       src.update_ghost_values();
 
+      const auto comm = MPI_COMM_WORLD;
+
       const unsigned n_cells = matrix_free.n_cell_batches();
 
-      component_table.reinit({n_cells, this->n_components() - 2});
+      component_table.reinit({n_cells, n_grains()});
 
       for (unsigned int i = 0; i < n_cells; ++i)
-        for (unsigned int j = 0; j < this->n_components() - 2; ++j)
+        for (unsigned int j = 0; j < n_grains(); ++j)
           component_table[i][j] = false;
 
       const auto &dof_handler = matrix_free.get_dof_handler();
@@ -125,7 +127,7 @@ namespace Sintering
             {
               const auto cell_iterator = matrix_free.get_cell_iterator(cell, v);
 
-              for (unsigned int b = 0; b < this->n_components() - 2; ++b)
+              for (unsigned int b = 0; b < n_grains(); ++b)
                 {
                   cell_iterator->get_dof_values(src.block(b + 2), values);
 
@@ -134,6 +136,38 @@ namespace Sintering
                 }
             }
         }
+
+      std::vector<unsigned int> counters(n_cells, 0);
+
+      for (unsigned int i = 0; i < n_cells; ++i)
+        {
+          for (unsigned int j = 0; j < n_grains(); ++j)
+            if (component_table[i][j])
+              counters[i]++;
+        }
+
+      unsigned int max_value =
+        *std::max_element(counters.begin(), counters.end());
+      max_value = Utilities::MPI::max(max_value, comm);
+
+      std::vector<unsigned int> max_values(max_value, 0);
+
+      for (const auto i : counters)
+        if (i != 0)
+          max_values[i - 1]++;
+
+      Utilities::MPI::sum(max_values, comm, max_values);
+
+      ConditionalOStream pcout(std::cout,
+                               Utilities::MPI::this_mpi_process(comm) == 0);
+
+      pcout << "Cut-off statistic: " << max_value << " (";
+
+      pcout << (1) << ": " << max_values[0];
+      for (unsigned int i = 1; i < max_values.size(); ++i)
+        pcout << ", " << (i + 1) << ": " << max_values[i];
+
+      pcout << ")" << std::endl;
 
       src.zero_out_ghost_values();
     }
