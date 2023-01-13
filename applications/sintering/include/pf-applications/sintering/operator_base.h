@@ -164,10 +164,10 @@ namespace Sintering
     using value_type  = Number;
     using vector_type = VectorType;
 
-    using QuantityCallback =
-      std::function<Number(const VectorizedArrayType *,
-                           const Tensor<1, dim, VectorizedArrayType> *,
-                           const unsigned int)>;
+    using QuantityCallback = std::function<
+      VectorizedArrayType(const VectorizedArrayType *,
+                          const Tensor<1, dim, VectorizedArrayType> *,
+                          const unsigned int)>;
 
     using QuantityPredicate = std::function<bool(const Point<dim> &)>;
 
