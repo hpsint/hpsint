@@ -851,6 +851,60 @@ namespace Sintering
           dst, src);
     }
 
+    template <int n_comp, int n_grains>
+    std::vector<Number>
+    do_calc_domain_quantities(std::vector<QuantityCallback> &quantities,
+                              const BlockVectorType &        vec,
+                              QuantityPredicate              qp_predicate)
+    {
+      FECellIntegrator<dim, n_comp, Number, VectorizedArrayType> fe_eval_all(
+        matrix_free);
+
+      FECellIntegrator<dim, 1, Number, VectorizedArrayType> fe_eval_one(
+        matrix_free);
+
+      std::vector<FECellIntegrator<dim, 1, Number, VectorizedArrayType>>
+                          fe_eval(quantities.size(), fe_eval_one);
+      std::vector<Number> q_values(quantities.size());
+
+      vec.update_ghost_values();
+
+      for (unsigned int cell = 0; cell < matrix_free.n_cell_batches(); ++cell)
+        {
+          fe_eval_all.reinit(cell);
+          fe_eval_all.read_dof_values_plain(vec);
+          fe_eval_all.evaluate(EvaluationFlags::values |
+                               EvaluationFlags::gradients);
+
+          for (unsigned int q = 0; q < fe_eval_all.n_q_points; ++q)
+            {
+              const auto &p        = fe_eval_all.quadrature_point(q);
+              const bool  do_point = qp_predicate(p);
+
+              for (unsigned int i = 0; i < quantities.size(); ++i)
+                {
+                  Tensor<1, 1, VectorizedArrayType> value_result;
+
+                  if (do_point)
+                    {
+                      const auto &q_eval = quantities[i];
+                      const auto  val    = fe_eval_all.get_value(q);
+                      const auto  grad   = fe_eval_all.get_gradient(q);
+
+                      value_result = q_eval(&val[0], &grad[0], n_grains);
+                    }
+                  fe_eval[i].submit_value(value_result, q);
+                }
+            }
+
+          for (unsigned int i = 0; i < quantities.size(); ++i)
+            q_values[i] += fe_eval[i].integrate_value();
+        }
+
+      vec.update_ghost_values();
+
+      return q_values;
+    }
 
   protected:
     const MatrixFree<dim, Number, VectorizedArrayType> &matrix_free;
