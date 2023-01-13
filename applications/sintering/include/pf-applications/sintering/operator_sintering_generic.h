@@ -336,6 +336,13 @@ namespace Sintering
                     }
 
 
+              for (unsigned int ig = 0; ig < n_grains; ++ig)
+                if (component_table[ig] == false)
+                  {
+                    value_result[ig + 2] = VectorizedArrayType();
+                    gradient_result[ig + 2] =
+                      Tensor<1, dim, VectorizedArrayType>();
+                  }
 
               phi.submit_value(value_result, q);
               phi.submit_gradient(gradient_result, q);

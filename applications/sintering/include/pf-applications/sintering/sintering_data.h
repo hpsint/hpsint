@@ -102,8 +102,39 @@ namespace Sintering
       const MatrixFree<dim, Number, VectorizedArrayType> &          matrix_free,
       const LinearAlgebra::distributed::DynamicBlockVector<Number> &src)
     {
-      (void)matrix_free;
-      (void)src;
+      src.update_ghost_values();
+
+      const unsigned n_cells = matrix_free.n_cell_batches();
+
+      component_table.reinit({n_cells, this->n_components() - 2});
+
+      for (unsigned int i = 0; i < n_cells; ++i)
+        for (unsigned int j = 0; j < this->n_components() - 2; ++j)
+          component_table[i][j] = false;
+
+      const auto &dof_handler = matrix_free.get_dof_handler();
+
+      Vector<Number> values(dof_handler.get_fe().n_dofs_per_cell());
+
+      for (unsigned int cell = 0; cell < n_cells; ++cell)
+        {
+          for (unsigned int v = 0;
+               v < matrix_free.n_active_entries_per_cell_batch(cell);
+               ++v)
+            {
+              const auto cell_iterator = matrix_free.get_cell_iterator(cell, v);
+
+              for (unsigned int b = 0; b < this->n_components() - 2; ++b)
+                {
+                  cell_iterator->get_dof_values(src.block(b + 2), values);
+
+                  if (values.linfty_norm() > 0.0001)
+                    component_table[cell][b] = true;
+                }
+            }
+        }
+
+      src.zero_out_ghost_values();
     }
 
     void
