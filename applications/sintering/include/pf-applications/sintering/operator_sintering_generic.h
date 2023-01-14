@@ -91,9 +91,6 @@ namespace Sintering
       AssertThrow(false, ExcNotImplemented());
 
       (void)matrix_free;
-      (void)dst;
-      (void)src;
-      (void)range;
 
       std::vector<
         std::shared_ptr<FEEvaluationData<dim, VectorizedArrayType, false>>>
@@ -102,10 +99,19 @@ namespace Sintering
       std::vector<const VectorType *> src_;
       std::vector<VectorType *>       dst_;
 
+      const auto &component_table = this->data.get_component_table();
+
       for (auto cell = range.first; cell < range.second; ++cell)
         {
-          constexpr unsigned int n_grains = 2;
-          constexpr unsigned int n_comp   = n_grains + 2;
+          for (unsigned int b = 0; b < this->n_components(); ++b)
+            if (b < 2 || component_table[cell][b - 2])
+              {
+                src_.push_back(&src.block(b));
+                dst_.push_back(&dst.block(b));
+              }
+
+          constexpr unsigned int n_comp   = 4;
+          constexpr unsigned int n_grains = n_comp - 2;
 
           auto &phi = static_cast<
             FECellIntegrator<dim, n_comp, Number, VectorizedArrayType> &>(
