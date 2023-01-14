@@ -90,10 +90,10 @@ namespace Sintering
     {
       AssertThrow(false, ExcNotImplemented());
 
-      (void) matrix_free;
-      (void) dst;
-      (void) src;
-      (void) range;
+      (void)matrix_free;
+      (void)dst;
+      (void)src;
+      (void)range;
     }
 
     void
@@ -110,13 +110,14 @@ namespace Sintering
             vmult(dst, src);
         }
       else
-        {                                                
-          MyMatrixFreeTools::cell_loop_wrapper(this->matrix_free,                   
-            &SinteringOperatorGeneric::do_vmult_range_no_template, 
-              this,                                
-                                       dst,                                 
-                                       src,                                 
-                                       true);
+        {
+          MyMatrixFreeTools::cell_loop_wrapper(
+            this->matrix_free,
+            &SinteringOperatorGeneric::do_vmult_range_no_template,
+            this,
+            dst,
+            src,
+            true);
         }
     }
 
