@@ -103,6 +103,13 @@ namespace Sintering
       return n_comp_total;
     }
 
+    template <int n_comp, int n_grains, typename FECellIntegratorType>
+    void
+    do_vmult_kernel(FECellIntegratorType &) const
+    {
+      AssertThrow(false, ExcNotImplemented());
+    }
+
   private:
     template <int n_comp, int n_grains>
     void
