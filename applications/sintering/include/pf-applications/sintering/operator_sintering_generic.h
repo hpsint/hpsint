@@ -332,7 +332,7 @@ namespace Sintering
   private:
     template <int n_comp, int n_grains, int with_time_derivative, typename FECellIntegratorType>
     void
-    do_evaluate_nonlinear_residual_cell(FECellIntegratorType &phi, const AlignedVector<VectorizedArrayType> buffer) const
+    do_evaluate_nonlinear_residual_cell(FECellIntegratorType &phi, const AlignedVector<VectorizedArrayType>& buffer) const
     {
       const unsigned int cell = phi.get_current_cell_index();
 
@@ -455,30 +455,16 @@ namespace Sintering
                         EvaluationFlags::EvaluationFlags::gradients);
     }
 
-    template <int n_comp, int n_grains, int with_time_derivative>
+    template <int n_comp, int with_time_derivative, typename FECellIntegratorType>
     void
-    do_evaluate_nonlinear_residual(
-      const MatrixFree<dim, Number, VectorizedArrayType> &matrix_free,
-      BlockVectorType &                                   dst,
-      const BlockVectorType &                             src,
-      const std::pair<unsigned int, unsigned int> &       range) const
+    do_evalute_history(FECellIntegratorType &phi, AlignedVector<VectorizedArrayType> &buffer) const
     {
-      AssertDimension(n_comp - 2, n_grains);
-      FECellIntegrator<dim, n_comp, Number, VectorizedArrayType> phi(
-        matrix_free, this->dof_index);
-
+          if (with_time_derivative == 2)
+            {
       const auto &order       = this->data.time_data.get_order();
       const auto & weights    = this->data.time_data.get_weights();
       const auto old_solutions = this->history.get_old_solutions();
 
-      AlignedVector<VectorizedArrayType> buffer;
-
-      for (auto cell = range.first; cell < range.second; ++cell)
-        {
-          phi.reinit(cell);
-
-          if (with_time_derivative == 2)
-            {
               buffer.resize_fast(std::max(phi.dofs_per_cell, n_comp * phi.n_q_points));
 
               for (unsigned int i = 0; i < order; ++i)
@@ -498,6 +484,27 @@ namespace Sintering
                 for (unsigned int c = 0; c < n_comp; ++c)
                   buffer[q*n_comp + c] = phi.begin_values()[q + c * phi.n_q_points];
             }
+    }
+
+    template <int n_comp, int n_grains, int with_time_derivative>
+    void
+    do_evaluate_nonlinear_residual(
+      const MatrixFree<dim, Number, VectorizedArrayType> &matrix_free,
+      BlockVectorType &                                   dst,
+      const BlockVectorType &                             src,
+      const std::pair<unsigned int, unsigned int> &       range) const
+    {
+      AssertDimension(n_comp - 2, n_grains);
+      FECellIntegrator<dim, n_comp, Number, VectorizedArrayType> phi(
+        matrix_free, this->dof_index);
+
+      AlignedVector<VectorizedArrayType> buffer;
+
+      for (auto cell = range.first; cell < range.second; ++cell)
+        {
+          phi.reinit(cell);
+
+          do_evalute_history<n_comp, with_time_derivative>(phi, buffer);
 
           phi.read_dof_values(src);
 
