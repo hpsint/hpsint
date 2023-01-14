@@ -93,12 +93,7 @@ namespace Sintering
     void
     vmult_internal(VectorType &dst, const VectorType &src) const override
     {
-      OperatorBase<
-        dim,
-        Number,
-        VectorizedArrayType,
-        SinteringOperatorGeneric<dim, Number, VectorizedArrayType>>::vmult(dst,
-                                                                           src);
+      OperatorBase<dim, Number, VectorizedArrayType, T>::vmult(dst, src);
     }
 
     void
@@ -174,9 +169,7 @@ namespace Sintering
           OperatorBase<
             dim,
             Number,
-            VectorizedArrayType,
-            SinteringOperatorGeneric<dim, Number, VectorizedArrayType>>::
-            vmult_internal(dst, src);
+            VectorizedArrayType, T>::vmult_internal(dst, src);
         }
       else
         {
@@ -195,12 +188,7 @@ namespace Sintering
       LinearAlgebra::distributed::BlockVector<Number> &      dst,
       const LinearAlgebra::distributed::BlockVector<Number> &src) const override
     {
-      OperatorBase<
-        dim,
-        Number,
-        VectorizedArrayType,
-        SinteringOperatorGeneric<dim, Number, VectorizedArrayType>>::vmult(dst,
-                                                                           src);
+      OperatorBase<dim, Number, VectorizedArrayType, T>::vmult(dst, src);
     }
 
     unsigned int
@@ -258,7 +246,7 @@ namespace Sintering
 
           const auto &lin_c_value = lin_value[0];
 
-          const VectorizedArrayType *lin_etas_value = &lin_value[2];
+          const VectorizedArrayType *lin_etas_value = &lin_value[0] + 2;
 
           const auto lin_etas_value_power_2_sum =
             PowerHelper<n_grains, 2>::power_sum(lin_etas_value);
