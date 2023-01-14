@@ -55,7 +55,7 @@ namespace Sintering
       return nonlinear_values;
     }
 
-    Table<3, VectorizedArrayType> &
+    const Table<3, VectorizedArrayType> &
     get_nonlinear_values() const
     {
       return nonlinear_values;
@@ -67,7 +67,7 @@ namespace Sintering
       return nonlinear_gradients;
     }
 
-    Table<3, dealii::Tensor<1, dim, VectorizedArrayType>> &
+    const Table<3, dealii::Tensor<1, dim, VectorizedArrayType>> &
     get_nonlinear_gradients() const
     {
       return nonlinear_gradients;
