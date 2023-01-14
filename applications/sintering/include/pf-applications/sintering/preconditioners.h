@@ -596,15 +596,17 @@ namespace Sintering
           if (free_energy_approximation == 0 && component_table.size(0) > 0)
             {
               const auto range = matrix.local_range();
-              auto       entry = matrix.begin(range.first);
-              auto       end   = matrix.end(range.first);
 
-              if (range.first != range.second)
-                matrix.end(range.second - 1);
+              for (unsigned int r = range.first; r < range.second; ++r)
+                {
+                  auto entry = matrix.begin(r);
+                  auto end   = matrix.end(r);
 
-              for (; entry != end; ++entry)
-                if (entry->row() == entry->column() && entry->value() == 0.0)
-                  entry->value() = 1.0;
+                  for (; entry != end; ++entry)
+                    if (entry->row() == entry->column() &&
+                        entry->value() == 0.0)
+                      entry->value() = 1.0;
+                }
 
               matrix.compress(VectorOperation::insert);
             }
