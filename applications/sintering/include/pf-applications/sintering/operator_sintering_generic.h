@@ -3,6 +3,24 @@
 #include <pf-applications/sintering/advection.h>
 #include <pf-applications/sintering/operator_sintering_base.h>
 
+// clang-format off
+#define EXPAND_OPERATIONS_N_COMP_NT(OPERATION)   \
+  switch (n_comp_nt)                             \
+    {                                            \
+      case  2: {OPERATION( 2, 0); break;}        \
+      case  3: {OPERATION( 3, 0); break;}        \
+      case  4: {OPERATION( 4, 0); break;}        \
+      case  5: {OPERATION( 5, 0); break;}        \
+      case  6: {OPERATION( 6, 0); break;}        \
+      case  7: {OPERATION( 7, 0); break;}        \
+      case  8: {OPERATION( 8, 0); break;}        \
+      case  9: {OPERATION( 9, 0); break;}        \
+      case 10: {OPERATION(10, 0); break;}        \
+      default:                                   \
+        AssertThrow(false, ExcNotImplemented()); \
+    }
+// clang-format on  
+
 namespace Sintering
 {
   using namespace dealii;
@@ -110,24 +128,29 @@ namespace Sintering
                 dst_.push_back(&dst.block(b));
               }
 
-          constexpr unsigned int n_comp   = 4;
-          constexpr unsigned int n_grains = n_comp - 2;
+          const unsigned int n_comp_nt = src_.size();
 
-          auto &phi = static_cast<
-            FECellIntegrator<dim, n_comp, Number, VectorizedArrayType> &>(
-            *phis[n_grains]);
-
-          phi.reinit(cell);
-          phi.read_dof_values(src_);
-          phi.evaluate(EvaluationFlags::EvaluationFlags::values |
-                       EvaluationFlags::EvaluationFlags::gradients);
-
-          static_cast<const T &>(*this)
-            .template do_vmult_kernel<n_comp, n_grains>(phi);
-
-          phi.integrate(EvaluationFlags::EvaluationFlags::values |
-                        EvaluationFlags::EvaluationFlags::gradients);
-          phi.distribute_local_to_global(dst_);
+#define OPERATION(n_comp, dummy)                                               \
+  (void)dummy;                                                                 \
+  constexpr unsigned int n_grains = n_comp - 2;                                \
+                                                                               \
+  auto &phi =                                                                  \
+    static_cast<FECellIntegrator<dim, n_comp, Number, VectorizedArrayType> &>( \
+      *phis[n_grains]);                                                        \
+                                                                               \
+  phi.reinit(cell);                                                            \
+  phi.read_dof_values(src_);                                                   \
+  phi.evaluate(EvaluationFlags::EvaluationFlags::values |                      \
+               EvaluationFlags::EvaluationFlags::gradients);                   \
+                                                                               \
+  static_cast<const T &>(*this).template do_vmult_kernel<n_comp, n_grains>(    \
+    phi);                                                                      \
+                                                                               \
+  phi.integrate(EvaluationFlags::EvaluationFlags::values |                     \
+                EvaluationFlags::EvaluationFlags::gradients);                  \
+  phi.distribute_local_to_global(dst_);
+          EXPAND_OPERATIONS_N_COMP_NT(OPERATION);
+#undef OPERATION
 
           src_.clear();
           dst_.clear();
