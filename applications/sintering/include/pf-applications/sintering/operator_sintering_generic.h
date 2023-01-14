@@ -330,59 +330,21 @@ namespace Sintering
     }
 
   private:
-    template <int n_comp, int n_grains, int with_time_derivative>
+    template <int n_comp, int n_grains, int with_time_derivative, typename FECellIntegratorType>
     void
-    do_evaluate_nonlinear_residual(
-      const MatrixFree<dim, Number, VectorizedArrayType> &matrix_free,
-      BlockVectorType &                                   dst,
-      const BlockVectorType &                             src,
-      const std::pair<unsigned int, unsigned int> &       range) const
+    do_evaluate_nonlinear_residual_cell(FECellIntegratorType &phi, const AlignedVector<VectorizedArrayType> buffer) const
     {
-      AssertDimension(n_comp - 2, n_grains);
-      FECellIntegrator<dim, n_comp, Number, VectorizedArrayType> phi(
-        matrix_free, this->dof_index);
+      const unsigned int cell = phi.get_current_cell_index();
 
       const auto &free_energy = this->data.free_energy;
       const auto &mobility    = this->data.get_mobility();
       const auto &kappa_c     = this->data.kappa_c;
       const auto &kappa_p     = this->data.kappa_p;
-      const auto &order       = this->data.time_data.get_order();
       const auto & weights    = this->data.time_data.get_weights();
       const auto &L           = mobility.Lgb();
 
       const auto &component_table = this->data.get_component_table();
 
-      const auto old_solutions = this->history.get_old_solutions();
-
-      AlignedVector<VectorizedArrayType> buffer;
-
-      for (auto cell = range.first; cell < range.second; ++cell)
-        {
-          phi.reinit(cell);
-
-          if (with_time_derivative == 2)
-            {
-              buffer.resize_fast(std::max(phi.dofs_per_cell, n_comp * phi.n_q_points));
-
-              for (unsigned int i = 0; i < order; ++i)
-                {
-                  phi.read_dof_values_plain(*old_solutions[i]);
-
-                  for(unsigned int j = 0; j < phi.dofs_per_cell ; ++j)
-                    if(i == 0)
-                      buffer[j] = phi.begin_dof_values()[j] * weights[i + 1];
-                    else
-                      buffer[j] += phi.begin_dof_values()[j] * weights[i + 1];
-                }
-
-              phi.evaluate(buffer.data(), EvaluationFlags::EvaluationFlags::values);
-
-              for (unsigned int q = 0; q < phi.n_q_points; ++q)
-                for (unsigned int c = 0; c < n_comp; ++c)
-                  buffer[q*n_comp + c] = phi.begin_values()[q + c * phi.n_q_points];
-            }
-
-          phi.read_dof_values(src);
           phi.evaluate(EvaluationFlags::EvaluationFlags::values |
                        EvaluationFlags::EvaluationFlags::gradients);
 
@@ -390,7 +352,7 @@ namespace Sintering
           if (this->advection.enabled())
             this->advection.reinit(cell,
                                    static_cast<unsigned int>(n_grains),
-                                   matrix_free);
+                                   phi.get_matrix_free());
 
           for (unsigned int q = 0; q < phi.n_q_points; ++q)
             {
@@ -491,6 +453,56 @@ namespace Sintering
             }
           phi.integrate(EvaluationFlags::EvaluationFlags::values |
                         EvaluationFlags::EvaluationFlags::gradients);
+    }
+
+    template <int n_comp, int n_grains, int with_time_derivative>
+    void
+    do_evaluate_nonlinear_residual(
+      const MatrixFree<dim, Number, VectorizedArrayType> &matrix_free,
+      BlockVectorType &                                   dst,
+      const BlockVectorType &                             src,
+      const std::pair<unsigned int, unsigned int> &       range) const
+    {
+      AssertDimension(n_comp - 2, n_grains);
+      FECellIntegrator<dim, n_comp, Number, VectorizedArrayType> phi(
+        matrix_free, this->dof_index);
+
+      const auto &order       = this->data.time_data.get_order();
+      const auto & weights    = this->data.time_data.get_weights();
+      const auto old_solutions = this->history.get_old_solutions();
+
+      AlignedVector<VectorizedArrayType> buffer;
+
+      for (auto cell = range.first; cell < range.second; ++cell)
+        {
+          phi.reinit(cell);
+
+          if (with_time_derivative == 2)
+            {
+              buffer.resize_fast(std::max(phi.dofs_per_cell, n_comp * phi.n_q_points));
+
+              for (unsigned int i = 0; i < order; ++i)
+                {
+                  phi.read_dof_values_plain(*old_solutions[i]);
+
+                  for(unsigned int j = 0; j < phi.dofs_per_cell ; ++j)
+                    if(i == 0)
+                      buffer[j] = phi.begin_dof_values()[j] * weights[i + 1];
+                    else
+                      buffer[j] += phi.begin_dof_values()[j] * weights[i + 1];
+                }
+
+              phi.evaluate(buffer.data(), EvaluationFlags::EvaluationFlags::values);
+
+              for (unsigned int q = 0; q < phi.n_q_points; ++q)
+                for (unsigned int c = 0; c < n_comp; ++c)
+                  buffer[q*n_comp + c] = phi.begin_values()[q + c * phi.n_q_points];
+            }
+
+          phi.read_dof_values(src);
+
+          do_evaluate_nonlinear_residual_cell<n_comp, n_grains, with_time_derivative>(phi, buffer);
+
           phi.distribute_local_to_global(dst);
         }
     }
