@@ -410,17 +410,27 @@ namespace Sintering
           if (qty == "solid_vol")
             callback = [](const VectorizedArrayType *                value,
                           const Tensor<1, dim, VectorizedArrayType> *gradient,
-                          const unsigned int n_grains) { return value[0]; };
+                          const unsigned int                         n_grains) {
+              (void)gradient;
+              (void)n_grains;
+
+              return value[0];
+            };
           else if (qty == "surf_area")
             callback = [](const VectorizedArrayType *                value,
                           const Tensor<1, dim, VectorizedArrayType> *gradient,
                           const unsigned int                         n_grains) {
+              (void)gradient;
+              (void)n_grains;
+
               return value[0] * (1. - value[0]);
             };
           else if (qty == "gb_area")
             callback = [](const VectorizedArrayType *                value,
                           const Tensor<1, dim, VectorizedArrayType> *gradient,
                           const unsigned int                         n_grains) {
+              (void)gradient;
+
               VectorizedArrayType eta_ij_sum = 0.0;
               for (unsigned int i = 0; i < n_grains; ++i)
                 for (unsigned int j = 0; j < i; ++j)
