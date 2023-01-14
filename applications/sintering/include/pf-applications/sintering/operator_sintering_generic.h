@@ -85,12 +85,19 @@ namespace Sintering
     vmult_internal(BlockVectorType &      dst,
                    const BlockVectorType &src) const override
     {
-      OperatorBase<
-        dim,
-        Number,
-        VectorizedArrayType,
-        SinteringOperatorGeneric<dim, Number, VectorizedArrayType>>::vmult(dst,
-                                                                           src);
+      if (this->data.get_component_table().size(0) == 0)
+        {
+          OperatorBase<
+            dim,
+            Number,
+            VectorizedArrayType,
+            SinteringOperatorGeneric<dim, Number, VectorizedArrayType>>::
+            vmult(dst, src);
+        }
+      else
+        {
+          AssertThrow(false, ExcNotImplemented());
+        }
     }
 
     void
