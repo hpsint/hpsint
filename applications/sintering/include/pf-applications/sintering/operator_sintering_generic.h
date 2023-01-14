@@ -110,9 +110,9 @@ namespace Sintering
     {
       std::vector<
         std::shared_ptr<FEEvaluationData<dim, VectorizedArrayType, false>>>
-        phis(this->n_grains());
+        phis(this->n_grains() + 1);
 
-      for(unsigned int i = 0; i < this->n_grains(); ++i)
+      for(unsigned int i = 0; i <= this->n_grains(); ++i)
       {
         const unsigned int n_comp_nt = i + 2;
 #define OPERATION(n_comp, dummy)                                               \
