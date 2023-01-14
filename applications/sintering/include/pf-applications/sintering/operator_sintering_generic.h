@@ -202,8 +202,6 @@ namespace Sintering
       const auto  weight      = this->data.time_data.get_primary_weight();
       const auto &L           = mobility.Lgb();
 
-      const auto &component_table = this->data.get_component_table();
-
       // Reinit advection data for the current cells batch
       if (this->advection.enabled())
         this->advection.reinit(cell,
@@ -217,14 +215,6 @@ namespace Sintering
 
           auto value    = phi.get_value(q);
           auto gradient = phi.get_gradient(q);
-
-          if (component_table.size(0) > 0)
-            for (unsigned int ig = 0; ig < n_grains; ++ig)
-              if (component_table[cell][ig] == false)
-                {
-                  value[ig + 2]    = VectorizedArrayType();
-                  gradient[ig + 2] = Tensor<1, dim, VectorizedArrayType>();
-                }
 
           const auto &lin_value    = nonlinear_values[cell][q];
           const auto &lin_gradient = nonlinear_gradients[cell][q];
@@ -299,16 +289,6 @@ namespace Sintering
                   value_result[0] += velocity_ig * gradient[0];
 
                   value_result[ig + 2] += velocity_ig * gradient[ig + 2];
-                }
-
-
-          if (component_table.size(0) > 0)
-            for (unsigned int ig = 0; ig < n_grains; ++ig)
-              if (component_table[cell][ig] == false)
-                {
-                  value_result[ig + 2] = VectorizedArrayType();
-                  gradient_result[ig + 2] =
-                    Tensor<1, dim, VectorizedArrayType>();
                 }
 
 
