@@ -70,6 +70,42 @@ namespace Sintering
 #undef OPERATION
     }
 
+    void
+    vmult_internal(VectorType &dst, const VectorType &src) const override
+    {
+      OperatorBase<
+        dim,
+        Number,
+        VectorizedArrayType,
+        SinteringOperatorGeneric<dim, Number, VectorizedArrayType>>::vmult(dst,
+                                                                           src);
+    }
+
+    void
+    vmult_internal(BlockVectorType &      dst,
+                   const BlockVectorType &src) const override
+    {
+      OperatorBase<
+        dim,
+        Number,
+        VectorizedArrayType,
+        SinteringOperatorGeneric<dim, Number, VectorizedArrayType>>::vmult(dst,
+                                                                           src);
+    }
+
+    void
+    vmult_internal(
+      LinearAlgebra::distributed::BlockVector<Number> &      dst,
+      const LinearAlgebra::distributed::BlockVector<Number> &src) const override
+    {
+      OperatorBase<
+        dim,
+        Number,
+        VectorizedArrayType,
+        SinteringOperatorGeneric<dim, Number, VectorizedArrayType>>::vmult(dst,
+                                                                           src);
+    }
+
     unsigned int
     n_components() const override
     {
