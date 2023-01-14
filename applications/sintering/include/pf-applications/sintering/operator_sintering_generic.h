@@ -406,14 +406,11 @@ namespace Sintering
 
 
               // 1) process c row
-              if (with_time_derivative == 2)
-                {
-                  value_result[0] = value[0] * weights[0];
-                  for (unsigned int i = 0; i < order; ++i)
-                    value_result[0] += time_phi[i].get_value(q)[0] * weights[i + 1];
-                }
-              else if (with_time_derivative == 1)
+              if (with_time_derivative >= 1)
                 value_result[0] = value[0] * weights[0];
+              if (with_time_derivative == 2)
+                for (unsigned int i = 0; i < order; ++i)
+                  value_result[0] += time_phi[i].get_value(q)[0] * weights[i + 1];
 
               gradient_result[0] = mobility.apply_M(value[0],
                                                     etas_value,
@@ -443,18 +440,14 @@ namespace Sintering
                                              etas_value_power_2_sum,
                                              ig);
 
-                  if (with_time_derivative == 2)
-                {
-                  value_result[2 + ig] = value[2 + ig] * weights[0];
-                  for (unsigned int i = 0; i < order; ++i)
-                    value_result[2 + ig] += time_phi[i].get_value(q)[2 + ig] * weights[i + 1];
-                }
-                  else if (with_time_derivative == 1)
+                  if (with_time_derivative >= 1)
                     value_result[ig + 2] += value[ig + 2] * weights[0];
+                  if (with_time_derivative == 2)
+                    for (unsigned int i = 0; i < order; ++i)
+                      value_result[2 + ig] += time_phi[i].get_value(q)[2 + ig] * weights[i + 1];
 
                   gradient_result[2 + ig] = L * kappa_p * gradient[2 + ig];
                 }
-
 
 
               // 4) add advection contributations -> influences c AND etas
