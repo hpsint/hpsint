@@ -197,11 +197,10 @@ namespace Sintering
         *std::max_element(counters.begin(), counters.end());
       max_value = Utilities::MPI::max(max_value, comm);
 
-      std::vector<unsigned int> max_values(max_value, 0);
+      std::vector<unsigned int> max_values(max_value + 1, 0);
 
       for (const auto i : counters)
-        if (i != 0)
-          max_values[i - 1]++;
+        max_values[i]++;
 
       Utilities::MPI::sum(max_values, comm, max_values);
 
@@ -210,9 +209,9 @@ namespace Sintering
 
       pcout << "Cut-off statistic: " << max_value << " (";
 
-      pcout << (1) << ": " << max_values[0];
+      pcout << (0) << ": " << max_values[0];
       for (unsigned int i = 1; i < max_values.size(); ++i)
-        pcout << ", " << (i + 1) << ": " << max_values[i];
+        pcout << ", " << i << ": " << max_values[i];
 
       pcout << ")" << std::endl;
 
