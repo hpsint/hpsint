@@ -342,8 +342,6 @@ namespace Sintering
       FECellIntegrator<dim, n_comp, Number, VectorizedArrayType> phi(
         matrix_free, this->dof_index);
 
-      auto time_phi = this->time_integrator.create_cell_intergator(phi);
-
       const auto &free_energy = this->data.free_energy;
       const auto &mobility    = this->data.get_mobility();
       const auto &kappa_c     = this->data.kappa_c;
@@ -356,20 +354,37 @@ namespace Sintering
 
       const auto old_solutions = this->history.get_old_solutions();
 
+      AlignedVector<VectorizedArrayType> buffer;
+
       for (auto cell = range.first; cell < range.second; ++cell)
         {
           phi.reinit(cell);
+
+          if (with_time_derivative == 2)
+            {
+              buffer.resize_fast(std::max(phi.dofs_per_cell, n_comp * phi.n_q_points));
+
+              for (unsigned int i = 0; i < order; ++i)
+                {
+                  phi.read_dof_values_plain(*old_solutions[i]);
+
+                  for(unsigned int j = 0; j < phi.dofs_per_cell ; ++j)
+                    if(i == 0)
+                      buffer[j] = phi.begin_dof_values()[j] * weights[i + 1];
+                    else
+                      buffer[j] += phi.begin_dof_values()[j] * weights[i + 1];
+                }
+
+              phi.evaluate(buffer.data(), EvaluationFlags::EvaluationFlags::values);
+
+              for (unsigned int q = 0; q < phi.n_q_points; ++q)
+                for (unsigned int c = 0; c < n_comp; ++c)
+                  buffer[q*n_comp + c] = phi.begin_values()[q + c * phi.n_q_points];
+            }
+
           phi.gather_evaluate(src,
                               EvaluationFlags::EvaluationFlags::values |
                                 EvaluationFlags::EvaluationFlags::gradients);
-
-          if (with_time_derivative == 2)
-            for (unsigned int i = 0; i < order; ++i)
-              {
-                time_phi[i].reinit(cell);
-                time_phi[i].read_dof_values_plain(*old_solutions[i]);
-                time_phi[i].evaluate(EvaluationFlags::EvaluationFlags::values);
-              }
 
           // Reinit advection data for the current cells batch
           if (this->advection.enabled())
@@ -409,8 +424,7 @@ namespace Sintering
               if (with_time_derivative >= 1)
                 value_result[0] = value[0] * weights[0];
               if (with_time_derivative == 2)
-                for (unsigned int i = 0; i < order; ++i)
-                  value_result[0] += time_phi[i].get_value(q)[0] * weights[i + 1];
+                value_result[0] += buffer[n_comp * q];
 
               gradient_result[0] = mobility.apply_M(value[0],
                                                     etas_value,
@@ -443,8 +457,7 @@ namespace Sintering
                   if (with_time_derivative >= 1)
                     value_result[ig + 2] += value[ig + 2] * weights[0];
                   if (with_time_derivative == 2)
-                    for (unsigned int i = 0; i < order; ++i)
-                      value_result[2 + ig] += time_phi[i].get_value(q)[2 + ig] * weights[i + 1];
+                    value_result[2 + ig] += buffer[n_comp * q + 2 + ig];
 
                   gradient_result[2 + ig] = L * kappa_p * gradient[2 + ig];
                 }
