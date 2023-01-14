@@ -94,6 +94,38 @@ namespace Sintering
       (void)dst;
       (void)src;
       (void)range;
+
+      std::vector<
+        std::shared_ptr<FEEvaluationData<dim, VectorizedArrayType, false>>>
+        phis;
+
+      std::vector<const VectorType *> src_;
+      std::vector<VectorType *>       dst_;
+
+      for (auto cell = range.first; cell < range.second; ++cell)
+        {
+          constexpr unsigned int n_grains = 2;
+          constexpr unsigned int n_comp   = n_grains + 2;
+
+          auto &phi = static_cast<
+            FECellIntegrator<dim, n_comp, Number, VectorizedArrayType> &>(
+            *phis[n_grains]);
+
+          phi.reinit(cell);
+          phi.read_dof_values(src_);
+          phi.evaluate(EvaluationFlags::EvaluationFlags::values |
+                       EvaluationFlags::EvaluationFlags::gradients);
+
+          static_cast<const T &>(*this)
+            .template do_vmult_kernel<n_comp, n_grains>(phi);
+
+          phi.integrate(EvaluationFlags::EvaluationFlags::values |
+                        EvaluationFlags::EvaluationFlags::gradients);
+          phi.distribute_local_to_global(dst_);
+
+          src_.clear();
+          dst_.clear();
+        }
     }
 
     void
