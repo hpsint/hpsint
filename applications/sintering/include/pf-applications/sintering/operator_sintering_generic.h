@@ -536,10 +536,68 @@ namespace Sintering
       const BlockVectorType &                             src,
       const std::pair<unsigned int, unsigned int> &       range) const
     {
-      (void) matrix_free;
-      (void) dst;
-      (void) src;
-      (void) range;
+      std::vector<
+        std::shared_ptr<FEEvaluationData<dim, VectorizedArrayType, false>>>
+        phis(this->n_grains() + 1);
+
+      for(unsigned int i = 0; i <= this->n_grains(); ++i)
+      {
+        const unsigned int n_comp_nt = i + 2;
+#define OPERATION(n_comp, dummy)                                               \
+  (void)dummy;                                                                 \
+        phis[i] = std::make_shared<FECellIntegrator<dim, n_comp, Number, VectorizedArrayType>>(matrix_free, this->dof_index);
+          EXPAND_OPERATIONS_N_COMP_NT(OPERATION);
+#undef OPERATION
+      }
+
+      AlignedVector<VectorizedArrayType> buffer;
+
+      std::vector<const VectorType *> src_view;
+      std::vector<VectorType *>       dst_view;
+
+      for (auto cell = range.first; cell < range.second; ++cell)
+        {
+          // CH blocks
+          for (unsigned int b = 0; b < 2; ++b)
+            {
+              src_view.push_back(&src.block(b));
+              dst_view.push_back(&dst.block(b));
+            }
+
+          // relevant AC blocks
+          for (const auto b : this->data.get_relevant_grains(cell))
+            {
+              src_view.push_back(&src.block(b + 2));
+              dst_view.push_back(&dst.block(b + 2));
+            }
+
+          const unsigned int n_comp_nt = src_view.size();
+
+#define OPERATION(n_comp, dummy)                                               \
+  (void)dummy;                                                                 \
+  constexpr unsigned int n_grains = n_comp - 2;                                \
+                                                                               \
+  auto &phi =                                                                  \
+    static_cast<FECellIntegrator<dim, n_comp, Number, VectorizedArrayType> &>( \
+      *phis[n_grains]);                                                        \
+                                                                               \
+  phi.reinit(cell);                                                            \
+  phi.read_dof_values(src_view);                                               \
+  phi.evaluate(EvaluationFlags::EvaluationFlags::values |                      \
+               EvaluationFlags::EvaluationFlags::gradients);                   \
+                                                                               \
+  do_evaluate_nonlinear_residual_cell<n_comp, n_grains, with_time_derivative>( \
+    phi, buffer);                                                              \
+                                                                               \
+  phi.integrate(EvaluationFlags::EvaluationFlags::values |                     \
+                EvaluationFlags::EvaluationFlags::gradients);                  \
+  phi.distribute_local_to_global(dst_view);
+          EXPAND_OPERATIONS_N_COMP_NT(OPERATION);
+#undef OPERATION
+
+          src_view.clear();
+          dst_view.clear();
+        }
     }
 
     const AdvectionMechanism<dim, Number, VectorizedArrayType> &advection;
