@@ -101,9 +101,13 @@ namespace Sintering
     set_component_mask(
       const MatrixFree<dim, Number, VectorizedArrayType> &          matrix_free,
       const LinearAlgebra::distributed::DynamicBlockVector<Number> &src,
+      const bool   save_op_gradients,
+      const bool   save_all_blocks,
       const double grain_use_cut_off_tolerance)
     {
       src.update_ghost_values();
+
+      const unsigned n_quadrature_points = matrix_free.get_quadrature().size();
 
       const auto comm = MPI_COMM_WORLD;
 
@@ -137,6 +141,32 @@ namespace Sintering
             }
         }
 
+      for (unsigned int cell = 0; cell < n_cells; ++cell)
+        {
+          unsigned int counter = 0;
+
+          for (unsigned int j = 0; j < n_grains(); ++j)
+            if (component_table[cell][j])
+              counter++;
+
+          const unsigned n_components_save_value =
+            (save_all_blocks ? src.n_blocks() : this->n_components()) -
+            n_grains() + counter;
+
+          const unsigned n_components_save_gradient =
+            use_tensorial_mobility || save_op_gradients ?
+              n_components_save_value :
+              2;
+
+          value_ptr.emplace_back(value_ptr.back() +
+                                 n_quadrature_points * n_components_save_value);
+          gradient_ptr.emplace_back(gradient_ptr.back() +
+                                    n_quadrature_points *
+                                      n_components_save_gradient);
+        }
+
+
+      // some statistics
       std::vector<unsigned int> counters(n_cells, 0);
 
       for (unsigned int i = 0; i < n_cells; ++i)
@@ -277,6 +307,10 @@ namespace Sintering
     mutable Table<3, VectorizedArrayType> nonlinear_values;
     mutable Table<3, dealii::Tensor<1, dim, VectorizedArrayType>>
       nonlinear_gradients;
+
+
+    std::vector<unsigned int> value_ptr;
+    std::vector<unsigned int> gradient_ptr;
 
     mutable Table<2, bool> component_table;
 
