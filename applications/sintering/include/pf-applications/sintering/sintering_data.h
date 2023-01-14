@@ -49,22 +49,10 @@ namespace Sintering
     TimeIntegration::TimeIntegratorData<Number> time_data;
 
   public:
-    Table<3, VectorizedArrayType> &
-    get_nonlinear_values()
-    {
-      return nonlinear_values;
-    }
-
     const Table<3, VectorizedArrayType> &
     get_nonlinear_values() const
     {
       return nonlinear_values;
-    }
-
-    Table<3, dealii::Tensor<1, dim, VectorizedArrayType>> &
-    get_nonlinear_gradients()
-    {
-      return nonlinear_gradients;
     }
 
     const Table<3, dealii::Tensor<1, dim, VectorizedArrayType>> &
