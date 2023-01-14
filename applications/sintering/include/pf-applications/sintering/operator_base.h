@@ -913,7 +913,7 @@ namespace Sintering
             q_values[i] += fe_eval[i].integrate_value();
         }
 
-      vec.update_ghost_values();
+      vec.zero_out_ghost_values();
 
       return q_values;
     }
