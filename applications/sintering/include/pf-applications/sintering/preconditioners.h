@@ -597,7 +597,10 @@ namespace Sintering
             {
               const auto range = matrix.local_range();
               auto       entry = matrix.begin(range.first);
-              auto       end   = matrix.end(range.second);
+              auto       end   = matrix.end(range.first);
+
+              if (range.first != range.second)
+                matrix.end(range.second - 1);
 
               for (; entry != end; ++entry)
                 if (entry->row() == entry->column() && entry->value() == 0.0)
