@@ -285,7 +285,7 @@ namespace Sintering
     NonLinearData          nonlinear_data;
 
     bool   matrix_based            = false;
-    double grain_cut_off_tolerance = 0.001;
+    double grain_cut_off_tolerance = 0.0; // 0.00001
 
     bool print_time_loop = true;
 
