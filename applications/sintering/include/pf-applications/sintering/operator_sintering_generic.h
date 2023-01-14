@@ -120,16 +120,21 @@ namespace Sintering
       std::vector<const VectorType *> src_;
       std::vector<VectorType *>       dst_;
 
-      const auto &component_table = this->data.get_component_table();
-
       for (auto cell = range.first; cell < range.second; ++cell)
         {
-          for (unsigned int b = 0; b < this->n_components(); ++b)
-            if (b < 2 || component_table[cell][b - 2])
-              {
-                src_.push_back(&src.block(b));
-                dst_.push_back(&dst.block(b));
-              }
+          // CH blocks
+          for (unsigned int b = 0; b < 2; ++b)
+            {
+              src_.push_back(&src.block(b));
+              dst_.push_back(&dst.block(b));
+            }
+
+          // relevant AC blocks
+          for (const auto b : this->data.relevant_grains(cell))
+            {
+              src_.push_back(&src.block(b + 2));
+              dst_.push_back(&dst.block(b + 2));
+            }
 
           const unsigned int n_comp_nt = src_.size();
 

@@ -150,13 +150,21 @@ namespace Sintering
       value_ptr    = {0};
       gradient_ptr = {0};
 
+      relevant_grains_vector = {};
+      relevant_grains_ptr    = {0};
+
       for (unsigned int cell = 0; cell < n_cells; ++cell)
         {
           unsigned int counter = 0;
 
           for (unsigned int j = 0; j < n_grains(); ++j)
             if (component_table[cell][j])
-              counter++;
+              {
+                counter++;
+                relevant_grains_vector.push_back(j);
+              }
+
+          relevant_grains_ptr.push_back(relevant_grains_vector.size());
 
           const unsigned n_components_save_value =
             (save_all_blocks ? src.n_blocks() : this->n_components()) -
@@ -348,6 +356,15 @@ namespace Sintering
       return mobility;
     }
 
+    ArrayView<const unsigned char>
+    relevant_grains(const unsigned int cell) const
+    {
+      return ArrayView<const unsigned char>(relevant_grains_vector.data() +
+                                              relevant_grains_ptr[cell],
+                                            relevant_grains_ptr[cell + 1] -
+                                              relevant_grains_ptr[cell]);
+    }
+
   private:
     MobilityType mobility;
 
@@ -361,6 +378,9 @@ namespace Sintering
 
     std::vector<unsigned int> value_ptr;
     std::vector<unsigned int> gradient_ptr;
+
+    std::vector<unsigned char> relevant_grains_vector;
+    std::vector<unsigned int>  relevant_grains_ptr;
 
     mutable Table<2, bool> component_table;
 
