@@ -61,6 +61,18 @@ namespace Sintering
       return nonlinear_gradients;
     }
 
+    const VectorizedArrayType *
+    get_nonlinear_values(const unsigned int cell) const
+    {
+      return &nonlinear_values[cell][0][0];
+    }
+
+    const dealii::Tensor<1, dim, VectorizedArrayType> *
+    get_nonlinear_gradients(const unsigned int cell) const
+    {
+      return &nonlinear_gradients[cell][0][0];
+    }
+
     Table<2, bool> &
     get_component_table() const
     {

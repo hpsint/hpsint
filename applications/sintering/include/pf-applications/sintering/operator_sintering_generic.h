@@ -217,8 +217,8 @@ namespace Sintering
 
       const unsigned int cell = phi.get_current_cell_index();
 
-      auto lin_value    = &this->data.get_nonlinear_values()[cell][0][0];
-      auto lin_gradient = &this->data.get_nonlinear_gradients()[cell][0][0];
+      auto lin_value    = this->data.get_nonlinear_values(cell);
+      auto lin_gradient = this->data.get_nonlinear_gradients(cell);
 
       const auto &free_energy = this->data.free_energy;
       const auto &mobility    = this->data.get_mobility();
