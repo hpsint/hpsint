@@ -349,7 +349,7 @@ namespace Sintering
       const auto &kappa_c     = this->data.kappa_c;
       const auto &kappa_p     = this->data.kappa_p;
       const auto &order       = this->data.time_data.get_order();
-      const auto  weight      = this->data.time_data.get_primary_weight();
+      const auto & weights    = this->data.time_data.get_weights();
       const auto &L           = mobility.Lgb();
 
       const auto &component_table = this->data.get_component_table();
@@ -407,10 +407,13 @@ namespace Sintering
 
               // 1) process c row
               if (with_time_derivative == 2)
-                this->time_integrator.compute_time_derivative(
-                  value_result[0], value, time_phi, 0, q);
+                {
+                  value_result[0] = value[0] * weights[0];
+                  for (unsigned int i = 0; i < order; ++i)
+                    value_result[0] += time_phi[i].get_value(q)[0] * weights[i + 1];
+                }
               else if (with_time_derivative == 1)
-                value_result[0] = value[0] * weight;
+                value_result[0] = value[0] * weights[0];
 
               gradient_result[0] = mobility.apply_M(value[0],
                                                     etas_value,
@@ -441,10 +444,13 @@ namespace Sintering
                                              ig);
 
                   if (with_time_derivative == 2)
-                    this->time_integrator.compute_time_derivative(
-                      value_result[2 + ig], value, time_phi, 2 + ig, q);
+                {
+                  value_result[2 + ig] = value[2 + ig] * weights[0];
+                  for (unsigned int i = 0; i < order; ++i)
+                    value_result[2 + ig] += time_phi[i].get_value(q)[2 + ig] * weights[i + 1];
+                }
                   else if (with_time_derivative == 1)
-                    value_result[ig + 2] += value[ig + 2] * weight;
+                    value_result[ig + 2] += value[ig + 2] * weights[0];
 
                   gradient_result[2 + ig] = L * kappa_p * gradient[2 + ig];
                 }
