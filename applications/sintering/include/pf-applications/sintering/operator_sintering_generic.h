@@ -117,26 +117,26 @@ namespace Sintering
 #undef OPERATION
       }
 
-      std::vector<const VectorType *> src_;
-      std::vector<VectorType *>       dst_;
+      std::vector<const VectorType *> src_view;
+      std::vector<VectorType *>       dst_view;
 
       for (auto cell = range.first; cell < range.second; ++cell)
         {
           // CH blocks
           for (unsigned int b = 0; b < 2; ++b)
             {
-              src_.push_back(&src.block(b));
-              dst_.push_back(&dst.block(b));
+              src_view.push_back(&src.block(b));
+              dst_view.push_back(&dst.block(b));
             }
 
           // relevant AC blocks
           for (const auto b : this->data.get_relevant_grains(cell))
             {
-              src_.push_back(&src.block(b + 2));
-              dst_.push_back(&dst.block(b + 2));
+              src_view.push_back(&src.block(b + 2));
+              dst_view.push_back(&dst.block(b + 2));
             }
 
-          const unsigned int n_comp_nt = src_.size();
+          const unsigned int n_comp_nt = src_view.size();
 
 #define OPERATION(n_comp, dummy)                                               \
   (void)dummy;                                                                 \
@@ -147,7 +147,7 @@ namespace Sintering
       *phis[n_grains]);                                                        \
                                                                                \
   phi.reinit(cell);                                                            \
-  phi.read_dof_values(src_);                                                   \
+  phi.read_dof_values(src_view);                                               \
   phi.evaluate(EvaluationFlags::EvaluationFlags::values |                      \
                EvaluationFlags::EvaluationFlags::gradients);                   \
                                                                                \
@@ -156,12 +156,12 @@ namespace Sintering
                                                                                \
   phi.integrate(EvaluationFlags::EvaluationFlags::values |                     \
                 EvaluationFlags::EvaluationFlags::gradients);                  \
-  phi.distribute_local_to_global(dst_);
+  phi.distribute_local_to_global(dst_view);
           EXPAND_OPERATIONS_N_COMP_NT(OPERATION);
 #undef OPERATION
 
-          src_.clear();
-          dst_.clear();
+          src_view.clear();
+          dst_view.clear();
         }
     }
 
