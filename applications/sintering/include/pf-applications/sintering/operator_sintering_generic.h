@@ -357,8 +357,6 @@ namespace Sintering
       const auto & weights    = this->data.time_data.get_weights();
       const auto &L           = mobility.Lgb();
 
-      const auto &component_table = this->data.get_component_table();
-
           phi.evaluate(EvaluationFlags::EvaluationFlags::values |
                        EvaluationFlags::EvaluationFlags::gradients);
 
@@ -372,14 +370,6 @@ namespace Sintering
             {
               auto value    = phi.get_value(q);
               auto gradient = phi.get_gradient(q);
-
-              if (component_table.size(0) > 0)
-                for (unsigned int ig = 0; ig < n_grains; ++ig)
-                  if (component_table[cell][ig] == false)
-                    {
-                      value[ig + 2]    = VectorizedArrayType();
-                      gradient[ig + 2] = Tensor<1, dim, VectorizedArrayType>();
-                    }
 
               const VectorizedArrayType *                etas_value = &value[2];
               const Tensor<1, dim, VectorizedArrayType> *etas_gradient =
@@ -453,15 +443,6 @@ namespace Sintering
                     }
 
 
-              if (component_table.size(0) > 0)
-                for (unsigned int ig = 0; ig < n_grains; ++ig)
-                  if (component_table[cell][ig] == false)
-                    {
-                      value_result[ig + 2] = VectorizedArrayType();
-                      gradient_result[ig + 2] =
-                        Tensor<1, dim, VectorizedArrayType>();
-                    }
-
               phi.submit_value(value_result, q);
               phi.submit_gradient(gradient_result, q);
             }
@@ -471,7 +452,9 @@ namespace Sintering
 
     template <int n_comp, int with_time_derivative, typename FECellIntegratorType>
     void
-    do_evalute_history(FECellIntegratorType &phi, AlignedVector<VectorizedArrayType> &buffer) const
+    do_evalute_history(FECellIntegratorType &phi, 
+                       AlignedVector<VectorizedArrayType> &buffer,
+                       const std::vector<unsigned char> & vector_indices = {}) const
     {
           if (with_time_derivative == 2)
             {
@@ -481,9 +464,21 @@ namespace Sintering
 
               buffer.resize_fast(std::max(phi.dofs_per_cell, n_comp * phi.n_q_points));
 
+              std::vector<const VectorType *> view;
+              
               for (unsigned int i = 0; i < order; ++i)
                 {
-                  phi.read_dof_values_plain(*old_solutions[i]);
+                  if(vector_indices.size() == 0)
+                    phi.read_dof_values_plain(*old_solutions[i]);
+                  else
+                    {
+                      view.resize(vector_indices.size());
+
+                      for(unsigned int j = 0; j < view.size(); ++j)
+                        view[j] = &old_solutions[i]->block(vector_indices[j]);
+
+                      phi.read_dof_values_plain(view);
+                    }
 
                   for(unsigned int j = 0; j < phi.dofs_per_cell ; ++j)
                     if(i == 0)
@@ -551,24 +546,24 @@ namespace Sintering
       }
 
       AlignedVector<VectorizedArrayType> buffer;
-
+      std::vector<unsigned char> vector_indices;
       std::vector<const VectorType *> src_view;
       std::vector<VectorType *>       dst_view;
 
       for (auto cell = range.first; cell < range.second; ++cell)
         {
           // CH blocks
-          for (unsigned int b = 0; b < 2; ++b)
-            {
-              src_view.push_back(&src.block(b));
-              dst_view.push_back(&dst.block(b));
-            }
+          vector_indices.push_back(0);
+          vector_indices.push_back(1);
 
           // relevant AC blocks
           for (const auto b : this->data.get_relevant_grains(cell))
+            vector_indices.push_back(b + 2);
+
+          for (const auto b : vector_indices)
             {
-              src_view.push_back(&src.block(b + 2));
-              dst_view.push_back(&dst.block(b + 2));
+              src_view.push_back(&src.block(b));
+              dst_view.push_back(&dst.block(b));
             }
 
           const unsigned int n_comp_nt = src_view.size();
@@ -582,19 +577,18 @@ namespace Sintering
       *phis[n_grains]);                                                        \
                                                                                \
   phi.reinit(cell);                                                            \
+  do_evalute_history<n_comp, with_time_derivative>(phi, buffer, vector_indices); \
+                                                                               \
   phi.read_dof_values(src_view);                                               \
-  phi.evaluate(EvaluationFlags::EvaluationFlags::values |                      \
-               EvaluationFlags::EvaluationFlags::gradients);                   \
                                                                                \
   do_evaluate_nonlinear_residual_cell<n_comp, n_grains, with_time_derivative>( \
     phi, buffer);                                                              \
                                                                                \
-  phi.integrate(EvaluationFlags::EvaluationFlags::values |                     \
-                EvaluationFlags::EvaluationFlags::gradients);                  \
   phi.distribute_local_to_global(dst_view);
           EXPAND_OPERATIONS_N_COMP_NT(OPERATION);
 #undef OPERATION
 
+          vector_indices.clear();
           src_view.clear();
           dst_view.clear();
         }
