@@ -3,25 +3,67 @@
 #include <pf-applications/sintering/advection.h>
 #include <pf-applications/sintering/operator_sintering_base.h>
 
-// clang-format off
 #define EXPAND_OPERATIONS_N_COMP_NT(OPERATION)   \
   switch (n_comp_nt)                             \
     {                                            \
-      case  2: {OPERATION( 2, 0); break;}        \
-      case  3: {OPERATION( 3, 0); break;}        \
-      case  4: {OPERATION( 4, 0); break;}        \
-      case  5: {OPERATION( 5, 0); break;}        \
-      case  6: {OPERATION( 6, 0); break;}        \
-      case  7: {OPERATION( 7, 0); break;}        \
-      case  8: {OPERATION( 8, 0); break;}        \
-      case  9: {OPERATION( 9, 0); break;}        \
-      case 10: {OPERATION(10, 0); break;}        \
-      case 11: {OPERATION(11, 0); break;}        \
-      case 12: {OPERATION(12, 0); break;}        \
+      case 2:                                    \
+        {                                        \
+          OPERATION(2, 0);                       \
+          break;                                 \
+        }                                        \
+      case 3:                                    \
+        {                                        \
+          OPERATION(3, 0);                       \
+          break;                                 \
+        }                                        \
+      case 4:                                    \
+        {                                        \
+          OPERATION(4, 0);                       \
+          break;                                 \
+        }                                        \
+      case 5:                                    \
+        {                                        \
+          OPERATION(5, 0);                       \
+          break;                                 \
+        }                                        \
+      case 6:                                    \
+        {                                        \
+          OPERATION(6, 0);                       \
+          break;                                 \
+        }                                        \
+      case 7:                                    \
+        {                                        \
+          OPERATION(7, 0);                       \
+          break;                                 \
+        }                                        \
+      case 8:                                    \
+        {                                        \
+          OPERATION(8, 0);                       \
+          break;                                 \
+        }                                        \
+      case 9:                                    \
+        {                                        \
+          OPERATION(9, 0);                       \
+          break;                                 \
+        }                                        \
+      case 10:                                   \
+        {                                        \
+          OPERATION(10, 0);                      \
+          break;                                 \
+        }                                        \
+      case 11:                                   \
+        {                                        \
+          OPERATION(11, 0);                      \
+          break;                                 \
+        }                                        \
+      case 12:                                   \
+        {                                        \
+          OPERATION(12, 0);                      \
+          break;                                 \
+        }                                        \
       default:                                   \
         AssertThrow(false, ExcNotImplemented()); \
     }
-// clang-format on  
 
 namespace Sintering
 {
@@ -88,20 +130,20 @@ namespace Sintering
     dst,                                                          \
     src,                                                          \
     true);
-      EXPAND_OPERATIONS(OPERATION);
+          EXPAND_OPERATIONS(OPERATION);
 #undef OPERATION
         }
       else
-      {
-        MyMatrixFreeTools::cell_loop_wrapper(
-          this->matrix_free,                                            
-          &SinteringOperatorGeneric::                                   
-            do_evaluate_nonlinear_residual_nt<with_time_derivative>, 
-          this,                                                         
-          dst,                                                          
-          src,                                                          
-          true);
-      }
+        {
+          MyMatrixFreeTools::cell_loop_wrapper(
+            this->matrix_free,
+            &SinteringOperatorGeneric::do_evaluate_nonlinear_residual_nt<
+              with_time_derivative>,
+            this,
+            dst,
+            src,
+            true);
+        }
     }
 
     void
@@ -121,15 +163,17 @@ namespace Sintering
         std::shared_ptr<FEEvaluationData<dim, VectorizedArrayType, false>>>
         phis(this->n_grains() + 1);
 
-      for(unsigned int i = 0; i <= this->n_grains(); ++i)
-      {
-        const unsigned int n_comp_nt = i + 2;
-#define OPERATION(n_comp, dummy)                                               \
-  (void)dummy;                                                                 \
-        phis[i] = std::make_shared<FECellIntegrator<dim, n_comp, Number, VectorizedArrayType>>(matrix_free, this->dof_index);
+      for (unsigned int i = 0; i <= this->n_grains(); ++i)
+        {
+          const unsigned int n_comp_nt = i + 2;
+#define OPERATION(n_comp, dummy)                                 \
+  (void)dummy;                                                   \
+  phis[i] = std::make_shared<                                    \
+    FECellIntegrator<dim, n_comp, Number, VectorizedArrayType>>( \
+    matrix_free, this->dof_index);
           EXPAND_OPERATIONS_N_COMP_NT(OPERATION);
 #undef OPERATION
-      }
+        }
 
       std::vector<const VectorType *> src_view;
       std::vector<VectorType *>       dst_view;
@@ -185,10 +229,8 @@ namespace Sintering
     {
       if (this->data.get_component_table().size(0) == 0)
         {
-          OperatorBase<
-            dim,
-            Number,
-            VectorizedArrayType, T>::vmult_internal(dst, src);
+          OperatorBase<dim, Number, VectorizedArrayType, T>::vmult_internal(
+            dst, src);
         }
       else
         {
@@ -339,14 +381,21 @@ namespace Sintering
 
           lin_value += 2 + n_grains;
           lin_gradient += 2 + (SinteringOperatorData<dim, VectorizedArrayType>::
-                              use_tensorial_mobility ? n_grains : 0);
+                                   use_tensorial_mobility ?
+                                 n_grains :
+                                 0);
         }
     }
 
   private:
-    template <int n_comp, int n_grains, int with_time_derivative, typename FECellIntegratorType>
+    template <int n_comp,
+              int n_grains,
+              int with_time_derivative,
+              typename FECellIntegratorType>
     void
-    do_evaluate_nonlinear_residual_cell(FECellIntegratorType &phi, const AlignedVector<VectorizedArrayType>& buffer) const
+    do_evaluate_nonlinear_residual_cell(
+      FECellIntegratorType &                    phi,
+      const AlignedVector<VectorizedArrayType> &buffer) const
     {
       const unsigned int cell = phi.get_current_cell_index();
 
@@ -354,145 +403,149 @@ namespace Sintering
       const auto &mobility    = this->data.get_mobility();
       const auto &kappa_c     = this->data.kappa_c;
       const auto &kappa_p     = this->data.kappa_p;
-      const auto & weights    = this->data.time_data.get_weights();
+      const auto &weights     = this->data.time_data.get_weights();
       const auto &L           = mobility.Lgb();
 
-          phi.evaluate(EvaluationFlags::EvaluationFlags::values |
-                       EvaluationFlags::EvaluationFlags::gradients);
+      phi.evaluate(EvaluationFlags::EvaluationFlags::values |
+                   EvaluationFlags::EvaluationFlags::gradients);
 
-          // Reinit advection data for the current cells batch
-          if (this->advection.enabled())
-            this->advection.reinit(cell,
-                                   static_cast<unsigned int>(n_grains),
-                                   phi.get_matrix_free());
+      // Reinit advection data for the current cells batch
+      if (this->advection.enabled())
+        this->advection.reinit(cell,
+                               static_cast<unsigned int>(n_grains),
+                               phi.get_matrix_free());
 
-          for (unsigned int q = 0; q < phi.n_q_points; ++q)
+      for (unsigned int q = 0; q < phi.n_q_points; ++q)
+        {
+          auto value    = phi.get_value(q);
+          auto gradient = phi.get_gradient(q);
+
+          const VectorizedArrayType *                etas_value = &value[2];
+          const Tensor<1, dim, VectorizedArrayType> *etas_gradient =
+            &gradient[2];
+
+          const auto etas_value_power_2_sum =
+            PowerHelper<n_grains, 2>::power_sum(etas_value);
+          const auto etas_value_power_3_sum =
+            PowerHelper<n_grains, 3>::power_sum(etas_value);
+
+          Tensor<1, n_comp, VectorizedArrayType> value_result;
+          Tensor<1, n_comp, Tensor<1, dim, VectorizedArrayType>>
+            gradient_result;
+
+
+
+          // 1) process c row
+          if (with_time_derivative >= 1)
+            value_result[0] = value[0] * weights[0];
+          if (with_time_derivative == 2)
+            value_result[0] += buffer[n_comp * q];
+
+          gradient_result[0] = mobility.apply_M(value[0],
+                                                etas_value,
+                                                n_grains,
+                                                gradient[0],
+                                                etas_gradient,
+                                                gradient[1]);
+
+
+
+          // 2) process mu row
+          value_result[1] =
+            -value[1] + free_energy.df_dc(value[0],
+                                          etas_value,
+                                          etas_value_power_2_sum,
+                                          etas_value_power_3_sum);
+          gradient_result[1] = kappa_c * gradient[0];
+
+
+
+          // 3) process eta rows
+          for (unsigned int ig = 0; ig < n_grains; ++ig)
             {
-              auto value    = phi.get_value(q);
-              auto gradient = phi.get_gradient(q);
+              value_result[2 + ig] =
+                L * free_energy.df_detai(value[0],
+                                         etas_value,
+                                         etas_value_power_2_sum,
+                                         ig);
 
-              const VectorizedArrayType *                etas_value = &value[2];
-              const Tensor<1, dim, VectorizedArrayType> *etas_gradient =
-                &gradient[2];
-
-              const auto etas_value_power_2_sum =
-                PowerHelper<n_grains, 2>::power_sum(etas_value);
-              const auto etas_value_power_3_sum =
-                PowerHelper<n_grains, 3>::power_sum(etas_value);
-
-              Tensor<1, n_comp, VectorizedArrayType> value_result;
-              Tensor<1, n_comp, Tensor<1, dim, VectorizedArrayType>>
-                gradient_result;
-
-
-
-              // 1) process c row
               if (with_time_derivative >= 1)
-                value_result[0] = value[0] * weights[0];
+                value_result[ig + 2] += value[ig + 2] * weights[0];
               if (with_time_derivative == 2)
-                value_result[0] += buffer[n_comp * q];
+                value_result[2 + ig] += buffer[n_comp * q + 2 + ig];
 
-              gradient_result[0] = mobility.apply_M(value[0],
-                                                    etas_value,
-                                                    n_grains,
-                                                    gradient[0],
-                                                    etas_gradient,
-                                                    gradient[1]);
+              gradient_result[2 + ig] = L * kappa_p * gradient[2 + ig];
+            }
 
 
-
-              // 2) process mu row
-              value_result[1] =
-                -value[1] + free_energy.df_dc(value[0],
-                                              etas_value,
-                                              etas_value_power_2_sum,
-                                              etas_value_power_3_sum);
-              gradient_result[1] = kappa_c * gradient[0];
-
-
-
-              // 3) process eta rows
-              for (unsigned int ig = 0; ig < n_grains; ++ig)
+          // 4) add advection contributations -> influences c AND etas
+          if (this->advection.enabled())
+            for (unsigned int ig = 0; ig < n_grains; ++ig)
+              if (this->advection.has_velocity(ig))
                 {
-                  value_result[2 + ig] =
-                    L * free_energy.df_detai(value[0],
-                                             etas_value,
-                                             etas_value_power_2_sum,
-                                             ig);
+                  const auto &velocity_ig =
+                    this->advection.get_velocity(ig, phi.quadrature_point(q));
 
-                  if (with_time_derivative >= 1)
-                    value_result[ig + 2] += value[ig + 2] * weights[0];
-                  if (with_time_derivative == 2)
-                    value_result[2 + ig] += buffer[n_comp * q + 2 + ig];
-
-                  gradient_result[2 + ig] = L * kappa_p * gradient[2 + ig];
+                  value_result[0] += velocity_ig * gradient[0];
+                  value_result[2 + ig] += velocity_ig * gradient[2 + ig];
                 }
 
 
-              // 4) add advection contributations -> influences c AND etas
-              if (this->advection.enabled())
-                for (unsigned int ig = 0; ig < n_grains; ++ig)
-                  if (this->advection.has_velocity(ig))
-                    {
-                      const auto &velocity_ig =
-                        this->advection.get_velocity(ig,
-                                                     phi.quadrature_point(q));
-
-                      value_result[0] += velocity_ig * gradient[0];
-                      value_result[2 + ig] += velocity_ig * gradient[2 + ig];
-                    }
-
-
-              phi.submit_value(value_result, q);
-              phi.submit_gradient(gradient_result, q);
-            }
-          phi.integrate(EvaluationFlags::EvaluationFlags::values |
-                        EvaluationFlags::EvaluationFlags::gradients);
+          phi.submit_value(value_result, q);
+          phi.submit_gradient(gradient_result, q);
+        }
+      phi.integrate(EvaluationFlags::EvaluationFlags::values |
+                    EvaluationFlags::EvaluationFlags::gradients);
     }
 
-    template <int n_comp, int with_time_derivative, typename FECellIntegratorType>
+    template <int n_comp,
+              int with_time_derivative,
+              typename FECellIntegratorType>
     void
-    do_evalute_history(FECellIntegratorType &phi, 
-                       AlignedVector<VectorizedArrayType> &buffer,
-                       const std::vector<unsigned char> & vector_indices = {}) const
+    do_evalute_history(
+      FECellIntegratorType &              phi,
+      AlignedVector<VectorizedArrayType> &buffer,
+      const std::vector<unsigned char> &  vector_indices = {}) const
     {
-          if (with_time_derivative == 2)
+      if (with_time_derivative == 2)
+        {
+          const auto &order         = this->data.time_data.get_order();
+          const auto &weights       = this->data.time_data.get_weights();
+          const auto  old_solutions = this->history.get_old_solutions();
+
+          buffer.resize_fast(
+            std::max(phi.dofs_per_cell, n_comp * phi.n_q_points));
+
+          std::vector<const VectorType *> view;
+
+          for (unsigned int i = 0; i < order; ++i)
             {
-      const auto &order       = this->data.time_data.get_order();
-      const auto & weights    = this->data.time_data.get_weights();
-      const auto old_solutions = this->history.get_old_solutions();
-
-              buffer.resize_fast(std::max(phi.dofs_per_cell, n_comp * phi.n_q_points));
-
-              std::vector<const VectorType *> view;
-              
-              for (unsigned int i = 0; i < order; ++i)
+              if (vector_indices.size() == 0)
+                phi.read_dof_values_plain(*old_solutions[i]);
+              else
                 {
-                  if(vector_indices.size() == 0)
-                    phi.read_dof_values_plain(*old_solutions[i]);
-                  else
-                    {
-                      view.resize(vector_indices.size());
+                  view.resize(vector_indices.size());
 
-                      for(unsigned int j = 0; j < view.size(); ++j)
-                        view[j] = &old_solutions[i]->block(vector_indices[j]);
+                  for (unsigned int j = 0; j < view.size(); ++j)
+                    view[j] = &old_solutions[i]->block(vector_indices[j]);
 
-                      phi.read_dof_values_plain(view);
-                    }
-
-                  for(unsigned int j = 0; j < phi.dofs_per_cell ; ++j)
-                    if(i == 0)
-                      buffer[j] = phi.begin_dof_values()[j] * weights[i + 1];
-                    else
-                      buffer[j] += phi.begin_dof_values()[j] * weights[i + 1];
+                  phi.read_dof_values_plain(view);
                 }
 
-              phi.evaluate(buffer.data(), EvaluationFlags::EvaluationFlags::values);
-
-              for (unsigned int q = 0; q < phi.n_q_points; ++q)
-                for (unsigned int c = 0; c < n_comp; ++c)
-                  buffer[q*n_comp + c] = phi.begin_values()[q + c * phi.n_q_points];
+              for (unsigned int j = 0; j < phi.dofs_per_cell; ++j)
+                if (i == 0)
+                  buffer[j] = phi.begin_dof_values()[j] * weights[i + 1];
+                else
+                  buffer[j] += phi.begin_dof_values()[j] * weights[i + 1];
             }
+
+          phi.evaluate(buffer.data(), EvaluationFlags::EvaluationFlags::values);
+
+          for (unsigned int q = 0; q < phi.n_q_points; ++q)
+            for (unsigned int c = 0; c < n_comp; ++c)
+              buffer[q * n_comp + c] =
+                phi.begin_values()[q + c * phi.n_q_points];
+        }
     }
 
     template <int n_comp, int n_grains, int with_time_derivative>
@@ -517,7 +570,10 @@ namespace Sintering
 
           phi.read_dof_values(src);
 
-          do_evaluate_nonlinear_residual_cell<n_comp, n_grains, with_time_derivative>(phi, buffer);
+          do_evaluate_nonlinear_residual_cell<n_comp,
+                                              n_grains,
+                                              with_time_derivative>(phi,
+                                                                    buffer);
 
           phi.distribute_local_to_global(dst);
         }
@@ -535,20 +591,22 @@ namespace Sintering
         std::shared_ptr<FEEvaluationData<dim, VectorizedArrayType, false>>>
         phis(this->n_grains() + 1);
 
-      for(unsigned int i = 0; i <= this->n_grains(); ++i)
-      {
-        const unsigned int n_comp_nt = i + 2;
-#define OPERATION(n_comp, dummy)                                               \
-  (void)dummy;                                                                 \
-        phis[i] = std::make_shared<FECellIntegrator<dim, n_comp, Number, VectorizedArrayType>>(matrix_free, this->dof_index);
+      for (unsigned int i = 0; i <= this->n_grains(); ++i)
+        {
+          const unsigned int n_comp_nt = i + 2;
+#define OPERATION(n_comp, dummy)                                 \
+  (void)dummy;                                                   \
+  phis[i] = std::make_shared<                                    \
+    FECellIntegrator<dim, n_comp, Number, VectorizedArrayType>>( \
+    matrix_free, this->dof_index);
           EXPAND_OPERATIONS_N_COMP_NT(OPERATION);
 #undef OPERATION
-      }
+        }
 
       AlignedVector<VectorizedArrayType> buffer;
-      std::vector<unsigned char> vector_indices;
-      std::vector<const VectorType *> src_view;
-      std::vector<VectorType *>       dst_view;
+      std::vector<unsigned char>         vector_indices;
+      std::vector<const VectorType *>    src_view;
+      std::vector<VectorType *>          dst_view;
 
       for (auto cell = range.first; cell < range.second; ++cell)
         {
@@ -577,7 +635,9 @@ namespace Sintering
       *phis[n_grains]);                                                        \
                                                                                \
   phi.reinit(cell);                                                            \
-  do_evalute_history<n_comp, with_time_derivative>(phi, buffer, vector_indices); \
+  do_evalute_history<n_comp, with_time_derivative>(phi,                        \
+                                                   buffer,                     \
+                                                   vector_indices);            \
                                                                                \
   phi.read_dof_values(src_view);                                               \
                                                                                \
