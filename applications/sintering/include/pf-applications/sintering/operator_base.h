@@ -910,7 +910,13 @@ namespace Sintering
             }
 
           for (unsigned int i = 0; i < quantities.size(); ++i)
-            q_values[i] += fe_eval[i].integrate_value();
+            {
+              const auto vals = fe_eval[i].integrate_value();
+              q_values[i] += std::accumulate(vals.begin(),
+                                             vals.end(),
+                                             0,
+                                             std::plus<Number>());
+            }
         }
 
       vec.zero_out_ghost_values();
