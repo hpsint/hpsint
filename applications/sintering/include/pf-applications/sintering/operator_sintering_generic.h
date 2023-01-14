@@ -382,9 +382,9 @@ namespace Sintering
                   buffer[q*n_comp + c] = phi.begin_values()[q + c * phi.n_q_points];
             }
 
-          phi.gather_evaluate(src,
-                              EvaluationFlags::EvaluationFlags::values |
-                                EvaluationFlags::EvaluationFlags::gradients);
+          phi.read_dof_values(src);
+          phi.evaluate(EvaluationFlags::EvaluationFlags::values |
+                       EvaluationFlags::EvaluationFlags::gradients);
 
           // Reinit advection data for the current cells batch
           if (this->advection.enabled())
@@ -489,9 +489,9 @@ namespace Sintering
               phi.submit_value(value_result, q);
               phi.submit_gradient(gradient_result, q);
             }
-          phi.integrate_scatter(EvaluationFlags::EvaluationFlags::values |
-                                  EvaluationFlags::EvaluationFlags::gradients,
-                                dst);
+          phi.integrate(EvaluationFlags::EvaluationFlags::values |
+                        EvaluationFlags::EvaluationFlags::gradients);
+          phi.distribute_local_to_global(dst);
         }
     }
 
