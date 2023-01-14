@@ -217,8 +217,8 @@ namespace Sintering
 
       const unsigned int cell = phi.get_current_cell_index();
 
-      const auto &nonlinear_values    = this->data.get_nonlinear_values();
-      const auto &nonlinear_gradients = this->data.get_nonlinear_gradients();
+      auto lin_value    = &this->data.get_nonlinear_values()[cell][0][0];
+      auto lin_gradient = &this->data.get_nonlinear_gradients()[cell][0][0];
 
       const auto &free_energy = this->data.free_energy;
       const auto &mobility    = this->data.get_mobility();
@@ -240,9 +240,6 @@ namespace Sintering
 
           auto value    = phi.get_value(q);
           auto gradient = phi.get_gradient(q);
-
-          const auto &lin_value    = nonlinear_values[cell][q];
-          const auto &lin_gradient = nonlinear_gradients[cell][q];
 
           const auto &lin_c_value = lin_value[0];
 
@@ -320,6 +317,10 @@ namespace Sintering
 
           phi.submit_value(value_result, q);
           phi.submit_gradient(gradient_result, q);
+
+          lin_value += 2 + n_grains;
+          lin_gradient += 2 + (SinteringOperatorData<dim, VectorizedArrayType>::
+                              use_tensorial_mobility ? n_grains : 0);
         }
     }
 
