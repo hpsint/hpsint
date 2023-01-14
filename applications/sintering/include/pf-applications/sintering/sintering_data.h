@@ -357,7 +357,7 @@ namespace Sintering
     }
 
     ArrayView<const unsigned char>
-    relevant_grains(const unsigned int cell) const
+    get_relevant_grains(const unsigned int cell) const
     {
       return ArrayView<const unsigned char>(relevant_grains_vector.data() +
                                               relevant_grains_ptr[cell],

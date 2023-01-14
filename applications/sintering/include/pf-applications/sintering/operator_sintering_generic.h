@@ -130,7 +130,7 @@ namespace Sintering
             }
 
           // relevant AC blocks
-          for (const auto b : this->data.relevant_grains(cell))
+          for (const auto b : this->data.get_relevant_grains(cell))
             {
               src_.push_back(&src.block(b + 2));
               dst_.push_back(&dst.block(b + 2));
