@@ -82,6 +82,21 @@ namespace Sintering
     }
 
     void
+    do_vmult_range_no_template(
+      const MatrixFree<dim, Number, VectorizedArrayType> &matrix_free,
+      BlockVectorType &                                   dst,
+      const BlockVectorType &                             src,
+      const std::pair<unsigned int, unsigned int> &       range) const
+    {
+      AssertThrow(false, ExcNotImplemented());
+
+      (void) matrix_free;
+      (void) dst;
+      (void) src;
+      (void) range;
+    }
+
+    void
     vmult_internal(BlockVectorType &      dst,
                    const BlockVectorType &src) const override
     {
@@ -95,8 +110,13 @@ namespace Sintering
             vmult(dst, src);
         }
       else
-        {
-          AssertThrow(false, ExcNotImplemented());
+        {                                                
+          MyMatrixFreeTools::cell_loop_wrapper(this->matrix_free,                   
+            &SinteringOperatorGeneric::do_vmult_range_no_template, 
+              this,                                
+                                       dst,                                 
+                                       src,                                 
+                                       true);
         }
     }
 
