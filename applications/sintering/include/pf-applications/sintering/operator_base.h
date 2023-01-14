@@ -703,7 +703,7 @@ namespace Sintering
                            QuantityPredicate              qp_predicate) const
     {
 #define OPERATION(c, d) \
-  this->do_calc_domain_quantities<c, d>(quantities, vec, qp_predicate);
+  return this->do_calc_domain_quantities<c, d>(quantities, vec, qp_predicate);
       EXPAND_OPERATIONS(OPERATION);
 #undef OPERATION
     }
