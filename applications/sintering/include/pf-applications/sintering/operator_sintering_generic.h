@@ -77,6 +77,8 @@ namespace Sintering
                     "sintering_op::nonlinear_residual",
                     this->do_timing);
 
+      if (this->data.get_component_table().size(0) == 0)
+        {
 #define OPERATION(c, d)                                           \
   MyMatrixFreeTools::cell_loop_wrapper(                           \
     this->matrix_free,                                            \
@@ -88,6 +90,18 @@ namespace Sintering
     true);
       EXPAND_OPERATIONS(OPERATION);
 #undef OPERATION
+        }
+      else
+      {
+        MyMatrixFreeTools::cell_loop_wrapper(
+          this->matrix_free,                                            
+          &SinteringOperatorGeneric::                                   
+            do_evaluate_nonlinear_residual_nt<with_time_derivative>, 
+          this,                                                         
+          dst,                                                          
+          src,                                                          
+          true);
+      }
     }
 
     void
@@ -512,6 +526,20 @@ namespace Sintering
 
           phi.distribute_local_to_global(dst);
         }
+    }
+
+    template <int with_time_derivative>
+    void
+    do_evaluate_nonlinear_residual_nt(
+      const MatrixFree<dim, Number, VectorizedArrayType> &matrix_free,
+      BlockVectorType &                                   dst,
+      const BlockVectorType &                             src,
+      const std::pair<unsigned int, unsigned int> &       range) const
+    {
+      (void) matrix_free;
+      (void) dst;
+      (void) src;
+      (void) range;
     }
 
     const AdvectionMechanism<dim, Number, VectorizedArrayType> &advection;
