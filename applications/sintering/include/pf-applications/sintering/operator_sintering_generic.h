@@ -16,6 +16,8 @@
       case  8: {OPERATION( 8, 0); break;}        \
       case  9: {OPERATION( 9, 0); break;}        \
       case 10: {OPERATION(10, 0); break;}        \
+      case 11: {OPERATION(11, 0); break;}        \
+      case 12: {OPERATION(12, 0); break;}        \
       default:                                   \
         AssertThrow(false, ExcNotImplemented()); \
     }
@@ -106,13 +108,19 @@ namespace Sintering
       const BlockVectorType &                             src,
       const std::pair<unsigned int, unsigned int> &       range) const
     {
-      AssertThrow(false, ExcNotImplemented());
-
-      (void)matrix_free;
-
       std::vector<
         std::shared_ptr<FEEvaluationData<dim, VectorizedArrayType, false>>>
-        phis;
+        phis(this->n_grains());
+
+      for(unsigned int i = 0; i < this->n_grains(); ++i)
+      {
+        const unsigned int n_comp_nt = i + 2;
+#define OPERATION(n_comp, dummy)                                               \
+  (void)dummy;                                                                 \
+        phis[i] = std::make_shared<FECellIntegrator<dim, n_comp, Number, VectorizedArrayType>>(matrix_free, this->dof_index);
+          EXPAND_OPERATIONS_N_COMP_NT(OPERATION);
+#undef OPERATION
+      }
 
       std::vector<const VectorType *> src_;
       std::vector<VectorType *>       dst_;
@@ -168,7 +176,7 @@ namespace Sintering
             Number,
             VectorizedArrayType,
             SinteringOperatorGeneric<dim, Number, VectorizedArrayType>>::
-            vmult(dst, src);
+            vmult_internal(dst, src);
         }
       else
         {
