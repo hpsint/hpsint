@@ -64,13 +64,19 @@ namespace Sintering
     const VectorizedArrayType *
     get_nonlinear_values(const unsigned int cell) const
     {
-      return &nonlinear_values[cell][0][0];
+      if (value_ptr.empty())
+        return &nonlinear_values[cell][0][0];
+      else
+        return &nonlinear_values_new[value_ptr[cell]];
     }
 
     const dealii::Tensor<1, dim, VectorizedArrayType> *
     get_nonlinear_gradients(const unsigned int cell) const
     {
-      return &nonlinear_gradients[cell][0][0];
+      if (gradient_ptr.empty())
+        return &nonlinear_gradients[cell][0][0];
+      else
+        return &nonlinear_gradients_new[gradient_ptr[cell]];
     }
 
     Table<2, bool> &
@@ -140,6 +146,9 @@ namespace Sintering
                 }
             }
         }
+
+      value_ptr    = {0};
+      gradient_ptr = {0};
 
       for (unsigned int cell = 0; cell < n_cells; ++cell)
         {
@@ -232,6 +241,12 @@ namespace Sintering
          n_quadrature_points,
          use_tensorial_mobility || save_op_gradients ? n_components_save : 2});
 
+      if (value_ptr.empty() == false)
+        nonlinear_values_new.resize(value_ptr.back());
+
+      if (gradient_ptr.empty() == false)
+        nonlinear_gradients_new.resize(gradient_ptr.back());
+
       FECellIntegrator<dim, 1, Number, VectorizedArrayType> phi(matrix_free);
 
       src.update_ghost_values();
@@ -262,6 +277,43 @@ namespace Sintering
 
                   if (use_tensorial_mobility || (c < 2) || save_op_gradients)
                     nonlinear_gradients(cell, q, c) = gradient;
+                }
+            }
+
+          if (component_table.size(0) > 0)
+            {
+              unsigned int counter = 0;
+
+              for (unsigned int j = 0; j < n_grains(); ++j)
+                if (component_table[cell][j])
+                  counter++;
+
+              const unsigned n_components_save_value =
+                (save_all_blocks ? src.n_blocks() : this->n_components()) -
+                n_grains() + counter;
+
+              const unsigned n_components_save_gradient =
+                use_tensorial_mobility || save_op_gradients ?
+                  n_components_save_value :
+                  2;
+
+              for (unsigned int q         = 0,
+                                counter_v = value_ptr[cell],
+                                counter_g = gradient_ptr[cell];
+                   q < n_quadrature_points;
+                   ++q)
+                {
+                  for (unsigned int c = 0; c < n_components_save_value; ++c)
+                    if (((c < 2) || (c >= (2 + n_grains()))) ||
+                        component_table[cell][c - 2])
+                      nonlinear_values_new[counter_v++] =
+                        nonlinear_values(cell, q, c);
+
+                  for (unsigned int c = 0; c < n_components_save_gradient; ++c)
+                    if (((c < 2) || (c >= (2 + n_grains()))) ||
+                        component_table[cell][c - 2])
+                      nonlinear_gradients_new[counter_g++] =
+                        nonlinear_gradients(cell, q, c);
                 }
             }
         }
@@ -308,6 +360,9 @@ namespace Sintering
     mutable Table<3, dealii::Tensor<1, dim, VectorizedArrayType>>
       nonlinear_gradients;
 
+    mutable AlignedVector<VectorizedArrayType> nonlinear_values_new;
+    mutable AlignedVector<dealii::Tensor<1, dim, VectorizedArrayType>>
+      nonlinear_gradients_new;
 
     std::vector<unsigned int> value_ptr;
     std::vector<unsigned int> gradient_ptr;
