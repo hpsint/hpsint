@@ -282,26 +282,18 @@ namespace Sintering
 
           if (component_table.size(0) > 0)
             {
-              unsigned int counter = 0;
-
-              for (unsigned int j = 0; j < n_grains(); ++j)
-                if (component_table[cell][j])
-                  counter++;
-
               const unsigned n_components_save_value =
-                (save_all_blocks ? src.n_blocks() : this->n_components()) -
-                n_grains() + counter;
+                save_all_blocks ? src.n_blocks() : this->n_components();
 
               const unsigned n_components_save_gradient =
                 use_tensorial_mobility || save_op_gradients ?
                   n_components_save_value :
                   2;
 
-              for (unsigned int q         = 0,
-                                counter_v = value_ptr[cell],
-                                counter_g = gradient_ptr[cell];
-                   q < n_quadrature_points;
-                   ++q)
+              unsigned int counter_v = value_ptr[cell];
+              unsigned int counter_g = gradient_ptr[cell];
+
+              for (unsigned int q = 0; q < n_quadrature_points; ++q)
                 {
                   for (unsigned int c = 0; c < n_components_save_value; ++c)
                     if (((c < 2) || (c >= (2 + n_grains()))) ||
@@ -315,6 +307,9 @@ namespace Sintering
                       nonlinear_gradients_new[counter_g++] =
                         nonlinear_gradients(cell, q, c);
                 }
+
+              AssertDimension(counter_v, value_ptr[cell + 1]);
+              AssertDimension(counter_g, gradient_ptr[cell + 1]);
             }
         }
 
