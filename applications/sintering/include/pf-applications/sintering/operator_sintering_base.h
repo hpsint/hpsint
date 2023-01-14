@@ -435,6 +435,8 @@ namespace Sintering
               for (unsigned int i = 0; i < n_grains; ++i)
                 for (unsigned int j = 0; j < i; ++j)
                   eta_ij_sum += value[i] * value[j];
+
+              return eta_ij_sum;
             };
           else
             AssertThrow(false,
