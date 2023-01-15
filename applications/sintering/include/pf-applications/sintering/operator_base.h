@@ -699,11 +699,30 @@ namespace Sintering
     /* Compute integrals over the domain */
     std::vector<Number>
     calc_domain_quantities(std::vector<QuantityCallback> &quantities,
+                           const BlockVectorType &        vec) const
+    {
+      auto predicate =
+        [](const FECellIntegrator<dim, 1, Number, VectorizedArrayType> &,
+           unsigned int) { return VectorizedArrayType(1.0); };
+
+#define OPERATION(c, d) \
+  return this->do_calc_domain_quantities<c, d>(quantities, vec, predicate);
+      EXPAND_OPERATIONS(OPERATION);
+#undef OPERATION
+    }
+
+    std::vector<Number>
+    calc_domain_quantities(std::vector<QuantityCallback> &quantities,
                            const BlockVectorType &        vec,
                            QuantityPredicate              qp_predicate) const
     {
+      auto predicate =
+        [&qp_predicate](
+          const FECellIntegrator<dim, 1, Number, VectorizedArrayType> &fe_eval,
+          unsigned int q) { return qp_predicate(fe_eval.quadrature_point(q)); };
+
 #define OPERATION(c, d) \
-  return this->do_calc_domain_quantities<c, d>(quantities, vec, qp_predicate);
+  return this->do_calc_domain_quantities<c, d>(quantities, vec, predicate);
       EXPAND_OPERATIONS(OPERATION);
 #undef OPERATION
     }
@@ -866,9 +885,12 @@ namespace Sintering
 
     template <int n_comp, int n_grains>
     std::vector<Number>
-    do_calc_domain_quantities(std::vector<QuantityCallback> &quantities,
-                              const BlockVectorType &        vec,
-                              QuantityPredicate              qp_predicate) const
+    do_calc_domain_quantities(
+      std::vector<QuantityCallback> &quantities,
+      const BlockVectorType &        vec,
+      std::function<VectorizedArrayType(
+        const FECellIntegrator<dim, 1, Number, VectorizedArrayType> &,
+        unsigned int)>               predicate) const
     {
       FECellIntegrator<dim, n_comp, Number, VectorizedArrayType> fe_eval_all(
         matrix_free);
@@ -889,20 +911,25 @@ namespace Sintering
           fe_eval_all.evaluate(EvaluationFlags::values |
                                EvaluationFlags::gradients);
 
+          for (unsigned int i = 0; i < quantities.size(); ++i)
+            fe_eval[i].reinit(cell);
+
           for (unsigned int q = 0; q < fe_eval_all.n_q_points; ++q)
             {
-              const auto &p      = fe_eval_all.quadrature_point(q);
-              const auto  filter = qp_predicate(p);
+              // Take the first FECellIntegrator since all of them have the same
+              // quadrature points
+              const auto filter = predicate(fe_eval[0], q);
+
+              const auto val  = fe_eval_all.get_value(q);
+              const auto grad = fe_eval_all.get_gradient(q);
 
               for (unsigned int i = 0; i < quantities.size(); ++i)
                 {
                   Tensor<1, 1, VectorizedArrayType> value_result;
 
                   const auto &q_eval = quantities[i];
-                  const auto  val    = fe_eval_all.get_value(q);
-                  const auto  grad   = fe_eval_all.get_gradient(q);
-
-                  value_result = q_eval(&val[0], &grad[0], n_grains) * filter;
+                  value_result[0] =
+                    q_eval(&val[0], &grad[0], n_grains) * filter;
 
                   fe_eval[i].submit_value(value_result, q);
                 }
