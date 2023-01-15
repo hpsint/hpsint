@@ -2582,59 +2582,6 @@ namespace Sintering
 
               if (!params.output_data.domain_integrals.empty())
                 {
-                  /*
-                                    if (params.output_data.use_control_box)
-                                      {
-                                        Point<dim> bottom_left;
-                                        Point<dim> top_right;
-
-                                        if (dim >= 1)
-                                          {
-                                            bottom_left[0] =
-                     params.output_data.control_box.x_min; top_right[0]   =
-                     params.output_data.control_box.x_max;
-                                          }
-
-                                        if (dim >= 2)
-                                          {
-                                            bottom_left[1] =
-                     params.output_data.control_box.y_min; top_right[1]   =
-                     params.output_data.control_box.y_max;
-                                          }
-
-                                        if (dim >= 3)
-                                          {
-                                            bottom_left[2] =
-                     params.output_data.control_box.z_min; top_right[2]   =
-                     params.output_data.control_box.z_max;
-                                          }
-
-                                        BoundingBox control_box(bottom_left,
-                     top_right);
-
-                                        predicate = [&control_box](const
-                     Point<dim> &p) { const auto zeros =
-                     VectorizedArrayType(0.0); const auto ones =
-                     VectorizedArrayType(1.0);
-
-                                          VectorizedArrayType filter = ones;
-
-                                          for(unsigned int d = 0; d < dim; ++d)
-                                          {
-                                            filter =
-                     compare_and_apply_mask<SIMDComparison::greater_than>( p[d],
-                     VectorizedArrayType(control_box.lower_bound[d]), filter,
-                     zeros);
-
-                                            filter =
-                     compare_and_apply_mask<SIMDComparison::less_than>( p[d],
-                     VectorizedArrayType(control_box.upper_bound[d]), filter,
-                     zeros);
-                                          }
-                                        };
-                                      }
-                  */
-
                   std::vector<std::string> q_labels;
                   std::copy(params.output_data.domain_integrals.begin(),
                             params.output_data.domain_integrals.end(),
@@ -2645,9 +2592,79 @@ namespace Sintering
                       dim,
                       VectorizedArrayType>(q_labels);
 
-                  auto q_values =
-                    sintering_operator.calc_domain_quantities(quantities,
-                                                              solution);
+                  std::vector<Number> q_values;
+
+                  if (params.output_data.use_control_box)
+                    {
+                      Point<dim> bottom_left;
+                      Point<dim> top_right;
+
+                      if (dim >= 1)
+                        {
+                          bottom_left[0] =
+                            params.output_data.control_box_data.x_min;
+                          top_right[0] =
+                            params.output_data.control_box_data.x_max;
+                        }
+
+                      if (dim >= 2)
+                        {
+                          bottom_left[1] =
+                            params.output_data.control_box_data.y_min;
+                          top_right[1] =
+                            params.output_data.control_box_data.y_max;
+                        }
+
+                      if (dim >= 3)
+                        {
+                          bottom_left[2] =
+                            params.output_data.control_box_data.z_min;
+                          top_right[2] =
+                            params.output_data.control_box_data.z_max;
+                        }
+
+                      BoundingBox control_box(
+                        std::make_pair(bottom_left, top_right));
+
+                      auto predicate = [&control_box](
+                                         const Point<dim, VectorizedArrayType>
+                                           &p) {
+                        const auto zeros = VectorizedArrayType(0.0);
+                        const auto ones  = VectorizedArrayType(1.0);
+
+                        VectorizedArrayType filter = ones;
+
+                        for (unsigned int d = 0; d < dim; ++d)
+                          {
+                            filter = compare_and_apply_mask<
+                              SIMDComparison::greater_than>(
+                              p[d],
+                              VectorizedArrayType(control_box.lower_bound(d)),
+                              filter,
+                              zeros);
+
+                            filter =
+                              compare_and_apply_mask<SIMDComparison::less_than>(
+                                p[d],
+                                VectorizedArrayType(control_box.upper_bound(d)),
+                                filter,
+                                zeros);
+                          }
+
+                        return filter;
+                      };
+
+                      q_values =
+                        sintering_operator.calc_domain_quantities(quantities,
+                                                                  solution,
+                                                                  predicate);
+                    }
+                  else
+                    {
+                      q_values =
+                        sintering_operator.calc_domain_quantities(quantities,
+                                                                  solution);
+                    }
 
                   for (unsigned int i = 0; i < quantities.size(); ++i)
                     table.add_value(q_labels[i], q_values[i]);
