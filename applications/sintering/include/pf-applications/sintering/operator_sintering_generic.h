@@ -3,66 +3,79 @@
 #include <pf-applications/sintering/advection.h>
 #include <pf-applications/sintering/operator_sintering_base.h>
 
-#define EXPAND_OPERATIONS_N_COMP_NT(OPERATION)   \
-  switch (n_comp_nt)                             \
-    {                                            \
-      case 2:                                    \
-        {                                        \
-          OPERATION(2, 0);                       \
-          break;                                 \
-        }                                        \
-      case 3:                                    \
-        {                                        \
-          OPERATION(3, 0);                       \
-          break;                                 \
-        }                                        \
-      case 4:                                    \
-        {                                        \
-          OPERATION(4, 0);                       \
-          break;                                 \
-        }                                        \
-      case 5:                                    \
-        {                                        \
-          OPERATION(5, 0);                       \
-          break;                                 \
-        }                                        \
-      case 6:                                    \
-        {                                        \
-          OPERATION(6, 0);                       \
-          break;                                 \
-        }                                        \
-      case 7:                                    \
-        {                                        \
-          OPERATION(7, 0);                       \
-          break;                                 \
-        }                                        \
-      case 8:                                    \
-        {                                        \
-          OPERATION(8, 0);                       \
-          break;                                 \
-        }                                        \
-      case 9:                                    \
-        {                                        \
-          OPERATION(9, 0);                       \
-          break;                                 \
-        }                                        \
-      case 10:                                   \
-        {                                        \
-          OPERATION(10, 0);                      \
-          break;                                 \
-        }                                        \
-      case 11:                                   \
-        {                                        \
-          OPERATION(11, 0);                      \
-          break;                                 \
-        }                                        \
-      case 12:                                   \
-        {                                        \
-          OPERATION(12, 0);                      \
-          break;                                 \
-        }                                        \
-      default:                                   \
-        AssertThrow(false, ExcNotImplemented()); \
+#define EXPAND_OPERATIONS_N_COMP_NT(OPERATION)             \
+  switch (n_comp_nt)                                       \
+    {                                                      \
+      case 2:                                              \
+        {                                                  \
+          OPERATION(2, 0);                                 \
+          break;                                           \
+        }                                                  \
+      case 3:                                              \
+        {                                                  \
+          OPERATION(3, 0);                                 \
+          break;                                           \
+        }                                                  \
+      case 4:                                              \
+        {                                                  \
+          OPERATION(4, 0);                                 \
+          break;                                           \
+        }                                                  \
+      case 5:                                              \
+        {                                                  \
+          OPERATION(5, 0);                                 \
+          break;                                           \
+        }                                                  \
+      case 6:                                              \
+        {                                                  \
+          OPERATION(6, 0);                                 \
+          break;                                           \
+        }                                                  \
+      case 7:                                              \
+        {                                                  \
+          OPERATION(7, 0);                                 \
+          break;                                           \
+        }                                                  \
+      case 8:                                              \
+        {                                                  \
+          OPERATION(8, 0);                                 \
+          break;                                           \
+        }                                                  \
+      case 9:                                              \
+        {                                                  \
+          OPERATION(9, 0);                                 \
+          break;                                           \
+        }                                                  \
+      case 10:                                             \
+        {                                                  \
+          OPERATION(10, 0);                                \
+          break;                                           \
+        }                                                  \
+      case 11:                                             \
+        {                                                  \
+          OPERATION(11, 0);                                \
+          break;                                           \
+        }                                                  \
+      case 12:                                             \
+        {                                                  \
+          OPERATION(12, 0);                                \
+          break;                                           \
+        }                                                  \
+      case 13:                                             \
+        {                                                  \
+          OPERATION(13, 0);                                \
+          break;                                           \
+        }                                                  \
+      case 14:                                             \
+        {                                                  \
+          OPERATION(14, 0);                                \
+          break;                                           \
+        }                                                  \
+      default:                                             \
+        AssertThrow(false,                                 \
+                    ExcMessage("Number of components " +   \
+                               std::to_string(n_comp_nt) + \
+                               " is not precompiled!"));   \
     }
 
 namespace Sintering
