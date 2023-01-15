@@ -549,9 +549,10 @@ namespace Sintering
           additional_data.mapping_update_flags =
             update_values | update_gradients;
 
-          if (params.advection_data.enable || true)
-            //(!params.output_data.domain_integrals.empty() &&
-            // params.output_data.use_control_box))
+          if (params.advection_data.enable ||
+              (params.output_data.table &&
+               !params.output_data.domain_integrals.empty() &&
+               params.output_data.use_control_box))
             additional_data.mapping_update_flags |= update_quadrature_points;
 
           matrix_free.reinit(
@@ -2579,7 +2580,7 @@ namespace Sintering
               table.add_value(
                 "dt", sintering_operator.get_data().time_data.get_current_dt());
 
-              if (true /*!params.output_data.domain_integrals.empty()*/)
+              if (!params.output_data.domain_integrals.empty())
                 {
                   /*
                                     if (params.output_data.use_control_box)
@@ -2633,13 +2634,10 @@ namespace Sintering
                                         };
                                       }
                   */
-                  std::set<std::string> domain_integrals{"solid_vol",
-                                                         "surf_area",
-                                                         "gb_area"};
 
                   std::vector<std::string> q_labels;
-                  std::copy(domain_integrals.begin(),
-                            domain_integrals.end(),
+                  std::copy(params.output_data.domain_integrals.begin(),
+                            params.output_data.domain_integrals.end(),
                             std::back_inserter(q_labels));
 
                   auto quantities =
