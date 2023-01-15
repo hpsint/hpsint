@@ -196,6 +196,11 @@ namespace Sintering
                                     "energy",
                                     "subdomain"};
     bool                  mesh_overhead_estimate = false;
+    bool                  use_control_box        = false;
+    BoundingBoxData       control_box_data;
+    std::set<std::string> domain_integrals = {"gb_area",
+                                              "solid_vol",
+                                              "surf_area"};
   };
 
   struct RestartData
@@ -710,6 +715,26 @@ namespace Sintering
       prm.add_parameter("MeshOverheadEstimate",
                         output_data.mesh_overhead_estimate,
                         "Print mesh overhead estimate.");
+      prm.add_parameter("UseControlBox",
+                        output_data.use_control_box,
+                        "Use control box for domain integrals.");
+      const std::string domain_integrals_options =
+        "gb_area|solid_vol|surf_area";
+      prm.add_parameter("DomainIntegrals",
+                        output_data.domain_integrals,
+                        "Domain integral quantities.",
+                        Patterns::List(Patterns::MultipleSelection(
+                          domain_integrals_options)));
+
+      prm.enter_subsection("ControlBox");
+      prm.add_parameter("Xmin", output_data.control_box_data.x_min, "x min.");
+      prm.add_parameter("Xmax", output_data.control_box_data.x_max, "x max.");
+      prm.add_parameter("Ymin", output_data.control_box_data.y_min, "y min.");
+      prm.add_parameter("Ymax", output_data.control_box_data.y_max, "y max.");
+      prm.add_parameter("Zmin", output_data.control_box_data.z_min, "z min.");
+      prm.add_parameter("Zmax", output_data.control_box_data.z_max, "z max.");
+      prm.leave_subsection();
+
       prm.leave_subsection();
 
       prm.enter_subsection("Restart");
