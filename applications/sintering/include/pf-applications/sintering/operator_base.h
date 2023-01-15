@@ -938,10 +938,8 @@ namespace Sintering
           for (unsigned int i = 0; i < quantities.size(); ++i)
             {
               const auto vals = fe_eval[i].integrate_value();
-              q_values[i] += std::accumulate(vals.begin(),
-                                             vals.end(),
-                                             0,
-                                             std::plus<Number>());
+              q_values[i] +=
+                std::accumulate(vals.begin(), vals.end(), Number(0));
             }
         }
 
