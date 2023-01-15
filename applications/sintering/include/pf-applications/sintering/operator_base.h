@@ -945,6 +945,11 @@ namespace Sintering
 
       vec.zero_out_ghost_values();
 
+      for (unsigned int i = 0; i < quantities.size(); ++i)
+        q_values[i] = Utilities::MPI::sum<Number>(
+          q_values[i],
+          matrix_free.get_dof_handler(dof_index).get_communicator());
+
       return q_values;
     }
 
