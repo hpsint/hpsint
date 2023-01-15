@@ -549,7 +549,9 @@ namespace Sintering
           additional_data.mapping_update_flags =
             update_values | update_gradients;
 
-          if (params.advection_data.enable)
+          if (params.advection_data.enable || true)
+            //(!params.output_data.domain_integrals.empty() &&
+            // params.output_data.use_control_box))
             additional_data.mapping_update_flags |= update_quadrature_points;
 
           matrix_free.reinit(
@@ -2576,6 +2578,82 @@ namespace Sintering
               table.add_value("time", t);
               table.add_value(
                 "dt", sintering_operator.get_data().time_data.get_current_dt());
+
+              if (true /*!params.output_data.domain_integrals.empty()*/)
+                {
+                  /*
+                                    if (params.output_data.use_control_box)
+                                      {
+                                        Point<dim> bottom_left;
+                                        Point<dim> top_right;
+
+                                        if (dim >= 1)
+                                          {
+                                            bottom_left[0] =
+                     params.output_data.control_box.x_min; top_right[0]   =
+                     params.output_data.control_box.x_max;
+                                          }
+
+                                        if (dim >= 2)
+                                          {
+                                            bottom_left[1] =
+                     params.output_data.control_box.y_min; top_right[1]   =
+                     params.output_data.control_box.y_max;
+                                          }
+
+                                        if (dim >= 3)
+                                          {
+                                            bottom_left[2] =
+                     params.output_data.control_box.z_min; top_right[2]   =
+                     params.output_data.control_box.z_max;
+                                          }
+
+                                        BoundingBox control_box(bottom_left,
+                     top_right);
+
+                                        predicate = [&control_box](const
+                     Point<dim> &p) { const auto zeros =
+                     VectorizedArrayType(0.0); const auto ones =
+                     VectorizedArrayType(1.0);
+
+                                          VectorizedArrayType filter = ones;
+
+                                          for(unsigned int d = 0; d < dim; ++d)
+                                          {
+                                            filter =
+                     compare_and_apply_mask<SIMDComparison::greater_than>( p[d],
+                     VectorizedArrayType(control_box.lower_bound[d]), filter,
+                     zeros);
+
+                                            filter =
+                     compare_and_apply_mask<SIMDComparison::less_than>( p[d],
+                     VectorizedArrayType(control_box.upper_bound[d]), filter,
+                     zeros);
+                                          }
+                                        };
+                                      }
+                  */
+                  std::set<std::string> domain_integrals{"solid_vol",
+                                                         "surf_area",
+                                                         "gb_area"};
+
+                  std::vector<std::string> q_labels;
+                  std::copy(domain_integrals.begin(),
+                            domain_integrals.end(),
+                            std::back_inserter(q_labels));
+
+                  auto quantities =
+                    Postprocessors::build_domain_quantities_evaluators<
+                      dim,
+                      VectorizedArrayType>(q_labels);
+
+                  auto q_values =
+                    sintering_operator.calc_domain_quantities(quantities,
+                                                              solution);
+
+                  for (unsigned int i = 0; i < quantities.size(); ++i)
+                    table.add_value(q_labels[i], q_values[i]);
+                }
             }
         }
 
