@@ -208,7 +208,9 @@ main(int argc, char **argv)
                   ExcMessage("Argument cloud_file has to be provided!"));
 
       std::string   file_cloud = std::string(argv[2]);
-      std::ifstream fstream(file_cloud.c_str());
+      std::ifstream fstream(file_cloud);
+      AssertThrow(fstream.is_open(), ExcMessage("File not found!"));
+
       const auto particles = Sintering::read_particles<SINTERING_DIM>(fstream);
 
       // Output case specific info
