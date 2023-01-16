@@ -49,28 +49,40 @@ namespace Sintering
     TimeIntegration::TimeIntegratorData<Number> time_data;
 
   public:
-    Table<3, VectorizedArrayType> &
-    get_nonlinear_values()
-    {
-      return nonlinear_values;
-    }
-
-    Table<3, VectorizedArrayType> &
+    const Table<3, VectorizedArrayType> &
     get_nonlinear_values() const
     {
       return nonlinear_values;
     }
 
-    Table<3, dealii::Tensor<1, dim, VectorizedArrayType>> &
-    get_nonlinear_gradients()
+    const Table<3, dealii::Tensor<1, dim, VectorizedArrayType>> &
+    get_nonlinear_gradients() const
     {
       return nonlinear_gradients;
     }
 
-    Table<3, dealii::Tensor<1, dim, VectorizedArrayType>> &
-    get_nonlinear_gradients() const
+    const VectorizedArrayType *
+    get_nonlinear_values(const unsigned int cell) const
     {
-      return nonlinear_gradients;
+      if (value_ptr.empty())
+        return &nonlinear_values[cell][0][0];
+      else
+        return &nonlinear_values_new[value_ptr[cell]];
+    }
+
+    const dealii::Tensor<1, dim, VectorizedArrayType> *
+    get_nonlinear_gradients(const unsigned int cell) const
+    {
+      if (gradient_ptr.empty())
+        return &nonlinear_gradients[cell][0][0];
+      else
+        return &nonlinear_gradients_new[gradient_ptr[cell]];
+    }
+
+    Table<2, bool> &
+    get_component_table() const
+    {
+      return component_table;
     }
 
     void
@@ -89,6 +101,121 @@ namespace Sintering
     n_grains() const
     {
       return number_of_components - 2;
+    }
+
+    void
+    set_component_mask(
+      const MatrixFree<dim, Number, VectorizedArrayType> &          matrix_free,
+      const LinearAlgebra::distributed::DynamicBlockVector<Number> &src,
+      const bool   save_op_gradients,
+      const bool   save_all_blocks,
+      const double grain_use_cut_off_tolerance)
+    {
+      src.update_ghost_values();
+
+      const unsigned n_quadrature_points = matrix_free.get_quadrature().size();
+
+      const auto comm = MPI_COMM_WORLD;
+
+      const unsigned n_cells = matrix_free.n_cell_batches();
+
+      component_table.reinit({n_cells, n_grains()});
+
+      for (unsigned int i = 0; i < n_cells; ++i)
+        for (unsigned int j = 0; j < n_grains(); ++j)
+          component_table[i][j] = false;
+
+      const auto &dof_handler = matrix_free.get_dof_handler();
+
+      Vector<Number> values(dof_handler.get_fe().n_dofs_per_cell());
+
+      for (unsigned int cell = 0; cell < n_cells; ++cell)
+        {
+          for (unsigned int v = 0;
+               v < matrix_free.n_active_entries_per_cell_batch(cell);
+               ++v)
+            {
+              const auto cell_iterator = matrix_free.get_cell_iterator(cell, v);
+
+              for (unsigned int b = 0; b < n_grains(); ++b)
+                {
+                  cell_iterator->get_dof_values(src.block(b + 2), values);
+
+                  if (values.linfty_norm() > grain_use_cut_off_tolerance)
+                    component_table[cell][b] = true;
+                }
+            }
+        }
+
+      value_ptr    = {0};
+      gradient_ptr = {0};
+
+      relevant_grains_vector = {};
+      relevant_grains_ptr    = {0};
+
+      for (unsigned int cell = 0; cell < n_cells; ++cell)
+        {
+          unsigned int counter = 0;
+
+          for (unsigned int j = 0; j < n_grains(); ++j)
+            if (component_table[cell][j])
+              {
+                counter++;
+                relevant_grains_vector.push_back(j);
+              }
+
+          relevant_grains_ptr.push_back(relevant_grains_vector.size());
+
+          const unsigned n_components_save_value =
+            (save_all_blocks ? src.n_blocks() : this->n_components()) -
+            n_grains() + counter;
+
+          const unsigned n_components_save_gradient =
+            use_tensorial_mobility || save_op_gradients ?
+              n_components_save_value :
+              2;
+
+          value_ptr.emplace_back(value_ptr.back() +
+                                 n_quadrature_points * n_components_save_value);
+          gradient_ptr.emplace_back(gradient_ptr.back() +
+                                    n_quadrature_points *
+                                      n_components_save_gradient);
+        }
+
+
+      // some statistics
+      std::vector<unsigned int> counters(n_cells, 0);
+
+      for (unsigned int i = 0; i < n_cells; ++i)
+        {
+          for (unsigned int j = 0; j < n_grains(); ++j)
+            if (component_table[i][j])
+              counters[i]++;
+        }
+
+      unsigned int max_value =
+        *std::max_element(counters.begin(), counters.end());
+      max_value = Utilities::MPI::max(max_value, comm);
+
+      std::vector<unsigned int> max_values(max_value + 1, 0);
+
+      for (const auto i : counters)
+        max_values[i]++;
+
+      Utilities::MPI::sum(max_values, comm, max_values);
+
+      ConditionalOStream pcout(std::cout,
+                               Utilities::MPI::this_mpi_process(comm) == 0);
+
+      pcout << "Cut-off statistic: " << max_value << " (";
+
+      pcout << (0) << ": " << max_values[0];
+      for (unsigned int i = 1; i < max_values.size(); ++i)
+        pcout << ", " << i << ": " << max_values[i];
+
+      pcout << ")" << std::endl;
+
+      src.zero_out_ghost_values();
     }
 
     void
@@ -121,6 +248,12 @@ namespace Sintering
          n_quadrature_points,
          use_tensorial_mobility || save_op_gradients ? n_components_save : 2});
 
+      if (value_ptr.empty() == false)
+        nonlinear_values_new.resize(value_ptr.back());
+
+      if (gradient_ptr.empty() == false)
+        nonlinear_gradients_new.resize(gradient_ptr.back());
+
       FECellIntegrator<dim, 1, Number, VectorizedArrayType> phi(matrix_free);
 
       src.update_ghost_values();
@@ -137,11 +270,53 @@ namespace Sintering
 
               for (unsigned int q = 0; q < phi.n_q_points; ++q)
                 {
-                  nonlinear_values(cell, q, c) = phi.get_value(q);
+                  auto value    = phi.get_value(q);
+                  auto gradient = phi.get_gradient(q);
+
+                  if ((component_table.size(0) > 0) && (c >= 2))
+                    if (component_table[cell][c - 2] == false)
+                      {
+                        value    = VectorizedArrayType();
+                        gradient = Tensor<1, dim, VectorizedArrayType>();
+                      }
+
+                  nonlinear_values(cell, q, c) = value;
 
                   if (use_tensorial_mobility || (c < 2) || save_op_gradients)
-                    nonlinear_gradients(cell, q, c) = phi.get_gradient(q);
+                    nonlinear_gradients(cell, q, c) = gradient;
                 }
+            }
+
+          if (component_table.size(0) > 0)
+            {
+              const unsigned n_components_save_value =
+                save_all_blocks ? src.n_blocks() : this->n_components();
+
+              const unsigned n_components_save_gradient =
+                use_tensorial_mobility || save_op_gradients ?
+                  n_components_save_value :
+                  2;
+
+              unsigned int counter_v = value_ptr[cell];
+              unsigned int counter_g = gradient_ptr[cell];
+
+              for (unsigned int q = 0; q < n_quadrature_points; ++q)
+                {
+                  for (unsigned int c = 0; c < n_components_save_value; ++c)
+                    if (((c < 2) || (c >= (2 + n_grains()))) ||
+                        component_table[cell][c - 2])
+                      nonlinear_values_new[counter_v++] =
+                        nonlinear_values(cell, q, c);
+
+                  for (unsigned int c = 0; c < n_components_save_gradient; ++c)
+                    if (((c < 2) || (c >= (2 + n_grains()))) ||
+                        component_table[cell][c - 2])
+                      nonlinear_gradients_new[counter_g++] =
+                        nonlinear_gradients(cell, q, c);
+                }
+
+              AssertDimension(counter_v, value_ptr[cell + 1]);
+              AssertDimension(counter_g, gradient_ptr[cell + 1]);
             }
         }
 
@@ -180,12 +355,33 @@ namespace Sintering
       return mobility;
     }
 
+    ArrayView<const unsigned char>
+    get_relevant_grains(const unsigned int cell) const
+    {
+      return ArrayView<const unsigned char>(relevant_grains_vector.data() +
+                                              relevant_grains_ptr[cell],
+                                            relevant_grains_ptr[cell + 1] -
+                                              relevant_grains_ptr[cell]);
+    }
+
   private:
     MobilityType mobility;
 
     mutable Table<3, VectorizedArrayType> nonlinear_values;
     mutable Table<3, dealii::Tensor<1, dim, VectorizedArrayType>>
       nonlinear_gradients;
+
+    mutable AlignedVector<VectorizedArrayType> nonlinear_values_new;
+    mutable AlignedVector<dealii::Tensor<1, dim, VectorizedArrayType>>
+      nonlinear_gradients_new;
+
+    std::vector<unsigned int> value_ptr;
+    std::vector<unsigned int> gradient_ptr;
+
+    std::vector<unsigned char> relevant_grains_vector;
+    std::vector<unsigned int>  relevant_grains_ptr;
+
+    mutable Table<2, bool> component_table;
 
     unsigned int number_of_components;
 

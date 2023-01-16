@@ -1,6 +1,7 @@
 #pragma once
 
 #include <pf-applications/sintering/advection.h>
+#include <pf-applications/sintering/instantiation.h>
 #include <pf-applications/sintering/operator_sintering_base.h>
 
 namespace Sintering
@@ -57,6 +58,8 @@ namespace Sintering
                     "sintering_op::nonlinear_residual",
                     this->do_timing);
 
+      if (this->data.get_component_table().size(0) == 0)
+        {
 #define OPERATION(c, d)                                           \
   MyMatrixFreeTools::cell_loop_wrapper(                           \
     this->matrix_free,                                            \
@@ -66,8 +69,126 @@ namespace Sintering
     dst,                                                          \
     src,                                                          \
     true);
-      EXPAND_OPERATIONS(OPERATION);
+          EXPAND_OPERATIONS(OPERATION);
 #undef OPERATION
+        }
+      else
+        {
+          MyMatrixFreeTools::cell_loop_wrapper(
+            this->matrix_free,
+            &SinteringOperatorGeneric::do_evaluate_nonlinear_residual_nt<
+              with_time_derivative>,
+            this,
+            dst,
+            src,
+            true);
+        }
+    }
+
+    void
+    vmult_internal(VectorType &dst, const VectorType &src) const override
+    {
+      OperatorBase<dim, Number, VectorizedArrayType, T>::vmult(dst, src);
+    }
+
+    void
+    do_vmult_range_no_template(
+      const MatrixFree<dim, Number, VectorizedArrayType> &matrix_free,
+      BlockVectorType &                                   dst,
+      const BlockVectorType &                             src,
+      const std::pair<unsigned int, unsigned int> &       range) const
+    {
+      std::vector<
+        std::shared_ptr<FEEvaluationData<dim, VectorizedArrayType, false>>>
+        phis(this->n_grains() + 1);
+
+      for (unsigned int i = 0; i <= this->n_grains(); ++i)
+        {
+          const unsigned int n_comp_nt = i + 2;
+#define OPERATION(n_comp, dummy)                                 \
+  (void)dummy;                                                   \
+  phis[i] = std::make_shared<                                    \
+    FECellIntegrator<dim, n_comp, Number, VectorizedArrayType>>( \
+    matrix_free, this->dof_index);
+          EXPAND_OPERATIONS_N_COMP_NT(OPERATION);
+#undef OPERATION
+        }
+
+      std::vector<const VectorType *> src_view;
+      std::vector<VectorType *>       dst_view;
+
+      for (auto cell = range.first; cell < range.second; ++cell)
+        {
+          // CH blocks
+          for (unsigned int b = 0; b < 2; ++b)
+            {
+              src_view.push_back(&src.block(b));
+              dst_view.push_back(&dst.block(b));
+            }
+
+          // relevant AC blocks
+          for (const auto b : this->data.get_relevant_grains(cell))
+            {
+              src_view.push_back(&src.block(b + 2));
+              dst_view.push_back(&dst.block(b + 2));
+            }
+
+          const unsigned int n_comp_nt = src_view.size();
+
+#define OPERATION(n_comp, dummy)                                               \
+  (void)dummy;                                                                 \
+  constexpr unsigned int n_grains = n_comp - 2;                                \
+                                                                               \
+  auto &phi =                                                                  \
+    static_cast<FECellIntegrator<dim, n_comp, Number, VectorizedArrayType> &>( \
+      *phis[n_grains]);                                                        \
+                                                                               \
+  phi.reinit(cell);                                                            \
+  phi.read_dof_values(src_view);                                               \
+  phi.evaluate(EvaluationFlags::EvaluationFlags::values |                      \
+               EvaluationFlags::EvaluationFlags::gradients);                   \
+                                                                               \
+  static_cast<const T &>(*this).template do_vmult_kernel<n_comp, n_grains>(    \
+    phi);                                                                      \
+                                                                               \
+  phi.integrate(EvaluationFlags::EvaluationFlags::values |                     \
+                EvaluationFlags::EvaluationFlags::gradients);                  \
+  phi.distribute_local_to_global(dst_view);
+          EXPAND_OPERATIONS_N_COMP_NT(OPERATION);
+#undef OPERATION
+
+          src_view.clear();
+          dst_view.clear();
+        }
+    }
+
+    void
+    vmult_internal(BlockVectorType &      dst,
+                   const BlockVectorType &src) const override
+    {
+      if (this->data.get_component_table().size(0) == 0)
+        {
+          OperatorBase<dim, Number, VectorizedArrayType, T>::vmult_internal(
+            dst, src);
+        }
+      else
+        {
+          MyMatrixFreeTools::cell_loop_wrapper(
+            this->matrix_free,
+            &SinteringOperatorGeneric::do_vmult_range_no_template,
+            this,
+            dst,
+            src,
+            true);
+        }
+    }
+
+    void
+    vmult_internal(
+      LinearAlgebra::distributed::BlockVector<Number> &      dst,
+      const LinearAlgebra::distributed::BlockVector<Number> &src) const override
+    {
+      OperatorBase<dim, Number, VectorizedArrayType, T>::vmult(dst, src);
     }
 
     unsigned int
@@ -96,8 +217,8 @@ namespace Sintering
 
       const unsigned int cell = phi.get_current_cell_index();
 
-      const auto &nonlinear_values    = this->data.get_nonlinear_values();
-      const auto &nonlinear_gradients = this->data.get_nonlinear_gradients();
+      auto lin_value    = this->data.get_nonlinear_values(cell);
+      auto lin_gradient = this->data.get_nonlinear_gradients(cell);
 
       const auto &free_energy = this->data.free_energy;
       const auto &mobility    = this->data.get_mobility();
@@ -117,14 +238,12 @@ namespace Sintering
           typename FECellIntegratorType::value_type    value_result;
           typename FECellIntegratorType::gradient_type gradient_result;
 
-          const auto  value        = phi.get_value(q);
-          const auto  gradient     = phi.get_gradient(q);
-          const auto &lin_value    = nonlinear_values[cell][q];
-          const auto &lin_gradient = nonlinear_gradients[cell][q];
+          auto value    = phi.get_value(q);
+          auto gradient = phi.get_gradient(q);
 
           const auto &lin_c_value = lin_value[0];
 
-          const VectorizedArrayType *lin_etas_value = &lin_value[2];
+          const VectorizedArrayType *lin_etas_value = &lin_value[0] + 2;
 
           const auto lin_etas_value_power_2_sum =
             PowerHelper<n_grains, 2>::power_sum(lin_etas_value);
@@ -198,10 +317,176 @@ namespace Sintering
 
           phi.submit_value(value_result, q);
           phi.submit_gradient(gradient_result, q);
+
+          lin_value += 2 + n_grains;
+          lin_gradient += 2 + (SinteringOperatorData<dim, VectorizedArrayType>::
+                                   use_tensorial_mobility ?
+                                 n_grains :
+                                 0);
         }
     }
 
   private:
+    template <int n_comp,
+              int n_grains,
+              int with_time_derivative,
+              typename FECellIntegratorType>
+    void
+    do_evaluate_nonlinear_residual_cell(
+      FECellIntegratorType &                    phi,
+      const AlignedVector<VectorizedArrayType> &buffer) const
+    {
+      const unsigned int cell = phi.get_current_cell_index();
+
+      const auto &free_energy = this->data.free_energy;
+      const auto &mobility    = this->data.get_mobility();
+      const auto &kappa_c     = this->data.kappa_c;
+      const auto &kappa_p     = this->data.kappa_p;
+      const auto &weights     = this->data.time_data.get_weights();
+      const auto &L           = mobility.Lgb();
+
+      phi.evaluate(EvaluationFlags::EvaluationFlags::values |
+                   EvaluationFlags::EvaluationFlags::gradients);
+
+      // Reinit advection data for the current cells batch
+      if (this->advection.enabled())
+        this->advection.reinit(cell,
+                               static_cast<unsigned int>(n_grains),
+                               phi.get_matrix_free());
+
+      for (unsigned int q = 0; q < phi.n_q_points; ++q)
+        {
+          auto value    = phi.get_value(q);
+          auto gradient = phi.get_gradient(q);
+
+          const VectorizedArrayType *                etas_value = &value[0] + 2;
+          const Tensor<1, dim, VectorizedArrayType> *etas_gradient =
+            &gradient[0] + 2;
+
+          const auto etas_value_power_2_sum =
+            PowerHelper<n_grains, 2>::power_sum(etas_value);
+          const auto etas_value_power_3_sum =
+            PowerHelper<n_grains, 3>::power_sum(etas_value);
+
+          Tensor<1, n_comp, VectorizedArrayType> value_result;
+          Tensor<1, n_comp, Tensor<1, dim, VectorizedArrayType>>
+            gradient_result;
+
+
+
+          // 1) process c row
+          if (with_time_derivative >= 1)
+            value_result[0] = value[0] * weights[0];
+          if (with_time_derivative == 2)
+            value_result[0] += buffer[n_comp * q];
+
+          gradient_result[0] = mobility.apply_M(value[0],
+                                                etas_value,
+                                                n_grains,
+                                                gradient[0],
+                                                etas_gradient,
+                                                gradient[1]);
+
+
+
+          // 2) process mu row
+          value_result[1] =
+            -value[1] + free_energy.df_dc(value[0],
+                                          etas_value,
+                                          etas_value_power_2_sum,
+                                          etas_value_power_3_sum);
+          gradient_result[1] = kappa_c * gradient[0];
+
+
+
+          // 3) process eta rows
+          for (unsigned int ig = 0; ig < n_grains; ++ig)
+            {
+              value_result[2 + ig] =
+                L * free_energy.df_detai(value[0],
+                                         etas_value,
+                                         etas_value_power_2_sum,
+                                         ig);
+
+              if (with_time_derivative >= 1)
+                value_result[ig + 2] += value[ig + 2] * weights[0];
+              if (with_time_derivative == 2)
+                value_result[2 + ig] += buffer[n_comp * q + 2 + ig];
+
+              gradient_result[2 + ig] = L * kappa_p * gradient[2 + ig];
+            }
+
+
+          // 4) add advection contributations -> influences c AND etas
+          if (this->advection.enabled())
+            for (unsigned int ig = 0; ig < n_grains; ++ig)
+              if (this->advection.has_velocity(ig))
+                {
+                  const auto &velocity_ig =
+                    this->advection.get_velocity(ig, phi.quadrature_point(q));
+
+                  value_result[0] += velocity_ig * gradient[0];
+                  value_result[2 + ig] += velocity_ig * gradient[2 + ig];
+                }
+
+
+          phi.submit_value(value_result, q);
+          phi.submit_gradient(gradient_result, q);
+        }
+      phi.integrate(EvaluationFlags::EvaluationFlags::values |
+                    EvaluationFlags::EvaluationFlags::gradients);
+    }
+
+    template <int n_comp,
+              int with_time_derivative,
+              typename FECellIntegratorType>
+    void
+    do_evalute_history(
+      FECellIntegratorType &              phi,
+      AlignedVector<VectorizedArrayType> &buffer,
+      const std::vector<unsigned char> &  vector_indices = {}) const
+    {
+      if (with_time_derivative == 2)
+        {
+          const auto &order         = this->data.time_data.get_order();
+          const auto &weights       = this->data.time_data.get_weights();
+          const auto  old_solutions = this->history.get_old_solutions();
+
+          buffer.resize_fast(
+            std::max(phi.dofs_per_cell, n_comp * phi.n_q_points));
+
+          std::vector<const VectorType *> view;
+
+          for (unsigned int i = 0; i < order; ++i)
+            {
+              if (vector_indices.size() == 0)
+                phi.read_dof_values_plain(*old_solutions[i]);
+              else
+                {
+                  view.resize(vector_indices.size());
+
+                  for (unsigned int j = 0; j < view.size(); ++j)
+                    view[j] = &old_solutions[i]->block(vector_indices[j]);
+
+                  phi.read_dof_values_plain(view);
+                }
+
+              for (unsigned int j = 0; j < phi.dofs_per_cell; ++j)
+                if (i == 0)
+                  buffer[j] = phi.begin_dof_values()[j] * weights[i + 1];
+                else
+                  buffer[j] += phi.begin_dof_values()[j] * weights[i + 1];
+            }
+
+          phi.evaluate(buffer.data(), EvaluationFlags::EvaluationFlags::values);
+
+          for (unsigned int q = 0; q < phi.n_q_points; ++q)
+            for (unsigned int c = 0; c < n_comp; ++c)
+              buffer[q * n_comp + c] =
+                phi.begin_values()[q + c * phi.n_q_points];
+        }
+    }
+
     template <int n_comp, int n_grains, int with_time_derivative>
     void
     do_evaluate_nonlinear_residual(
@@ -211,130 +496,100 @@ namespace Sintering
       const std::pair<unsigned int, unsigned int> &       range) const
     {
       AssertDimension(n_comp - 2, n_grains);
-
       FECellIntegrator<dim, n_comp, Number, VectorizedArrayType> phi(
         matrix_free, this->dof_index);
 
-      auto time_phi = this->time_integrator.create_cell_intergator(phi);
-
-      const auto &free_energy = this->data.free_energy;
-      const auto &mobility    = this->data.get_mobility();
-      const auto &kappa_c     = this->data.kappa_c;
-      const auto &kappa_p     = this->data.kappa_p;
-      const auto &order       = this->data.time_data.get_order();
-      const auto  weight      = this->data.time_data.get_primary_weight();
-      const auto &L           = mobility.Lgb();
-
-      const auto old_solutions = this->history.get_old_solutions();
+      AlignedVector<VectorizedArrayType> buffer;
 
       for (auto cell = range.first; cell < range.second; ++cell)
         {
           phi.reinit(cell);
-          phi.gather_evaluate(src,
-                              EvaluationFlags::EvaluationFlags::values |
-                                EvaluationFlags::EvaluationFlags::gradients);
 
-          if (with_time_derivative == 2)
-            for (unsigned int i = 0; i < order; ++i)
-              {
-                time_phi[i].reinit(cell);
-                time_phi[i].read_dof_values_plain(*old_solutions[i]);
-                time_phi[i].evaluate(EvaluationFlags::EvaluationFlags::values);
-              }
+          do_evalute_history<n_comp, with_time_derivative>(phi, buffer);
 
-          // Reinit advection data for the current cells batch
-          if (this->advection.enabled())
-            this->advection.reinit(cell,
-                                   static_cast<unsigned int>(n_grains),
-                                   matrix_free);
+          phi.read_dof_values(src);
 
-          for (unsigned int q = 0; q < phi.n_q_points; ++q)
+          do_evaluate_nonlinear_residual_cell<n_comp,
+                                              n_grains,
+                                              with_time_derivative>(phi,
+                                                                    buffer);
+
+          phi.distribute_local_to_global(dst);
+        }
+    }
+
+    template <int with_time_derivative>
+    void
+    do_evaluate_nonlinear_residual_nt(
+      const MatrixFree<dim, Number, VectorizedArrayType> &matrix_free,
+      BlockVectorType &                                   dst,
+      const BlockVectorType &                             src,
+      const std::pair<unsigned int, unsigned int> &       range) const
+    {
+      std::vector<
+        std::shared_ptr<FEEvaluationData<dim, VectorizedArrayType, false>>>
+        phis(this->n_grains() + 1);
+
+      for (unsigned int i = 0; i <= this->n_grains(); ++i)
+        {
+          const unsigned int n_comp_nt = i + 2;
+#define OPERATION(n_comp, dummy)                                 \
+  (void)dummy;                                                   \
+  phis[i] = std::make_shared<                                    \
+    FECellIntegrator<dim, n_comp, Number, VectorizedArrayType>>( \
+    matrix_free, this->dof_index);
+          EXPAND_OPERATIONS_N_COMP_NT(OPERATION);
+#undef OPERATION
+        }
+
+      AlignedVector<VectorizedArrayType> buffer;
+      std::vector<unsigned char>         vector_indices;
+      std::vector<const VectorType *>    src_view;
+      std::vector<VectorType *>          dst_view;
+
+      for (auto cell = range.first; cell < range.second; ++cell)
+        {
+          // CH blocks
+          vector_indices.push_back(0);
+          vector_indices.push_back(1);
+
+          // relevant AC blocks
+          for (const auto b : this->data.get_relevant_grains(cell))
+            vector_indices.push_back(b + 2);
+
+          for (const auto b : vector_indices)
             {
-              const auto value    = phi.get_value(q);
-              const auto gradient = phi.get_gradient(q);
-
-              const VectorizedArrayType *                etas_value = &value[2];
-              const Tensor<1, dim, VectorizedArrayType> *etas_gradient =
-                &gradient[2];
-
-              const auto etas_value_power_2_sum =
-                PowerHelper<n_grains, 2>::power_sum(etas_value);
-              const auto etas_value_power_3_sum =
-                PowerHelper<n_grains, 3>::power_sum(etas_value);
-
-              Tensor<1, n_comp, VectorizedArrayType> value_result;
-              Tensor<1, n_comp, Tensor<1, dim, VectorizedArrayType>>
-                gradient_result;
-
-
-
-              // 1) process c row
-              if (with_time_derivative == 2)
-                this->time_integrator.compute_time_derivative(
-                  value_result[0], value, time_phi, 0, q);
-              else if (with_time_derivative == 1)
-                value_result[0] = value[0] * weight;
-
-              gradient_result[0] = mobility.apply_M(value[0],
-                                                    etas_value,
-                                                    n_grains,
-                                                    gradient[0],
-                                                    etas_gradient,
-                                                    gradient[1]);
-
-
-
-              // 2) process mu row
-              value_result[1] =
-                -value[1] + free_energy.df_dc(value[0],
-                                              etas_value,
-                                              etas_value_power_2_sum,
-                                              etas_value_power_3_sum);
-              gradient_result[1] = kappa_c * gradient[0];
-
-
-
-              // 3) process eta rows
-              for (unsigned int ig = 0; ig < n_grains; ++ig)
-                {
-                  value_result[2 + ig] =
-                    L * free_energy.df_detai(value[0],
-                                             etas_value,
-                                             etas_value_power_2_sum,
-                                             ig);
-
-                  if (with_time_derivative == 2)
-                    this->time_integrator.compute_time_derivative(
-                      value_result[2 + ig], value, time_phi, 2 + ig, q);
-                  else if (with_time_derivative == 1)
-                    value_result[ig + 2] += value[ig + 2] * weight;
-
-                  gradient_result[2 + ig] = L * kappa_p * gradient[2 + ig];
-                }
-
-
-
-              // 4) add advection contributations -> influences c AND etas
-              if (this->advection.enabled())
-                for (unsigned int ig = 0; ig < n_grains; ++ig)
-                  if (this->advection.has_velocity(ig))
-                    {
-                      const auto &velocity_ig =
-                        this->advection.get_velocity(ig,
-                                                     phi.quadrature_point(q));
-
-                      value_result[0] += velocity_ig * gradient[0];
-                      value_result[2 + ig] += velocity_ig * gradient[2 + ig];
-                    }
-
-
-
-              phi.submit_value(value_result, q);
-              phi.submit_gradient(gradient_result, q);
+              src_view.push_back(&src.block(b));
+              dst_view.push_back(&dst.block(b));
             }
-          phi.integrate_scatter(EvaluationFlags::EvaluationFlags::values |
-                                  EvaluationFlags::EvaluationFlags::gradients,
-                                dst);
+
+          const unsigned int n_comp_nt = src_view.size();
+
+#define OPERATION(n_comp, dummy)                                               \
+  (void)dummy;                                                                 \
+  constexpr unsigned int n_grains = n_comp - 2;                                \
+                                                                               \
+  auto &phi =                                                                  \
+    static_cast<FECellIntegrator<dim, n_comp, Number, VectorizedArrayType> &>( \
+      *phis[n_grains]);                                                        \
+                                                                               \
+  phi.reinit(cell);                                                            \
+  do_evalute_history<n_comp, with_time_derivative>(phi,                        \
+                                                   buffer,                     \
+                                                   vector_indices);            \
+                                                                               \
+  phi.read_dof_values(src_view);                                               \
+                                                                               \
+  do_evaluate_nonlinear_residual_cell<n_comp, n_grains, with_time_derivative>( \
+    phi, buffer);                                                              \
+                                                                               \
+  phi.distribute_local_to_global(dst_view);
+          EXPAND_OPERATIONS_N_COMP_NT(OPERATION);
+#undef OPERATION
+
+          vector_indices.clear();
+          src_view.clear();
+          dst_view.clear();
         }
     }
 

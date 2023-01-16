@@ -436,6 +436,8 @@ namespace Sintering
         const auto  weight           = data.time_data.get_primary_weight();
         const auto &nonlinear_values = data.get_nonlinear_values();
 
+        const auto &component_table = this->data.get_component_table();
+
         std::vector<VectorizedArrayType> etas(this->n_grains());
 
         for (unsigned int cell = 0; cell < this->matrix_free.n_cell_batches();
@@ -521,12 +523,30 @@ namespace Sintering
                               AssertThrow(false, ExcNotImplemented());
                           }
 
-                        const auto value_result =
-                          integrator.get_value(q) * weight +
-                          L * scaling * integrator.get_value(q);
+                        auto value    = integrator.get_value(q);
+                        auto gradient = integrator.get_gradient(q);
 
-                        const auto gradient_result =
-                          L * kappa_p * integrator.get_gradient(q);
+                        if (free_energy_approximation == 0 &&
+                            component_table.size(0) > 0)
+                          if (component_table[cell][b] == false)
+                            {
+                              value    = VectorizedArrayType();
+                              gradient = Tensor<1, dim, VectorizedArrayType>();
+                            }
+
+                        auto value_result =
+                          value * weight + L * scaling * value;
+                        auto gradient_result = L * kappa_p * gradient;
+
+
+                        if (free_energy_approximation == 0 &&
+                            component_table.size(0) > 0)
+                          if (component_table[cell][b] == false)
+                            {
+                              value_result = VectorizedArrayType();
+                              gradient_result =
+                                Tensor<1, dim, VectorizedArrayType>();
+                            }
 
                         integrator.submit_value(value_result, q);
                         integrator.submit_gradient(gradient_result, q);
@@ -566,7 +586,31 @@ namespace Sintering
       }
 
       for (unsigned int b = 0; b < this->n_unique_components(); ++b)
-        this->block_system_matrix[b]->compress(VectorOperation::add);
+        {
+          auto &matrix = *this->block_system_matrix[b];
+
+          matrix.compress(VectorOperation::add);
+
+          const auto &component_table = this->data.get_component_table();
+
+          if (free_energy_approximation == 0 && component_table.size(0) > 0)
+            {
+              const auto range = matrix.local_range();
+
+              for (unsigned int r = range.first; r < range.second; ++r)
+                {
+                  auto entry = matrix.begin(r);
+                  auto end   = matrix.end(r);
+
+                  for (; entry != end; ++entry)
+                    if (entry->row() == entry->column() &&
+                        entry->value() == 0.0)
+                      entry->value() = 1.0;
+                }
+
+              matrix.compress(VectorOperation::insert);
+            }
+        }
 
       return this->block_system_matrix;
     }

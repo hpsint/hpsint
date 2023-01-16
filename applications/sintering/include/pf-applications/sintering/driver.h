@@ -2181,6 +2181,14 @@ namespace Sintering
                 // Reset statistics
                 statistics.clear();
 
+                if (params.grain_cut_off_tolerance > 0.0)
+                  sintering_data.set_component_mask(
+                    matrix_free,
+                    solution,
+                    params.advection_data.enable,
+                    save_all_blocks,
+                    params.grain_cut_off_tolerance);
+
                 // note: input/output (solution) needs/has the right
                 // constraints applied
                 non_linear_solver_executor->solve(solution);

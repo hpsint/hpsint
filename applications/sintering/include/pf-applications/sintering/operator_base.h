@@ -277,6 +277,50 @@ namespace Sintering
       return old;
     }
 
+    virtual void
+    vmult_internal(VectorType &dst, const VectorType &src) const
+    {
+#define OPERATION(c, d)                                                     \
+  MyMatrixFreeTools::cell_loop_wrapper(this->matrix_free,                   \
+                                       &OperatorBase::do_vmult_range<c, d>, \
+                                       this,                                \
+                                       dst,                                 \
+                                       src,                                 \
+                                       true);
+      EXPAND_OPERATIONS(OPERATION);
+#undef OPERATION
+    }
+
+    virtual void
+    vmult_internal(BlockVectorType &dst, const BlockVectorType &src) const
+    {
+#define OPERATION(c, d)                                                     \
+  MyMatrixFreeTools::cell_loop_wrapper(this->matrix_free,                   \
+                                       &OperatorBase::do_vmult_range<c, d>, \
+                                       this,                                \
+                                       dst,                                 \
+                                       src,                                 \
+                                       true);
+      EXPAND_OPERATIONS(OPERATION);
+#undef OPERATION
+    }
+
+    virtual void
+    vmult_internal(
+      LinearAlgebra::distributed::BlockVector<Number> &      dst,
+      const LinearAlgebra::distributed::BlockVector<Number> &src) const
+    {
+#define OPERATION(c, d)                                                     \
+  MyMatrixFreeTools::cell_loop_wrapper(this->matrix_free,                   \
+                                       &OperatorBase::do_vmult_range<c, d>, \
+                                       this,                                \
+                                       dst,                                 \
+                                       src,                                 \
+                                       true);
+      EXPAND_OPERATIONS(OPERATION);
+#undef OPERATION
+    }
+
     void
     vmult(VectorType &dst, const VectorType &src) const
     {
@@ -312,15 +356,7 @@ namespace Sintering
                   constrained_indices[i] * user_comp + b) = 0.;
               }
 
-#define OPERATION(c, d)                                                     \
-  MyMatrixFreeTools::cell_loop_wrapper(this->matrix_free,                   \
-                                       &OperatorBase::do_vmult_range<c, d>, \
-                                       this,                                \
-                                       dst,                                 \
-                                       src,                                 \
-                                       true);
-          EXPAND_OPERATIONS(OPERATION);
-#undef OPERATION
+          this->vmult_internal(dst, src);
 
           for (unsigned int i = 0; i < constrained_indices.size(); ++i)
             for (unsigned int b = 0; b < user_comp; ++b)
@@ -379,15 +415,7 @@ namespace Sintering
                   constrained_indices[i]) = 0.;
               }
 
-#define OPERATION(c, d)                                                     \
-  MyMatrixFreeTools::cell_loop_wrapper(this->matrix_free,                   \
-                                       &OperatorBase::do_vmult_range<c, d>, \
-                                       this,                                \
-                                       dst,                                 \
-                                       src,                                 \
-                                       true);
-          EXPAND_OPERATIONS(OPERATION);
-#undef OPERATION
+          this->vmult_internal(dst, src);
 
           for (unsigned int b = 0; b < this->n_components(); ++b)
             for (unsigned int i = 0; i < constrained_indices.size(); ++i)
