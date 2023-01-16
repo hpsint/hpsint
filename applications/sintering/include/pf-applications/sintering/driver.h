@@ -1102,6 +1102,7 @@ namespace Sintering
 
       // Lambda to update preconditioner
       const auto nl_setup_preconditioner = [&](const auto &current_u) {
+        pcout << "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAA" << std::endl;
         MyScope scope(timer, "time_loop::newton::setup_preconditioner");
 
         if (transfer) // update multigrid levels
@@ -2334,6 +2335,10 @@ namespace Sintering
                   dt > params.time_integration_data.time_step_min,
                   ExcMessage(
                     "Minimum timestep size exceeded, solution failed!"));
+
+                nonlinear_operator.clear();
+                non_linear_solver_executor->clear();
+                preconditioner->clear();
               }
             catch (const SolverControl::NoConvergence &)
               {
@@ -2361,6 +2366,10 @@ namespace Sintering
                   dt > params.time_integration_data.time_step_min,
                   ExcMessage(
                     "Minimum timestep size exceeded, solution failed!"));
+
+                nonlinear_operator.clear();
+                non_linear_solver_executor->clear();
+                preconditioner->clear();
               }
 
             if (has_converged)
