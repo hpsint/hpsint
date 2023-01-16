@@ -2658,6 +2658,8 @@ namespace Sintering
                         sintering_operator.calc_domain_quantities(quantities,
                                                                   solution,
                                                                   predicate);
+
+                      table.add_value("cntrl_box", control_box.volume());
                     }
                   else
                     {
