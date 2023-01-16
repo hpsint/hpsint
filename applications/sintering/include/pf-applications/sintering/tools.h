@@ -92,13 +92,23 @@ namespace Sintering
         pcout << std::to_string(top_right[i] - bottom_left[i]);
 
         if (i + 1 != dim)
-          pcout << "x";
+          pcout << " x ";
       }
+    pcout << "] = [";
+    for (unsigned int i = 0; i < dim; ++i)
+      {
+        pcout << std::to_string(bottom_left[i]) << "..."
+              << std::to_string(top_right[i]);
+
+        if (i + 1 != dim)
+          pcout << " x ";
+      }
+    pcout << "] " << std::endl;
 
     const unsigned int n_refinements =
       n_refinements_global + n_refinements_delayed;
 
-    pcout << "] with " << std::to_string(n_refinements) << " refinements (";
+    pcout << "with " << std::to_string(n_refinements) << " refinements (";
     pcout << "global = " << n_refinements_global << ", ";
     pcout << "delayed = " << n_refinements_delayed << ") and ";
     for (unsigned int i = 0; i < dim; ++i)
