@@ -359,9 +359,9 @@ namespace Sintering
           auto value    = phi.get_value(q);
           auto gradient = phi.get_gradient(q);
 
-          const VectorizedArrayType *                etas_value = &value[2];
+          const VectorizedArrayType *                etas_value = &value[0] + 2;
           const Tensor<1, dim, VectorizedArrayType> *etas_gradient =
-            &gradient[2];
+            &gradient[0] + 2;
 
           const auto etas_value_power_2_sum =
             PowerHelper<n_grains, 2>::power_sum(etas_value);
