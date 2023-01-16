@@ -1102,7 +1102,6 @@ namespace Sintering
 
       // Lambda to update preconditioner
       const auto nl_setup_preconditioner = [&](const auto &current_u) {
-        pcout << "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAA" << std::endl;
         MyScope scope(timer, "time_loop::newton::setup_preconditioner");
 
         if (transfer) // update multigrid levels
