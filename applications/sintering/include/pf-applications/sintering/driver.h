@@ -1340,7 +1340,8 @@ namespace Sintering
                             params.nonlinear_data.nl_abs_tol,
                             params.nonlinear_data.nl_rel_tol,
                             params.nonlinear_data.newton_threshold_newton_iter,
-                            params.nonlinear_data.newton_threshold_linear_iter);
+                            params.nonlinear_data.newton_threshold_linear_iter,
+                            params.nonlinear_data.newton_reuse_preconditioner);
 
           TrilinosWrappers::NOXSolver<VectorType> non_linear_solver(
             additional_data, non_linear_parameters);
