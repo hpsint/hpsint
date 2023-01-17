@@ -109,7 +109,7 @@
         "OutputMemoryConsumption": "false"
     },
     "Restart": {
-        "FlexibleOutput": "true",
+        "FlexibleOutput": "false",
         "FullHistory": "true",
         "Interval": "500",
         "MaximalOutput": "0",
