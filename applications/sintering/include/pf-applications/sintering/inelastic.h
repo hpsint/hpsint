@@ -4,7 +4,7 @@
 
 #include <pf-applications/numerics/functions.h>
 
-#include <pf-applications/sintering/sintering_data.h>
+#include <pf-applications/sintering/operator_sintering_data.h>
 #include <pf-applications/sintering/tools.h>
 
 #include <pf-applications/structural/tools.h>

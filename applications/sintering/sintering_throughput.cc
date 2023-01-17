@@ -55,9 +55,9 @@ static_assert(false, "No grains number has been given!");
 #include <pf-applications/sintering/mobility.h>
 #include <pf-applications/sintering/operator_sintering_coupled_diffusion.h>
 #include <pf-applications/sintering/operator_sintering_coupled_wang.h>
+#include <pf-applications/sintering/operator_sintering_data.h>
 #include <pf-applications/sintering/operator_sintering_generic.h>
 #include <pf-applications/sintering/preconditioners.h>
-#include <pf-applications/sintering/sintering_data.h>
 
 using namespace dealii;
 using namespace Sintering;
