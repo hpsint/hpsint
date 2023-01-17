@@ -71,9 +71,9 @@
     },
     "NonLinearData": {
         "FDMJacobianApproximation": false,
-        "LinearRelativeTolerance" : 1e-2,
-        "NewtonUseDamping" : true,
-        "NonLinearSolverType" : "damped",
+        "LinearRelativeTolerance": 0.01,
+        "NewtonUseDamping": true,
+        "NonLinearSolverType": "damped",
         "NOXData": {
             "LineSearchInterpolationType": "Cubic",
             "LineSearchMethod": "Full Step",
@@ -106,7 +106,7 @@
     "Profiling": {
         "OutputTimeInterval": "900",
         "RunVmults": "false",
-        "OutputMemoryConsumption" : "false"
+        "OutputMemoryConsumption": "false"
     },
     "Restart": {
         "FlexibleOutput": "true",
@@ -117,7 +117,7 @@
         "Type": "never"
     },
     "TimeIntegration": {
-        "IntegrationScheme" : "BDF2",
+        "IntegrationScheme": "BDF2",
         "DesirableLinearIterations": "100",
         "DesirableNewtonIterations": "5",
         "GrowthFactor": "1.2",
