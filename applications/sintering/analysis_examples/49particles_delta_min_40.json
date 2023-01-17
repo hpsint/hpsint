@@ -1,6 +1,6 @@
 {
-    "MatrixBased": "false", 
-    "GrainCutOffTolerance" : "0.00000",
+    "MatrixBased": "false",
+    "GrainCutOffTolerance": "0.00000",
     "Adaptivity": {
         "BottomFractionOfCells": "0.1",
         "MaxRefinementDepth": "1",
@@ -54,14 +54,14 @@
         "Type": "Abstract"
     },
     "NonLinearData": {
-        "LinearRelativeTolerance" : 1e-2, 
-        "NewtonUseDamping" : true, 
-        "NonLinearSolverType" : "NOX", 
-        "JacobiFree" : false,
-        "LinearMaxIterations" : 100,
-        "NewtonThresholdNewtonIterations" : 100,
-        "NewtonThresholdLinearIterations" : 50,
-        "NewtonReusePreconditioner" : false
+        "LinearRelativeTolerance": 0.01,
+        "NewtonUseDamping": true,
+        "NonLinearSolverType": "NOX",
+        "JacobiFree": false,
+        "LinearMaxIterations": 100,
+        "NewtonThresholdNewtonIterations": 100,
+        "NewtonThresholdLinearIterations": 50,
+        "NewtonReusePreconditioner": false
     },
     "Output": {
         "Contour": "true",
@@ -72,7 +72,7 @@
         "OutputTimeInterval": "500",
         "Regular": "false",
         "VtkPath": ".",
-        "MeshOverheadEstimate" : false
+        "MeshOverheadEstimate": false
     },
     "Preconditioners": {
         "OuterPreconditioner": "BlockPreconditioner2",
@@ -85,7 +85,7 @@
     "Profiling": {
         "OutputTimeInterval": "900",
         "RunVmults": "false",
-        "OutputMemoryConsumption" : "false"
+        "OutputMemoryConsumption": "false"
     },
     "Restart": {
         "Interval": "20000",
@@ -94,7 +94,7 @@
         "Type": "simulation_time"
     },
     "TimeIntegration": {
-        "IntegrationScheme" : "BDF2",
+        "IntegrationScheme": "BDF2",
         "DesirableLinearIterations": "100",
         "DesirableNewtonIterations": "5",
         "GrowthFactor": "1.2",

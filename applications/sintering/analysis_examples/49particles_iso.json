@@ -50,7 +50,9 @@
         "Type": "Abstract"
     },
     "NonLinearData": {
-        "LinearRelativeTolerance" : 1e-2, "NewtonUseDamping" : true, "NonLinearSolverType" : "NOX"
+        "LinearRelativeTolerance": 0.01,
+        "NewtonUseDamping": true,
+        "NonLinearSolverType": "NOX"
     },
     "Output": {
         "Contour": "true",
@@ -73,7 +75,7 @@
     "Profiling": {
         "OutputTimeInterval": "900",
         "RunVmults": "true",
-        "OutputMemoryConsumption" : "false"
+        "OutputMemoryConsumption": "false"
     },
     "Restart": {
         "Interval": "500",
@@ -82,7 +84,7 @@
         "Type": "simulation_time"
     },
     "TimeIntegration": {
-        "IntegrationScheme" : "BDF2",
+        "IntegrationScheme": "BDF2",
         "DesirableLinearIterations": "100",
         "DesirableNewtonIterations": "5",
         "GrowthFactor": "1.2",
