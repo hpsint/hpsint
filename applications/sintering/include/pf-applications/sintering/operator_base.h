@@ -164,14 +164,6 @@ namespace Sintering
     using value_type  = Number;
     using vector_type = VectorType;
 
-    using QuantityCallback = std::function<
-      VectorizedArrayType(const VectorizedArrayType *,
-                          const Tensor<1, dim, VectorizedArrayType> *,
-                          const unsigned int)>;
-
-    using QuantityPredicate = std::function<VectorizedArrayType(
-      const Point<dim, VectorizedArrayType> &)>;
-
     static const int dimension = dim;
 
     template <typename BlockVectorType_>
@@ -696,37 +688,6 @@ namespace Sintering
                                                                fields_list);
     }
 
-    /* Compute integrals over the domain */
-    std::vector<Number>
-    calc_domain_quantities(std::vector<QuantityCallback> &quantities,
-                           const BlockVectorType &        vec) const
-    {
-      auto predicate =
-        [](const FECellIntegrator<dim, 1, Number, VectorizedArrayType> &,
-           unsigned int) { return VectorizedArrayType(1.0); };
-
-#define OPERATION(c, d) \
-  return this->do_calc_domain_quantities<c, d>(quantities, vec, predicate);
-      EXPAND_OPERATIONS(OPERATION);
-#undef OPERATION
-    }
-
-    std::vector<Number>
-    calc_domain_quantities(std::vector<QuantityCallback> &quantities,
-                           const BlockVectorType &        vec,
-                           QuantityPredicate              qp_predicate) const
-    {
-      auto predicate =
-        [&qp_predicate](
-          const FECellIntegrator<dim, 1, Number, VectorizedArrayType> &fe_eval,
-          unsigned int q) { return qp_predicate(fe_eval.quadrature_point(q)); };
-
-#define OPERATION(c, d) \
-  return this->do_calc_domain_quantities<c, d>(quantities, vec, predicate);
-      EXPAND_OPERATIONS(OPERATION);
-#undef OPERATION
-    }
-
     virtual std::size_t
     memory_consumption() const
     {
@@ -881,76 +842,6 @@ namespace Sintering
                       T>)
         static_cast<const T &>(*this).template do_post_vmult<BlockVectorType_>(
           dst, src);
-    }
-
-    template <int n_comp, int n_grains>
-    std::vector<Number>
-    do_calc_domain_quantities(
-      std::vector<QuantityCallback> &quantities,
-      const BlockVectorType &        vec,
-      std::function<VectorizedArrayType(
-        const FECellIntegrator<dim, 1, Number, VectorizedArrayType> &,
-        unsigned int)>               predicate) const
-    {
-      FECellIntegrator<dim, n_comp, Number, VectorizedArrayType> fe_eval_all(
-        matrix_free);
-
-      FECellIntegrator<dim, 1, Number, VectorizedArrayType> fe_eval_one(
-        matrix_free);
-
-      std::vector<FECellIntegrator<dim, 1, Number, VectorizedArrayType>>
-                          fe_eval(quantities.size(), fe_eval_one);
-      std::vector<Number> q_values(quantities.size());
-
-      vec.update_ghost_values();
-
-      for (unsigned int cell = 0; cell < matrix_free.n_cell_batches(); ++cell)
-        {
-          fe_eval_all.reinit(cell);
-          fe_eval_all.read_dof_values_plain(vec);
-          fe_eval_all.evaluate(EvaluationFlags::values |
-                               EvaluationFlags::gradients);
-
-          for (unsigned int i = 0; i < quantities.size(); ++i)
-            fe_eval[i].reinit(cell);
-
-          for (unsigned int q = 0; q < fe_eval_all.n_q_points; ++q)
-            {
-              // Take the first FECellIntegrator since all of them have the same
-              // quadrature points
-              const auto filter = predicate(fe_eval[0], q);
-
-              const auto val  = fe_eval_all.get_value(q);
-              const auto grad = fe_eval_all.get_gradient(q);
-
-              for (unsigned int i = 0; i < quantities.size(); ++i)
-                {
-                  Tensor<1, 1, VectorizedArrayType> value_result;
-
-                  const auto &q_eval = quantities[i];
-                  value_result[0] =
-                    q_eval(&val[0], &grad[0], n_grains) * filter;
-
-                  fe_eval[i].submit_value(value_result, q);
-                }
-            }
-
-          for (unsigned int i = 0; i < quantities.size(); ++i)
-            {
-              const auto vals = fe_eval[i].integrate_value();
-              q_values[i] +=
-                std::accumulate(vals.begin(), vals.end(), Number(0));
-            }
-        }
-
-      vec.zero_out_ghost_values();
-
-      for (unsigned int i = 0; i < quantities.size(); ++i)
-        q_values[i] = Utilities::MPI::sum<Number>(
-          q_values[i],
-          matrix_free.get_dof_handler(dof_index).get_communicator());
-
-      return q_values;
     }
 
   protected:
