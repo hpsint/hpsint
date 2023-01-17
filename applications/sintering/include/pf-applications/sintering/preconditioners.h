@@ -440,9 +440,21 @@ namespace Sintering
 
         std::vector<VectorizedArrayType> etas(this->n_grains());
 
+        std::vector<bool> relevant_grains_mask;
+
         for (unsigned int cell = 0; cell < this->matrix_free.n_cell_batches();
              ++cell)
           {
+            const auto &relevant_grains = this->data.get_relevant_grains(cell);
+
+            if (free_energy_approximation == 0 && component_table.size(0) > 0)
+              {
+                relevant_grains_mask.assign(this->n_components(), false);
+
+                for (const auto i : relevant_grains)
+                  relevant_grains_mask[i] = true;
+              }
+
             integrator.reinit(cell);
 
             const unsigned int n_filled_lanes =
@@ -468,6 +480,10 @@ namespace Sintering
             // 2) loop over all blocks
             for (unsigned int b = 0; b < this->n_unique_components(); ++b)
               {
+                if (relevant_grains_mask.empty() == false &&
+                    relevant_grains_mask[b] == false)
+                  continue;
+
                 // 2a) compute columns of blocks
                 for (unsigned int j = 0; j < dofs_per_cell; ++j)
                   {
@@ -523,30 +539,12 @@ namespace Sintering
                               AssertThrow(false, ExcNotImplemented());
                           }
 
-                        auto value    = integrator.get_value(q);
-                        auto gradient = integrator.get_gradient(q);
+                        const auto value    = integrator.get_value(q);
+                        const auto gradient = integrator.get_gradient(q);
 
-                        if (free_energy_approximation == 0 &&
-                            component_table.size(0) > 0)
-                          if (component_table[cell][b] == false)
-                            {
-                              value    = VectorizedArrayType();
-                              gradient = Tensor<1, dim, VectorizedArrayType>();
-                            }
-
-                        auto value_result =
+                        const auto value_result =
                           value * weight + L * scaling * value;
-                        auto gradient_result = L * kappa_p * gradient;
-
-
-                        if (free_energy_approximation == 0 &&
-                            component_table.size(0) > 0)
-                          if (component_table[cell][b] == false)
-                            {
-                              value_result = VectorizedArrayType();
-                              gradient_result =
-                                Tensor<1, dim, VectorizedArrayType>();
-                            }
+                        const auto gradient_result = L * kappa_p * gradient;
 
                         integrator.submit_value(value_result, q);
                         integrator.submit_gradient(gradient_result, q);
