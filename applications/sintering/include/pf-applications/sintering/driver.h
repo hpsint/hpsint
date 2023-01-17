@@ -1946,85 +1946,87 @@ namespace Sintering
           {
             TimerOutput::Scope scope(timer(), "time_loop");
 
-            if(has_converged)
-            {
-            // Perform sanity check
-            if (params.time_integration_data.sanity_check_solution)
-              nonlinear_operator.sanity_check(solution);
-
-            bool do_mesh_refinement = false;
-            bool do_grain_tracker   = false;
-            if (n_timestep != 0)
+            if (has_converged)
               {
-                // If quality control is enabled, then frequency is not used
-                if (params.adaptivity_data.quality_control)
+                // Perform sanity check
+                if (params.time_integration_data.sanity_check_solution)
+                  nonlinear_operator.sanity_check(solution);
+
+                bool do_mesh_refinement = false;
+                bool do_grain_tracker   = false;
+                if (n_timestep != 0)
                   {
-                    const auto only_order_parameters =
-                      solution.create_view(2, sintering_data.n_components());
+                    // If quality control is enabled, then frequency is not used
+                    if (params.adaptivity_data.quality_control)
+                      {
+                        const auto only_order_parameters =
+                          solution.create_view(2,
+                                               sintering_data.n_components());
 
-                    const auto quality =
-                      Postprocessors::estimate_mesh_quality_min(
-                        dof_handler, *only_order_parameters);
+                        const auto quality =
+                          Postprocessors::estimate_mesh_quality_min(
+                            dof_handler, *only_order_parameters);
 
-                    do_mesh_refinement =
-                      quality < params.adaptivity_data.quality_min;
+                        do_mesh_refinement =
+                          quality < params.adaptivity_data.quality_min;
+                      }
+                    else
+                      {
+                        do_mesh_refinement =
+                          params.adaptivity_data.refinement_frequency > 0 &&
+                          n_timestep %
+                              params.adaptivity_data.refinement_frequency ==
+                            0;
+                      }
+
+                    // If advection is enabled, then execute grain tracker
+                    if (params.advection_data.enable)
+                      do_grain_tracker = true;
+                    // If mesh quality control is enabled and grain tracker is
+                    // asked to run at the same time, then execute it
+                    // synchronously
+                    else if (params.adaptivity_data.quality_control &&
+                             params.grain_tracker_data.track_with_quality)
+                      do_grain_tracker = do_mesh_refinement;
+                    // Otherwise use the default frequency settings
+                    else
+                      do_grain_tracker =
+                        params.grain_tracker_data.grain_tracker_frequency > 0 &&
+                        n_timestep %
+                            params.grain_tracker_data.grain_tracker_frequency ==
+                          0;
                   }
-                else
+
+                if (do_mesh_refinement)
+                  execute_coarsening_and_refinement(
+                    t,
+                    params.adaptivity_data.top_fraction_of_cells,
+                    params.adaptivity_data.bottom_fraction_of_cells);
+
+                if (do_grain_tracker)
                   {
-                    do_mesh_refinement =
-                      params.adaptivity_data.refinement_frequency > 0 &&
-                      n_timestep %
-                          params.adaptivity_data.refinement_frequency ==
-                        0;
+                    try
+                      {
+                        run_grain_tracker(t, /*do_initialize = */ false);
+                      }
+                    catch (const GrainTracker::ExcGrainsInconsistency &ex)
+                      {
+                        output_result(solution,
+                                      nonlinear_operator,
+                                      grain_tracker,
+                                      time_last_output,
+                                      "grains_inconsistency");
+
+                        grain_tracker.print_old_grains(pcout);
+
+                        AssertThrow(false, ExcMessage(ex.what()));
+                      }
                   }
 
-                // If advection is enabled, then execute grain tracker
-                if (params.advection_data.enable)
-                  do_grain_tracker = true;
-                // If mesh quality control is enabled and grain tracker is asked
-                // to run at the same time, then execute it synchronously
-                else if (params.adaptivity_data.quality_control &&
-                         params.grain_tracker_data.track_with_quality)
-                  do_grain_tracker = do_mesh_refinement;
-                // Otherwise use the default frequency settings
-                else
-                  do_grain_tracker =
-                    params.grain_tracker_data.grain_tracker_frequency > 0 &&
-                    n_timestep %
-                        params.grain_tracker_data.grain_tracker_frequency ==
-                      0;
+                // Impose boundary conditions
+                if (do_mesh_refinement)
+                  impose_boundary_conditions(t);
               }
-
-            if (do_mesh_refinement)
-              execute_coarsening_and_refinement(
-                t,
-                params.adaptivity_data.top_fraction_of_cells,
-                params.adaptivity_data.bottom_fraction_of_cells);
-
-            if (do_grain_tracker)
-              {
-                try
-                  {
-                    run_grain_tracker(t, /*do_initialize = */ false);
-                  }
-                catch (const GrainTracker::ExcGrainsInconsistency &ex)
-                  {
-                    output_result(solution,
-                                  nonlinear_operator,
-                                  grain_tracker,
-                                  time_last_output,
-                                  "grains_inconsistency");
-
-                    grain_tracker.print_old_grains(pcout);
-
-                    AssertThrow(false, ExcMessage(ex.what()));
-                  }
-              }
-
-            // Impose boundary conditions
-            if (do_mesh_refinement)
-              impose_boundary_conditions(t);
-            }
 
             // Set timesteps in order to update weights
             sintering_data.time_data.set_all_dt(dts);
@@ -2080,105 +2082,108 @@ namespace Sintering
               {
                 solution_history.set_recent_old_solution(solution);
               }
-              
-            if(has_converged)
-            {
-            if (params.profiling_data.run_vmults && system_has_changed)
+
+            if (has_converged)
               {
-                MyScope scope(timer, "time_loop::profiling_vmult");
-
-                const bool old_timing_state =
-                  nonlinear_operator.set_timing(false);
-
-                sintering_data.fill_quadrature_point_values(
-                  matrix_free,
-                  solution,
-                  params.advection_data.enable,
-                  save_all_blocks);
-
-                VectorType dst, src;
-
-                nonlinear_operator.initialize_dof_vector(dst);
-                nonlinear_operator.initialize_dof_vector(src);
-
-                const unsigned int n_repetitions = 100;
-
-                TimerOutput timer(pcout_statistics,
-                                  TimerOutput::never,
-                                  TimerOutput::wall_times);
-
-                if (true)
+                if (params.profiling_data.run_vmults && system_has_changed)
                   {
-                    TimerOutput::Scope scope(timer, "vmult_matrixfree");
+                    MyScope scope(timer, "time_loop::profiling_vmult");
 
-                    for (unsigned int i = 0; i < n_repetitions; ++i)
-                      nonlinear_operator.vmult(dst, src);
+                    const bool old_timing_state =
+                      nonlinear_operator.set_timing(false);
+
+                    sintering_data.fill_quadrature_point_values(
+                      matrix_free,
+                      solution,
+                      params.advection_data.enable,
+                      save_all_blocks);
+
+                    VectorType dst, src;
+
+                    nonlinear_operator.initialize_dof_vector(dst);
+                    nonlinear_operator.initialize_dof_vector(src);
+
+                    const unsigned int n_repetitions = 100;
+
+                    TimerOutput timer(pcout_statistics,
+                                      TimerOutput::never,
+                                      TimerOutput::wall_times);
+
+                    if (true)
+                      {
+                        TimerOutput::Scope scope(timer, "vmult_matrixfree");
+
+                        for (unsigned int i = 0; i < n_repetitions; ++i)
+                          nonlinear_operator.vmult(dst, src);
+                      }
+
+                    if (true)
+                      {
+                        TimerOutput::Scope scope(timer, "vmult_helmholtz");
+
+                        HelmholtzOperator<dim, Number, VectorizedArrayType>
+                          helmholtz_operator(matrix_free, constraints, 1);
+
+                        for (unsigned int i = 0; i < n_repetitions; ++i)
+                          for (unsigned int b = 0; b < src.n_blocks(); ++b)
+                            helmholtz_operator.vmult(dst.block(b),
+                                                     src.block(b));
+                      }
+
+                    if (true)
+                      {
+                        TimerOutput::Scope scope(timer,
+                                                 "vmult_vector_helmholtz");
+
+                        HelmholtzOperator<dim, Number, VectorizedArrayType>
+                          helmholtz_operator(matrix_free,
+                                             constraints,
+                                             src.n_blocks());
+
+                        for (unsigned int i = 0; i < n_repetitions; ++i)
+                          helmholtz_operator.vmult(dst, src);
+                      }
+
+                    if (true)
+                      {
+                        {
+                          TimerOutput::Scope scope(
+                            timer, "vmult_matrixbased_assembly");
+
+                          nonlinear_operator.get_system_matrix();
+                        }
+
+                        const auto &matrix =
+                          nonlinear_operator.get_system_matrix();
+
+                        typename VectorType::BlockType src_, dst_;
+
+                        const auto partitioner =
+                          nonlinear_operator.get_system_partitioner();
+
+                        src_.reinit(partitioner);
+                        dst_.reinit(partitioner);
+
+                        VectorTools::merge_components_fast(src, src_);
+
+                        {
+                          TimerOutput::Scope scope(timer, "vmult_matrixbased");
+
+                          for (unsigned int i = 0; i < n_repetitions; ++i)
+                            matrix.vmult(dst_, src_);
+                        }
+
+                        VectorTools::split_up_components_fast(dst_, dst);
+
+                        if (params.matrix_based == false)
+                          nonlinear_operator.clear_system_matrix();
+                      }
+
+                    timer.print_wall_time_statistics(MPI_COMM_WORLD);
+
+                    nonlinear_operator.set_timing(old_timing_state);
                   }
-
-                if (true)
-                  {
-                    TimerOutput::Scope scope(timer, "vmult_helmholtz");
-
-                    HelmholtzOperator<dim, Number, VectorizedArrayType>
-                      helmholtz_operator(matrix_free, constraints, 1);
-
-                    for (unsigned int i = 0; i < n_repetitions; ++i)
-                      for (unsigned int b = 0; b < src.n_blocks(); ++b)
-                        helmholtz_operator.vmult(dst.block(b), src.block(b));
-                  }
-
-                if (true)
-                  {
-                    TimerOutput::Scope scope(timer, "vmult_vector_helmholtz");
-
-                    HelmholtzOperator<dim, Number, VectorizedArrayType>
-                      helmholtz_operator(matrix_free,
-                                         constraints,
-                                         src.n_blocks());
-
-                    for (unsigned int i = 0; i < n_repetitions; ++i)
-                      helmholtz_operator.vmult(dst, src);
-                  }
-
-                if (true)
-                  {
-                    {
-                      TimerOutput::Scope scope(timer,
-                                               "vmult_matrixbased_assembly");
-
-                      nonlinear_operator.get_system_matrix();
-                    }
-
-                    const auto &matrix = nonlinear_operator.get_system_matrix();
-
-                    typename VectorType::BlockType src_, dst_;
-
-                    const auto partitioner =
-                      nonlinear_operator.get_system_partitioner();
-
-                    src_.reinit(partitioner);
-                    dst_.reinit(partitioner);
-
-                    VectorTools::merge_components_fast(src, src_);
-
-                    {
-                      TimerOutput::Scope scope(timer, "vmult_matrixbased");
-
-                      for (unsigned int i = 0; i < n_repetitions; ++i)
-                        matrix.vmult(dst_, src_);
-                    }
-
-                    VectorTools::split_up_components_fast(dst_, dst);
-
-                    if (params.matrix_based == false)
-                      nonlinear_operator.clear_system_matrix();
-                  }
-
-                timer.print_wall_time_statistics(MPI_COMM_WORLD);
-
-                nonlinear_operator.set_timing(old_timing_state);
-              } 
-            }
+              }
 
             try
               {
