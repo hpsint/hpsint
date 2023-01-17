@@ -2455,6 +2455,9 @@ namespace Sintering
             if (has_converged &&
                 (is_last_time_step || restart_predicate.now(t)))
               {
+                ScopedName sc("restart");
+                MyScope    scope(timer, sc);
+
                 unsigned int current_restart_count = restart_counter++;
 
                 if (params.restart_data.max_output != 0)
