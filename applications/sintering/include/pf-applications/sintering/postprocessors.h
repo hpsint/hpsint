@@ -1017,5 +1017,62 @@ namespace Sintering
       return quality;
     }
 
+    /* Build scalar quantities to compute */
+    template <int dim, typename VectorizedArrayType>
+    auto
+    build_domain_quantities_evaluators(const std::vector<std::string> &labels)
+    {
+      using QuantityCallback = std::function<
+        VectorizedArrayType(const VectorizedArrayType *,
+                            const Tensor<1, dim, VectorizedArrayType> *,
+                            const unsigned int)>;
+
+      std::vector<QuantityCallback> quantities;
+
+      for (const auto &qty : labels)
+        {
+          QuantityCallback callback;
+
+          if (qty == "solid_vol")
+            callback = [](const VectorizedArrayType *                value,
+                          const Tensor<1, dim, VectorizedArrayType> *gradient,
+                          const unsigned int                         n_grains) {
+              (void)gradient;
+              (void)n_grains;
+
+              return value[0];
+            };
+          else if (qty == "surf_area")
+            callback = [](const VectorizedArrayType *                value,
+                          const Tensor<1, dim, VectorizedArrayType> *gradient,
+                          const unsigned int                         n_grains) {
+              (void)gradient;
+              (void)n_grains;
+
+              return value[0] * (1.0 - value[0]);
+            };
+          else if (qty == "gb_area")
+            callback = [](const VectorizedArrayType *                value,
+                          const Tensor<1, dim, VectorizedArrayType> *gradient,
+                          const unsigned int                         n_grains) {
+              (void)gradient;
+
+              VectorizedArrayType eta_ij_sum = 0.0;
+              for (unsigned int i = 0; i < n_grains; ++i)
+                for (unsigned int j = i + 1; j < n_grains; ++j)
+                  eta_ij_sum += value[2 + i] * value[2 + j];
+
+              return eta_ij_sum;
+            };
+          else
+            AssertThrow(false,
+                        ExcMessage("Invalid domain integral provided: " + qty));
+
+          quantities.push_back(callback);
+        }
+
+      return quantities;
+    }
+
   } // namespace Postprocessors
 } // namespace Sintering

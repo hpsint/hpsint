@@ -872,7 +872,6 @@ namespace Sintering
           dst, src);
     }
 
-
   protected:
     const MatrixFree<dim, Number, VectorizedArrayType> &matrix_free;
     const AffineConstraints<Number> &                   constraints;

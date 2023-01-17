@@ -1,5 +1,7 @@
 #pragma once
 
+#include <deal.II/base/table_handler.h>
+
 #include <pf-applications/sintering/operator_base.h>
 #include <pf-applications/sintering/sintering_data.h>
 
@@ -20,6 +22,14 @@ namespace Sintering
 
     using value_type  = Number;
     using vector_type = VectorType;
+
+    using QuantityCallback = std::function<
+      VectorizedArrayType(const VectorizedArrayType *,
+                          const Tensor<1, dim, VectorizedArrayType> *,
+                          const unsigned int)>;
+
+    using QuantityPredicate = std::function<VectorizedArrayType(
+      const Point<dim, VectorizedArrayType> &)>;
 
     SinteringOperatorBase(
       const MatrixFree<dim, Number, VectorizedArrayType> &     matrix_free,
@@ -400,6 +410,129 @@ namespace Sintering
               else if (val > 1.)
                 val = 1.;
             }
+    }
+
+    /* Compute integrals over the domain */
+    std::vector<Number>
+    calc_domain_quantities(std::vector<QuantityCallback> &        quantities,
+                           const BlockVectorType &                vec,
+                           const EvaluationFlags::EvaluationFlags eval_flags =
+                             EvaluationFlags::values |
+                             EvaluationFlags::gradients) const
+    {
+      auto predicate =
+        [](const FECellIntegrator<dim, 1, Number, VectorizedArrayType> &,
+           unsigned int) { return VectorizedArrayType(1.0); };
+
+      return do_calc_domain_quantities(quantities, vec, predicate, eval_flags);
+    }
+
+    std::vector<Number>
+    calc_domain_quantities(std::vector<QuantityCallback> &        quantities,
+                           const BlockVectorType &                vec,
+                           QuantityPredicate                      qp_predicate,
+                           const EvaluationFlags::EvaluationFlags eval_flags =
+                             EvaluationFlags::values |
+                             EvaluationFlags::gradients) const
+    {
+      auto predicate =
+        [&qp_predicate](
+          const FECellIntegrator<dim, 1, Number, VectorizedArrayType> &fe_eval,
+          unsigned int q) { return qp_predicate(fe_eval.quadrature_point(q)); };
+
+      return do_calc_domain_quantities(quantities, vec, predicate, eval_flags);
+    }
+
+  protected:
+    std::vector<Number>
+    do_calc_domain_quantities(
+      std::vector<QuantityCallback> &        quantities,
+      const BlockVectorType &                vec,
+      std::function<VectorizedArrayType(
+        const FECellIntegrator<dim, 1, Number, VectorizedArrayType> &,
+        unsigned int)>                       predicate,
+      const EvaluationFlags::EvaluationFlags eval_flags) const
+    {
+      FECellIntegrator<dim, 1, Number, VectorizedArrayType> fe_eval_one(
+        this->matrix_free);
+
+      std::vector<FECellIntegrator<dim, 1, Number, VectorizedArrayType>>
+        fe_eval(quantities.size(), fe_eval_one);
+
+      std::vector<Number> q_values(quantities.size());
+
+      vec.update_ghost_values();
+
+      const unsigned n_quadrature_points =
+        this->matrix_free.get_quadrature().size();
+
+      Table<2, VectorizedArrayType> buffer_values(n_quadrature_points,
+                                                  this->n_components());
+      Table<2, Tensor<1, dim, VectorizedArrayType>> buffer_gradients(
+        n_quadrature_points, this->n_components());
+
+      for (unsigned int cell = 0; cell < this->matrix_free.n_cell_batches();
+           ++cell)
+        {
+          fe_eval_one.reinit(cell);
+
+          for (unsigned int i = 0; i < quantities.size(); ++i)
+            fe_eval[i].reinit(cell);
+
+          for (unsigned int c = 0; c < this->n_components(); ++c)
+            {
+              fe_eval_one.read_dof_values_plain(vec.block(c));
+              fe_eval_one.evaluate(eval_flags);
+
+              for (unsigned int q = 0; q < fe_eval_one.n_q_points; ++q)
+                {
+                  if (eval_flags & EvaluationFlags::values)
+                    buffer_values(q, c) = fe_eval_one.get_value(q);
+
+                  if (eval_flags & EvaluationFlags::gradients)
+                    buffer_gradients(q, c) = fe_eval_one.get_gradient(q);
+                }
+            }
+
+          for (unsigned int q = 0; q < fe_eval_one.n_q_points; ++q)
+            {
+              // Take the first FECellIntegrator since all of them have the same
+              // quadrature points
+              const auto filter = predicate(fe_eval_one, q);
+
+              const auto &val  = buffer_values[q];
+              const auto &grad = buffer_gradients[q];
+
+              for (unsigned int i = 0; i < quantities.size(); ++i)
+                {
+                  Tensor<1, 1, VectorizedArrayType> value_result;
+
+                  const auto &q_eval = quantities[i];
+                  value_result[0] =
+                    q_eval(&val[0], &grad[0], data.n_grains()) * filter;
+
+                  fe_eval[i].submit_value(value_result, q);
+                }
+            }
+
+          for (unsigned int i = 0; i < quantities.size(); ++i)
+            {
+              const auto vals = fe_eval[i].integrate_value();
+              q_values[i] +=
+                std::accumulate(vals.begin(), vals.end(), Number(0));
+            }
+        }
+
+      vec.zero_out_ghost_values();
+
+      for (unsigned int i = 0; i < quantities.size(); ++i)
+        q_values[i] =
+          Utilities::MPI::sum<Number>(q_values[i],
+                                      this->matrix_free
+                                        .get_dof_handler(this->dof_index)
+                                        .get_communicator());
+
+      return q_values;
     }
 
   protected:
