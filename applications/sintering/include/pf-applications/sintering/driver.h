@@ -1938,12 +1938,16 @@ namespace Sintering
                       "solution",
                       additional_output);
 
+      bool has_converged = true;
+
       // run time loop
       {
         while (t <= params.time_integration_data.time_end)
           {
             TimerOutput::Scope scope(timer(), "time_loop");
 
+            if(has_converged)
+            {
             // Perform sanity check
             if (params.time_integration_data.sanity_check_solution)
               nonlinear_operator.sanity_check(solution);
@@ -2020,6 +2024,7 @@ namespace Sintering
             // Impose boundary conditions
             if (do_mesh_refinement)
               impose_boundary_conditions(t);
+            }
 
             // Set timesteps in order to update weights
             sintering_data.time_data.set_all_dt(dts);
@@ -2075,7 +2080,9 @@ namespace Sintering
               {
                 solution_history.set_recent_old_solution(solution);
               }
-
+              
+            if(has_converged)
+            {
             if (params.profiling_data.run_vmults && system_has_changed)
               {
                 MyScope scope(timer, "time_loop::profiling_vmult");
@@ -2170,9 +2177,8 @@ namespace Sintering
                 timer.print_wall_time_statistics(MPI_COMM_WORLD);
 
                 nonlinear_operator.set_timing(old_timing_state);
-              }
-
-            bool has_converged = false;
+              } 
+            }
 
             try
               {
@@ -2346,6 +2352,8 @@ namespace Sintering
                 nonlinear_operator.clear();
                 non_linear_solver_executor->clear();
                 preconditioner->clear();
+
+                has_converged = false;
               }
             catch (const SolverControl::NoConvergence &)
               {
@@ -2377,6 +2385,8 @@ namespace Sintering
                 nonlinear_operator.clear();
                 non_linear_solver_executor->clear();
                 preconditioner->clear();
+
+                has_converged = false;
               }
 
             if (has_converged)
