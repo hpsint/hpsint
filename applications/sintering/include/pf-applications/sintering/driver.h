@@ -2592,6 +2592,10 @@ namespace Sintering
                       dim,
                       VectorizedArrayType>(q_labels);
 
+                  // TODO: each quantity should provide its flag
+                  EvaluationFlags::EvaluationFlags eval_flags =
+                    EvaluationFlags::values;
+
                   std::vector<Number> q_values;
 
                   if (params.output_data.use_control_box)
@@ -2654,10 +2658,8 @@ namespace Sintering
                         return filter;
                       };
 
-                      q_values =
-                        sintering_operator.calc_domain_quantities(quantities,
-                                                                  solution,
-                                                                  predicate);
+                      q_values = sintering_operator.calc_domain_quantities(
+                        quantities, solution, predicate, eval_flags);
 
                       table.add_value("cntrl_box", control_box.volume());
                     }
@@ -2665,7 +2667,8 @@ namespace Sintering
                     {
                       q_values =
                         sintering_operator.calc_domain_quantities(quantities,
-                                                                  solution);
+                                                                  solution,
+                                                                  eval_flags);
                     }
 
                   for (unsigned int i = 0; i < quantities.size(); ++i)
