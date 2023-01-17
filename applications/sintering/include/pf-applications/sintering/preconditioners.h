@@ -3,7 +3,7 @@
 #include <pf-applications/lac/dynamic_block_vector.h>
 #include <pf-applications/lac/preconditioners.h>
 
-#include <pf-applications/sintering/sintering_data.h>
+#include <pf-applications/sintering/operator_sintering_data.h>
 
 namespace Sintering
 {

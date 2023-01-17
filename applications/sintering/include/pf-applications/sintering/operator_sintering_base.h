@@ -3,7 +3,7 @@
 #include <deal.II/base/table_handler.h>
 
 #include <pf-applications/sintering/operator_base.h>
-#include <pf-applications/sintering/sintering_data.h>
+#include <pf-applications/sintering/operator_sintering_data.h>
 
 #include <pf-applications/time_integration/solution_history.h>
 
