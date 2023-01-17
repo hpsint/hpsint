@@ -1489,8 +1489,12 @@ namespace Sintering
           auto solutions_except_recent = solution_history.filter(true, false);
           auto old_old_solutions       = solution_history.filter(false, false);
 
-          output_result(
-            solution, nonlinear_operator, grain_tracker, t, "refinement");
+          output_result(solution,
+                        nonlinear_operator,
+                        grain_tracker,
+                        t,
+                        timer,
+                        "refinement");
 
           // 1) copy solution so that it has the right ghosting
           const auto partitioner =
@@ -1647,8 +1651,12 @@ namespace Sintering
 
           old_old_solutions.update_ghost_values();
 
-          output_result(
-            solution, nonlinear_operator, grain_tracker, t, "refinement");
+          output_result(solution,
+                        nonlinear_operator,
+                        grain_tracker,
+                        t,
+                        timer,
+                        "refinement");
 
           if (params.output_data.mesh_overhead_estimate)
             Postprocessors::estimate_overhead(mapping, dof_handler, solution);
@@ -1711,7 +1719,7 @@ namespace Sintering
         if (has_reassigned_grains || has_op_number_changed)
           {
             output_result(
-              solution, nonlinear_operator, grain_tracker, t, "remap");
+              solution, nonlinear_operator, grain_tracker, t, timer, "remap");
 
             if (has_op_number_changed)
               {
@@ -1818,7 +1826,7 @@ namespace Sintering
               }
 
             output_result(
-              solution, nonlinear_operator, grain_tracker, t, "remap");
+              solution, nonlinear_operator, grain_tracker, t, timer, "remap");
           }
 
         pcout << std::endl;
@@ -1955,6 +1963,7 @@ namespace Sintering
                       nonlinear_operator,
                       grain_tracker,
                       time_last_output,
+                      timer,
                       "solution",
                       additional_output);
 
@@ -2036,6 +2045,7 @@ namespace Sintering
                                       nonlinear_operator,
                                       grain_tracker,
                                       time_last_output,
+                                      timer,
                                       "grains_inconsistency");
 
                         grain_tracker.print_old_grains(pcout);
@@ -2370,6 +2380,7 @@ namespace Sintering
                               nonlinear_operator,
                               grain_tracker,
                               time_last_output,
+                              timer,
                               "newton_not_converged");
 
                 AssertThrow(
@@ -2403,6 +2414,7 @@ namespace Sintering
                               nonlinear_operator,
                               grain_tracker,
                               time_last_output,
+                              timer,
                               "linear_solver_not_converged");
 
                 AssertThrow(
@@ -2435,6 +2447,7 @@ namespace Sintering
                               nonlinear_operator,
                               grain_tracker,
                               time_last_output,
+                              timer,
                               "solution",
                               additional_output);
               }
@@ -2547,11 +2560,15 @@ namespace Sintering
       const NonLinearOperator &                   sintering_operator,
       const GrainTracker::Tracker<dim, Number> &  grain_tracker,
       const double                                t,
+      MyTimerOutput &                             timer,
       const std::string                           label = "solution",
       std::function<void(DataOut<dim> &data_out)> additional_output = {})
     {
       if (!params.output_data.debug && label != "solution")
         return; // nothing to do for debug for non-solution
+
+      ScopedName sc("output_result");
+      MyScope    scope(timer, sc);
 
       if (counters.find(label) == counters.end())
         counters[label] = 0;
