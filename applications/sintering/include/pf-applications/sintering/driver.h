@@ -59,6 +59,7 @@
 #include <deal.II/numerics/vector_tools.h>
 
 #include <pf-applications/base/fe_integrator.h>
+#include <pf-applications/base/scoped_name.h>
 #include <pf-applications/base/solution_serialization.h>
 #include <pf-applications/base/timer.h>
 
@@ -232,7 +233,8 @@ namespace Sintering
       const auto initialize_solution =
         [&](std::vector<typename VectorType::BlockType *> solution_ptr,
             MyTimerOutput &                               timer) {
-          MyScope scope(timer, "initialize_solution");
+          ScopedName sc("initialize_solution");
+          MyScope    scope(timer, sc);
 
           AssertThrow(initial_solution->n_components() <= solution_ptr.size(),
                       ExcMessage(
@@ -363,7 +365,8 @@ namespace Sintering
         [&, flexible_output, n_blocks_total, restart_path](
           std::vector<typename VectorType::BlockType *> solution_ptr,
           MyTimerOutput &                               timer) {
-          MyScope scope(timer, "deserialize_solution");
+          ScopedName sc("deserialize_solution");
+          MyScope    scope(timer, sc);
 
           if (n_blocks_total < solution_ptr.size())
             solution_ptr.resize(n_blocks_total);
@@ -1006,7 +1009,8 @@ namespace Sintering
 
       // Lambda to compute residual
       const auto nl_residual = [&](const auto &src, auto &dst) {
-        MyScope scope(timer, "time_loop::newton::residual");
+        ScopedName sc("residual");
+        MyScope    scope(timer, sc);
 
         // Compute forces
         if (params.advection_data.enable)
@@ -1019,7 +1023,8 @@ namespace Sintering
 
       // Lambda to set up jacobian
       const auto nl_setup_jacobian = [&](const auto &current_u) {
-        MyScope scope(timer, "time_loop::newton::setup_jacobian");
+        ScopedName sc("setup_jacobian");
+        MyScope    scope(timer, sc);
 
         sintering_data.fill_quadrature_point_values(
           matrix_free,
@@ -1105,7 +1110,8 @@ namespace Sintering
 
       // Lambda to update preconditioner
       const auto nl_setup_preconditioner = [&](const auto &current_u) {
-        MyScope scope(timer, "time_loop::newton::setup_preconditioner");
+        ScopedName sc("setup_preconditioner");
+        MyScope    scope(timer, sc);
 
         if (transfer) // update multigrid levels
           {
@@ -1155,7 +1161,8 @@ namespace Sintering
 
       // Lambda to solve system using jacobian
       const auto nl_solve_with_jacobian = [&](const auto &src, auto &dst) {
-        MyScope scope(timer, "time_loop::newton::solve_with_jacobian");
+        ScopedName sc("solve_with_jacobian");
+        MyScope    scope(timer, sc);
 
         // note: we mess with the input here, since we know that Newton does not
         // use the content anymore
@@ -1292,7 +1299,8 @@ namespace Sintering
               params.nonlinear_data.newton_use_damping));
 
           non_linear_solver.reinit_vector = [&](auto &vector) {
-            MyScope scope(timer, "time_loop::newton::reinit_vector");
+            ScopedName sc("reinit_vector");
+            MyScope    scope(timer, sc);
 
             nonlinear_operator.initialize_dof_vector(vector);
           };
@@ -1471,7 +1479,8 @@ namespace Sintering
         [&](const double t,
             const double top_fraction_of_cells,
             const double bottom_fraction_of_cells) {
-          MyScope scope(timer, "execute_coarsening_and_refinement");
+          ScopedName sc("execute_coarsening_and_refinement");
+          MyScope    scope(timer, sc);
 
           pcout << "Execute refinement/coarsening:" << std::endl;
 
@@ -1480,8 +1489,12 @@ namespace Sintering
           auto solutions_except_recent = solution_history.filter(true, false);
           auto old_old_solutions       = solution_history.filter(false, false);
 
-          output_result(
-            solution, nonlinear_operator, grain_tracker, t, "refinement");
+          output_result(solution,
+                        nonlinear_operator,
+                        grain_tracker,
+                        t,
+                        timer,
+                        "refinement");
 
           // 1) copy solution so that it has the right ghosting
           const auto partitioner =
@@ -1638,8 +1651,12 @@ namespace Sintering
 
           old_old_solutions.update_ghost_values();
 
-          output_result(
-            solution, nonlinear_operator, grain_tracker, t, "refinement");
+          output_result(solution,
+                        nonlinear_operator,
+                        grain_tracker,
+                        t,
+                        timer,
+                        "refinement");
 
           if (params.output_data.mesh_overhead_estimate)
             Postprocessors::estimate_overhead(mapping, dof_handler, solution);
@@ -1647,7 +1664,8 @@ namespace Sintering
 
       const auto run_grain_tracker = [&](const double t,
                                          const bool   do_initialize = false) {
-        MyScope scope(timer, "time_loop::grain_tracker");
+        ScopedName sc("grain_tracker");
+        MyScope    scope(timer, sc);
 
         pcout << "Execute grain tracker:" << std::endl;
 
@@ -1664,13 +1682,15 @@ namespace Sintering
         std::tuple<bool, bool> gt_status;
         if (do_initialize)
           {
-            MyScope scope(timer, "time_loop::grain_tracker::initial_setup");
+            ScopedName sc("initial_setup");
+            MyScope    scope(timer, sc);
             gt_status =
               grain_tracker.initial_setup(solution, sintering_data.n_grains());
           }
         else
           {
-            MyScope scope(timer, "time_loop::grain_tracker::track");
+            ScopedName sc("track");
+            MyScope    scope(timer, sc);
             gt_status =
               grain_tracker.track(solution, sintering_data.n_grains());
           }
@@ -1699,7 +1719,7 @@ namespace Sintering
         if (has_reassigned_grains || has_op_number_changed)
           {
             output_result(
-              solution, nonlinear_operator, grain_tracker, t, "remap");
+              solution, nonlinear_operator, grain_tracker, t, timer, "remap");
 
             if (has_op_number_changed)
               {
@@ -1742,7 +1762,8 @@ namespace Sintering
                 if (has_reassigned_grains &&
                     n_components_new < n_components_old)
                   {
-                    MyScope scope(timer, "time_loop::grain_tracker::remap");
+                    ScopedName sc("remap");
+                    MyScope    scope(timer, sc);
 
                     grain_tracker.remap(all_solution_vectors);
 
@@ -1762,7 +1783,8 @@ namespace Sintering
                 if (has_reassigned_grains &&
                     n_components_new > n_components_old)
                   {
-                    MyScope scope(timer, "time_loop::grain_tracker::remap");
+                    ScopedName sc("remap");
+                    MyScope    scope(timer, sc);
 
                     // Move the newly created before displacements
                     if (distance > 0)
@@ -1780,7 +1802,8 @@ namespace Sintering
               }
             else if (has_reassigned_grains)
               {
-                MyScope scope(timer, "time_loop::grain_tracker::remap");
+                ScopedName sc("remap");
+                MyScope    scope(timer, sc);
 
                 // Perform remapping
                 auto all_solution_vectors =
@@ -1793,7 +1816,8 @@ namespace Sintering
             // in order to keep op_particle_ids in sync
             if (params.advection_data.enable)
               {
-                MyScope scope(timer, "time_loop::grain_tracker::track_fast");
+                ScopedName sc("track_fast");
+                MyScope    scope(timer, sc);
 
                 const bool skip_reassignment = false;
                 grain_tracker.track(solution,
@@ -1802,7 +1826,7 @@ namespace Sintering
               }
 
             output_result(
-              solution, nonlinear_operator, grain_tracker, t, "remap");
+              solution, nonlinear_operator, grain_tracker, t, timer, "remap");
           }
 
         pcout << std::endl;
@@ -1824,7 +1848,8 @@ namespace Sintering
                                                      NonLinearOperator>,
                         NonLinearOperator>)
           {
-            MyScope scope(timer, "impose_boundary_conditions");
+            ScopedName sc("impose_boundary_conditions");
+            MyScope    scope(timer, sc);
 
             pcout << "Impose boundary conditions:" << std::endl;
             pcout << "  - type: " << params.boundary_conditions.type
@@ -1938,6 +1963,7 @@ namespace Sintering
                       nonlinear_operator,
                       grain_tracker,
                       time_last_output,
+                      timer,
                       "solution",
                       additional_output);
 
@@ -1947,7 +1973,8 @@ namespace Sintering
       {
         while (t <= params.time_integration_data.time_end)
           {
-            TimerOutput::Scope scope(timer(), "time_loop");
+            ScopedName         sc("time_loop");
+            TimerOutput::Scope scope(timer(), sc);
 
             if (has_converged)
               {
@@ -2018,6 +2045,7 @@ namespace Sintering
                                       nonlinear_operator,
                                       grain_tracker,
                                       time_last_output,
+                                      timer,
                                       "grains_inconsistency");
 
                         grain_tracker.print_old_grains(pcout);
@@ -2090,7 +2118,8 @@ namespace Sintering
               {
                 if (params.profiling_data.run_vmults && system_has_changed)
                   {
-                    MyScope scope(timer, "time_loop::profiling_vmult");
+                    ScopedName sc("profiling_vmult");
+                    MyScope    scope(timer, sc);
 
                     const bool old_timing_state =
                       nonlinear_operator.set_timing(false);
@@ -2190,7 +2219,8 @@ namespace Sintering
 
             try
               {
-                MyScope scope(timer, "time_loop::newton");
+                ScopedName sc("newton");
+                MyScope    scope(timer, sc);
 
                 // Reset statistics
                 statistics.clear();
@@ -2309,8 +2339,8 @@ namespace Sintering
                 // Posptrocessing to calculate divergences of fluxes
                 if (params.output_data.fluxes_divergences)
                   {
-                    MyScope scope(timer,
-                                  "time_loop::newton::fluxes_divergences");
+                    ScopedName sc("fluxes_divergences");
+                    MyScope    scope(timer, sc);
 
                     postproc_preconditioner->do_update();
 
@@ -2350,6 +2380,7 @@ namespace Sintering
                               nonlinear_operator,
                               grain_tracker,
                               time_last_output,
+                              timer,
                               "newton_not_converged");
 
                 AssertThrow(
@@ -2383,6 +2414,7 @@ namespace Sintering
                               nonlinear_operator,
                               grain_tracker,
                               time_last_output,
+                              timer,
                               "linear_solver_not_converged");
 
                 AssertThrow(
@@ -2415,6 +2447,7 @@ namespace Sintering
                               nonlinear_operator,
                               grain_tracker,
                               time_last_output,
+                              timer,
                               "solution",
                               additional_output);
               }
@@ -2422,6 +2455,9 @@ namespace Sintering
             if (has_converged &&
                 (is_last_time_step || restart_predicate.now(t)))
               {
+                ScopedName sc("restart");
+                MyScope    scope(timer, sc);
+
                 unsigned int current_restart_count = restart_counter++;
 
                 if (params.restart_data.max_output != 0)
@@ -2527,11 +2563,15 @@ namespace Sintering
       const NonLinearOperator &                   sintering_operator,
       const GrainTracker::Tracker<dim, Number> &  grain_tracker,
       const double                                t,
+      MyTimerOutput &                             timer,
       const std::string                           label = "solution",
       std::function<void(DataOut<dim> &data_out)> additional_output = {})
     {
       if (!params.output_data.debug && label != "solution")
         return; // nothing to do for debug for non-solution
+
+      ScopedName sc("output_result");
+      MyScope    scope(timer, sc);
 
       if (counters.find(label) == counters.end())
         counters[label] = 0;
