@@ -209,7 +209,7 @@ namespace Sintering
     std::string  type            = "never";
     double       interval        = 10.0;
     unsigned int max_output      = 0;
-    bool         flexible_output = true;
+    bool         flexible_output = false;
     bool         full_history    = true;
   };
 
