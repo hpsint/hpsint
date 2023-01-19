@@ -213,11 +213,15 @@ namespace Sintering
 
         Utilities::MPI::sum(max_values, comm, max_values);
 
+        const auto sum = std::reduce(max_values.begin(), max_values.end());
+
         pcout << "  - " << max_value << " (";
 
-        pcout << (0) << ": " << max_values[0];
+        pcout << (0) << ": " << std::fixed << std::setprecision(2)
+              << static_cast<double>(max_values[0]) / sum * 100;
         for (unsigned int i = 1; i < max_values.size(); ++i)
-          pcout << ", " << i << ": " << max_values[i];
+          pcout << ", " << i << ": " << std::fixed << std::setprecision(2)
+                << static_cast<double>(max_values[i]) / sum * 100;
 
         pcout << ")" << std::endl;
       };
