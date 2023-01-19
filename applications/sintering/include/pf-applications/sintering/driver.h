@@ -155,6 +155,8 @@ namespace Sintering
     unsigned int current_max_refinement_depth;
     double       time_last_output;
     unsigned int n_timestep;
+    unsigned int n_timestep_last_amr;
+    unsigned int n_timestep_last_gt;
     unsigned int n_linear_iterations;
     unsigned int n_non_linear_iterations;
     unsigned int n_residual_evaluations;
@@ -194,6 +196,8 @@ namespace Sintering
       geometry_interface_width      = initial_solution->get_interface_width();
       this->time_last_output        = 0;
       this->n_timestep              = 0;
+      this->n_timestep_last_amr     = 0;
+      this->n_timestep_last_gt      = 0;
       this->n_linear_iterations     = 0;
       this->n_non_linear_iterations = 0;
       this->n_residual_evaluations  = 0;
@@ -424,6 +428,8 @@ namespace Sintering
       ar &n_global_levels_0;
       ar &time_last_output;
       ar &n_timestep;
+      ar &n_timestep_last_amr;
+      ar &n_timestep_last_gt;
       ar &n_linear_iterations;
       ar &n_non_linear_iterations;
       ar &n_residual_evaluations;
@@ -2065,7 +2071,7 @@ namespace Sintering
                           {
                             do_mesh_refinement =
                               params.adaptivity_data.refinement_frequency > 0 &&
-                              n_timestep %
+                              (n_timestep - n_timestep_last_amr) %
                                   params.adaptivity_data.refinement_frequency ==
                                 0;
                           }
@@ -2084,22 +2090,27 @@ namespace Sintering
                     else
                       do_grain_tracker =
                         params.grain_tracker_data.grain_tracker_frequency > 0 &&
-                        n_timestep %
+                        (n_timestep - n_timestep_last_gt) %
                             params.grain_tracker_data.grain_tracker_frequency ==
                           0;
                   }
 
                 if (do_mesh_refinement)
-                  execute_coarsening_and_refinement(
-                    t,
-                    params.adaptivity_data.top_fraction_of_cells,
-                    params.adaptivity_data.bottom_fraction_of_cells);
+                  {
+                    execute_coarsening_and_refinement(
+                      t,
+                      params.adaptivity_data.top_fraction_of_cells,
+                      params.adaptivity_data.bottom_fraction_of_cells);
+
+                    n_timestep_last_amr = n_timestep;
+                  }
 
                 if (do_grain_tracker)
                   {
                     try
                       {
                         run_grain_tracker(t, /*do_initialize = */ false);
+                        n_timestep_last_gt = n_timestep;
                       }
                     catch (const GrainTracker::ExcGrainsInconsistency &ex)
                       {
