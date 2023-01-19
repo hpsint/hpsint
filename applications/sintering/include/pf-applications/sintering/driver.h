@@ -1630,17 +1630,19 @@ namespace Sintering
 
           // and limit the number of levels
           for (const auto &cell : tria.active_cell_iterators())
-            if (cell->refine_flag_set() &&
-                (static_cast<unsigned int>(cell->level()) ==
-                 ((this->n_global_levels_0 - 1) +
-                  params.adaptivity_data.max_refinement_depth)))
-              cell->clear_refine_flag();
-            else if (cell->coarsen_flag_set() &&
-                     (static_cast<unsigned int>(cell->level()) ==
-                      ((this->n_global_levels_0 - 1) -
-                       std::min((this->n_global_levels_0 - 1),
-                                params.adaptivity_data.min_refinement_depth))))
-              cell->clear_coarsen_flag();
+            {
+              const auto cell_level = static_cast<unsigned int>(cell->level());
+              if (cell->refine_flag_set() &&
+                  (cell_level == ((this->n_global_levels_0 - 1) +
+                                  params.adaptivity_data.max_refinement_depth)))
+                cell->clear_refine_flag();
+              else if (cell->coarsen_flag_set() &&
+                       (cell_level == ((this->n_global_levels_0 - 1) -
+                                       std::min((this->n_global_levels_0 - 1),
+                                                params.adaptivity_data
+                                                  .min_refinement_depth))))
+                cell->clear_coarsen_flag();
+            }
 
           // 4) perform interpolation and initialize data structures
           tria.prepare_coarsening_and_refinement();
