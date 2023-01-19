@@ -152,6 +152,7 @@ namespace Sintering
     double geometry_interface_width;
 
     unsigned int n_global_levels_0;
+    unsigned int current_max_refinement_depth;
     double       time_last_output;
     unsigned int n_timestep;
     unsigned int n_linear_iterations;
@@ -1508,6 +1509,10 @@ namespace Sintering
 
       bool system_has_changed = true;
 
+      // Set the maximum refinement depth
+      this->current_max_refinement_depth =
+        params.adaptivity_data.max_refinement_depth;
+
       const auto execute_coarsening_and_refinement =
         [&](const double t,
             const double top_fraction_of_cells,
@@ -1629,18 +1634,20 @@ namespace Sintering
             }
 
           // and limit the number of levels
+          const unsigned int max_allowed_level =
+            (this->n_global_levels_0 - 1) + this->current_max_refinement_depth;
+          const unsigned int min_allowed_level =
+            (this->n_global_levels_0 - 1) -
+            std::min((this->n_global_levels_0 - 1),
+                     params.adaptivity_data.min_refinement_depth);
+
           for (const auto &cell : tria.active_cell_iterators())
             {
               const auto cell_level = static_cast<unsigned int>(cell->level());
-              if (cell->refine_flag_set() &&
-                  (cell_level == ((this->n_global_levels_0 - 1) +
-                                  params.adaptivity_data.max_refinement_depth)))
+              if (cell->refine_flag_set() && cell_level == max_allowed_level)
                 cell->clear_refine_flag();
               else if (cell->coarsen_flag_set() &&
-                       (cell_level == ((this->n_global_levels_0 - 1) -
-                                       std::min((this->n_global_levels_0 - 1),
-                                                params.adaptivity_data
-                                                  .min_refinement_depth))))
+                       cell_level == min_allowed_level)
                 cell->clear_coarsen_flag();
             }
 
