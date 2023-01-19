@@ -2446,6 +2446,8 @@ namespace Sintering
               }
             catch (const NonLinearSolvers::ExcNewtonDidNotConverge &e)
               {
+                pcout << "\033[31m" << e.message() << "\033[0m" << std::endl;
+
                 // Try to refine mesh if its quality was reduced previously
                 if (params.adaptivity_data.extra_coarsening &&
                     this->current_max_refinement_depth <
@@ -2459,9 +2461,8 @@ namespace Sintering
                 else
                   {
                     dt *= 0.5;
-                    pcout << "\033[31m" << e.message()
-                          << " Reducing timestep, dt = " << dt << "\033[0m"
-                          << std::endl;
+                    pcout << "\033[33mReducing timestep, dt = " << dt
+                          << "\033[0m" << std::endl;
                   }
 
                 n_failed_tries += 1;
@@ -2493,10 +2494,25 @@ namespace Sintering
               }
             catch (const SolverControl::NoConvergence &)
               {
-                dt *= 0.5;
-                pcout
-                  << "\033[33mLinear solver did not converge, reducing timestep, dt = "
-                  << dt << "\033[0m" << std::endl;
+                pcout << "\033[31mLinear solver did not converge\033[0m"
+                      << std::endl;
+
+                // Try to refine mesh if its quality was reduced previously
+                if (params.adaptivity_data.extra_coarsening &&
+                    this->current_max_refinement_depth <
+                      params.adaptivity_data.max_refinement_depth)
+                  {
+                    ++this->current_max_refinement_depth;
+                    pcout << "\033[33mIncreasing mesh quality"
+                          << "\033[0m" << std::endl;
+                    force_refinement = true;
+                  }
+                else
+                  {
+                    dt *= 0.5;
+                    pcout << "\033[33mReducing timestep, dt = " << dt
+                          << "\033[0m" << std::endl;
+                  }
 
                 n_failed_tries += 1;
                 n_failed_linear_iterations += statistics.n_linear_iterations();
