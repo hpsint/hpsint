@@ -2291,6 +2291,40 @@ namespace Sintering
                   }
               }
 
+            const auto process_failure = [&](const std::string &message,
+                                             const std::string &label) {
+              pcout << "\033[31m" << message << "\033[0m" << std::endl;
+              dt *= 0.5;
+              pcout << "\033[33mReducing timestep, dt = " << dt << "\033[0m"
+                    << std::endl;
+
+              n_failed_tries += 1;
+              n_failed_linear_iterations += statistics.n_linear_iterations();
+              n_failed_non_linear_iterations +=
+                statistics.n_newton_iterations();
+              n_failed_residual_evaluations +=
+                statistics.n_residual_evaluations();
+
+              solution = solution_history.get_recent_old_solution();
+
+              output_result(solution,
+                            nonlinear_operator,
+                            grain_tracker,
+                            time_last_output,
+                            timer,
+                            label);
+
+              AssertThrow(
+                dt > params.time_integration_data.time_step_min,
+                ExcMessage("Minimum timestep size exceeded, solution failed!"));
+
+              nonlinear_operator.clear();
+              non_linear_solver_executor->clear();
+              preconditioner->clear();
+
+              has_converged = false;
+            };
+
             try
               {
                 ScopedName sc("newton");
@@ -2447,100 +2481,12 @@ namespace Sintering
               }
             catch (const NonLinearSolvers::ExcNewtonDidNotConverge &e)
               {
-                pcout << "\033[31m" << e.message() << "\033[0m" << std::endl;
-
-                // Try to refine mesh if its quality was reduced previously
-                if (params.adaptivity_data.extra_coarsening &&
-                    this->current_max_refinement_depth <
-                      params.adaptivity_data.max_refinement_depth)
-                  {
-                    ++this->current_max_refinement_depth;
-                    pcout << "\033[33mIncreasing mesh quality"
-                          << "\033[0m" << std::endl;
-                    force_refinement = true;
-                  }
-                else
-                  {
-                    dt *= 0.5;
-                    pcout << "\033[33mReducing timestep, dt = " << dt
-                          << "\033[0m" << std::endl;
-                  }
-
-                n_failed_tries += 1;
-                n_failed_linear_iterations += statistics.n_linear_iterations();
-                n_failed_non_linear_iterations +=
-                  statistics.n_newton_iterations();
-                n_failed_residual_evaluations +=
-                  statistics.n_residual_evaluations();
-
-                solution = solution_history.get_recent_old_solution();
-
-                output_result(solution,
-                              nonlinear_operator,
-                              grain_tracker,
-                              time_last_output,
-                              timer,
-                              "newton_not_converged");
-
-                AssertThrow(
-                  dt > params.time_integration_data.time_step_min,
-                  ExcMessage(
-                    "Minimum timestep size exceeded, solution failed!"));
-
-                nonlinear_operator.clear();
-                non_linear_solver_executor->clear();
-                preconditioner->clear();
-
-                has_converged = false;
+                process_failure(e.message(), "newton_not_converged");
               }
             catch (const SolverControl::NoConvergence &)
               {
-                pcout << "\033[31mLinear solver did not converge\033[0m"
-                      << std::endl;
-
-                // Try to refine mesh if its quality was reduced previously
-                if (params.adaptivity_data.extra_coarsening &&
-                    this->current_max_refinement_depth <
-                      params.adaptivity_data.max_refinement_depth)
-                  {
-                    ++this->current_max_refinement_depth;
-                    pcout << "\033[33mIncreasing mesh quality"
-                          << "\033[0m" << std::endl;
-                    force_refinement = true;
-                  }
-                else
-                  {
-                    dt *= 0.5;
-                    pcout << "\033[33mReducing timestep, dt = " << dt
-                          << "\033[0m" << std::endl;
-                  }
-
-                n_failed_tries += 1;
-                n_failed_linear_iterations += statistics.n_linear_iterations();
-                n_failed_non_linear_iterations +=
-                  statistics.n_newton_iterations();
-                n_failed_residual_evaluations +=
-                  statistics.n_residual_evaluations();
-
-                solution = solution_history.get_recent_old_solution();
-
-                output_result(solution,
-                              nonlinear_operator,
-                              grain_tracker,
-                              time_last_output,
-                              timer,
-                              "linear_solver_not_converged");
-
-                AssertThrow(
-                  dt > params.time_integration_data.time_step_min,
-                  ExcMessage(
-                    "Minimum timestep size exceeded, solution failed!"));
-
-                nonlinear_operator.clear();
-                non_linear_solver_executor->clear();
-                preconditioner->clear();
-
-                has_converged = false;
+                process_failure("Linear solver did not converge",
+                                "linear_solver_not_converged");
               }
 
             if (has_converged)
