@@ -2019,7 +2019,8 @@ namespace Sintering
                       "solution",
                       additional_output);
 
-      bool has_converged = true;
+      bool has_converged    = true;
+      bool force_refinement = false;
 
       // run time loop
       {
@@ -2038,27 +2039,36 @@ namespace Sintering
                 bool do_grain_tracker   = false;
                 if (n_timestep != 0)
                   {
-                    // If quality control is enabled, then frequency is not used
-                    if (params.adaptivity_data.quality_control)
+                    if (force_refinement)
                       {
-                        const auto only_order_parameters =
-                          solution.create_view(2,
-                                               sintering_data.n_components());
-
-                        const auto quality =
-                          Postprocessors::estimate_mesh_quality_min(
-                            dof_handler, *only_order_parameters);
-
-                        do_mesh_refinement =
-                          quality < params.adaptivity_data.quality_min;
+                        do_mesh_refinement = true;
+                        force_refinement   = false;
                       }
                     else
                       {
-                        do_mesh_refinement =
-                          params.adaptivity_data.refinement_frequency > 0 &&
-                          n_timestep %
-                              params.adaptivity_data.refinement_frequency ==
-                            0;
+                        // If quality control is enabled, then frequency is not
+                        // used
+                        if (params.adaptivity_data.quality_control)
+                          {
+                            const auto only_order_parameters =
+                              solution.create_view(
+                                2, sintering_data.n_components());
+
+                            const auto quality =
+                              Postprocessors::estimate_mesh_quality_min(
+                                dof_handler, *only_order_parameters);
+
+                            do_mesh_refinement =
+                              quality < params.adaptivity_data.quality_min;
+                          }
+                        else
+                          {
+                            do_mesh_refinement =
+                              params.adaptivity_data.refinement_frequency > 0 &&
+                              n_timestep %
+                                  params.adaptivity_data.refinement_frequency ==
+                                0;
+                          }
                       }
 
                     // If advection is enabled, then execute grain tracker
@@ -2327,6 +2337,17 @@ namespace Sintering
                           {
                             dt = params.time_integration_data.time_step_max;
                           }
+
+                        // Coarsen mesh if we solve everything nicely
+                        if (params.adaptivity_data.extra_coarsening &&
+                            this->current_max_refinement_depth ==
+                              params.adaptivity_data.max_refinement_depth)
+                          {
+                            --this->current_max_refinement_depth;
+                            pcout << "\033[33mReducing mesh quality"
+                                  << "\033[0m" << std::endl;
+                            force_refinement = true;
+                          }
                       }
 
                     if (t + dt > params.time_integration_data.time_end)
@@ -2414,10 +2435,23 @@ namespace Sintering
               }
             catch (const NonLinearSolvers::ExcNewtonDidNotConverge &e)
               {
-                dt *= 0.5;
-                pcout << "\033[31m" << e.message()
-                      << " Reducing timestep, dt = " << dt << "\033[0m"
-                      << std::endl;
+                // Try to refine mesh if its quality was reduced previously
+                if (params.adaptivity_data.extra_coarsening &&
+                    this->current_max_refinement_depth <
+                      params.adaptivity_data.max_refinement_depth)
+                  {
+                    ++this->current_max_refinement_depth;
+                    pcout << "\033[33mIncreasing mesh quality"
+                          << "\033[0m" << std::endl;
+                    force_refinement = true;
+                  }
+                else
+                  {
+                    dt *= 0.5;
+                    pcout << "\033[31m" << e.message()
+                          << " Reducing timestep, dt = " << dt << "\033[0m"
+                          << std::endl;
+                  }
 
                 n_failed_tries += 1;
                 n_failed_linear_iterations += statistics.n_linear_iterations();
