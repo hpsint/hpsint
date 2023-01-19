@@ -1943,7 +1943,8 @@ namespace Sintering
         }
 
       // Grain tracker - first run after we have initial configuration defined
-      if (params.grain_tracker_data.grain_tracker_frequency > 0)
+      if (params.grain_tracker_data.grain_tracker_frequency > 0 ||
+          params.advection_data.enable)
         run_grain_tracker(t, /*do_initialize = */ true);
 
       // Impose boundary conditions
