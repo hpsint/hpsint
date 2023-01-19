@@ -657,6 +657,33 @@ namespace Sintering
           static_cast<types::global_cell_index>(min_max_avg_n_cells_wo_hn.sum),
         tria.n_global_active_cells());
 
+      std::vector<unsigned int> unrefined_cells(tria.n_active_cells(), false);
+
+      for (const auto &cell : tria.cell_iterators())
+        if (cell->has_children())
+          {
+            bool flag = true;
+
+            for (unsigned int c = 0; c < cell->n_children(); ++c)
+              if (cell->child(c)->is_active() == false ||
+                  cell->child(c)->is_locally_owned() == false)
+                flag = false;
+
+            if (flag)
+              for (unsigned int c = 0; c < cell->n_children(); ++c)
+                unrefined_cells[cell->child(c)->active_cell_index()] = true;
+          }
+
+
+      unsigned int n_unrefined_cells = 0;
+      for (const auto i : unrefined_cells)
+        if (i)
+          n_unrefined_cells++;
+
+      const auto min_max_avg_n_unrefined_cells =
+        Utilities::MPI::min_max_avg(n_unrefined_cells, MPI_COMM_WORLD);
+
+
       // clang-format off
       pcout_statistics << "System statistics:" << std::endl;
       pcout_statistics << "  - n cell:                    " << static_cast<types::global_cell_index>(min_max_avg_n_cells.sum) 
@@ -676,6 +703,12 @@ namespace Sintering
                                                             << static_cast<types::global_cell_index>(min_max_avg_n_cells_wo_hn.min) 
                                                             << ", max: " 
                                                             << static_cast<types::global_cell_index>(min_max_avg_n_cells_wo_hn.max) 
+                                                            << ")" << std::endl;
+      pcout_statistics << "  - n cell fine batch:         " << static_cast<types::global_cell_index>(min_max_avg_n_unrefined_cells.sum) 
+                                                            << " (min: " 
+                                                            << static_cast<types::global_cell_index>(min_max_avg_n_unrefined_cells.min) 
+                                                            << ", max: " 
+                                                            << static_cast<types::global_cell_index>(min_max_avg_n_unrefined_cells.max) 
                                                             << ")" << std::endl;
       pcout_statistics << "  - n levels:                  " << tria.n_global_levels() << std::endl;
 

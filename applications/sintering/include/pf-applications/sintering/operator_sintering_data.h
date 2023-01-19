@@ -119,6 +119,13 @@ namespace Sintering
 
       const unsigned n_cells = matrix_free.n_cell_batches();
 
+      Table<2, unsigned int> table_lanes;
+      table_lanes.reinit({n_cells, VectorizedArrayType::size()});
+
+      for (unsigned int i = 0; i < n_cells; ++i)
+        for (unsigned int j = 0; j < n_grains(); ++j)
+          table_lanes[i][j] = numbers::invalid_unsigned_int;
+
       component_table.reinit({n_cells, n_grains()});
 
       for (unsigned int i = 0; i < n_cells; ++i)
@@ -137,13 +144,20 @@ namespace Sintering
             {
               const auto cell_iterator = matrix_free.get_cell_iterator(cell, v);
 
+              unsigned int counter = 0;
+
               for (unsigned int b = 0; b < n_grains(); ++b)
                 {
                   cell_iterator->get_dof_values(src.block(b + 2), values);
 
                   if (values.linfty_norm() > grain_use_cut_off_tolerance)
-                    component_table[cell][b] = true;
+                    {
+                      component_table[cell][b] = true;
+                      counter++;
+                    }
                 }
+
+              table_lanes[cell][v] = counter;
             }
         }
 
@@ -182,38 +196,59 @@ namespace Sintering
                                       n_components_save_gradient);
         }
 
+      ConditionalOStream pcout(std::cout,
+                               Utilities::MPI::this_mpi_process(comm) == 0);
 
       // some statistics
-      std::vector<unsigned int> counters(n_cells, 0);
+      const auto print_stat = [&pcout,
+                               &comm](std::vector<unsigned int> &counters) {
+        unsigned int max_value =
+          *std::max_element(counters.begin(), counters.end());
+        max_value = Utilities::MPI::max(max_value, comm);
 
+        std::vector<unsigned int> max_values(max_value + 1, 0);
+
+        for (const auto i : counters)
+          max_values[i]++;
+
+        Utilities::MPI::sum(max_values, comm, max_values);
+
+        const auto sum = std::reduce(max_values.begin(), max_values.end());
+
+        pcout << "  - " << max_value << " (";
+
+        pcout << (0) << ": " << std::fixed << std::setprecision(2)
+              << static_cast<double>(max_values[0]) / sum * 100;
+        for (unsigned int i = 1; i < max_values.size(); ++i)
+          pcout << ", " << i << ": " << std::fixed << std::setprecision(2)
+                << static_cast<double>(max_values[i]) / sum * 100;
+
+        pcout << ")" << std::endl;
+      };
+
+      std::vector<unsigned int> counters_batch_max(n_cells, 0);
       for (unsigned int i = 0; i < n_cells; ++i)
         {
           for (unsigned int j = 0; j < n_grains(); ++j)
             if (component_table[i][j])
-              counters[i]++;
+              counters_batch_max[i]++;
         }
 
-      unsigned int max_value =
-        *std::max_element(counters.begin(), counters.end());
-      max_value = Utilities::MPI::max(max_value, comm);
+      std::vector<unsigned int> counters_batch_compressed(n_cells, 0);
+      std::vector<unsigned int> counters_cell;
+      for (unsigned int i = 0; i < n_cells; ++i)
+        for (unsigned int j = 0; j < VectorizedArrayType::size(); ++j)
+          if (table_lanes[i][j] != numbers::invalid_unsigned_int)
+            {
+              counters_batch_compressed[i] =
+                std::max(counters_batch_compressed[i], table_lanes[i][j]);
+              counters_cell.push_back(table_lanes[i][j]);
+            }
 
-      std::vector<unsigned int> max_values(max_value + 1, 0);
-
-      for (const auto i : counters)
-        max_values[i]++;
-
-      Utilities::MPI::sum(max_values, comm, max_values);
-
-      ConditionalOStream pcout(std::cout,
-                               Utilities::MPI::this_mpi_process(comm) == 0);
-
-      pcout << "Cut-off statistic: " << max_value << " (";
-
-      pcout << (0) << ": " << max_values[0];
-      for (unsigned int i = 1; i < max_values.size(); ++i)
-        pcout << ", " << i << ": " << max_values[i];
-
-      pcout << ")" << std::endl;
+      pcout << "Cut-off statistic: " << std::endl;
+      print_stat(counters_batch_max);
+      print_stat(counters_batch_compressed);
+      print_stat(counters_cell);
 
       src.zero_out_ghost_values();
     }
