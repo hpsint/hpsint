@@ -1644,11 +1644,20 @@ namespace Sintering
           for (const auto &cell : tria.active_cell_iterators())
             {
               const auto cell_level = static_cast<unsigned int>(cell->level());
+
               if (cell->refine_flag_set() && cell_level == max_allowed_level)
                 cell->clear_refine_flag();
               else if (cell->coarsen_flag_set() &&
                        cell_level == min_allowed_level)
                 cell->clear_coarsen_flag();
+
+              // Coarsen cell if it is overrefined
+              if (cell_level > max_allowed_level)
+                {
+                  if (cell->refine_flag_set())
+                    cell->clear_refine_flag();
+                  cell->set_coarsen_flag();
+                }
             }
 
           // 4) perform interpolation and initialize data structures
