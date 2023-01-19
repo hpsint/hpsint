@@ -295,6 +295,9 @@ namespace GrainTracker
           active_order_parameters = build_active_order_parameter_ids(grains);
         }
 
+      // Build inverse mapping after all indices are set
+      build_inverse_mapping();
+
       return std::make_tuple(grains_reassigned, op_number_changed);
     }
 
@@ -325,6 +328,9 @@ namespace GrainTracker
       const bool op_number_changed =
         (active_order_parameters.size() !=
          build_old_order_parameter_ids(grains).size());
+
+      // Build inverse mapping after grains are detected
+      build_inverse_mapping();
 
       return std::make_tuple(grains_reassigned, op_number_changed);
     }
@@ -1180,18 +1186,6 @@ namespace GrainTracker
             }
         }
 
-      // Build inverse mapping for later use when forces and computed
-      n_total_segments = 0;
-      for (const auto &op_particle_ids : particle_ids_to_grain_ids)
-        for (const auto &grain_and_segment : op_particle_ids)
-          {
-            grain_segment_ids_numbering[grain_and_segment.first]
-                                       [grain_and_segment.second] =
-                                         n_total_segments;
-
-            ++n_total_segments;
-          }
-
       return new_grains;
     }
 
@@ -1504,6 +1498,22 @@ namespace GrainTracker
       print_log(log);
 
       return grains_reassigned;
+    }
+
+    // Build inverse mapping for later use when forces and computed
+    void
+    build_inverse_mapping()
+    {
+      n_total_segments = 0;
+      for (const auto &op_particle_ids : particle_ids_to_grain_ids)
+        for (const auto &grain_and_segment : op_particle_ids)
+          {
+            grain_segment_ids_numbering[grain_and_segment.first]
+                                       [grain_and_segment.second] =
+                                         n_total_segments;
+
+            ++n_total_segments;
+          }
     }
 
     // Output particle ids
