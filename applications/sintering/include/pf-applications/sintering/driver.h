@@ -2035,10 +2035,11 @@ namespace Sintering
             ScopedName         sc("time_loop");
             TimerOutput::Scope scope(timer(), sc);
 
-            if (has_converged)
+            if (has_converged || force_refinement)
               {
                 // Perform sanity check
-                if (params.time_integration_data.sanity_check_solution)
+                if (params.time_integration_data.sanity_check_solution &&
+                    has_converged)
                   nonlinear_operator.sanity_check(solution);
 
                 bool do_mesh_refinement = false;
