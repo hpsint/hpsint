@@ -49,6 +49,7 @@ namespace Sintering
     unsigned int min_refinement_depth     = 3;
     unsigned int max_refinement_depth     = 0;
     unsigned int refinement_frequency     = 10; // 0 - no refinement
+    bool         extra_coarsening         = false;
 
     bool   quality_control = false;
     double quality_min     = 0.5;
@@ -473,6 +474,9 @@ namespace Sintering
       prm.add_parameter("QualityMin",
                         adaptivity_data.quality_min,
                         "Minimum value for cell quality (0 - low, 1 - high).");
+      prm.add_parameter("ExtraCoarsening",
+                        adaptivity_data.extra_coarsening,
+                        "Allow reduce quality of the mesh.");
       prm.leave_subsection();
 
 
