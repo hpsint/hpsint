@@ -879,6 +879,11 @@ namespace Sintering
         preconditioners_data.block_preconditioner_2_data.block_1_approximation,
         "Approximation of the second block (Allen Cahn).",
         Patterns::Selection("all|const|max|avg"));
+      prm.add_parameter(
+        "Block2Preconditioner",
+        preconditioners_data.block_preconditioner_2_data.block_2_preconditioner,
+        "Preconditioner to be used for the first block.",
+        Patterns::Selection(preconditioner_types));
       prm.leave_subsection();
 
       prm.leave_subsection();

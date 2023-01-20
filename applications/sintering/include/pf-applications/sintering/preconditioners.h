@@ -154,6 +154,107 @@ namespace Sintering
     const AdvectionMechanism<dim, Number, VectorizedArrayType> &advection;
   };
 
+  template <int dim, typename Number, typename VectorizedArrayType>
+  class OperatorSolid
+    : public OperatorBase<dim,
+                          Number,
+                          VectorizedArrayType,
+                          OperatorSolid<dim, Number, VectorizedArrayType>>
+  {
+  public:
+    OperatorSolid(
+      const MatrixFree<dim, Number, VectorizedArrayType> &   matrix_free,
+      const AffineConstraints<Number> &                      constraints,
+      const SinteringOperatorData<dim, VectorizedArrayType> &data,
+      const std::array<std::vector<unsigned int>, dim>
+        &          displ_constraints_indices,
+      const double E  = 1.0,
+      const double nu = 0.25)
+      : OperatorBase<dim,
+                     Number,
+                     VectorizedArrayType,
+                     OperatorSolid<dim, Number, VectorizedArrayType>>(
+          matrix_free,
+          constraints,
+          0,
+          "solid_op")
+      , data(data)
+      , displ_constraints_indices(displ_constraints_indices)
+      , material(E, nu, Structural::MaterialPlaneType::plane_strain)
+    {}
+
+    unsigned int
+    n_components() const override
+    {
+      return dim;
+    }
+
+    unsigned int
+    n_grains() const
+    {
+      return data.n_grains();
+    }
+
+    static constexpr unsigned int
+    n_grains_to_n_components(const unsigned int)
+    {
+      return dim;
+    }
+
+    template <int n_comp, int n_grains, typename FECellIntegratorType>
+    void
+    do_vmult_kernel(FECellIntegratorType &phi) const
+    {
+      static_assert(n_grains != -1);
+      const unsigned int cell = phi.get_current_cell_index();
+
+      const auto &nonlinear_values = data.get_nonlinear_values();
+
+      for (unsigned int q = 0; q < phi.n_q_points; ++q)
+        {
+          const auto &val = nonlinear_values[cell][q];
+
+          const auto &c = val[0];
+
+          const auto S = this->get_stress(phi.get_gradient(q), c);
+
+          phi.submit_value({}, q);
+          phi.submit_gradient(S, q);
+        }
+    }
+
+    void
+    post_system_matrix_compute() const override
+    {
+      for (unsigned int d = 0; d < dim; ++d)
+        for (const unsigned int index : displ_constraints_indices[d])
+          {
+            const unsigned int matrix_index = dim * index + d;
+
+            this->system_matrix.clear_row(matrix_index, 1.0);
+          }
+    }
+
+    Tensor<2, dim, VectorizedArrayType>
+    get_stress(const Tensor<2, dim, VectorizedArrayType> &H,
+               const VectorizedArrayType &                c) const
+    {
+      const double c_min = 0.1;
+
+      const auto cl = compare_and_apply_mask<SIMDComparison::less_than>(
+        c, VectorizedArrayType(c_min), VectorizedArrayType(c_min), c);
+
+      return cl * material.get_S(H);
+    }
+
+  private:
+    const SinteringOperatorData<dim, VectorizedArrayType> &data;
+    const std::array<std::vector<unsigned int>, dim> &displ_constraints_indices;
+
+    const Structural::StVenantKirchhoff<dim, Number, VectorizedArrayType>
+      material;
+  };
+
 
 
   template <int dim, typename Number, typename VectorizedArrayType>
@@ -792,6 +893,7 @@ namespace Sintering
   {
     std::string block_0_preconditioner = "ILU";
     std::string block_1_preconditioner = "InverseDiagonalMatrix";
+    std::string block_2_preconditioner = "AMG";
 
     std::string block_1_approximation = "all";
   };
@@ -816,7 +918,11 @@ namespace Sintering
       const MatrixFree<dim, Number, VectorizedArrayType> &   matrix_free,
       const AffineConstraints<Number> &                      constraints,
       const BlockPreconditioner2Data &                       data,
-      const AdvectionMechanism<dim, Number, VectorizedArrayType> &advection)
+      const AdvectionMechanism<dim, Number, VectorizedArrayType> &advection,
+      const std::array<std::vector<unsigned int>, dim>
+        &          zero_constraints_indices,
+      const double E  = 1.0,
+      const double nu = 0.25)
       : data(data)
     {
       // create operators
@@ -835,6 +941,20 @@ namespace Sintering
         sintering_data,
         advection,
         data.block_1_approximation);
+
+#if OPERATOR == OPERATOR_GENERIC
+      if (false)
+#else
+      if (true)
+#endif
+        operator_2 =
+          std::make_unique<OperatorSolid<dim, Number, VectorizedArrayType>>(
+            matrix_free,
+            constraints,
+            sintering_data,
+            zero_constraints_indices,
+            E,
+            nu);
 
       // create preconditioners
       preconditioner_0 =
@@ -857,6 +977,14 @@ namespace Sintering
         {
           AssertThrow(false, ExcNotImplemented());
         }
+
+#if OPERATOR == OPERATOR_GENERIC
+      if (false)
+#else
+      if (true)
+#endif
+        preconditioner_2 =
+          Preconditioners::create(*operator_2, data.block_2_preconditioner);
     }
 
     BlockPreconditioner2(
@@ -944,6 +1072,8 @@ namespace Sintering
         operator_1->clear();
       if (operator_1_blocked)
         operator_1_blocked->clear();
+      if (operator_2)
+        operator_2->clear();
 
       for (unsigned int l = mg_operator_1.min_level();
            l <= mg_operator_1.max_level();
@@ -962,6 +1092,8 @@ namespace Sintering
         preconditioner_0->clear();
       if (preconditioner_1)
         preconditioner_1->clear();
+      if (preconditioner_2)
+        preconditioner_2->clear();
     }
 
     void
@@ -977,19 +1109,35 @@ namespace Sintering
 
       {
         MyScope    scope(timer, "precon::vmult::precon_0");
-        const auto dst_view = dst.create_view(0, 2);
-        const auto src_view = src.create_view(0, 2);
+        const auto start    = 0;
+        const auto end      = 2;
+        const auto dst_view = dst.create_view(start, end);
+        const auto src_view = src.create_view(start, end);
 
         preconditioner_0->vmult(*dst_view, *src_view);
       }
 
       {
         MyScope    scope(timer, "precon::vmult::precon_1");
-        const auto dst_view = dst.create_view(2, dst.n_blocks());
-        const auto src_view = src.create_view(2, src.n_blocks());
+        const auto start = 2;
+        const auto end =
+          preconditioner_2 ? (dst.n_blocks() - dim) : dst.n_blocks();
+        const auto dst_view = dst.create_view(start, end);
+        const auto src_view = src.create_view(start, end);
 
         preconditioner_1->vmult(*dst_view, *src_view);
       }
+
+      if (preconditioner_2)
+        {
+          MyScope    scope(timer, "precon::vmult::precon_2");
+          const auto start    = dst.n_blocks() - dim;
+          const auto end      = dst.n_blocks();
+          const auto dst_view = dst.create_view(start, end);
+          const auto src_view = src.create_view(start, end);
+
+          preconditioner_2->vmult(*dst_view, *src_view);
+        }
     }
 
     void
@@ -997,14 +1145,21 @@ namespace Sintering
     {
       MyScope scope(timer, "precon::update");
 
-      {
-        MyScope scope(timer, "precon::update::precon_0");
-        preconditioner_0->do_update();
-      }
-      {
-        MyScope scope(timer, "precon::update::precon_1");
-        preconditioner_1->do_update();
-      }
+      if (preconditioner_0)
+        {
+          MyScope scope(timer, "precon::update::precon_0");
+          preconditioner_0->do_update();
+        }
+      if (preconditioner_1)
+        {
+          MyScope scope(timer, "precon::update::precon_1");
+          preconditioner_1->do_update();
+        }
+      if (preconditioner_2)
+        {
+          MyScope scope(timer, "precon::update::precon_2");
+          preconditioner_2->do_update();
+        }
     }
 
     virtual std::size_t
@@ -1030,6 +1185,9 @@ namespace Sintering
     std::unique_ptr<OperatorAllenCahnBlocked<dim, Number, VectorizedArrayType>>
       operator_1_blocked;
 
+    // operator solid
+    std::unique_ptr<OperatorSolid<dim, Number, VectorizedArrayType>> operator_2;
+
     MGLevelObject<
       std::shared_ptr<OperatorAllenCahn<dim, Number, VectorizedArrayType>>>
       mg_operator_1;
@@ -1039,7 +1197,7 @@ namespace Sintering
 
     // preconditioners
     std::unique_ptr<Preconditioners::PreconditionerBase<Number>>
-      preconditioner_0, preconditioner_1;
+      preconditioner_0, preconditioner_1, preconditioner_2;
 
     // utility
     mutable MyTimerOutput timer;
