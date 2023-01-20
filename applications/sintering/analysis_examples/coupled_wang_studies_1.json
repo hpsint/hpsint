@@ -46,7 +46,7 @@
     },
     "NonLinearData": {
         "LinearAbsoluteTolerance": 1e-10,
-        "LinearRelativeTolerance": 1e-2,
+        "LinearRelativeTolerance": 0.01,
         "NewtonThresholdLinearIterations": "50",
         "NewtonThresholdNewtonIterations": "100",
         "NewtonUseDamping": "false",
