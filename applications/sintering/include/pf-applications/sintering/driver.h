@@ -152,8 +152,11 @@ namespace Sintering
     double geometry_interface_width;
 
     unsigned int n_global_levels_0;
+    unsigned int current_max_refinement_depth;
     double       time_last_output;
     unsigned int n_timestep;
+    unsigned int n_timestep_last_amr;
+    unsigned int n_timestep_last_gt;
     unsigned int n_linear_iterations;
     unsigned int n_non_linear_iterations;
     unsigned int n_residual_evaluations;
@@ -193,6 +196,8 @@ namespace Sintering
       geometry_interface_width      = initial_solution->get_interface_width();
       this->time_last_output        = 0;
       this->n_timestep              = 0;
+      this->n_timestep_last_amr     = 0;
+      this->n_timestep_last_gt      = 0;
       this->n_linear_iterations     = 0;
       this->n_non_linear_iterations = 0;
       this->n_residual_evaluations  = 0;
@@ -423,6 +428,8 @@ namespace Sintering
       ar &n_global_levels_0;
       ar &time_last_output;
       ar &n_timestep;
+      ar &n_timestep_last_amr;
+      ar &n_timestep_last_gt;
       ar &n_linear_iterations;
       ar &n_non_linear_iterations;
       ar &n_residual_evaluations;
@@ -1509,6 +1516,10 @@ namespace Sintering
 
       bool system_has_changed = true;
 
+      // Set the maximum refinement depth
+      this->current_max_refinement_depth =
+        params.adaptivity_data.max_refinement_depth;
+
       const auto execute_coarsening_and_refinement =
         [&](const double t,
             const double top_fraction_of_cells,
@@ -1630,18 +1641,31 @@ namespace Sintering
             }
 
           // and limit the number of levels
+          const unsigned int max_allowed_level =
+            (this->n_global_levels_0 - 1) + this->current_max_refinement_depth;
+          const unsigned int min_allowed_level =
+            (this->n_global_levels_0 - 1) -
+            std::min((this->n_global_levels_0 - 1),
+                     params.adaptivity_data.min_refinement_depth);
+
           for (const auto &cell : tria.active_cell_iterators())
-            if (cell->refine_flag_set() &&
-                (static_cast<unsigned int>(cell->level()) ==
-                 ((this->n_global_levels_0 - 1) +
-                  params.adaptivity_data.max_refinement_depth)))
-              cell->clear_refine_flag();
-            else if (cell->coarsen_flag_set() &&
-                     (static_cast<unsigned int>(cell->level()) ==
-                      ((this->n_global_levels_0 - 1) -
-                       std::min((this->n_global_levels_0 - 1),
-                                params.adaptivity_data.min_refinement_depth))))
-              cell->clear_coarsen_flag();
+            {
+              const auto cell_level = static_cast<unsigned int>(cell->level());
+
+              if (cell->refine_flag_set() && cell_level == max_allowed_level)
+                cell->clear_refine_flag();
+              else if (cell->coarsen_flag_set() &&
+                       cell_level == min_allowed_level)
+                cell->clear_coarsen_flag();
+
+              // Coarsen cell if it is overrefined
+              if (cell_level > max_allowed_level)
+                {
+                  if (cell->refine_flag_set())
+                    cell->clear_refine_flag();
+                  cell->set_coarsen_flag();
+                }
+            }
 
           // 4) perform interpolation and initialize data structures
           tria.prepare_coarsening_and_refinement();
@@ -2002,7 +2026,8 @@ namespace Sintering
                       "solution",
                       additional_output);
 
-      bool has_converged = true;
+      bool has_converged    = true;
+      bool force_refinement = false;
 
       // run time loop
       {
@@ -2011,37 +2036,47 @@ namespace Sintering
             ScopedName         sc("time_loop");
             TimerOutput::Scope scope(timer(), sc);
 
-            if (has_converged)
+            if (has_converged || force_refinement)
               {
                 // Perform sanity check
-                if (params.time_integration_data.sanity_check_solution)
+                if (params.time_integration_data.sanity_check_solution &&
+                    has_converged)
                   nonlinear_operator.sanity_check(solution);
 
                 bool do_mesh_refinement = false;
                 bool do_grain_tracker   = false;
                 if (n_timestep != 0)
                   {
-                    // If quality control is enabled, then frequency is not used
-                    if (params.adaptivity_data.quality_control)
+                    if (force_refinement)
                       {
-                        const auto only_order_parameters =
-                          solution.create_view(2,
-                                               sintering_data.n_components());
-
-                        const auto quality =
-                          Postprocessors::estimate_mesh_quality_min(
-                            dof_handler, *only_order_parameters);
-
-                        do_mesh_refinement =
-                          quality < params.adaptivity_data.quality_min;
+                        do_mesh_refinement = true;
+                        force_refinement   = false;
                       }
                     else
                       {
-                        do_mesh_refinement =
-                          params.adaptivity_data.refinement_frequency > 0 &&
-                          n_timestep %
-                              params.adaptivity_data.refinement_frequency ==
-                            0;
+                        // If quality control is enabled, then frequency is not
+                        // used
+                        if (params.adaptivity_data.quality_control)
+                          {
+                            const auto only_order_parameters =
+                              solution.create_view(
+                                2, sintering_data.n_components());
+
+                            const auto quality =
+                              Postprocessors::estimate_mesh_quality_min(
+                                dof_handler, *only_order_parameters);
+
+                            do_mesh_refinement =
+                              quality < params.adaptivity_data.quality_min;
+                          }
+                        else
+                          {
+                            do_mesh_refinement =
+                              params.adaptivity_data.refinement_frequency > 0 &&
+                              (n_timestep - n_timestep_last_amr) %
+                                  params.adaptivity_data.refinement_frequency ==
+                                0;
+                          }
                       }
 
                     // If advection is enabled, then execute grain tracker
@@ -2057,22 +2092,27 @@ namespace Sintering
                     else
                       do_grain_tracker =
                         params.grain_tracker_data.grain_tracker_frequency > 0 &&
-                        n_timestep %
+                        (n_timestep - n_timestep_last_gt) %
                             params.grain_tracker_data.grain_tracker_frequency ==
                           0;
                   }
 
                 if (do_mesh_refinement)
-                  execute_coarsening_and_refinement(
-                    t,
-                    params.adaptivity_data.top_fraction_of_cells,
-                    params.adaptivity_data.bottom_fraction_of_cells);
+                  {
+                    execute_coarsening_and_refinement(
+                      t,
+                      params.adaptivity_data.top_fraction_of_cells,
+                      params.adaptivity_data.bottom_fraction_of_cells);
+
+                    n_timestep_last_amr = n_timestep;
+                  }
 
                 if (do_grain_tracker)
                   {
                     try
                       {
                         run_grain_tracker(t, /*do_initialize = */ false);
+                        n_timestep_last_gt = n_timestep;
                       }
                     catch (const GrainTracker::ExcGrainsInconsistency &ex)
                       {
@@ -2252,6 +2292,40 @@ namespace Sintering
                   }
               }
 
+            const auto process_failure = [&](const std::string &message,
+                                             const std::string &label) {
+              pcout << "\033[31m" << message << "\033[0m" << std::endl;
+              dt *= 0.5;
+              pcout << "\033[33mReducing timestep, dt = " << dt << "\033[0m"
+                    << std::endl;
+
+              n_failed_tries += 1;
+              n_failed_linear_iterations += statistics.n_linear_iterations();
+              n_failed_non_linear_iterations +=
+                statistics.n_newton_iterations();
+              n_failed_residual_evaluations +=
+                statistics.n_residual_evaluations();
+
+              solution = solution_history.get_recent_old_solution();
+
+              output_result(solution,
+                            nonlinear_operator,
+                            grain_tracker,
+                            time_last_output,
+                            timer,
+                            label);
+
+              AssertThrow(
+                dt > params.time_integration_data.time_step_min,
+                ExcMessage("Minimum timestep size exceeded, solution failed!"));
+
+              nonlinear_operator.clear();
+              non_linear_solver_executor->clear();
+              preconditioner->clear();
+
+              has_converged = false;
+            };
+
             try
               {
                 ScopedName sc("newton");
@@ -2309,6 +2383,17 @@ namespace Sintering
                         if (dt > params.time_integration_data.time_step_max)
                           {
                             dt = params.time_integration_data.time_step_max;
+                          }
+
+                        // Coarsen mesh if we solve everything nicely
+                        if (params.adaptivity_data.extra_coarsening &&
+                            this->current_max_refinement_depth ==
+                              params.adaptivity_data.max_refinement_depth)
+                          {
+                            --this->current_max_refinement_depth;
+                            pcout << "\033[33mReducing mesh quality"
+                                  << "\033[0m" << std::endl;
+                            force_refinement = true;
                           }
                       }
 
@@ -2397,71 +2482,12 @@ namespace Sintering
               }
             catch (const NonLinearSolvers::ExcNewtonDidNotConverge &e)
               {
-                dt *= 0.5;
-                pcout << "\033[31m" << e.message()
-                      << " Reducing timestep, dt = " << dt << "\033[0m"
-                      << std::endl;
-
-                n_failed_tries += 1;
-                n_failed_linear_iterations += statistics.n_linear_iterations();
-                n_failed_non_linear_iterations +=
-                  statistics.n_newton_iterations();
-                n_failed_residual_evaluations +=
-                  statistics.n_residual_evaluations();
-
-                solution = solution_history.get_recent_old_solution();
-
-                output_result(solution,
-                              nonlinear_operator,
-                              grain_tracker,
-                              time_last_output,
-                              timer,
-                              "newton_not_converged");
-
-                AssertThrow(
-                  dt > params.time_integration_data.time_step_min,
-                  ExcMessage(
-                    "Minimum timestep size exceeded, solution failed!"));
-
-                nonlinear_operator.clear();
-                non_linear_solver_executor->clear();
-                preconditioner->clear();
-
-                has_converged = false;
+                process_failure(e.message(), "newton_not_converged");
               }
             catch (const SolverControl::NoConvergence &)
               {
-                dt *= 0.5;
-                pcout
-                  << "\033[33mLinear solver did not converge, reducing timestep, dt = "
-                  << dt << "\033[0m" << std::endl;
-
-                n_failed_tries += 1;
-                n_failed_linear_iterations += statistics.n_linear_iterations();
-                n_failed_non_linear_iterations +=
-                  statistics.n_newton_iterations();
-                n_failed_residual_evaluations +=
-                  statistics.n_residual_evaluations();
-
-                solution = solution_history.get_recent_old_solution();
-
-                output_result(solution,
-                              nonlinear_operator,
-                              grain_tracker,
-                              time_last_output,
-                              timer,
-                              "linear_solver_not_converged");
-
-                AssertThrow(
-                  dt > params.time_integration_data.time_step_min,
-                  ExcMessage(
-                    "Minimum timestep size exceeded, solution failed!"));
-
-                nonlinear_operator.clear();
-                non_linear_solver_executor->clear();
-                preconditioner->clear();
-
-                has_converged = false;
+                process_failure("Linear solver did not converge",
+                                "linear_solver_not_converged");
               }
 
             if (has_converged)
