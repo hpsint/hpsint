@@ -921,6 +921,15 @@ namespace Sintering
         advection,
         data.block_1_approximation);
 
+#if OPERATOR == OPERATOR_GENERIC
+      if (false)
+#else
+      if (true)
+#endif
+        operator_2 =
+          std::make_unique<OperatorSolid<dim, Number, VectorizedArrayType>>(
+            matrix_free, constraints, sintering_data);
+
       // create preconditioners
       preconditioner_0 =
         Preconditioners::create(*operator_0, data.block_0_preconditioner);
@@ -942,6 +951,14 @@ namespace Sintering
         {
           AssertThrow(false, ExcNotImplemented());
         }
+
+#if OPERATOR == OPERATOR_GENERIC
+      if (false)
+#else
+      if (true)
+#endif
+        preconditioner_2 =
+          Preconditioners::create(*operator_2, data.block_2_preconditioner);
     }
 
     BlockPreconditioner2(
@@ -1005,15 +1022,6 @@ namespace Sintering
             mg_operator_blocked_1[l]->set_timing(false);
         }
 
-#if OPERATOR == OPERATOR_GENERIC
-      if (false)
-#else
-      if (true)
-#endif
-        operator_2 =
-          std::make_unique<OperatorSolid<dim, Number, VectorizedArrayType>>(
-            matrix_free, constraints, sintering_data);
-
       // create preconditioners
       preconditioner_0 =
         Preconditioners::create(*operator_0, data.block_0_preconditioner);
@@ -1026,14 +1034,6 @@ namespace Sintering
         preconditioner_1 = Preconditioners::create(mg_operator_blocked_1,
                                                    transfer,
                                                    data.block_1_preconditioner);
-
-#if OPERATOR == OPERATOR_GENERIC
-      if (false)
-#else
-      if (true)
-#endif
-        preconditioner_2 =
-          Preconditioners::create(*operator_2, data.block_2_preconditioner);
     }
 
     virtual void
