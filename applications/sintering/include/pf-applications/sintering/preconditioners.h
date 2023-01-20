@@ -123,6 +123,7 @@ namespace Sintering
             c, etas, etas.size(), c_grad, etas_grad, phi.get_gradient(q)[1]);
           gradient_result[1] = kappa_c * phi.get_gradient(q)[0];
 #endif
+
           if (use_coupled_model && this->advection.enabled())
             {
               Tensor<1, dim, VectorizedArrayType> lin_v_adv;
@@ -211,6 +212,9 @@ namespace Sintering
       const auto &kappa_p          = data.kappa_p;
       const auto  weight           = this->data.time_data.get_primary_weight();
       const auto &nonlinear_values = data.get_nonlinear_values();
+      const auto  inv_dt           = 1. / this->data.time_data.get_current_dt();
+
+      const bool use_coupled_model = data.has_additional_variables_attached();
 
       if (this->advection.enabled())
         this->advection.reinit(cell,
@@ -250,7 +254,16 @@ namespace Sintering
                 }
             }
 
-          if (this->advection.enabled())
+          if (use_coupled_model && this->advection.enabled())
+            {
+              Tensor<1, dim, VectorizedArrayType> lin_v_adv;
+              for (unsigned int d = 0; d < dim; ++d)
+                lin_v_adv[d] = val[n_grains + 2 + d] * inv_dt;
+
+              for (unsigned int ig = 0; ig < n_grains; ++ig)
+                value_result[ig] += lin_v_adv * phi.get_gradient(q)[ig];
+            }
+          else if (this->advection.enabled())
             for (unsigned int ig = 0; ig < n_grains; ++ig)
               if (this->advection.has_velocity(ig))
                 {
@@ -356,6 +369,9 @@ namespace Sintering
       const auto &kappa_p          = data.kappa_p;
       const auto  weight           = data.time_data.get_primary_weight();
       const auto &nonlinear_values = data.get_nonlinear_values();
+      const auto  inv_dt           = 1. / this->data.time_data.get_current_dt();
+
+      const bool use_coupled_model = data.has_additional_variables_attached();
 
       if (this->advection.enabled())
         this->advection.reinit(cell,
@@ -385,7 +401,16 @@ namespace Sintering
               gradient_result[ig] = L * kappa_p * phi.get_gradient(q)[ig];
             }
 
-          if (this->advection.enabled())
+          if (use_coupled_model && this->advection.enabled())
+            {
+              Tensor<1, dim, VectorizedArrayType> lin_v_adv;
+              for (unsigned int d = 0; d < dim; ++d)
+                lin_v_adv[d] = val[n_grains + 2 + d] * inv_dt;
+
+              for (unsigned int ig = 0; ig < n_grains; ++ig)
+                value_result[ig] += lin_v_adv * phi.get_gradient(q)[ig];
+            }
+          else if (this->advection.enabled())
             for (unsigned int ig = 0; ig < n_grains; ++ig)
               if (this->advection.has_velocity(ig))
                 {
@@ -500,6 +525,9 @@ namespace Sintering
         const auto &kappa_p          = data.kappa_p;
         const auto  weight           = data.time_data.get_primary_weight();
         const auto &nonlinear_values = data.get_nonlinear_values();
+        const auto  inv_dt = 1. / this->data.time_data.get_current_dt();
+
+        const bool use_coupled_model = data.has_additional_variables_attached();
 
         const auto &component_table = this->data.get_component_table();
 
@@ -611,14 +639,25 @@ namespace Sintering
 
                         if (free_energy_approximation == 0 &&
                             this->advection.enabled())
-                          if (this->advection.has_velocity(b))
-                            {
-                              const auto &velocity_ig =
-                                this->advection.get_velocity(
-                                  b, integrator.quadrature_point(q));
+                          {
+                            if (use_coupled_model)
+                              {
+                                Tensor<1, dim, VectorizedArrayType> lin_v_adv;
+                                for (unsigned int d = 0; d < dim; ++d)
+                                  lin_v_adv[d] =
+                                    val[this->n_grains() + 2 + d] * inv_dt;
 
-                              value_result += velocity_ig * gradient;
-                            }
+                                value_result += lin_v_adv * gradient;
+                              }
+                            else if (this->advection.has_velocity(b))
+                              {
+                                const auto &velocity_ig =
+                                  this->advection.get_velocity(
+                                    b, integrator.quadrature_point(q));
+
+                                value_result += velocity_ig * gradient;
+                              }
+                          }
 
 
                         if (free_energy_approximation == 0 &&
