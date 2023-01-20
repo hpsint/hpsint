@@ -72,6 +72,11 @@ namespace Sintering
       std::array<VectorizedArrayType, n_grains>                 etas;
       std::array<Tensor<1, dim, VectorizedArrayType>, n_grains> etas_grad;
 
+      if (this->advection.enabled())
+        this->advection.reinit(cell,
+                               static_cast<unsigned int>(n_grains),
+                               phi.get_matrix_free());
+
       for (unsigned int q = 0; q < phi.n_q_points; ++q)
         {
           const auto &val  = nonlinear_values[cell][q];
@@ -194,6 +199,11 @@ namespace Sintering
       const auto &kappa_p          = data.kappa_p;
       const auto  weight           = this->data.time_data.get_primary_weight();
       const auto &nonlinear_values = data.get_nonlinear_values();
+
+      if (this->advection.enabled())
+        this->advection.reinit(cell,
+                               static_cast<unsigned int>(n_grains),
+                               phi.get_matrix_free());
 
       for (unsigned int q = 0; q < phi.n_q_points; ++q)
         {
@@ -335,6 +345,11 @@ namespace Sintering
       const auto  weight           = data.time_data.get_primary_weight();
       const auto &nonlinear_values = data.get_nonlinear_values();
 
+      if (this->advection.enabled())
+        this->advection.reinit(cell,
+                               static_cast<unsigned int>(this->n_grains()),
+                               phi.get_matrix_free());
+
       for (unsigned int q = 0; q < phi.n_q_points; ++q)
         {
           const auto &val = nonlinear_values[cell][q];
@@ -357,6 +372,16 @@ namespace Sintering
 
               gradient_result[ig] = L * kappa_p * phi.get_gradient(q)[ig];
             }
+
+          if (this->advection.enabled())
+            for (unsigned int ig = 0; ig < n_grains; ++ig)
+              if (this->advection.has_velocity(ig))
+                {
+                  const auto &velocity_ig =
+                    this->advection.get_velocity(ig, phi.quadrature_point(q));
+
+                  value_result[ig] += velocity_ig * phi.get_gradient(q)[ig];
+                }
 
           phi.submit_value(value_result, q);
           phi.submit_gradient(gradient_result, q);
@@ -475,6 +500,12 @@ namespace Sintering
 
             const unsigned int n_filled_lanes =
               this->matrix_free.n_active_entries_per_cell_batch(cell);
+
+            if (this->advection.enabled())
+              this->advection.reinit(cell,
+                                     static_cast<unsigned int>(
+                                       this->n_grains()),
+                                     integrator.get_matrix_free());
 
             // 1) get indices
             for (unsigned int v = 0; v < n_filled_lanes; ++v)
