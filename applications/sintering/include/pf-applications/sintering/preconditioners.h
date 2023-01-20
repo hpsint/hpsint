@@ -19,9 +19,10 @@ namespace Sintering
   {
   public:
     OperatorCahnHilliard(
-      const MatrixFree<dim, Number, VectorizedArrayType> &   matrix_free,
-      const AffineConstraints<Number> &                      constraints,
-      const SinteringOperatorData<dim, VectorizedArrayType> &data)
+      const MatrixFree<dim, Number, VectorizedArrayType> &        matrix_free,
+      const AffineConstraints<Number> &                           constraints,
+      const SinteringOperatorData<dim, VectorizedArrayType> &     data,
+      const AdvectionMechanism<dim, Number, VectorizedArrayType> &advection)
       : OperatorBase<dim,
                      Number,
                      VectorizedArrayType,
@@ -31,6 +32,7 @@ namespace Sintering
           0,
           "cahn_hilliard_op")
       , data(data)
+      , advection(advection)
     {}
 
     unsigned int
@@ -69,6 +71,11 @@ namespace Sintering
       // case of std::vector
       std::array<VectorizedArrayType, n_grains>                 etas;
       std::array<Tensor<1, dim, VectorizedArrayType>, n_grains> etas_grad;
+
+      if (this->advection.enabled())
+        this->advection.reinit(cell,
+                               static_cast<unsigned int>(n_grains),
+                               phi.get_matrix_free());
 
       for (unsigned int q = 0; q < phi.n_q_points; ++q)
         {
@@ -114,13 +121,24 @@ namespace Sintering
           gradient_result[1] = kappa_c * phi.get_gradient(q)[0];
 #endif
 
+          if (this->advection.enabled())
+            for (unsigned int ig = 0; ig < n_grains; ++ig)
+              if (this->advection.has_velocity(ig))
+                {
+                  const auto &velocity_ig =
+                    this->advection.get_velocity(ig, phi.quadrature_point(q));
+
+                  value_result[0] += velocity_ig * phi.get_gradient(q)[0];
+                }
+
           phi.submit_value(value_result, q);
           phi.submit_gradient(gradient_result, q);
         }
     }
 
   private:
-    const SinteringOperatorData<dim, VectorizedArrayType> &data;
+    const SinteringOperatorData<dim, VectorizedArrayType> &     data;
+    const AdvectionMechanism<dim, Number, VectorizedArrayType> &advection;
   };
 
 
@@ -134,9 +152,10 @@ namespace Sintering
   {
   public:
     OperatorAllenCahn(
-      const MatrixFree<dim, Number, VectorizedArrayType> &   matrix_free,
-      const AffineConstraints<Number> &                      constraints,
-      const SinteringOperatorData<dim, VectorizedArrayType> &data)
+      const MatrixFree<dim, Number, VectorizedArrayType> &        matrix_free,
+      const AffineConstraints<Number> &                           constraints,
+      const SinteringOperatorData<dim, VectorizedArrayType> &     data,
+      const AdvectionMechanism<dim, Number, VectorizedArrayType> &advection)
       : OperatorBase<dim,
                      Number,
                      VectorizedArrayType,
@@ -146,6 +165,7 @@ namespace Sintering
           0,
           "allen_cahn_op")
       , data(data)
+      , advection(advection)
     {}
 
     unsigned int
@@ -180,6 +200,11 @@ namespace Sintering
       const auto  weight           = this->data.time_data.get_primary_weight();
       const auto &nonlinear_values = data.get_nonlinear_values();
 
+      if (this->advection.enabled())
+        this->advection.reinit(cell,
+                               static_cast<unsigned int>(n_grains),
+                               phi.get_matrix_free());
+
       for (unsigned int q = 0; q < phi.n_q_points; ++q)
         {
           const auto &val = nonlinear_values[cell][q];
@@ -213,13 +238,24 @@ namespace Sintering
                 }
             }
 
+          if (this->advection.enabled())
+            for (unsigned int ig = 0; ig < n_grains; ++ig)
+              if (this->advection.has_velocity(ig))
+                {
+                  const auto &velocity_ig =
+                    this->advection.get_velocity(ig, phi.quadrature_point(q));
+
+                  value_result[ig] += velocity_ig * phi.get_gradient(q)[ig];
+                }
+
           phi.submit_value(value_result, q);
           phi.submit_gradient(gradient_result, q);
         }
     }
 
   private:
-    const SinteringOperatorData<dim, VectorizedArrayType> &data;
+    const SinteringOperatorData<dim, VectorizedArrayType> &     data;
+    const AdvectionMechanism<dim, Number, VectorizedArrayType> &advection;
   };
 
 
@@ -234,9 +270,10 @@ namespace Sintering
   {
   public:
     OperatorAllenCahnBlocked(
-      const MatrixFree<dim, Number, VectorizedArrayType> &   matrix_free,
-      const AffineConstraints<Number> &                      constraints,
-      const SinteringOperatorData<dim, VectorizedArrayType> &data,
+      const MatrixFree<dim, Number, VectorizedArrayType> &        matrix_free,
+      const AffineConstraints<Number> &                           constraints,
+      const SinteringOperatorData<dim, VectorizedArrayType> &     data,
+      const AdvectionMechanism<dim, Number, VectorizedArrayType> &advection,
       const std::string free_energy_approximation_string = "all")
       : OperatorBase<
           dim,
@@ -248,6 +285,7 @@ namespace Sintering
           0,
           "allen_cahn_op")
       , data(data)
+      , advection(advection)
       , free_energy_approximation(to_value(free_energy_approximation_string))
       , single_block(free_energy_approximation > 0)
     {}
@@ -307,6 +345,11 @@ namespace Sintering
       const auto  weight           = data.time_data.get_primary_weight();
       const auto &nonlinear_values = data.get_nonlinear_values();
 
+      if (this->advection.enabled())
+        this->advection.reinit(cell,
+                               static_cast<unsigned int>(this->n_grains()),
+                               phi.get_matrix_free());
+
       for (unsigned int q = 0; q < phi.n_q_points; ++q)
         {
           const auto &val = nonlinear_values[cell][q];
@@ -329,6 +372,16 @@ namespace Sintering
 
               gradient_result[ig] = L * kappa_p * phi.get_gradient(q)[ig];
             }
+
+          if (this->advection.enabled())
+            for (unsigned int ig = 0; ig < n_grains; ++ig)
+              if (this->advection.has_velocity(ig))
+                {
+                  const auto &velocity_ig =
+                    this->advection.get_velocity(ig, phi.quadrature_point(q));
+
+                  value_result[ig] += velocity_ig * phi.get_gradient(q)[ig];
+                }
 
           phi.submit_value(value_result, q);
           phi.submit_gradient(gradient_result, q);
@@ -448,6 +501,12 @@ namespace Sintering
             const unsigned int n_filled_lanes =
               this->matrix_free.n_active_entries_per_cell_batch(cell);
 
+            if (this->advection.enabled())
+              this->advection.reinit(cell,
+                                     static_cast<unsigned int>(
+                                       this->n_grains()),
+                                     integrator.get_matrix_free());
+
             // 1) get indices
             for (unsigned int v = 0; v < n_filled_lanes; ++v)
               {
@@ -538,6 +597,17 @@ namespace Sintering
                           value * weight + L * scaling * value;
                         auto gradient_result = L * kappa_p * gradient;
 
+                        if (free_energy_approximation == 0 &&
+                            this->advection.enabled())
+                          if (this->advection.has_velocity(b))
+                            {
+                              const auto &velocity_ig =
+                                this->advection.get_velocity(
+                                  b, integrator.quadrature_point(q));
+
+                              value_result += velocity_ig * gradient;
+                            }
+
 
                         if (free_energy_approximation == 0 &&
                             component_table.size(0) > 0)
@@ -616,7 +686,9 @@ namespace Sintering
     }
 
   private:
-    const SinteringOperatorData<dim, VectorizedArrayType> &data;
+    const SinteringOperatorData<dim, VectorizedArrayType> &     data;
+    const AdvectionMechanism<dim, Number, VectorizedArrayType> &advection;
+
     const unsigned int free_energy_approximation;
     const bool         single_block;
   };
@@ -692,20 +764,26 @@ namespace Sintering
       const SinteringOperatorData<dim, VectorizedArrayType> &sintering_data,
       const MatrixFree<dim, Number, VectorizedArrayType> &   matrix_free,
       const AffineConstraints<Number> &                      constraints,
-      const BlockPreconditioner2Data &                       data)
+      const BlockPreconditioner2Data &                       data,
+      const AdvectionMechanism<dim, Number, VectorizedArrayType> &advection)
       : data(data)
     {
       // create operators
       operator_0 = std::make_unique<
         OperatorCahnHilliard<dim, Number, VectorizedArrayType>>(matrix_free,
                                                                 constraints,
-                                                                sintering_data);
+                                                                sintering_data,
+                                                                advection);
       operator_1 =
         std::make_unique<OperatorAllenCahn<dim, Number, VectorizedArrayType>>(
-          matrix_free, constraints, sintering_data);
+          matrix_free, constraints, sintering_data, advection);
       operator_1_blocked = std::make_unique<
         OperatorAllenCahnBlocked<dim, Number, VectorizedArrayType>>(
-        matrix_free, constraints, sintering_data, data.block_1_approximation);
+        matrix_free,
+        constraints,
+        sintering_data,
+        advection,
+        data.block_1_approximation);
 
       // create preconditioners
       preconditioner_0 =
@@ -744,6 +822,10 @@ namespace Sintering
       const BlockPreconditioner2Data &data)
       : data(data)
     {
+      AssertThrow(false, ExcNotImplemented());
+
+      AdvectionMechanism<dim, Number, VectorizedArrayType> advection;
+
       const unsigned int min_level = mg_sintering_data.min_level();
       const unsigned int max_level = mg_sintering_data.max_level();
 
@@ -756,7 +838,8 @@ namespace Sintering
       operator_0 = std::make_unique<
         OperatorCahnHilliard<dim, Number, VectorizedArrayType>>(matrix_free,
                                                                 constraints,
-                                                                sintering_data);
+                                                                sintering_data,
+                                                                advection);
 
       if (data.block_1_preconditioner == "GMG")
         {
@@ -764,7 +847,10 @@ namespace Sintering
           for (unsigned int l = min_level; l <= max_level; ++l)
             mg_operator_1[l] = std::make_shared<
               OperatorAllenCahn<dim, Number, VectorizedArrayType>>(
-              mg_matrix_free[l], mg_constraints[l], mg_sintering_data[l]);
+              mg_matrix_free[l],
+              mg_constraints[l],
+              mg_sintering_data[l],
+              advection);
           for (unsigned int l = min_level; l <= max_level; ++l)
             mg_operator_1[l]->set_timing(false);
         }
@@ -777,6 +863,7 @@ namespace Sintering
               mg_matrix_free[l],
               mg_constraints[l],
               mg_sintering_data[l],
+              advection,
               data.block_1_approximation);
           for (unsigned int l = min_level; l <= max_level; ++l)
             mg_operator_blocked_1[l]->set_timing(false);

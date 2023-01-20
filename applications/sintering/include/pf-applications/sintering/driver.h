@@ -925,7 +925,8 @@ namespace Sintering
           sintering_data,
           matrix_free,
           constraints,
-          params.preconditioners_data.block_preconditioner_2_data);
+          params.preconditioners_data.block_preconditioner_2_data,
+          advection_mechanism);
       else
         preconditioner = Preconditioners::create(
           nonlinear_operator, params.preconditioners_data.outer_preconditioner);
