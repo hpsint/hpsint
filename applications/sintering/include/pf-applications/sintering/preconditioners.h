@@ -920,6 +920,12 @@ namespace Sintering
             mg_operator_blocked_1[l]->set_timing(false);
         }
 
+      // operator_2 = std::make_unique<
+      //  OperatorSolid<dim, Number, VectorizedArrayType>>(matrix_free,
+      //                                                   constraints,
+      //                                                   sintering_data,
+      //                                                   advection);
+
       // create preconditioners
       preconditioner_0 =
         Preconditioners::create(*operator_0, data.block_0_preconditioner);
@@ -932,6 +938,9 @@ namespace Sintering
         preconditioner_1 = Preconditioners::create(mg_operator_blocked_1,
                                                    transfer,
                                                    data.block_1_preconditioner);
+
+      // preconditioner_2 =
+      //  Preconditioners::create(*operator_2, data.block_2_preconditioner);
     }
 
     virtual void
@@ -944,6 +953,8 @@ namespace Sintering
         operator_1->clear();
       if (operator_1_blocked)
         operator_1_blocked->clear();
+      // if (operator_2)
+      //  operator_2->clear();
 
       for (unsigned int l = mg_operator_1.min_level();
            l <= mg_operator_1.max_level();
@@ -962,6 +973,8 @@ namespace Sintering
         preconditioner_0->clear();
       if (preconditioner_1)
         preconditioner_1->clear();
+      if (preconditioner_2)
+        preconditioner_2->clear();
     }
 
     void
@@ -977,19 +990,35 @@ namespace Sintering
 
       {
         MyScope    scope(timer, "precon::vmult::precon_0");
-        const auto dst_view = dst.create_view(0, 2);
-        const auto src_view = src.create_view(0, 2);
+        const auto start    = 0;
+        const auto end      = 0;
+        const auto dst_view = dst.create_view(start, end);
+        const auto src_view = src.create_view(start, end);
 
         preconditioner_0->vmult(*dst_view, *src_view);
       }
 
       {
         MyScope    scope(timer, "precon::vmult::precon_1");
-        const auto dst_view = dst.create_view(2, dst.n_blocks());
-        const auto src_view = src.create_view(2, src.n_blocks());
+        const auto start = 2;
+        const auto end =
+          preconditioner_2 ? (dst.n_blocks() - dim) : dst.n_blocks();
+        const auto dst_view = dst.create_view(start, end);
+        const auto src_view = src.create_view(start, end);
 
         preconditioner_1->vmult(*dst_view, *src_view);
       }
+
+      if (preconditioner_2)
+        {
+          MyScope    scope(timer, "precon::vmult::precon_2");
+          const auto start    = dst.n_blocks() - dim;
+          const auto end      = dst.n_blocks();
+          const auto dst_view = dst.create_view(start, end);
+          const auto src_view = src.create_view(start, end);
+
+          preconditioner_2->vmult(*dst_view, *src_view);
+        }
     }
 
     void
@@ -997,14 +1026,21 @@ namespace Sintering
     {
       MyScope scope(timer, "precon::update");
 
-      {
-        MyScope scope(timer, "precon::update::precon_0");
-        preconditioner_0->do_update();
-      }
-      {
-        MyScope scope(timer, "precon::update::precon_1");
-        preconditioner_1->do_update();
-      }
+      if (preconditioner_0)
+        {
+          MyScope scope(timer, "precon::update::precon_0");
+          preconditioner_0->do_update();
+        }
+      if (preconditioner_1)
+        {
+          MyScope scope(timer, "precon::update::precon_1");
+          preconditioner_1->do_update();
+        }
+      if (preconditioner_2)
+        {
+          MyScope scope(timer, "precon::update::precon_2");
+          preconditioner_2->do_update();
+        }
     }
 
     virtual std::size_t
@@ -1030,6 +1066,10 @@ namespace Sintering
     std::unique_ptr<OperatorAllenCahnBlocked<dim, Number, VectorizedArrayType>>
       operator_1_blocked;
 
+    // operator solid
+    // std::unique_ptr<OperatorSolid<dim, Number, VectorizedArrayType>>
+    //  operator_2;
+
     MGLevelObject<
       std::shared_ptr<OperatorAllenCahn<dim, Number, VectorizedArrayType>>>
       mg_operator_1;
@@ -1039,7 +1079,7 @@ namespace Sintering
 
     // preconditioners
     std::unique_ptr<Preconditioners::PreconditionerBase<Number>>
-      preconditioner_0, preconditioner_1;
+      preconditioner_0, preconditioner_1, preconditioner_2;
 
     // utility
     mutable MyTimerOutput timer;
