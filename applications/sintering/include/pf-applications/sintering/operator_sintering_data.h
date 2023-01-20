@@ -49,6 +49,12 @@ namespace Sintering
     TimeIntegration::TimeIntegratorData<Number> time_data;
 
   public:
+    bool
+    has_additional_variables_attached() const
+    {
+      return nonlinear_values.size(2) > 2 + n_grains();
+    }
+
     const Table<3, VectorizedArrayType> &
     get_nonlinear_values() const
     {
