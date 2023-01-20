@@ -66,6 +66,9 @@ namespace Sintering
       const auto  weight           = this->data.time_data.get_primary_weight();
       const auto &nonlinear_values = data.get_nonlinear_values();
       const auto &nonlinear_gradients = data.get_nonlinear_gradients();
+      const auto  inv_dt = 1. / this->data.time_data.get_current_dt();
+
+      const bool use_coupled_model = data.has_additional_variables_attached();
 
       // TODO: 1) allow std::array again and 2) allocate less often in the
       // case of std::vector
@@ -120,16 +123,25 @@ namespace Sintering
             c, etas, etas.size(), c_grad, etas_grad, phi.get_gradient(q)[1]);
           gradient_result[1] = kappa_c * phi.get_gradient(q)[0];
 #endif
+          if (use_coupled_model && this->advection.enabled())
+            {
+              Tensor<1, dim, VectorizedArrayType> lin_v_adv;
+              for (unsigned int d = 0; d < dim; ++d)
+                lin_v_adv[d] = val[n_grains + 2 + d] * inv_dt;
 
-          if (this->advection.enabled())
-            for (unsigned int ig = 0; ig < n_grains; ++ig)
-              if (this->advection.has_velocity(ig))
-                {
-                  const auto &velocity_ig =
-                    this->advection.get_velocity(ig, phi.quadrature_point(q));
+              value_result[0] += lin_v_adv * phi.get_gradient(q)[0];
+            }
+          else if (this->advection.enabled())
+            {
+              for (unsigned int ig = 0; ig < n_grains; ++ig)
+                if (this->advection.has_velocity(ig))
+                  {
+                    const auto &velocity_ig =
+                      this->advection.get_velocity(ig, phi.quadrature_point(q));
 
-                  value_result[0] += velocity_ig * phi.get_gradient(q)[0];
-                }
+                    value_result[0] += velocity_ig * phi.get_gradient(q)[0];
+                  }
+            }
 
           phi.submit_value(value_result, q);
           phi.submit_gradient(gradient_result, q);
