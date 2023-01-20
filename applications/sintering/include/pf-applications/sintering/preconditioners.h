@@ -163,10 +163,11 @@ namespace Sintering
   {
   public:
     OperatorSolid(
-      const MatrixFree<dim, Number, VectorizedArrayType> &        matrix_free,
-      const AffineConstraints<Number> &                           constraints,
-      const SinteringOperatorData<dim, VectorizedArrayType> &     data,
-      const AdvectionMechanism<dim, Number, VectorizedArrayType> &advection)
+      const MatrixFree<dim, Number, VectorizedArrayType> &   matrix_free,
+      const AffineConstraints<Number> &                      constraints,
+      const SinteringOperatorData<dim, VectorizedArrayType> &data,
+      const double                                           E  = 1.0,
+      const double                                           nu = 0.25)
       : OperatorBase<dim,
                      Number,
                      VectorizedArrayType,
@@ -176,7 +177,7 @@ namespace Sintering
           0,
           "cahn_hilliard_op")
       , data(data)
-      , advection(advection)
+      , material(E, nu, Structural::MaterialPlaneType::plane_strain)
     {}
 
     unsigned int
@@ -194,7 +195,7 @@ namespace Sintering
     static constexpr unsigned int
     n_grains_to_n_components(const unsigned int)
     {
-      return 2;
+      return dim;
     }
 
     template <int n_comp, int n_grains, typename FECellIntegratorType>
@@ -204,98 +205,37 @@ namespace Sintering
       static_assert(n_grains != -1);
       const unsigned int cell = phi.get_current_cell_index();
 
-      const auto &free_energy      = data.free_energy;
-      const auto &mobility         = data.get_mobility();
-      const auto &kappa_c          = data.kappa_c;
-      const auto  weight           = this->data.time_data.get_primary_weight();
       const auto &nonlinear_values = data.get_nonlinear_values();
-      const auto &nonlinear_gradients = data.get_nonlinear_gradients();
-      const auto  inv_dt = 1. / this->data.time_data.get_current_dt();
-
-      const bool use_coupled_model = data.has_additional_variables_attached();
-
-      // TODO: 1) allow std::array again and 2) allocate less often in the
-      // case of std::vector
-      std::array<VectorizedArrayType, n_grains>                 etas;
-      std::array<Tensor<1, dim, VectorizedArrayType>, n_grains> etas_grad;
-
-      if (this->advection.enabled())
-        this->advection.reinit(cell,
-                               static_cast<unsigned int>(n_grains),
-                               phi.get_matrix_free());
 
       for (unsigned int q = 0; q < phi.n_q_points; ++q)
         {
-          const auto &val  = nonlinear_values[cell][q];
-          const auto &grad = nonlinear_gradients[cell][q];
+          const auto &val = nonlinear_values[cell][q];
 
-          const auto &c       = val[0];
-          const auto &c_grad  = grad[0];
-          const auto &mu_grad = grad[1];
+          const auto &c = val[0];
 
-          for (unsigned int ig = 0; ig < etas.size(); ++ig)
-            {
-              etas[ig] = val[2 + ig];
+          const auto S = this->get_stress(phi.get_gradient(q), c);
 
-              if (SinteringOperatorData<dim, VectorizedArrayType>::
-                    use_tensorial_mobility)
-                etas_grad[ig] = grad[2 + ig];
-            }
-
-          typename FECellIntegratorType::value_type    value_result;
-          typename FECellIntegratorType::gradient_type gradient_result;
-
-#if true
-          // CH with all terms
-          value_result[0] = phi.get_value(q)[0] * weight;
-          value_result[1] = -phi.get_value(q)[1] +
-                            free_energy.d2f_dc2(c, etas) * phi.get_value(q)[0];
-
-          gradient_result[0] =
-            mobility.apply_M(
-              c, etas, etas.size(), c_grad, etas_grad, phi.get_gradient(q)[1]) +
-            mobility.dM_dc(c, etas, c_grad, etas_grad) * mu_grad *
-              phi.get_value(q)[0] +
-            mobility.dM_dgrad_c(c, c_grad, mu_grad) * phi.get_gradient(q)[0];
-          gradient_result[1] = kappa_c * phi.get_gradient(q)[0];
-#else
-          // CH with the terms as considered in BlockPreconditioner3CHData
-          value_result[0] = phi.get_value(q)[0] * weight;
-          value_result[1] = -phi.get_value(q)[1];
-
-          gradient_result[0] = mobility.apply_M(
-            c, etas, etas.size(), c_grad, etas_grad, phi.get_gradient(q)[1]);
-          gradient_result[1] = kappa_c * phi.get_gradient(q)[0];
-#endif
-
-          if (use_coupled_model && this->advection.enabled())
-            {
-              Tensor<1, dim, VectorizedArrayType> lin_v_adv;
-              for (unsigned int d = 0; d < dim; ++d)
-                lin_v_adv[d] = val[n_grains + 2 + d] * inv_dt;
-
-              value_result[0] += lin_v_adv * phi.get_gradient(q)[0];
-            }
-          else if (this->advection.enabled())
-            {
-              for (unsigned int ig = 0; ig < n_grains; ++ig)
-                if (this->advection.has_velocity(ig))
-                  {
-                    const auto &velocity_ig =
-                      this->advection.get_velocity(ig, phi.quadrature_point(q));
-
-                    value_result[0] += velocity_ig * phi.get_gradient(q)[0];
-                  }
-            }
-
-          phi.submit_value(value_result, q);
-          phi.submit_gradient(gradient_result, q);
+          phi.submit_value({}, q);
+          phi.submit_gradient(S, q);
         }
     }
 
+    Tensor<2, dim, VectorizedArrayType>
+    get_stress(const Tensor<2, dim, VectorizedArrayType> &H,
+               const VectorizedArrayType &                c) const
+    {
+      const double c_min = 0.1;
+
+      const auto cl = compare_and_apply_mask<SIMDComparison::less_than>(
+        c, VectorizedArrayType(c_min), VectorizedArrayType(c_min), c);
+
+      return cl * material.get_S(H);
+    }
+
   private:
-    const SinteringOperatorData<dim, VectorizedArrayType> &     data;
-    const AdvectionMechanism<dim, Number, VectorizedArrayType> &advection;
+    const SinteringOperatorData<dim, VectorizedArrayType> &data;
+    const Structural::StVenantKirchhoff<dim, Number, VectorizedArrayType>
+      material;
   };
 
 
@@ -1065,9 +1005,14 @@ namespace Sintering
             mg_operator_blocked_1[l]->set_timing(false);
         }
 
-      operator_2 =
-        std::make_unique<OperatorSolid<dim, Number, VectorizedArrayType>>(
-          matrix_free, constraints, sintering_data, advection);
+#if OPERATOR == OPERATOR_GENERIC
+      if (false)
+#else
+      if (true)
+#endif
+        operator_2 =
+          std::make_unique<OperatorSolid<dim, Number, VectorizedArrayType>>(
+            matrix_free, constraints, sintering_data);
 
       // create preconditioners
       preconditioner_0 =
@@ -1082,8 +1027,13 @@ namespace Sintering
                                                    transfer,
                                                    data.block_1_preconditioner);
 
-      preconditioner_2 =
-        Preconditioners::create(*operator_2, data.block_2_preconditioner);
+#if OPERATOR == OPERATOR_GENERIC
+      if (false)
+#else
+      if (true)
+#endif
+        preconditioner_2 =
+          Preconditioners::create(*operator_2, data.block_2_preconditioner);
     }
 
     virtual void
