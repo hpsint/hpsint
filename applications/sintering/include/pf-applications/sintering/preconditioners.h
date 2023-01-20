@@ -166,8 +166,10 @@ namespace Sintering
       const MatrixFree<dim, Number, VectorizedArrayType> &   matrix_free,
       const AffineConstraints<Number> &                      constraints,
       const SinteringOperatorData<dim, VectorizedArrayType> &data,
-      const double                                           E  = 1.0,
-      const double                                           nu = 0.25)
+      const std::array<std::vector<unsigned int>, dim>
+        &          displ_constraints_indices,
+      const double E  = 1.0,
+      const double nu = 0.25)
       : OperatorBase<dim,
                      Number,
                      VectorizedArrayType,
@@ -175,8 +177,9 @@ namespace Sintering
           matrix_free,
           constraints,
           0,
-          "cahn_hilliard_op")
+          "solid_op")
       , data(data)
+      , displ_constraints_indices(displ_constraints_indices)
       , material(E, nu, Structural::MaterialPlaneType::plane_strain)
     {}
 
@@ -220,6 +223,18 @@ namespace Sintering
         }
     }
 
+    void
+    post_system_matrix_compute() const override
+    {
+      for (unsigned int d = 0; d < dim; ++d)
+        for (const unsigned int index : displ_constraints_indices[d])
+          {
+            const unsigned int matrix_index = dim * index + d;
+
+            this->system_matrix.clear_row(matrix_index, 1.0);
+          }
+    }
+
     Tensor<2, dim, VectorizedArrayType>
     get_stress(const Tensor<2, dim, VectorizedArrayType> &H,
                const VectorizedArrayType &                c) const
@@ -234,6 +249,8 @@ namespace Sintering
 
   private:
     const SinteringOperatorData<dim, VectorizedArrayType> &data;
+    const std::array<std::vector<unsigned int>, dim> &displ_constraints_indices;
+
     const Structural::StVenantKirchhoff<dim, Number, VectorizedArrayType>
       material;
   };
@@ -902,8 +919,10 @@ namespace Sintering
       const AffineConstraints<Number> &                      constraints,
       const BlockPreconditioner2Data &                       data,
       const AdvectionMechanism<dim, Number, VectorizedArrayType> &advection,
-      const double                                                E  = 1.0,
-      const double                                                nu = 0.25)
+      const std::array<std::vector<unsigned int>, dim>
+        &          zero_constraints_indices,
+      const double E  = 1.0,
+      const double nu = 0.25)
       : data(data)
     {
       // create operators
@@ -930,7 +949,12 @@ namespace Sintering
 #endif
         operator_2 =
           std::make_unique<OperatorSolid<dim, Number, VectorizedArrayType>>(
-            matrix_free, constraints, sintering_data, E, nu);
+            matrix_free,
+            constraints,
+            sintering_data,
+            zero_constraints_indices,
+            E,
+            nu);
 
       // create preconditioners
       preconditioner_0 =
