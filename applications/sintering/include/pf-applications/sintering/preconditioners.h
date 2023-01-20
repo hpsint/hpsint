@@ -876,7 +876,7 @@ namespace Sintering
   {
     std::string block_0_preconditioner = "ILU";
     std::string block_1_preconditioner = "InverseDiagonalMatrix";
-    std::string block_2_preconditioner = "ILU";
+    std::string block_2_preconditioner = "AMG";
 
     std::string block_1_approximation = "all";
   };
@@ -901,7 +901,9 @@ namespace Sintering
       const MatrixFree<dim, Number, VectorizedArrayType> &   matrix_free,
       const AffineConstraints<Number> &                      constraints,
       const BlockPreconditioner2Data &                       data,
-      const AdvectionMechanism<dim, Number, VectorizedArrayType> &advection)
+      const AdvectionMechanism<dim, Number, VectorizedArrayType> &advection,
+      const double                                                E  = 1.0,
+      const double                                                nu = 0.25)
       : data(data)
     {
       // create operators
@@ -928,7 +930,7 @@ namespace Sintering
 #endif
         operator_2 =
           std::make_unique<OperatorSolid<dim, Number, VectorizedArrayType>>(
-            matrix_free, constraints, sintering_data);
+            matrix_free, constraints, sintering_data, E, nu);
 
       // create preconditioners
       preconditioner_0 =
