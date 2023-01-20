@@ -1110,7 +1110,7 @@ namespace Sintering
       {
         MyScope    scope(timer, "precon::vmult::precon_0");
         const auto start    = 0;
-        const auto end      = 0;
+        const auto end      = 2;
         const auto dst_view = dst.create_view(start, end);
         const auto src_view = src.create_view(start, end);
 
