@@ -181,7 +181,12 @@ namespace Sintering
         }
 
       if (grain_tracker)
-        grain_tracker->track(vector, n_grains, true);
+        {
+          if (grain_tracker->get_grains().empty())
+            grain_tracker->initial_setup(vector, n_grains);
+          else
+            grain_tracker->track(vector, n_grains, true);
+        }
 
 
 
