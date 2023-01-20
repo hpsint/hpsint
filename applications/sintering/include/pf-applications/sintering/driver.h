@@ -2712,6 +2712,10 @@ namespace Sintering
               table.add_value("time", t);
               table.add_value(
                 "dt", sintering_operator.get_data().time_data.get_current_dt());
+              table.add_value("n_dofs", dof_handler.n_dofs());
+              table.add_value("n_op",
+                              sintering_operator.get_data().n_components() - 2);
+              table.add_value("n_grains", grain_tracker.get_grains().size());
 
               if (!params.output_data.domain_integrals.empty())
                 {
