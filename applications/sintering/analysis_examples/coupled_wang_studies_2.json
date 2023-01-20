@@ -1,0 +1,100 @@
+{
+    "MatrixBased": "false",
+    "Adaptivity": {
+        "MaxRefinementDepth": "1",
+        "RefinementFrequency": "10"
+    },
+    "Advection": {
+        "Ceq": "1",
+        "Cgb": "0.14",
+        "Enable": "true",
+        "K": "20",
+        "Mr": "0",
+        "Mt": "0.001"
+    },
+    "Geometry": {
+        "BoundaryFactor": "0.5",
+        "DivisionsPerInterface": "4",
+        "GlobalRefinement": "Base",
+        "InterfaceBufferRatio": "1",
+        "InterfaceWidth": "4",
+        "MinimizeOrderParameters": "true"
+    },
+    "GrainTracker": {
+        "BufferDistanceRatio": "0.05",
+        "GrainTrackerFrequency": "0"
+    },
+    "Material": {
+        "Type": "Abstract",
+        "EnergyAbstract": {
+            "A": "8.7",
+            "B": "0.3",
+            "KappaC": "4.5",
+            "KappaP": "0.9"
+        },
+        "MobilityAbstract": {
+            "L": "1",
+            "Mgb": "0.4",
+            "Msurf": "4.0",
+            "Mvap": "1e-10",
+            "Mvol": "0.01"
+        },
+        "Mechanics": {
+            "E": "1.0",
+            "mu": "0.25"
+        }
+    },
+    "NonLinearData": {
+        "LinearAbsoluteTolerance": 1e-10,
+        "LinearRelativeTolerance": 1e-2,
+        "NewtonThresholdLinearIterations": "50",
+        "NewtonThresholdNewtonIterations": "100",
+        "NewtonUseDamping": "false",
+        "NonLinearSolverType": "NOX",
+        "Verbosity": "1",
+        "NOXData": {
+            "DirectionMethod": "Newton",
+            "LineSearchInterpolationType": "Cubic",
+            "LineSearchMethod": "Polynomial",
+            "OutputInformation": "0"
+        }
+    },
+    "Output": {
+        "Contour": "false",
+        "Debug": "false",
+        "Fields": "CH,AC,bnds,flux,energy,displ",
+        "FluxesDivergences": "false",
+        "HigherOrderCells": "false",
+        "OutputTimeInterval": "10",
+        "Porosity": "false",
+        "Regular": "true",
+        "Shrinkage": "true",
+        "Table": "true",
+        "VtkPath": "."
+    },
+    "Preconditioners": {
+        "OuterPreconditioner": "ILU",
+        "BlockPreconditioner2": {
+            "Block0Preconditioner": "ILU",
+            "Block1Approximation": "avg",
+            "Block1Preconditioner": "BlockILU"
+        }
+    },
+    "Restart": {
+        "Type": "never"
+    },
+    "TimeIntegration": {
+        "DesirableLinearIterations": "500",
+        "DesirableNewtonIterations": "10",
+        "GrowthFactor": "1.2",
+        "IntegrationScheme": "BDF2",
+        "Predictor": "None",
+        "SanityCheckPredictor": "true",
+        "SanityCheckSolution": "true",
+        "TimeEnd": "200",
+        "TimeStart": "0",
+        "TimeStepInit": "0.01",
+        "TimeStepMax": "100",
+        "TimeStepMin": "1e-05"
+    }
+}

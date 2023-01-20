@@ -14,6 +14,26 @@ as proposed in https://github.com/peterrum/pf-applications/pull/324#issuecomment
 ./applications/sintering/sintering-2D-wang-scalar    --circle 15 2 ../applications/sintering/analysis_examples/wang_coupled_advection.json
 ```
 
+### Wang studies: 2 particles
+
+as proposed in https://github.com/peterrum/pf-applications/issues/402#issue-1548624389
+
+```bash
+./applications/sintering/sintering-2D-generic-scalar --circle 15 2 ../applications/sintering/analysis_examples/coupled_wang_studies_0.json
+./applications/sintering/sintering-2D-generic-scalar --circle 15 2 ../applications/sintering/analysis_examples/coupled_wang_studies_1.json
+./applications/sintering/sintering-2D-wang-scalar --circle 15 2 ../applications/sintering/analysis_examples/coupled_wang_studies_2.json
+```
+
+### Wang studies: 5 particles
+
+as proposed in https://github.com/peterrum/pf-applications/issues/402#issuecomment-1396932830
+
+```bash
+./applications/sintering/sintering-2D-generic-scalar --cloud ../applications/sintering/sintering_cloud_examples/5particles.cloud ../applications/sintering/analysis_examples/coupled_wang_studies_0.json
+./applications/sintering/sintering-2D-generic-scalar --cloud ../applications/sintering/sintering_cloud_examples/5particles.cloud ../applications/sintering/analysis_examples/coupled_wang_studies_1.json
+./applications/sintering/sintering-2D-wang-scalar --cloud ../applications/sintering/sintering_cloud_examples/5particles.cloud ../applications/sintering/analysis_examples/coupled_wang_studies_2.json
+```
+
 ### 49 particle case
 
 ```bash
