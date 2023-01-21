@@ -8,12 +8,28 @@ namespace Sintering
 {
   using namespace dealii;
 
-  template <typename FECellIntegratorType>
+  template <int dim,
+            int fe_degree,
+            int n_q_points,
+            int n_comp,
+            typename Number,
+            typename VectorizedArrayType>
   class SinteringOperatorGenericQuad
   {
   public:
-    SinteringOperatorGenericQuad(FECellIntegratorType &phi, &data, &advection)
-      : cell(phi.get_current_cell_index())
+    using FECellIntegratorType = FEEvaluation<dim,
+                                              fe_degree,
+                                              n_q_points,
+                                              n_comp,
+                                              Number,
+                                              VectorizedArrayType>;
+
+    DEAL_II_ALWAYS_INLINE inline SinteringOperatorGenericQuad(
+      const FECellIntegratorType &                                phi,
+      const SinteringOperatorData<dim, VectorizedArrayType> &     data,
+      const AdvectionMechanism<dim, Number, VectorizedArrayType> &advection)
+      : phi(phi)
+      , cell(phi.get_current_cell_index())
       , lin_value(data.get_nonlinear_values(cell))
       , lin_gradient(data.get_nonlinear_gradients(cell))
       , free_energy(data.free_energy)
@@ -22,23 +38,27 @@ namespace Sintering
       , kappa_p(data.kappa_p)
       , weight(data.time_data.get_primary_weight())
       , L(mobility.Lgb())
-      , adcection(advection)
+      , advection(advection)
     {
       // Reinit advection data for the current cells batch
+      constexpr int n_grains = n_comp - 2;
       if (this->advection.enabled())
         this->advection.reinit(cell,
                                static_cast<unsigned int>(n_grains),
                                phi.get_matrix_free());
     }
 
-    std::tuple<typename FECellIntegratorType::value_type,
-               typename FECellIntegratorType::gradient_type>
+    DEAL_II_ALWAYS_INLINE inline std::tuple<
+      typename FECellIntegratorType::value_type,
+      typename FECellIntegratorType::gradient_type>
     apply(const unsigned int                                  q,
           const typename FECellIntegratorType::value_type &   value,
           const typename FECellIntegratorType::gradient_type &gradient) const
     {
       typename FECellIntegratorType::value_type    value_result;
       typename FECellIntegratorType::gradient_type gradient_result;
+
+      constexpr int n_grains = n_comp - 2;
 
       const auto &lin_c_value = lin_value[0];
 
@@ -125,6 +145,18 @@ namespace Sintering
     }
 
   private:
+    const FECellIntegratorType &                               phi;
+    const unsigned int                                         cell;
+    const VectorizedArrayType mutable *                        lin_value;
+    const dealii::Tensor<1, dim, VectorizedArrayType> mutable *lin_gradient;
+    const FreeEnergy<VectorizedArrayType> &                    free_energy;
+    const typename SinteringOperatorData<dim, VectorizedArrayType>::MobilityType
+                                                               mobility;
+    const Number                                               kappa_c;
+    const Number                                               kappa_p;
+    const Number                                               weight;
+    const Number                                               L;
+    const AdvectionMechanism<dim, Number, VectorizedArrayType> advection;
   };
 
   template <int dim, typename Number, typename VectorizedArrayType>
@@ -328,13 +360,24 @@ namespace Sintering
       return n_grains + 2;
     }
 
-    template <int n_comp, int n_grains, typename FECellIntegratorType>
+    template <int n_comp, int n_grains, int fe_degree, int n_q_points>
     void
-    do_vmult_kernel(FECellIntegratorType &phi) const
+    do_vmult_kernel(FEEvaluation<dim,
+                                 fe_degree,
+                                 n_q_points,
+                                 n_comp,
+                                 Number,
+                                 VectorizedArrayType> &phi) const
     {
       AssertDimension(n_comp - 2, n_grains);
 
-      const SinteringOperatorGenericQuad<FECellIntegratorType> quad_op;
+      const SinteringOperatorGenericQuad<dim,
+                                         fe_degree,
+                                         n_q_points,
+                                         n_comp,
+                                         Number,
+                                         VectorizedArrayType>
+        quad_op(phi, this->data, this->advection);
 
       for (unsigned int q = 0; q < phi.n_q_points; ++q)
         {
