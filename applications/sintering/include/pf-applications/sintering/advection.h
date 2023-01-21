@@ -29,9 +29,7 @@ namespace Sintering
 
   protected:
     void
-    fill(const unsigned int cell_id,
-         const Point<dim> & rc_i,
-         const Number *     fdata)
+    fill(const unsigned int cell_id, const Number *rc_i, const Number *fdata)
     {
       volume[cell_id] = fdata[0];
 
@@ -67,9 +65,7 @@ namespace Sintering
     VectorizedArrayType torque{0};
 
     void
-    fill(const unsigned int cell_id,
-         const Point<dim> & rc_i,
-         const Number *     fdata)
+    fill(const unsigned int cell_id, const Number *rc_i, const Number *fdata)
     {
       AdvectionCellDataBase<dim, Number, VectorizedArrayType>::fill(cell_id,
                                                                     rc_i,
@@ -107,9 +103,7 @@ namespace Sintering
     Tensor<1, dim, VectorizedArrayType> torque;
 
     void
-    fill(const unsigned int cell_id,
-         const Point<dim> & rc_i,
-         const Number *     fdata)
+    fill(const unsigned int cell_id, const Number *rc_i, const Number *fdata)
     {
       AdvectionCellDataBase<dim, Number, VectorizedArrayType>::fill(cell_id,
                                                                     rc_i,
@@ -212,7 +206,7 @@ namespace Sintering
                           grain_and_segment.first, grain_and_segment.second);
 
                       current_cell_data[op].fill(i,
-                                                 rc_i,
+                                                 &rc_i[0],
                                                  grain_data(segment_index));
                     }
                   else
