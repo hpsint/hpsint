@@ -272,9 +272,6 @@ namespace Sintering
           for (unsigned int d = 0; d < dim; d++)
             gradient_result[n_grains + 2 + d] = S[d];
 
-          // for (unsigned int d = 0; d < dim; d++)
-          //  gradient_result[n_grains + 2 + d] = gradient[n_grains + 2 + d];
-
 
 
           phi.submit_value(value_result, q);
@@ -409,9 +406,6 @@ namespace Sintering
 
               for (unsigned int d = 0; d < dim; d++)
                 gradient_result[n_grains + 2 + d] = S[d];
-
-              // for (unsigned int d = 0; d < dim; d++)
-              //  gradient_result[n_grains + 2 + d] = grad[n_grains + 2 + d];
 
               // apply body force
               if (external_loading)
