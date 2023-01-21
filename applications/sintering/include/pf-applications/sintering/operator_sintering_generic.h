@@ -235,8 +235,8 @@ namespace Sintering
 
       for (unsigned int q = 0; q < phi.n_q_points; ++q)
         {
-          auto value    = phi.get_value(q);
-          auto gradient = phi.get_gradient(q);
+          const auto value    = phi.get_value(q);
+          const auto gradient = phi.get_gradient(q);
 
           typename FECellIntegratorType::value_type    value_result;
           typename FECellIntegratorType::gradient_type gradient_result;
