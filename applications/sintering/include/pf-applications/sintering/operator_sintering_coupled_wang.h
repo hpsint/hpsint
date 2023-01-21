@@ -85,6 +85,17 @@ namespace Sintering
       for (unsigned int d = 0; d < dim; ++d)
         for (const unsigned int index : this->get_zero_constraints_indices()[d])
           dst.block(this->data.n_components() + d).local_element(index) = 0.0;
+
+      for (unsigned int d = 0; d < dim; ++d)
+        for (unsigned int i = 0; i < this->displ_constraints_indices[d].size();
+             ++i)
+          {
+            const auto b =
+              this->data.n_components() + n_additional_components() + d;
+            const auto index = this->displ_constraints_indices[d][i];
+
+            dst.block(b).local_element(index) = 0.0;
+          }
     }
 
     unsigned int
