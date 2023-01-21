@@ -198,15 +198,12 @@ namespace Sintering
                       const auto grain_and_segment =
                         grain_tracker->get_grain_and_segment(op, particle_id);
 
-                      const auto &rc_i = grain_tracker->get_segment_center(
-                        grain_and_segment.first, grain_and_segment.second);
-
                       const unsigned int segment_index =
                         grain_tracker->get_grain_segment_index(
                           grain_and_segment.first, grain_and_segment.second);
 
                       current_cell_data[op].fill(i,
-                                                 &rc_i[0],
+                                                 grain_center(segment_index),
                                                  grain_data(segment_index));
                     }
                   else
@@ -257,6 +254,7 @@ namespace Sintering
     nullify_data(const unsigned int n_segments)
     {
       grains_data.assign(n_comp_volume_force_torque * n_segments, 0);
+      grains_center.assign(dim * n_segments, 0);
     }
 
     Number *
@@ -269,6 +267,18 @@ namespace Sintering
     grain_data(const unsigned int index) const
     {
       return &grains_data[n_comp_volume_force_torque * index];
+    }
+
+    Number *
+    grain_center(const unsigned int index)
+    {
+      return &grains_center[dim * index];
+    }
+
+    const Number *
+    grain_center(const unsigned int index) const
+    {
+      return &grains_center[dim * index];
     }
 
     std::vector<Number> &
@@ -332,5 +342,6 @@ namespace Sintering
     const SmartPointer<const GrainTracker::Tracker<dim, Number>> grain_tracker;
 
     std::vector<Number> grains_data;
+    std::vector<Number> grains_center;
   };
 } // namespace Sintering

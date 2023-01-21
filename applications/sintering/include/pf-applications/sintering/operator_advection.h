@@ -270,6 +270,13 @@ namespace Sintering
                         grain_tracker.get_grain_segment_index(
                           grain_and_segment.first, grain_and_segment.second);
 
+                      const auto &rc_i = grain_tracker.get_segment_center(
+                        grain_and_segment.first, grain_and_segment.second);
+
+                      for (unsigned int d = 0; d < dim; ++d)
+                        advection_mechanism.grain_center(segment_index)[d] +=
+                          rc_i[d];
+
                       for (unsigned int d = 0;
                            d < advection_mechanism.n_comp_volume_force_torque;
                            ++d)
