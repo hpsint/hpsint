@@ -61,13 +61,14 @@ namespace Sintering
                     "sintering_op::nonlinear_residual",
                     this->do_timing);
 
-      AssertThrow(with_time_derivative != 1, ExcNotImplemented());
+      // TODO
+      // AssertThrow(with_time_derivative != 1, ExcNotImplemented());
 
 #define OPERATION(c, d)                                                \
   MyMatrixFreeTools::cell_loop_wrapper(                                \
     this->matrix_free,                                                 \
     &SinteringOperatorCoupledDiffusion::                               \
-      do_evaluate_nonlinear_residual<c, d, with_time_derivative == 2>, \
+      do_evaluate_nonlinear_residual<c, d, with_time_derivative != 0>, \
     this,                                                              \
     dst,                                                               \
     src,                                                               \
