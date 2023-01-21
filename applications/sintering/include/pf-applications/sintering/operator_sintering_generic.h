@@ -151,12 +151,12 @@ namespace Sintering
     const dealii::Tensor<1, dim, VectorizedArrayType> mutable *lin_gradient;
     const FreeEnergy<VectorizedArrayType> &                    free_energy;
     const typename SinteringOperatorData<dim, VectorizedArrayType>::MobilityType
-                                                               mobility;
-    const Number                                               kappa_c;
-    const Number                                               kappa_p;
-    const Number                                               weight;
-    const Number                                               L;
-    const AdvectionMechanism<dim, Number, VectorizedArrayType> advection;
+      &                                                         mobility;
+    const Number                                                kappa_c;
+    const Number                                                kappa_p;
+    const Number                                                weight;
+    const Number                                                L;
+    const AdvectionMechanism<dim, Number, VectorizedArrayType> &advection;
   };
 
   template <int dim, typename Number, typename VectorizedArrayType>
