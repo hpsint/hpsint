@@ -33,7 +33,7 @@ namespace Sintering
                                                                    data,
                                                                    history,
                                                                    matrix_based)
-      , material(E, nu, Structural::MaterialPlaneType::plane_strain)
+      , material(E, nu, Structural::MaterialPlaneType::none)
     {}
 
     ~SinteringOperatorCoupledBase()
@@ -108,16 +108,39 @@ namespace Sintering
         }
 
       for (unsigned int d = 0; d < dim; ++d)
-        for (const unsigned int index : displ_constraints_indices[d])
-          src.block(this->data.n_components() + n_additional_components() + d)
-            .local_element(index) = 0.0;
+        displ_constraints_values[d].resize(displ_constraints_indices[d].size());
+
+      for (unsigned int d = 0; d < dim; ++d)
+        for (unsigned int i = 0; i < displ_constraints_indices[d].size(); ++i)
+          {
+            const auto b =
+              this->data.n_components() + n_additional_components() + d;
+            const auto index = displ_constraints_indices[d][i];
+
+            displ_constraints_values[d][i] = src.block(b).local_element(index);
+
+            src.block(b).local_element(index) = 0.0;
+          }
     }
 
     template <typename BlockVectorType_>
     void
-    do_post_vmult(BlockVectorType_ &dst, const BlockVectorType_ &src) const
+    do_post_vmult(BlockVectorType_ &dst, const BlockVectorType_ &src_in) const
     {
-      (void)src;
+      BlockVectorType_ &src = const_cast<BlockVectorType_ &>(src_in);
+
+      for (unsigned int d = 0; d < dim; ++d)
+        for (unsigned int i = 0; i < displ_constraints_indices[d].size(); ++i)
+          {
+            const auto b =
+              this->data.n_components() + n_additional_components() + d;
+            const auto index = displ_constraints_indices[d][i];
+
+            src.block(b).local_element(index) = displ_constraints_values[d][i];
+
+            dst.block(b).local_element(index) =
+              src.block(b).local_element(index);
+          }
 
       for (unsigned int i = 0; i < zero_c_constraints_indices.size(); ++i)
         {
@@ -128,11 +151,6 @@ namespace Sintering
             dst.block(this->data.n_components() + n_additional_components() + d)
               .local_element(index) = value[d];
         }
-
-      for (unsigned int d = 0; d < dim; ++d)
-        for (const unsigned int index : displ_constraints_indices[d])
-          dst.block(this->data.n_components() + n_additional_components() + d)
-            .local_element(index) = 0.0;
     }
 
     std::array<std::vector<unsigned int>, dim> &
@@ -220,16 +238,17 @@ namespace Sintering
       const auto cl = compare_and_apply_mask<SIMDComparison::less_than>(
         c, VectorizedArrayType(c_min), VectorizedArrayType(c_min), c);
 
-      return cl * material.get_S(H);
+      return material.get_S(H);
     }
 
   protected:
     const Structural::StVenantKirchhoff<dim, Number, VectorizedArrayType>
       material;
 
-    std::vector<unsigned int>           zero_c_constraints_indices;
-    mutable std::vector<Tensor<1, dim>> zero_c_constraints_values;
+    std::vector<unsigned int>                   zero_c_constraints_indices;
+    mutable std::vector<Tensor<1, dim, Number>> zero_c_constraints_values;
 
-    std::array<std::vector<unsigned int>, dim> displ_constraints_indices;
+    std::array<std::vector<unsigned int>, dim>   displ_constraints_indices;
+    mutable std::array<std::vector<Number>, dim> displ_constraints_values;
   };
 } // namespace Sintering

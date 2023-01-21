@@ -1206,6 +1206,7 @@ namespace Sintering
         for (unsigned int b = 0; b < src.n_blocks(); ++b)
           constraints.set_zero(const_cast<VectorType &>(src).block(b));
 
+        dst                             = 0.0;
         const unsigned int n_iterations = linear_solver->solve(dst, src);
 
         for (unsigned int b = 0; b < src.n_blocks(); ++b)

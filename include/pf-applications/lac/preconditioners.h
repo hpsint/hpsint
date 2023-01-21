@@ -546,7 +546,9 @@ namespace Preconditioners
 
     AMG(const Operator &op)
       : op(op)
-    {}
+    {
+      additional_data.n_cycles = 1;
+    }
 
     virtual void
     clear()

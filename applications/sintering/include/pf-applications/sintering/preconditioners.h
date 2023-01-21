@@ -180,7 +180,7 @@ namespace Sintering
           "solid_op")
       , data(data)
       , displ_constraints_indices(displ_constraints_indices)
-      , material(E, nu, Structural::MaterialPlaneType::plane_strain)
+      , material(E, nu, Structural::MaterialPlaneType::none)
     {}
 
     unsigned int
@@ -216,7 +216,9 @@ namespace Sintering
 
           const auto &c = val[0];
 
-          const auto S = this->get_stress(phi.get_gradient(q), c);
+          auto S = this->get_stress(phi.get_gradient(q), c);
+
+          // S = phi.get_gradient(q);
 
           phi.submit_value({}, q);
           phi.submit_gradient(S, q);
@@ -226,6 +228,31 @@ namespace Sintering
     void
     post_system_matrix_compute() const override
     {
+      auto entry = this->system_matrix.begin();
+      auto end   = this->system_matrix.end();
+
+      for (; entry != end; ++entry)
+        {
+          const auto r = entry->row() / dim;
+          const auto d = entry->row() % dim;
+
+          if (entry->row() == entry->column() &&
+              (std::find(displ_constraints_indices[d].begin(),
+                         displ_constraints_indices[d].end(),
+                         r) != displ_constraints_indices[d].end()))
+            entry->value() = 1.0;
+          else if ((std::find(displ_constraints_indices[d].begin(),
+                              displ_constraints_indices[d].end(),
+                              entry->row() / dim) !=
+                      displ_constraints_indices[d].end() ||
+                    (std::find(displ_constraints_indices[d].begin(),
+                               displ_constraints_indices[d].end(),
+                               entry->column() / dim) !=
+                     displ_constraints_indices[d].end())))
+            entry->value() = 0.0;
+        }
+
+      /*
       for (unsigned int d = 0; d < dim; ++d)
         for (const unsigned int index : displ_constraints_indices[d])
           {
@@ -233,18 +260,19 @@ namespace Sintering
 
             this->system_matrix.clear_row(matrix_index, 1.0);
           }
+        */
     }
 
     Tensor<2, dim, VectorizedArrayType>
     get_stress(const Tensor<2, dim, VectorizedArrayType> &H,
                const VectorizedArrayType &                c) const
     {
-      const double c_min = 0.1;
+      const double c_min = 0.001;
 
       const auto cl = compare_and_apply_mask<SIMDComparison::less_than>(
         c, VectorizedArrayType(c_min), VectorizedArrayType(c_min), c);
 
-      return cl * material.get_S(H);
+      return material.get_S(H);
     }
 
   private:
