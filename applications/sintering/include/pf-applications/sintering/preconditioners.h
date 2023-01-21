@@ -226,31 +226,6 @@ namespace Sintering
     void
     post_system_matrix_compute() const override
     {
-      auto entry = this->system_matrix.begin();
-      auto end   = this->system_matrix.end();
-
-      for (; entry != end; ++entry)
-        {
-          const auto r = entry->row() / dim;
-          const auto d = entry->row() % dim;
-
-          if (entry->row() == entry->column() &&
-              (std::find(displ_constraints_indices[d].begin(),
-                         displ_constraints_indices[d].end(),
-                         r) != displ_constraints_indices[d].end()))
-            entry->value() = 1.0;
-          else if ((std::find(displ_constraints_indices[d].begin(),
-                              displ_constraints_indices[d].end(),
-                              entry->row() / dim) !=
-                      displ_constraints_indices[d].end() ||
-                    (std::find(displ_constraints_indices[d].begin(),
-                               displ_constraints_indices[d].end(),
-                               entry->column() / dim) !=
-                     displ_constraints_indices[d].end())))
-            entry->value() = 0.0;
-        }
-
-      /*
       for (unsigned int d = 0; d < dim; ++d)
         for (const unsigned int index : displ_constraints_indices[d])
           {
@@ -258,14 +233,13 @@ namespace Sintering
 
             this->system_matrix.clear_row(matrix_index, 1.0);
           }
-        */
     }
 
     Tensor<2, dim, VectorizedArrayType>
     get_stress(const Tensor<2, dim, VectorizedArrayType> &H,
                const VectorizedArrayType &                c) const
     {
-      const double c_min = 0.001;
+      const double c_min = 0.01;
 
       const auto cl = compare_and_apply_mask<SIMDComparison::less_than>(
         c, VectorizedArrayType(c_min), VectorizedArrayType(c_min), c);
