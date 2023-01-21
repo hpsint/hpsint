@@ -178,8 +178,8 @@ namespace Sintering
           Tensor<1, dim, VectorizedArrayType> lin_v_adv;
           for (unsigned int d = 0; d < dim; ++d)
             {
-              // v_adv[d]     = value[n_grains + 2 + d] * inv_dt;
-              // lin_v_adv[d] = lin_value[n_grains + 2 + d] * inv_dt;
+              v_adv[d]     = value[n_grains + 2 + d] * inv_dt;
+              lin_v_adv[d] = lin_value[n_grains + 2 + d] * inv_dt;
             }
 
 
@@ -351,8 +351,8 @@ namespace Sintering
 
               // Advection velocity
               Tensor<1, dim, VectorizedArrayType> v_adv;
-              // for (unsigned int d = 0; d < dim; ++d)
-              //  v_adv[d] = val[n_grains + 2 + d] * inv_dt;
+              for (unsigned int d = 0; d < dim; ++d)
+                v_adv[d] = val[n_grains + 2 + d] * inv_dt;
 
               Tensor<1, n_comp, VectorizedArrayType> value_result;
               Tensor<1, n_comp, Tensor<1, dim, VectorizedArrayType>>

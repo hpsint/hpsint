@@ -216,9 +216,7 @@ namespace Sintering
 
           const auto &c = val[0];
 
-          auto S = this->get_stress(phi.get_gradient(q), c);
-
-          // S = phi.get_gradient(q);
+          const auto S = this->get_stress(phi.get_gradient(q), c);
 
           phi.submit_value({}, q);
           phi.submit_gradient(S, q);
@@ -272,7 +270,7 @@ namespace Sintering
       const auto cl = compare_and_apply_mask<SIMDComparison::less_than>(
         c, VectorizedArrayType(c_min), VectorizedArrayType(c_min), c);
 
-      return material.get_S(H);
+      return cl * material.get_S(H);
     }
 
   private:
