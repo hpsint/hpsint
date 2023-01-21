@@ -8,6 +8,29 @@ namespace Sintering
 {
   using namespace dealii;
 
+  template <typename FECellIntegratorType>
+  class SinteringOperatorGenericQuad
+  {
+  public:
+    std::tuple<typename FECellIntegratorType::value_type,
+               typename FECellIntegratorType::gradient_type>
+    apply(const unsigned int                                  q,
+          const typename FECellIntegratorType::value_type &   value,
+          const typename FECellIntegratorType::gradient_type &result) const
+    {
+      typename FECellIntegratorType::value_type    value_result;
+      typename FECellIntegratorType::gradient_type gradient_result;
+
+      (void)q;
+      (void)value;
+      (void)result;
+
+      return {value_result, gradient_result};
+    }
+
+  private:
+  };
+
   template <int dim, typename Number, typename VectorizedArrayType>
   class SinteringOperatorGeneric
     : public SinteringOperatorBase<
@@ -215,111 +238,15 @@ namespace Sintering
     {
       AssertDimension(n_comp - 2, n_grains);
 
-      const unsigned int cell = phi.get_current_cell_index();
-
-      auto lin_value    = this->data.get_nonlinear_values(cell);
-      auto lin_gradient = this->data.get_nonlinear_gradients(cell);
-
-      const auto &free_energy = this->data.free_energy;
-      const auto &mobility    = this->data.get_mobility();
-      const auto &kappa_c     = this->data.kappa_c;
-      const auto &kappa_p     = this->data.kappa_p;
-      const auto  weight      = this->data.time_data.get_primary_weight();
-      const auto &L           = mobility.Lgb();
-
-      // Reinit advection data for the current cells batch
-      if (this->advection.enabled())
-        this->advection.reinit(cell,
-                               static_cast<unsigned int>(n_grains),
-                               phi.get_matrix_free());
+      const SinteringOperatorGenericQuad<FECellIntegratorType> quad_op;
 
       for (unsigned int q = 0; q < phi.n_q_points; ++q)
         {
           const auto value    = phi.get_value(q);
           const auto gradient = phi.get_gradient(q);
 
-          typename FECellIntegratorType::value_type    value_result;
-          typename FECellIntegratorType::gradient_type gradient_result;
-
-          const auto &lin_c_value = lin_value[0];
-
-          const VectorizedArrayType *lin_etas_value = &lin_value[0] + 2;
-
-          const auto lin_etas_value_power_2_sum =
-            PowerHelper<n_grains, 2>::power_sum(lin_etas_value);
-
-
-
-          // 1) process c row
-          value_result[0] = value[0] * weight;
-
-          gradient_result[0] = mobility.apply_M_derivative(
-            &lin_value[0], &lin_gradient[0], n_grains, &value[0], &gradient[0]);
-
-
-
-          // 2) process mu row
-          value_result[1] =
-            -value[1] +
-            free_energy.d2f_dc2(lin_c_value, lin_etas_value) * value[0];
-
-          for (unsigned int ig = 0; ig < n_grains; ++ig)
-            value_result[1] +=
-              free_energy.d2f_dcdetai(lin_c_value, lin_etas_value, ig) *
-              value[ig + 2];
-
-          gradient_result[1] = kappa_c * gradient[0];
-
-
-
-          // 3) process eta rows
-          for (unsigned int ig = 0; ig < n_grains; ++ig)
-            {
-              value_result[ig + 2] +=
-                value[ig + 2] * weight +
-                L * free_energy.d2f_dcdetai(lin_c_value, lin_etas_value, ig) *
-                  value[0] +
-                L *
-                  free_energy.d2f_detai2(lin_c_value,
-                                         lin_etas_value,
-                                         lin_etas_value_power_2_sum,
-                                         ig) *
-                  value[ig + 2];
-
-              gradient_result[ig + 2] = L * kappa_p * gradient[ig + 2];
-
-              for (unsigned int jg = 0; jg < ig; ++jg)
-                {
-                  const auto d2f_detaidetaj = free_energy.d2f_detaidetaj(
-                    lin_c_value, lin_etas_value, ig, jg);
-
-                  value_result[ig + 2] += (L * d2f_detaidetaj) * value[jg + 2];
-                  value_result[jg + 2] += (L * d2f_detaidetaj) * value[ig + 2];
-                }
-            }
-
-
-
-          // 4) add advection contributations -> influences c AND etas
-          if (this->advection.enabled())
-            for (unsigned int ig = 0; ig < n_grains; ++ig)
-              if (this->advection.has_velocity(ig))
-                {
-                  const auto &velocity_ig =
-                    this->advection.get_velocity(ig, phi.quadrature_point(q));
-
-                  value_result[0] += velocity_ig * gradient[0];
-
-                  value_result[ig + 2] += velocity_ig * gradient[ig + 2];
-                }
-
-          lin_value += 2 + n_grains;
-          lin_gradient += 2 + (SinteringOperatorData<dim, VectorizedArrayType>::
-                                   use_tensorial_mobility ?
-                                 n_grains :
-                                 0);
-
-
+          const auto [value_result, gradient_result] =
+            quad_op.apply(q, value, gradient);
 
           phi.submit_value(value_result, q);
           phi.submit_gradient(gradient_result, q);
