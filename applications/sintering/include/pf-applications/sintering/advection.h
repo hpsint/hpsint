@@ -207,11 +207,13 @@ namespace Sintering
                       const auto &rc_i = grain_tracker->get_segment_center(
                         grain_and_segment.first, grain_and_segment.second);
 
-                      current_cell_data[op].fill(
-                        i,
-                        rc_i,
-                        grain_data(grain_and_segment.first,
-                                   grain_and_segment.second));
+                      const unsigned int segment_index =
+                        grain_tracker->get_grain_segment_index(
+                          grain_and_segment.first, grain_and_segment.second);
+
+                      current_cell_data[op].fill(i,
+                                                 rc_i,
+                                                 grain_data(segment_index));
                     }
                   else
                     {
@@ -264,20 +266,14 @@ namespace Sintering
     }
 
     Number *
-    grain_data(const unsigned int grain_id, const unsigned int segment_id)
+    grain_data(const unsigned int index)
     {
-      const unsigned int index =
-        grain_tracker->get_grain_segment_index(grain_id, segment_id);
-
       return &grains_data[n_comp_volume_force_torque * index];
     }
 
     const Number *
-    grain_data(const unsigned int grain_id, const unsigned int segment_id) const
+    grain_data(const unsigned int index) const
     {
-      const unsigned int index =
-        grain_tracker->get_grain_segment_index(grain_id, segment_id);
-
       return &grains_data[n_comp_volume_force_torque * index];
     }
 
@@ -312,7 +308,8 @@ namespace Sintering
                segment_id < grain.get_segments().size();
                segment_id++)
             {
-              const Number *data = grain_data(grain_id, segment_id);
+              const Number *data = grain_data(
+                grain_tracker->get_grain_segment_index(grain_id, segment_id));
 
               Number                 volume(*data++);
               Tensor<1, dim, Number> force(make_array_view(data, data + dim));

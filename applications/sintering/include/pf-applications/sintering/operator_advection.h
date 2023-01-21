@@ -265,12 +265,17 @@ namespace Sintering
                   const auto &grain_and_segment = segments[i];
 
                   if (grain_and_segment.first != numbers::invalid_unsigned_int)
-                    for (unsigned int d = 0;
-                         d < advection_mechanism.n_comp_volume_force_torque;
-                         ++d)
-                      advection_mechanism.grain_data(
-                        grain_and_segment.first, grain_and_segment.second)[d] +=
-                        volume_force_torque[d][i];
+                    {
+                      const auto segment_index =
+                        grain_tracker.get_grain_segment_index(
+                          grain_and_segment.first, grain_and_segment.second);
+
+                      for (unsigned int d = 0;
+                           d < advection_mechanism.n_comp_volume_force_torque;
+                           ++d)
+                        advection_mechanism.grain_data(segment_index)[d] +=
+                          volume_force_torque[d][i];
+                    }
                 }
             }
         }
