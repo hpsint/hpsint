@@ -235,11 +235,11 @@ namespace Sintering
 
       for (unsigned int q = 0; q < phi.n_q_points; ++q)
         {
-          typename FECellIntegratorType::value_type    value_result;
-          typename FECellIntegratorType::gradient_type gradient_result;
-
           auto value    = phi.get_value(q);
           auto gradient = phi.get_gradient(q);
+
+          typename FECellIntegratorType::value_type    value_result;
+          typename FECellIntegratorType::gradient_type gradient_result;
 
           const auto &lin_c_value = lin_value[0];
 
@@ -313,16 +313,16 @@ namespace Sintering
                   value_result[ig + 2] += velocity_ig * gradient[ig + 2];
                 }
 
-
-
-          phi.submit_value(value_result, q);
-          phi.submit_gradient(gradient_result, q);
-
           lin_value += 2 + n_grains;
           lin_gradient += 2 + (SinteringOperatorData<dim, VectorizedArrayType>::
                                    use_tensorial_mobility ?
                                  n_grains :
                                  0);
+
+
+
+          phi.submit_value(value_result, q);
+          phi.submit_gradient(gradient_result, q);
         }
     }
 
