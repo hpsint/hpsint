@@ -942,7 +942,7 @@ namespace Sintering
         advection,
         data.block_1_approximation);
 
-#if OPERATOR == OPERATOR_GENERIC
+#if OPERATOR == 1
       if (false)
 #else
       if (true)
@@ -978,7 +978,7 @@ namespace Sintering
           AssertThrow(false, ExcNotImplemented());
         }
 
-#if OPERATOR == OPERATOR_GENERIC
+#if OPERATOR == 1
       if (false)
 #else
       if (true)
