@@ -119,6 +119,7 @@ namespace Sintering
       AdvectionMechanism<dim, Number, VectorizedArrayType> &advection_mechanism,
       const std::pair<unsigned int, unsigned int> &         range) const
     {
+      advection_mechanism.nullify_table(matrix_free.n_cell_batches(), n_grains);
       advection_mechanism.nullify_data(grain_tracker.n_segments());
 
       FECellIntegrator<dim, 2 + n_grains, Number, VectorizedArrayType> phi_sint(
@@ -171,6 +172,13 @@ namespace Sintering
                         rc[d][i] = rc_i[d];
 
                       segments[i] = grain_and_segment;
+
+                      advection_mechanism.set_table_entry(
+                        cell,
+                        ig,
+                        i,
+                        grain_tracker.get_grain_segment_index(
+                          grain_and_segment.first, grain_and_segment.second));
                     }
                   else
                     {

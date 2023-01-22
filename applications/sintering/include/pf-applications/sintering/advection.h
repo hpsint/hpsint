@@ -172,54 +172,27 @@ namespace Sintering
     {}
 
     void
-    reinit(
-      const unsigned int                                  cell,
-      const unsigned int                                  n_order_parameters,
-      const MatrixFree<dim, Number, VectorizedArrayType> &matrix_free) const
+    reinit(const unsigned int cell) const
     {
-      if (grain_tracker)
+      if (grain_table.size(0) > 0)
         {
-          current_cell_data.resize(n_order_parameters);
+          const unsigned int n_op    = grain_table.size(1);
+          const unsigned int n_lanes = VectorizedArrayType::size();
 
-          for (unsigned int op = 0; op < n_order_parameters; ++op)
-            {
-              unsigned int i = 0;
+          current_cell_data.resize(n_op);
 
-              for (; i < matrix_free.n_active_entries_per_cell_batch(cell); ++i)
-                {
-                  const auto icell = matrix_free.get_cell_iterator(cell, i);
-                  const auto cell_index = icell->global_active_cell_index();
+          for (unsigned int op = 0; op < n_op; ++op)
+            for (unsigned int v = 0; v < n_lanes; ++v)
+              {
+                const auto index = grain_table[cell][op][v];
 
-                  const unsigned int particle_id =
-                    grain_tracker->get_particle_index(op, cell_index);
-
-                  if (particle_id != numbers::invalid_unsigned_int)
-                    {
-                      const auto grain_and_segment =
-                        grain_tracker->get_grain_and_segment(op, particle_id);
-
-                      const unsigned int segment_index =
-                        grain_tracker->get_grain_segment_index(
-                          grain_and_segment.first, grain_and_segment.second);
-
-                      current_cell_data[op].fill(i,
-                                                 grain_center(segment_index),
-                                                 grain_data(segment_index));
-                    }
-                  else
-                    {
-                      current_cell_data[op].nullify(i);
-                    }
-                }
-
-              // Initialize the rest for padding
-              for (; i < VectorizedArrayType::size(); ++i)
-                current_cell_data[op].nullify(i);
-            }
-        }
-      else
-        {
-          AssertDimension(current_cell_data.size(), n_order_parameters);
+                if (index != numbers::invalid_unsigned_int)
+                  current_cell_data[op].fill(v,
+                                             grain_center(index),
+                                             grain_data(index));
+                else
+                  current_cell_data[op].nullify(v);
+              }
         }
     }
 
@@ -248,6 +221,22 @@ namespace Sintering
       const auto v_adv = vt + vr;
 
       return v_adv;
+    }
+
+    void
+    set_table_entry(const unsigned int cell,
+                    const unsigned int op,
+                    const unsigned int v,
+                    const unsigned int index)
+    {
+      grain_table[cell][op][v] = index;
+    }
+
+    void
+    nullify_table(const unsigned int n_cells, const unsigned int n_op)
+    {
+      grain_table.reinit({n_cells, n_op, VectorizedArrayType::size()});
+      grain_table.fill(numbers::invalid_unsigned_int);
     }
 
     void
@@ -340,6 +329,8 @@ namespace Sintering
       current_cell_data;
 
     const SmartPointer<const GrainTracker::Tracker<dim, Number>> grain_tracker;
+
+    Table<3, unsigned int> grain_table;
 
     std::vector<Number> grains_data;
     std::vector<Number> grains_center;
