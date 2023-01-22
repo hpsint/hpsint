@@ -145,7 +145,6 @@ namespace Sintering
       : is_active(false)
       , mt(0.0)
       , mr(0.0)
-      , grain_tracker(nullptr)
     {}
 
     AdvectionMechanism(
@@ -156,19 +155,14 @@ namespace Sintering
       : is_active(true)
       , mt(mt)
       , mr(mr)
-      , grain_tracker(nullptr)
     {
       this->current_cell_data = current_cell_data;
     }
 
-    AdvectionMechanism(const bool                                enable,
-                       const double                              mt,
-                       const double                              mr,
-                       const GrainTracker::Tracker<dim, Number> &grain_tracker)
+    AdvectionMechanism(const bool enable, const double mt, const double mr)
       : is_active(enable)
       , mt(mt)
       , mr(mr)
-      , grain_tracker(&grain_tracker)
     {}
 
     void
@@ -294,19 +288,20 @@ namespace Sintering
 
     template <typename Stream>
     void
-    print_forces(Stream &out) const
+    print_forces(Stream &                                  out,
+                 const GrainTracker::Tracker<dim, Number> &grain_tracker) const
     {
       out << std::endl;
       out << "Grains segments volumes, forces and torques:" << std::endl;
 
-      for (const auto &[grain_id, grain] : grain_tracker->get_grains())
+      for (const auto &[grain_id, grain] : grain_tracker.get_grains())
         {
           for (unsigned int segment_id = 0;
                segment_id < grain.get_segments().size();
                segment_id++)
             {
               const Number *data = grain_data(
-                grain_tracker->get_grain_segment_index(grain_id, segment_id));
+                grain_tracker.get_grain_segment_index(grain_id, segment_id));
 
               Number                 volume(*data++);
               Tensor<1, dim, Number> force(make_array_view(data, data + dim));
@@ -331,8 +326,6 @@ namespace Sintering
 
     mutable std::vector<AdvectionCellData<dim, Number, VectorizedArrayType>>
       current_cell_data;
-
-    const SmartPointer<const GrainTracker::Tracker<dim, Number>> grain_tracker;
 
     Table<3, unsigned int> grain_table;
 
