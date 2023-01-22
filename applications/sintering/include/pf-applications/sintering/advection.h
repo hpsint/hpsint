@@ -194,12 +194,16 @@ namespace Sintering
                   current_cell_data[op].nullify(v);
               }
         }
+
+      has_velocity_vector.resize(current_cell_data.size());
+      for (unsigned int op = 0; op < current_cell_data.size(); ++op)
+        has_velocity_vector[op] = current_cell_data.at(op).has_non_zero();
     }
 
     bool
     has_velocity(const unsigned int order_parameter_id) const
     {
-      return current_cell_data.at(order_parameter_id).has_non_zero();
+      return has_velocity_vector[order_parameter_id];
     }
 
     Tensor<1, dim, VectorizedArrayType>
@@ -331,6 +335,8 @@ namespace Sintering
     const SmartPointer<const GrainTracker::Tracker<dim, Number>> grain_tracker;
 
     Table<3, unsigned int> grain_table;
+
+    mutable std::vector<bool> has_velocity_vector;
 
     std::vector<Number> grains_data;
     std::vector<Number> grains_center;
