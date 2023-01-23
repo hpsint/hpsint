@@ -656,9 +656,66 @@ namespace Sintering
                     dof_indices[lexicographic_numbering[j]];
               }
 
+            AlignedVector<VectorizedArrayType> scaling(integrator.n_q_points);
+
+            for (unsigned int q = 0; q < integrator.n_q_points; ++q)
+              {
+                const auto &val = nonlinear_values[cell][q];
+                const auto &c   = val[0];
+
+                for (unsigned int ig = 0; ig < this->n_grains(); ++ig)
+                  etas[ig] = val[2 + ig];
+
+                switch (free_energy_approximation)
+                  {
+                    case 0:
+                      // nothing to do -> done later
+                      break;
+                    case 1:
+                      // nothing to do
+                      break;
+                    case 2:
+                      for (unsigned int b = 0; b < this->n_components(); ++b)
+                        scaling[q] =
+                          scaling[q] + free_energy.d2f_detai2(c, etas, b);
+                      scaling[q] =
+                        scaling[q] / static_cast<Number>(this->n_components());
+                      break;
+                    case 3:
+                      for (unsigned int b = 0; b < this->n_components(); ++b)
+                        for (unsigned int v = 0;
+                             v < VectorizedArrayType::size();
+                             ++v)
+                          {
+                            const auto temp =
+                              free_energy.d2f_detai2(c, etas, b)[v];
+                            scaling[q][v] =
+                              std::abs(scaling[q][v]) > std::abs(temp) ?
+                                scaling[q][v] :
+                                temp;
+                          }
+                      break;
+                    default:
+                      AssertThrow(false, ExcNotImplemented());
+                  }
+              }
+
             // 2) loop over all blocks
             for (unsigned int b = 0; b < this->n_unique_components(); ++b)
               {
+                if (free_energy_approximation == 0)
+                  {
+                    for (unsigned int q = 0; q < integrator.n_q_points; ++q)
+                      {
+                        const auto &val = nonlinear_values[cell][q];
+                        const auto &c   = val[0];
+
+                        for (unsigned int ig = 0; ig < this->n_grains(); ++ig)
+                          etas[ig] = val[2 + ig];
+                        scaling[q] = free_energy.d2f_detai2(c, etas, b);
+                      }
+                  }
+
                 // 2a) compute columns of blocks
                 for (unsigned int j = 0; j < dofs_per_cell; ++j)
                   {
@@ -672,47 +729,6 @@ namespace Sintering
                     for (unsigned int q = 0; q < integrator.n_q_points; ++q)
                       {
                         const auto &val = nonlinear_values[cell][q];
-                        const auto &c   = val[0];
-
-                        for (unsigned int ig = 0; ig < this->n_grains(); ++ig)
-                          etas[ig] = val[2 + ig];
-
-                        VectorizedArrayType scaling = 0.0;
-
-                        switch (free_energy_approximation)
-                          {
-                            case 0:
-                              scaling = free_energy.d2f_detai2(c, etas, b);
-                              break;
-                            case 1:
-                              // nothing to do
-                              break;
-                            case 2:
-                              for (unsigned int b = 0; b < this->n_components();
-                                   ++b)
-                                scaling =
-                                  scaling + free_energy.d2f_detai2(c, etas, b);
-                              scaling = scaling / static_cast<Number>(
-                                                    this->n_components());
-                              break;
-                            case 3:
-                              for (unsigned int b = 0; b < this->n_components();
-                                   ++b)
-                                for (unsigned int v = 0;
-                                     v < VectorizedArrayType::size();
-                                     ++v)
-                                  {
-                                    const auto temp =
-                                      free_energy.d2f_detai2(c, etas, b)[v];
-                                    scaling[v] =
-                                      std::abs(scaling[v]) > std::abs(temp) ?
-                                        scaling[v] :
-                                        temp;
-                                  }
-                              break;
-                            default:
-                              AssertThrow(false, ExcNotImplemented());
-                          }
 
                         auto value    = integrator.get_value(q);
                         auto gradient = integrator.get_gradient(q);
@@ -726,7 +742,7 @@ namespace Sintering
                             }
 
                         auto value_result =
-                          value * weight + L * scaling * value;
+                          value * weight + L * scaling[q] * value;
                         auto gradient_result = L * kappa_p * gradient;
 
                         if (free_energy_approximation == 0 &&
