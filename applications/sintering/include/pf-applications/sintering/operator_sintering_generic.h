@@ -229,9 +229,7 @@ namespace Sintering
 
       // Reinit advection data for the current cells batch
       if (this->advection.enabled())
-        this->advection.reinit(cell,
-                               static_cast<unsigned int>(n_grains),
-                               phi.get_matrix_free());
+        this->advection.reinit(cell);
 
       for (unsigned int q = 0; q < phi.n_q_points; ++q)
         {
@@ -350,9 +348,7 @@ namespace Sintering
 
       // Reinit advection data for the current cells batch
       if (this->advection.enabled())
-        this->advection.reinit(cell,
-                               static_cast<unsigned int>(n_grains),
-                               phi.get_matrix_free());
+        this->advection.reinit(cell);
 
       for (unsigned int q = 0; q < phi.n_q_points; ++q)
         {

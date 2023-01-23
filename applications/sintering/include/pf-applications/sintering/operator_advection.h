@@ -119,6 +119,7 @@ namespace Sintering
       AdvectionMechanism<dim, Number, VectorizedArrayType> &advection_mechanism,
       const std::pair<unsigned int, unsigned int> &         range) const
     {
+      advection_mechanism.nullify_table(matrix_free.n_cell_batches(), n_grains);
       advection_mechanism.nullify_data(grain_tracker.n_segments());
 
       FECellIntegrator<dim, 2 + n_grains, Number, VectorizedArrayType> phi_sint(
@@ -171,6 +172,13 @@ namespace Sintering
                         rc[d][i] = rc_i[d];
 
                       segments[i] = grain_and_segment;
+
+                      advection_mechanism.set_table_entry(
+                        cell,
+                        ig,
+                        i,
+                        grain_tracker.get_grain_segment_index(
+                          grain_and_segment.first, grain_and_segment.second));
                     }
                   else
                     {
@@ -265,12 +273,24 @@ namespace Sintering
                   const auto &grain_and_segment = segments[i];
 
                   if (grain_and_segment.first != numbers::invalid_unsigned_int)
-                    for (unsigned int d = 0;
-                         d < advection_mechanism.n_comp_volume_force_torque;
-                         ++d)
-                      advection_mechanism.grain_data(
-                        grain_and_segment.first, grain_and_segment.second)[d] +=
-                        volume_force_torque[d][i];
+                    {
+                      const auto segment_index =
+                        grain_tracker.get_grain_segment_index(
+                          grain_and_segment.first, grain_and_segment.second);
+
+                      const auto &rc_i = grain_tracker.get_segment_center(
+                        grain_and_segment.first, grain_and_segment.second);
+
+                      for (unsigned int d = 0; d < dim; ++d)
+                        advection_mechanism.grain_center(segment_index)[d] +=
+                          rc_i[d];
+
+                      for (unsigned int d = 0;
+                           d < advection_mechanism.n_comp_volume_force_torque;
+                           ++d)
+                        advection_mechanism.grain_data(segment_index)[d] +=
+                          volume_force_torque[d][i];
+                    }
                 }
             }
         }
