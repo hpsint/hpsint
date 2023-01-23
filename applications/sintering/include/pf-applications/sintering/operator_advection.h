@@ -161,7 +161,9 @@ namespace Sintering
               std::vector<std::pair<unsigned int, unsigned int>> segments(
                 matrix_free.n_active_entries_per_cell_batch(cell));
 
-              for (unsigned int i = 0; i < segments.size(); ++i)
+              unsigned int i = 0;
+
+              for (; i < segments.size(); ++i)
                 {
                   const auto icell = matrix_free.get_cell_iterator(cell, i);
                   const auto cell_index = icell->global_active_cell_index();
@@ -195,6 +197,9 @@ namespace Sintering
                       index_values.push_back(numbers::invalid_unsigned_int);
                     }
                 }
+
+              for (; i < VectorizedArrayType::size(); ++i)
+                index_values.push_back(numbers::invalid_unsigned_int);
 
               for (unsigned int q = 0; q < phi_sint.n_q_points; ++q)
                 {
@@ -305,6 +310,8 @@ namespace Sintering
                     }
                 }
             }
+
+          AssertDimension(index_values.size() % VectorizedArrayType::size(), 0);
 
           index_ptr.push_back(index_values.size());
         }

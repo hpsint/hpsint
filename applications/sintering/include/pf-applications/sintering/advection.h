@@ -175,6 +175,8 @@ namespace Sintering
           const auto n_indices = index_ptr[cell + 1] - index_ptr[cell];
           const auto n_op      = n_indices / n_lanes;
 
+          AssertDimension(n_indices % n_lanes, 0);
+
           current_cell_data.resize(n_op);
 
           for (unsigned int i = 0; i < n_indices; ++i)
@@ -198,6 +200,8 @@ namespace Sintering
     bool
     has_velocity(const unsigned int order_parameter_id) const
     {
+      AssertIndexRange(order_parameter_id, has_velocity_vector.size());
+
       return has_velocity_vector[order_parameter_id];
     }
 
