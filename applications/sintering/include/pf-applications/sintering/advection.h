@@ -17,21 +17,21 @@ namespace Sintering
   {
     Point<dim, VectorizedArrayType>     rc;
     Tensor<1, dim, VectorizedArrayType> force;
-    VectorizedArrayType                 volume{-1.};
+    VectorizedArrayType                 volume_inv{-1.};
 
     bool
     has_non_zero() const
     {
-      return std::any_of(volume.begin(), volume.end(), [](const auto &val) {
-        return val > 0;
-      });
+      return std::any_of(volume_inv.begin(),
+                         volume_inv.end(),
+                         [](const auto &val) { return val > 0; });
     }
 
   protected:
     void
     fill(const unsigned int cell_id, const Number *rc_i, const Number *fdata)
     {
-      volume[cell_id] = fdata[0];
+      volume_inv[cell_id] = 1.0 / fdata[0];
 
       for (unsigned int d = 0; d < dim; ++d)
         {
@@ -48,7 +48,7 @@ namespace Sintering
           rc[d][cell_id]    = 0;
           force[d][cell_id] = 0;
         }
-      volume[cell_id] = -1.; // To prevent division by zero
+      volume_inv[cell_id] = -1.; // To prevent division by zero
     }
   };
 
@@ -82,7 +82,7 @@ namespace Sintering
       torque[cell_id] = 0;
     }
 
-    Tensor<1, dim, VectorizedArrayType>
+    DEAL_II_ALWAYS_INLINE inline Tensor<1, dim, VectorizedArrayType>
     cross(const Tensor<1, dim, VectorizedArrayType> &r) const
     {
       Tensor<1, dim, VectorizedArrayType> p;
@@ -126,7 +126,7 @@ namespace Sintering
         }
     }
 
-    Tensor<1, dim, VectorizedArrayType>
+    DEAL_II_ALWAYS_INLINE inline Tensor<1, dim, VectorizedArrayType>
     cross(const Tensor<1, dim, VectorizedArrayType> &r) const
     {
       return cross_product_3d(torque, r);
@@ -200,20 +200,20 @@ namespace Sintering
       return has_velocity_vector[order_parameter_id];
     }
 
-    Tensor<1, dim, VectorizedArrayType>
+    DEAL_II_ALWAYS_INLINE inline Tensor<1, dim, VectorizedArrayType>
     get_velocity(const unsigned int                     order_parameter_id,
                  const Point<dim, VectorizedArrayType> &r) const
     {
       const auto &op_cell_data = current_cell_data.at(order_parameter_id);
 
       // Translational velocity
-      const auto vt = mt / op_cell_data.volume * op_cell_data.force;
+      const auto vt = mt * op_cell_data.volume_inv * op_cell_data.force;
 
       // Get vector from the particle center to the current point
       const auto r_rc = r - op_cell_data.rc;
 
       // Rotational velocity
-      const auto vr = mr / op_cell_data.volume * op_cell_data.cross(r_rc);
+      const auto vr = mr * op_cell_data.volume_inv * op_cell_data.cross(r_rc);
 
       // Total advection velocity
       const auto v_adv = vt + vr;
