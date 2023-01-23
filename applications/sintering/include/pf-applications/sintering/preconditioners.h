@@ -132,6 +132,8 @@ namespace Sintering
             }
           else if (this->advection.enabled())
             {
+              Assert(!this->data.cut_off_enabled(), ExcNotImplemented());
+
               for (unsigned int ig = 0; ig < n_grains; ++ig)
                 if (this->advection.has_velocity(ig))
                   {
@@ -361,14 +363,17 @@ namespace Sintering
                 value_result[ig] += lin_v_adv * phi.get_gradient(q)[ig];
             }
           else if (this->advection.enabled())
-            for (unsigned int ig = 0; ig < n_grains; ++ig)
-              if (this->advection.has_velocity(ig))
-                {
-                  const auto &velocity_ig =
-                    this->advection.get_velocity(ig, phi.quadrature_point(q));
+            {
+              Assert(!this->data.cut_off_enabled(), ExcNotImplemented());
+              for (unsigned int ig = 0; ig < n_grains; ++ig)
+                if (this->advection.has_velocity(ig))
+                  {
+                    const auto &velocity_ig =
+                      this->advection.get_velocity(ig, phi.quadrature_point(q));
 
-                  value_result[ig] += velocity_ig * phi.get_gradient(q)[ig];
-                }
+                    value_result[ig] += velocity_ig * phi.get_gradient(q)[ig];
+                  }
+            }
 
           phi.submit_value(value_result, q);
           phi.submit_gradient(gradient_result, q);
@@ -506,14 +511,17 @@ namespace Sintering
                 value_result[ig] += lin_v_adv * phi.get_gradient(q)[ig];
             }
           else if (this->advection.enabled())
-            for (unsigned int ig = 0; ig < n_grains; ++ig)
-              if (this->advection.has_velocity(ig))
-                {
-                  const auto &velocity_ig =
-                    this->advection.get_velocity(ig, phi.quadrature_point(q));
+            {
+              Assert(!this->data.cut_off_enabled(), ExcNotImplemented());
+              for (unsigned int ig = 0; ig < n_grains; ++ig)
+                if (this->advection.has_velocity(ig))
+                  {
+                    const auto &velocity_ig =
+                      this->advection.get_velocity(ig, phi.quadrature_point(q));
 
-                  value_result[ig] += velocity_ig * phi.get_gradient(q)[ig];
-                }
+                    value_result[ig] += velocity_ig * phi.get_gradient(q)[ig];
+                  }
+            }
 
           phi.submit_value(value_result, q);
           phi.submit_gradient(gradient_result, q);
@@ -759,6 +767,9 @@ namespace Sintering
                               }
                             else if (this->advection.has_velocity(b))
                               {
+                                Assert(!this->data.cut_off_enabled(),
+                                       ExcNotImplemented());
+
                                 const auto &velocity_ig =
                                   this->advection.get_velocity(
                                     b, integrator.quadrature_point(q));

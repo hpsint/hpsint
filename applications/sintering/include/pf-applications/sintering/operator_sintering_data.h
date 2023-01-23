@@ -405,6 +405,12 @@ namespace Sintering
                                               relevant_grains_ptr[cell]);
     }
 
+    bool
+    cut_off_enabled() const
+    {
+      return !relevant_grains_ptr.empty();
+    }
+
   private:
     MobilityType mobility;
 
