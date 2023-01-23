@@ -145,8 +145,15 @@ namespace Sintering
 
           phi_ft.reinit(cell);
 
+          const auto grain_to_relevant_grain =
+            this->data.get_grain_to_relevant_grain(cell);
+
           for (unsigned int ig = 0; ig < n_grains; ++ig)
             {
+              if (grain_to_relevant_grain[ig] ==
+                  static_cast<unsigned char>(255))
+                continue;
+
               Point<dim, VectorizedArrayType> rc;
 
               std::vector<std::pair<unsigned int, unsigned int>> segments(
@@ -175,7 +182,7 @@ namespace Sintering
 
                       advection_mechanism.set_table_entry(
                         cell,
-                        ig,
+                        grain_to_relevant_grain[ig],
                         i,
                         grain_tracker.get_grain_segment_index(
                           grain_and_segment.first, grain_and_segment.second));
@@ -211,6 +218,10 @@ namespace Sintering
                   // other grains
                   for (unsigned int jg = 0; jg < n_grains; ++jg)
                     {
+                      if (grain_to_relevant_grain[ig] ==
+                          static_cast<unsigned char>(255))
+                        continue;
+
                       if (ig != jg)
                         {
                           auto &eta_j      = val[2 + jg];

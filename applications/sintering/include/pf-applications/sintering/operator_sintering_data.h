@@ -405,6 +405,28 @@ namespace Sintering
                                               relevant_grains_ptr[cell]);
     }
 
+    std::vector<unsigned char>
+    get_grain_to_relevant_grain(const unsigned cell) const
+    {
+      std::vector<unsigned char> result(this->n_grains(),
+                                        static_cast<unsigned char>(255));
+
+      if (!cut_off_enabled())
+        {
+          for (unsigned int i = 0; i < this->n_grains(); ++i)
+            result[i] = i;
+
+          return result;
+        }
+
+      const auto relevant_grains = get_relevant_grains(cell);
+
+      for (unsigned int i = 0; i < relevant_grains.size(); ++i)
+        result[relevant_grains[i]] = i;
+
+      return result;
+    }
+
     bool
     cut_off_enabled() const
     {
