@@ -2352,7 +2352,7 @@ namespace Sintering
                 // Reset statistics
                 statistics.clear();
 
-                if (params.grain_cut_off_tolerance > 0.0)
+                if (params.grain_cut_off_tolerance != 0.0)
                   sintering_data.set_component_mask(
                     matrix_free,
                     solution,
