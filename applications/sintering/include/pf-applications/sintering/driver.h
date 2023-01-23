@@ -870,8 +870,7 @@ namespace Sintering
       AdvectionMechanism<dim, Number, VectorizedArrayType> advection_mechanism(
         params.advection_data.enable,
         params.advection_data.mt,
-        params.advection_data.mr,
-        grain_tracker);
+        params.advection_data.mr);
 
       auto nonlinear_operator = create_sintering_operator<dim,
                                                           Number,
@@ -2497,7 +2496,7 @@ namespace Sintering
 
                 // Print grain forces
                 if (params.advection_data.enable)
-                  advection_mechanism.print_forces(pcout);
+                  advection_mechanism.print_forces(pcout, grain_tracker);
               }
             catch (const NonLinearSolvers::ExcNewtonDidNotConverge &e)
               {

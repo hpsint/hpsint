@@ -17,23 +17,21 @@ namespace Sintering
   {
     Point<dim, VectorizedArrayType>     rc;
     Tensor<1, dim, VectorizedArrayType> force;
-    VectorizedArrayType                 volume{-1.};
+    VectorizedArrayType                 volume_inv{-1.};
 
     bool
     has_non_zero() const
     {
-      return std::any_of(volume.begin(), volume.end(), [](const auto &val) {
-        return val > 0;
-      });
+      return std::any_of(volume_inv.begin(),
+                         volume_inv.end(),
+                         [](const auto &val) { return val > 0; });
     }
 
   protected:
     void
-    fill(const unsigned int cell_id,
-         const Point<dim> & rc_i,
-         const Number *     fdata)
+    fill(const unsigned int cell_id, const Number *rc_i, const Number *fdata)
     {
-      volume[cell_id] = fdata[0];
+      volume_inv[cell_id] = 1.0 / fdata[0];
 
       for (unsigned int d = 0; d < dim; ++d)
         {
@@ -50,7 +48,7 @@ namespace Sintering
           rc[d][cell_id]    = 0;
           force[d][cell_id] = 0;
         }
-      volume[cell_id] = -1.; // To prevent division by zero
+      volume_inv[cell_id] = -1.; // To prevent division by zero
     }
   };
 
@@ -67,9 +65,7 @@ namespace Sintering
     VectorizedArrayType torque{0};
 
     void
-    fill(const unsigned int cell_id,
-         const Point<dim> & rc_i,
-         const Number *     fdata)
+    fill(const unsigned int cell_id, const Number *rc_i, const Number *fdata)
     {
       AdvectionCellDataBase<dim, Number, VectorizedArrayType>::fill(cell_id,
                                                                     rc_i,
@@ -86,7 +82,7 @@ namespace Sintering
       torque[cell_id] = 0;
     }
 
-    Tensor<1, dim, VectorizedArrayType>
+    DEAL_II_ALWAYS_INLINE inline Tensor<1, dim, VectorizedArrayType>
     cross(const Tensor<1, dim, VectorizedArrayType> &r) const
     {
       Tensor<1, dim, VectorizedArrayType> p;
@@ -107,9 +103,7 @@ namespace Sintering
     Tensor<1, dim, VectorizedArrayType> torque;
 
     void
-    fill(const unsigned int cell_id,
-         const Point<dim> & rc_i,
-         const Number *     fdata)
+    fill(const unsigned int cell_id, const Number *rc_i, const Number *fdata)
     {
       AdvectionCellDataBase<dim, Number, VectorizedArrayType>::fill(cell_id,
                                                                     rc_i,
@@ -132,7 +126,7 @@ namespace Sintering
         }
     }
 
-    Tensor<1, dim, VectorizedArrayType>
+    DEAL_II_ALWAYS_INLINE inline Tensor<1, dim, VectorizedArrayType>
     cross(const Tensor<1, dim, VectorizedArrayType> &r) const
     {
       return cross_product_3d(torque, r);
@@ -151,7 +145,6 @@ namespace Sintering
       : is_active(false)
       , mt(0.0)
       , mr(0.0)
-      , grain_tracker(nullptr)
     {}
 
     AdvectionMechanism(
@@ -162,94 +155,65 @@ namespace Sintering
       : is_active(true)
       , mt(mt)
       , mr(mr)
-      , grain_tracker(nullptr)
     {
       this->current_cell_data = current_cell_data;
     }
 
-    AdvectionMechanism(const bool                                enable,
-                       const double                              mt,
-                       const double                              mr,
-                       const GrainTracker::Tracker<dim, Number> &grain_tracker)
+    AdvectionMechanism(const bool enable, const double mt, const double mr)
       : is_active(enable)
       , mt(mt)
       , mr(mr)
-      , grain_tracker(&grain_tracker)
     {}
 
     void
-    reinit(
-      const unsigned int                                  cell,
-      const unsigned int                                  n_order_parameters,
-      const MatrixFree<dim, Number, VectorizedArrayType> &matrix_free) const
+    reinit(const unsigned int cell) const
     {
-      if (grain_tracker)
+      if (grain_table.size(0) > 0)
         {
-          current_cell_data.resize(n_order_parameters);
+          const unsigned int n_op    = grain_table.size(1);
+          const unsigned int n_lanes = VectorizedArrayType::size();
 
-          for (unsigned int op = 0; op < n_order_parameters; ++op)
-            {
-              unsigned int i = 0;
+          current_cell_data.resize(n_op);
 
-              for (; i < matrix_free.n_active_entries_per_cell_batch(cell); ++i)
-                {
-                  const auto icell = matrix_free.get_cell_iterator(cell, i);
-                  const auto cell_index = icell->global_active_cell_index();
+          for (unsigned int op = 0; op < n_op; ++op)
+            for (unsigned int v = 0; v < n_lanes; ++v)
+              {
+                const auto index = grain_table[cell][op][v];
 
-                  const unsigned int particle_id =
-                    grain_tracker->get_particle_index(op, cell_index);
-
-                  if (particle_id != numbers::invalid_unsigned_int)
-                    {
-                      const auto grain_and_segment =
-                        grain_tracker->get_grain_and_segment(op, particle_id);
-
-                      const auto &rc_i = grain_tracker->get_segment_center(
-                        grain_and_segment.first, grain_and_segment.second);
-
-                      current_cell_data[op].fill(
-                        i,
-                        rc_i,
-                        grain_data(grain_and_segment.first,
-                                   grain_and_segment.second));
-                    }
-                  else
-                    {
-                      current_cell_data[op].nullify(i);
-                    }
-                }
-
-              // Initialize the rest for padding
-              for (; i < VectorizedArrayType::size(); ++i)
-                current_cell_data[op].nullify(i);
-            }
+                if (index != numbers::invalid_unsigned_int)
+                  current_cell_data[op].fill(v,
+                                             grain_center(index),
+                                             grain_data(index));
+                else
+                  current_cell_data[op].nullify(v);
+              }
         }
-      else
-        {
-          AssertDimension(current_cell_data.size(), n_order_parameters);
-        }
+
+      has_velocity_vector.resize(current_cell_data.size());
+      for (unsigned int op = 0; op < current_cell_data.size(); ++op)
+        has_velocity_vector[op] = current_cell_data.at(op).has_non_zero();
     }
 
     bool
     has_velocity(const unsigned int order_parameter_id) const
     {
-      return current_cell_data.at(order_parameter_id).has_non_zero();
+      return has_velocity_vector[order_parameter_id];
     }
 
-    Tensor<1, dim, VectorizedArrayType>
+    DEAL_II_ALWAYS_INLINE inline Tensor<1, dim, VectorizedArrayType>
     get_velocity(const unsigned int                     order_parameter_id,
                  const Point<dim, VectorizedArrayType> &r) const
     {
       const auto &op_cell_data = current_cell_data.at(order_parameter_id);
 
       // Translational velocity
-      const auto vt = mt / op_cell_data.volume * op_cell_data.force;
+      const auto vt = mt * op_cell_data.volume_inv * op_cell_data.force;
 
       // Get vector from the particle center to the current point
       const auto r_rc = r - op_cell_data.rc;
 
       // Rotational velocity
-      const auto vr = mr / op_cell_data.volume * op_cell_data.cross(r_rc);
+      const auto vr = mr * op_cell_data.volume_inv * op_cell_data.cross(r_rc);
 
       // Total advection velocity
       const auto v_adv = vt + vr;
@@ -258,27 +222,50 @@ namespace Sintering
     }
 
     void
+    set_table_entry(const unsigned int cell,
+                    const unsigned int op,
+                    const unsigned int v,
+                    const unsigned int index)
+    {
+      grain_table[cell][op][v] = index;
+    }
+
+    void
+    nullify_table(const unsigned int n_cells, const unsigned int n_op)
+    {
+      grain_table.reinit({n_cells, n_op, VectorizedArrayType::size()});
+      grain_table.fill(numbers::invalid_unsigned_int);
+    }
+
+    void
     nullify_data(const unsigned int n_segments)
     {
       grains_data.assign(n_comp_volume_force_torque * n_segments, 0);
+      grains_center.assign(dim * n_segments, 0);
     }
 
     Number *
-    grain_data(const unsigned int grain_id, const unsigned int segment_id)
+    grain_data(const unsigned int index)
     {
-      const unsigned int index =
-        grain_tracker->get_grain_segment_index(grain_id, segment_id);
-
       return &grains_data[n_comp_volume_force_torque * index];
     }
 
     const Number *
-    grain_data(const unsigned int grain_id, const unsigned int segment_id) const
+    grain_data(const unsigned int index) const
     {
-      const unsigned int index =
-        grain_tracker->get_grain_segment_index(grain_id, segment_id);
-
       return &grains_data[n_comp_volume_force_torque * index];
+    }
+
+    Number *
+    grain_center(const unsigned int index)
+    {
+      return &grains_center[dim * index];
+    }
+
+    const Number *
+    grain_center(const unsigned int index) const
+    {
+      return &grains_center[dim * index];
     }
 
     std::vector<Number> &
@@ -301,18 +288,20 @@ namespace Sintering
 
     template <typename Stream>
     void
-    print_forces(Stream &out) const
+    print_forces(Stream &                                  out,
+                 const GrainTracker::Tracker<dim, Number> &grain_tracker) const
     {
       out << std::endl;
       out << "Grains segments volumes, forces and torques:" << std::endl;
 
-      for (const auto &[grain_id, grain] : grain_tracker->get_grains())
+      for (const auto &[grain_id, grain] : grain_tracker.get_grains())
         {
           for (unsigned int segment_id = 0;
                segment_id < grain.get_segments().size();
                segment_id++)
             {
-              const Number *data = grain_data(grain_id, segment_id);
+              const Number *data = grain_data(
+                grain_tracker.get_grain_segment_index(grain_id, segment_id));
 
               Number                 volume(*data++);
               Tensor<1, dim, Number> force(make_array_view(data, data + dim));
@@ -338,8 +327,11 @@ namespace Sintering
     mutable std::vector<AdvectionCellData<dim, Number, VectorizedArrayType>>
       current_cell_data;
 
-    const SmartPointer<const GrainTracker::Tracker<dim, Number>> grain_tracker;
+    Table<3, unsigned int> grain_table;
+
+    mutable std::vector<bool> has_velocity_vector;
 
     std::vector<Number> grains_data;
+    std::vector<Number> grains_center;
   };
 } // namespace Sintering

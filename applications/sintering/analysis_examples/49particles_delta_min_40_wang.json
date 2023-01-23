@@ -1,0 +1,115 @@
+{
+    "MatrixBased": "false",
+    "GrainCutOffTolerance": "0.00001",
+    "Adaptivity": {
+        "BottomFractionOfCells": "0.1",
+        "MaxRefinementDepth": "1",
+        "MinRefinementDepth": "3",
+        "RefinementFrequency": "10",
+        "TopFractionOfCells": "0.3"
+    },
+    "Approximation": {
+        "FEDegree": "1",
+        "NPoints1D": "2",
+        "NSubdivisions": "1"
+    },
+    "Advection": {
+        "Ceq": "1",
+        "Cgb": "0.14",
+        "Enable": "true",
+        "K": "20",
+        "Mr": "0",
+        "Mt": "1.0"
+    },
+    "Geometry": {
+        "BoundaryFactor": "0.5",
+        "CustomBoundingBox": "false",
+        "DivisionsPerInterface": "3",
+        "HangingNodeWeight": "1",
+        "InterfaceBufferRatio": "1",
+        "InterfaceWidth": "8",
+        "MinimizeOrderParameters": "true",
+        "Periodic": "false",
+        "BoundingBox": {
+            "Xmax": "0",
+            "Xmin": "0",
+            "Ymax": "0",
+            "Ymin": "0",
+            "Zmax": "0",
+            "Zmin": "0"
+        }
+    },
+    "GrainTracker": {
+        "BufferDistanceRatio": "0.05",
+        "GrainTrackerFrequency": "25",
+        "ThresholdLower": "0.01",
+        "ThresholdUpper": "1.01"
+    },
+    "Material": {
+        "EnergyAbstract": {
+            "A": "4.35",
+            "B": "0.15",
+            "KappaC": "9.0",
+            "KappaP": "1.79"
+        },
+        "MobilityAbstract": {
+            "L": "1",
+            "Mgb": "0.4",
+            "Msurf": "4",
+            "Mvap": "1e-10",
+            "Mvol": "0.01"
+        },
+        "Type": "Abstract"
+    },
+    "NonLinearData": {
+        "LinearRelativeTolerance": 0.01,
+        "NewtonUseDamping": true,
+        "NonLinearSolverType": "NOX",
+        "JacobiFree": false,
+        "LinearMaxIterations": 100,
+        "NewtonThresholdNewtonIterations": 100,
+        "NewtonThresholdLinearIterations": 50,
+        "NewtonReusePreconditioner": false
+    },
+    "Output": {
+        "Contour": "true",
+        "ContourNCoarseningSteps": "0",
+        "Debug": "false",
+        "Fields": "bnds",
+        "HigherOrderCells": "false",
+        "OutputTimeInterval": "500",
+        "Regular": "false",
+        "VtkPath": ".",
+        "MeshOverheadEstimate": false
+    },
+    "Preconditioners": {
+        "OuterPreconditioner": "BlockPreconditioner2",
+        "BlockPreconditioner2": {
+            "Block0Preconditioner": "ILU",
+            "Block1Approximation": "avg",
+            "Block1Preconditioner": "BlockILU"
+        }
+    },
+    "Profiling": {
+        "OutputTimeInterval": "900",
+        "RunVmults": "false",
+        "OutputMemoryConsumption": "false"
+    },
+    "Restart": {
+        "Interval": "20000",
+        "MaximalOutput": "1",
+        "Prefix": "./restart",
+        "Type": "simulation_time"
+    },
+    "TimeIntegration": {
+        "IntegrationScheme": "BDF2",
+        "DesirableLinearIterations": "100",
+        "DesirableNewtonIterations": "5",
+        "GrowthFactor": "1.2",
+        "TimeEnd": "15000",
+        "TimeStart": "0",
+        "TimeStepInit": "0.1",
+        "TimeStepMax": "100",
+        "TimeStepMin": "1e-05"
+    }
+}

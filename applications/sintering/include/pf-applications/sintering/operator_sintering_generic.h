@@ -41,11 +41,8 @@ namespace Sintering
       , advection(advection)
     {
       // Reinit advection data for the current cells batch
-      constexpr int n_grains = n_comp - 2;
       if (this->advection.enabled())
-        this->advection.reinit(cell,
-                               static_cast<unsigned int>(n_grains),
-                               phi.get_matrix_free());
+        this->advection.reinit(cell);
     }
 
     DEAL_II_ALWAYS_INLINE inline std::tuple<
@@ -416,9 +413,7 @@ namespace Sintering
 
       // Reinit advection data for the current cells batch
       if (this->advection.enabled())
-        this->advection.reinit(cell,
-                               static_cast<unsigned int>(n_grains),
-                               phi.get_matrix_free());
+        this->advection.reinit(cell);
 
       for (unsigned int q = 0; q < phi.n_q_points; ++q)
         {

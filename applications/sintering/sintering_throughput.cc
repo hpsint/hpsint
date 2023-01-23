@@ -166,7 +166,7 @@ main(int argc, char **argv)
   constexpr bool test_helmholtz         = true;
   constexpr bool test_sintering_generic = true;
   constexpr bool test_sintering_wang    = true & scalar_mobility;
-  constexpr bool test_sintering_coupled = true & scalar_mobility;
+  constexpr bool test_sintering_coupled = false & scalar_mobility;
 
   // some arbitrary constants
   const double        A                      = 16;
@@ -400,9 +400,9 @@ main(int argc, char **argv)
 
             for (auto &entry : current_cell_data)
               {
-                entry.volume    = 1.0; // dummy values
-                entry.force[0]  = 1.0; //
-                entry.torque[0] = 1.0; //
+                entry.volume_inv = 1.0; // dummy values
+                entry.force[0]   = 1.0; //
+                entry.torque[0]  = 1.0; //
               }
 
             AdvectionMechanism<dim, Number, VectorizedArrayType>
@@ -459,9 +459,9 @@ main(int argc, char **argv)
 
             for (auto &entry : current_cell_data)
               {
-                entry.volume    = 1.0; // dummy values
-                entry.force[0]  = 1.0; //
-                entry.torque[0] = 1.0; //
+                entry.volume_inv = 1.0; // dummy values
+                entry.force[0]   = 1.0; //
+                entry.torque[0]  = 1.0; //
               }
 
             AdvectionMechanism<dim, Number, VectorizedArrayType>

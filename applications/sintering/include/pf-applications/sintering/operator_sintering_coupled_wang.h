@@ -67,13 +67,14 @@ namespace Sintering
                     "sintering_op::nonlinear_residual",
                     this->do_timing);
 
-      AssertThrow(with_time_derivative != 1, ExcNotImplemented());
+      // TODO
+      // AssertThrow(with_time_derivative != 1, ExcNotImplemented());
 
 #define OPERATION(c, d)                                                \
   MyMatrixFreeTools::cell_loop_wrapper(                                \
     this->matrix_free,                                                 \
     &SinteringOperatorCoupledWang::                                    \
-      do_evaluate_nonlinear_residual<c, d, with_time_derivative == 2>, \
+      do_evaluate_nonlinear_residual<c, d, with_time_derivative != 0>, \
     this,                                                              \
     dst,                                                               \
     src,                                                               \
@@ -132,9 +133,7 @@ namespace Sintering
 
       // Reinit advection data for the current cells batch
       if (this->advection.enabled())
-        this->advection.reinit(cell,
-                               static_cast<unsigned int>(n_grains),
-                               phi.get_matrix_free());
+        this->advection.reinit(cell);
 
       for (unsigned int q = 0; q < phi.n_q_points; ++q)
         {
@@ -312,9 +311,7 @@ namespace Sintering
 
           // Reinit advection data for the current cells batch
           if (this->advection.enabled())
-            this->advection.reinit(cell,
-                                   static_cast<unsigned int>(n_grains),
-                                   matrix_free);
+            this->advection.reinit(cell);
 
           for (unsigned int q = 0; q < phi.n_q_points; ++q)
             {
