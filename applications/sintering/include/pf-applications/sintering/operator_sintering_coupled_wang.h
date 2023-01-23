@@ -366,6 +366,9 @@ namespace Sintering
 
                   if (this->advection.enabled())
                     {
+                      Assert(!this->data.cut_off_enabled(),
+                             ExcNotImplemented());
+
                       value_result[2 + ig] += v_adv * grad[2 + ig];
 
                       if (this->advection.has_velocity(ig))
