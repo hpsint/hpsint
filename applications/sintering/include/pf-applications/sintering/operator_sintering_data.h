@@ -223,10 +223,9 @@ namespace Sintering
 
         pcout << "  - " << max_value << " (";
 
-        pcout << (0) << ": " << std::fixed << std::setprecision(2)
-              << static_cast<double>(max_values[0]) / sum * 100;
+        pcout << (0) << ": " << static_cast<double>(max_values[0]) / sum * 100;
         for (unsigned int i = 1; i < max_values.size(); ++i)
-          pcout << ", " << i << ": " << std::fixed << std::setprecision(2)
+          pcout << ", " << i << ": "
                 << static_cast<double>(max_values[i]) / sum * 100;
 
         pcout << ")" << std::endl;
