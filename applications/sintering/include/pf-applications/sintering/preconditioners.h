@@ -703,6 +703,19 @@ namespace Sintering
             // 2) loop over all blocks
             for (unsigned int b = 0; b < this->n_unique_components(); ++b)
               {
+                if (free_energy_approximation == 0)
+                  {
+                    for (unsigned int q = 0; q < integrator.n_q_points; ++q)
+                      {
+                        const auto &val = nonlinear_values[cell][q];
+                        const auto &c   = val[0];
+
+                        for (unsigned int ig = 0; ig < this->n_grains(); ++ig)
+                          etas[ig] = val[2 + ig];
+                        scaling[q] = free_energy.d2f_detai2(c, etas, b);
+                      }
+                  }
+
                 // 2a) compute columns of blocks
                 for (unsigned int j = 0; j < dofs_per_cell; ++j)
                   {
@@ -716,7 +729,6 @@ namespace Sintering
                     for (unsigned int q = 0; q < integrator.n_q_points; ++q)
                       {
                         const auto &val = nonlinear_values[cell][q];
-                        const auto &c   = val[0];
 
                         auto value    = integrator.get_value(q);
                         auto gradient = integrator.get_gradient(q);
@@ -729,13 +741,8 @@ namespace Sintering
                               gradient = Tensor<1, dim, VectorizedArrayType>();
                             }
 
-                        const auto scaling_to_be_use =
-                          free_energy_approximation == 0 ?
-                            free_energy.d2f_detai2(c, etas, b) :
-                            scaling[q];
-
                         auto value_result =
-                          value * weight + L * scaling_to_be_use * value;
+                          value * weight + L * scaling[q] * value;
                         auto gradient_result = L * kappa_p * gradient;
 
                         if (free_energy_approximation == 0 &&
