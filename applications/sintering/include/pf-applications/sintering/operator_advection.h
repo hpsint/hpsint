@@ -119,7 +119,6 @@ namespace Sintering
       AdvectionMechanism<dim, Number, VectorizedArrayType> &advection_mechanism,
       const std::pair<unsigned int, unsigned int> &         range) const
     {
-      advection_mechanism.nullify_table(matrix_free.n_cell_batches(), n_grains);
       advection_mechanism.nullify_data(grain_tracker.n_segments());
 
       FECellIntegrator<dim, 2 + n_grains, Number, VectorizedArrayType> phi_sint(
@@ -134,6 +133,9 @@ namespace Sintering
       VectorizedArrayType cgb_lim(cgb);
       VectorizedArrayType zeros(0.0);
       VectorizedArrayType ones(1.0);
+
+      std::vector<unsigned int> index_ptr = {0};
+      std::vector<unsigned int> index_values;
 
       for (auto cell = range.first; cell < range.second; ++cell)
         {
@@ -180,10 +182,7 @@ namespace Sintering
 
                       segments[i] = grain_and_segment;
 
-                      advection_mechanism.set_table_entry(
-                        cell,
-                        grain_to_relevant_grain[ig],
-                        i,
+                      index_values.push_back(
                         grain_tracker.get_grain_segment_index(
                           grain_and_segment.first, grain_and_segment.second));
                     }
@@ -192,6 +191,8 @@ namespace Sintering
                       segments[i] =
                         std::make_pair(numbers::invalid_unsigned_int,
                                        numbers::invalid_unsigned_int);
+
+                      index_values.push_back(numbers::invalid_unsigned_int);
                     }
                 }
 
@@ -304,7 +305,11 @@ namespace Sintering
                     }
                 }
             }
+
+          index_ptr.push_back(index_values.size());
         }
+
+      advection_mechanism.set_grain_table(index_ptr, index_values);
 
       // Perform global communication
       MPI_Allreduce(MPI_IN_PLACE,

@@ -168,30 +168,31 @@ namespace Sintering
     void
     reinit(const unsigned int cell) const
     {
-      if (grain_table.size(0) > 0)
+      if (index_ptr.size() > 0)
         {
-          const unsigned int n_op    = grain_table.size(1);
           const unsigned int n_lanes = VectorizedArrayType::size();
+
+          const auto n_indices = index_ptr[cell + 1] - index_ptr[cell];
+          const auto n_op      = n_indices / n_lanes;
 
           current_cell_data.resize(n_op);
 
-          for (unsigned int op = 0; op < n_op; ++op)
-            for (unsigned int v = 0; v < n_lanes; ++v)
-              {
-                const auto index = grain_table[cell][op][v];
+          for (unsigned int i = 0; i < n_indices; ++i)
+            {
+              const auto index = index_values[index_ptr[cell] + i];
 
-                if (index != numbers::invalid_unsigned_int)
-                  current_cell_data[op].fill(v,
-                                             grain_center(index),
-                                             grain_data(index));
-                else
-                  current_cell_data[op].nullify(v);
-              }
+              if (index != numbers::invalid_unsigned_int)
+                current_cell_data[i / n_lanes].fill(i % n_lanes,
+                                                    grain_center(index),
+                                                    grain_data(index));
+              else
+                current_cell_data[i / n_lanes].nullify(i % n_lanes);
+            }
         }
 
       has_velocity_vector.resize(current_cell_data.size());
       for (unsigned int op = 0; op < current_cell_data.size(); ++op)
-        has_velocity_vector[op] = current_cell_data.at(op).has_non_zero();
+        has_velocity_vector[op] = current_cell_data[op].has_non_zero();
     }
 
     bool
@@ -222,19 +223,11 @@ namespace Sintering
     }
 
     void
-    set_table_entry(const unsigned int cell,
-                    const unsigned int op,
-                    const unsigned int v,
-                    const unsigned int index)
+    set_grain_table(const std::vector<unsigned int> &index_ptr,
+                    const std::vector<unsigned int> &index_values)
     {
-      grain_table[cell][op][v] = index;
-    }
-
-    void
-    nullify_table(const unsigned int n_cells, const unsigned int n_op)
-    {
-      grain_table.reinit({n_cells, n_op, VectorizedArrayType::size()});
-      grain_table.fill(numbers::invalid_unsigned_int);
+      this->index_ptr    = index_ptr;
+      this->index_values = index_values;
     }
 
     void
@@ -327,9 +320,10 @@ namespace Sintering
     mutable std::vector<AdvectionCellData<dim, Number, VectorizedArrayType>>
       current_cell_data;
 
-    Table<3, unsigned int> grain_table;
-
     mutable std::vector<bool> has_velocity_vector;
+
+    std::vector<unsigned int> index_ptr;
+    std::vector<unsigned int> index_values;
 
     std::vector<Number> grains_data;
     std::vector<Number> grains_center;
