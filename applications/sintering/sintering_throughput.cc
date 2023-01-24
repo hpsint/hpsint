@@ -150,7 +150,7 @@ main(int argc, char **argv)
   const unsigned int dim                  = SINTERING_DIM;
   const unsigned int fe_degree            = 1;
   unsigned int       n_global_refinements = 7;
-  const unsigned int max_sintering_grains = MAX_SINTERING_GRAINS;
+  const unsigned int max_sintering_grains = std::min(12, MAX_SINTERING_GRAINS);
   const unsigned int max_sintering_grains_mb =
     std::min(4u, max_sintering_grains);
   using Number              = double;
@@ -326,7 +326,7 @@ main(int argc, char **argv)
         }
 
       if constexpr (test_sintering_generic)
-        if (n_components >= 4) // test sintering operator
+        if (n_components >= 2) // test sintering operator
           {
             const std::shared_ptr<MobilityProvider> mobility_provider =
               std::make_shared<ProviderAbstract>(Mvol, Mvap, Msurf, Mgb, L);
@@ -375,7 +375,7 @@ main(int argc, char **argv)
           }
 
       if constexpr (test_sintering_wang)
-        if (n_components >= 4) // test wang operator
+        if (n_components >= 2) // test wang operator
           {
             const std::shared_ptr<MobilityProvider> mobility_provider =
               std::make_shared<ProviderAbstract>(Mvol, Mvap, Msurf, Mgb, L);
