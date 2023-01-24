@@ -311,82 +311,92 @@ namespace Sintering
     {
       static_assert(n_comp == n_grains);
 
-      const unsigned int cell = phi.get_current_cell_index();
-
-      const auto &free_energy      = data.free_energy;
-      const auto &L                = data.get_mobility().Lgb();
-      const auto &kappa_p          = data.kappa_p;
-      const auto  weight           = this->data.time_data.get_primary_weight();
-      const auto &nonlinear_values = data.get_nonlinear_values();
-      const auto  inv_dt           = 1. / this->data.time_data.get_current_dt();
-
-      const bool use_coupled_model = data.has_additional_variables_attached();
-
-      if (this->advection.enabled())
-        this->advection.reinit(cell);
-
-      const auto grain_to_relevant_grain =
-        this->data.get_grain_to_relevant_grain(cell); // TODO: make optional
-
-      for (unsigned int q = 0; q < phi.n_q_points; ++q)
+      if constexpr (n_comp > 1)
         {
-          const auto &val = nonlinear_values[cell][q];
+          const unsigned int cell = phi.get_current_cell_index();
 
-          const auto &c = val[0];
+          const auto &free_energy = data.free_energy;
+          const auto &L           = data.get_mobility().Lgb();
+          const auto &kappa_p     = data.kappa_p;
+          const auto  weight      = this->data.time_data.get_primary_weight();
+          const auto &nonlinear_values = data.get_nonlinear_values();
+          const auto  inv_dt = 1. / this->data.time_data.get_current_dt();
 
-          std::array<VectorizedArrayType, n_grains> etas;
+          const bool use_coupled_model =
+            data.has_additional_variables_attached();
 
-          for (unsigned int ig = 0; ig < n_grains; ++ig)
-            etas[ig] = val[2 + ig];
+          if (this->advection.enabled())
+            this->advection.reinit(cell);
 
-          typename FECellIntegratorType::value_type    value_result;
-          typename FECellIntegratorType::gradient_type gradient_result;
+          const auto grain_to_relevant_grain =
+            this->data.get_grain_to_relevant_grain(cell); // TODO: make optional
 
-          for (unsigned int ig = 0; ig < n_grains; ++ig)
+          for (unsigned int q = 0; q < phi.n_q_points; ++q)
             {
-              value_result[ig] =
-                phi.get_value(q)[ig] * weight +
-                L * free_energy.d2f_detai2(c, etas, ig) * phi.get_value(q)[ig];
+              const auto &val = nonlinear_values[cell][q];
 
-              gradient_result[ig] = L * kappa_p * phi.get_gradient(q)[ig];
+              const auto &c = val[0];
 
-              for (unsigned int jg = 0; jg < n_grains; ++jg)
+              std::array<VectorizedArrayType, n_grains> etas;
+
+              for (unsigned int ig = 0; ig < n_grains; ++ig)
+                etas[ig] = val[2 + ig];
+
+              typename FECellIntegratorType::value_type    value_result;
+              typename FECellIntegratorType::gradient_type gradient_result;
+
+              for (unsigned int ig = 0; ig < n_grains; ++ig)
                 {
-                  if (ig != jg)
+                  value_result[ig] = phi.get_value(q)[ig] * weight +
+                                     L * free_energy.d2f_detai2(c, etas, ig) *
+                                       phi.get_value(q)[ig];
+
+                  gradient_result[ig] = L * kappa_p * phi.get_gradient(q)[ig];
+
+                  for (unsigned int jg = 0; jg < n_grains; ++jg)
                     {
-                      value_result[ig] +=
-                        L * free_energy.d2f_detaidetaj(c, etas, ig, jg) *
-                        phi.get_value(q)[jg];
+                      if (ig != jg)
+                        {
+                          value_result[ig] +=
+                            L * free_energy.d2f_detaidetaj(c, etas, ig, jg) *
+                            phi.get_value(q)[jg];
+                        }
                     }
                 }
+
+              if (use_coupled_model && this->advection.enabled())
+                {
+                  Tensor<1, dim, VectorizedArrayType> lin_v_adv;
+                  for (unsigned int d = 0; d < dim; ++d)
+                    lin_v_adv[d] = val[n_grains + 2 + d] * inv_dt;
+
+                  for (unsigned int ig = 0; ig < n_grains; ++ig)
+                    value_result[ig] += lin_v_adv * phi.get_gradient(q)[ig];
+                }
+              else if (this->advection.enabled())
+                {
+                  for (unsigned int ig = 0; ig < n_grains; ++ig)
+                    if (grain_to_relevant_grain[ig] !=
+                          static_cast<unsigned char>(255) &&
+                        this->advection.has_velocity(
+                          grain_to_relevant_grain[ig]))
+                      {
+                        const auto &velocity_ig = this->advection.get_velocity(
+                          grain_to_relevant_grain[ig], phi.quadrature_point(q));
+
+                        value_result[ig] +=
+                          velocity_ig * phi.get_gradient(q)[ig];
+                      }
+                }
+
+              phi.submit_value(value_result, q);
+              phi.submit_gradient(gradient_result, q);
             }
-
-          if (use_coupled_model && this->advection.enabled())
-            {
-              Tensor<1, dim, VectorizedArrayType> lin_v_adv;
-              for (unsigned int d = 0; d < dim; ++d)
-                lin_v_adv[d] = val[n_grains + 2 + d] * inv_dt;
-
-              for (unsigned int ig = 0; ig < n_grains; ++ig)
-                value_result[ig] += lin_v_adv * phi.get_gradient(q)[ig];
-            }
-          else if (this->advection.enabled())
-            {
-              for (unsigned int ig = 0; ig < n_grains; ++ig)
-                if (grain_to_relevant_grain[ig] !=
-                      static_cast<unsigned char>(255) &&
-                    this->advection.has_velocity(grain_to_relevant_grain[ig]))
-                  {
-                    const auto &velocity_ig =
-                      this->advection.get_velocity(grain_to_relevant_grain[ig],
-                                                   phi.quadrature_point(q));
-
-                    value_result[ig] += velocity_ig * phi.get_gradient(q)[ig];
-                  }
-            }
-
-          phi.submit_value(value_result, q);
-          phi.submit_gradient(gradient_result, q);
+        }
+      else
+        {
+          AssertThrow(false, ExcNotImplemented());
+          (void)phi;
         }
     }
 
@@ -474,72 +484,82 @@ namespace Sintering
     {
       static_assert(n_comp == n_grains);
 
-      const unsigned int cell = phi.get_current_cell_index();
-
-      const auto &free_energy      = data.free_energy;
-      const auto &L                = data.get_mobility().Lgb();
-      const auto &kappa_p          = data.kappa_p;
-      const auto  weight           = data.time_data.get_primary_weight();
-      const auto &nonlinear_values = data.get_nonlinear_values();
-      const auto  inv_dt           = 1. / this->data.time_data.get_current_dt();
-
-      const bool use_coupled_model = data.has_additional_variables_attached();
-
-      if (this->advection.enabled())
-        this->advection.reinit(cell);
-
-      const auto grain_to_relevant_grain =
-        this->data.get_grain_to_relevant_grain(cell); // TODO: make optional
-
-      for (unsigned int q = 0; q < phi.n_q_points; ++q)
+      if constexpr (n_comp > 1)
         {
-          const auto &val = nonlinear_values[cell][q];
+          const unsigned int cell = phi.get_current_cell_index();
 
-          const auto &c = val[0];
+          const auto &free_energy      = data.free_energy;
+          const auto &L                = data.get_mobility().Lgb();
+          const auto &kappa_p          = data.kappa_p;
+          const auto  weight           = data.time_data.get_primary_weight();
+          const auto &nonlinear_values = data.get_nonlinear_values();
+          const auto  inv_dt = 1. / this->data.time_data.get_current_dt();
 
-          std::array<VectorizedArrayType, n_grains> etas;
+          const bool use_coupled_model =
+            data.has_additional_variables_attached();
 
-          for (unsigned int ig = 0; ig < n_grains; ++ig)
-            etas[ig] = val[2 + ig];
+          if (this->advection.enabled())
+            this->advection.reinit(cell);
 
-          typename FECellIntegratorType::value_type    value_result;
-          typename FECellIntegratorType::gradient_type gradient_result;
+          const auto grain_to_relevant_grain =
+            this->data.get_grain_to_relevant_grain(cell); // TODO: make optional
 
-          for (unsigned int ig = 0; ig < n_grains; ++ig)
+          for (unsigned int q = 0; q < phi.n_q_points; ++q)
             {
-              value_result[ig] =
-                phi.get_value(q)[ig] * weight +
-                L * free_energy.d2f_detai2(c, etas, ig) * phi.get_value(q)[ig];
+              const auto &val = nonlinear_values[cell][q];
 
-              gradient_result[ig] = L * kappa_p * phi.get_gradient(q)[ig];
-            }
+              const auto &c = val[0];
 
-          if (use_coupled_model && this->advection.enabled())
-            {
-              Tensor<1, dim, VectorizedArrayType> lin_v_adv;
-              for (unsigned int d = 0; d < dim; ++d)
-                lin_v_adv[d] = val[n_grains + 2 + d] * inv_dt;
+              std::array<VectorizedArrayType, n_grains> etas;
 
               for (unsigned int ig = 0; ig < n_grains; ++ig)
-                value_result[ig] += lin_v_adv * phi.get_gradient(q)[ig];
-            }
-          else if (this->advection.enabled())
-            {
+                etas[ig] = val[2 + ig];
+
+              typename FECellIntegratorType::value_type    value_result;
+              typename FECellIntegratorType::gradient_type gradient_result;
+
               for (unsigned int ig = 0; ig < n_grains; ++ig)
-                if (grain_to_relevant_grain[ig] !=
-                      static_cast<unsigned char>(255) &&
-                    this->advection.has_velocity(grain_to_relevant_grain[ig]))
-                  {
-                    const auto &velocity_ig =
-                      this->advection.get_velocity(grain_to_relevant_grain[ig],
-                                                   phi.quadrature_point(q));
+                {
+                  value_result[ig] = phi.get_value(q)[ig] * weight +
+                                     L * free_energy.d2f_detai2(c, etas, ig) *
+                                       phi.get_value(q)[ig];
 
-                    value_result[ig] += velocity_ig * phi.get_gradient(q)[ig];
-                  }
+                  gradient_result[ig] = L * kappa_p * phi.get_gradient(q)[ig];
+                }
+
+              if (use_coupled_model && this->advection.enabled())
+                {
+                  Tensor<1, dim, VectorizedArrayType> lin_v_adv;
+                  for (unsigned int d = 0; d < dim; ++d)
+                    lin_v_adv[d] = val[n_grains + 2 + d] * inv_dt;
+
+                  for (unsigned int ig = 0; ig < n_grains; ++ig)
+                    value_result[ig] += lin_v_adv * phi.get_gradient(q)[ig];
+                }
+              else if (this->advection.enabled())
+                {
+                  for (unsigned int ig = 0; ig < n_grains; ++ig)
+                    if (grain_to_relevant_grain[ig] !=
+                          static_cast<unsigned char>(255) &&
+                        this->advection.has_velocity(
+                          grain_to_relevant_grain[ig]))
+                      {
+                        const auto &velocity_ig = this->advection.get_velocity(
+                          grain_to_relevant_grain[ig], phi.quadrature_point(q));
+
+                        value_result[ig] +=
+                          velocity_ig * phi.get_gradient(q)[ig];
+                      }
+                }
+
+              phi.submit_value(value_result, q);
+              phi.submit_gradient(gradient_result, q);
             }
-
-          phi.submit_value(value_result, q);
-          phi.submit_gradient(gradient_result, q);
+        }
+      else
+        {
+          AssertThrow(false, ExcNotImplemented());
+          (void)phi;
         }
     }
 
