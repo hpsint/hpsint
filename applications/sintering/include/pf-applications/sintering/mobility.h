@@ -491,10 +491,8 @@ namespace Sintering
         lin_c_value * lin_c_value * lin_c_value *
         (10.0 - 15.0 * lin_c_value + 6.0 * lin_c_value * lin_c_value);
 
-      phi = compare_and_apply_mask<SIMDComparison::less_than>(
-        phi, VectorizedArrayType(0.0), VectorizedArrayType(0.0), phi);
-      phi = compare_and_apply_mask<SIMDComparison::greater_than>(
-        phi, VectorizedArrayType(1.0), VectorizedArrayType(1.0), phi);
+      phi = std::max(VectorizedArrayType(0.0), phi);
+      phi = std::min(VectorizedArrayType(1.0), phi);
 
       const VectorizedArrayType M = Mvol * phi + Mvap * (1.0 - phi) +
                                     Msurf * 4.0 * lin_c_value * lin_c_value *
@@ -740,6 +738,7 @@ namespace Sintering
         lin_c_value * lin_c_value * lin_c_value *
         (10.0 - 15.0 * lin_c_value + 6.0 * lin_c_value * lin_c_value);
 
+      // TODO: min/max
       phi = compare_and_apply_mask<SIMDComparison::less_than>(
         phi, VectorizedArrayType(0.0), VectorizedArrayType(0.0), phi);
       phi = compare_and_apply_mask<SIMDComparison::greater_than>(
@@ -751,10 +750,15 @@ namespace Sintering
       // Surface anisotropic part
       const auto fsurf = Msurf * (lin_c_value * lin_c_value) *
                          ((1. - lin_c_value) * (1. - lin_c_value));
+
+      // TODO: use filter
       const auto nc = unit_vector(lin_c_gradient);
 
       const auto out =
         (f_vol_vap + fsurf) * mu_gradient - nc * (fsurf * (nc * mu_gradient));
+
+      if (n_grains <= 1)
+        return out;
 
       // GB diffusion part
       //
@@ -766,6 +770,7 @@ namespace Sintering
           {
             const auto eta_grad_diff =
               lin_etas_gradient[i] - lin_etas_gradient[j];
+            // TODO: use filter
             const auto neta = unit_vector(eta_grad_diff);
             out_gb += (mu_gradient - neta * (neta * mu_gradient)) *
                       (lin_etas_value[i] * lin_etas_value[j]);
@@ -804,10 +809,8 @@ namespace Sintering
           lin_c_value * lin_c_value * lin_c_value *
           (10.0 - 15.0 * lin_c_value + 6.0 * lin_c_value * lin_c_value);
 
-        phi = compare_and_apply_mask<SIMDComparison::less_than>(
-          phi, VectorizedArrayType(0.0), VectorizedArrayType(0.0), phi);
-        phi = compare_and_apply_mask<SIMDComparison::greater_than>(
-          phi, VectorizedArrayType(1.0), VectorizedArrayType(1.0), phi);
+        phi = std::max(VectorizedArrayType(0.0), phi);
+        phi = std::min(VectorizedArrayType(1.0), phi);
 
         // Volumetric and vaporization parts, the same as for isotropic
         const auto f_vol_vap = Mvol * phi + Mvap * (1.0 - phi);
@@ -858,6 +861,9 @@ namespace Sintering
                ((nc * lin_mu_gradient) * temp + nc * (lin_mu_gradient * temp));
       }
 
+      if (n_grains <= 1)
+        return out;
+
       // 4) for M (gb part) and for dM_detai
       {
         // warning: nested loop over grains; optimization: exploit symmetry
@@ -867,14 +873,18 @@ namespace Sintering
             {
               const auto eta_grad_diff =
                 lin_etas_gradient[i] - lin_etas_gradient[j];
-              const auto neta = unit_vector(eta_grad_diff);
 
-              out_gb += (mu_gradient - neta * (neta * mu_gradient)) *
+              const auto filter = unit_vector_filter_2(eta_grad_diff);
+
+              out_gb += (mu_gradient - (filter * eta_grad_diff) *
+                                         (eta_grad_diff * mu_gradient)) *
                         (lin_etas_value[i] * lin_etas_value[j]);
 
-              out_gb += (lin_mu_gradient - neta * (neta * lin_mu_gradient)) *
-                        (lin_etas_value[j] * etas_value[i] +
-                         lin_etas_value[i] * etas_value[j]);
+              out_gb +=
+                (lin_mu_gradient -
+                 (filter * eta_grad_diff) * (eta_grad_diff * lin_mu_gradient)) *
+                (lin_etas_value[j] * etas_value[i] +
+                 lin_etas_value[i] * etas_value[j]);
             }
       }
 

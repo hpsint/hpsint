@@ -78,6 +78,7 @@ namespace Sintering
       value_result[1] =
         -value[1] + free_energy.d2f_dc2(lin_c_value, lin_etas_value) * value[0];
 
+      // [PM] TODO: move loop into function (to do scaling once)
       for (unsigned int ig = 0; ig < n_grains; ++ig)
         value_result[1] +=
           free_energy.d2f_dcdetai(lin_c_value, lin_etas_value, ig) *
@@ -92,17 +93,17 @@ namespace Sintering
         {
           value_result[ig + 2] +=
             value[ig + 2] * weight +
-            L * free_energy.d2f_dcdetai(lin_c_value, lin_etas_value, ig) *
-              value[0] +
-            L *
-              free_energy.d2f_detai2(lin_c_value,
-                                     lin_etas_value,
-                                     lin_etas_value_power_2_sum,
-                                     ig) *
-              value[ig + 2];
+            L * (free_energy.d2f_dcdetai(lin_c_value, lin_etas_value, ig) *
+                   value[0] +
+                 free_energy.d2f_detai2(lin_c_value,
+                                        lin_etas_value,
+                                        lin_etas_value_power_2_sum,
+                                        ig) *
+                   value[ig + 2]);
 
           gradient_result[ig + 2] = L * kappa_p * gradient[ig + 2];
 
+          // [PM] TODO: cen we precompute the scalar product?
           for (unsigned int jg = 0; jg < ig; ++jg)
             {
               const auto d2f_detaidetaj =
@@ -123,8 +124,8 @@ namespace Sintering
               const auto &velocity_ig =
                 this->advection.get_velocity(ig, phi.quadrature_point(q));
 
+              // TODO: sum up velocities
               value_result[0] += velocity_ig * gradient[0];
-
               value_result[ig + 2] += velocity_ig * gradient[ig + 2];
             }
 
@@ -486,6 +487,7 @@ namespace Sintering
                   const auto &velocity_ig =
                     this->advection.get_velocity(ig, phi.quadrature_point(q));
 
+                  // TODO: sum up velocities
                   value_result[0] += velocity_ig * gradient[0];
                   value_result[2 + ig] += velocity_ig * gradient[2 + ig];
                 }

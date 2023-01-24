@@ -214,7 +214,7 @@ namespace Sintering
 
       const auto &etai = etas[index_i];
 
-      return B * 12.0 * etai * (etai - 1.0);
+      return (B * 12.0) * etai * (etai - 1.0);
     }
 
     template <typename VectorType>
