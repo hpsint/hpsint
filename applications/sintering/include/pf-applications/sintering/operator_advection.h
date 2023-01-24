@@ -119,7 +119,6 @@ namespace Sintering
       AdvectionMechanism<dim, Number, VectorizedArrayType> &advection_mechanism,
       const std::pair<unsigned int, unsigned int> &         range) const
     {
-      advection_mechanism.nullify_table(matrix_free.n_cell_batches(), n_grains);
       advection_mechanism.nullify_data(grain_tracker.n_segments());
 
       FECellIntegrator<dim, 2 + n_grains, Number, VectorizedArrayType> phi_sint(
@@ -135,6 +134,9 @@ namespace Sintering
       VectorizedArrayType zeros(0.0);
       VectorizedArrayType ones(1.0);
 
+      std::vector<unsigned int> index_ptr = {0};
+      std::vector<unsigned int> index_values;
+
       for (auto cell = range.first; cell < range.second; ++cell)
         {
           phi_sint.reinit(cell);
@@ -145,14 +147,23 @@ namespace Sintering
 
           phi_ft.reinit(cell);
 
+          const auto grain_to_relevant_grain =
+            this->data.get_grain_to_relevant_grain(cell);
+
           for (unsigned int ig = 0; ig < n_grains; ++ig)
             {
+              if (grain_to_relevant_grain[ig] ==
+                  static_cast<unsigned char>(255))
+                continue;
+
               Point<dim, VectorizedArrayType> rc;
 
               std::vector<std::pair<unsigned int, unsigned int>> segments(
                 matrix_free.n_active_entries_per_cell_batch(cell));
 
-              for (unsigned int i = 0; i < segments.size(); ++i)
+              unsigned int i = 0;
+
+              for (; i < segments.size(); ++i)
                 {
                   const auto icell = matrix_free.get_cell_iterator(cell, i);
                   const auto cell_index = icell->global_active_cell_index();
@@ -173,10 +184,7 @@ namespace Sintering
 
                       segments[i] = grain_and_segment;
 
-                      advection_mechanism.set_table_entry(
-                        cell,
-                        ig,
-                        i,
+                      index_values.push_back(
                         grain_tracker.get_grain_segment_index(
                           grain_and_segment.first, grain_and_segment.second));
                     }
@@ -185,8 +193,13 @@ namespace Sintering
                       segments[i] =
                         std::make_pair(numbers::invalid_unsigned_int,
                                        numbers::invalid_unsigned_int);
+
+                      index_values.push_back(numbers::invalid_unsigned_int);
                     }
                 }
+
+              for (; i < VectorizedArrayType::size(); ++i)
+                index_values.push_back(numbers::invalid_unsigned_int);
 
               for (unsigned int q = 0; q < phi_sint.n_q_points; ++q)
                 {
@@ -211,6 +224,10 @@ namespace Sintering
                   // other grains
                   for (unsigned int jg = 0; jg < n_grains; ++jg)
                     {
+                      if (grain_to_relevant_grain[ig] ==
+                          static_cast<unsigned char>(255))
+                        continue;
+
                       if (ig != jg)
                         {
                           auto &eta_j      = val[2 + jg];
@@ -293,7 +310,13 @@ namespace Sintering
                     }
                 }
             }
+
+          AssertDimension(index_values.size() % VectorizedArrayType::size(), 0);
+
+          index_ptr.push_back(index_values.size());
         }
+
+      advection_mechanism.set_grain_table(index_ptr, index_values);
 
       // Perform global communication
       MPI_Allreduce(MPI_IN_PLACE,

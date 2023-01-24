@@ -78,6 +78,10 @@ namespace Sintering
       if (this->advection.enabled())
         this->advection.reinit(cell);
 
+      const auto grain_to_relevant_grain =
+        this->data.get_grain_to_relevant_grain(cell); // TODO: make optional
+
+
       for (unsigned int q = 0; q < phi.n_q_points; ++q)
         {
           const auto &val  = nonlinear_values[cell][q];
@@ -132,13 +136,14 @@ namespace Sintering
             }
           else if (this->advection.enabled())
             {
-              Assert(!this->data.cut_off_enabled(), ExcNotImplemented());
-
               for (unsigned int ig = 0; ig < n_grains; ++ig)
-                if (this->advection.has_velocity(ig))
+                if (grain_to_relevant_grain[ig] !=
+                      static_cast<unsigned char>(255) &&
+                    this->advection.has_velocity(grain_to_relevant_grain[ig]))
                   {
                     const auto &velocity_ig =
-                      this->advection.get_velocity(ig, phi.quadrature_point(q));
+                      this->advection.get_velocity(grain_to_relevant_grain[ig],
+                                                   phi.quadrature_point(q));
 
                     value_result[0] += velocity_ig * phi.get_gradient(q)[0];
                   }
@@ -323,6 +328,9 @@ namespace Sintering
           if (this->advection.enabled())
             this->advection.reinit(cell);
 
+          const auto grain_to_relevant_grain =
+            this->data.get_grain_to_relevant_grain(cell); // TODO: make optional
+
           for (unsigned int q = 0; q < phi.n_q_points; ++q)
             {
               const auto &val = nonlinear_values[cell][q];
@@ -367,13 +375,14 @@ namespace Sintering
                 }
               else if (this->advection.enabled())
                 {
-                  Assert(!this->data.cut_off_enabled(), ExcNotImplemented());
                   for (unsigned int ig = 0; ig < n_grains; ++ig)
-                    if (this->advection.has_velocity(ig))
+                    if (grain_to_relevant_grain[ig] !=
+                          static_cast<unsigned char>(255) &&
+                        this->advection.has_velocity(
+                          grain_to_relevant_grain[ig]))
                       {
-                        const auto &velocity_ig =
-                          this->advection.get_velocity(ig,
-                                                       phi.quadrature_point(q));
+                        const auto &velocity_ig = this->advection.get_velocity(
+                          grain_to_relevant_grain[ig], phi.quadrature_point(q));
 
                         value_result[ig] +=
                           velocity_ig * phi.get_gradient(q)[ig];
@@ -492,6 +501,9 @@ namespace Sintering
           if (this->advection.enabled())
             this->advection.reinit(cell);
 
+          const auto grain_to_relevant_grain =
+            this->data.get_grain_to_relevant_grain(cell); // TODO: make optional
+
           for (unsigned int q = 0; q < phi.n_q_points; ++q)
             {
               const auto &val = nonlinear_values[cell][q];
@@ -526,13 +538,14 @@ namespace Sintering
                 }
               else if (this->advection.enabled())
                 {
-                  Assert(!this->data.cut_off_enabled(), ExcNotImplemented());
                   for (unsigned int ig = 0; ig < n_grains; ++ig)
-                    if (this->advection.has_velocity(ig))
+                    if (grain_to_relevant_grain[ig] !=
+                          static_cast<unsigned char>(255) &&
+                        this->advection.has_velocity(
+                          grain_to_relevant_grain[ig]))
                       {
-                        const auto &velocity_ig =
-                          this->advection.get_velocity(ig,
-                                                       phi.quadrature_point(q));
+                        const auto &velocity_ig = this->advection.get_velocity(
+                          grain_to_relevant_grain[ig], phi.quadrature_point(q));
 
                         value_result[ig] +=
                           velocity_ig * phi.get_gradient(q)[ig];
@@ -669,6 +682,10 @@ namespace Sintering
             if (this->advection.enabled())
               this->advection.reinit(cell);
 
+            const auto grain_to_relevant_grain =
+              this->data.get_grain_to_relevant_grain(
+                cell); // TODO: make optional
+
             // 1) get indices
             for (unsigned int v = 0; v < n_filled_lanes; ++v)
               {
@@ -787,14 +804,15 @@ namespace Sintering
 
                                 value_result += lin_v_adv * gradient;
                               }
-                            else if (this->advection.has_velocity(b))
+                            else if (grain_to_relevant_grain[b] !=
+                                       static_cast<unsigned char>(255) &&
+                                     this->advection.has_velocity(
+                                       grain_to_relevant_grain[b]))
                               {
-                                Assert(!this->data.cut_off_enabled(),
-                                       ExcNotImplemented());
-
                                 const auto &velocity_ig =
                                   this->advection.get_velocity(
-                                    b, integrator.quadrature_point(q));
+                                    grain_to_relevant_grain[b],
+                                    integrator.quadrature_point(q));
 
                                 value_result += velocity_ig * gradient;
                               }

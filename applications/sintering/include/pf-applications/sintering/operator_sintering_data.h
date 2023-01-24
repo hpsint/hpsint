@@ -223,10 +223,9 @@ namespace Sintering
 
         pcout << "  - " << max_value << " (";
 
-        pcout << (0) << ": " << std::fixed << std::setprecision(2)
-              << static_cast<double>(max_values[0]) / sum * 100;
+        pcout << (0) << ": " << static_cast<double>(max_values[0]) / sum * 100;
         for (unsigned int i = 1; i < max_values.size(); ++i)
-          pcout << ", " << i << ": " << std::fixed << std::setprecision(2)
+          pcout << ", " << i << ": "
                 << static_cast<double>(max_values[i]) / sum * 100;
 
         pcout << ")" << std::endl;
@@ -403,6 +402,28 @@ namespace Sintering
                                               relevant_grains_ptr[cell],
                                             relevant_grains_ptr[cell + 1] -
                                               relevant_grains_ptr[cell]);
+    }
+
+    std::vector<unsigned char>
+    get_grain_to_relevant_grain(const unsigned cell) const
+    {
+      std::vector<unsigned char> result(this->n_grains(),
+                                        static_cast<unsigned char>(255));
+
+      if (!cut_off_enabled())
+        {
+          for (unsigned int i = 0; i < this->n_grains(); ++i)
+            result[i] = i;
+
+          return result;
+        }
+
+      const auto relevant_grains = get_relevant_grains(cell);
+
+      for (unsigned int i = 0; i < relevant_grains.size(); ++i)
+        result[relevant_grains[i]] = i;
+
+      return result;
     }
 
     bool
