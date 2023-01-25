@@ -703,6 +703,13 @@ namespace Preconditioners
       additional_data.overlap  = 0;
     }
 
+    ILU(
+      const Operator &                                         op,
+      const TrilinosWrappers::PreconditionILU::AdditionalData &additional_data)
+      : op(op)
+      , additional_data(additional_data)
+    {}
+
     virtual void
     clear()
     {
@@ -788,6 +795,14 @@ namespace Preconditioners
       additional_data.ilu_rtol = 1.0;
       additional_data.overlap  = 0;
     }
+
+    BlockILU(
+      const Operator &                                         op,
+      const TrilinosWrappers::PreconditionILU::AdditionalData &additional_data)
+      : op(op)
+      , single_block(op.n_unique_components() == 1)
+      , additional_data(additional_data)
+    {}
 
     virtual void
     clear()
