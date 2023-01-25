@@ -544,15 +544,12 @@ namespace Preconditioners
     using BlockVectorType = typename PreconditionerBase<
       typename Operator::value_type>::BlockVectorType;
 
-    AMG(const Operator &op)
+    AMG(const Operator &op,
+        const TrilinosWrappers::PreconditionAMG::AdditionalData
+          additional_data = TrilinosWrappers::PreconditionAMG::AdditionalData())
       : op(op)
-    {
-      // TODO: add params to ctor
-      additional_data.smoother_sweeps = 4;
-      additional_data.n_cycles        = 5;
-      additional_data.smoother_type   = "Chebyshev";
-      additional_data.coarse_type     = "Amesos-KLU";
-    }
+      , additional_data(additional_data)
+    {}
 
     virtual void
     clear()
@@ -624,8 +621,12 @@ namespace Preconditioners
     using BlockVectorType = typename PreconditionerBase<
       typename Operator::value_type>::BlockVectorType;
 
-    BlockAMG(const Operator &op)
+    BlockAMG(
+      const Operator &                                        op,
+      const TrilinosWrappers::PreconditionAMG::AdditionalData additional_data =
+        TrilinosWrappers::PreconditionAMG::AdditionalData())
       : op(op)
+      , additional_data(additional_data)
     {}
 
     virtual void
