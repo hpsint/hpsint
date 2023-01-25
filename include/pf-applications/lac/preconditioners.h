@@ -1170,15 +1170,33 @@ namespace Preconditioners
     return {};
   }
 
-  template <typename T, typename AD>
+  template <typename T>
   std::unique_ptr<PreconditionerBase<typename T::value_type>>
-  create(const T &op, const std::string &label, const AD &additional_data)
+  create(const T &                                          op,
+         const std::string &                                label,
+         TrilinosWrappers::PreconditionAMG::AdditionalData &additional_data)
   {
     if (label == "AMG")
       return std::make_unique<AMG<T>>(op, additional_data);
     else if (label == "BlockAMG")
       return std::make_unique<BlockAMG<T>>(op, additional_data);
-    else if (label == "ILU")
+
+    AssertThrow(
+      false,
+      ExcMessage(
+        "Preconditioner << " + label +
+        " >> not known or cannot be initialized with AMG additional data!"));
+
+    return {};
+  }
+
+  template <typename T>
+  std::unique_ptr<PreconditionerBase<typename T::value_type>>
+  create(const T &                                          op,
+         const std::string &                                label,
+         TrilinosWrappers::PreconditionILU::AdditionalData &additional_data)
+  {
+    if (label == "ILU")
       return std::make_unique<ILU<T>>(op, additional_data);
     else if (label == "BlockILU")
       return std::make_unique<BlockILU<T>>(op, additional_data);
@@ -1187,7 +1205,7 @@ namespace Preconditioners
       false,
       ExcMessage(
         "Preconditioner << " + label +
-        " >> not known or cannot be initialized with additional data!"));
+        " >> not known or cannot be initialized with ILU additional data!"));
 
     return {};
   }
