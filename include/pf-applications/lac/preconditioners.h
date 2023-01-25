@@ -1155,7 +1155,27 @@ namespace Preconditioners
     return {};
   }
 
+  template <typename T, typename AD>
+  std::unique_ptr<PreconditionerBase<typename T::value_type>>
+  create(const T &op, const std::string &label, const AD &additiona_data)
+  {
+    if (label == "AMG")
+      return std::make_unique<AMG<T>>(op, additional_data);
+    else if (label == "BlockAMG")
+      return std::make_unique<BlockAMG<T>>(op, additional_data);
+    else if (label == "ILU")
+      return std::make_unique<ILU<T>>(op, additional_data);
+    else if (label == "BlockILU")
+      return std::make_unique<BlockILU<T>>(op, additional_data);
 
+    AssertThrow(
+      false,
+      ExcMessage(
+        "Preconditioner << " + label +
+        " >> not known or cannot be initialized with additional data!"));
+
+    return {};
+  }
 
   template <typename T>
   std::unique_ptr<PreconditionerBase<typename T::value_type>>
