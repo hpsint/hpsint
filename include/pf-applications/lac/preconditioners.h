@@ -1157,7 +1157,7 @@ namespace Preconditioners
 
   template <typename T, typename AD>
   std::unique_ptr<PreconditionerBase<typename T::value_type>>
-  create(const T &op, const std::string &label, const AD &additiona_data)
+  create(const T &op, const std::string &label, const AD &additional_data)
   {
     if (label == "AMG")
       return std::make_unique<AMG<T>>(op, additional_data);

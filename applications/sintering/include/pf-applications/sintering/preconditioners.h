@@ -1050,7 +1050,7 @@ namespace Sintering
         {
           if (data.block_2_preconditioner == "AMG")
             {
-              TrilinosWrappers::PreconditionAMG::AdditionalData additiona_data;
+              TrilinosWrappers::PreconditionAMG::AdditionalData additional_data;
               additional_data.smoother_sweeps =
                 data.block_2_amg_data.smoother_sweeps;
               additional_data.n_cycles = data.block_2_amg_data.n_cycles;
