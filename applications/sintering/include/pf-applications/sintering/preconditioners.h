@@ -1047,8 +1047,25 @@ namespace Sintering
 #else
       if (true)
 #endif
-        preconditioner_2 =
-          Preconditioners::create(*operator_2, data.block_2_preconditioner);
+        {
+          if (data.block_2_preconditioner == "AMG")
+            {
+              TrilinosWrappers::PreconditionAMG::AdditionalData additiona_data;
+              additional_data.smoother_sweeps =
+                data.block_2_amg_data.smoother_sweeps;
+              additional_data.n_cycles = data.block_2_amg_data.n_cycles;
+              preconditioner_2 =
+                Preconditioners::create(*operator_2,
+                                        data.block_2_preconditioner,
+                                        additional_data);
+            }
+          else
+            {
+              preconditioner_2 =
+                Preconditioners::create(*operator_2,
+                                        data.block_2_preconditioner);
+            }
+        }
     }
 
     BlockPreconditioner2(
