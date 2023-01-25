@@ -546,7 +546,13 @@ namespace Preconditioners
 
     AMG(const Operator &op)
       : op(op)
-    {}
+    {
+      // TODO: add params to ctor
+      additional_data.smoother_sweeps = 4;
+      additional_data.n_cycles        = 5;
+      additional_data.smoother_type   = "Chebyshev";
+      additional_data.coarse_type     = "Amesos-KLU";
+    }
 
     virtual void
     clear()

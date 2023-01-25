@@ -185,7 +185,7 @@ namespace Sintering
           "solid_op")
       , data(data)
       , displ_constraints_indices(displ_constraints_indices)
-      , material(E, nu, Structural::MaterialPlaneType::plane_strain)
+      , material(E, nu, Structural::MaterialPlaneType::none)
     {}
 
     unsigned int
