@@ -378,7 +378,7 @@ namespace Sintering
 
                   gradient_result[2 + ig] = L * kappa_p * grad[2 + ig];
 
-                  if (false && this->advection.enabled())
+                  if (this->advection.enabled())
                     {
                       value_result[2 + ig] += v_adv * grad[2 + ig];
 
