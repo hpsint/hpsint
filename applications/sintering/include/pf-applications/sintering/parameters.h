@@ -884,6 +884,16 @@ namespace Sintering
         preconditioners_data.block_preconditioner_2_data.block_2_preconditioner,
         "Preconditioner to be used for the first block.",
         Patterns::Selection(preconditioner_types));
+
+      prm.enter_subsection("Block2AMG");
+      prm.add_parameter("SmootherSweeps",
+                        preconditioners_data.block_preconditioner_2_data.block2_amg_data.smoother_sweeps,
+                        "Smoother sweeps");
+      prm.add_parameter("NCycles",
+                        preconditioners_data.block_preconditioner_2_data.block2_amg_data.n_cycles,
+                        "Number of cycles");
+      prm.leave_subsection();
+
       prm.leave_subsection();
 
       prm.leave_subsection();
