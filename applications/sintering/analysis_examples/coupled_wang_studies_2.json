@@ -79,7 +79,7 @@
             "Block1Approximation": "avg",
             "Block1Preconditioner": "BlockILU",
             "Block2Preconditioner": "AMG",
-            "Block2AMG" : {
+            "Block2AMG": {
                 "SmootherSweeps": 4,
                 "NCycles": 5
             }
