@@ -545,7 +545,7 @@ namespace Preconditioners
       typename Operator::value_type>::BlockVectorType;
 
     AMG(const Operator &op,
-        const TrilinosWrappers::PreconditionAMG::AdditionalData
+        const TrilinosWrappers::PreconditionAMG::AdditionalData &
           additional_data = TrilinosWrappers::PreconditionAMG::AdditionalData())
       : op(op)
       , additional_data(additional_data)
@@ -622,8 +622,8 @@ namespace Preconditioners
       typename Operator::value_type>::BlockVectorType;
 
     BlockAMG(
-      const Operator &                                        op,
-      const TrilinosWrappers::PreconditionAMG::AdditionalData additional_data =
+      const Operator &                                         op,
+      const TrilinosWrappers::PreconditionAMG::AdditionalData &additional_data =
         TrilinosWrappers::PreconditionAMG::AdditionalData())
       : op(op)
       , additional_data(additional_data)
