@@ -2841,7 +2841,7 @@ namespace Sintering
           pcout << "Outputing data at t = " << t << " (" << output << ")"
                 << std::endl;
 
-          Postprocessors::output_grain_contours(
+          Postprocessors::output_grain_contours_vtu(
             mapping,
             dof_handler,
             solution,
@@ -2850,6 +2850,24 @@ namespace Sintering
             sintering_operator.n_grains(),
             grain_tracker,
             params.output_data.n_coarsening_steps);
+        }
+
+      if (params.output_data.contours)
+        {
+          std::string output = params.output_data.vtk_path + "/contour_" +
+                               label + "." + std::to_string(counters[label]) +
+                               ".txt";
+
+          pcout << "Outputing data at t = " << t << " (" << output << ")"
+                << std::endl;
+
+          Postprocessors::output_grain_contours(mapping,
+                                                dof_handler,
+                                                solution,
+                                                0.5,
+                                                output,
+                                                sintering_operator.n_grains(),
+                                                grain_tracker);
         }
 
       if (params.output_data.porosity)

@@ -79,6 +79,116 @@ namespace Sintering
       const std::string                         filename,
       const unsigned int                        n_grains,
       const GrainTracker::Tracker<dim, Number> &grain_tracker_in,
+      const unsigned int                        n_subdivisions = 1,
+      const double                              tolerance      = 1e-10)
+    {
+      (void)mapping;
+      (void)background_dof_handler;
+      (void)vector;
+      (void)iso_level;
+      (void)filename;
+      (void)n_grains;
+      (void)grain_tracker_in;
+      (void)n_subdivisions;
+      (void)tolerance;
+
+      const auto comm = background_dof_handler.get_communicator();
+
+      const bool has_ghost_elements = vector.has_ghost_elements();
+
+      if (has_ghost_elements == false)
+        vector.update_ghost_values();
+
+      auto grain_tracker = grain_tracker_in.clone();
+      grain_tracker->track(vector, n_grains, true);
+
+
+      ConditionalOStream pcout(std::cout,
+                               Utilities::MPI::this_mpi_process(comm) == 0);
+
+      const auto grains = grain_tracker->get_grains();
+
+      pcout << grains.size() << std::endl;
+      pcout << n_grains << std::endl;
+      for (const auto &entry : grains)
+        pcout << entry.second.get_order_parameter_id() << " ";
+      pcout << std::endl;
+
+      const auto bb = GridTools::compute_bounding_box(
+        background_dof_handler.get_triangulation());
+
+      for (unsigned int d = 0; d < dim; ++d)
+        pcout << bb.get_boundary_points().first[d] << " ";
+      pcout << std::endl;
+
+      for (unsigned int d = 0; d < dim; ++d)
+        pcout << bb.get_boundary_points().second[d] << " ";
+      pcout << std::endl;
+
+      std::vector<Number> parameters((dim + 1) * grains.size(), 0);
+
+      for (unsigned int b = 0; b < n_grains; ++b)
+        {
+          for (const auto &cell :
+               background_dof_handler.active_cell_iterators())
+            if (cell->is_locally_owned())
+              {
+                if (grain_tracker->get_particle_index(
+                      b, cell->global_active_cell_index()) ==
+                    numbers::invalid_unsigned_int)
+                  continue;
+
+                const auto grain_id =
+                  grain_tracker
+                    ->get_grain_and_segment(b,
+                                            grain_tracker->get_particle_index(
+                                              b,
+                                              cell->global_active_cell_index()))
+                    .first;
+
+                if (grain_id == numbers::invalid_unsigned_int)
+                  continue;
+
+                deallog << grain_id << std::endl;
+
+                const auto center  = cell->center();
+                const auto measure = cell->measure();
+
+                for (unsigned int d = 0; d < dim; ++d)
+                  parameters[grain_id * (dim + 1) + d] += center[d] * measure;
+
+                parameters[grain_id * (dim + 1) + dim] += measure;
+              }
+        }
+
+      Utilities::MPI::sum(parameters, comm, parameters);
+
+      for (unsigned int g = 0; g < grains.size(); ++g)
+        {
+          for (unsigned int d = 0; d < dim; ++d)
+            parameters[g * (dim + 1) + d] /= parameters[g * (dim + 1) + dim];
+          parameters[g * (dim + 1) + dim] =
+            std::sqrt(parameters[g * (dim + 1) + dim] / numbers::PI);
+        }
+
+      for (const auto &i : parameters)
+        pcout << i << " ";
+      pcout << std::endl;
+
+      if (has_ghost_elements == false)
+        vector.zero_out_ghost_values();
+    }
+
+    template <int dim, typename VectorType, typename Number>
+    void
+    output_grain_contours_vtu(
+      const Mapping<dim> &                      mapping,
+      const DoFHandler<dim> &                   background_dof_handler,
+      const VectorType &                        vector,
+      const double                              iso_level,
+      const std::string                         filename,
+      const unsigned int                        n_grains,
+      const GrainTracker::Tracker<dim, Number> &grain_tracker_in,
       const unsigned int                        n_coarsening_steps = 0,
       const unsigned int                        n_subdivisions     = 1,
       const double                              tolerance          = 1e-10)
