@@ -17,7 +17,7 @@ namespace Sintering
     {
       const double alfa = 2 * M_PI / n_grains;
 
-      const double h = r0 / std::sin(alfa / 2.);
+      const double h = (n_grains > 1) ? r0 / std::sin(alfa / 2.) : 0.;
 
       for (unsigned int ip = 0; ip < n_grains; ip++)
         {
@@ -31,7 +31,7 @@ namespace Sintering
         {
           if (n_grains == 1)
             {
-              this->order_parameter_to_grains[0];
+              this->order_parameter_to_grains[0] = {0};
             }
           else
             {
