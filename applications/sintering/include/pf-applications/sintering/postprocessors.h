@@ -522,6 +522,37 @@ namespace Sintering
               cell, vector_to_be_used->block(0), iso_level, vertices, cells);
           }
 
+    template <int dim, typename VectorType>
+    typename VectorType::value_type
+    compute_surface_area(const Mapping<dim> &   mapping,
+                         const DoFHandler<dim> &background_dof_handler,
+                         const VectorType &     vector,
+                         const double           iso_level = 0.5)
+    {
+      const auto &concentration = vector.block(0);
+
+      const bool has_ghost_elements = concentration.has_ghost_elements();
+
+      if (has_ghost_elements == false)
+        concentration.update_ghost_values();
+
+      parallel::distributed::Triangulation<dim> tria_copy(
+        background_dof_handler.get_communicator());
+      DoFHandler<dim> dof_handler_copy;
+      VectorType      solution_dealii;
+
+      std::vector<Point<dim>>        vertices;
+      std::vector<CellData<dim - 1>> cells;
+      SubCellData                    subcelldata;
+
+      const GridTools::MarchingCubeAlgorithm<dim,
+                                             typename VectorType::BlockType>
+        mc(mapping, background_dof_handler.get_fe(), n_subdivisions, tolerance);
+
+      for (const auto &cell : background_dof_handler.active_cell_iterators())
+        if (cell->is_locally_owned())
+          mc.process_cell(cell, vector.block(0), iso_level, vertices, cells);
+
       typename VectorType::value_type surf_area = 0;
       if (vertices.size() > 0)
         {
@@ -537,7 +568,7 @@ namespace Sintering
         }
 
       if (has_ghost_elements == false)
-        only_concentration->zero_out_ghost_values();
+        concentration.zero_out_ghost_values();
 
       return surf_area;
     }

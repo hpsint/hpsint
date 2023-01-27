@@ -2833,12 +2833,10 @@ namespace Sintering
               if (params.output_data.iso_surf_area)
                 {
                   const auto surface_area =
-                    Postprocessors::compute_surface_area(
-                      mapping,
-                      dof_handler,
-                      solution,
-                      0.5,
-                      params.output_data.n_coarsening_steps);
+                    Postprocessors::compute_surface_area(mapping,
+                                                         dof_handler,
+                                                         solution,
+                                                         0.5);
 
                   table.add_value("iso_surf_area", surface_area);
                 }
