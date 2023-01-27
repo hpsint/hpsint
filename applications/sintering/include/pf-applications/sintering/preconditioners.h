@@ -945,7 +945,11 @@ namespace Sintering
     }
   };
 
-
+  struct AMGData
+  {
+    unsigned int smoother_sweeps = 4;
+    unsigned int n_cycles        = 5;
+  };
 
   struct BlockPreconditioner2Data
   {
@@ -954,6 +958,8 @@ namespace Sintering
     std::string block_2_preconditioner = "AMG";
 
     std::string block_1_approximation = "all";
+
+    AMGData block_2_amg_data;
   };
 
 
@@ -1041,8 +1047,25 @@ namespace Sintering
 #else
       if (true)
 #endif
-        preconditioner_2 =
-          Preconditioners::create(*operator_2, data.block_2_preconditioner);
+        {
+          if (data.block_2_preconditioner == "AMG")
+            {
+              TrilinosWrappers::PreconditionAMG::AdditionalData additional_data;
+              additional_data.smoother_sweeps =
+                data.block_2_amg_data.smoother_sweeps;
+              additional_data.n_cycles = data.block_2_amg_data.n_cycles;
+              preconditioner_2 =
+                Preconditioners::create(*operator_2,
+                                        data.block_2_preconditioner,
+                                        additional_data);
+            }
+          else
+            {
+              preconditioner_2 =
+                Preconditioners::create(*operator_2,
+                                        data.block_2_preconditioner);
+            }
+        }
     }
 
     BlockPreconditioner2(

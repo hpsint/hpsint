@@ -51,7 +51,9 @@ public:
   using VectorType = LinearAlgebra::distributed::DynamicBlockVector<Number>;
 
   void
-  run(const bool matrix_based, const bool manual_constraints)
+  run(const bool         matrix_based,
+      const bool         manual_constraints,
+      const unsigned int n_refinements)
   {
     ConditionalOStream pcout(std::cout,
                              Utilities::MPI::this_mpi_process(MPI_COMM_WORLD) ==
@@ -67,8 +69,6 @@ public:
         top_right[d]    = 1.0;
         subdivisions[d] = 1;
       }
-
-    const unsigned int n_refinements = 2;
 
     // Material
     const double E  = 1.0;
@@ -198,9 +198,9 @@ public:
     // Initial configuration
     output_result(0);
 
-    ReductionControl solver_control_l(100, 1e-10, 1e-9);
+    ReductionControl solver_control_l(1000, 1e-10, 1e-9);
 
-    auto preconditioner = Preconditioners::create(nonlinear_operator, "ILU");
+    auto preconditioner = Preconditioners::create(nonlinear_operator, "AMG");
 
     LinearSolvers::GMRESData gmres_data;
     gmres_data.orthogonalization_strategy = "modified gram schmidt";
@@ -279,20 +279,30 @@ public:
               << std::endl;
     std::cout << "Residual evaluations:  "
               << statistics.n_residual_evaluations() << std::endl;
+    std::cout << "n_refinements:         " << n_refinements << std::endl;
   }
 };
 
 int
 main(int argc, char **argv)
 {
-  bool matrix_based       = false;
-  bool manual_constraints = false;
+  bool         matrix_based       = false;
+  bool         manual_constraints = false;
+  unsigned int n_refinements      = 2;
 
-  if (argc >= 2 && std::string(argv[1]) == "--matrix-based")
-    matrix_based = true;
+  for (int i = 1; i < argc; ++i)
+    {
+      const std::string flag = std::string(argv[i]);
+      if (flag == "--matrix-based")
+        matrix_based = true;
+      else if (flag == "--manual-constraints")
+        manual_constraints = true;
+      else if (flag == "--refinements" && i < argc - 1)
+        n_refinements = atoi(argv[++i]);
+    }
 
-  if (argc >= 3 && std::string(argv[2]) == "--manual-constraints")
-    manual_constraints = true;
+  AssertThrow(n_refinements > 0,
+              ExcMessage("The number of refinements has to be positive"));
 
   Utilities::MPI::MPI_InitFinalize mpi_init(argc, argv, 1);
 
@@ -301,5 +311,5 @@ main(int argc, char **argv)
   constexpr int n_points_1D = fe_degree + 1;
 
   Test<dim, fe_degree, n_points_1D, double, VectorizedArray<double, 4>> runner;
-  runner.run(matrix_based, manual_constraints);
+  runner.run(matrix_based, manual_constraints, n_refinements);
 }

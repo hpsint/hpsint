@@ -544,15 +544,12 @@ namespace Preconditioners
     using BlockVectorType = typename PreconditionerBase<
       typename Operator::value_type>::BlockVectorType;
 
-    AMG(const Operator &op)
+    AMG(const Operator &op,
+        const TrilinosWrappers::PreconditionAMG::AdditionalData &
+          additional_data = TrilinosWrappers::PreconditionAMG::AdditionalData())
       : op(op)
-    {
-      // TODO: add params to ctor
-      additional_data.smoother_sweeps = 4;
-      additional_data.n_cycles        = 5;
-      additional_data.smoother_type   = "Chebyshev";
-      additional_data.coarse_type     = "Amesos-KLU";
-    }
+      , additional_data(additional_data)
+    {}
 
     virtual void
     clear()
@@ -624,8 +621,12 @@ namespace Preconditioners
     using BlockVectorType = typename PreconditionerBase<
       typename Operator::value_type>::BlockVectorType;
 
-    BlockAMG(const Operator &op)
+    BlockAMG(
+      const Operator &                                         op,
+      const TrilinosWrappers::PreconditionAMG::AdditionalData &additional_data =
+        TrilinosWrappers::PreconditionAMG::AdditionalData())
       : op(op)
+      , additional_data(additional_data)
     {}
 
     virtual void
@@ -701,6 +702,13 @@ namespace Preconditioners
       additional_data.ilu_rtol = 1.0;
       additional_data.overlap  = 0;
     }
+
+    ILU(
+      const Operator &                                         op,
+      const TrilinosWrappers::PreconditionILU::AdditionalData &additional_data)
+      : op(op)
+      , additional_data(additional_data)
+    {}
 
     virtual void
     clear()
@@ -787,6 +795,14 @@ namespace Preconditioners
       additional_data.ilu_rtol = 1.0;
       additional_data.overlap  = 0;
     }
+
+    BlockILU(
+      const Operator &                                         op,
+      const TrilinosWrappers::PreconditionILU::AdditionalData &additional_data)
+      : op(op)
+      , single_block(op.n_unique_components() == 1)
+      , additional_data(additional_data)
+    {}
 
     virtual void
     clear()
@@ -1154,7 +1170,45 @@ namespace Preconditioners
     return {};
   }
 
+  template <typename T>
+  std::unique_ptr<PreconditionerBase<typename T::value_type>>
+  create(const T &                                          op,
+         const std::string &                                label,
+         TrilinosWrappers::PreconditionAMG::AdditionalData &additional_data)
+  {
+    if (label == "AMG")
+      return std::make_unique<AMG<T>>(op, additional_data);
+    else if (label == "BlockAMG")
+      return std::make_unique<BlockAMG<T>>(op, additional_data);
 
+    AssertThrow(
+      false,
+      ExcMessage(
+        "Preconditioner << " + label +
+        " >> not known or cannot be initialized with AMG additional data!"));
+
+    return {};
+  }
+
+  template <typename T>
+  std::unique_ptr<PreconditionerBase<typename T::value_type>>
+  create(const T &                                          op,
+         const std::string &                                label,
+         TrilinosWrappers::PreconditionILU::AdditionalData &additional_data)
+  {
+    if (label == "ILU")
+      return std::make_unique<ILU<T>>(op, additional_data);
+    else if (label == "BlockILU")
+      return std::make_unique<BlockILU<T>>(op, additional_data);
+
+    AssertThrow(
+      false,
+      ExcMessage(
+        "Preconditioner << " + label +
+        " >> not known or cannot be initialized with ILU additional data!"));
+
+    return {};
+  }
 
   template <typename T>
   std::unique_ptr<PreconditionerBase<typename T::value_type>>
