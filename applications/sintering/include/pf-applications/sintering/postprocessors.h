@@ -553,7 +553,7 @@ namespace Sintering
 
       for (const auto &cell : background_dof_handler.active_cell_iterators())
         if (cell->is_locally_owned())
-          mc.process_cell(cell, vector.block(0), iso_level, vertices, cells);
+          mc.process_cell(cell, concentration, iso_level, vertices, cells);
 
       typename VectorType::value_type surf_area = 0;
       if (vertices.size() > 0)
