@@ -469,7 +469,7 @@ namespace Sintering
                                 const double           iso_level,
                                 const std::string      filename,
                                 const unsigned int     n_grains,
-                                const double           gb_lim             = 0.1,
+                                const double           gb_lim             = 0.14,
                                 const unsigned int     n_coarsening_steps = 0,
                                 const unsigned int     n_subdivisions     = 1,
                                 const double           tolerance = 1e-10)
