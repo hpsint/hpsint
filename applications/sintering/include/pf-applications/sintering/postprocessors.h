@@ -527,7 +527,9 @@ namespace Sintering
     compute_surface_area(const Mapping<dim> &   mapping,
                          const DoFHandler<dim> &background_dof_handler,
                          const VectorType &     vector,
-                         const double           iso_level = 0.5)
+                         const double           iso_level,
+                         const unsigned int     n_subdivisions = 1,
+                         const double           tolerance      = 1e-10)
     {
       const auto &concentration = vector.block(0);
 
