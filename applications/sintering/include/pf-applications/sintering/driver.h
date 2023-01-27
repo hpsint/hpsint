@@ -2840,6 +2840,20 @@ namespace Sintering
 
                   table.add_value("iso_surf_area", surface_area);
                 }
+
+              if (params.output_data.iso_gb_area)
+                {
+                  const auto gb_area =
+                    Postprocessors::compute_grain_boundaries_area(
+                      mapping,
+                      dof_handler,
+                      solution,
+                      0.5,
+                      sintering_operator.n_grains(),
+                      0.14);
+
+                  table.add_value("iso_gb_area", gb_area);
+                }
             }
         }
 
