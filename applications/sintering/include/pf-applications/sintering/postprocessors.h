@@ -561,11 +561,10 @@ namespace Sintering
 
           for (const auto &cell : tria.active_cell_iterators())
             surf_area += cell->measure();
-
-          surf_area =
-            Utilities::MPI::sum(surf_area,
-                                background_dof_handler.get_communicator());
         }
+      surf_area =
+        Utilities::MPI::sum(surf_area,
+                            background_dof_handler.get_communicator());
 
       if (has_ghost_elements == false)
         concentration.zero_out_ghost_values();
