@@ -69,6 +69,97 @@ namespace Sintering
 {
   namespace Postprocessors
   {
+    namespace internal
+    {
+      template <int dim, typename VectorType>
+      bool
+      coarsen_triangulation(
+        parallel::distributed::Triangulation<dim> &tria_copy,
+        const DoFHandler<dim> &                    background_dof_handler,
+        DoFHandler<dim> &  background_dof_handler_coarsened,
+        const VectorType & vector,
+        VectorType &       vector_coarsened,
+        const unsigned int n_coarsening_steps)
+      {
+        if (n_coarsening_steps == 0)
+          return false;
+
+        tria_copy.copy_triangulation(
+          background_dof_handler.get_triangulation());
+        background_dof_handler_coarsened.reinit(tria_copy);
+        background_dof_handler_coarsened.distribute_dofs(
+          background_dof_handler.get_fe_collection());
+
+        // 1) copy solution so that it has the right ghosting
+        const auto partitioner = std::make_shared<Utilities::MPI::Partitioner>(
+          background_dof_handler_coarsened.locally_owned_dofs(),
+          DoFTools::extract_locally_relevant_dofs(
+            background_dof_handler_coarsened),
+          background_dof_handler_coarsened.get_communicator());
+
+        vector_coarsened.reinit(vector.n_blocks());
+
+        for (unsigned int b = 0; b < vector_coarsened.n_blocks(); ++b)
+          {
+            vector_coarsened.block(b).reinit(partitioner);
+            vector_coarsened.block(b).copy_locally_owned_data_from(
+              vector.block(b));
+          }
+
+        vector_coarsened.update_ghost_values();
+
+        for (unsigned int i = 0; i < n_coarsening_steps; ++i)
+          {
+            // 2) mark cells for refinement
+            for (const auto &cell : tria_copy.active_cell_iterators())
+              if (cell->is_locally_owned() &&
+                  (static_cast<unsigned int>(cell->level() + 1) ==
+                   tria_copy.n_global_levels()))
+                cell->set_coarsen_flag();
+
+            // 3) perform interpolation and initialize data structures
+            tria_copy.prepare_coarsening_and_refinement();
+
+            parallel::distributed::
+              SolutionTransfer<dim, typename VectorType::BlockType>
+                solution_trans(background_dof_handler_coarsened);
+
+            std::vector<const typename VectorType::BlockType *>
+              vector_coarsened_ptr(vector_coarsened.n_blocks());
+            for (unsigned int b = 0; b < vector_coarsened.n_blocks(); ++b)
+              vector_coarsened_ptr[b] = &vector_coarsened.block(b);
+
+            solution_trans.prepare_for_coarsening_and_refinement(
+              vector_coarsened_ptr);
+
+            tria_copy.execute_coarsening_and_refinement();
+
+            background_dof_handler_coarsened.distribute_dofs(
+              background_dof_handler.get_fe_collection());
+
+            const auto partitioner =
+              std::make_shared<Utilities::MPI::Partitioner>(
+                background_dof_handler_coarsened.locally_owned_dofs(),
+                DoFTools::extract_locally_relevant_dofs(
+                  background_dof_handler_coarsened),
+                background_dof_handler_coarsened.get_communicator());
+
+            for (unsigned int b = 0; b < vector_coarsened.n_blocks(); ++b)
+              vector_coarsened.block(b).reinit(partitioner);
+
+            std::vector<typename VectorType::BlockType *> solution_ptr(
+              vector_coarsened.n_blocks());
+            for (unsigned int b = 0; b < vector_coarsened.n_blocks(); ++b)
+              solution_ptr[b] = &vector_coarsened.block(b);
+
+            solution_trans.interpolate(solution_ptr);
+            vector_coarsened.update_ghost_values();
+          }
+
+        return true;
+      }
+    } // namespace internal
+
     template <int dim, typename VectorType, typename Number>
     void
     output_grain_contours(
@@ -263,76 +354,12 @@ namespace Sintering
 
       if (n_coarsening_steps != 0)
         {
-          tria_copy.copy_triangulation(
-            background_dof_handler.get_triangulation());
-          dof_handler_copy.reinit(tria_copy);
-          dof_handler_copy.distribute_dofs(
-            background_dof_handler.get_fe_collection());
-
-          // 1) copy solution so that it has the right ghosting
-          const auto partitioner =
-            std::make_shared<Utilities::MPI::Partitioner>(
-              dof_handler_copy.locally_owned_dofs(),
-              DoFTools::extract_locally_relevant_dofs(dof_handler_copy),
-              dof_handler_copy.get_communicator());
-
-          solution_dealii.reinit(vector.n_blocks());
-
-          for (unsigned int b = 0; b < solution_dealii.n_blocks(); ++b)
-            {
-              solution_dealii.block(b).reinit(partitioner);
-              solution_dealii.block(b).copy_locally_owned_data_from(
-                vector.block(b));
-            }
-
-          solution_dealii.update_ghost_values();
-
-          for (unsigned int i = 0; i < n_coarsening_steps; ++i)
-            {
-              // 2) mark cells for refinement
-              for (const auto &cell : tria_copy.active_cell_iterators())
-                if (cell->is_locally_owned() &&
-                    (static_cast<unsigned int>(cell->level() + 1) ==
-                     tria_copy.n_global_levels()))
-                  cell->set_coarsen_flag();
-
-              // 3) perform interpolation and initialize data structures
-              tria_copy.prepare_coarsening_and_refinement();
-
-              parallel::distributed::
-                SolutionTransfer<dim, typename VectorType::BlockType>
-                  solution_trans(dof_handler_copy);
-
-              std::vector<const typename VectorType::BlockType *>
-                solution_dealii_ptr(solution_dealii.n_blocks());
-              for (unsigned int b = 0; b < solution_dealii.n_blocks(); ++b)
-                solution_dealii_ptr[b] = &solution_dealii.block(b);
-
-              solution_trans.prepare_for_coarsening_and_refinement(
-                solution_dealii_ptr);
-
-              tria_copy.execute_coarsening_and_refinement();
-
-              dof_handler_copy.distribute_dofs(
-                background_dof_handler.get_fe_collection());
-
-              const auto partitioner =
-                std::make_shared<Utilities::MPI::Partitioner>(
-                  dof_handler_copy.locally_owned_dofs(),
-                  DoFTools::extract_locally_relevant_dofs(dof_handler_copy),
-                  dof_handler_copy.get_communicator());
-
-              for (unsigned int b = 0; b < solution_dealii.n_blocks(); ++b)
-                solution_dealii.block(b).reinit(partitioner);
-
-              std::vector<typename VectorType::BlockType *> solution_ptr(
-                solution_dealii.n_blocks());
-              for (unsigned int b = 0; b < solution_dealii.n_blocks(); ++b)
-                solution_ptr[b] = &solution_dealii.block(b);
-
-              solution_trans.interpolate(solution_ptr);
-              solution_dealii.update_ghost_values();
-            }
+          internal::coarsen_triangulation(tria_copy,
+                                          background_dof_handler,
+                                          dof_handler_copy,
+                                          vector,
+                                          solution_dealii,
+                                          n_coarsening_steps);
 
           vector_to_be_used                 = &solution_dealii;
           background_dof_handler_to_be_used = &dof_handler_copy;
@@ -434,6 +461,57 @@ namespace Sintering
         vector.zero_out_ghost_values();
     }
 
+    template <int dim, typename VectorType>
+    typename VectorType::value_type
+    compute_surface_area(const Mapping<dim> &   mapping,
+                         const DoFHandler<dim> &background_dof_handler,
+                         const VectorType &     vector,
+                         const double           iso_level,
+                         const unsigned int     n_subdivisions = 1,
+                         const double           tolerance      = 1e-10)
+    {
+      const auto &concentration = vector.block(0);
+
+      const bool has_ghost_elements = concentration.has_ghost_elements();
+
+      if (has_ghost_elements == false)
+        concentration.update_ghost_values();
+
+      parallel::distributed::Triangulation<dim> tria_copy(
+        background_dof_handler.get_communicator());
+      DoFHandler<dim> dof_handler_copy;
+      VectorType      solution_dealii;
+
+      std::vector<Point<dim>>        vertices;
+      std::vector<CellData<dim - 1>> cells;
+      SubCellData                    subcelldata;
+
+      const GridTools::MarchingCubeAlgorithm<dim,
+                                             typename VectorType::BlockType>
+        mc(mapping, background_dof_handler.get_fe(), n_subdivisions, tolerance);
+
+      for (const auto &cell : background_dof_handler.active_cell_iterators())
+        if (cell->is_locally_owned())
+          mc.process_cell(cell, concentration, iso_level, vertices, cells);
+
+      typename VectorType::value_type surf_area = 0;
+      if (vertices.size() > 0)
+        {
+          Triangulation<dim - 1, dim> tria;
+          tria.create_triangulation(vertices, cells, subcelldata);
+
+          for (const auto &cell : tria.active_cell_iterators())
+            surf_area += cell->measure();
+        }
+      surf_area =
+        Utilities::MPI::sum(surf_area,
+                            background_dof_handler.get_communicator());
+
+      if (has_ghost_elements == false)
+        concentration.zero_out_ghost_values();
+
+      return surf_area;
+    }
 
 
     template <int dim, typename VectorType>
