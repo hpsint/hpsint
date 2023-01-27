@@ -173,6 +173,7 @@ namespace Sintering
   {
     bool                  regular                = true;
     bool                  contours               = true;
+    bool                  contours_tex           = false;
     unsigned int          n_coarsening_steps     = 0;
     bool                  porosity               = false;
     bool                  shrinkage              = false;
@@ -686,6 +687,9 @@ namespace Sintering
                         "Whether regular output is enabled.");
       prm.add_parameter("Contour",
                         output_data.contours,
+                        "Whether contour output is enabled.");
+      prm.add_parameter("ContourTex",
+                        output_data.contours_tex,
                         "Whether contour output is enabled.");
       prm.add_parameter("ContourNCoarseningSteps",
                         output_data.n_coarsening_steps,

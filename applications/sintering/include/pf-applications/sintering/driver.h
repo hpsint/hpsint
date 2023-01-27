@@ -2852,7 +2852,7 @@ namespace Sintering
             params.output_data.n_coarsening_steps);
         }
 
-      if (params.output_data.contours)
+      if (params.output_data.contours_tex)
         {
           std::string output = params.output_data.vtk_path + "/contour_" +
                                label + "." + std::to_string(counters[label]) +
