@@ -2863,6 +2863,25 @@ namespace Sintering
             params.output_data.n_coarsening_steps);
         }
 
+      if (true/*params.output_data.grain_boundaries*/)
+        {
+          std::string output = params.output_data.vtk_path + "/gb_" + label +
+                               "." + std::to_string(counters[label]) + ".vtu";
+
+          pcout << "Outputing data at t = " << t << " (" << output << ")"
+                << std::endl;
+
+          Postprocessors::output_grain_boundaries_vtu(
+            mapping,
+            dof_handler,
+            solution,
+            0.5,
+            output,
+            sintering_operator.n_grains(),
+            0.14,
+            params.output_data.n_coarsening_steps);
+        }
+
       if (params.output_data.contours_tex)
         {
           std::string output = params.output_data.vtk_path + "/contour_" +
