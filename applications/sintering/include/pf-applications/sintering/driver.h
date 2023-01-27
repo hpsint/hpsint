@@ -2829,6 +2829,19 @@ namespace Sintering
                   for (unsigned int i = 0; i < quantities.size(); ++i)
                     table.add_value(q_labels[i], q_values[i]);
                 }
+
+              if (true)
+                {
+                  const auto surface_area =
+                    Postprocessors::compute_surface_area(
+                      mapping,
+                      dof_handler,
+                      solution,
+                      0.5,
+                      params.output_data.n_coarsening_steps);
+
+                  table.add_value("iso_surf_area", surface_area);
+                }
             }
         }
 
