@@ -77,7 +77,7 @@ namespace Sintering
       const VectorType &                        vector,
       const double                              iso_level,
       const std::string                         filename,
-      const unsigned int                        n_grains,
+      const unsigned int                        n_op,
       const GrainTracker::Tracker<dim, Number> &grain_tracker_in,
       const unsigned int                        n_subdivisions = 1,
       const double                              tolerance      = 1e-10)
@@ -93,35 +93,24 @@ namespace Sintering
         vector.update_ghost_values();
 
       auto grain_tracker = grain_tracker_in.clone();
-      grain_tracker->track(vector, n_grains, true);
+      grain_tracker->track(vector, n_op, true);
 
       std::ofstream outfile(filename);
 
-      ConditionalOStream pcout(outfile,
-                               Utilities::MPI::this_mpi_process(comm) == 0);
-
       const auto grains = grain_tracker->get_grains();
 
-      pcout << grains.size() << std::endl;
-      pcout << n_grains << std::endl;
+      unsigned int n_grains = 0;
+
       for (const auto &entry : grains)
-        pcout << entry.second.get_order_parameter_id() << " ";
-      pcout << std::endl;
+        n_grains = std::max(entry.first, n_grains);
+      n_grains++;
 
       const auto bb = GridTools::compute_bounding_box(
         background_dof_handler.get_triangulation());
 
-      for (unsigned int d = 0; d < dim; ++d)
-        pcout << bb.get_boundary_points().first[d] << " ";
-      pcout << std::endl;
+      std::vector<Number> parameters((dim + 1) * n_grains, 0);
 
-      for (unsigned int d = 0; d < dim; ++d)
-        pcout << bb.get_boundary_points().second[d] << " ";
-      pcout << std::endl;
-
-      std::vector<Number> parameters((dim + 1) * grains.size(), 0);
-
-      for (unsigned int b = 0; b < n_grains; ++b)
+      for (unsigned int b = 0; b < n_op; ++b)
         {
           for (const auto &cell :
                background_dof_handler.active_cell_iterators())
@@ -155,25 +144,22 @@ namespace Sintering
 
       Utilities::MPI::sum(parameters, comm, parameters);
 
-      for (unsigned int g = 0; g < grains.size(); ++g)
+      for (unsigned int g = 0; g < n_grains; ++g)
         {
           for (unsigned int d = 0; d < dim; ++d)
-            parameters[g * (dim + 1) + d] /= parameters[g * (dim + 1) + dim];
+            if (parameters[g * (dim + 1) + dim] != 0.0)
+              parameters[g * (dim + 1) + d] /= parameters[g * (dim + 1) + dim];
           parameters[g * (dim + 1) + dim] =
             std::sqrt(parameters[g * (dim + 1) + dim] / numbers::PI);
         }
 
-      for (const auto &i : parameters)
-        pcout << i << " ";
-      pcout << std::endl;
-
-      std::vector<std::vector<Point<dim>>> points_local(grains.size());
+      std::vector<std::vector<Point<dim>>> points_local(n_grains);
 
       const GridTools::MarchingCubeAlgorithm<dim,
                                              typename VectorType::BlockType>
         mc(mapping, background_dof_handler.get_fe(), n_subdivisions, tolerance);
 
-      for (unsigned int b = 0; b < n_grains; ++b)
+      for (unsigned int b = 0; b < n_op; ++b)
         {
           for (const auto &cell :
                background_dof_handler.active_cell_iterators())
@@ -216,11 +202,34 @@ namespace Sintering
             return result;
           });
 
-      for (const auto &points : points_global)
+      if (Utilities::MPI::this_mpi_process(comm) == 0)
         {
-          for (const auto &point : points)
-            pcout << point << " ";
-          pcout << std::endl;
+          std::ofstream outfile(filename);
+
+          outfile << n_grains << std::endl;
+          outfile << n_op << std::endl;
+          for (const auto &entry : grains)
+            outfile << entry.second.get_order_parameter_id() << " ";
+          outfile << std::endl;
+
+          for (unsigned int d = 0; d < dim; ++d)
+            outfile << bb.get_boundary_points().first[d] << " ";
+          outfile << std::endl;
+
+          for (unsigned int d = 0; d < dim; ++d)
+            outfile << bb.get_boundary_points().second[d] << " ";
+          outfile << std::endl;
+
+          for (const auto &i : parameters)
+            outfile << i << " ";
+          outfile << std::endl;
+
+          for (const auto &points : points_global)
+            {
+              for (const auto &point : points)
+                outfile << point << " ";
+              outfile << std::endl;
+            }
         }
 
       if (has_ghost_elements == false)
