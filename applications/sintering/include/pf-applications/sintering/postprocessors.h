@@ -149,8 +149,6 @@ namespace Sintering
                 if (grain_id == numbers::invalid_unsigned_int)
                   continue;
 
-                deallog << grain_id << std::endl;
-
                 const auto center  = cell->center();
                 const auto measure = cell->measure();
 
@@ -174,6 +172,62 @@ namespace Sintering
       for (const auto &i : parameters)
         pcout << i << " ";
       pcout << std::endl;
+
+      std::vector<std::vector<Point<dim>>> points_local(grains.size());
+
+      const GridTools::MarchingCubeAlgorithm<dim,
+                                             typename VectorType::BlockType>
+        mc(mapping, background_dof_handler.get_fe(), n_subdivisions, tolerance);
+
+      for (unsigned int b = 0; b < n_grains; ++b)
+        {
+          for (const auto &cell :
+               background_dof_handler.active_cell_iterators())
+            if (cell->is_locally_owned())
+              {
+                if (grain_tracker->get_particle_index(
+                      b, cell->global_active_cell_index()) ==
+                    numbers::invalid_unsigned_int)
+                  continue;
+
+                const auto grain_id =
+                  grain_tracker
+                    ->get_grain_and_segment(b,
+                                            grain_tracker->get_particle_index(
+                                              b,
+                                              cell->global_active_cell_index()))
+                    .first;
+
+                if (grain_id == numbers::invalid_unsigned_int)
+                  continue;
+
+                mc.process_cell(cell,
+                                vector.block(b + 2),
+                                iso_level,
+                                points_local[grain_id]);
+              }
+        }
+
+
+      const auto points_global =
+        Utilities::MPI::reduce<std::vector<std::vector<Point<dim>>>>(
+          points_local, comm, [](const auto &a, const auto &b) {
+            std::vector<std::vector<Point<dim>>> result = a;
+
+            for (unsigned int i = 0; i < a.size(); ++i)
+              {
+                result[i].insert(result[i].end(), b[i].begin(), b[i].end());
+              }
+
+            return result;
+          });
+
+      for (const auto &points : points_global)
+        {
+          for (const auto &point : points)
+            pcout << point << " ";
+          pcout << std::endl;
+        }
 
       if (has_ghost_elements == false)
         vector.zero_out_ghost_values();
