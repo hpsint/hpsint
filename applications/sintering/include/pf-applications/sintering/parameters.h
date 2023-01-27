@@ -203,6 +203,7 @@ namespace Sintering
     std::set<std::string> domain_integrals = {"gb_area",
                                               "solid_vol",
                                               "surf_area"};
+    bool                  grain_boundaries = false;
     bool                  iso_surf_area    = false;
   };
 
@@ -748,6 +749,9 @@ namespace Sintering
       prm.add_parameter("Zmax", output_data.control_box_data.z_max, "z max.");
       prm.leave_subsection();
 
+      prm.add_parameter("GrainBoundaries",
+                        output_data.grain_boundaries,
+                        "Output grain boundaries.");
       prm.add_parameter("IsoSurfaceArea",
                         output_data.iso_surf_area,
                         "Compute surface area from isocontours.");

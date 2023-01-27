@@ -2863,7 +2863,7 @@ namespace Sintering
             params.output_data.n_coarsening_steps);
         }
 
-      if (true/*params.output_data.grain_boundaries*/)
+      if (params.output_data.grain_boundaries)
         {
           std::string output = params.output_data.vtk_path + "/gb_" + label +
                                "." + std::to_string(counters[label]) + ".vtu";
