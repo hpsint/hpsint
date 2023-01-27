@@ -616,6 +616,79 @@ namespace Sintering
       return surf_area;
     }
 
+    template <int dim, typename VectorType>
+    typename VectorType::value_type
+    compute_grain_boundaries_area(const Mapping<dim> &   mapping,
+                                  const DoFHandler<dim> &background_dof_handler,
+                                  const VectorType &     vector,
+                                  const double           iso_level,
+                                  const unsigned int     n_grains,
+                                  const double           gb_lim         = 0.14,
+                                  const unsigned int     n_subdivisions = 1,
+                                  const double           tolerance      = 1e-10)
+    {
+      using Number = typename VectorType::value_type;
+
+      const bool has_ghost_elements = vector.has_ghost_elements();
+
+      if (has_ghost_elements == false)
+        vector.update_ghost_values();
+
+      std::vector<Point<dim>>        vertices;
+      std::vector<CellData<dim - 1>> cells;
+      SubCellData                    subcelldata;
+
+      const GridTools::MarchingCubeAlgorithm<dim,
+                                             typename VectorType::BlockType>
+        mc(mapping, background_dof_handler.get_fe(), n_subdivisions, tolerance);
+
+      Vector<Number> values_i(
+        background_dof_handler.get_fe().n_dofs_per_cell());
+      Vector<Number> values_j(
+        background_dof_handler.get_fe().n_dofs_per_cell());
+      Vector<Number> gb(background_dof_handler.get_fe().n_dofs_per_cell());
+
+      for (unsigned int i = 0; i < n_grains; ++i)
+        {
+          for (const auto &cell :
+               background_dof_handler.active_cell_iterators())
+            if (cell->is_locally_owned())
+              {
+                gb = 0;
+                cell->get_dof_values(vector.block(2 + i), values_i);
+
+                for (unsigned int j = i + 1; j < n_grains; ++j)
+                  {
+                    cell->get_dof_values(vector.block(2 + j), values_j);
+                    values_j.scale(values_i);
+                    gb += values_j;
+                  }
+
+                if (gb.mean_value() > gb_lim)
+                  mc.process_cell(
+                    cell, vector.block(2 + i), iso_level, vertices, cells);
+              }
+        }
+
+      typename VectorType::value_type gb_area = 0;
+      if (vertices.size() > 0)
+        {
+          Triangulation<dim - 1, dim> tria;
+          tria.create_triangulation(vertices, cells, subcelldata);
+
+          for (const auto &cell : tria.active_cell_iterators())
+            gb_area += cell->measure();
+        }
+
+      gb_area =
+        Utilities::MPI::sum(gb_area, background_dof_handler.get_communicator());
+
+      if (has_ghost_elements == false)
+        vector.zero_out_ghost_values();
+
+      return gb_area;
+    }
+
 
     template <int dim, typename VectorType>
     void
