@@ -585,11 +585,6 @@ namespace Sintering
       if (has_ghost_elements == false)
         concentration.update_ghost_values();
 
-      parallel::distributed::Triangulation<dim> tria_copy(
-        background_dof_handler.get_communicator());
-      DoFHandler<dim> dof_handler_copy;
-      VectorType      solution_dealii;
-
       std::vector<Point<dim>>        vertices;
       std::vector<CellData<dim - 1>> cells;
       SubCellData                    subcelldata;
