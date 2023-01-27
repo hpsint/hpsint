@@ -83,14 +83,7 @@ namespace Sintering
       const double                              tolerance      = 1e-10)
     {
       (void)mapping;
-      (void)background_dof_handler;
-      (void)vector;
-      (void)iso_level;
-      (void)filename;
-      (void)n_grains;
-      (void)grain_tracker_in;
-      (void)n_subdivisions;
-      (void)tolerance;
+
 
       const auto comm = background_dof_handler.get_communicator();
 
@@ -102,8 +95,9 @@ namespace Sintering
       auto grain_tracker = grain_tracker_in.clone();
       grain_tracker->track(vector, n_grains, true);
 
+      std::ofstream outfile(filename);
 
-      ConditionalOStream pcout(std::cout,
+      ConditionalOStream pcout(outfile,
                                Utilities::MPI::this_mpi_process(comm) == 0);
 
       const auto grains = grain_tracker->get_grains();
