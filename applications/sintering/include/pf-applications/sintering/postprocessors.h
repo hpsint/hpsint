@@ -474,12 +474,12 @@ namespace Sintering
     {
       const auto only_concentration = vector.create_view(0, 1);
 
-      const bool has_ghost_elements = only_concentration.has_ghost_elements();
+      const bool has_ghost_elements = only_concentration->has_ghost_elements();
 
       if (has_ghost_elements == false)
-        only_concentration.update_ghost_values();
+        only_concentration->update_ghost_values();
 
-      auto vector_to_be_used                 = &only_concentration;
+      auto vector_to_be_used                 = only_concentration.get();
       auto background_dof_handler_to_be_used = &background_dof_handler;
 
       parallel::distributed::Triangulation<dim> tria_copy(
@@ -492,7 +492,7 @@ namespace Sintering
           internal::coarsen_triangulation(tria_copy,
                                           background_dof_handler,
                                           dof_handler_copy,
-                                          only_concentration,
+                                          *only_concentration,
                                           solution_dealii,
                                           n_coarsening_steps);
 
@@ -537,7 +537,7 @@ namespace Sintering
         }
 
       if (has_ghost_elements == false)
-        only_concentration.zero_out_ghost_values();
+        only_concentration->zero_out_ghost_values();
 
       return surf_area;
     }
