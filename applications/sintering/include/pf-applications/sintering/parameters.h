@@ -756,7 +756,7 @@ namespace Sintering
       prm.add_parameter("IsoSurfaceArea",
                         output_data.iso_surf_area,
                         "Compute surface area from isocontours.");
-      prm.add_parameter("IsoGbArea",
+      prm.add_parameter("IsoGrainBoundariesArea",
                         output_data.iso_gb_area,
                         "Compute GB area from isocontours.");
 
