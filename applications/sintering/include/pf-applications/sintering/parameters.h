@@ -205,6 +205,7 @@ namespace Sintering
                                               "surf_area"};
     bool                  grain_boundaries = false;
     bool                  iso_surf_area    = false;
+    bool                  iso_gb_area      = false;
   };
 
   struct RestartData
@@ -755,6 +756,9 @@ namespace Sintering
       prm.add_parameter("IsoSurfaceArea",
                         output_data.iso_surf_area,
                         "Compute surface area from isocontours.");
+      prm.add_parameter("IsoGbArea",
+                        output_data.iso_gb_area,
+                        "Compute GB area from isocontours.");
 
       prm.leave_subsection();
 
