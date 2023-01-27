@@ -2830,7 +2830,7 @@ namespace Sintering
                     table.add_value(q_labels[i], q_values[i]);
                 }
 
-              if (true)
+              if (params.output_data.iso_surf_area)
                 {
                   const auto surface_area =
                     Postprocessors::compute_surface_area(
