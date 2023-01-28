@@ -471,6 +471,116 @@ namespace Sintering
     }
 
     template <int dim, typename VectorType>
+    void
+    output_grain_boundaries_vtu(const Mapping<dim> &   mapping,
+                                const DoFHandler<dim> &background_dof_handler,
+                                const VectorType &     vector,
+                                const double           iso_level,
+                                const std::string      filename,
+                                const unsigned int     n_grains,
+                                const double           gb_lim = 0.14,
+                                const unsigned int     n_coarsening_steps = 0,
+                                const unsigned int     n_subdivisions     = 1,
+                                const double           tolerance = 1e-10)
+    {
+      using Number = typename VectorType::value_type;
+
+      const bool has_ghost_elements = vector.has_ghost_elements();
+
+      if (has_ghost_elements == false)
+        vector.update_ghost_values();
+
+      // step 0) coarsen background mesh 1 or 2 times to reduce memory
+      // consumption
+      auto vector_to_be_used                 = &vector;
+      auto background_dof_handler_to_be_used = &background_dof_handler;
+
+      parallel::distributed::Triangulation<dim> tria_copy(
+        background_dof_handler.get_communicator());
+      DoFHandler<dim> dof_handler_copy;
+      VectorType      vector_coarsened;
+
+      if (n_coarsening_steps != 0)
+        {
+          internal::coarsen_triangulation(tria_copy,
+                                          background_dof_handler,
+                                          dof_handler_copy,
+                                          vector,
+                                          vector_coarsened,
+                                          n_coarsening_steps);
+
+          vector_to_be_used                 = &vector_coarsened;
+          background_dof_handler_to_be_used = &dof_handler_copy;
+        }
+
+      // step 1) create surface mesh
+      std::vector<Point<dim>>        vertices;
+      std::vector<CellData<dim - 1>> cells;
+      SubCellData                    subcelldata;
+
+      const GridTools::MarchingCubeAlgorithm<dim,
+                                             typename VectorType::BlockType>
+        mc(mapping,
+           background_dof_handler_to_be_used->get_fe(),
+           n_subdivisions,
+           tolerance);
+
+      Vector<Number> values_i(
+        background_dof_handler_to_be_used->get_fe().n_dofs_per_cell());
+      Vector<Number> values_j(
+        background_dof_handler_to_be_used->get_fe().n_dofs_per_cell());
+      Vector<Number> gb(
+        background_dof_handler_to_be_used->get_fe().n_dofs_per_cell());
+
+      for (unsigned int i = 0; i < n_grains; ++i)
+        {
+          for (const auto &cell :
+               background_dof_handler_to_be_used->active_cell_iterators())
+            if (cell->is_locally_owned())
+              {
+                gb = 0;
+                cell->get_dof_values(vector_to_be_used->block(2 + i), values_i);
+
+                for (unsigned int j = 0; j < n_grains; ++j)
+                  {
+                    if (i != j)
+                      {
+                        cell->get_dof_values(vector_to_be_used->block(2 + j),
+                                             values_j);
+                        gb += values_j;
+                      }
+                    gb.scale(values_i);
+                  }
+
+                if (gb.mean_value() > gb_lim)
+                  mc.process_cell(cell,
+                                  vector_to_be_used->block(2 + i),
+                                  iso_level,
+                                  vertices,
+                                  cells);
+              }
+        }
+
+      Triangulation<dim - 1, dim> tria;
+
+      if (vertices.size() > 0)
+        tria.create_triangulation(vertices, cells, subcelldata);
+      else
+        GridGenerator::hyper_cube(tria, -1e-6, 1e-6);
+
+      // step 2) output mesh
+      MyDataOut<dim - 1, dim> data_out;
+      data_out.attach_triangulation(tria);
+
+      data_out.build_patches();
+      data_out.write_vtu_in_parallel(filename,
+                                     background_dof_handler.get_communicator());
+
+      if (has_ghost_elements == false)
+        vector.zero_out_ghost_values();
+    }
+
+    template <int dim, typename VectorType>
     typename VectorType::value_type
     compute_surface_area(const Mapping<dim> &   mapping,
                          const DoFHandler<dim> &background_dof_handler,
@@ -485,11 +595,6 @@ namespace Sintering
 
       if (has_ghost_elements == false)
         concentration.update_ghost_values();
-
-      parallel::distributed::Triangulation<dim> tria_copy(
-        background_dof_handler.get_communicator());
-      DoFHandler<dim> dof_handler_copy;
-      VectorType      solution_dealii;
 
       std::vector<Point<dim>>        vertices;
       std::vector<CellData<dim - 1>> cells;
@@ -520,6 +625,79 @@ namespace Sintering
         concentration.zero_out_ghost_values();
 
       return surf_area;
+    }
+
+    template <int dim, typename VectorType>
+    typename VectorType::value_type
+    compute_grain_boundaries_area(const Mapping<dim> &   mapping,
+                                  const DoFHandler<dim> &background_dof_handler,
+                                  const VectorType &     vector,
+                                  const double           iso_level,
+                                  const unsigned int     n_grains,
+                                  const double           gb_lim         = 0.14,
+                                  const unsigned int     n_subdivisions = 1,
+                                  const double           tolerance      = 1e-10)
+    {
+      using Number = typename VectorType::value_type;
+
+      const bool has_ghost_elements = vector.has_ghost_elements();
+
+      if (has_ghost_elements == false)
+        vector.update_ghost_values();
+
+      std::vector<Point<dim>>        vertices;
+      std::vector<CellData<dim - 1>> cells;
+      SubCellData                    subcelldata;
+
+      const GridTools::MarchingCubeAlgorithm<dim,
+                                             typename VectorType::BlockType>
+        mc(mapping, background_dof_handler.get_fe(), n_subdivisions, tolerance);
+
+      Vector<Number> values_i(
+        background_dof_handler.get_fe().n_dofs_per_cell());
+      Vector<Number> values_j(
+        background_dof_handler.get_fe().n_dofs_per_cell());
+      Vector<Number> gb(background_dof_handler.get_fe().n_dofs_per_cell());
+
+      for (unsigned int i = 0; i < n_grains; ++i)
+        {
+          for (const auto &cell :
+               background_dof_handler.active_cell_iterators())
+            if (cell->is_locally_owned())
+              {
+                gb = 0;
+                cell->get_dof_values(vector.block(2 + i), values_i);
+
+                for (unsigned int j = i + 1; j < n_grains; ++j)
+                  {
+                    cell->get_dof_values(vector.block(2 + j), values_j);
+                    values_j.scale(values_i);
+                    gb += values_j;
+                  }
+
+                if (gb.mean_value() > gb_lim)
+                  mc.process_cell(
+                    cell, vector.block(2 + i), iso_level, vertices, cells);
+              }
+        }
+
+      typename VectorType::value_type gb_area = 0;
+      if (vertices.size() > 0)
+        {
+          Triangulation<dim - 1, dim> tria;
+          tria.create_triangulation(vertices, cells, subcelldata);
+
+          for (const auto &cell : tria.active_cell_iterators())
+            gb_area += cell->measure();
+        }
+
+      gb_area =
+        Utilities::MPI::sum(gb_area, background_dof_handler.get_communicator());
+
+      if (has_ghost_elements == false)
+        vector.zero_out_ghost_values();
+
+      return gb_area;
     }
 
 

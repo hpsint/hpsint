@@ -2840,6 +2840,20 @@ namespace Sintering
 
                   table.add_value("iso_surf_area", surface_area);
                 }
+
+              if (params.output_data.iso_gb_area)
+                {
+                  const auto gb_area =
+                    Postprocessors::compute_grain_boundaries_area(
+                      mapping,
+                      dof_handler,
+                      solution,
+                      0.5,
+                      sintering_operator.n_grains(),
+                      0.14);
+
+                  table.add_value("iso_gb_area", gb_area);
+                }
             }
         }
 
@@ -2860,6 +2874,25 @@ namespace Sintering
             output,
             sintering_operator.n_grains(),
             grain_tracker,
+            params.output_data.n_coarsening_steps);
+        }
+
+      if (params.output_data.grain_boundaries)
+        {
+          std::string output = params.output_data.vtk_path + "/gb_" + label +
+                               "." + std::to_string(counters[label]) + ".vtu";
+
+          pcout << "Outputing data at t = " << t << " (" << output << ")"
+                << std::endl;
+
+          Postprocessors::output_grain_boundaries_vtu(
+            mapping,
+            dof_handler,
+            solution,
+            0.5,
+            output,
+            sintering_operator.n_grains(),
+            0.14,
             params.output_data.n_coarsening_steps);
         }
 
