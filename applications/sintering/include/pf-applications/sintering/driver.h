@@ -2723,137 +2723,129 @@ namespace Sintering
                 << std::endl;
 
           data_out.write_vtu_in_parallel(output, MPI_COMM_WORLD);
+        }
 
-          if (params.output_data.table)
+      if (params.output_data.table)
+        {
+          table.add_value("step", counters[label]);
+          table.add_value("time", t);
+          table.add_value(
+            "dt", sintering_operator.get_data().time_data.get_current_dt());
+          table.add_value("n_dofs", dof_handler.n_dofs());
+          table.add_value("n_op",
+                          sintering_operator.get_data().n_components() - 2);
+          table.add_value("n_grains", grain_tracker.get_grains().size());
+
+          if (!params.output_data.domain_integrals.empty())
             {
-              table.add_value("step", counters[label]);
-              table.add_value("time", t);
-              table.add_value(
-                "dt", sintering_operator.get_data().time_data.get_current_dt());
-              table.add_value("n_dofs", dof_handler.n_dofs());
-              table.add_value("n_op",
-                              sintering_operator.get_data().n_components() - 2);
-              table.add_value("n_grains", grain_tracker.get_grains().size());
+              std::vector<std::string> q_labels;
+              std::copy(params.output_data.domain_integrals.begin(),
+                        params.output_data.domain_integrals.end(),
+                        std::back_inserter(q_labels));
 
-              if (!params.output_data.domain_integrals.empty())
+              auto quantities = Postprocessors::
+                build_domain_quantities_evaluators<dim, VectorizedArrayType>(
+                  q_labels);
+
+              // TODO: each quantity should provide its flag
+              EvaluationFlags::EvaluationFlags eval_flags =
+                EvaluationFlags::values;
+
+              std::vector<Number> q_values;
+
+              if (params.output_data.use_control_box)
                 {
-                  std::vector<std::string> q_labels;
-                  std::copy(params.output_data.domain_integrals.begin(),
-                            params.output_data.domain_integrals.end(),
-                            std::back_inserter(q_labels));
+                  Point<dim> bottom_left;
+                  Point<dim> top_right;
 
-                  auto quantities =
-                    Postprocessors::build_domain_quantities_evaluators<
-                      dim,
-                      VectorizedArrayType>(q_labels);
-
-                  // TODO: each quantity should provide its flag
-                  EvaluationFlags::EvaluationFlags eval_flags =
-                    EvaluationFlags::values;
-
-                  std::vector<Number> q_values;
-
-                  if (params.output_data.use_control_box)
+                  if (dim >= 1)
                     {
-                      Point<dim> bottom_left;
-                      Point<dim> top_right;
-
-                      if (dim >= 1)
-                        {
-                          bottom_left[0] =
-                            params.output_data.control_box_data.x_min;
-                          top_right[0] =
-                            params.output_data.control_box_data.x_max;
-                        }
-
-                      if (dim >= 2)
-                        {
-                          bottom_left[1] =
-                            params.output_data.control_box_data.y_min;
-                          top_right[1] =
-                            params.output_data.control_box_data.y_max;
-                        }
-
-                      if (dim >= 3)
-                        {
-                          bottom_left[2] =
-                            params.output_data.control_box_data.z_min;
-                          top_right[2] =
-                            params.output_data.control_box_data.z_max;
-                        }
-
-                      BoundingBox control_box(
-                        std::make_pair(bottom_left, top_right));
-
-                      auto predicate = [&control_box](
-                                         const Point<dim, VectorizedArrayType>
-                                           &p) {
-                        const auto zeros = VectorizedArrayType(0.0);
-                        const auto ones  = VectorizedArrayType(1.0);
-
-                        VectorizedArrayType filter = ones;
-
-                        for (unsigned int d = 0; d < dim; ++d)
-                          {
-                            filter = compare_and_apply_mask<
-                              SIMDComparison::greater_than>(
-                              p[d],
-                              VectorizedArrayType(control_box.lower_bound(d)),
-                              filter,
-                              zeros);
-
-                            filter =
-                              compare_and_apply_mask<SIMDComparison::less_than>(
-                                p[d],
-                                VectorizedArrayType(control_box.upper_bound(d)),
-                                filter,
-                                zeros);
-                          }
-
-                        return filter;
-                      };
-
-                      q_values = sintering_operator.calc_domain_quantities(
-                        quantities, solution, predicate, eval_flags);
-
-                      table.add_value("cntrl_box", control_box.volume());
-                    }
-                  else
-                    {
-                      q_values =
-                        sintering_operator.calc_domain_quantities(quantities,
-                                                                  solution,
-                                                                  eval_flags);
+                      bottom_left[0] =
+                        params.output_data.control_box_data.x_min;
+                      top_right[0] = params.output_data.control_box_data.x_max;
                     }
 
-                  for (unsigned int i = 0; i < quantities.size(); ++i)
-                    table.add_value(q_labels[i], q_values[i]);
-                }
+                  if (dim >= 2)
+                    {
+                      bottom_left[1] =
+                        params.output_data.control_box_data.y_min;
+                      top_right[1] = params.output_data.control_box_data.y_max;
+                    }
 
-              if (params.output_data.iso_surf_area)
+                  if (dim >= 3)
+                    {
+                      bottom_left[2] =
+                        params.output_data.control_box_data.z_min;
+                      top_right[2] = params.output_data.control_box_data.z_max;
+                    }
+
+                  BoundingBox control_box(
+                    std::make_pair(bottom_left, top_right));
+
+                  auto predicate = [&control_box](
+                                     const Point<dim, VectorizedArrayType> &p) {
+                    const auto zeros = VectorizedArrayType(0.0);
+                    const auto ones  = VectorizedArrayType(1.0);
+
+                    VectorizedArrayType filter = ones;
+
+                    for (unsigned int d = 0; d < dim; ++d)
+                      {
+                        filter =
+                          compare_and_apply_mask<SIMDComparison::greater_than>(
+                            p[d],
+                            VectorizedArrayType(control_box.lower_bound(d)),
+                            filter,
+                            zeros);
+
+                        filter =
+                          compare_and_apply_mask<SIMDComparison::less_than>(
+                            p[d],
+                            VectorizedArrayType(control_box.upper_bound(d)),
+                            filter,
+                            zeros);
+                      }
+
+                    return filter;
+                  };
+
+                  q_values = sintering_operator.calc_domain_quantities(
+                    quantities, solution, predicate, eval_flags);
+
+                  table.add_value("cntrl_box", control_box.volume());
+                }
+              else
                 {
-                  const auto surface_area =
-                    Postprocessors::compute_surface_area(mapping,
-                                                         dof_handler,
-                                                         solution,
-                                                         0.5);
-
-                  table.add_value("iso_surf_area", surface_area);
+                  q_values =
+                    sintering_operator.calc_domain_quantities(quantities,
+                                                              solution,
+                                                              eval_flags);
                 }
 
-              if (params.output_data.iso_gb_area)
-                {
-                  const auto gb_area =
-                    Postprocessors::compute_grain_boundaries_area(
-                      mapping,
-                      dof_handler,
-                      solution,
-                      0.5,
-                      sintering_operator.n_grains(),
-                      0.14);
+              for (unsigned int i = 0; i < quantities.size(); ++i)
+                table.add_value(q_labels[i], q_values[i]);
+            }
 
-                  table.add_value("iso_gb_area", gb_area);
-                }
+          if (params.output_data.iso_surf_area)
+            {
+              const auto surface_area = Postprocessors::compute_surface_area(
+                mapping, dof_handler, solution, 0.5);
+
+              table.add_value("iso_surf_area", surface_area);
+            }
+
+          if (params.output_data.iso_gb_area)
+            {
+              const auto gb_area =
+                Postprocessors::compute_grain_boundaries_area(
+                  mapping,
+                  dof_handler,
+                  solution,
+                  0.5,
+                  sintering_operator.n_grains(),
+                  0.14);
+
+              table.add_value("iso_gb_area", gb_area);
             }
         }
 
