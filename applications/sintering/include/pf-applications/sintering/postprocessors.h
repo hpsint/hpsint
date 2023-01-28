@@ -533,13 +533,15 @@ namespace Sintering
                 cell->get_dof_values(vector_to_be_used->block(2 + i), values_i);
 
                 for (unsigned int j = 0; j < n_grains; ++j)
-                  if (i != j)
-                    {
-                      cell->get_dof_values(vector_to_be_used->block(2 + j),
-                                           values_j);
-                      values_j.scale(values_i);
-                      gb += values_j;
-                    }
+                  {
+                    if (i != j)
+                      {
+                        cell->get_dof_values(vector_to_be_used->block(2 + j),
+                                             values_j);
+                        gb += values_j;
+                      }
+                    gb.scale(values_i);
+                  }
 
                 if (gb.mean_value() > gb_lim)
                   mc.process_cell(cell,
