@@ -718,6 +718,8 @@ namespace Sintering
                                                             << static_cast<types::global_cell_index>(min_max_avg_n_unrefined_cells.max) 
                                                             << ")" << std::endl;
       pcout_statistics << "  - n levels:                  " << tria.n_global_levels() << std::endl;
+      pcout_statistics << "  - n coarse cells:            " << tria.n_cells(0) << std::endl;
+      pcout_statistics << "  - n theoretical fine cells:  " << tria.n_cells(0) * Utilities::pow<std::int64_t>(2*dim, tria.n_global_levels() - 1) << std::endl;
 
       if(transfer)
       {
