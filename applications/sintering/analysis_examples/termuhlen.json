@@ -53,15 +53,15 @@
         "Type": "Abstract"
     },
     "NonLinearData": {
-        "LinearRelativeTolerance" : 1e-2,
+        "LinearRelativeTolerance": 0.01,
         "JacobiFree": "false",
         "LinearMaxIterations": 1000,
-        "NewtonUseDamping" : "false",
+        "NewtonUseDamping": "false",
         "NewtonReusePreconditioner": "true",
-        "NewtonThresholdNewtonIterations" : 100,
-        "NewtonThresholdLinearIterations" : 50,
-        "NonLinearSolverType" : "NOX",
-        "NonLinearMaxIterations" : 20,
+        "NewtonThresholdNewtonIterations": 100,
+        "NewtonThresholdLinearIterations": 50,
+        "NonLinearSolverType": "NOX",
+        "NonLinearMaxIterations": 20,
         "NOXData": {
             "DirectionMethod": "Newton",
             "LineSearchMethod": "Full Step",
@@ -104,7 +104,7 @@
     "Profiling": {
         "OutputTimeInterval": "900",
         "RunVmults": "false",
-        "OutputMemoryConsumption" : "false"
+        "OutputMemoryConsumption": "false"
     },
     "Restart": {
         "Interval": "500",
@@ -113,7 +113,7 @@
         "Type": "simulation_time"
     },
     "TimeIntegration": {
-        "IntegrationScheme" : "BDF2",
+        "IntegrationScheme": "BDF2",
         "DesirableLinearIterations": "500",
         "DesirableNewtonIterations": "10",
         "GrowthFactor": "1.2",
