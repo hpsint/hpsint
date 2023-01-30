@@ -1,0 +1,60 @@
+import os
+import numpy as np
+from argparse import ArgumentParser
+
+def extract(filename, scale=1., limits_x=None, limits_y=None, limits_z=None, save_path=None, postfix="particles.cloud"):
+    cdata = np.genfromtxt(filename, delimiter=',', dtype=None, skip_header=1)
+
+    X = np.empty((0,4), float)
+    count_particles = 0
+    for row in cdata:
+
+        new_x = float(row[1])
+        new_y = float(row[2])
+        new_z = float(row[3])
+        new_r = float(row[4])
+
+        add_particle = True
+
+        if limits_x is not(None):
+            add_particle = add_particle and (new_x - new_r > limits_x[0] and new_x + new_r < limits_x[1])
+        if limits_y is not(None):
+            add_particle = add_particle and (new_y - new_r > limits_y[0] and new_y + new_r < limits_y[1])
+        if limits_z is not(None):
+            add_particle = add_particle and (new_z - new_r > limits_z[0] and new_z + new_r < limits_z[1])
+
+        if add_particle:
+            X = np.append(X, np.array([[scale * new_x, scale * new_y, scale * new_z, scale * new_r]]), axis=0)
+            count_particles += 1
+
+    fname_particles = str(count_particles) + postfix
+    if save_path:
+        fname_particles = os.path.join(save_path, fname_particles)
+
+    header_particles = "x,y,z,r"
+    fmt_particles = "%g,%g,%g,%g"
+    np.savetxt(fname_particles, X, delimiter=' ', header=header_particles, fmt=fmt_particles)
+
+    if limits_x is not(None):
+        print("lim_x: {} .. {}".format(limits_x[0], limits_x[1]))
+    if limits_y is not(None):
+        print("lim_y: {} .. {}".format(limits_y[0], limits_y[1]))
+    if limits_z is not(None):
+        print("lim_z: {} .. {}".format(limits_z[0], limits_z[1]))
+
+    print("Total number of particles extracted: {} / {}".format(count_particles, len(cdata)))
+
+if __name__ == '__main__':
+
+    parser = ArgumentParser()
+    parser.add_argument("-f", "--file", dest="filename", required=True, help="Filename without extension")
+    parser.add_argument("-s", "--scale", dest='scale', required=False, help="Scale dimensions", default=1.0, type=float)
+    parser.add_argument("-x", "--limits_x", dest='limits_x', nargs=2, required=False, help="Limits in x-direction", type=float)
+    parser.add_argument("-y", "--limits_y", dest='limits_y', nargs=2, required=False, help="Limits in y-direction", type=float)
+    parser.add_argument("-z", "--limits_z", dest='limits_z', nargs=2, required=False, help="Limits in z-direction", type=float)
+
+    args = parser.parse_args()
+
+    # filename name
+    pname = args.filename + ".particles"
+    extract(pname, args.scale, args.limits_x, args.limits_y, args.limits_z)
