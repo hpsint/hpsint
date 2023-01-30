@@ -81,7 +81,7 @@ foreach(VAR_MOB ${VARIANTS_MOBILITY})
 endforeach()
 
 
-### Throughput application
+### Print particles application
 set(exe "sintering-print-particles")
 ADD_EXECUTABLE(${exe} "sintering_print_particles.cc")
 DEAL_II_SETUP_TARGET(${exe})
