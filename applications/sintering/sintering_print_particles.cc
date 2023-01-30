@@ -10,6 +10,8 @@
 
 #include <pf-applications/sintering/initial_values_cloud.h>
 
+#include <filesystem>
+
 using namespace dealii;
 
 int
@@ -17,21 +19,19 @@ main(int argc, char **argv)
 {
   Utilities::MPI::MPI_InitFinalize mpi_init(argc, argv, 1);
 
+  AssertThrow(argc > 1, ExcMessage("At least one filename has to be provided"));
+
   const unsigned int dim = 3;
 
-  std::vector<std::string> files = {"49particles.cloud",
-                                    "108particles.cloud",
-                                    "186particles.cloud",
-                                    "290particles.cloud",
-                                    "608particles.cloud",
-                                    "1089particles.cloud"};
-
-  for (unsigned int i = 0; i < files.size(); ++i)
+  for (int i = 1; i < argc; ++i)
     {
-      const auto file_name = files[i];
+      const auto file_name = std::string(argv[i]);
+      const auto stem_name =
+        std::string(std::filesystem::path(file_name).stem());
+      const auto parent_path = std::filesystem::path(file_name).parent_path();
 
-      std::ifstream fstream(
-        "../applications/sintering/sintering_cloud_examples/" + file_name);
+      std::ifstream fstream(file_name);
+
       const auto particles = Sintering::read_particles<dim>(fstream);
 
       const double interface_width           = 0.0;
@@ -87,8 +87,9 @@ main(int argc, char **argv)
         DataOut<dim> data_out;
         data_out.attach_triangulation(tria);
         data_out.build_patches();
-        data_out.write_vtu_in_parallel("my_grid_" + std::to_string(i) + ".vtu",
-                                       MPI_COMM_WORLD);
+
+        const auto fname = "my_grid_" + stem_name + ".vtu";
+        data_out.write_vtu_in_parallel(parent_path / fname, MPI_COMM_WORLD);
       }
 
       {
@@ -98,9 +99,9 @@ main(int argc, char **argv)
           std::vector<std::string>{"grain_id", "radius", "order_parameter"},
           std::vector<DataComponentInterpretation::DataComponentInterpretation>(
             3, DataComponentInterpretation::component_is_scalar));
-        data_out.write_vtu_in_parallel("my_particles_" + std::to_string(i) +
-                                         ".vtu",
-                                       MPI_COMM_WORLD);
+
+        const auto fname = "my_particles_" + stem_name + ".vtu";
+        data_out.write_vtu_in_parallel(parent_path / fname, MPI_COMM_WORLD);
       }
     }
 }
