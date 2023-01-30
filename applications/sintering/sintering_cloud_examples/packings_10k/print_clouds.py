@@ -2,11 +2,10 @@ import os
 import subprocess
 import pathlib
 
-this_path = pathlib.Path(__file__).parent.resolve()
+clouds_path = pathlib.Path(__file__).parent.resolve()
 
-# Adjust prefix and executable path accordingly
+# Adjust executable path accordingly
 executable = "./applications/sintering/sintering-print-particles"
-clouds_path = this_path
 
 cmd_params = [executable]
 for cloud in os.listdir(clouds_path):
