@@ -320,6 +320,16 @@ namespace Sintering
         std::shared_ptr<FEEvaluationData<dim, VectorizedArrayType, false>>>
         phis(this->n_grains() + 1);
 
+      AlignedVector<VectorizedArrayType> gradient_buffer;
+
+      if (false /*TODO*/)
+        {
+          gradient_buffer.resize_fast(
+            this->n_grains() *
+            FECellIntegrator<dim, 1, Number, VectorizedArrayType>::
+              static_n_q_points);
+        }
+
       for (unsigned int i = 0; i <= this->n_grains(); ++i)
         {
           const unsigned int n_comp_nt = i + 2;
@@ -367,7 +377,7 @@ namespace Sintering
                EvaluationFlags::EvaluationFlags::gradients);                   \
                                                                                \
   static_cast<const T &>(*this).template do_vmult_kernel<n_comp, n_grains>(    \
-    phi);                                                                      \
+    phi, gradient_buffer.empty() ? nullptr : gradient_buffer.data());          \
                                                                                \
   phi.integrate(EvaluationFlags::EvaluationFlags::values |                     \
                 EvaluationFlags::EvaluationFlags::gradients);                  \
