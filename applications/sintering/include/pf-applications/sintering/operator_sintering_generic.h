@@ -29,7 +29,8 @@ namespace Sintering
     DEAL_II_ALWAYS_INLINE inline SinteringOperatorGenericQuad(
       const FECellIntegratorType &                                phi,
       const SinteringOperatorData<dim, VectorizedArrayType> &     data,
-      const AdvectionMechanism<dim, Number, VectorizedArrayType> &advection)
+      const AdvectionMechanism<dim, Number, VectorizedArrayType> &advection,
+      Tensor<1, n_comp, VectorizedArrayType> *gradient_buffer)
       : phi(phi)
       , cell(phi.get_current_cell_index())
       , lin_value(data.get_nonlinear_values(cell))
@@ -41,7 +42,7 @@ namespace Sintering
       , weight(data.time_data.get_primary_weight())
       , L(mobility.Lgb())
       , advection(advection)
-      , gradient_buffer(nullptr)
+      , gradient_buffer(gradient_buffer)
     {
       // Reinit advection data for the current cells batch
       if (this->advection.enabled())
@@ -433,7 +434,8 @@ namespace Sintering
                                  n_q_points,
                                  n_comp,
                                  Number,
-                                 VectorizedArrayType> &phi) const
+                                 VectorizedArrayType> &phi,
+                    VectorizedArrayType *gradient_buffer = nullptr) const
     {
       AssertDimension(n_comp - 2, n_grains);
 
@@ -443,7 +445,11 @@ namespace Sintering
                                          n_comp,
                                          Number,
                                          VectorizedArrayType>
-        quad_op(phi, this->data, this->advection);
+        quad_op(phi,
+                this->data,
+                this->advection,
+                reinterpret_cast<Tensor<1, n_comp, VectorizedArrayType> *>(
+                  gradient_buffer));
 
       for (unsigned int q = 0; q < phi.n_q_points; ++q)
         {
