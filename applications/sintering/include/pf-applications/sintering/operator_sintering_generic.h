@@ -41,12 +41,13 @@ namespace Sintering
       , weight(data.time_data.get_primary_weight())
       , L(mobility.Lgb())
       , advection(advection)
+      , gradient_buffer(nullptr)
     {
       // Reinit advection data for the current cells batch
       if (this->advection.enabled())
         this->advection.reinit(cell);
 
-      if (!gradient_buffer.empty())
+      if (gradient_buffer != nullptr)
         {
           const auto &shape_values =
             phi.get_shape_info().data[0].shape_gradients_collocation_eo;
@@ -64,19 +65,19 @@ namespace Sintering
             shape_values.data(),
             reinterpret_cast<const Tensor<1, n_comp, VectorizedArrayType> *>(
               lin_value),
-            gradient_buffer.data() + 0 * n_q_points);
+            gradient_buffer + 0 * n_q_points);
           if (dim >= 2)
             phi.template apply<1, false, false>(
               shape_values.data(),
               reinterpret_cast<const Tensor<1, n_comp, VectorizedArrayType> *>(
                 lin_value),
-              gradient_buffer.data() + 1 * n_q_points);
+              gradient_buffer + 1 * n_q_points);
           if (dim >= 3)
             phi.template apply<2, false, false>(
               shape_values.data(),
               reinterpret_cast<const Tensor<1, n_comp, VectorizedArrayType> *>(
                 lin_value),
-              gradient_buffer.data() + 2 * n_q_points);
+              gradient_buffer + 2 * n_q_points);
         }
     }
 
@@ -104,7 +105,7 @@ namespace Sintering
       // 1) process c row
       value_result[0] = value[0] * weight;
 
-      if (gradient_buffer.empty())
+      if (gradient_buffer == nullptr)
         {
           gradient_result[0] = mobility.apply_M_derivative(
             &lin_value[0], &lin_gradient[0], n_grains, &value[0], &gradient[0]);
@@ -200,7 +201,7 @@ namespace Sintering
     const Number                                                L;
     const AdvectionMechanism<dim, Number, VectorizedArrayType> &advection;
 
-    AlignedVector<Tensor<1, n_comp, VectorizedArrayType>> gradient_buffer;
+    Tensor<1, n_comp, VectorizedArrayType> *gradient_buffer;
 
     DEAL_II_ALWAYS_INLINE inline Tensor<1,
                                         n_comp,
