@@ -1,5 +1,7 @@
 #pragma once
 
+#include <deal.II/matrix_free/tensor_product_kernels.h>
+
 #include <pf-applications/sintering/advection.h>
 #include <pf-applications/sintering/instantiation.h>
 #include <pf-applications/sintering/operator_sintering_base.h>
@@ -43,6 +45,39 @@ namespace Sintering
       // Reinit advection data for the current cells batch
       if (this->advection.enabled())
         this->advection.reinit(cell);
+
+      if (!gradient_buffer.empty())
+        {
+          const auto &shape_values =
+            phi.get_shape_info().data[0].shape_gradients_collocation_eo;
+
+          dealii::internal::EvaluatorTensorProduct<
+            dealii::internal::EvaluatorVariant::evaluate_general,
+            dim,
+            n_q_points,
+            n_q_points,
+            Tensor<1, n_comp, VectorizedArrayType>,
+            VectorizedArrayType>
+            phi;
+
+          phi.template apply<0, false, false>(
+            shape_values.data(),
+            reinterpret_cast<const Tensor<1, n_comp, VectorizedArrayType> *>(
+              lin_value),
+            gradient_buffer.data() + 0 * n_q_points);
+          if (dim >= 2)
+            phi.template apply<1, false, false>(
+              shape_values.data(),
+              reinterpret_cast<const Tensor<1, n_comp, VectorizedArrayType> *>(
+                lin_value),
+              gradient_buffer.data() + 1 * n_q_points);
+          if (dim >= 3)
+            phi.template apply<2, false, false>(
+              shape_values.data(),
+              reinterpret_cast<const Tensor<1, n_comp, VectorizedArrayType> *>(
+                lin_value),
+              gradient_buffer.data() + 2 * n_q_points);
+        }
     }
 
     DEAL_II_ALWAYS_INLINE inline std::tuple<
@@ -69,8 +104,18 @@ namespace Sintering
       // 1) process c row
       value_result[0] = value[0] * weight;
 
-      gradient_result[0] = mobility.apply_M_derivative(
-        &lin_value[0], &lin_gradient[0], n_grains, &value[0], &gradient[0]);
+      if (gradient_buffer.empty())
+        {
+          gradient_result[0] = mobility.apply_M_derivative(
+            &lin_value[0], &lin_gradient[0], n_grains, &value[0], &gradient[0]);
+        }
+      else
+        {
+          const auto lin_gradient = this->get_lin_gradient(q);
+
+          gradient_result[0] = mobility.apply_M_derivative(
+            &lin_value[0], &lin_gradient[0], n_grains, &value[0], &gradient[0]);
+        }
 
 
 
@@ -154,6 +199,29 @@ namespace Sintering
     const Number                                                weight;
     const Number                                                L;
     const AdvectionMechanism<dim, Number, VectorizedArrayType> &advection;
+
+    AlignedVector<Tensor<1, n_comp, VectorizedArrayType>> gradient_buffer;
+
+    DEAL_II_ALWAYS_INLINE inline Tensor<1,
+                                        n_comp,
+                                        Tensor<1, dim, VectorizedArrayType>>
+    get_lin_gradient(const unsigned int q) const
+    {
+      const auto &jacobian = phi.get_matrix_free()
+                               .get_mapping_info()
+                               .cell_data[0]
+                               .jacobians[0]
+                               .begin()[0];
+
+      Tensor<1, n_comp, Tensor<1, dim, VectorizedArrayType>> gradient;
+
+      for (unsigned int c = 0; c < n_comp; ++c)
+        for (unsigned int d = 0; d < dim; ++d)
+          gradient[c][d] =
+            jacobian[d][d] * gradient_buffer[q + d * n_q_points][c];
+
+      return gradient;
+    }
   };
 
   template <int dim, typename Number, typename VectorizedArrayType>
