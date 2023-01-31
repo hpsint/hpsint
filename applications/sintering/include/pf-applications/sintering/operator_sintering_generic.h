@@ -322,7 +322,9 @@ namespace Sintering
 
       AlignedVector<VectorizedArrayType> gradient_buffer;
 
-      if (false /*TODO*/)
+      if (SinteringOperatorData<dim,
+                                VectorizedArrayType>::use_tensorial_mobility &&
+          true /*TODO*/)
         {
           gradient_buffer.resize_fast(
             this->n_components() *
@@ -403,7 +405,9 @@ namespace Sintering
 
       AlignedVector<VectorizedArrayType> gradient_buffer;
 
-      if (false /*TODO*/)
+      if (SinteringOperatorData<dim,
+                                VectorizedArrayType>::use_tensorial_mobility &&
+          true /*TODO*/)
         {
           gradient_buffer.resize_fast(
             this->n_components() *
