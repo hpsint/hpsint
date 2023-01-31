@@ -325,7 +325,7 @@ namespace Sintering
       if (false /*TODO*/)
         {
           gradient_buffer.resize_fast(
-            this->n_grains() *
+            this->n_components() *
             FECellIntegrator<dim, 1, Number, VectorizedArrayType>::
               static_n_q_points);
         }
@@ -406,7 +406,7 @@ namespace Sintering
       if (false /*TODO*/)
         {
           gradient_buffer.resize_fast(
-            this->n_grains() *
+            this->n_components() *
             FECellIntegrator<dim, 1, Number, VectorizedArrayType>::
               static_n_q_points);
         }
