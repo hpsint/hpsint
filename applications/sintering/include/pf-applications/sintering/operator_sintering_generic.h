@@ -390,14 +390,60 @@ namespace Sintering
         }
     }
 
+    template <int n_comp, int n_grains>
+    void
+    do_vmult_range(
+      const MatrixFree<dim, Number, VectorizedArrayType> &matrix_free,
+      BlockVectorType &                                   dst,
+      const BlockVectorType &                             src,
+      const std::pair<unsigned int, unsigned int> &       range) const
+    {
+      FECellIntegrator<dim, n_comp, Number, VectorizedArrayType> phi(
+        matrix_free, this->dof_index);
+
+      AlignedVector<VectorizedArrayType> gradient_buffer;
+
+      if (false /*TODO*/)
+        {
+          gradient_buffer.resize_fast(
+            this->n_grains() *
+            FECellIntegrator<dim, 1, Number, VectorizedArrayType>::
+              static_n_q_points);
+        }
+
+      for (auto cell = range.first; cell < range.second; ++cell)
+        {
+          phi.reinit(cell);
+          phi.gather_evaluate(src,
+                              EvaluationFlags::EvaluationFlags::values |
+                                EvaluationFlags::EvaluationFlags::gradients);
+
+          static_cast<const T &>(*this)
+            .template do_vmult_kernel<n_comp, n_grains>(
+              phi, gradient_buffer.empty() ? nullptr : gradient_buffer.data());
+
+          phi.integrate_scatter(EvaluationFlags::EvaluationFlags::values |
+                                  EvaluationFlags::EvaluationFlags::gradients,
+                                dst);
+        }
+    }
+
     void
     vmult_internal(BlockVectorType &      dst,
                    const BlockVectorType &src) const override
     {
       if (this->data.get_component_table().size(0) == 0)
         {
-          OperatorBase<dim, Number, VectorizedArrayType, T>::vmult_internal(
-            dst, src);
+#define OPERATION(c, d)                              \
+  MyMatrixFreeTools::cell_loop_wrapper(              \
+    this->matrix_free,                               \
+    &SinteringOperatorGeneric::do_vmult_range<c, d>, \
+    this,                                            \
+    dst,                                             \
+    src,                                             \
+    true);
+          EXPAND_OPERATIONS(OPERATION);
+#undef OPERATION
         }
       else
         {
