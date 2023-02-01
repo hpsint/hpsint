@@ -253,7 +253,8 @@ namespace Sintering
       const SinteringOperatorData<dim, VectorizedArrayType> &     data,
       const TimeIntegration::SolutionHistory<BlockVectorType> &   history,
       const AdvectionMechanism<dim, Number, VectorizedArrayType> &advection,
-      const bool                                                  matrix_based)
+      const bool                                                  matrix_based,
+      const bool use_tensorial_mobility_gradient_on_the_fly)
       : SinteringOperatorBase<
           dim,
           Number,
@@ -265,6 +266,8 @@ namespace Sintering
           history,
           matrix_based)
       , advection(advection)
+      , use_tensorial_mobility_gradient_on_the_fly(
+          use_tensorial_mobility_gradient_on_the_fly)
     {}
 
     ~SinteringOperatorGeneric()
@@ -327,10 +330,10 @@ namespace Sintering
 
       if (SinteringOperatorData<dim,
                                 VectorizedArrayType>::use_tensorial_mobility &&
-          true /*TODO*/)
+          use_tensorial_mobility_gradient_on_the_fly)
         {
           gradient_buffer.resize_fast(
-            this->n_components() *
+            dim * this->n_components() *
             FECellIntegrator<dim, 1, Number, VectorizedArrayType>::
               static_n_q_points);
         }
@@ -410,10 +413,10 @@ namespace Sintering
 
       if (SinteringOperatorData<dim,
                                 VectorizedArrayType>::use_tensorial_mobility &&
-          true /*TODO*/)
+          use_tensorial_mobility_gradient_on_the_fly)
         {
           gradient_buffer.resize_fast(
-            this->n_components() *
+            dim * this->n_components() *
             FECellIntegrator<dim, 1, Number, VectorizedArrayType>::
               static_n_q_points);
         }
@@ -793,5 +796,6 @@ namespace Sintering
     }
 
     const AdvectionMechanism<dim, Number, VectorizedArrayType> &advection;
+    const bool use_tensorial_mobility_gradient_on_the_fly;
   };
 } // namespace Sintering
