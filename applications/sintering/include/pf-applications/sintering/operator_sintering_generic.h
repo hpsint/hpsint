@@ -12,7 +12,7 @@ namespace Sintering
 
   template <int dim,
             int fe_degree,
-            int n_q_points,
+            int n_q_points_1D,
             int n_comp,
             typename Number,
             typename VectorizedArrayType>
@@ -21,7 +21,7 @@ namespace Sintering
   public:
     using FECellIntegratorType = FEEvaluation<dim,
                                               fe_degree,
-                                              n_q_points,
+                                              n_q_points_1D,
                                               n_comp,
                                               Number,
                                               VectorizedArrayType>;
@@ -56,8 +56,8 @@ namespace Sintering
           dealii::internal::EvaluatorTensorProduct<
             dealii::internal::EvaluatorVariant::evaluate_general,
             dim,
-            n_q_points,
-            n_q_points,
+            n_q_points_1D,
+            n_q_points_1D,
             Tensor<1, n_comp, VectorizedArrayType>,
             VectorizedArrayType>
             phi;
