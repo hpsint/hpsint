@@ -67,21 +67,21 @@ namespace Sintering
             shape_values.data(),
             reinterpret_cast<const Tensor<1, n_comp, VectorizedArrayType> *>(
               lin_value),
-            gradient_buffer + 0 * n_q_points);
+            gradient_buffer + 0 * FECellIntegratorType::static_n_q_points);
 
           if (dim >= 2) // gradient y-direction
             phi.template apply<1, true, false>(
               shape_values.data(),
               reinterpret_cast<const Tensor<1, n_comp, VectorizedArrayType> *>(
                 lin_value),
-              gradient_buffer + 1 * n_q_points);
+              gradient_buffer + 1 * FECellIntegratorType::static_n_q_points);
 
           if (dim >= 3) // gradient z-direction
             phi.template apply<2, true, false>(
               shape_values.data(),
               reinterpret_cast<const Tensor<1, n_comp, VectorizedArrayType> *>(
                 lin_value),
-              gradient_buffer + 2 * n_q_points);
+              gradient_buffer + 2 * FECellIntegratorType::static_n_q_points);
         }
     }
 
@@ -224,7 +224,8 @@ namespace Sintering
       for (unsigned int c = 0; c < n_comp; ++c)
         for (unsigned int d = 0; d < dim; ++d)
           gradient[c][d] =
-            jacobian[d][d] * gradient_buffer[q + d * n_q_points][c];
+            jacobian[d][d] *
+            gradient_buffer[q + d * FECellIntegratorType::static_n_q_points][c];
 
       return gradient;
     }
