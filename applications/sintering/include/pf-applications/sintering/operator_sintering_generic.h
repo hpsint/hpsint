@@ -63,21 +63,21 @@ namespace Sintering
             phi;
 
           // gradient x-direction
-          phi.template apply<0, false, false>(
+          phi.template apply<0, true, false>(
             shape_values.data(),
             reinterpret_cast<const Tensor<1, n_comp, VectorizedArrayType> *>(
               lin_value),
             gradient_buffer + 0 * n_q_points);
 
           if (dim >= 2) // gradient y-direction
-            phi.template apply<1, false, false>(
+            phi.template apply<1, true, false>(
               shape_values.data(),
               reinterpret_cast<const Tensor<1, n_comp, VectorizedArrayType> *>(
                 lin_value),
               gradient_buffer + 1 * n_q_points);
 
           if (dim >= 3) // gradient z-direction
-            phi.template apply<2, false, false>(
+            phi.template apply<2, true, false>(
               shape_values.data(),
               reinterpret_cast<const Tensor<1, n_comp, VectorizedArrayType> *>(
                 lin_value),
