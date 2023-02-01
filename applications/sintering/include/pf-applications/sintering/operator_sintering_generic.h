@@ -51,7 +51,7 @@ namespace Sintering
       if (gradient_buffer != nullptr)
         {
           const auto &shape_values =
-            phi.get_shape_info().data[0].shape_gradients_collocation_eo;
+            phi.get_shape_info().data[0].shape_gradients_collocation;
 
           dealii::internal::EvaluatorTensorProduct<
             dealii::internal::EvaluatorVariant::evaluate_general,
