@@ -212,11 +212,12 @@ namespace Sintering
                                         Tensor<1, dim, VectorizedArrayType>>
     get_lin_gradient(const unsigned int q) const
     {
-      const auto &jacobian = phi.get_matrix_free()
-                               .get_mapping_info()
-                               .cell_data[0]
-                               .jacobians[0]
-                               .begin()[0];
+      const auto &mapping_data =
+        phi.get_matrix_free().get_mapping_info().cell_data[0];
+
+      const unsigned int offsets = mapping_data.data_index_offsets[cell];
+
+      const auto &jacobian = mapping_data.jacobians[0][offsets];
 
       Tensor<1, n_comp, Tensor<1, dim, VectorizedArrayType>> gradient;
 
