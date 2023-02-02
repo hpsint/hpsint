@@ -254,12 +254,7 @@ public:
                                                      buffer_distance_fixed,
                                                      op_offset);
 
-    const bool   enable = false;
-    const double mt     = 0.;
-    const double mr     = 0.;
-
-    AdvectionMechanism<dim, Number, VectorizedArrayType> advection_mechanism(
-      enable, mt, mr, grain_tracker);
+    AdvectionMechanism<dim, Number, VectorizedArrayType> advection_mechanism;
 
     // set initial condition
     InitialValuesTest<dim> initial_solution;
@@ -280,8 +275,10 @@ public:
       SinteringOperatorCoupledWang<dim, Number, VectorizedArrayType>;
 
     // Elastic material properties
-    double E  = 1;
-    double nu = 0.25;
+    const double                        E  = 1;
+    const double                        nu = 0.25;
+    const Structural::MaterialPlaneType plane_type =
+      Structural::MaterialPlaneType::plane_strain;
 
     NonLinearOperator nonlinear_operator(matrix_free,
                                          constraints,
@@ -291,6 +288,7 @@ public:
                                          matrix_based,
                                          E,
                                          nu,
+                                         plane_type,
                                          body_force_x);
 
     std::function<void(VectorType &)> f_init =
@@ -324,7 +322,7 @@ public:
         constraints.distribute(solution.block(c));
       }
 
-    sintering_data.fill_quadrature_point_values(matrix_free, solution, enable);
+    sintering_data.fill_quadrature_point_values(matrix_free, solution, false);
 
     const auto output_result = [&](const double t) {
       DataOutBase::VtkFlags flags;
