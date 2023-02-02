@@ -142,14 +142,13 @@ namespace Sintering
         {
           value_result[ig + 2] +=
             value[ig + 2] * weight +
-            L * free_energy.d2f_dcdetai(lin_c_value, lin_etas_value, ig) *
-              value[0] +
-            L *
-              free_energy.d2f_detai2(lin_c_value,
-                                     lin_etas_value,
-                                     lin_etas_value_power_2_sum,
-                                     ig) *
-              value[ig + 2];
+            L * (free_energy.d2f_dcdetai(lin_c_value, lin_etas_value, ig) *
+                   value[0] +
+                 free_energy.d2f_detai2(lin_c_value,
+                                        lin_etas_value,
+                                        lin_etas_value_power_2_sum,
+                                        ig) *
+                   value[ig + 2]);
 
           gradient_result[ig + 2] = L * kappa_p * gradient[ig + 2];
 
