@@ -174,7 +174,9 @@ namespace Sintering
       const std::array<std::vector<unsigned int>, dim>
         &          displ_constraints_indices,
       const double E  = 1.0,
-      const double nu = 0.25)
+      const double nu = 0.25,
+      const Structural::MaterialPlaneType                 plane_type =
+        Structural::MaterialPlaneType::none)
       : OperatorBase<dim,
                      Number,
                      VectorizedArrayType,
@@ -185,7 +187,7 @@ namespace Sintering
           "solid_op")
       , data(data)
       , displ_constraints_indices(displ_constraints_indices)
-      , material(E, nu, Structural::MaterialPlaneType::none)
+      , material(E, nu, Structural::MaterialPlaneType::plane_type)
     {}
 
     unsigned int
@@ -986,7 +988,9 @@ namespace Sintering
       const std::array<std::vector<unsigned int>, dim>
         &          zero_constraints_indices,
       const double E  = 1.0,
-      const double nu = 0.25)
+      const double nu = 0.25,
+      const Structural::MaterialPlaneType plane_type =
+        Structural::MaterialPlaneType::none)
       : data(data)
     {
       // create operators
@@ -1018,7 +1022,8 @@ namespace Sintering
             sintering_data,
             zero_constraints_indices,
             E,
-            nu);
+            nu,
+            plane_type);
 
       // create preconditioners
       preconditioner_0 =
