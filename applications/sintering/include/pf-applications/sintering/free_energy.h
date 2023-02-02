@@ -257,6 +257,27 @@ namespace Sintering
 
       return 24.0 * B * etai * etaj;
     }
+
+    template <typename VectorType>
+    DEAL_II_ALWAYS_INLINE void
+    apply_d2f_detaidetaj(const VectorType &         L,
+                         const VectorizedArrayType *etas,
+                         const unsigned int         n_grains,
+                         const VectorizedArrayType *value,
+                         VectorizedArrayType *      value_result) const
+    {
+      if (n_grains <= 2)
+        return; // nothing to do
+
+      VectorizedArrayType temp = etas[0] * value[0];
+
+      for (unsigned int ig = 1; ig < n_grains; ++ig)
+        temp += etas[ig] * value[ig];
+
+      for (unsigned int ig = 0; ig < n_grains; ++ig)
+        value_result[ig] +=
+          (L * 24.0 * B) * etas[ig] * (temp - etas[ig] * value[ig]);
+    }
   };
 
 } // namespace Sintering
