@@ -750,6 +750,9 @@ namespace Sintering
       const auto out =
         (f_vol_vap + fsurf) * mu_gradient - nc * (fsurf * (nc * mu_gradient));
 
+      if (n_grains <= 1)
+        return out;
+
       // GB diffusion part
       //
       // warning: nested loop over grains; optimization: exploit symmetry
@@ -851,6 +854,9 @@ namespace Sintering
         out += (-fsurf / nrm) *
                ((nc * lin_mu_gradient) * temp + nc * (lin_mu_gradient * temp));
       }
+
+      if (n_grains <= 1)
+        return out;
 
       // 4) for M (gb part) and for dM_detai
       {
