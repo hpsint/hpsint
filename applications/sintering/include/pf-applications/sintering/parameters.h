@@ -114,6 +114,8 @@ namespace Sintering
   {
     double E  = 1.0;
     double nu = 0.25;
+
+    std::string plane_type = "None";
   };
 
   struct MaterialData
@@ -618,6 +620,10 @@ namespace Sintering
       prm.add_parameter("nu",
                         material_data.mechanics_data.nu,
                         "Poisson ratio.");
+      prm.add_parameter("Type",
+                        material_data.mechanics_data.plane_type,
+                        "Type of material for 2D case",
+                        Patterns::Selection("None|PlaneStrain|PlaneStress"));
       prm.leave_subsection();
 
       prm.leave_subsection();

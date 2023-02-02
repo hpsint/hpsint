@@ -874,6 +874,17 @@ namespace Sintering
         params.advection_data.mt,
         params.advection_data.mr);
 
+      // Mechanics material data - plane type relevant for 2D
+      Structural::MaterialPlaneType plane_type;
+      if (params.material_data.mechanics_data.plane_type == "None")
+        plane_type = Structural::MaterialPlaneType::none;
+      else if (params.material_data.mechanics_data.plane_type == "PlaneStrain")
+        plane_type = Structural::MaterialPlaneType::plane_strain;
+      else if (params.material_data.mechanics_data.plane_type == "PlaneStress")
+        plane_type = Structural::MaterialPlaneType::plane_stress;
+      else
+        AssertThrow(false, ExcNotImplemented());
+
       auto nonlinear_operator = create_sintering_operator<dim,
                                                           Number,
                                                           VectorizedArrayType,
@@ -885,9 +896,10 @@ namespace Sintering
         solution_history,
         advection_mechanism,
         params.matrix_based,
+        params.use_tensorial_mobility_gradient_on_the_fly,
         params.material_data.mechanics_data.E,
         params.material_data.mechanics_data.nu,
-        params.use_tensorial_mobility_gradient_on_the_fly);
+        plane_type);
 
       std::unique_ptr<NonLinearSolvers::JacobianBase<Number>> jacobian_operator;
 
@@ -953,7 +965,8 @@ namespace Sintering
             advection_mechanism,
             *displ_constraints_indices_ptr,
             params.material_data.mechanics_data.E,
-            params.material_data.mechanics_data.nu);
+            params.material_data.mechanics_data.nu,
+            plane_type);
         }
       else
         preconditioner = Preconditioners::create(
