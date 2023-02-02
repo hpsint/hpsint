@@ -886,7 +886,8 @@ namespace Sintering
         advection_mechanism,
         params.matrix_based,
         params.material_data.mechanics_data.E,
-        params.material_data.mechanics_data.nu);
+        params.material_data.mechanics_data.nu,
+        params.use_tensorial_mobility_gradient_on_the_fly);
 
       std::unique_ptr<NonLinearSolvers::JacobianBase<Number>> jacobian_operator;
 

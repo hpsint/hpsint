@@ -1,5 +1,7 @@
 #pragma once
 
+#include <deal.II/matrix_free/tensor_product_kernels.h>
+
 #include <pf-applications/sintering/advection.h>
 #include <pf-applications/sintering/instantiation.h>
 #include <pf-applications/sintering/operator_sintering_base.h>
@@ -10,7 +12,7 @@ namespace Sintering
 
   template <int dim,
             int fe_degree,
-            int n_q_points,
+            int n_q_points_1D,
             int n_comp,
             typename Number,
             typename VectorizedArrayType>
@@ -19,7 +21,7 @@ namespace Sintering
   public:
     using FECellIntegratorType = FEEvaluation<dim,
                                               fe_degree,
-                                              n_q_points,
+                                              n_q_points_1D,
                                               n_comp,
                                               Number,
                                               VectorizedArrayType>;
@@ -27,7 +29,8 @@ namespace Sintering
     DEAL_II_ALWAYS_INLINE inline SinteringOperatorGenericQuad(
       const FECellIntegratorType &                                phi,
       const SinteringOperatorData<dim, VectorizedArrayType> &     data,
-      const AdvectionMechanism<dim, Number, VectorizedArrayType> &advection)
+      const AdvectionMechanism<dim, Number, VectorizedArrayType> &advection,
+      Tensor<1, n_comp, VectorizedArrayType> *gradient_buffer)
       : phi(phi)
       , cell(phi.get_current_cell_index())
       , lin_value(data.get_nonlinear_values(cell))
@@ -39,10 +42,47 @@ namespace Sintering
       , weight(data.time_data.get_primary_weight())
       , L(mobility.Lgb())
       , advection(advection)
+      , gradient_buffer(gradient_buffer)
     {
       // Reinit advection data for the current cells batch
       if (this->advection.enabled())
         this->advection.reinit(cell);
+
+      if (gradient_buffer != nullptr)
+        {
+          const auto &shape_values =
+            phi.get_shape_info().data[0].shape_gradients_collocation;
+
+          dealii::internal::EvaluatorTensorProduct<
+            dealii::internal::EvaluatorVariant::evaluate_general,
+            dim,
+            n_q_points_1D,
+            n_q_points_1D,
+            Tensor<1, n_comp, VectorizedArrayType>,
+            VectorizedArrayType>
+            phi;
+
+          // gradient x-direction
+          phi.template apply<0, true, false>(
+            shape_values.data(),
+            reinterpret_cast<const Tensor<1, n_comp, VectorizedArrayType> *>(
+              lin_value),
+            gradient_buffer + 0 * FECellIntegratorType::static_n_q_points);
+
+          if (dim >= 2) // gradient y-direction
+            phi.template apply<1, true, false>(
+              shape_values.data(),
+              reinterpret_cast<const Tensor<1, n_comp, VectorizedArrayType> *>(
+                lin_value),
+              gradient_buffer + 1 * FECellIntegratorType::static_n_q_points);
+
+          if (dim >= 3) // gradient z-direction
+            phi.template apply<2, true, false>(
+              shape_values.data(),
+              reinterpret_cast<const Tensor<1, n_comp, VectorizedArrayType> *>(
+                lin_value),
+              gradient_buffer + 2 * FECellIntegratorType::static_n_q_points);
+        }
     }
 
     DEAL_II_ALWAYS_INLINE inline std::tuple<
@@ -69,8 +109,18 @@ namespace Sintering
       // 1) process c row
       value_result[0] = value[0] * weight;
 
-      gradient_result[0] = mobility.apply_M_derivative(
-        &lin_value[0], &lin_gradient[0], n_grains, &value[0], &gradient[0]);
+      if (gradient_buffer == nullptr)
+        {
+          gradient_result[0] = mobility.apply_M_derivative(
+            &lin_value[0], &lin_gradient[0], n_grains, &value[0], &gradient[0]);
+        }
+      else
+        {
+          const auto lin_gradient = this->get_lin_gradient(q);
+
+          gradient_result[0] = mobility.apply_M_derivative(
+            &lin_value[0], &lin_gradient[0], n_grains, &value[0], &gradient[0]);
+        }
 
 
 
@@ -154,6 +204,31 @@ namespace Sintering
     const Number                                                weight;
     const Number                                                L;
     const AdvectionMechanism<dim, Number, VectorizedArrayType> &advection;
+
+    Tensor<1, n_comp, VectorizedArrayType> *gradient_buffer;
+
+    DEAL_II_ALWAYS_INLINE inline Tensor<1,
+                                        n_comp,
+                                        Tensor<1, dim, VectorizedArrayType>>
+    get_lin_gradient(const unsigned int q) const
+    {
+      const auto &mapping_data =
+        phi.get_matrix_free().get_mapping_info().cell_data[0];
+
+      const unsigned int offsets = mapping_data.data_index_offsets[cell];
+
+      const auto &jacobian = mapping_data.jacobians[0][offsets];
+
+      Tensor<1, n_comp, Tensor<1, dim, VectorizedArrayType>> gradient;
+
+      for (unsigned int c = 0; c < n_comp; ++c)
+        for (unsigned int d = 0; d < dim; ++d)
+          gradient[c][d] =
+            jacobian[d][d] *
+            gradient_buffer[q + d * FECellIntegratorType::static_n_q_points][c];
+
+      return gradient;
+    }
   };
 
   template <int dim, typename Number, typename VectorizedArrayType>
@@ -180,7 +255,8 @@ namespace Sintering
       const SinteringOperatorData<dim, VectorizedArrayType> &     data,
       const TimeIntegration::SolutionHistory<BlockVectorType> &   history,
       const AdvectionMechanism<dim, Number, VectorizedArrayType> &advection,
-      const bool                                                  matrix_based)
+      const bool                                                  matrix_based,
+      const bool use_tensorial_mobility_gradient_on_the_fly)
       : SinteringOperatorBase<
           dim,
           Number,
@@ -192,6 +268,8 @@ namespace Sintering
           history,
           matrix_based)
       , advection(advection)
+      , use_tensorial_mobility_gradient_on_the_fly(
+          use_tensorial_mobility_gradient_on_the_fly)
     {}
 
     ~SinteringOperatorGeneric()
@@ -250,6 +328,18 @@ namespace Sintering
         std::shared_ptr<FEEvaluationData<dim, VectorizedArrayType, false>>>
         phis(this->n_grains() + 1);
 
+      AlignedVector<VectorizedArrayType> gradient_buffer;
+
+      if (SinteringOperatorData<dim,
+                                VectorizedArrayType>::use_tensorial_mobility &&
+          use_tensorial_mobility_gradient_on_the_fly)
+        {
+          gradient_buffer.resize_fast(
+            dim * this->n_components() *
+            FECellIntegrator<dim, 1, Number, VectorizedArrayType>::
+              static_n_q_points);
+        }
+
       for (unsigned int i = 0; i <= this->n_grains(); ++i)
         {
           const unsigned int n_comp_nt = i + 2;
@@ -297,7 +387,7 @@ namespace Sintering
                EvaluationFlags::EvaluationFlags::gradients);                   \
                                                                                \
   static_cast<const T &>(*this).template do_vmult_kernel<n_comp, n_grains>(    \
-    phi);                                                                      \
+    phi, gradient_buffer.empty() ? nullptr : gradient_buffer.data());          \
                                                                                \
   phi.integrate(EvaluationFlags::EvaluationFlags::values |                     \
                 EvaluationFlags::EvaluationFlags::gradients);                  \
@@ -310,14 +400,62 @@ namespace Sintering
         }
     }
 
+    template <int n_comp, int n_grains>
+    void
+    do_vmult_range(
+      const MatrixFree<dim, Number, VectorizedArrayType> &matrix_free,
+      BlockVectorType &                                   dst,
+      const BlockVectorType &                             src,
+      const std::pair<unsigned int, unsigned int> &       range) const
+    {
+      FECellIntegrator<dim, n_comp, Number, VectorizedArrayType> phi(
+        matrix_free, this->dof_index);
+
+      AlignedVector<VectorizedArrayType> gradient_buffer;
+
+      if (SinteringOperatorData<dim,
+                                VectorizedArrayType>::use_tensorial_mobility &&
+          use_tensorial_mobility_gradient_on_the_fly)
+        {
+          gradient_buffer.resize_fast(
+            dim * this->n_components() *
+            FECellIntegrator<dim, 1, Number, VectorizedArrayType>::
+              static_n_q_points);
+        }
+
+      for (auto cell = range.first; cell < range.second; ++cell)
+        {
+          phi.reinit(cell);
+          phi.gather_evaluate(src,
+                              EvaluationFlags::EvaluationFlags::values |
+                                EvaluationFlags::EvaluationFlags::gradients);
+
+          static_cast<const T &>(*this)
+            .template do_vmult_kernel<n_comp, n_grains>(
+              phi, gradient_buffer.empty() ? nullptr : gradient_buffer.data());
+
+          phi.integrate_scatter(EvaluationFlags::EvaluationFlags::values |
+                                  EvaluationFlags::EvaluationFlags::gradients,
+                                dst);
+        }
+    }
+
     void
     vmult_internal(BlockVectorType &      dst,
                    const BlockVectorType &src) const override
     {
       if (this->data.get_component_table().size(0) == 0)
         {
-          OperatorBase<dim, Number, VectorizedArrayType, T>::vmult_internal(
-            dst, src);
+#define OPERATION(c, d)                              \
+  MyMatrixFreeTools::cell_loop_wrapper(              \
+    this->matrix_free,                               \
+    &SinteringOperatorGeneric::do_vmult_range<c, d>, \
+    this,                                            \
+    dst,                                             \
+    src,                                             \
+    true);
+          EXPAND_OPERATIONS(OPERATION);
+#undef OPERATION
         }
       else
         {
@@ -364,7 +502,8 @@ namespace Sintering
                                  n_q_points,
                                  n_comp,
                                  Number,
-                                 VectorizedArrayType> &phi) const
+                                 VectorizedArrayType> &phi,
+                    VectorizedArrayType *gradient_buffer = nullptr) const
     {
       AssertDimension(n_comp - 2, n_grains);
 
@@ -374,7 +513,11 @@ namespace Sintering
                                          n_comp,
                                          Number,
                                          VectorizedArrayType>
-        quad_op(phi, this->data, this->advection);
+        quad_op(phi,
+                this->data,
+                this->advection,
+                reinterpret_cast<Tensor<1, n_comp, VectorizedArrayType> *>(
+                  gradient_buffer));
 
       for (unsigned int q = 0; q < phi.n_q_points; ++q)
         {
@@ -655,5 +798,6 @@ namespace Sintering
     }
 
     const AdvectionMechanism<dim, Number, VectorizedArrayType> &advection;
+    const bool use_tensorial_mobility_gradient_on_the_fly;
   };
 } // namespace Sintering

@@ -19,12 +19,13 @@ namespace Sintering
     const SinteringOperatorData<dim, VectorizedArrayType> &  sintering_data,
     const TimeIntegration::SolutionHistory<BlockVectorType> &solution_history,
     const AdvectionMechanism<dim, Number, VectorizedArrayType>
-      &                                       advection_mechanism,
-    const bool                                matrix_based,
-    const double                              E       = 1.0,
-    const double                              nu      = 0.25,
+      &          advection_mechanism,
+    const bool   matrix_based,
+    const double E                                          = 1.0,
+    const double nu                                         = 0.25,
+    const bool   use_tensorial_mobility_gradient_on_the_fly = false,
     std::function<Tensor<1, dim, VectorizedArrayType>(
-      const Point<dim, VectorizedArrayType>)> loading = {})
+      const Point<dim, VectorizedArrayType>)> loading       = {})
   {
     (void)advection_mechanism;
     (void)E;
@@ -41,7 +42,8 @@ namespace Sintering
         sintering_data,
         solution_history,
         advection_mechanism,
-        matrix_based);
+        matrix_based,
+        use_tensorial_mobility_gradient_on_the_fly);
 
     else if constexpr (
       std::is_same_v<

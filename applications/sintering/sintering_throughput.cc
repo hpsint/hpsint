@@ -355,7 +355,8 @@ main(int argc, char **argv)
                                  sintering_data,
                                  solution_history,
                                  advection_mechanism,
-                                 false);
+                                 false,
+                                 true);
 
             BlockVectorType src;
             sintering_operator.initialize_dof_vector(src);
@@ -414,7 +415,8 @@ main(int argc, char **argv)
                                  sintering_data,
                                  solution_history,
                                  advection_mechanism,
-                                 false);
+                                 false,
+                                 true);
 
             BlockVectorType src;
             sintering_operator.initialize_dof_vector(src);

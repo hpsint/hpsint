@@ -294,8 +294,9 @@ namespace Sintering
     ProfilingData          profiling_data;
     NonLinearData          nonlinear_data;
 
-    bool   matrix_based            = false;
-    double grain_cut_off_tolerance = 0.0; // 0.00001
+    bool   matrix_based                               = false;
+    double grain_cut_off_tolerance                    = 0.0; // 0.00001
+    bool   use_tensorial_mobility_gradient_on_the_fly = false;
 
     bool print_time_loop = true;
 
@@ -381,6 +382,9 @@ namespace Sintering
       prm.add_parameter("GrainCutOffTolerance",
                         grain_cut_off_tolerance,
                         "Grain cut-off tolerance.");
+      prm.add_parameter("TensorialMobilityGradientOnTheFly",
+                        use_tensorial_mobility_gradient_on_the_fly,
+                        "Run program matrix-based or matrix-free.");
 
       prm.enter_subsection("Approximation");
       prm.add_parameter("FEDegree",
