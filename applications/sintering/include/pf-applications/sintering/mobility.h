@@ -859,14 +859,17 @@ namespace Sintering
             {
               const auto eta_grad_diff =
                 lin_etas_gradient[i] - lin_etas_gradient[j];
-              const auto neta = unit_vector(eta_grad_diff);
+              const auto filter = unit_vector_filter_2(eta_grad_diff);
 
-              out_gb += (mu_gradient - neta * (neta * mu_gradient)) *
+              out_gb += (mu_gradient - (filter * eta_grad_diff) *
+                                         (eta_grad_diff * mu_gradient)) *
                         (lin_etas_value[i] * lin_etas_value[j]);
 
-              out_gb += (lin_mu_gradient - neta * (neta * lin_mu_gradient)) *
-                        (lin_etas_value[j] * etas_value[i] +
-                         lin_etas_value[i] * etas_value[j]);
+              out_gb +=
+                (lin_mu_gradient -
+                 (filter * eta_grad_diff) * (eta_grad_diff * lin_mu_gradient)) *
+                (lin_etas_value[j] * etas_value[i] +
+                 lin_etas_value[i] * etas_value[j]);
             }
       }
 

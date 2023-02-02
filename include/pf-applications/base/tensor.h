@@ -135,6 +135,26 @@ namespace Sintering
   }
 
   template <int dim, typename Number>
+  DEAL_II_ALWAYS_INLINE inline Number
+  unit_vector_filter_2(const Tensor<1, dim, Number> &vec,
+                       const Number                  zero_tol = 1e-8)
+  {
+    const Number zeros = 0.0;
+    const Number ones  = 1.0;
+    const Number nrm   = vec.norm_square();
+
+    const auto filter = compare_and_apply_mask<SIMDComparison::greater_than>(
+      nrm, zero_tol, ones, zeros);
+    const auto filtered_norm =
+      compare_and_apply_mask<SIMDComparison::less_than>(nrm,
+                                                        zero_tol,
+                                                        ones,
+                                                        nrm);
+
+    return (filter / filtered_norm);
+  }
+
+  template <int dim, typename Number>
   DEAL_II_ALWAYS_INLINE inline Tensor<2, dim, Number>
   projector_matrix(const Tensor<1, dim, Number> vec, const Number &fac = 1.)
   {
