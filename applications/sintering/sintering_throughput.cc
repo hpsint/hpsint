@@ -478,6 +478,7 @@ main(int argc, char **argv)
                                  false,
                                  E,
                                  nu,
+                                 Structural::MaterialPlaneType::none,
                                  {});
 
             BlockVectorType src;
