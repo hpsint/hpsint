@@ -161,7 +161,7 @@ namespace Sintering
       // 4) add advection contributations -> influences c AND etas
       if (this->advection.enabled())
         for (unsigned int ig = 0; ig < n_grains; ++ig)
-          if (this->advection.has_velocity(ig))
+          if (true || this->advection.has_velocity(ig))
             {
               const auto &velocity_ig =
                 this->advection.get_velocity(ig, phi.quadrature_point(q));
@@ -617,7 +617,7 @@ namespace Sintering
           // 4) add advection contributations -> influences c AND etas
           if (this->advection.enabled())
             for (unsigned int ig = 0; ig < n_grains; ++ig)
-              if (this->advection.has_velocity(ig))
+              if (true || this->advection.has_velocity(ig))
                 {
                   const auto &velocity_ig =
                     this->advection.get_velocity(ig, phi.quadrature_point(q));
