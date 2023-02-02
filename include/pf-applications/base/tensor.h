@@ -117,12 +117,11 @@ namespace Sintering
 
   template <int dim, typename Number>
   DEAL_II_ALWAYS_INLINE inline Tensor<1, dim, Number>
-  unit_vector(const Tensor<1, dim, Number> &vec)
+  unit_vector(const Tensor<1, dim, Number> &vec, const Number zero_tol = 1e-4)
   {
-    const Number zeros    = 0.0;
-    const Number ones     = 1.0;
-    const Number zero_tol = 1e-4;
-    const Number nrm      = vec.norm();
+    const Number zeros = 0.0;
+    const Number ones  = 1.0;
+    const Number nrm   = vec.norm();
 
     const auto filter = compare_and_apply_mask<SIMDComparison::greater_than>(
       nrm, zero_tol, ones, zeros);
