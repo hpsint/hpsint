@@ -209,19 +209,16 @@ namespace Sintering
     get_velocity(const unsigned int                     order_parameter_id,
                  const Point<dim, VectorizedArrayType> &r) const
     {
-      const auto &op_cell_data = current_cell_data[order_parameter_id];
+      const auto &op_cell_data = current_cell_data.at(order_parameter_id);
 
       // Translational velocity
-      const auto vt = (mt * op_cell_data.volume_inv) * op_cell_data.force;
-
-      if (mr == 0.0)
-        return vt; // note: in most cases mr is zero
+      const auto vt = mt * op_cell_data.volume_inv * op_cell_data.force;
 
       // Get vector from the particle center to the current point
       const auto r_rc = r - op_cell_data.rc;
 
       // Rotational velocity
-      const auto vr = (mr * op_cell_data.volume_inv) * op_cell_data.cross(r_rc);
+      const auto vr = mr * op_cell_data.volume_inv * op_cell_data.cross(r_rc);
 
       // Total advection velocity
       const auto v_adv = vt + vr;
