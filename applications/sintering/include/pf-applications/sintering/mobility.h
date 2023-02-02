@@ -443,10 +443,8 @@ namespace Sintering
         lin_c_value * lin_c_value * lin_c_value *
         (10.0 - 15.0 * lin_c_value + 6.0 * lin_c_value * lin_c_value);
 
-      phi = compare_and_apply_mask<SIMDComparison::less_than>(
-        phi, VectorizedArrayType(0.0), VectorizedArrayType(0.0), phi);
-      phi = compare_and_apply_mask<SIMDComparison::greater_than>(
-        phi, VectorizedArrayType(1.0), VectorizedArrayType(1.0), phi);
+      phi = std::max(VectorizedArrayType(0.0), phi);
+      phi = std::min(VectorizedArrayType(1.0), phi);
 
       const VectorizedArrayType M = Mvol * phi + Mvap * (1.0 - phi) +
                                     Msurf * 4.0 * lin_c_value * lin_c_value *
@@ -491,10 +489,8 @@ namespace Sintering
         lin_c_value * lin_c_value * lin_c_value *
         (10.0 - 15.0 * lin_c_value + 6.0 * lin_c_value * lin_c_value);
 
-      phi = compare_and_apply_mask<SIMDComparison::less_than>(
-        phi, VectorizedArrayType(0.0), VectorizedArrayType(0.0), phi);
-      phi = compare_and_apply_mask<SIMDComparison::greater_than>(
-        phi, VectorizedArrayType(1.0), VectorizedArrayType(1.0), phi);
+      phi = std::max(VectorizedArrayType(0.0), phi);
+      phi = std::min(VectorizedArrayType(1.0), phi);
 
       const VectorizedArrayType M = Mvol * phi + Mvap * (1.0 - phi) +
                                     Msurf * 4.0 * lin_c_value * lin_c_value *
@@ -740,10 +736,8 @@ namespace Sintering
         lin_c_value * lin_c_value * lin_c_value *
         (10.0 - 15.0 * lin_c_value + 6.0 * lin_c_value * lin_c_value);
 
-      phi = compare_and_apply_mask<SIMDComparison::less_than>(
-        phi, VectorizedArrayType(0.0), VectorizedArrayType(0.0), phi);
-      phi = compare_and_apply_mask<SIMDComparison::greater_than>(
-        phi, VectorizedArrayType(1.0), VectorizedArrayType(1.0), phi);
+      phi = std::max(VectorizedArrayType(0.0), phi);
+      phi = std::min(VectorizedArrayType(1.0), phi);
 
       // Volumetric and vaporization parts, the same as for isotropic
       const auto f_vol_vap = Mvol * phi + Mvap * (1.0 - phi);
@@ -804,10 +798,8 @@ namespace Sintering
           lin_c_value * lin_c_value * lin_c_value *
           (10.0 - 15.0 * lin_c_value + 6.0 * lin_c_value * lin_c_value);
 
-        phi = compare_and_apply_mask<SIMDComparison::less_than>(
-          phi, VectorizedArrayType(0.0), VectorizedArrayType(0.0), phi);
-        phi = compare_and_apply_mask<SIMDComparison::greater_than>(
-          phi, VectorizedArrayType(1.0), VectorizedArrayType(1.0), phi);
+        phi = std::max(VectorizedArrayType(0.0), phi);
+        phi = std::min(VectorizedArrayType(1.0), phi);
 
         // Volumetric and vaporization parts, the same as for isotropic
         const auto f_vol_vap = Mvol * phi + Mvap * (1.0 - phi);
