@@ -142,26 +142,19 @@ namespace Sintering
         {
           value_result[ig + 2] +=
             value[ig + 2] * weight +
-            L * free_energy.d2f_dcdetai(lin_c_value, lin_etas_value, ig) *
-              value[0] +
-            L *
-              free_energy.d2f_detai2(lin_c_value,
-                                     lin_etas_value,
-                                     lin_etas_value_power_2_sum,
-                                     ig) *
-              value[ig + 2];
+            L * (free_energy.d2f_dcdetai(lin_c_value, lin_etas_value, ig) *
+                   value[0] +
+                 free_energy.d2f_detai2(lin_c_value,
+                                        lin_etas_value,
+                                        lin_etas_value_power_2_sum,
+                                        ig) *
+                   value[ig + 2]);
 
           gradient_result[ig + 2] = L * kappa_p * gradient[ig + 2];
-
-          for (unsigned int jg = 0; jg < ig; ++jg)
-            {
-              const auto d2f_detaidetaj =
-                free_energy.d2f_detaidetaj(lin_c_value, lin_etas_value, ig, jg);
-
-              value_result[ig + 2] += (L * d2f_detaidetaj) * value[jg + 2];
-              value_result[jg + 2] += (L * d2f_detaidetaj) * value[ig + 2];
-            }
         }
+
+      free_energy.apply_d2f_detaidetaj(
+        L, lin_etas_value, n_grains, &value[0] + 2, &value_result[0] + 2);
 
 
 

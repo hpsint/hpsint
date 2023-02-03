@@ -177,7 +177,7 @@ namespace Sintering
     {
       const auto &etai = etas[index_i];
 
-      return etai * B * 12.0 *
+      return etai * (B * 12.0) *
              (etai * (1.0 * c - 2.0) + (-c + 1.0) + etaPower2Sum);
     }
 
@@ -214,7 +214,7 @@ namespace Sintering
 
       const auto &etai = etas[index_i];
 
-      return B * 12.0 * etai * (etai - 1.0);
+      return (B * 12.0) * etai * (etai - 1.0);
     }
 
     template <typename VectorType>
@@ -256,6 +256,27 @@ namespace Sintering
       const auto &etaj = etas[index_j];
 
       return 24.0 * B * etai * etaj;
+    }
+
+    template <typename VectorType>
+    DEAL_II_ALWAYS_INLINE void
+    apply_d2f_detaidetaj(const VectorType &         L,
+                         const VectorizedArrayType *etas,
+                         const unsigned int         n_grains,
+                         const VectorizedArrayType *value,
+                         VectorizedArrayType *      value_result) const
+    {
+      if (n_grains <= 2)
+        return; // nothing to do
+
+      VectorizedArrayType temp = etas[0] * value[0];
+
+      for (unsigned int ig = 1; ig < n_grains; ++ig)
+        temp += etas[ig] * value[ig];
+
+      for (unsigned int ig = 0; ig < n_grains; ++ig)
+        value_result[ig] +=
+          (L * 24.0 * B) * etas[ig] * (temp - etas[ig] * value[ig]);
     }
   };
 
