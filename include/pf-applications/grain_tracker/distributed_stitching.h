@@ -3,9 +3,66 @@
 #include <deal.II/base/mpi.h>
 #include <deal.II/base/mpi_consensus_algorithms.h>
 
+#include <deal.II/dofs/dof_handler.h>
+
 namespace GrainTracker
 {
   using namespace dealii;
+
+  template <int dim, typename VectorSolution, typename VectorIds>
+  unsigned int
+  run_flooding(const typename DoFHandler<dim>::cell_iterator &cell,
+               const VectorSolution &                         solution,
+               VectorIds &                                    particle_ids,
+               const unsigned int                             id,
+               const double threshold_lower     = 0,
+               const double invalid_particle_id = -1.0)
+  {
+    if (cell->has_children())
+      {
+        unsigned int counter = 0;
+
+        for (const auto &child : cell->child_iterators())
+          counter += run_flooding<dim>(child,
+                                       solution,
+                                       particle_ids,
+                                       id,
+                                       threshold_lower,
+                                       invalid_particle_id);
+
+        return counter;
+      }
+
+    if (cell->is_locally_owned() == false)
+      return 0;
+
+    const auto particle_id = particle_ids[cell->global_active_cell_index()];
+
+    if (particle_id != invalid_particle_id)
+      return 0; // cell has been visited
+
+    Vector<double> values(cell->get_fe().n_dofs_per_cell());
+
+    cell->get_dof_values(solution, values);
+
+    if (values.linfty_norm() < threshold_lower)
+      return 0; // cell has no particle
+
+    particle_ids[cell->global_active_cell_index()] = id;
+
+    unsigned int counter = 1;
+
+    for (const auto face : cell->face_indices())
+      if (cell->at_boundary(face) == false)
+        counter += run_flooding<dim>(cell->neighbor(face),
+                                     solution,
+                                     particle_ids,
+                                     id,
+                                     threshold_lower,
+                                     invalid_particle_id);
+
+    return counter;
+  }
 
   std::vector<unsigned int>
   perform_distributed_stitching(
