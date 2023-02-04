@@ -41,52 +41,6 @@ public:
 
 constexpr double invalid_particle_id = -1.0;
 
-template <int dim, typename Number>
-unsigned int
-run_flooding(const typename DoFHandler<dim>::cell_iterator &   cell,
-             const LinearAlgebra::distributed::Vector<Number> &solution,
-             LinearAlgebra::distributed::Vector<Number> &      particle_ids,
-             const unsigned int                                id)
-{
-  if (cell->has_children())
-    {
-      unsigned int counter = 1;
-
-      for (const auto &child : cell->child_iterators())
-        counter += run_flooding<dim, Number>(child, solution, particle_ids, id);
-
-      return counter;
-    }
-
-  if (cell->is_locally_owned() == false)
-    return 0;
-
-  const auto particle_id = particle_ids[cell->global_active_cell_index()];
-
-  if (particle_id != invalid_particle_id)
-    return 0; // cell has been visited
-
-  Vector<double> values(cell->get_fe().n_dofs_per_cell());
-
-  cell->get_dof_values(solution, values);
-
-  if (values.linfty_norm() == 0.0)
-    return 0; // cell has no particle
-
-  particle_ids[cell->global_active_cell_index()] = id;
-
-  unsigned int counter = 1;
-
-  for (const auto face : cell->face_indices())
-    if (cell->at_boundary(face) == false)
-      counter += run_flooding<dim, Number>(cell->neighbor(face),
-                                           solution,
-                                           particle_ids,
-                                           id);
-
-  return counter;
-}
-
 int
 main(int argc, char **argv)
 {
@@ -159,11 +113,17 @@ main(int argc, char **argv)
     tria.global_active_cell_index_partitioner().lock());
   particle_ids = invalid_particle_id;
 
-  unsigned int counter = 0;
-  unsigned int offset  = 0;
+  unsigned int counter   = 0;
+  unsigned int offset    = 0;
+  const double threshold = 1e-9;
 
   for (const auto &cell : dof_handler.active_cell_iterators())
-    if (run_flooding<dim, double>(cell, solution, particle_ids, counter) > 0)
+    if (GrainTracker::run_flooding<dim>(cell,
+                                        solution,
+                                        particle_ids,
+                                        counter,
+                                        threshold,
+                                        invalid_particle_id) > 0)
       counter++;
 
   // step 2) determine the global number of locally determined particles and
