@@ -266,7 +266,7 @@ namespace Sintering
                          const VectorizedArrayType *value,
                          VectorizedArrayType *      value_result) const
     {
-      if (n_grains <= 2)
+      if (n_grains <= 1)
         return; // nothing to do
 
       VectorizedArrayType temp = etas[0] * value[0];
