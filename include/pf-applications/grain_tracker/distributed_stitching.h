@@ -5,6 +5,17 @@
 
 #include <deal.II/dofs/dof_handler.h>
 
+#define BOOST_SYSTEM_REQUIRE_CONST_INIT
+
+// clang-format off
+#include <boost/graph/use_mpi.hpp>
+// clang-format on
+
+#include <boost/graph/distributed/adjacency_list.hpp>
+#include <boost/graph/distributed/connected_components.hpp>
+#include <boost/graph/distributed/connected_components_parallel_search.hpp>
+#include <boost/graph/distributed/mpi_process_group.hpp>
+
 namespace GrainTracker
 {
   using namespace dealii;
@@ -215,6 +226,71 @@ namespace GrainTracker
       comm);
 
     MPI_Barrier(comm);
+
+    return result;
+  }
+
+  std::vector<unsigned int>
+  perform_distributed_stitching_via_graph(
+    const MPI_Comm                                                   comm,
+    std::vector<std::vector<std::tuple<unsigned int, unsigned int>>> input)
+  {
+    const unsigned int local_size = input.size();
+    unsigned int       offset     = 0;
+
+    MPI_Exscan(&local_size, &offset, 1, MPI_UNSIGNED, MPI_SUM, comm);
+
+    using Graph = boost::adjacency_list<
+      boost::vecS,
+      boost::distributedS<boost::graph::distributed::mpi_process_group,
+                          boost::vecS>,
+      boost::undirectedS>;
+
+    const unsigned int n = Utilities::MPI::sum(local_size, comm);
+
+    Graph g(n);
+
+    for (unsigned int i = 0; i < input.size(); ++i)
+      {
+        const unsigned int grain_i = i + offset;
+
+        const auto input_i = input[i];
+
+        if (input_i.empty())
+          boost::vertex(grain_i, g);
+
+        for (unsigned int j = 0; j < input_i.size(); ++j)
+          {
+            const unsigned int grain_j = std::get<1>(input_i[j]);
+
+            if (grain_i <= grain_j)
+              boost::add_edge(boost::vertex(grain_i, g),
+                              boost::vertex(grain_j, g),
+                              g);
+          }
+      }
+
+    boost::synchronize(g);
+
+    std::vector<int> local_components_vec(boost::num_vertices(g));
+    using ComponentMap = boost::iterator_property_map<
+      std::vector<int>::iterator,
+      boost::property_map<Graph, boost::vertex_index_t>::type>;
+    ComponentMap component(local_components_vec.begin(),
+                           get(boost::vertex_index, g));
+
+    boost::connected_components(g, component);
+    // boost::graph::distributed::connected_components_ps(g, component);
+
+    std::vector<unsigned int> result(input.size(),
+                                     numbers::invalid_unsigned_int);
+    for (unsigned int i = 0; i < input.size(); ++i)
+      {
+        const unsigned int grain_i = i + offset;
+
+        result[i] = get(component, boost::vertex(grain_i, g));
+      }
+    synchronize(component);
 
     return result;
   }
