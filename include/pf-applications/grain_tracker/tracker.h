@@ -786,56 +786,6 @@ namespace GrainTracker
     }
 
   private:
-    unsigned int
-    run_flooding(const typename DoFHandler<dim>::cell_iterator &cell,
-                 const BlockVectorType &                        solution,
-                 LinearAlgebra::distributed::Vector<Number> &   particle_ids,
-                 const unsigned int order_parameter_id,
-                 const unsigned int id)
-    {
-      if (cell->has_children())
-        {
-          unsigned int counter = 0;
-
-          for (const auto &child : cell->child_iterators())
-            counter += run_flooding(
-              child, solution, particle_ids, order_parameter_id, id);
-
-          return counter;
-        }
-
-      if (cell->is_locally_owned() == false)
-        return 0;
-
-      const auto particle_id = particle_ids[cell->global_active_cell_index()];
-
-      if (particle_id != invalid_particle_id)
-        return 0; // cell has been visited
-
-      Vector<double> values(cell->get_fe().n_dofs_per_cell());
-
-      cell->get_dof_values(solution.block(order_parameter_id +
-                                          order_parameters_offset),
-                           values);
-
-      if (values.linfty_norm() < threshold_lower)
-        return 0; // cell has no particle
-
-      particle_ids[cell->global_active_cell_index()] = id;
-
-      unsigned int counter = 1;
-
-      for (const auto face : cell->face_indices())
-        if (cell->at_boundary(face) == false)
-          counter += run_flooding(cell->neighbor(face),
-                                  solution,
-                                  particle_ids,
-                                  order_parameter_id,
-                                  id);
-
-      return counter;
-    }
-
     std::map<unsigned int, Grain<dim>>
     detect_grains(const BlockVectorType &solution,
                   const unsigned int     n_order_params,
@@ -871,12 +821,16 @@ namespace GrainTracker
           unsigned int counter = 0;
           unsigned int offset  = 0;
 
+          const auto &solution_order_parameter = solution.block(
+            current_order_parameter_id + order_parameters_offset);
+
           for (const auto &cell : dof_handler.active_cell_iterators())
-            if (run_flooding(cell,
-                             solution,
-                             particle_ids,
-                             current_order_parameter_id,
-                             counter) > 0)
+            if (run_flooding<dim>(cell,
+                                  solution_order_parameter,
+                                  particle_ids,
+                                  counter,
+                                  threshold_lower,
+                                  invalid_particle_id) > 0)
               counter++;
 
           // step 2) determine the global number of locally determined particles
