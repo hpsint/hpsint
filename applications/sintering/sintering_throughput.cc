@@ -396,7 +396,7 @@ main(int argc, char **argv)
             sintering_data.time_data.set_all_dt(dts);
             sintering_data.set_time(t);
 
-            std::vector<AdvectionCellData<dim, Number, VectorizedArrayType>>
+            AlignedVector<AdvectionCellData<dim, Number, VectorizedArrayType>>
               current_cell_data(n_components - 2);
 
             for (auto &entry : current_cell_data)
@@ -456,7 +456,7 @@ main(int argc, char **argv)
             sintering_data.time_data.set_all_dt(dts);
             sintering_data.set_time(t);
 
-            std::vector<AdvectionCellData<dim, Number, VectorizedArrayType>>
+            AlignedVector<AdvectionCellData<dim, Number, VectorizedArrayType>>
               current_cell_data(n_components - 2 - dim);
 
             for (auto &entry : current_cell_data)

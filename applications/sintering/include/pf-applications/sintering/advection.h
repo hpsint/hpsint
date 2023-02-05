@@ -150,7 +150,7 @@ namespace Sintering
     AdvectionMechanism(
       const double mt,
       const double mr,
-      const std::vector<AdvectionCellData<dim, Number, VectorizedArrayType>>
+      const AlignedVector<AdvectionCellData<dim, Number, VectorizedArrayType>>
         &current_cell_data)
       : is_active(true)
       , mt(mt)
@@ -209,7 +209,7 @@ namespace Sintering
     get_velocity(const unsigned int                     order_parameter_id,
                  const Point<dim, VectorizedArrayType> &r) const
     {
-      const auto &op_cell_data = current_cell_data.at(order_parameter_id);
+      const auto &op_cell_data = current_cell_data[order_parameter_id];
 
       // Translational velocity
       const auto vt = mt * op_cell_data.volume_inv * op_cell_data.force;
@@ -321,7 +321,7 @@ namespace Sintering
     const double mt;
     const double mr;
 
-    mutable std::vector<AdvectionCellData<dim, Number, VectorizedArrayType>>
+    mutable AlignedVector<AdvectionCellData<dim, Number, VectorizedArrayType>>
       current_cell_data;
 
     mutable std::vector<bool> has_velocity_vector;
