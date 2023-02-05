@@ -27,13 +27,15 @@ namespace Sintering
       const TimeIntegration::SolutionHistory<BlockVectorType> &history,
       const bool                                               matrix_based,
       const double                                             E  = 1.0,
-      const double                                             nu = 0.25)
+      const double                                             nu = 0.25,
+      const Structural::MaterialPlaneType                      type =
+        Structural::MaterialPlaneType::none)
       : SinteringOperatorBase<dim, Number, VectorizedArrayType, T>(matrix_free,
                                                                    constraints,
                                                                    data,
                                                                    history,
                                                                    matrix_based)
-      , material(E, nu, Structural::MaterialPlaneType::none)
+      , material(E, nu, type)
     {}
 
     ~SinteringOperatorCoupledBase()

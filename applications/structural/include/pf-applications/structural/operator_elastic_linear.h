@@ -38,13 +38,15 @@ namespace Structural
         const unsigned int                                       q)>;
 
     LinearElasticOperator(
-      const double                                        E,
-      const double                                        nu,
       const MatrixFree<dim, Number, VectorizedArrayType> &matrix_free,
       const AffineConstraints<Number> &                   constraints,
       const bool                                          matrix_based,
-      ConstraintsCallback                                 imposition = {},
-      ExternalLoadingCallback                             loading    = {})
+      const double                                        E,
+      const double                                        nu,
+      const Structural::MaterialPlaneType                 plane_type =
+        Structural::MaterialPlaneType::none,
+      ConstraintsCallback     imposition = {},
+      ExternalLoadingCallback loading    = {})
       : OperatorBase<dim,
                      Number,
                      VectorizedArrayType,
@@ -54,7 +56,7 @@ namespace Structural
           0,
           "elastic_linear_op",
           matrix_based)
-      , material(E, nu, MaterialPlaneType::plane_strain)
+      , material(E, nu, plane_type)
       , constraints_imposition(imposition)
       , external_loading(loading)
     {}

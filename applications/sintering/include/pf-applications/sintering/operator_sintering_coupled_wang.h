@@ -38,7 +38,9 @@ namespace Sintering
       const bool                                                  matrix_based,
       const double                                                E  = 1.0,
       const double                                                nu = 0.25,
-      ExternalLoadingCallback                                     loading = {})
+      const Structural::MaterialPlaneType                         type =
+        Structural::MaterialPlaneType::none,
+      ExternalLoadingCallback loading = {})
       : SinteringOperatorCoupledBase<
           dim,
           Number,
@@ -50,7 +52,8 @@ namespace Sintering
           history,
           matrix_based,
           E,
-          nu)
+          nu,
+          type)
       , advection(advection)
       , external_loading(loading)
     {}

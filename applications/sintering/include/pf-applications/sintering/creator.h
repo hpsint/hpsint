@@ -21,16 +21,19 @@ namespace Sintering
     const AdvectionMechanism<dim, Number, VectorizedArrayType>
       &          advection_mechanism,
     const bool   matrix_based,
+    const bool   use_tensorial_mobility_gradient_on_the_fly = false,
     const double E                                          = 1.0,
     const double nu                                         = 0.25,
-    const bool   use_tensorial_mobility_gradient_on_the_fly = false,
+    const Structural::MaterialPlaneType type =
+      Structural::MaterialPlaneType::none,
     std::function<Tensor<1, dim, VectorizedArrayType>(
-      const Point<dim, VectorizedArrayType>)> loading       = {})
+      const Point<dim, VectorizedArrayType>)> loading = {})
   {
     (void)advection_mechanism;
     (void)E;
     (void)nu;
     (void)loading;
+    (void)type;
 
     if constexpr (std::is_same_v<
                     NonLinearOperator,
@@ -59,6 +62,7 @@ namespace Sintering
         matrix_based,
         E,
         nu,
+        type,
         loading);
 
     else if constexpr (
@@ -75,7 +79,8 @@ namespace Sintering
         solution_history,
         matrix_based,
         E,
-        nu);
+        nu,
+        type);
   }
 
 } // namespace Sintering

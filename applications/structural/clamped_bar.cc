@@ -71,8 +71,10 @@ public:
       }
 
     // Material
-    const double E  = 1.0;
-    const double nu = 0.25;
+    const double                        E  = 1.0;
+    const double                        nu = 0.25;
+    const Structural::MaterialPlaneType plane_type =
+      Structural::MaterialPlaneType::plane_strain;
 
     parallel::distributed::Triangulation<dim> tria(MPI_COMM_WORLD);
 
@@ -146,11 +148,12 @@ public:
     using NonLinearOperator =
       LinearElasticOperator<dim, Number, VectorizedArrayType>;
 
-    NonLinearOperator nonlinear_operator(E,
-                                         nu,
-                                         matrix_free,
+    NonLinearOperator nonlinear_operator(matrix_free,
                                          constraints,
                                          matrix_based,
+                                         E,
+                                         nu,
+                                         plane_type,
                                          constraints_imposition,
                                          body_force_x);
 
@@ -300,9 +303,6 @@ main(int argc, char **argv)
       else if (flag == "--refinements" && i < argc - 1)
         n_refinements = atoi(argv[++i]);
     }
-
-  AssertThrow(n_refinements > 0,
-              ExcMessage("The number of refinements has to be positive"));
 
   Utilities::MPI::MPI_InitFinalize mpi_init(argc, argv, 1);
 

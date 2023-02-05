@@ -34,7 +34,9 @@ namespace Sintering
       const TimeIntegration::SolutionHistory<BlockVectorType> &history,
       const bool                                               matrix_based,
       const double                                             E  = 1.0,
-      const double                                             nu = 0.25)
+      const double                                             nu = 0.25,
+      const Structural::MaterialPlaneType                      type =
+        Structural::MaterialPlaneType::none)
       : SinteringOperatorCoupledBase<
           dim,
           Number,
@@ -46,7 +48,8 @@ namespace Sintering
           history,
           matrix_based,
           E,
-          nu)
+          nu,
+          type)
       , inelastic(data, /*rho = */ 1.0, /*time_start = */ 0.0)
     {}
 
