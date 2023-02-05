@@ -58,6 +58,8 @@ main(int argc, char **argv)
   FE_Q<dim>      fe{1};
   MappingQ1<dim> mapping;
 
+  constexpr bool use_graphs_for_stitching = true;
+
   // create triangulation and DoFHandler
   parallel::shared::Triangulation<dim> tria(
     comm,
@@ -189,9 +191,13 @@ main(int argc, char **argv)
   // step 4) based on the local-ghost information, figure out all particles
   // on all processes that belong togher (unification -> clique), give each
   // clique an unique id, and return mapping from the global non-unique
-  // ids to the global ids
+  // ids to the global ids. Either fixed-point-iteration or distributed graph
+  // algorithm is used.
   const auto local_to_global_particle_ids =
-    GrainTracker::perform_distributed_stitching(comm, local_connectiviy);
+    use_graphs_for_stitching ?
+      GrainTracker::perform_distributed_stitching_via_graph(comm,
+                                                            local_connectiviy) :
+      GrainTracker::perform_distributed_stitching(comm, local_connectiviy);
 
   // step 5) determine properties of particles (volume, radius, center)
   unsigned int n_particles = 0;
