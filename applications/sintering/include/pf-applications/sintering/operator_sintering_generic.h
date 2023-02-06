@@ -68,13 +68,14 @@ namespace Sintering
           even_odd_apply<dim,
                          n_q_points_1D,
                          n_q_points_1D,
-                         Tensor<1, n_comp, VectorizedArrayType>,
+                         VectorizedArrayType,
                          VectorizedArrayType,
                          0,
                          true,
                          false,
                          1,
-                         false>(
+                         false,
+                         n_comp>(
             shape_values.data(),
             reinterpret_cast<const Tensor<1, n_comp, VectorizedArrayType> *>(
               lin_value),
@@ -84,13 +85,14 @@ namespace Sintering
             even_odd_apply<dim,
                            n_q_points_1D,
                            n_q_points_1D,
-                           Tensor<1, n_comp, VectorizedArrayType>,
+                           VectorizedArrayType,
                            VectorizedArrayType,
                            1,
                            true,
                            false,
                            1,
-                           false>(
+                           false,
+                           n_comp>(
               shape_values.data(),
               reinterpret_cast<const Tensor<1, n_comp, VectorizedArrayType> *>(
                 lin_value),
@@ -100,13 +102,14 @@ namespace Sintering
             even_odd_apply<dim,
                            n_q_points_1D,
                            n_q_points_1D,
-                           Tensor<1, n_comp, VectorizedArrayType>,
+                           VectorizedArrayType,
                            VectorizedArrayType,
                            2,
                            true,
                            false,
                            1,
-                           false>(
+                           false,
+                           n_comp>(
               shape_values.data(),
               reinterpret_cast<const Tensor<1, n_comp, VectorizedArrayType> *>(
                 lin_value),
