@@ -6,6 +6,8 @@
 #include <pf-applications/sintering/instantiation.h>
 #include <pf-applications/sintering/operator_sintering_base.h>
 
+#include <pf-applications/matrix_free/tensor_product_kernels.h>
+
 namespace Sintering
 {
   using namespace dealii;
@@ -63,21 +65,48 @@ namespace Sintering
             phi;
 
           // gradient x-direction
-          phi.template apply<0, true, false, 1>(
+          even_odd_apply<dim,
+                         n_q_points_1D,
+                         n_q_points_1D,
+                         Tensor<1, n_comp, VectorizedArrayType>,
+                         VectorizedArrayType,
+                         0,
+                         true,
+                         false,
+                         1,
+                         false>(
             shape_values.data(),
             reinterpret_cast<const Tensor<1, n_comp, VectorizedArrayType> *>(
               lin_value),
             gradient_buffer + 0 * FECellIntegratorType::static_n_q_points);
 
           if (dim >= 2) // gradient y-direction
-            phi.template apply<1, true, false, 1>(
+            even_odd_apply<dim,
+                           n_q_points_1D,
+                           n_q_points_1D,
+                           Tensor<1, n_comp, VectorizedArrayType>,
+                           VectorizedArrayType,
+                           1,
+                           true,
+                           false,
+                           1,
+                           false>(
               shape_values.data(),
               reinterpret_cast<const Tensor<1, n_comp, VectorizedArrayType> *>(
                 lin_value),
               gradient_buffer + 1 * FECellIntegratorType::static_n_q_points);
 
           if (dim >= 3) // gradient z-direction
-            phi.template apply<2, true, false, 1>(
+            even_odd_apply<dim,
+                           n_q_points_1D,
+                           n_q_points_1D,
+                           Tensor<1, n_comp, VectorizedArrayType>,
+                           VectorizedArrayType,
+                           2,
+                           true,
+                           false,
+                           1,
+                           false>(
               shape_values.data(),
               reinterpret_cast<const Tensor<1, n_comp, VectorizedArrayType> *>(
                 lin_value),
