@@ -55,15 +55,6 @@ namespace Sintering
           const auto &shape_values =
             phi.get_shape_info().data[0].shape_gradients_collocation_eo;
 
-          dealii::internal::EvaluatorTensorProduct<
-            dealii::internal::EvaluatorVariant::evaluate_evenodd,
-            dim,
-            n_q_points_1D,
-            n_q_points_1D,
-            Tensor<1, n_comp, VectorizedArrayType>,
-            VectorizedArrayType>
-            phi;
-
           // gradient x-direction
           even_odd_apply<dim,
                          n_q_points_1D,
