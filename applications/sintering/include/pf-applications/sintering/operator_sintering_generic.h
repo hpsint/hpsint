@@ -51,10 +51,10 @@ namespace Sintering
       if (gradient_buffer != nullptr)
         {
           const auto &shape_values =
-            phi.get_shape_info().data[0].shape_gradients_collocation;
+            phi.get_shape_info().data[0].shape_gradients_collocation_eo;
 
           dealii::internal::EvaluatorTensorProduct<
-            dealii::internal::EvaluatorVariant::evaluate_general,
+            dealii::internal::EvaluatorVariant::evaluate_evenodd,
             dim,
             n_q_points_1D,
             n_q_points_1D,
@@ -63,21 +63,21 @@ namespace Sintering
             phi;
 
           // gradient x-direction
-          phi.template apply<0, true, false>(
+          phi.template apply<0, true, false, 1>(
             shape_values.data(),
             reinterpret_cast<const Tensor<1, n_comp, VectorizedArrayType> *>(
               lin_value),
             gradient_buffer + 0 * FECellIntegratorType::static_n_q_points);
 
           if (dim >= 2) // gradient y-direction
-            phi.template apply<1, true, false>(
+            phi.template apply<1, true, false, 1>(
               shape_values.data(),
               reinterpret_cast<const Tensor<1, n_comp, VectorizedArrayType> *>(
                 lin_value),
               gradient_buffer + 1 * FECellIntegratorType::static_n_q_points);
 
           if (dim >= 3) // gradient z-direction
-            phi.template apply<2, true, false>(
+            phi.template apply<2, true, false, 1>(
               shape_values.data(),
               reinterpret_cast<const Tensor<1, n_comp, VectorizedArrayType> *>(
                 lin_value),
