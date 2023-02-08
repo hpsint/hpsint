@@ -4,8 +4,13 @@
 #include <deal.II/base/point.h>
 #include <deal.II/base/vectorization.h>
 
+#include <deal.II/distributed/grid_refinement.h>
+#include <deal.II/distributed/solution_transfer.h>
+
 #include <deal.II/grid/grid_generator.h>
 #include <deal.II/grid/grid_tools.h>
+
+#include <deal.II/numerics/error_estimator.h>
 
 #include <pf-applications/base/tensor.h>
 
