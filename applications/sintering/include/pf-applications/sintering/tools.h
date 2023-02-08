@@ -270,9 +270,9 @@ namespace Sintering
     AffineConstraints<typename VectorType::value_type> &constraints,
     const Quadrature<dim - 1> &                         quad,
     const double                                        top_fraction_of_cells,
-    const double       bottom_fraction_of_cells,
-    const unsigned int min_allowed_level,
-    const unsigned int max_allowed_level,
+    const double                      bottom_fraction_of_cells,
+    const unsigned int                min_allowed_level,
+    const unsigned int                max_allowed_level,
     std::function<void(VectorType &)> reinitializer)
   {
     // 1) copy solution so that it has the right ghosting
@@ -398,8 +398,8 @@ namespace Sintering
     parallel::distributed::SolutionTransfer<dim, typename VectorType::BlockType>
       solution_trans(dof_handler);
 
-    std::vector<typename VectorType::BlockType *>
-      solution_to_transfer_ptr(solution_to_transfer.n_blocks());
+    std::vector<typename VectorType::BlockType *> solution_to_transfer_ptr(
+      solution_to_transfer.n_blocks());
     std::vector<const typename VectorType::BlockType *> solution_copy_ptr(
       solution_copy.n_blocks());
     for (unsigned int b = 0; b < solution_to_transfer.n_blocks(); ++b)
