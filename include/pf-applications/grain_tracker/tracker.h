@@ -318,21 +318,20 @@ namespace GrainTracker
       bool op_number_changed = false;
 
       if (skip_reassignment == false)
-      {
-        /* Initial grains reassignment, the closest neighbors are allowed as we
-        * want to minimize the number of order parameters in use.
-        */
-        const bool force_reassignment = greedy_init;
+        {
+          /* Initial grains reassignment, the closest neighbors are allowed as
+           * we want to minimize the number of order parameters in use.
+           */
+          const bool force_reassignment = greedy_init;
 
-        // Reassign grains
-        grains_reassigned =
-          reassign_grains(force_reassignment, fast_reassignment);
+          // Reassign grains
+          grains_reassigned =
+            reassign_grains(force_reassignment, fast_reassignment);
 
-        // Check if number of order parameters has changed
-        op_number_changed =
-          (active_order_parameters.size() !=
-          build_old_order_parameter_ids(grains).size());
-      }
+          // Check if number of order parameters has changed
+          op_number_changed = (active_order_parameters.size() !=
+                               build_old_order_parameter_ids(grains).size());
+        }
 
       // Build inverse mapping after grains are detected
       build_inverse_mapping();
