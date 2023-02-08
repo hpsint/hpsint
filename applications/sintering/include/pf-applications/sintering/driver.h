@@ -1566,7 +1566,12 @@ namespace Sintering
           system_has_changed = true;
 
           auto solutions_except_recent = solution_history.filter(true, false);
-          auto old_old_solutions       = solution_history.filter(false, false);
+          auto all_blocks = solutions_except_recent.get_all_blocks();
+          VectorType vector_solutions_except_recent(all_blocks.begin(),
+                                                    all_blocks.end());
+
+          const auto only_order_parameters =
+            solution.create_view(2, sintering_data.n_components());
 
           output_result(solution,
                         nonlinear_operator,
@@ -1574,105 +1579,6 @@ namespace Sintering
                         t,
                         timer,
                         "refinement");
-
-          // 1) copy solution so that it has the right ghosting
-          const auto partitioner =
-            std::make_shared<Utilities::MPI::Partitioner>(
-              dof_handler.locally_owned_dofs(),
-              DoFTools::extract_locally_relevant_dofs(dof_handler),
-              dof_handler.get_communicator());
-
-          VectorType solution_dealii(solutions_except_recent.n_blocks_total());
-          for (unsigned int b = 0; b < solution_dealii.n_blocks(); ++b)
-            solution_dealii.block(b).reinit(partitioner);
-
-          solutions_except_recent.flatten(solution_dealii);
-
-          for (unsigned int b = 0; b < solution_dealii.n_blocks(); ++b)
-            constraints.distribute(solution_dealii.block(b));
-
-          solution_dealii.update_ghost_values();
-
-          // 2) estimate errors
-          Vector<float> estimated_error_per_cell(tria.n_active_cells());
-
-          for (unsigned int b = 2; b < sintering_data.n_components(); ++b)
-            {
-              Vector<float> estimated_error_per_cell_temp(
-                tria.n_active_cells());
-
-              KellyErrorEstimator<dim>::estimate(
-                this->dof_handler,
-                Quadrature<dim - 1>(quad),
-                std::map<types::boundary_id, const Function<dim> *>(),
-                solution_dealii.block(b),
-                estimated_error_per_cell_temp,
-                {},
-                nullptr,
-                0,
-                Utilities::MPI::this_mpi_process(MPI_COMM_WORLD));
-
-              for (unsigned int i = 0; i < estimated_error_per_cell.size(); ++i)
-                estimated_error_per_cell[i] +=
-                  estimated_error_per_cell_temp[i] *
-                  estimated_error_per_cell_temp[i];
-            }
-
-          for (unsigned int i = 0; i < estimated_error_per_cell.size(); ++i)
-            estimated_error_per_cell[i] =
-              std::sqrt(estimated_error_per_cell[i]);
-
-          // 3) mark automatically cells for coarsening/refinement, ...
-          parallel::distributed::GridRefinement::
-            refine_and_coarsen_fixed_fraction(tria,
-                                              estimated_error_per_cell,
-                                              top_fraction_of_cells,
-                                              bottom_fraction_of_cells);
-
-          // make sure that cells close to the interfaces are refined, ...
-          Vector<Number> values(dof_handler.get_fe().n_dofs_per_cell());
-          const Number   val_min = 0.05;
-          const Number   val_max = 0.95;
-
-          for (const auto &cell : dof_handler.active_cell_iterators())
-            {
-              if (cell->is_locally_owned() == false || cell->refine_flag_set())
-                continue;
-
-              for (unsigned int b = 2; b < sintering_data.n_components(); ++b)
-                {
-                  cell->get_dof_values(solution_dealii.block(b), values);
-
-                  Number val_avg = 0;
-
-                  for (unsigned int i = 0; i < values.size(); ++i)
-                    {
-                      val_avg += values[i];
-
-                      if (val_min < values[i] && values[i] < val_max)
-                        {
-                          cell->clear_coarsen_flag();
-                          cell->set_refine_flag();
-
-                          break;
-                        }
-                    }
-
-                  if (!cell->refine_flag_set())
-                    {
-                      // In case if a cell has values, e.g., close to 0 or 1
-                      val_avg /= values.size();
-                      if (val_min < val_avg && val_avg < val_max)
-                        {
-                          cell->clear_coarsen_flag();
-                          cell->set_refine_flag();
-                        }
-                    }
-
-                  if (cell->refine_flag_set())
-                    break;
-                }
-            }
 
           // and limit the number of levels
           const unsigned int max_allowed_level =
@@ -1682,65 +1588,43 @@ namespace Sintering
             std::min((this->n_global_levels_0 - 1),
                      params.adaptivity_data.min_refinement_depth);
 
-          for (const auto &cell : tria.active_cell_iterators())
-            {
-              const auto cell_level = static_cast<unsigned int>(cell->level());
+          std::function<void(VectorType &)> after_amr = [&](VectorType &v) {
+            initialize(solution.n_blocks());
 
-              if (cell->refine_flag_set() && cell_level == max_allowed_level)
-                cell->clear_refine_flag();
-              else if (cell->coarsen_flag_set() &&
-                       cell_level == min_allowed_level)
-                cell->clear_coarsen_flag();
+            nonlinear_operator.clear();
+            non_linear_solver_executor->clear();
+            preconditioner->clear();
 
-              // Coarsen cell if it is overrefined
-              if (cell_level > max_allowed_level)
-                {
-                  if (cell->refine_flag_set())
-                    cell->clear_refine_flag();
-                  cell->set_coarsen_flag();
-                }
-            }
+            mass_operator.clear();
+            if (params.output_data.fluxes_divergences)
+              postproc_preconditioner->clear();
 
-          // 4) perform interpolation and initialize data structures
-          tria.prepare_coarsening_and_refinement();
+            for (unsigned int i = 0; i < v.n_blocks();
+                 i += nonlinear_operator.n_components())
+              {
+                auto subvector =
+                  v.create_view(i, i + nonlinear_operator.n_components());
+                nonlinear_operator.initialize_dof_vector(*subvector);
+              }
+          };
 
-          parallel::distributed::
-            SolutionTransfer<dim, typename VectorType::BlockType>
-              solution_trans(dof_handler);
+          coarsen_and_refine_mesh(*only_order_parameters,
+                                  vector_solutions_except_recent,
+                                  tria,
+                                  dof_handler,
+                                  constraints,
+                                  Quadrature<dim - 1>(quad),
+                                  top_fraction_of_cells,
+                                  bottom_fraction_of_cells,
+                                  min_allowed_level,
+                                  max_allowed_level,
+                                  after_amr);
 
-          std::vector<const typename VectorType::BlockType *>
-            solution_dealii_ptr(solution_dealii.n_blocks());
-          for (unsigned int b = 0; b < solution_dealii.n_blocks(); ++b)
-            solution_dealii_ptr[b] = &solution_dealii.block(b);
-
-          solution_trans.prepare_for_coarsening_and_refinement(
-            solution_dealii_ptr);
-
-          tria.execute_coarsening_and_refinement();
-
-          initialize(solution.n_blocks());
-
-          nonlinear_operator.clear();
-          non_linear_solver_executor->clear();
-          preconditioner->clear();
-
-          mass_operator.clear();
-          if (params.output_data.fluxes_divergences)
-            postproc_preconditioner->clear();
-
-          solutions_except_recent.apply(f_init);
           std::for_each(additional_initializations.begin(),
                         additional_initializations.end(),
                         [](auto &a_init) { a_init(); });
 
-          auto solution_ptr = solutions_except_recent.get_all_blocks();
-
-          solution_trans.interpolate(solution_ptr);
-
-          // note: apply constraints since the Newton solver expects this
-          for (unsigned int b = 0; b < solution_ptr.size(); ++b)
-            constraints.distribute(*solution_ptr[b]);
-
+          const auto old_old_solutions = solution_history.filter(false, false);
           old_old_solutions.update_ghost_values();
 
           output_result(solution,
@@ -1993,7 +1877,7 @@ namespace Sintering
       // Initialize all solutions except the evry old one, it will get
       // overwritten anyway
       initialize_solution(
-        solution_history.filter(true, false, true).get_all_blocks(), timer);
+        solution_history.filter(true, false, true).get_all_blocks_raw(), timer);
 
       // initial local refinement
       if (t == 0.0 && (params.adaptivity_data.refinement_frequency > 0 ||
@@ -2001,7 +1885,7 @@ namespace Sintering
         {
           // Initialize only the current solution
           const auto solution_ptr =
-            solution_history.filter(true, false, false).get_all_blocks();
+            solution_history.filter(true, false, false).get_all_blocks_raw();
 
           // If global_refinement is not Full, then we need use more agressive
           // refinement strategy here
@@ -2572,7 +2456,7 @@ namespace Sintering
                       solution_history.filter(true, false, true);
 
                     const auto history_all_blocks =
-                      all_except_old.get_all_blocks();
+                      all_except_old.get_all_blocks_raw();
                     solution_ptr.assign(history_all_blocks.begin(),
                                         history_all_blocks.end());
                   }
