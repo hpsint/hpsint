@@ -38,9 +38,7 @@ namespace Sintering
             for (unsigned int j = 0; j < n_grains[1]; ++j)
               {
                 this->centers.emplace_back(2 * r0 * i, 2 * r0 * j);
-                assign_order_parameter(i + j,
-                                       counter++,
-                                       minimize_order_parameters);
+                assign_order_parameter(i + j, counter++, n_order_parameters);
               }
         }
       else if (dim == 3)
@@ -54,7 +52,7 @@ namespace Sintering
                                              2 * r0 * k);
                   assign_order_parameter(i + j + k,
                                          counter++,
-                                         minimize_order_parameters);
+                                         n_order_parameters);
                 }
         }
       else
