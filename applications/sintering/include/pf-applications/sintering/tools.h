@@ -260,6 +260,220 @@ namespace Sintering
     return 0;
   }
 
+  namespace internal
+  {
+    template <typename VectorType, typename Triangulation, int dim>
+    void
+    prepare_coarsening_and_refinement(
+      const VectorType &                    solution_to_estimate,
+      Triangulation &                       tria,
+      DoFHandler<dim> &                     dof_handler,
+      const Quadrature<dim - 1> &           quad,
+      const double                          top_fraction_of_cells,
+      const double                          bottom_fraction_of_cells,
+      const unsigned int                    min_allowed_level,
+      const unsigned int                    max_allowed_level,
+      const typename VectorType::value_type val_min = 0.05,
+      const typename VectorType::value_type val_max = 0.95)
+    {
+      // estimate errors
+      Vector<float> estimated_error_per_cell(tria.n_active_cells());
+
+      for (unsigned int b = 0; b < solution_to_estimate.n_blocks(); ++b)
+        {
+          Vector<float> estimated_error_per_cell_temp(tria.n_active_cells());
+
+          KellyErrorEstimator<dim>::estimate(
+            dof_handler,
+            quad,
+            std::map<types::boundary_id, const Function<dim> *>(),
+            solution_to_estimate.block(b),
+            estimated_error_per_cell_temp,
+            {},
+            nullptr,
+            0,
+            Utilities::MPI::this_mpi_process(MPI_COMM_WORLD));
+
+          for (unsigned int i = 0; i < estimated_error_per_cell.size(); ++i)
+            estimated_error_per_cell[i] += estimated_error_per_cell_temp[i] *
+                                           estimated_error_per_cell_temp[i];
+        }
+
+      for (unsigned int i = 0; i < estimated_error_per_cell.size(); ++i)
+        estimated_error_per_cell[i] = std::sqrt(estimated_error_per_cell[i]);
+
+      // mark automatically cells for coarsening/refinement, ...
+      parallel::distributed::GridRefinement::refine_and_coarsen_fixed_fraction(
+        tria,
+        estimated_error_per_cell,
+        top_fraction_of_cells,
+        bottom_fraction_of_cells);
+
+      // make sure that cells close to the interfaces are refined, ...
+      Vector<typename VectorType::value_type> values(
+        dof_handler.get_fe().n_dofs_per_cell());
+
+      for (const auto &cell : dof_handler.active_cell_iterators())
+        {
+          if (cell->is_locally_owned() == false || cell->refine_flag_set())
+            continue;
+
+          for (unsigned int b = 0; b < solution_to_estimate.n_blocks(); ++b)
+            {
+              cell->get_dof_values(solution_to_estimate.block(b), values);
+
+              typename VectorType::value_type val_avg = 0;
+
+              for (unsigned int i = 0; i < values.size(); ++i)
+                {
+                  val_avg += values[i];
+
+                  if (val_min < values[i] && values[i] < val_max)
+                    {
+                      cell->clear_coarsen_flag();
+                      cell->set_refine_flag();
+
+                      break;
+                    }
+                }
+
+              if (!cell->refine_flag_set())
+                {
+                  // In case if a cell has values, e.g., close to 0 or 1
+                  val_avg /= values.size();
+                  if (val_min < val_avg && val_avg < val_max)
+                    {
+                      cell->clear_coarsen_flag();
+                      cell->set_refine_flag();
+                    }
+                }
+
+              if (cell->refine_flag_set())
+                break;
+            }
+        }
+
+      for (const auto &cell : tria.active_cell_iterators())
+        {
+          const auto cell_level = static_cast<unsigned int>(cell->level());
+
+          if (cell->refine_flag_set() && cell_level == max_allowed_level)
+            cell->clear_refine_flag();
+          else if (cell->coarsen_flag_set() && cell_level == min_allowed_level)
+            cell->clear_coarsen_flag();
+
+          // Coarsen cell if it is overrefined
+          if (cell_level > max_allowed_level)
+            {
+              if (cell->refine_flag_set())
+                cell->clear_refine_flag();
+              cell->set_coarsen_flag();
+            }
+        }
+
+      tria.prepare_coarsening_and_refinement();
+    }
+  } // namespace internal
+
+  template <typename VectorType, typename Triangulation, int dim>
+  void
+  coarsen_and_refine_mesh(const VectorType &         solution_to_estimate,
+                          Triangulation &            tria,
+                          DoFHandler<dim> &          dof_handler,
+                          const Quadrature<dim - 1> &quad,
+                          const double               top_fraction_of_cells,
+                          const double               bottom_fraction_of_cells,
+                          const unsigned int         min_allowed_level,
+                          const unsigned int         max_allowed_level)
+  {
+    // Mark cells and prepare refinement
+    internal::prepare_coarsening_and_refinement(solution_to_estimate,
+                                                tria,
+                                                dof_handler,
+                                                quad,
+                                                top_fraction_of_cells,
+                                                bottom_fraction_of_cells,
+                                                min_allowed_level,
+                                                max_allowed_level);
+
+    // Execute refinement
+    tria.execute_coarsening_and_refinement();
+  }
+
+  template <typename VectorType, typename Triangulation, int dim>
+  void
+  coarsen_and_refine_mesh(
+    const VectorType &                                  solution_to_estimate,
+    VectorType &                                        solution_to_transfer,
+    Triangulation &                                     tria,
+    DoFHandler<dim> &                                   dof_handler,
+    AffineConstraints<typename VectorType::value_type> &constraints,
+    const Quadrature<dim - 1> &                         quad,
+    const double                                        top_fraction_of_cells,
+    const double                      bottom_fraction_of_cells,
+    const unsigned int                min_allowed_level,
+    const unsigned int                max_allowed_level,
+    std::function<void(VectorType &)> reinitializer)
+  {
+    // Mark cells and prepare refinement
+    internal::prepare_coarsening_and_refinement(solution_to_estimate,
+                                                tria,
+                                                dof_handler,
+                                                quad,
+                                                top_fraction_of_cells,
+                                                bottom_fraction_of_cells,
+                                                min_allowed_level,
+                                                max_allowed_level);
+
+    // Build partitioner
+    const auto partitioner = std::make_shared<Utilities::MPI::Partitioner>(
+      dof_handler.locally_owned_dofs(),
+      DoFTools::extract_locally_relevant_dofs(dof_handler),
+      dof_handler.get_communicator());
+
+    // Copy solution so that it has the right ghosting
+    VectorType solution_copy(solution_to_transfer.n_blocks());
+    for (unsigned int b = 0; b < solution_copy.n_blocks(); ++b)
+      {
+        solution_copy.block(b).reinit(partitioner);
+        solution_copy.block(b).copy_locally_owned_data_from(
+          solution_to_transfer.block(b));
+      }
+
+    for (unsigned int b = 0; b < solution_copy.n_blocks(); ++b)
+      constraints.distribute(solution_copy.block(b));
+
+    // Raw pointers
+    std::vector<typename VectorType::BlockType *> solution_to_transfer_ptr(
+      solution_to_transfer.n_blocks());
+    std::vector<const typename VectorType::BlockType *> solution_copy_ptr(
+      solution_copy.n_blocks());
+    for (unsigned int b = 0; b < solution_to_transfer.n_blocks(); ++b)
+      {
+        solution_to_transfer_ptr[b] = &solution_to_transfer.block(b);
+        solution_copy_ptr[b]        = &solution_copy.block(b);
+      }
+
+    // Prepare solution transfer
+    parallel::distributed::SolutionTransfer<dim, typename VectorType::BlockType>
+      solution_trans(dof_handler);
+
+    solution_trans.prepare_for_coarsening_and_refinement(solution_copy_ptr);
+
+    // Execute refinement
+    tria.execute_coarsening_and_refinement();
+
+    // Reinitialize vector to be transfered
+    reinitializer(solution_to_transfer);
+
+    // Transfer solution
+    solution_trans.interpolate(solution_to_transfer_ptr);
+
+    // note: apply constraints since the Newton solver expects this
+    for (unsigned int b = 0; b < solution_to_transfer.n_blocks(); ++b)
+      constraints.distribute(solution_to_transfer.block(b));
+  }
+
   struct EnergyCoefficients
   {
     double A;

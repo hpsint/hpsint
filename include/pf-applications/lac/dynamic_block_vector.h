@@ -35,6 +35,17 @@ namespace dealii
           *this = V;
         }
 
+        template <typename Iterator>
+        explicit DynamicBlockVector(Iterator begin, Iterator end)
+        {
+          blocks.assign(begin, end);
+          block_counter = blocks.size();
+
+          size_ = 0;
+          for (unsigned int b = 0; b < n_blocks(); ++b)
+            size_ += block(b).size();
+        }
+
         DynamicBlockVector<T> &
         operator=(const DynamicBlockVector<T> &V)
         {
@@ -160,6 +171,20 @@ namespace dealii
         {
           AssertIndexRange(i, n_blocks());
           return *blocks[i];
+        }
+
+        std::shared_ptr<BlockType>
+        block_ptr(const unsigned int i)
+        {
+          AssertIndexRange(i, n_blocks());
+          return blocks[i];
+        }
+
+        std::shared_ptr<BlockType>
+        block_ptr(const unsigned int i) const
+        {
+          AssertIndexRange(i, n_blocks());
+          return blocks[i];
         }
 
         unsigned int
