@@ -93,8 +93,20 @@ namespace TimeIntegration
           }
     }
 
-    std::vector<typename VectorType::BlockType *>
+    std::vector<std::shared_ptr<typename VectorType::BlockType>>
     get_all_blocks() const
+    {
+      std::vector<std::shared_ptr<typename VectorType::BlockType>> solution_ptr;
+
+      for (unsigned int i = 0; i < solutions.size(); ++i)
+        for (unsigned int b = 0; b < solutions[i]->n_blocks(); ++b)
+          solution_ptr.push_back(solutions[i]->block_ptr(b));
+
+      return solution_ptr;
+    }
+
+    std::vector<typename VectorType::BlockType *>
+    get_all_blocks_raw() const
     {
       std::vector<typename VectorType::BlockType *> solution_ptr;
 
