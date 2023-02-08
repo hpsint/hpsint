@@ -11,21 +11,25 @@ namespace Sintering
     InitialValuesHypercube(const double                         r0,
                            const double                         interface_width,
                            const std::array<unsigned int, dim> &n_grains,
-                           const bool minimize_order_parameters,
-                           const bool is_accumulative)
+                           const unsigned int n_order_parameters,
+                           const bool         is_accumulative)
       : InitialValuesArray<dim>(r0, interface_width, is_accumulative)
     {
       unsigned int counter = 0;
 
-      if (minimize_order_parameters)
+      // If n_order_parameters == 0, then do not minimize
+      if (n_order_parameters > 0)
         {
-          this->order_parameter_to_grains[0];
-          if (std::any_of(n_grains.cbegin(),
-                          n_grains.cend(),
-                          [](const auto &val) { return val > 1; }))
-            {
-              this->order_parameter_to_grains[1];
-            }
+          const unsigned int n_total_grains =
+            std::accumulate(n_grains.begin(),
+                            n_grains.end(),
+                            1,
+                            std::multiplies<unsigned int>());
+
+          for (unsigned int op = 0;
+               op < std::min(n_total_grains, n_order_parameters);
+               ++op)
+            this->order_parameter_to_grains[op];
         }
 
       if (dim == 2)
@@ -63,10 +67,11 @@ namespace Sintering
     void
     assign_order_parameter(const unsigned int order,
                            const unsigned int counter,
-                           const bool         minimize_order_parameters)
+                           const unsigned int n_order_parameters)
     {
-      if (minimize_order_parameters)
-        this->order_parameter_to_grains[order % 2].push_back(counter);
+      if (n_order_parameters > 0)
+        this->order_parameter_to_grains[order % n_order_parameters].push_back(
+          counter);
       else
         this->order_parameter_to_grains[counter] = {counter};
     }
