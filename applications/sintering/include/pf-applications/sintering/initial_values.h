@@ -68,7 +68,7 @@ namespace Sintering
 
   private:
     mutable unsigned int current_component;
-    const double interface_offset;
+    const double         interface_offset;
 
   protected:
     virtual double
