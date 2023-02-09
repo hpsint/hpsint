@@ -52,6 +52,7 @@ foreach(VAR_DIM ${VARIANTS_DIM})
   endforeach()
 endforeach()
 
+FIND_LIBRARY(LIKWID likwid HINTS $ENV{LIKWID_LIB})
 
 ### Throughput application
 foreach(VAR_MOB ${VARIANTS_MOBILITY})
@@ -70,8 +71,6 @@ foreach(VAR_MOB ${VARIANTS_MOBILITY})
 
   TARGET_LINK_LIBRARIES(${executable_name} "pf-applications")
   target_include_directories(${executable_name} PUBLIC "include/" "../structural/include/")
-
-  FIND_LIBRARY(LIKWID likwid HINTS $ENV{LIKWID_LIB})
     
   IF(LIKWID)
     TARGET_COMPILE_DEFINITIONS(${executable_name} PUBLIC LIKWID_PERFMON)
@@ -87,3 +86,22 @@ ADD_EXECUTABLE(${exe} "sintering_print_particles.cc")
 DEAL_II_SETUP_TARGET(${exe})
 TARGET_LINK_LIBRARIES(${exe} "pf-applications")
 target_include_directories(${exe} PUBLIC "include/" "../structural/include/")
+
+
+### Grain tracker benchmark
+set(gt_executable_name "grain-tracker-throughput")
+ADD_EXECUTABLE(${gt_executable_name} "grain_tracker_throughput.cc")
+DEAL_II_SETUP_TARGET(${gt_executable_name})
+
+TARGET_COMPILE_DEFINITIONS(${gt_executable_name} PUBLIC
+  -D SINTERING_DIM=3
+)
+
+TARGET_LINK_LIBRARIES(${gt_executable_name} "pf-applications")
+target_include_directories(${gt_executable_name} PUBLIC "include/")
+  
+IF(LIKWID)
+  TARGET_COMPILE_DEFINITIONS(${gt_executable_name} PUBLIC LIKWID_PERFMON)
+  TARGET_INCLUDE_DIRECTORIES(${gt_executable_name} PUBLIC $ENV{LIKWID_INCLUDE})
+  TARGET_LINK_LIBRARIES(${gt_executable_name} ${LIKWID})
+ENDIF()
