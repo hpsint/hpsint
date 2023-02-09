@@ -21,6 +21,7 @@
 
 #include <pf-applications/lac/dynamic_block_vector.h>
 
+#include <pf-applications/sintering/initial_values_hypercube.h>
 #include <pf-applications/sintering/tools.h>
 
 #include <pf-applications/grain_tracker/tracker.h>
@@ -46,23 +47,24 @@ main(int argc, char **argv)
 
   const unsigned int max_grains_per_row = atoi(argv[1]);
 
-  AssertThrow(
-    r0 > 0, ExcMessage("Number of particles per row has to be grater than 1"));
+  AssertThrow(max_grains_per_row > 0,
+              ExcMessage(
+                "Number of particles per row has to be grater than 1"));
 
 #ifdef LIKWID_PERFMON
   LIKWID_MARKER_INIT;
   LIKWID_MARKER_THREADINIT;
 #endif
 
-  constexpr bool test_detect_grains = true;
+  constexpr bool test_detect_grains   = true;
+  constexpr bool test_initial_setup   = true;
+  constexpr bool test_track           = true;
+  constexpr bool test_remap_dependent = true;
+  constexpr bool test_remap_cycle     = true;
 
-  using Number              = double;
-  using VectorizedArrayType = VectorizedArray<Number>;
-  using VectorType          = LinearAlgebra::distributed::Vector<Number>;
+  using Number = double;
   using BlockVectorType =
     LinearAlgebra::distributed::DynamicBlockVector<Number>;
-
-
 
   // Approximation
   constexpr unsigned int dim = SINTERING_DIM;
@@ -71,7 +73,6 @@ main(int argc, char **argv)
 
   const unsigned int        fe_degree = 1;
   FE_Q<dim>                 fe(fe_degree);
-  QGauss<dim>               quad(fe_degree + 1);
   AffineConstraints<Number> constraints;
 
   ConvergenceTable table;
@@ -81,35 +82,30 @@ main(int argc, char **argv)
        ++n_grains_per_row)
     {
       const unsigned int n_grains = std::pow(n_grains_per_row, dim);
-      const std::array<unsigned int, dim> n_grains_dir;
+
+      std::array<unsigned int, dim> n_grains_dir;
       n_grains_dir.fill(n_grains);
 
       for (unsigned int n_max_op_for_ic = 2; n_max_op_for_ic < n_grains_per_row;
            ++n_max_op_for_ic)
         {
-          table.add_value("dim", dim);
-          table.add_value("n_grains_per_row", n_grains_per_row);
-          table.add_value("n_max_op_for_ic", n_max_op_for_ic);
-          table.add_value("n_dofs", dof_handler.n_dofs());
-          table.add_value("n_grains", n_grains);
+          parallel::distributed::Triangulation<dim> tria(MPI_COMM_WORLD);
+          DoFHandler<dim>                           dof_handler(tria);
 
           // Geometry
-          const double                           radius          = 7.5;
-          const double                           interface_width = 1.0;
+          const double radius          = 7.5;
+          const double interface_width = 1.0;
+          const bool   is_accumulative = false;
+
           Sintering::InitialValuesHypercube<dim> initial_solution(
             radius,
             interface_width,
             n_grains_dir,
-            params.geometry_data.minimize_order_parameters ? 2 : 0,
+            n_max_op_for_ic,
             is_accumulative);
 
-          parallel::distributed::Triangulation<dim> tria(MPI_COMM_WORLD);
-
-          DoFHandler<dim> dof_handler(tria);
-          dof_handler.distribute_dofs(fe);
-
           // Domain geometry
-          const auto & boundaries = initial_solution.get_domain_boundaries();
+          auto         boundaries = initial_solution.get_domain_boundaries();
           const double rmax       = initial_solution.get_r_max();
           const double boundary_factor = 0.5;
 
@@ -145,7 +141,7 @@ main(int argc, char **argv)
           const unsigned int min_refinement_depth     = 3;
           const unsigned int max_refinement_depth     = 1;
 
-          const double n_global_levels_0 =
+          const unsigned int n_global_levels_0 =
             tria.n_global_levels() + n_refinements_remaining;
 
           // and limit the number of levels
@@ -153,16 +149,18 @@ main(int argc, char **argv)
             (n_global_levels_0 - 1) + max_refinement_depth;
           const unsigned int min_allowed_level =
             (n_global_levels_0 - 1) -
-            std::min((this->n_global_levels_0 - 1), min_refinement_depth);
+            std::min((n_global_levels_0 - 1), min_refinement_depth);
 
           // Solution vector - skip the first two components
           const unsigned int n_skip = 2;
           const unsigned int n_order_parameters =
             initial_solution.n_components() - n_skip;
-          VectorType solution(n_order_parameters);
+          BlockVectorType solution(n_order_parameters);
 
           // Initializer
           const auto initialize = [&]() {
+            dof_handler.distribute_dofs(fe);
+
             const auto relevant_dofs =
               DoFTools::extract_locally_relevant_dofs(dof_handler);
 
@@ -177,13 +175,13 @@ main(int argc, char **argv)
                 relevant_dofs,
                 dof_handler.get_communicator());
 
-            for (unsigned int b = 0; c < solution.n_blocks(); ++b)
+            for (unsigned int b = 0; b < solution.n_blocks(); ++b)
               solution.block(b).reinit(partitioner);
           };
 
           // Set initial conditions
           const auto set_initial_conditions = [&]() {
-            for (unsigned int b = 0; c < solution.n_blocks(); ++b)
+            for (unsigned int b = 0; b < solution.n_blocks(); ++b)
               if (b + n_skip < initial_solution.n_components())
                 {
                   initial_solution.set_component(b + n_skip);
@@ -215,7 +213,7 @@ main(int argc, char **argv)
               coarsen_and_refine_mesh(solution,
                                       tria,
                                       dof_handler,
-                                      Quadrature<dim - 1>(quad),
+                                      QGauss<dim - 1>(fe_degree + 1),
                                       top_fraction_of_cells,
                                       bottom_fraction_of_cells,
                                       min_allowed_level,
@@ -226,9 +224,9 @@ main(int argc, char **argv)
             }
 
           // Grain tracker settings
-          const bool         greedy_init       = !minimize_order_parameters;
-          const bool         allow_new_grains  = false;
-          const bool         fast_reassignment = false;
+          const bool         greedy_init              = false;
+          const bool         allow_new_grains         = false;
+          const bool         fast_reassignment        = false;
           const unsigned int max_order_parameters_num = n_order_parameters * 2;
           const double       threshold_lower          = 1e-15;
           const double       threshold_upper          = 1.01;
@@ -249,7 +247,14 @@ main(int argc, char **argv)
             buffer_distance_fixed,
             order_parameters_offset);
 
+          // Output basic info
+          table.add_value("dim", dim);
+          table.add_value("n_grains_per_row", n_grains_per_row);
+          table.add_value("n_max_op_for_ic", n_max_op_for_ic);
+          table.add_value("n_dofs", dof_handler.n_dofs());
+          table.add_value("n_grains", n_grains);
 
+          // Run benchmarks
           if constexpr (test_detect_grains)
             {
               const bool skip_reassignment = true;
@@ -305,17 +310,20 @@ main(int argc, char **argv)
 
               solution.reinit(solution.n_blocks() + 1);
 
-              const auto shift_order_params =
-                [&](std::map<unsigned int, Grain<dim>> &grains) {
-                  for (auto &[grain_id, grain] : grains)
-                    {
-                      const unsigned int new_op =
-                        grain.get_order_parameter_id() + 1;
-                      grain.set_order_parameter();
-                    }
-                }
+              std::function<void(
+                std::map<unsigned int, GrainTracker::Grain<dim>> &)>
+                shift_order_params =
+                  [&](
+                    std::map<unsigned int, GrainTracker::Grain<dim>> &grains) {
+                    for (auto &[grain_id, grain] : grains)
+                      {
+                        const unsigned int new_op =
+                          grain.get_order_parameter_id() + 1;
+                        grain.set_order_parameter_id(new_op);
+                      }
+                  };
 
-                grain_tracker.custom_reassignment(shift_order_params);
+              grain_tracker.custom_reassignment(shift_order_params);
 
               const auto time =
                 run_measurement([&]() { grain_tracker.remap(solution); });
@@ -333,17 +341,21 @@ main(int argc, char **argv)
                                           n_order_parameters,
                                           skip_reassignment);
 
-              const auto shift_order_params =
-                [&](std::map<unsigned int, Grain<dim>> &grains) {
-                  for (auto &[grain_id, grain] : grains)
-                    {
-                      const unsigned int new_op =
-                        grain.get_order_parameter_id() % n_max_op_for_ic;
-                      grain.set_order_parameter(new_op);
-                    }
-                }
+              std::function<void(
+                std::map<unsigned int, GrainTracker::Grain<dim>> &)>
+                shift_order_params =
+                  [&](
+                    std::map<unsigned int, GrainTracker::Grain<dim>> &grains) {
+                    for (auto &[grain_id, grain] : grains)
+                      {
+                        const unsigned int new_op =
+                          (grain.get_order_parameter_id() + 1) %
+                          n_max_op_for_ic;
+                        grain.set_order_parameter_id(new_op);
+                      }
+                  };
 
-                grain_tracker.custom_reassignment(shift_order_params);
+              grain_tracker.custom_reassignment(shift_order_params);
 
               const auto time =
                 run_measurement([&]() { grain_tracker.remap(solution); });
