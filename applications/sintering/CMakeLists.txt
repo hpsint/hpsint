@@ -89,19 +89,21 @@ target_include_directories(${exe} PUBLIC "include/" "../structural/include/")
 
 
 ### Grain tracker benchmark
-set(gt_executable_name "grain-tracker-throughput")
-ADD_EXECUTABLE(${gt_executable_name} "grain_tracker_throughput.cc")
-DEAL_II_SETUP_TARGET(${gt_executable_name})
+foreach(VAR_DIM ${VARIANTS_DIM})
+  set(gt_executable_name "grain-tracker-throughput-${VAR_DIM}")
+  ADD_EXECUTABLE(${gt_executable_name} "grain_tracker_throughput.cc")
+  DEAL_II_SETUP_TARGET(${gt_executable_name})
 
-TARGET_COMPILE_DEFINITIONS(${gt_executable_name} PUBLIC
-  -D SINTERING_DIM=3
-)
+  TARGET_COMPILE_DEFINITIONS(${gt_executable_name} PUBLIC
+    -D${OPTION_DIM_${VAR_DIM}}
+  )
 
-TARGET_LINK_LIBRARIES(${gt_executable_name} "pf-applications")
-target_include_directories(${gt_executable_name} PUBLIC "include/")
-  
-IF(LIKWID)
-  TARGET_COMPILE_DEFINITIONS(${gt_executable_name} PUBLIC LIKWID_PERFMON)
-  TARGET_INCLUDE_DIRECTORIES(${gt_executable_name} PUBLIC $ENV{LIKWID_INCLUDE})
-  TARGET_LINK_LIBRARIES(${gt_executable_name} ${LIKWID})
-ENDIF()
+  TARGET_LINK_LIBRARIES(${gt_executable_name} "pf-applications")
+  target_include_directories(${gt_executable_name} PUBLIC "include/")
+    
+  IF(LIKWID)
+    TARGET_COMPILE_DEFINITIONS(${gt_executable_name} PUBLIC LIKWID_PERFMON)
+    TARGET_INCLUDE_DIRECTORIES(${gt_executable_name} PUBLIC $ENV{LIKWID_INCLUDE})
+    TARGET_LINK_LIBRARIES(${gt_executable_name} ${LIKWID})
+  ENDIF()
+endforeach()
