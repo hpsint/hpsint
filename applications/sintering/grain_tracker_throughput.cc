@@ -21,7 +21,9 @@
 
 #include <pf-applications/lac/dynamic_block_vector.h>
 
+#include <pf-applications/sintering/initial_values_cloud.h>
 #include <pf-applications/sintering/initial_values_hypercube.h>
+#include <pf-applications/sintering/particle.h>
 #include <pf-applications/sintering/tools.h>
 
 #include <pf-applications/grain_tracker/tracker.h>
@@ -340,54 +342,102 @@ main(int argc, char **argv)
 
   Utilities::MPI::MPI_InitFinalize mpi_init(argc, argv, 1);
 
-  AssertThrow(
-    argc >= 2,
-    ExcMessage(
-      "Maximum number of particles per row of the hypercube has to be specified"));
-
-  const unsigned int max_grains_per_row = atoi(argv[1]);
-
-  AssertThrow(max_grains_per_row > 0,
-              ExcMessage(
-                "Maximum number of particles per row has to be grater than 1"));
-
   ConvergenceTable table;
 
-  for (unsigned int n_grains_per_row = 2;
-       n_grains_per_row <= max_grains_per_row;
-       ++n_grains_per_row)
+  if (std::string(argv[1]) == "--hypercube")
     {
-      // Geometry
-      const double radius          = 7.5;
-      const double interface_width = 1.0;
-      const bool   is_accumulative = false;
+      AssertThrow(
+        argc >= 3,
+        ExcMessage(
+          "Usage: --hypercube max_grains_per_row [radius = 7.5] [interface_width = 1.0]"));
 
-      std::array<unsigned int, dim> n_grains_dir;
-      n_grains_dir.fill(n_grains_per_row);
+      // geometry
+      const unsigned int max_grains_per_row = atoi(argv[2]);
+      const double       radius             = (argc >= 4 ? atof(argv[3]) : 7.5);
+      const double       interface_width    = (argc >= 5 ? atof(argv[4]) : 1.0);
 
-      // Use initial solution for the 2 order parameters for creating the mesh
-      // which can then be reused for the cases with different maximum numbers
-      // of order parameters
-      Sintering::InitialValuesHypercube<dim> initial_solution(
-        radius, interface_width, n_grains_dir, 2, is_accumulative);
+      AssertThrow(
+        max_grains_per_row > 1,
+        ExcMessage(
+          "Maximum number of particles per row has to be grater than 1"));
+
+      AssertThrow(radius > 0, ExcMessage("Radius has to be grater than 0"));
+
+      AssertThrow(interface_width > 0,
+                  ExcMessage("Interface width has to be grater than 0"));
+
+      for (unsigned int n_grains_per_row = 2;
+           n_grains_per_row <= max_grains_per_row;
+           ++n_grains_per_row)
+        {
+          // Geometry
+          const bool is_accumulative = false;
+
+          std::array<unsigned int, dim> n_grains_dir;
+          n_grains_dir.fill(n_grains_per_row);
+
+          // Use initial solution for the 2 order parameters for creating the
+          // mesh which can then be reused for the cases with different maximum
+          // numbers of order parameters
+          Sintering::InitialValuesHypercube<dim> initial_solution(
+            radius, interface_width, n_grains_dir, 2, is_accumulative);
+
+          Benchmark<dim> benchmark(initial_solution, interface_width);
+
+          // Analize for different number of order parameters
+          for (unsigned int n_max_op_for_ic = 2;
+               n_max_op_for_ic <= n_grains_per_row;
+               ++n_max_op_for_ic)
+            {
+              // Initial distribution of particles
+              Sintering::InitialValuesHypercube<dim> initial_solution_max_op(
+                radius,
+                interface_width,
+                n_grains_dir,
+                n_max_op_for_ic,
+                is_accumulative);
+
+              benchmark.run_tests(initial_solution_max_op, table);
+            }
+        }
+    }
+  else if (std::string(argv[1]) == "--cloud")
+    {
+      AssertThrow(
+        argc >= 3,
+        ExcMessage(
+          "Usage: --cloud cloud_file [interface_width = 1.0] [interface_buffer_ratio = 1.0]"));
+
+      std::string   file_cloud = std::string(argv[2]);
+      std::ifstream fstream(file_cloud);
+      AssertThrow(fstream.is_open(), ExcMessage("File not found!"));
+
+      const auto particles = Sintering::read_particles<dim>(fstream);
+
+      const bool minimize_order_parameters = true;
+
+      const double interface_width        = (argc >= 4 ? atof(argv[3]) : 1.0);
+      const double interface_buffer_ratio = (argc >= 5 ? atof(argv[4]) : 1.0);
+
+      AssertThrow(interface_width > 0,
+                  ExcMessage("Interface width has to be grater than 0"));
+
+      AssertThrow(interface_buffer_ratio > 0,
+                  ExcMessage("Interface buffer ratio has to be grater than 0"));
+
+      Sintering::InitialValuesCloud<dim> initial_solution(
+        particles,
+        interface_width,
+        minimize_order_parameters,
+        interface_buffer_ratio);
 
       Benchmark<dim> benchmark(initial_solution, interface_width);
 
-      // Analize for different number of order parameters
-      for (unsigned int n_max_op_for_ic = 2;
-           n_max_op_for_ic <= n_grains_per_row;
-           ++n_max_op_for_ic)
-        {
-          // Initial distribution of particles
-          Sintering::InitialValuesHypercube<dim> initial_solution_max_op(
-            radius,
-            interface_width,
-            n_grains_dir,
-            n_max_op_for_ic,
-            is_accumulative);
-
-          benchmark.run_tests(initial_solution_max_op, table);
-        }
+      benchmark.run_tests(initial_solution, table);
+    }
+  else
+    {
+      ExcNotImplemented();
     }
 
   if (Utilities::MPI::this_mpi_process(MPI_COMM_WORLD) == 0)
