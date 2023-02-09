@@ -8,10 +8,9 @@
 #endif
 
 double
-run_measurement(const std::function<void()> &fu)
+run_measurement(const std::function<void()> &fu,
+                const unsigned int           n_repetitions = 100)
 {
-  const unsigned int n_repetitions = 100;
-
   // warm up
   for (unsigned int i = 0; i < 10; ++i)
     fu();
