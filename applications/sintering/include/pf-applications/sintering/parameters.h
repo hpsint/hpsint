@@ -27,9 +27,9 @@ namespace Sintering
 
   struct GeometryData
   {
-    double          divisions_per_interface = 4;
-    double          boundary_factor         = 0.5;
-    double          interface_width         = 2.0;
+    double          divisions_per_interface            = 4;
+    double          boundary_factor                    = 0.5;
+    double          interface_width                    = 2.0;
     bool            minimize_order_parameters          = true;
     double          interface_buffer_ratio             = 1.0;
     bool            periodic                           = false;
