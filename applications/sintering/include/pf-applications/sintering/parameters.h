@@ -27,7 +27,7 @@ namespace Sintering
 
   struct GeometryData
   {
-    unsigned int    divisions_per_interface = 8; // 4 - works well with AMR=off
+    double          divisions_per_interface = 4;
     double          boundary_factor         = 0.5;
     double          interface_width         = 2.0;
     bool            minimize_order_parameters          = true;

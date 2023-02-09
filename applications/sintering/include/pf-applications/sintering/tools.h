@@ -135,7 +135,7 @@ namespace Sintering
               const Point<dim> &  bottom_left,
               const Point<dim> &  top_right,
               const double        interface_width,
-              const unsigned int  divisions_per_interface,
+              const double        divisions_per_interface,
               const bool          periodic,
               const InitialRefine refine,
               const unsigned int  max_prime                          = 0,
