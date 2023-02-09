@@ -63,6 +63,9 @@ namespace Sintering
     virtual unsigned int
     n_order_parameters() const = 0;
 
+    virtual unsigned int
+    n_particles() const = 0;
+
   private:
     unsigned int current_component;
     const double interface_offset;
