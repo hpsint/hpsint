@@ -100,10 +100,4 @@ foreach(VAR_DIM ${VARIANTS_DIM})
 
   TARGET_LINK_LIBRARIES(${gt_executable_name} "pf-applications")
   target_include_directories(${gt_executable_name} PUBLIC "include/")
-    
-  IF(LIKWID)
-    TARGET_COMPILE_DEFINITIONS(${gt_executable_name} PUBLIC LIKWID_PERFMON)
-    TARGET_INCLUDE_DIRECTORIES(${gt_executable_name} PUBLIC $ENV{LIKWID_INCLUDE})
-    TARGET_LINK_LIBRARIES(${gt_executable_name} ${LIKWID})
-  ENDIF()
 endforeach()

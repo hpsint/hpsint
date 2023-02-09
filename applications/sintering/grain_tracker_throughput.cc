@@ -13,7 +13,7 @@
 #include <deal.II/numerics/vector_tools.h>
 
 #ifdef LIKWID_PERFMON
-#  include <likwid.h>
+#undef LIKWID_PERFMON
 #endif
 
 #include <pf-applications/base/performance.h>
@@ -29,12 +29,6 @@
 using namespace dealii;
 using namespace Sintering;
 
-// clang-format off
-/**
- * likwid-mpirun -np 40 -f -g CACHES   -m -O ./applications/sintering/grain-tracker-throughput
- * likwid-mpirun -np 40 -f -g FLOPS_DP -m -O ./applications/sintering/grain-tracker-throughput
- */
-// clang-format on
 int
 main(int argc, char **argv)
 {
@@ -50,11 +44,6 @@ main(int argc, char **argv)
   AssertThrow(max_grains_per_row > 0,
               ExcMessage(
                 "Maximum number of particles per row has to be grater than 1"));
-
-#ifdef LIKWID_PERFMON
-  LIKWID_MARKER_INIT;
-  LIKWID_MARKER_THREADINIT;
-#endif
 
   constexpr bool test_detect_grains   = true;
   constexpr bool test_initial_setup   = true;
@@ -378,8 +367,4 @@ main(int argc, char **argv)
 
   if (Utilities::MPI::this_mpi_process(MPI_COMM_WORLD) == 0)
     table.write_text(std::cout, TableHandler::TextOutputFormat::org_mode_table);
-
-#ifdef LIKWID_PERFMON
-  LIKWID_MARKER_CLOSE;
-#endif
 }
