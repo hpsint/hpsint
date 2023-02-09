@@ -789,6 +789,16 @@ namespace GrainTracker
       return n_total_segments;
     }
 
+    void
+    custom_reassignment(
+      std::function<void(std::map<unsigned int, Grain<dim>> &)> callback)
+    {
+      callback(grains);
+
+      // Rebuild completely active order parameters
+      active_order_parameters = build_active_order_parameter_ids(grains);
+    }
+
   private:
     std::map<unsigned int, Grain<dim>>
     detect_grains(const BlockVectorType &solution,
@@ -1456,16 +1466,6 @@ namespace GrainTracker
       print_log(log);
 
       return grains_reassigned;
-    }
-
-    void
-    custom_reassignment(
-      std::function<void(std::map<unsigned int, Grain<dim>> &)> callback)
-    {
-      callback(grains);
-
-      // Rebuild completely active order parameters
-      active_order_parameters = build_active_order_parameter_ids(grains);
     }
 
     // Build inverse mapping for later use when forces and computed
