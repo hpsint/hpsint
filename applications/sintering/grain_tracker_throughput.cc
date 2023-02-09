@@ -86,167 +86,176 @@ main(int argc, char **argv)
       std::array<unsigned int, dim> n_grains_dir;
       n_grains_dir.fill(n_grains_per_row);
 
+      parallel::distributed::Triangulation<dim> tria(MPI_COMM_WORLD);
+      DoFHandler<dim>                           dof_handler(tria);
+
+      // Geometry
+      const double radius          = 7.5;
+      const double interface_width = 1.0;
+      const bool   is_accumulative = false;
+
+      // Use initial solution for the 2 order parameters for creating the mesh
+      // which can then be reused for the cases with different maximum numbers
+      // of order parameters
+      Sintering::InitialValuesHypercube<dim> initial_solution(
+        radius, interface_width, n_grains_dir, 2, is_accumulative);
+
+      // Domain geometry
+      auto         boundaries      = initial_solution.get_domain_boundaries();
+      const double boundary_factor = 0.5;
+
+      for (unsigned int i = 0; i < dim; i++)
+        {
+          boundaries.first[i] -= boundary_factor * radius;
+          boundaries.second[i] += boundary_factor * radius;
+        }
+
+      // Mesh parameters
+      const unsigned int divisions_per_interface = 2;
+      const bool         periodic                = false;
+      const auto         global_refine           = InitialRefine::Base;
+      const unsigned int max_prime               = 20;
+      const double       max_level0_divisions_per_interface = 1.0 - 1e-9;
+      const unsigned int divisions_per_element              = 1;
+
+      const unsigned int n_refinements_remaining =
+        create_mesh(tria,
+                    boundaries.first,
+                    boundaries.second,
+                    interface_width,
+                    divisions_per_interface,
+                    periodic,
+                    global_refine,
+                    max_prime,
+                    max_level0_divisions_per_interface,
+                    divisions_per_element);
+
+      // AMR settings
+      const double       top_fraction_of_cells    = 0.9;
+      const double       bottom_fraction_of_cells = 0.1;
+      const unsigned int min_refinement_depth     = 3;
+      const unsigned int max_refinement_depth     = 1;
+
+      const unsigned int n_global_levels_0 =
+        tria.n_global_levels() + n_refinements_remaining;
+
+      // and limit the number of levels
+      const unsigned int max_allowed_level =
+        (n_global_levels_0 - 1) + max_refinement_depth;
+      const unsigned int min_allowed_level =
+        (n_global_levels_0 - 1) -
+        std::min((n_global_levels_0 - 1), min_refinement_depth);
+
+      // Solution vector - skip the first two components
+      const unsigned int n_skip = 2;
+      const unsigned int n_order_parameters =
+        initial_solution.n_components() - n_skip;
+      BlockVectorType solution(n_order_parameters);
+
+      // Initializer
+      const auto initialize = [&]() {
+        dof_handler.distribute_dofs(fe);
+
+        const auto relevant_dofs =
+          DoFTools::extract_locally_relevant_dofs(dof_handler);
+
+        constraints.clear();
+        constraints.reinit(relevant_dofs);
+        DoFTools::make_hanging_node_constraints(dof_handler, constraints);
+        constraints.close();
+
+        const auto partitioner = std::make_shared<Utilities::MPI::Partitioner>(
+          dof_handler.locally_owned_dofs(),
+          relevant_dofs,
+          dof_handler.get_communicator());
+
+        for (unsigned int b = 0; b < solution.n_blocks(); ++b)
+          solution.block(b).reinit(partitioner);
+      };
+
+      // Set initial conditions
+      const auto set_initial_conditions =
+        [&](InitialValues<dim> &initial_values) {
+          for (unsigned int b = 0; b < solution.n_blocks(); ++b)
+            if (b + n_skip < initial_values.n_components())
+              {
+                initial_values.set_component(b + n_skip);
+
+                VectorTools::interpolate(mapping,
+                                         dof_handler,
+                                         initial_values,
+                                         solution.block(b));
+
+                constraints.distribute(solution.block(b));
+
+                if (solution.block(b).has_ghost_elements())
+                  solution.block(b).zero_out_ghost_values();
+              }
+        };
+
+      // Make the very first initialization
+      initialize();
+      set_initial_conditions(initial_solution);
+
+      // Refine mesh
+      const unsigned int n_init_refinements =
+        std::max(std::min(tria.n_global_levels() - 1, min_refinement_depth),
+                 n_global_levels_0 - tria.n_global_levels() +
+                   max_refinement_depth);
+
+      for (unsigned int i = 0; i < n_init_refinements; ++i)
+        {
+          coarsen_and_refine_mesh(solution,
+                                  tria,
+                                  dof_handler,
+                                  QGauss<dim - 1>(fe_degree + 1),
+                                  top_fraction_of_cells,
+                                  bottom_fraction_of_cells,
+                                  min_allowed_level,
+                                  max_allowed_level);
+
+          initialize();
+          set_initial_conditions(initial_solution);
+        }
+
+      // Grain tracker settings
+      const bool         greedy_init              = false;
+      const bool         allow_new_grains         = false;
+      const bool         fast_reassignment        = false;
+      const unsigned int max_order_parameters_num = n_order_parameters * 2;
+      const double       threshold_lower          = 1e-15;
+      const double       threshold_upper          = 1.01;
+      const double       buffer_distance_ratio    = 0.05;
+      const double       buffer_distance_fixed    = 0.0;
+      const unsigned int order_parameters_offset  = 0;
+
+      GrainTracker::Tracker<dim, Number> grain_tracker(dof_handler,
+                                                       tria,
+                                                       greedy_init,
+                                                       allow_new_grains,
+                                                       fast_reassignment,
+                                                       max_order_parameters_num,
+                                                       threshold_lower,
+                                                       threshold_upper,
+                                                       buffer_distance_ratio,
+                                                       buffer_distance_fixed,
+                                                       order_parameters_offset);
+
+      // Analize for different number of order parameters
       for (unsigned int n_max_op_for_ic = 2;
            n_max_op_for_ic <= n_grains_per_row;
            ++n_max_op_for_ic)
         {
-          parallel::distributed::Triangulation<dim> tria(MPI_COMM_WORLD);
-          DoFHandler<dim>                           dof_handler(tria);
-
-          // Geometry
-          const double radius          = 7.5;
-          const double interface_width = 1.0;
-          const bool   is_accumulative = false;
-
-          Sintering::InitialValuesHypercube<dim> initial_solution(
+          // Initial distribution of particles
+          Sintering::InitialValuesHypercube<dim> initial_solution_max_op(
             radius,
             interface_width,
             n_grains_dir,
             n_max_op_for_ic,
             is_accumulative);
 
-          // Domain geometry
-          auto         boundaries = initial_solution.get_domain_boundaries();
-          const double rmax       = initial_solution.get_r_max();
-          const double boundary_factor = 0.5;
-
-          for (unsigned int i = 0; i < dim; i++)
-            {
-              boundaries.first[i] -= boundary_factor * rmax;
-              boundaries.second[i] += boundary_factor * rmax;
-            }
-
-          // Mesh parameters
-          const unsigned int divisions_per_interface = 2;
-          const bool         periodic                = false;
-          const auto         global_refine           = InitialRefine::Base;
-          const unsigned int max_prime               = 20;
-          const double       max_level0_divisions_per_interface = 1.0 - 1e-9;
-          const unsigned int divisions_per_element              = 1;
-
-          const unsigned int n_refinements_remaining =
-            create_mesh(tria,
-                        boundaries.first,
-                        boundaries.second,
-                        interface_width,
-                        divisions_per_interface,
-                        periodic,
-                        global_refine,
-                        max_prime,
-                        max_level0_divisions_per_interface,
-                        divisions_per_element);
-
-          // AMR settings
-          const double       top_fraction_of_cells    = 0.9;
-          const double       bottom_fraction_of_cells = 0.1;
-          const unsigned int min_refinement_depth     = 3;
-          const unsigned int max_refinement_depth     = 1;
-
-          const unsigned int n_global_levels_0 =
-            tria.n_global_levels() + n_refinements_remaining;
-
-          // and limit the number of levels
-          const unsigned int max_allowed_level =
-            (n_global_levels_0 - 1) + max_refinement_depth;
-          const unsigned int min_allowed_level =
-            (n_global_levels_0 - 1) -
-            std::min((n_global_levels_0 - 1), min_refinement_depth);
-
-          // Solution vector - skip the first two components
-          const unsigned int n_skip = 2;
-          const unsigned int n_order_parameters =
-            initial_solution.n_components() - n_skip;
-          BlockVectorType solution(n_order_parameters);
-
-          // Initializer
-          const auto initialize = [&]() {
-            dof_handler.distribute_dofs(fe);
-
-            const auto relevant_dofs =
-              DoFTools::extract_locally_relevant_dofs(dof_handler);
-
-            constraints.clear();
-            constraints.reinit(relevant_dofs);
-            DoFTools::make_hanging_node_constraints(dof_handler, constraints);
-            constraints.close();
-
-            const auto partitioner =
-              std::make_shared<Utilities::MPI::Partitioner>(
-                dof_handler.locally_owned_dofs(),
-                relevant_dofs,
-                dof_handler.get_communicator());
-
-            for (unsigned int b = 0; b < solution.n_blocks(); ++b)
-              solution.block(b).reinit(partitioner);
-          };
-
-          // Set initial conditions
-          const auto set_initial_conditions = [&]() {
-            for (unsigned int b = 0; b < solution.n_blocks(); ++b)
-              if (b + n_skip < initial_solution.n_components())
-                {
-                  initial_solution.set_component(b + n_skip);
-
-                  VectorTools::interpolate(mapping,
-                                           dof_handler,
-                                           initial_solution,
-                                           solution.block(b));
-
-                  constraints.distribute(solution.block(b));
-
-                  if (solution.block(b).has_ghost_elements())
-                    solution.block(b).zero_out_ghost_values();
-                }
-          };
-
-          // Make the very first initialization
-          initialize();
-          set_initial_conditions();
-
-          // Refine mesh
-          const unsigned int n_init_refinements =
-            std::max(std::min(tria.n_global_levels() - 1, min_refinement_depth),
-                     n_global_levels_0 - tria.n_global_levels() +
-                       max_refinement_depth);
-
-          for (unsigned int i = 0; i < n_init_refinements; ++i)
-            {
-              coarsen_and_refine_mesh(solution,
-                                      tria,
-                                      dof_handler,
-                                      QGauss<dim - 1>(fe_degree + 1),
-                                      top_fraction_of_cells,
-                                      bottom_fraction_of_cells,
-                                      min_allowed_level,
-                                      max_allowed_level);
-
-              initialize();
-              set_initial_conditions();
-            }
-
-          // Grain tracker settings
-          const bool         greedy_init              = false;
-          const bool         allow_new_grains         = false;
-          const bool         fast_reassignment        = false;
-          const unsigned int max_order_parameters_num = n_order_parameters * 2;
-          const double       threshold_lower          = 1e-15;
-          const double       threshold_upper          = 1.01;
-          const double       buffer_distance_ratio    = 0.05;
-          const double       buffer_distance_fixed    = 0.0;
-          const unsigned int order_parameters_offset  = 0;
-
-          GrainTracker::Tracker<dim, Number> grain_tracker(
-            dof_handler,
-            tria,
-            greedy_init,
-            allow_new_grains,
-            fast_reassignment,
-            max_order_parameters_num,
-            threshold_lower,
-            threshold_upper,
-            buffer_distance_ratio,
-            buffer_distance_fixed,
-            order_parameters_offset);
+          // Apply it
+          set_initial_conditions(initial_solution_max_op);
 
           // Output basic info
           table.add_value("dim", dim);
@@ -335,7 +344,7 @@ main(int argc, char **argv)
 
           if constexpr (test_remap_cycle)
             {
-              set_initial_conditions();
+              set_initial_conditions(initial_solution_max_op);
 
               const bool skip_reassignment = true;
               grain_tracker.initial_setup(solution,
