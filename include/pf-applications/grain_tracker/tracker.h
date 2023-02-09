@@ -1460,7 +1460,7 @@ namespace GrainTracker
 
     void
     custom_reassignment(
-      std::function<std::map<unsigned int, Grain<dim>> &> callback)
+      std::function<void(std::map<unsigned int, Grain<dim>> &)> callback)
     {
       callback(grains);
 
