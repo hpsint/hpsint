@@ -111,7 +111,7 @@ main(int argc, char **argv)
         }
 
       // Mesh parameters
-      const unsigned int divisions_per_interface = 2;
+      const double       divisions_per_interface = 2;
       const bool         periodic                = false;
       const auto         global_refine           = InitialRefine::Base;
       const unsigned int max_prime               = 20;
