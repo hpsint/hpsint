@@ -187,12 +187,17 @@ main(int argc, char **argv)
       params.print_input();
       pcout << std::endl;
 
+      // By default, 2 order parameters are enough for the packing description
+      // If minimization is not required, then 0 value disables it
+      const unsigned int n_order_params_to_use =
+        params.geometry_data.minimize_order_parameters ? 2 : 0;
+
       const auto initial_solution =
         std::make_shared<Sintering::InitialValuesHypercube<SINTERING_DIM>>(
           r0,
           params.geometry_data.interface_width,
           n_grains,
-          params.geometry_data.minimize_order_parameters ? 2 : 0,
+          n_order_params_to_use,
           is_accumulative);
 
       AssertThrow(
