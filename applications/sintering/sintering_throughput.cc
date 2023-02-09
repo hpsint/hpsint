@@ -48,6 +48,7 @@ static_assert(false, "No grains number has been given!");
 #  include <likwid.h>
 #endif
 
+#include <pf-applications/base/performance.h>
 #include <pf-applications/base/revision.h>
 
 #include <pf-applications/sintering/advection.h>
@@ -71,64 +72,6 @@ using evaluate_nonlinear_residual_t =
 template <typename T, typename VectorType>
 constexpr bool has_evaluate_nonlinear_residual = dealii::internal::
   is_supported_operation<evaluate_nonlinear_residual_t, T, VectorType>;
-
-// helper function
-double
-run(const std::function<void()> &fu)
-{
-  const unsigned int n_repetitions = 100;
-
-  // warm up
-  for (unsigned int i = 0; i < 10; ++i)
-    fu();
-
-#ifdef LIKWID_PERFMON
-  const auto add_padding = [](const int value) -> std::string {
-    if (value < 10)
-      return "000" + std::to_string(value);
-    if (value < 100)
-      return "00" + std::to_string(value);
-    if (value < 1000)
-      return "0" + std::to_string(value);
-    if (value < 10000)
-      return "" + std::to_string(value);
-
-    AssertThrow(false, ExcInternalError());
-
-    return "";
-  };
-
-  static unsigned int likwid_counter = 0;
-
-  const std::string likwid_label =
-    "likwid_" + add_padding(likwid_counter); // TODO
-  likwid_counter++;
-#endif
-
-  MPI_Barrier(MPI_COMM_WORLD);
-
-#ifdef LIKWID_PERFMON
-  LIKWID_MARKER_START(likwid_label.c_str());
-#endif
-
-  const auto timer = std::chrono::system_clock::now();
-
-  for (unsigned int i = 0; i < n_repetitions; ++i)
-    fu();
-
-  MPI_Barrier(MPI_COMM_WORLD);
-
-#ifdef LIKWID_PERFMON
-  LIKWID_MARKER_STOP(likwid_label.c_str());
-#endif
-
-  const double time = std::chrono::duration_cast<std::chrono::nanoseconds>(
-                        std::chrono::system_clock::now() - timer)
-                        .count() /
-                      1e9;
-
-  return time;
-}
 
 
 // clang-format off
@@ -254,8 +197,8 @@ main(int argc, char **argv)
         op.initialize_dof_vector(dst);
         src = 1.0;
 
-        const auto time =
-          run([&]() { op.template evaluate_nonlinear_residual<1>(dst, src); });
+        const auto time = run_measurement(
+          [&]() { op.template evaluate_nonlinear_residual<1>(dst, src); });
 
         table.add_value("t_" + label + "_rhs", time);
         table.set_scientific("t_" + label + "_rhs", true);
@@ -268,7 +211,7 @@ main(int argc, char **argv)
         op.initialize_dof_vector(dst);
         src = 1.0;
 
-        const auto time = run([&]() { op.vmult(dst, src); });
+        const auto time = run_measurement([&]() { op.vmult(dst, src); });
 
         table.add_value("t_" + label + "_mf", time);
         table.set_scientific("t_" + label + "_mf", true);
@@ -285,7 +228,7 @@ main(int argc, char **argv)
         dst.reinit(partitioner);
         src = 1.0;
 
-        const auto time = run([&]() { matrix.vmult(dst, src); });
+        const auto time = run_measurement([&]() { matrix.vmult(dst, src); });
 
         table.add_value("t_" + label + "_mb", time);
         table.set_scientific("t_" + label + "_mb", true);
