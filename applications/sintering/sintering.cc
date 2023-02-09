@@ -192,7 +192,7 @@ main(int argc, char **argv)
           r0,
           params.geometry_data.interface_width,
           n_grains,
-          params.geometry_data.minimize_order_parameters,
+          params.geometry_data.minimize_order_parameters ? 2 : 0,
           is_accumulative);
 
       AssertThrow(
