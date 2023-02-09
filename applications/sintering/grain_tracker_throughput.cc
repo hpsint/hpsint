@@ -13,7 +13,7 @@
 #include <deal.II/numerics/vector_tools.h>
 
 #ifdef LIKWID_PERFMON
-#undef LIKWID_PERFMON
+#  undef LIKWID_PERFMON
 #endif
 
 #include <pf-applications/base/performance.h>
