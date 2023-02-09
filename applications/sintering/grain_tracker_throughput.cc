@@ -41,15 +41,15 @@ main(int argc, char **argv)
   Utilities::MPI::MPI_InitFinalize mpi_init(argc, argv, 1);
 
   AssertThrow(
-    argc >= 1,
+    argc >= 2,
     ExcMessage(
-      "Number of particles per row of the hypercube has to be specified"));
+      "Maximum number of particles per row of the hypercube has to be specified"));
 
   const unsigned int max_grains_per_row = atoi(argv[1]);
 
   AssertThrow(max_grains_per_row > 0,
               ExcMessage(
-                "Number of particles per row has to be grater than 1"));
+                "Maximum number of particles per row has to be grater than 1"));
 
 #ifdef LIKWID_PERFMON
   LIKWID_MARKER_INIT;
@@ -84,9 +84,10 @@ main(int argc, char **argv)
       const unsigned int n_grains = std::pow(n_grains_per_row, dim);
 
       std::array<unsigned int, dim> n_grains_dir;
-      n_grains_dir.fill(n_grains);
+      n_grains_dir.fill(n_grains_per_row);
 
-      for (unsigned int n_max_op_for_ic = 2; n_max_op_for_ic < n_grains_per_row;
+      for (unsigned int n_max_op_for_ic = 2;
+           n_max_op_for_ic <= n_grains_per_row;
            ++n_max_op_for_ic)
         {
           parallel::distributed::Triangulation<dim> tria(MPI_COMM_WORLD);
