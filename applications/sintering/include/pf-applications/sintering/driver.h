@@ -1649,9 +1649,20 @@ namespace Sintering
 
         solutions_except_recent.update_ghost_values();
 
+        output_result(
+          solution, nonlinear_operator, grain_tracker, t, timer, "track");
 
         const auto time_total = std::chrono::system_clock::now();
 
+        /* The grain tracker design is a bit error prone. If we had
+         * initial_setup() or track() calls previously which resulted in some
+         * grains reassignments and remap() was not called after that, then the
+         * other calls to track() will lead to an error. Ideally, the grains
+         * indices should be changed only during the remap() call commiting the
+         * new state of the grain tracker.
+         *
+         * TODO: improve the grain tracker logic
+         */
         std::tuple<bool, bool> gt_status;
         if (do_initialize)
           {
@@ -1691,9 +1702,6 @@ namespace Sintering
         // Rebuild data structures if grains have been reassigned
         if (has_reassigned_grains || has_op_number_changed)
           {
-            output_result(
-              solution, nonlinear_operator, grain_tracker, t, timer, "remap");
-
             if (has_op_number_changed)
               {
                 const unsigned int n_grains_new =
