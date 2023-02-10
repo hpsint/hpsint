@@ -1567,9 +1567,6 @@ namespace Sintering
           VectorType vector_solutions_except_recent(all_blocks.begin(),
                                                     all_blocks.end());
 
-          const auto only_order_parameters =
-            solution.create_view(2, sintering_data.n_components());
-
           output_result(solution,
                         nonlinear_operator,
                         grain_tracker,
@@ -1605,8 +1602,9 @@ namespace Sintering
               }
           };
 
-          coarsen_and_refine_mesh(*only_order_parameters,
-                                  vector_solutions_except_recent,
+          const unsigned int block_estimate_start = 2;
+          const unsigned int block_estimate_end = sintering_data.n_components();
+          coarsen_and_refine_mesh(vector_solutions_except_recent,
                                   tria,
                                   dof_handler,
                                   constraints,
@@ -1615,7 +1613,9 @@ namespace Sintering
                                   bottom_fraction_of_cells,
                                   min_allowed_level,
                                   max_allowed_level,
-                                  after_amr);
+                                  after_amr,
+                                  block_estimate_start,
+                                  block_estimate_end);
 
           std::for_each(additional_initializations.begin(),
                         additional_initializations.end(),
