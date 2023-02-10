@@ -410,8 +410,7 @@ namespace Sintering
   template <typename VectorType, typename Triangulation, int dim>
   void
   coarsen_and_refine_mesh(
-    const VectorType &                                  solution_to_estimate,
-    VectorType &                                        solution_to_transfer,
+    VectorType &                                        solution,
     Triangulation &                                     tria,
     DoFHandler<dim> &                                   dof_handler,
     AffineConstraints<typename VectorType::value_type> &constraints,
@@ -420,10 +419,37 @@ namespace Sintering
     const double                      bottom_fraction_of_cells,
     const unsigned int                min_allowed_level,
     const unsigned int                max_allowed_level,
-    std::function<void(VectorType &)> reinitializer)
+    std::function<void(VectorType &)> reinitializer,
+    const unsigned int                block_estimate_start = 0,
+    const unsigned int block_estimate_end = numbers::invalid_unsigned_int)
   {
+    // Build partitioner
+    const auto partitioner = std::make_shared<Utilities::MPI::Partitioner>(
+      dof_handler.locally_owned_dofs(),
+      DoFTools::extract_locally_relevant_dofs(dof_handler),
+      dof_handler.get_communicator());
+
+    // Copy solution so that it has the right ghosting
+    VectorType solution_copy(solution.n_blocks());
+    for (unsigned int b = 0; b < solution_copy.n_blocks(); ++b)
+      {
+        solution_copy.block(b).reinit(partitioner);
+        solution_copy.block(b).copy_locally_owned_data_from(solution.block(b));
+      }
+
+    for (unsigned int b = 0; b < solution_copy.n_blocks(); ++b)
+      constraints.distribute(solution_copy.block(b));
+
+    const auto solution_copy_estimate =
+      solution_copy.create_view(block_estimate_start,
+                                block_estimate_end !=
+                                    numbers::invalid_unsigned_int ?
+                                  block_estimate_end :
+                                  solution_copy.n_blocks());
+    solution_copy_estimate->update_ghost_values();
+
     // Mark cells and prepare refinement
-    internal::prepare_coarsening_and_refinement(solution_to_estimate,
+    internal::prepare_coarsening_and_refinement(*solution_copy_estimate,
                                                 tria,
                                                 dof_handler,
                                                 quad,
@@ -432,33 +458,15 @@ namespace Sintering
                                                 min_allowed_level,
                                                 max_allowed_level);
 
-    // Build partitioner
-    const auto partitioner = std::make_shared<Utilities::MPI::Partitioner>(
-      dof_handler.locally_owned_dofs(),
-      DoFTools::extract_locally_relevant_dofs(dof_handler),
-      dof_handler.get_communicator());
-
-    // Copy solution so that it has the right ghosting
-    VectorType solution_copy(solution_to_transfer.n_blocks());
-    for (unsigned int b = 0; b < solution_copy.n_blocks(); ++b)
-      {
-        solution_copy.block(b).reinit(partitioner);
-        solution_copy.block(b).copy_locally_owned_data_from(
-          solution_to_transfer.block(b));
-      }
-
-    for (unsigned int b = 0; b < solution_copy.n_blocks(); ++b)
-      constraints.distribute(solution_copy.block(b));
-
     // Raw pointers
-    std::vector<typename VectorType::BlockType *> solution_to_transfer_ptr(
-      solution_to_transfer.n_blocks());
+    std::vector<typename VectorType::BlockType *> solution_ptr(
+      solution.n_blocks());
     std::vector<const typename VectorType::BlockType *> solution_copy_ptr(
       solution_copy.n_blocks());
-    for (unsigned int b = 0; b < solution_to_transfer.n_blocks(); ++b)
+    for (unsigned int b = 0; b < solution.n_blocks(); ++b)
       {
-        solution_to_transfer_ptr[b] = &solution_to_transfer.block(b);
-        solution_copy_ptr[b]        = &solution_copy.block(b);
+        solution_ptr[b]      = &solution.block(b);
+        solution_copy_ptr[b] = &solution_copy.block(b);
       }
 
     // Prepare solution transfer
@@ -471,14 +479,14 @@ namespace Sintering
     tria.execute_coarsening_and_refinement();
 
     // Reinitialize vector to be transfered
-    reinitializer(solution_to_transfer);
+    reinitializer(solution);
 
     // Transfer solution
-    solution_trans.interpolate(solution_to_transfer_ptr);
+    solution_trans.interpolate(solution_ptr);
 
     // note: apply constraints since the Newton solver expects this
-    for (unsigned int b = 0; b < solution_to_transfer.n_blocks(); ++b)
-      constraints.distribute(solution_to_transfer.block(b));
+    for (unsigned int b = 0; b < solution.n_blocks(); ++b)
+      constraints.distribute(solution.block(b));
   }
 
   struct EnergyCoefficients
