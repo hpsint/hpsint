@@ -440,13 +440,14 @@ namespace Sintering
     for (unsigned int b = 0; b < solution_copy.n_blocks(); ++b)
       constraints.distribute(solution_copy.block(b));
 
+    solution_copy.update_ghost_values();
+
     const auto solution_copy_estimate =
       solution_copy.create_view(block_estimate_start,
                                 block_estimate_end !=
                                     numbers::invalid_unsigned_int ?
                                   block_estimate_end :
                                   solution_copy.n_blocks());
-    solution_copy_estimate->update_ghost_values();
 
     // Mark cells and prepare refinement
     internal::prepare_coarsening_and_refinement(*solution_copy_estimate,
