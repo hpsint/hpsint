@@ -288,6 +288,12 @@ namespace Sintering
       return contacts.size();
     }
 
+    unsigned int
+    n_particles() const final
+    {
+      return particles.size();
+    }
+
   private:
     // A special struct that stores contact infromation for a pair of particles
     struct Contact

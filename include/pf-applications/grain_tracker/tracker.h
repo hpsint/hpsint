@@ -307,27 +307,31 @@ namespace GrainTracker
      */
     std::tuple<bool, bool>
     initial_setup(const BlockVectorType &solution,
-                  const unsigned int     n_order_params)
+                  const unsigned int     n_order_params,
+                  const bool             skip_reassignment = false)
     {
       const bool assign_indices = true;
 
       grains = detect_grains(solution, n_order_params, assign_indices);
 
-      // The rest is the same as was before
+      bool grains_reassigned = false;
+      bool op_number_changed = false;
 
-      /* Initial grains reassignment, the closest neighbors are allowed as we
-       * want to minimize the number of order parameters in use.
-       */
-      const bool force_reassignment = greedy_init;
+      if (skip_reassignment == false)
+        {
+          /* Initial grains reassignment, the closest neighbors are allowed as
+           * we want to minimize the number of order parameters in use.
+           */
+          const bool force_reassignment = greedy_init;
 
-      // Reassign grains
-      const bool grains_reassigned =
-        reassign_grains(force_reassignment, fast_reassignment);
+          // Reassign grains
+          grains_reassigned =
+            reassign_grains(force_reassignment, fast_reassignment);
 
-      // Check if number of order parameters has changed
-      const bool op_number_changed =
-        (active_order_parameters.size() !=
-         build_old_order_parameter_ids(grains).size());
+          // Check if number of order parameters has changed
+          op_number_changed = (active_order_parameters.size() !=
+                               build_old_order_parameter_ids(grains).size());
+        }
 
       // Build inverse mapping after grains are detected
       build_inverse_mapping();
@@ -783,6 +787,16 @@ namespace GrainTracker
     n_segments() const
     {
       return n_total_segments;
+    }
+
+    void
+    custom_reassignment(
+      std::function<void(std::map<unsigned int, Grain<dim>> &)> callback)
+    {
+      callback(grains);
+
+      // Rebuild completely active order parameters
+      active_order_parameters = build_active_order_parameter_ids(grains);
     }
 
   private:

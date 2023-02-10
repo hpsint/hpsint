@@ -48,7 +48,7 @@ namespace Sintering
     get_interface_width() const = 0;
 
     void
-    set_component(const unsigned int current_component)
+    set_component(const unsigned int current_component) const
     {
       AssertIndexRange(current_component, n_components());
       this->current_component = current_component;
@@ -63,9 +63,12 @@ namespace Sintering
     virtual unsigned int
     n_order_parameters() const = 0;
 
+    virtual unsigned int
+    n_particles() const = 0;
+
   private:
-    unsigned int current_component;
-    const double interface_offset;
+    mutable unsigned int current_component;
+    const double         interface_offset;
 
   protected:
     virtual double

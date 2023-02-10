@@ -150,6 +150,12 @@ namespace Sintering
       return order_parameter_to_grains.size();
     }
 
+    unsigned int
+    n_particles() const final
+    {
+      return centers.size();
+    }
+
   protected:
     // Center coordinates
     std::vector<dealii::Point<dim>> centers;
