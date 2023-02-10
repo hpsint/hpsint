@@ -809,6 +809,8 @@ namespace GrainTracker
 
       const MPI_Comm comm = MPI_COMM_WORLD;
 
+      constexpr bool use_stitching_via_graphs = true;
+
       // Numerator
       unsigned int grains_numerator = 0;
 
@@ -918,7 +920,9 @@ namespace GrainTracker
           // clique), give each clique an unique id, and return mapping from the
           // global non-unique ids to the global ids
           const auto local_to_global_particle_ids =
-            perform_distributed_stitching(comm, local_connectiviy);
+            use_stitching_via_graphs ?
+              perform_distributed_stitching_via_graph(comm, local_connectiviy) :
+              perform_distributed_stitching(comm, local_connectiviy);
 
           // step 5) determine properties of particles (volume, radius, center)
           unsigned int n_particles = 0;

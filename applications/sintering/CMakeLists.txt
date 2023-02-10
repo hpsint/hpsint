@@ -44,7 +44,7 @@ foreach(VAR_DIM ${VARIANTS_DIM})
         target_compile_definitions(${executable_name} PUBLIC USE_SNES)
       ENDIF()
 
-      TARGET_LINK_LIBRARIES(${executable_name} "pf-applications")
+      TARGET_LINK_LIBRARIES(${executable_name} "pf-applications" "boost_mpi" "boost_serialization" "boost_graph_parallel")
       target_include_directories(${executable_name} PUBLIC "include/" "../structural/include/")
 
       message(STATUS "  ${executable_name}")
