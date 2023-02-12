@@ -201,6 +201,7 @@ namespace Sintering
     unsigned int desirable_linear_iterations = 100;
     bool         sanity_check_predictor      = false;
     bool         sanity_check_solution       = false;
+    unsigned int max_n_time_step             = 0;
   };
 
   struct OutputData
@@ -774,6 +775,9 @@ namespace Sintering
       prm.add_parameter("SanityCheckSolution",
                         time_integration_data.sanity_check_solution,
                         "Whether to perform PF sanity check after solution.");
+      prm.add_parameter("MaxNTimeSteps",
+                        time_integration_data.max_n_time_step,
+                        "Max number of time steps.");
       prm.leave_subsection();
 
       prm.enter_subsection("Output");

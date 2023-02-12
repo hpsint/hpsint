@@ -1,5 +1,5 @@
 # Define max sintring grains
-set(MAX_SINTERING_GRAINS 10)
+set(MAX_SINTERING_GRAINS 12)
 
 # Possible options variants
 set(VARIANTS_DIM      "2D;3D")
