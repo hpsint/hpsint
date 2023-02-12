@@ -27,3 +27,14 @@ qsub job_5.cmd
 qsub job_6.cmd
 
 ```
+
+```
+mkdir configurations-long
+cd configurations-long
+python3 ../../applications/sintering/scripts_performance/preconditioners.py 1
+
+qsub job_0.cmd
+qsub job_1.cmd
+qsub job_2.cmd
+
+```

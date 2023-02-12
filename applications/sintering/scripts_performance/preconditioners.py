@@ -1,5 +1,6 @@
 import json
 import os
+import sys
 
 JOB="""#PBS -l nodes={1}:ppn=40
 #PBS -l walltime=16:00:00
@@ -7,12 +8,16 @@ JOB="""#PBS -l nodes={1}:ppn=40
 #PBS -q gold
 #PBS -j oe
 
-cd ~/sw-sintering/pf-applications/build/preconditioners
+cd $PBS_O_WORKDIR
 
 mpirun -np {2} ../applications/sintering/sintering-3D-generic-scalar --cloud ../../applications/sintering/sintering_cloud_examples/49particles.cloud ./job_{0}.json | tee ./job_{0}.out
 """
 
-def run_instance(counter, time_end, n_nodes, config):
+counter = 0
+
+def run_instance(time_end, n_nodes, config):
+    global counter 
+
     with open(os.path.dirname(os.path.abspath(__file__)) + "/../analysis_examples/49particles_delta_min_40.json", 'r') as f:
        datastore = json.load(f)
 
@@ -48,16 +53,30 @@ def run_instance(counter, time_end, n_nodes, config):
     with open("./job_%d.cmd" % (counter), 'w') as f:
         f.write(JOB.format(counter, n_nodes, n_nodes * 40))
 
+    counter = counter + 1
+
 def main():
     time_end = 500
     n_nodes  = 5
 
-    run_instance(0, time_end, n_nodes, "ILU")
-    run_instance(1, time_end, n_nodes, "ILU|ILU")
-    run_instance(2, time_end, n_nodes, "ILU|BlockILU|all")
-    run_instance(3, time_end, n_nodes, "ILU|BlockILU|const")
-    run_instance(4, time_end, n_nodes, "ILU|BlockILU|avg")
-    run_instance(5, time_end, n_nodes, "ILU|BlockILU|max")
+    short_simulation = True
+
+    if (len(sys.argv) > 1) and (sys.argv[1] == "1"):
+        short_simulation = False
+        time_end = 15000
+
+    if short_simulation:
+        run_instance(time_end, n_nodes, "ILU")
+
+    if short_simulation:
+        run_instance(time_end, n_nodes, "ILU|ILU")
+    run_instance(time_end, n_nodes, "ILU|BlockILU|all")
+
+    if short_simulation:
+        run_instance(time_end, n_nodes, "ILU|BlockILU|const")
+
+    run_instance(time_end, n_nodes, "ILU|BlockILU|avg")
+    run_instance(time_end, n_nodes, "ILU|BlockILU|max")
 
 
 if __name__== "__main__":
