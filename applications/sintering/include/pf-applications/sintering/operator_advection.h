@@ -224,7 +224,7 @@ namespace Sintering
                   // other grains
                   for (unsigned int jg = 0; jg < n_grains; ++jg)
                     {
-                      if (grain_to_relevant_grain[ig] ==
+                      if (grain_to_relevant_grain[jg] ==
                           static_cast<unsigned char>(255))
                         continue;
 
