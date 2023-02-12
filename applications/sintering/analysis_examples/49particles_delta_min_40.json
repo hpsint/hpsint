@@ -1,6 +1,7 @@
 {
     "MatrixBased": "false",
     "GrainCutOffTolerance": "0.00000",
+    "TensorialMobilityGradientOnTheFly": true,
     "Adaptivity": {
         "BottomFractionOfCells": "0.1",
         "MaxRefinementDepth": "1",
@@ -12,6 +13,14 @@
         "FEDegree": "1",
         "NPoints1D": "2",
         "NSubdivisions": "1"
+    },
+    "Advection": {
+        "Ceq": "1",
+        "Cgb": "0.14",
+        "Enable": "false",
+        "K": "20",
+        "Mr": "0",
+        "Mt": "1.0"
     },
     "Geometry": {
         "BoundaryFactor": "0.5",
@@ -98,7 +107,7 @@
         "DesirableLinearIterations": "100",
         "DesirableNewtonIterations": "5",
         "GrowthFactor": "1.2",
-        "TimeEnd": "15000",
+        "TimeEnd": "550",
         "TimeStart": "0",
         "TimeStepInit": "0.1",
         "TimeStepMax": "100",
