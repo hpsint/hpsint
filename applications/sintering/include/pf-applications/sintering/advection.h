@@ -197,6 +197,12 @@ namespace Sintering
         has_velocity_vector[op] = current_cell_data[op].has_non_zero();
     }
 
+    unsigned int
+    get_n_op() const
+    {
+      return current_cell_data.size();
+    }
+
     bool
     has_velocity(const unsigned int order_parameter_id) const
     {
