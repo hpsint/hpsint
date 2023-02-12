@@ -33,9 +33,9 @@ source ~/.bashrc
 
 pwd
 
-for d in 51 102 212 316 603 1037 3076 6140 10245
+for i in 51 102 212 316 603 1037 3076 6140 10245
 do
-    mpirun -np {2} ./applications/sintering/sintering-3D-generic-scalar --cloud ../applications/sintering/sintering_cloud_examples/packings_10k/{{$i}}particles.cloud ./input.json || exit 1
+    mpirun -np {2} ../applications/sintering/sintering-3D-generic-scalar --cloud ../../applications/sintering/sintering_cloud_examples/packings_10k/${{i}}particles.cloud ./input.json 
 done
 
 """
@@ -63,7 +63,7 @@ def main():
     for n in [ a for a in [8, 16, 32, 64, 128, 256, 512, 1024, 2048, 3072] if a <= max_nodes]:
         label = ""
         if n <= 16:
-            label = "micro"
+            label = "test"
         elif n <= 768:
             label = "general"
         elif n <= 3072:
