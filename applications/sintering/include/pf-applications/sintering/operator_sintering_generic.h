@@ -549,7 +549,10 @@ namespace Sintering
 
       // Reinit advection data for the current cells batch
       if (this->advection.enabled())
-        this->advection.reinit(cell);
+        {
+          this->advection.reinit(cell);
+          AssertDimension(this->advection.get_n_op(), n_grains);
+        }
 
       for (unsigned int q = 0; q < phi.n_q_points; ++q)
         {
