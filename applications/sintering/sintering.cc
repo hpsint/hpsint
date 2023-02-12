@@ -237,7 +237,7 @@ main(int argc, char **argv)
 
       std::string   file_cloud = std::string(argv[2]);
       std::ifstream fstream(file_cloud);
-      AssertThrow(fstream.is_open(), ExcMessage("File not found!"));
+      AssertThrow(fstream.is_open(), ExcMessage("File (" + file_cloud  + ") not found!"));
 
       const auto particles = Sintering::read_particles<SINTERING_DIM>(fstream);
 
