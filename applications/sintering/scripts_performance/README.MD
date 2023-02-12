@@ -1,7 +1,9 @@
+### On gold nodes
+
 ```
 mkdir preconditioners
 cd preconditioners
-. ../../applications/sintering/scripts_performance/preconditioners.sh
+python3 ../../applications/sintering/scripts_performance/configurations.py
 
 qsub job_0.cmd
 qsub job_1.cmd
@@ -38,3 +40,12 @@ qsub job_1.cmd
 qsub job_2.cmd
 
 ```
+
+
+### On SuperMUC-NG
+
+```
+
+```
+
+
