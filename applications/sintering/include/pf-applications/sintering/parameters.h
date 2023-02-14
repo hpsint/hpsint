@@ -204,9 +204,7 @@ namespace Sintering
     BoundingBoxData       control_box_data;
     std::set<std::string> domain_integrals = {"gb_area",
                                               "solid_vol",
-                                              "surf_area",
-                                              "avg_grain_size",
-                                              "surf_area_nrm"};
+                                              "surf_area"};
     bool                  grain_boundaries = false;
     bool                  iso_surf_area    = false;
     bool                  iso_gb_area      = false;
