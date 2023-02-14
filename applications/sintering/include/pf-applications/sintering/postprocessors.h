@@ -1492,6 +1492,39 @@ namespace Sintering
 
               return eta_ij_sum;
             };
+          else if (qty == "avg_grain_size")
+            callback = [](const VectorizedArrayType *                value,
+                          const Tensor<1, dim, VectorizedArrayType> *gradient,
+                          const unsigned int                         n_grains) {
+              (void)gradient;
+
+              VectorizedArrayType eta_i2_sum = 0.0;
+              for (unsigned int i = 0; i < n_grains; ++i)
+                eta_i2_sum += value[2 + i] * value[2 + i];
+
+              return eta_i2_sum;
+            };
+          else if (qty == "surf_area_nrm")
+            callback = [](const VectorizedArrayType *                value,
+                          const Tensor<1, dim, VectorizedArrayType> *gradient,
+                          const unsigned int                         n_grains) {
+              (void)gradient;
+              (void)n_grains;
+
+              VectorizedArrayType c_int(1.0);
+              c_int = compare_and_apply_mask<SIMDComparison::less_than>(
+                value[0],
+                VectorizedArrayType(0.45),
+                VectorizedArrayType(0.0),
+                c_int);
+              c_int = compare_and_apply_mask<SIMDComparison::greater_than>(
+                value[0],
+                VectorizedArrayType(0.55),
+                VectorizedArrayType(0.0),
+                c_int);
+
+              return c_int;
+            };
           else
             AssertThrow(false,
                         ExcMessage("Invalid domain integral provided: " + qty));
