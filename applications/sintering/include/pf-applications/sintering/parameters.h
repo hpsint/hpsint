@@ -25,6 +25,13 @@ namespace Sintering
     double z_max = 0;
   };
 
+  struct DivisionsData
+  {
+    unsigned int nx = 0;
+    unsigned int ny = 0;
+    unsigned int nz = 0;
+  };
+
   struct GeometryData
   {
     double          divisions_per_interface            = 4;
@@ -34,10 +41,12 @@ namespace Sintering
     double          interface_buffer_ratio             = 1.0;
     bool            periodic                           = false;
     bool            custom_bounding_box                = false;
+    bool            custom_divisions                   = false;
     unsigned int    max_prime                          = 20;
     std::string     global_refinement                  = "None";
     double          max_level0_divisions_per_interface = 1.0 - 1e-9;
     BoundingBoxData bounding_box_data;
+    DivisionsData   divisions_data;
 
     double hanging_node_weight = 1.0;
   };
@@ -423,6 +432,9 @@ namespace Sintering
       prm.add_parameter("CustomBoundingBox",
                         geometry_data.custom_bounding_box,
                         "Is custom bounding box specified.");
+      prm.add_parameter("CustomDivisions",
+                        geometry_data.custom_divisions,
+                        "Is custom number of divisions specified.");
       prm.add_parameter("MaxPrime",
                         geometry_data.max_prime,
                         "Max prime number for subdivisions decomposition.");
@@ -453,6 +465,12 @@ namespace Sintering
       prm.add_parameter("Zmax",
                         geometry_data.bounding_box_data.z_max,
                         "z max.");
+      prm.leave_subsection();
+
+      prm.enter_subsection("Divisions");
+      prm.add_parameter("Nx", geometry_data.divisions_data.nx, "nx.");
+      prm.add_parameter("Ny", geometry_data.divisions_data.ny, "ny.");
+      prm.add_parameter("Nz", geometry_data.divisions_data.nz, "nz.");
       prm.leave_subsection();
 
       prm.add_parameter("HangingNodeWeight",

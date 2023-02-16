@@ -486,17 +486,39 @@ namespace Sintering
             }
         }
 
-      const unsigned int n_refinements_remaining =
-        create_mesh(tria,
-                    boundaries.first,
-                    boundaries.second,
-                    geometry_interface_width,
-                    params.geometry_data.divisions_per_interface,
-                    params.geometry_data.periodic,
-                    global_refine,
-                    params.geometry_data.max_prime,
-                    params.geometry_data.max_level0_divisions_per_interface,
-                    params.approximation_data.n_subdivisions);
+      unsigned int n_refinements_remaining = 0;
+      if (!params.geometry_data.custom_divisions)
+        {
+          n_refinements_remaining =
+            create_mesh(tria,
+                        boundaries.first,
+                        boundaries.second,
+                        geometry_interface_width,
+                        params.geometry_data.divisions_per_interface,
+                        params.geometry_data.periodic,
+                        global_refine,
+                        params.geometry_data.max_prime,
+                        params.geometry_data.max_level0_divisions_per_interface,
+                        params.approximation_data.n_subdivisions);
+        }
+      else
+        {
+          std::vector<unsigned int> subdivisions(dim);
+
+          if (dim >= 1)
+            subdivisions[0] = params.geometry_data.divisions_data.nx;
+          if (dim >= 2)
+            subdivisions[1] = params.geometry_data.divisions_data.ny;
+          if (dim >= 3)
+            subdivisions[2] = params.geometry_data.divisions_data.nz;
+
+          n_refinements_remaining = create_mesh(tria,
+                                                boundaries.first,
+                                                boundaries.second,
+                                                subdivisions,
+                                                params.geometry_data.periodic,
+                                                0);
+        }
 
       helper = std::make_unique<dealii::parallel::Helper<dim>>(tria);
 
