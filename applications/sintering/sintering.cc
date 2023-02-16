@@ -43,6 +43,7 @@ static_assert(false, "No grains number has been given!");
 #include <pf-applications/sintering/driver.h>
 #include <pf-applications/sintering/initial_values_circle.h>
 #include <pf-applications/sintering/initial_values_cloud.h>
+#include <pf-applications/sintering/initial_values_debug.h>
 #include <pf-applications/sintering/initial_values_hypercube.h>
 
 #include <cstdlib>
@@ -287,6 +288,30 @@ main(int argc, char **argv)
       pcout << std::endl;
 
       Sintering::Problem<SINTERING_DIM> runner(params, restart_path);
+    }
+  else if (std::string(argv[1]) == "--debug")
+    {
+      // Output case specific info
+      pcout << "Mode: debug" << std::endl;
+
+      if (argc == 3)
+        {
+          pcout << "Input parameters file:" << std::endl;
+          pcout << std::ifstream(argv[2]).rdbuf() << std::endl;
+
+          params.parse(std::string(argv[2]));
+        }
+
+      params.check();
+
+      pcout << "Parameters in JSON format:" << std::endl;
+      params.print_input();
+      pcout << std::endl;
+
+      const auto initial_solution =
+        std::make_shared<Sintering::InitialValuesDebug<SINTERING_DIM>>();
+
+      Sintering::Problem<SINTERING_DIM> runner(params, initial_solution);
     }
   else
     {
