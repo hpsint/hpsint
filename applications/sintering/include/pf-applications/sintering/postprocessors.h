@@ -9,6 +9,7 @@
 
 #include <pf-applications/grain_tracker/distributed_stitching.h>
 #include <pf-applications/grain_tracker/tracker.h>
+#include <pf-applications/sintering/operator_sintering_data.h>
 
 namespace dealii
 {
@@ -1448,7 +1449,9 @@ namespace Sintering
     /* Build scalar quantities to compute */
     template <int dim, typename VectorizedArrayType>
     auto
-    build_domain_quantities_evaluators(const std::vector<std::string> &labels)
+    build_domain_quantities_evaluators(
+      const std::vector<std::string> &                       labels,
+      const SinteringOperatorData<dim, VectorizedArrayType> &sintering_data)
     {
       using QuantityCallback = std::function<
         VectorizedArrayType(const VectorizedArrayType *,
@@ -1524,6 +1527,21 @@ namespace Sintering
                 c_int);
 
               return c_int;
+            };
+          else if (qty == "free_energy")
+            callback = [&sintering_data](
+                         const VectorizedArrayType *                value,
+                         const Tensor<1, dim, VectorizedArrayType> *gradient,
+                         const unsigned int                         n_grains) {
+              (void)gradient;
+
+              const VectorizedArrayType &c = value[0];
+
+              std::vector<VectorizedArrayType> etas(n_grains);
+              for (unsigned int ig = 0; ig < n_grains; ++ig)
+                etas[ig] = value[2 + ig];
+
+              return sintering_data.free_energy.f(c, etas);
             };
           else
             AssertThrow(false,
