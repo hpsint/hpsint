@@ -1,0 +1,91 @@
+{
+    "MatrixBased": "false",
+    "Adaptivity": {
+        "RefinementFrequency": "0"
+    },
+    "Advection": {
+        "Enable": "false"
+    },
+    "Approximation": {
+        "FEDegree": "1",
+        "NPoints1D": "2",
+        "NSubdivisions": "1"
+    },
+    "Geometry": {
+        "CustomBoundingBox": "true",
+        "CustomDivisions": "true",
+        "DivisionsPerInterface": "4",
+        "GlobalRefinement": "Full",
+        "Periodic": "false",
+        "BoundingBox": {
+            "Xmax": "2",
+            "Xmin": "0",
+            "Ymax": "1",
+            "Ymin": "0",
+            "Zmax": "1",
+            "Zmin": "0"
+        },
+        "Divisions": {
+            "Nx": "2",
+            "Ny": "1",
+            "Nz": "1"
+        }
+    },
+    "GrainTracker": {
+        "GrainTrackerFrequency": "0"
+    },
+    "Material": {
+        "EnergyAbstract": {
+            "A": "16",
+            "B": "1",
+            "KappaC": "1",
+            "KappaP": "0.5"
+        },
+        "MobilityAbstract": {
+            "L": "1",
+            "Mgb": "0.4",
+            "Msurf": "4",
+            "Mvap": "1e-10",
+            "Mvol": "0.01"
+        },
+        "Type": "Abstract"
+    },
+    "NonLinearData": {
+        "NewtonUseDamping": false,
+        "NonLinearSolverType": "damped",
+        "NonLinearAbsoluteTolerance": 1e-6,
+        "NonLinearRelativeTolerance": 1e-20,
+        "LinearAbsoluteTolerance": 1e-8,
+        "LinearRelativeTolerance": 1e-8
+    },
+    "Output": {
+        "Contour": "false",
+        "Debug": "false",
+        "Fields": "CH,AC",
+        "FluxesDivergences": "false",
+        "HigherOrderCells": "false",
+        "OutputTimeInterval": "1e-3",
+        "Quality": "false",
+        "Regular": "true",
+        "Shrinkage": "false",
+        "Table": "true",
+        "VtkPath": "."
+    },
+    "Preconditioners": {
+        "OuterPreconditioner": "ILU"
+    },
+    "TimeIntegration": {
+        "IntegrationScheme": "BDF1",
+        "DesirableLinearIterations": "100",
+        "DesirableNewtonIterations": "10",
+        "GrowthFactor": "1.2",
+        "Predictor": "None",
+        "SanityCheckPredictor": "false",
+        "SanityCheckSolution": "false",
+        "TimeEnd": "200",
+        "TimeStart": "0",
+        "TimeStepInit": "0.01",
+        "TimeStepMax": "100",
+        "TimeStepMin": "1e-5"
+    }
+}
