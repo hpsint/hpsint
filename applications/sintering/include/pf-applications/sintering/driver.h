@@ -2650,7 +2650,7 @@ namespace Sintering
 
               auto quantities = Postprocessors::
                 build_domain_quantities_evaluators<dim, VectorizedArrayType>(
-                  q_labels);
+                  q_labels, sintering_operator.get_data());
 
               // TODO: each quantity should provide its flag
               EvaluationFlags::EvaluationFlags eval_flags =

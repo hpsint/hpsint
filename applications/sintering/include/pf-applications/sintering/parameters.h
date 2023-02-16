@@ -204,7 +204,8 @@ namespace Sintering
     BoundingBoxData       control_box_data;
     std::set<std::string> domain_integrals = {"gb_area",
                                               "solid_vol",
-                                              "surf_area"};
+                                              "surf_area",
+                                              "free_energy"};
     bool                  grain_boundaries = false;
     bool                  iso_surf_area    = false;
     bool                  iso_gb_area      = false;
@@ -744,7 +745,7 @@ namespace Sintering
                         output_data.use_control_box,
                         "Use control box for domain integrals.");
       const std::string domain_integrals_options =
-        "gb_area|solid_vol|surf_area|avg_grain_size|surf_area_nrm";
+        "gb_area|solid_vol|surf_area|avg_grain_size|surf_area_nrm|free_energy";
       prm.add_parameter("DomainIntegrals",
                         output_data.domain_integrals,
                         "Domain integral quantities.",
