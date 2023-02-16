@@ -7,9 +7,10 @@
 
 #include <deal.II/numerics/data_out.h>
 
+#include <pf-applications/sintering/operator_sintering_data.h>
+
 #include <pf-applications/grain_tracker/distributed_stitching.h>
 #include <pf-applications/grain_tracker/tracker.h>
-#include <pf-applications/sintering/operator_sintering_data.h>
 
 namespace dealii
 {
