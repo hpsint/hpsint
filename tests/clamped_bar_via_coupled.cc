@@ -34,7 +34,7 @@
 #include <pf-applications/numerics/data_out.h>
 
 #include <pf-applications/sintering/advection.h>
-#include <pf-applications/sintering/initial_values.h>
+#include <pf-applications/sintering/initial_values_debug.h>
 #include <pf-applications/sintering/operator_sintering_coupled_wang.h>
 #include <pf-applications/sintering/tools.h>
 
@@ -44,107 +44,6 @@
 using namespace dealii;
 using namespace Structural;
 using namespace Sintering;
-
-template <int dim>
-class InitialValuesTest : public InitialValues<dim>
-{
-public:
-  double
-  do_value(const dealii::Point<dim> &p,
-           const unsigned int        component) const final
-  {
-    std::vector<double> vals;
-
-    double tol = 1e-9;
-
-    if constexpr (dim == 2)
-      {
-        dealii::Point<dim> p1(0, 0);
-        dealii::Point<dim> p2(1, 0);
-        dealii::Point<dim> p3(2, 0);
-        dealii::Point<dim> p4(0, 1);
-        dealii::Point<dim> p5(1, 1);
-        dealii::Point<dim> p6(2, 1);
-
-        if (p.distance(p1) < tol)
-          vals = {1.0, 0.1, 1.0, 0.0};
-        else if (p.distance(p2) < tol)
-          vals = {0.8, 0.2, 0.4, 0.4};
-        else if (p.distance(p3) < tol)
-          vals = {1.0, 0.3, 0.0, 1.0};
-        else if (p.distance(p4) < tol)
-          vals = {1.0, 0.4, 1.0, 0.0};
-        else if (p.distance(p5) < tol)
-          vals = {0.8, 0.5, 0.4, 0.4};
-        else if (p.distance(p6) < tol)
-          vals = {1.0, 0.6, 0.0, 1.0};
-        else
-          {
-            std::cout << "Point = " << p << std::endl;
-            throw std::runtime_error("Wrong point!");
-          }
-      }
-    else
-      {
-        dealii::Point<dim> p1(0, 0, 0);
-        dealii::Point<dim> p2(1, 0, 0);
-        dealii::Point<dim> p3(2, 0, 0);
-        dealii::Point<dim> p4(0, 1, 0);
-        dealii::Point<dim> p5(1, 1, 0);
-        dealii::Point<dim> p6(2, 1, 0);
-        dealii::Point<dim> p7(0, 0, 1);
-        dealii::Point<dim> p8(1, 0, 1);
-        dealii::Point<dim> p9(2, 0, 1);
-        dealii::Point<dim> p10(0, 1, 1);
-        dealii::Point<dim> p11(1, 1, 1);
-        dealii::Point<dim> p12(2, 1, 1);
-
-        if (p.distance(p1) < tol || p.distance(p7) < tol)
-          vals = {1.0, 0.1, 1.0, 0.0};
-        else if (p.distance(p2) < tol || p.distance(p8) < tol)
-          vals = {0.8, 0.2, 0.4, 0.4};
-        else if (p.distance(p3) < tol || p.distance(p9) < tol)
-          vals = {1.0, 0.3, 0.0, 1.0};
-        else if (p.distance(p4) < tol || p.distance(p10) < tol)
-          vals = {1.0, 0.4, 1.0, 0.0};
-        else if (p.distance(p5) < tol || p.distance(p11) < tol)
-          vals = {0.8, 0.5, 0.4, 0.4};
-        else if (p.distance(p6) < tol || p.distance(p12) < tol)
-          vals = {1.0, 0.6, 0.0, 1.0};
-        else
-          {
-            std::cout << "Point = " << p << std::endl;
-            throw std::runtime_error("Wrong point!");
-          }
-      }
-
-    return component < 4 ? vals[component] : 0.0;
-  }
-
-  std::pair<dealii::Point<dim>, dealii::Point<dim>>
-  get_domain_boundaries() const final
-  {
-    AssertThrow(false, ExcNotImplemented());
-  }
-
-  double
-  get_r_max() const final
-  {
-    AssertThrow(false, ExcNotImplemented());
-  }
-
-  double
-  get_interface_width() const final
-  {
-    AssertThrow(false, ExcNotImplemented());
-  }
-
-  unsigned int
-  n_order_parameters() const final
-  {
-    return 2;
-  }
-};
 
 template <int dim,
           int fe_degree,
@@ -257,7 +156,7 @@ public:
     AdvectionMechanism<dim, Number, VectorizedArrayType> advection_mechanism;
 
     // set initial condition
-    InitialValuesTest<dim> initial_solution;
+    InitialValuesDebug<dim> initial_solution;
 
     TimeIntegration::SolutionHistory<VectorType> solution_history(2);
 
