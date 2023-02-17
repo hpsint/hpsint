@@ -5,6 +5,8 @@
 
 #include <deal.II/dofs/dof_handler.h>
 
+#include <pf-applications/base/timer.h>
+
 namespace GrainTracker
 {
   using namespace dealii;
@@ -67,8 +69,12 @@ namespace GrainTracker
   std::vector<unsigned int>
   perform_distributed_stitching(
     const MPI_Comm                                                   comm,
-    std::vector<std::vector<std::tuple<unsigned int, unsigned int>>> input)
+    std::vector<std::vector<std::tuple<unsigned int, unsigned int>>> input,
+    MyTimerOutput *timer = nullptr)
   {
+    ScopedName sc("perform_distributed_stitching");
+    MyScope    scope(sc, timer);
+
     const unsigned int n_ranks = Utilities::MPI::n_mpi_processes(comm);
     const unsigned int my_rank = Utilities::MPI::this_mpi_process(comm);
 
@@ -83,8 +89,13 @@ namespace GrainTracker
       std::tuple<unsigned int,
                  std::vector<std::tuple<unsigned int, unsigned int>>>>;
 
+    unsigned int iter = 0;
+
     while (true)
       {
+        ScopedName sc("fp_iter_" + std::to_string(iter));
+        MyScope    scope(sc, timer);
+
         std::map<unsigned int, T> data_to_send;
 
         for (unsigned int i = 0; i < input.size(); ++i)
@@ -148,6 +159,8 @@ namespace GrainTracker
         if (Utilities::MPI::sum(static_cast<unsigned int>(finished), comm) ==
             n_ranks) // run as long as no clique has changed
           break;
+
+        ++iter;
       }
 
     // step 2) give each clique a unique id
@@ -196,23 +209,29 @@ namespace GrainTracker
     std::vector<unsigned int> result(input.size(),
                                      numbers::invalid_unsigned_int);
 
-    Utilities::MPI::ConsensusAlgorithms::selector<U>(
-      [&]() {
-        std::vector<unsigned int> targets;
-        for (const auto &i : data_to_send_)
-          targets.emplace_back(i.first);
-        return targets;
-      }(),
-      [&](const unsigned int other_rank) { return data_to_send_[other_rank]; },
-      [&](const unsigned int, const auto &data) {
-        for (const auto &i : data)
-          {
-            AssertDimension(result[std::get<0>(i) - offset],
-                            numbers::invalid_unsigned_int);
-            result[std::get<0>(i) - offset] = std::get<1>(i);
-          }
-      },
-      comm);
+    {
+      ScopedName sc("notify_particles");
+      MyScope    scope(sc, timer);
+      Utilities::MPI::ConsensusAlgorithms::selector<U>(
+        [&]() {
+          std::vector<unsigned int> targets;
+          for (const auto &i : data_to_send_)
+            targets.emplace_back(i.first);
+          return targets;
+        }(),
+        [&](const unsigned int other_rank) {
+          return data_to_send_[other_rank];
+        },
+        [&](const unsigned int, const auto &data) {
+          for (const auto &i : data)
+            {
+              AssertDimension(result[std::get<0>(i) - offset],
+                              numbers::invalid_unsigned_int);
+              result[std::get<0>(i) - offset] = std::get<1>(i);
+            }
+        },
+        comm);
+    }
 
     MPI_Barrier(comm);
 
