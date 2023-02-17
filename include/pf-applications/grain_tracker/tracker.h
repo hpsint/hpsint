@@ -353,14 +353,14 @@ namespace GrainTracker
     }
 
     // Remap a single state vector
-    void
+    unsigned int
     remap(BlockVectorType &solution) const
     {
-      remap({&solution});
+      return remap({&solution});
     }
 
     // Remap state vectors
-    void
+    unsigned int
     remap(std::vector<std::shared_ptr<BlockVectorType>> solutions) const
     {
       std::vector<BlockVectorType *> raw_ptrs;
@@ -370,11 +370,11 @@ namespace GrainTracker
                      std::back_inserter(raw_ptrs),
                      [](auto &sol) { return sol.get(); });
 
-      remap(raw_ptrs);
+      return remap(raw_ptrs);
     }
 
     // Remap state vectors
-    void
+    unsigned int
     remap(std::vector<BlockVectorType *> solutions) const
     {
       ScopedName sc("tracker::remap");
@@ -473,6 +473,9 @@ namespace GrainTracker
                                  grain.get_order_parameter_id());
             }
         }
+
+      // Total number of grains remapped
+      unsigned int n_grains_remapped = remappings.size();
 
       // Build graph to resolve overlapping remappings
       RemapGraph graph;
@@ -714,6 +717,8 @@ namespace GrainTracker
         }
 
       print_log(log);
+
+      return n_grains_remapped;
     }
 
     const std::map<unsigned int, Grain<dim>> &
