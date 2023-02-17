@@ -127,7 +127,6 @@
         "TimeStart": "0",
         "TimeStepInit": "0.01",
         "TimeStepMax": "100",
-        "TimeStepMin": "1e-5",
-        "SanityCheck": "false"
+        "TimeStepMin": "1e-5"
     }
 }

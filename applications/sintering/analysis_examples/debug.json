@@ -80,8 +80,6 @@
         "DesirableNewtonIterations": "10",
         "GrowthFactor": "1.2",
         "Predictor": "None",
-        "SanityCheckPredictor": "false",
-        "SanityCheckSolution": "false",
         "TimeEnd": "200",
         "TimeStart": "0",
         "TimeStepInit": "0.01",

@@ -103,7 +103,6 @@
         "DesirableNewtonIterations": "5",
         "GrowthFactor": "1.2",
         "Predictor": "None",
-        "SanityCheck": "false",
         "TimeEnd": "5000",
         "TimeStart": "0",
         "TimeStepInit": "0.1",
