@@ -295,6 +295,12 @@ public:
       timer.print_wall_time_statistics(MPI_COMM_WORLD);
   }
 
+  bool
+  is_enabled() const
+  {
+    return enabled;
+  }
+
 private:
   dealii::ConditionalOStream pcout;
   dealii::TimerOutput        timer;
