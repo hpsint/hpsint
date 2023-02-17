@@ -114,7 +114,7 @@ namespace GrainTracker
      * variables which signify if any grains have been reassigned and if the
      * number of active order parameters has been changed.
      */
-    std::tuple<bool, bool>
+    std::tuple<unsigned int, bool, bool>
     track(const BlockVectorType &solution,
           const unsigned int     n_order_params,
           const bool             skip_reassignment = false)
@@ -277,8 +277,9 @@ namespace GrainTracker
         }
 
       // Variables to return the result
-      bool grains_reassigned = false;
-      bool op_number_changed = false;
+      bool         grains_reassigned = false;
+      bool         op_number_changed = false;
+      unsigned int n_collisions      = 0;
 
       if (skip_reassignment == false)
         {
@@ -289,7 +290,7 @@ namespace GrainTracker
           const bool force_reassignment = false;
 
           // Reassign grains
-          grains_reassigned =
+          std::tie(n_collisions, grains_reassigned) =
             reassign_grains(force_reassignment, fast_reassignment);
 
           // Check if number of order parameters has changed
@@ -308,14 +309,16 @@ namespace GrainTracker
       // Build inverse mapping after all indices are set
       build_inverse_mapping();
 
-      return std::make_tuple(grains_reassigned, op_number_changed);
+      return std::make_tuple(n_collisions,
+                             grains_reassigned,
+                             op_number_changed);
     }
 
     /* Initialization of grains at the very first step. The function returns a
      * tuple of bool variables which signify if any grains have been reassigned
      * and if the number of active order parameters has been changed.
      */
-    std::tuple<bool, bool>
+    std::tuple<unsigned int, bool, bool>
     initial_setup(const BlockVectorType &solution,
                   const unsigned int     n_order_params,
                   const bool             skip_reassignment = false)
@@ -327,8 +330,9 @@ namespace GrainTracker
 
       grains = detect_grains(solution, n_order_params, assign_indices);
 
-      bool grains_reassigned = false;
-      bool op_number_changed = false;
+      bool         grains_reassigned = false;
+      bool         op_number_changed = false;
+      unsigned int n_collisions      = 0;
 
       if (skip_reassignment == false)
         {
@@ -338,7 +342,7 @@ namespace GrainTracker
           const bool force_reassignment = greedy_init;
 
           // Reassign grains
-          grains_reassigned =
+          std::tie(n_collisions, grains_reassigned) =
             reassign_grains(force_reassignment, fast_reassignment);
 
           // Check if number of order parameters has changed
@@ -349,7 +353,9 @@ namespace GrainTracker
       // Build inverse mapping after grains are detected
       build_inverse_mapping();
 
-      return std::make_tuple(grains_reassigned, op_number_changed);
+      return std::make_tuple(n_collisions,
+                             grains_reassigned,
+                             op_number_changed);
     }
 
     // Remap a single state vector
@@ -1231,7 +1237,7 @@ namespace GrainTracker
     }
 
     // Reassign grains order parameters to prevent collision
-    bool
+    std::tuple<unsigned int, bool>
     reassign_grains(const bool force_reassignment,
                     const bool try_fast_reassignment)
     {
@@ -1260,11 +1266,6 @@ namespace GrainTracker
       active_order_parameters = build_active_order_parameter_ids(grains);
       unsigned int n_order_parameters = active_order_parameters.size();
 
-      /* If we force grains reassignment, then we set up this flag so the
-       * colorization algorithm is forced to be executed
-       */
-      bool overlap_detected = force_reassignment;
-
       std::set<unsigned int> remap_candidates;
 
       // Base grain to compare with
@@ -1273,7 +1274,7 @@ namespace GrainTracker
           // Secondary grain
           for (auto &[g_other_id, gr_other] : grains)
             {
-              if (g_other_id != g_base_id)
+              if (g_other_id > g_base_id)
                 {
                   // Minimum distance between the two grains
                   double min_distance = gr_base.distance(gr_other);
@@ -1299,33 +1300,34 @@ namespace GrainTracker
                       dsp.add(grains_to_sparsity.at(g_base_id),
                               grains_to_sparsity.at(g_other_id));
 
+                      // Exploit symmetry
+                      dsp.add(grains_to_sparsity.at(g_other_id),
+                              grains_to_sparsity.at(g_base_id));
+
                       if (gr_other.get_order_parameter_id() ==
                           gr_base.get_order_parameter_id())
                         {
-                          overlap_detected = true;
+                          std::ostringstream ss;
+                          ss << "Found an overlap between grain "
+                             << gr_base.get_grain_id() << " and grain "
+                             << gr_other.get_grain_id()
+                             << " with order parameter "
+                             << gr_base.get_order_parameter_id() << std::endl;
 
-                          if (g_other_id > g_base_id)
-                            {
-                              std::ostringstream ss;
-                              ss << "Found an overlap between grain "
-                                 << gr_base.get_grain_id() << " and grain "
-                                 << gr_other.get_grain_id()
-                                 << " with order parameter "
-                                 << gr_base.get_order_parameter_id()
-                                 << std::endl;
+                          log.emplace_back(ss.str());
 
-                              log.emplace_back(ss.str());
-
-                              remap_candidates.insert(
-                                grains_to_sparsity.at(g_other_id));
-                            }
+                          remap_candidates.insert(
+                            grains_to_sparsity.at(g_other_id));
                         }
                     }
                 }
             }
         }
 
-      if (overlap_detected)
+      const unsigned int n_collisions = remap_candidates.size();
+
+      // We perform reassignment if collisions are detected or if we force it
+      if (n_collisions > 0 || force_reassignment)
         {
           SparsityPattern sp;
           sp.copy_from(dsp);
@@ -1509,7 +1511,7 @@ namespace GrainTracker
                 }
             }
 
-          // If we are here, then for sure grains has been reassigned
+          // If we are here, then for sure grains have been reassigned
           grains_reassigned = true;
 
           // Rebuild active order parameters
@@ -1518,7 +1520,7 @@ namespace GrainTracker
 
       print_log(log);
 
-      return grains_reassigned;
+      return std::make_tuple(n_collisions, grains_reassigned);
     }
 
     // Build inverse mapping for later use when forces and computed
