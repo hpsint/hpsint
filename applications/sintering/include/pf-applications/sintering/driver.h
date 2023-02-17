@@ -1659,7 +1659,7 @@ namespace Sintering
 
       const auto run_grain_tracker = [&](const double t,
                                          const bool   do_initialize = false) {
-        ScopedName sc("grain_tracker");
+        ScopedName sc("run_grain_tracker");
         MyScope    scope(timer, sc);
 
         pcout << "Execute grain tracker:" << std::endl;
@@ -1688,7 +1688,7 @@ namespace Sintering
         std::tuple<bool, bool> gt_status;
         if (do_initialize)
           {
-            ScopedName sc("initial_setup");
+            ScopedName sc("setup");
             MyScope    scope(timer, sc);
             gt_status =
               grain_tracker.initial_setup(solution, sintering_data.n_grains());
