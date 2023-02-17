@@ -210,7 +210,7 @@ namespace GrainTracker
                                      numbers::invalid_unsigned_int);
 
     {
-      ScopedName sc("notify_particles");
+      ScopedName sc("notify");
       MyScope    scope(sc, timer);
       Utilities::MPI::ConsensusAlgorithms::selector<U>(
         [&]() {
