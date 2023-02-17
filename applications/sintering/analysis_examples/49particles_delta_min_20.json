@@ -15,7 +15,7 @@
     "Geometry": {
         "BoundaryFactor": "0.5",
         "CustomBoundingBox": "false",
-        "DivisionsPerInterface": "3",
+        "DivisionsPerInterface": "1",
         "HangingNodeWeight": "1",
         "InterfaceBufferRatio": "6",
         "InterfaceWidth": "4",
