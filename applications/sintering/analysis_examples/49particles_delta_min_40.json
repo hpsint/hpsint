@@ -18,7 +18,7 @@
         "CustomBoundingBox": "false",
         "DivisionsPerInterface": "3",
         "HangingNodeWeight": "1",
-        "InterfaceBufferRatio": "1",
+        "InterfaceBufferRatio": "3",
         "InterfaceWidth": "8",
         "MinimizeOrderParameters": "true",
         "Periodic": "false",

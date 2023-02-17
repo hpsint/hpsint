@@ -2,7 +2,7 @@
     "MatrixBased": "false",
     "Adaptivity": {
         "BottomFractionOfCells": "0.1",
-        "MaxRefinementDepth": "1",
+        "MaxRefinementDepth": "0",
         "MinRefinementDepth": "3",
         "RefinementFrequency": "10",
         "TopFractionOfCells": "0.3"
@@ -15,9 +15,9 @@
     "Geometry": {
         "BoundaryFactor": "0.5",
         "CustomBoundingBox": "false",
-        "DivisionsPerInterface": "3",
+        "DivisionsPerInterface": "1",
         "HangingNodeWeight": "1",
-        "InterfaceBufferRatio": "1",
+        "InterfaceBufferRatio": "10",
         "InterfaceWidth": "2",
         "MinimizeOrderParameters": "true",
         "Periodic": "false",
