@@ -17,6 +17,8 @@
 #include <deal.II/particles/data_out.h>
 #include <deal.II/particles/particle_handler.h>
 
+#include <pf-applications/base/timer.h>
+
 #include <pf-applications/lac/dynamic_block_vector.h>
 
 #include <functional>
@@ -60,7 +62,8 @@ namespace GrainTracker
             const double                            threshold_upper = 1.01,
             const double       buffer_distance_ratio                = 0.05,
             const double       buffer_distance_fixed                = 0.0,
-            const unsigned int order_parameters_offset              = 2)
+            const unsigned int order_parameters_offset              = 2,
+            const bool         do_timing                            = true)
       : dof_handler(dof_handler)
       , tria(tria)
       , greedy_init(greedy_init)
@@ -73,11 +76,14 @@ namespace GrainTracker
       , buffer_distance_fixed(buffer_distance_fixed)
       , order_parameters_offset(order_parameters_offset)
       , pcout(std::cout, Utilities::MPI::this_mpi_process(MPI_COMM_WORLD) == 0)
+      , timer(do_timing)
     {}
 
     std::shared_ptr<Tracker<dim, Number>>
     clone() const
     {
+      MyScope scope(timer, "tracker::clone", timer.is_enabled());
+
       auto new_tracker =
         std::make_shared<Tracker<dim, Number>>(dof_handler,
                                                tria,
@@ -89,7 +95,8 @@ namespace GrainTracker
                                                threshold_upper,
                                                buffer_distance_ratio,
                                                buffer_distance_fixed,
-                                               order_parameters_offset);
+                                               order_parameters_offset,
+                                               timer.is_enabled());
 
       new_tracker->op_particle_ids           = this->op_particle_ids;
       new_tracker->particle_ids_to_grain_ids = this->particle_ids_to_grain_ids;
@@ -112,6 +119,9 @@ namespace GrainTracker
           const unsigned int     n_order_params,
           const bool             skip_reassignment = false)
     {
+      ScopedName sc("tracker::track");
+      MyScope    scope(timer, sc, timer.is_enabled());
+
       // Copy old grains
       old_grains = grains;
       grains.clear();
@@ -310,6 +320,9 @@ namespace GrainTracker
                   const unsigned int     n_order_params,
                   const bool             skip_reassignment = false)
     {
+      ScopedName sc("tracker::initial_setup");
+      MyScope    scope(timer, sc, timer.is_enabled());
+
       const bool assign_indices = true;
 
       grains = detect_grains(solution, n_order_params, assign_indices);
@@ -364,6 +377,9 @@ namespace GrainTracker
     void
     remap(std::vector<BlockVectorType *> solutions) const
     {
+      ScopedName sc("tracker::remap");
+      MyScope    scope(timer, sc, timer.is_enabled());
+
       // Logging for remapping
       std::vector<std::string> log;
 
@@ -378,6 +394,9 @@ namespace GrainTracker
             const dealii::DoFCellAccessor<dim, dim, false> &cell,
             BlockVectorType *solution)> callback) {
           // clang-format on
+
+          ScopedName sc("alter_dof_values_for_grain");
+          MyScope    scope(timer, sc, timer.is_enabled());
 
           const double transfer_buffer = grain.transfer_buffer();
 
@@ -518,6 +537,9 @@ namespace GrainTracker
        */
       if (!graph.empty())
         {
+          ScopedName sc("resolve_cycles");
+          MyScope    scope(timer, sc, timer.is_enabled());
+
           /* Check if the graph has cycles - these are unlikely situations and
            * at the moment we do not handle them due to complexity.
            */
@@ -805,6 +827,9 @@ namespace GrainTracker
                   const unsigned int     n_order_params,
                   const bool             assign_indices)
     {
+      ScopedName sc("detect_grains");
+      MyScope    scope(timer, sc, timer.is_enabled());
+
       std::map<unsigned int, Grain<dim>> new_grains;
 
       const MPI_Comm comm = MPI_COMM_WORLD;
@@ -838,14 +863,19 @@ namespace GrainTracker
           const auto &solution_order_parameter = solution.block(
             current_order_parameter_id + order_parameters_offset);
 
-          for (const auto &cell : dof_handler.active_cell_iterators())
-            if (run_flooding<dim>(cell,
-                                  solution_order_parameter,
-                                  particle_ids,
-                                  counter,
-                                  threshold_lower,
-                                  invalid_particle_id) > 0)
-              counter++;
+          {
+            ScopedName sc("run_flooding");
+            MyScope    scope(timer, sc, timer.is_enabled());
+
+            for (const auto &cell : dof_handler.active_cell_iterators())
+              if (run_flooding<dim>(cell,
+                                    solution_order_parameter,
+                                    particle_ids,
+                                    counter,
+                                    threshold_lower,
+                                    invalid_particle_id) > 0)
+                counter++;
+          }
 
           // step 2) determine the global number of locally determined particles
           // and give each one an unique id by shifting the ids
@@ -917,8 +947,14 @@ namespace GrainTracker
           // particles on all processes that belong togher (unification ->
           // clique), give each clique an unique id, and return mapping from the
           // global non-unique ids to the global ids
-          const auto local_to_global_particle_ids =
-            perform_distributed_stitching(comm, local_connectiviy);
+          std::vector<unsigned int> local_to_global_particle_ids;
+          {
+            ScopedName sc("distributed_stitching");
+            MyScope    scope(timer, sc, timer.is_enabled());
+
+            local_to_global_particle_ids = perform_distributed_stitching(
+              comm, local_connectiviy, timer.is_enabled() ? &timer : nullptr);
+          }
 
           // step 5) determine properties of particles (volume, radius, center)
           unsigned int n_particles = 0;
@@ -1194,6 +1230,9 @@ namespace GrainTracker
     reassign_grains(const bool force_reassignment,
                     const bool try_fast_reassignment)
     {
+      ScopedName sc("reassign_grains");
+      MyScope    scope(timer, sc, timer.is_enabled());
+
       bool grains_reassigned = false;
 
       std::vector<std::string> log;
@@ -1258,20 +1297,23 @@ namespace GrainTracker
                       if (gr_other.get_order_parameter_id() ==
                           gr_base.get_order_parameter_id())
                         {
-                          std::ostringstream ss;
-                          ss << "Found an overlap between grain "
-                             << gr_base.get_grain_id() << " and grain "
-                             << gr_other.get_grain_id()
-                             << " with order parameter "
-                             << gr_base.get_order_parameter_id() << std::endl;
-
-                          log.emplace_back(ss.str());
-
                           overlap_detected = true;
 
                           if (g_other_id > g_base_id)
-                            remap_candidates.insert(
-                              grains_to_sparsity.at(g_other_id));
+                            {
+                              std::ostringstream ss;
+                              ss << "Found an overlap between grain "
+                                 << gr_base.get_grain_id() << " and grain "
+                                 << gr_other.get_grain_id()
+                                 << " with order parameter "
+                                 << gr_base.get_order_parameter_id()
+                                 << std::endl;
+
+                              log.emplace_back(ss.str());
+
+                              remap_candidates.insert(
+                                grains_to_sparsity.at(g_other_id));
+                            }
                         }
                     }
                 }
@@ -1295,6 +1337,9 @@ namespace GrainTracker
 
           if (try_fast_reassignment)
             {
+              ScopedName sc("fast_reassignment");
+              MyScope    scope(timer, sc, timer.is_enabled());
+
               /* Since this strategy may fail, the new order parameters are not
                * assigned directly to the grains but only gathered in a map. */
               std::map<unsigned int, unsigned int>
@@ -1372,6 +1417,9 @@ namespace GrainTracker
 
           if (perform_coloring)
             {
+              ScopedName sc("full_reassignment");
+              MyScope    scope(timer, sc, timer.is_enabled());
+
               std::vector<unsigned int> color_indices(n_grains);
 
               unsigned n_colors =
@@ -1786,5 +1834,7 @@ namespace GrainTracker
     ConditionalOStream pcout;
 
     const double invalid_particle_id = -1.0;
+
+    mutable MyTimerOutput timer;
   };
 } // namespace GrainTracker
