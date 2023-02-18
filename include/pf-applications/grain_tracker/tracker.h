@@ -413,6 +413,8 @@ namespace GrainTracker
         std::inserter(disappered_grains, disappered_grains.end()),
         [](const auto &a, const auto &b) { return a.first < b.first; });
 
+      // We will fill the blocks with zeros
+      values = 0;
       for (const auto &[gid, gr] : disappered_grains)
         {
           const unsigned int op_id =
@@ -429,8 +431,6 @@ namespace GrainTracker
              &values,
              op_id](const dealii::DoFCellAccessor<dim, dim, false> &cell,
                     BlockVectorType *                               solution) {
-              cell.get_dof_values(solution->block(op_id), values);
-              values = 0;
               cell.set_dof_values(values, solution->block(op_id));
             });
         }
@@ -605,14 +605,13 @@ namespace GrainTracker
             });
 
           // Then we iterate again to nullify the old dofs
+          values = 0;
           alter_dof_values_for_grain(
             grain,
             [this,
              &values,
              op_id_src](const dealii::DoFCellAccessor<dim, dim, false> &cell,
                         BlockVectorType *solution) {
-              cell.get_dof_values(solution->block(op_id_src), values);
-              values = 0;
               cell.set_dof_values(values, solution->block(op_id_src));
             });
         }
@@ -647,14 +646,13 @@ namespace GrainTracker
             });
 
           // Then we iterate again to nullify the old dofs
+          values = 0;
           alter_dof_values_for_grain(
             grain,
             [this,
              &values,
              op_id_src](const dealii::DoFCellAccessor<dim, dim, false> &cell,
                         BlockVectorType *solution) {
-              cell.get_dof_values(solution->block(op_id_src), values);
-              values = 0;
               cell.set_dof_values(values, solution->block(op_id_src));
             });
         }
