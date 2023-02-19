@@ -1,6 +1,7 @@
 #pragma once
 
 #include <string>
+#include <sstream>
 
 namespace debug
 {
@@ -21,5 +22,18 @@ namespace debug
       }
 
     stream << '\n';
+  }
+
+  template <typename Vector>
+  std::string to_string(const Vector& vec)
+  {
+    std::stringstream ss;
+    for(unsigned int i = 0; i < vec.size(); ++i)
+    {
+      if(i != 0)
+        ss << ",";
+      ss << vec[i];
+    }
+    return ss.str();
   }
 } // namespace debug
