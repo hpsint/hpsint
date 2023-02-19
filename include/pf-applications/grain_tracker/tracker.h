@@ -142,14 +142,6 @@ namespace GrainTracker
           grains_candidates.insert(gid);
         }
 
-      // Create map with the remapped particles
-      std::vector<std::vector<bool>> grains_remapped(
-        particle_ids_to_grain_ids.size());
-
-      for (unsigned int iop = 0; iop < particle_ids_to_grain_ids.size(); ++iop)
-        grains_remapped[iop].assign(particle_ids_to_grain_ids[iop].size(),
-                                    false);
-
       // Create segments and transfer grain_id's for them
       for (const auto &[current_grain_id, new_grain] : new_grains)
         {
@@ -253,27 +245,6 @@ namespace GrainTracker
           grains.emplace(std::make_pair(new_grain_id, new_grain));
           grains.at(new_grain_id).set_grain_id(new_grain_id);
           grains.at(new_grain_id).set_dynamics(new_dynamics);
-
-          // Update mapping since we changed the grain id
-          if (new_grain_id != current_grain_id)
-            {
-              auto &particle_to_grain =
-                particle_ids_to_grain_ids[new_grain.get_order_parameter_id()];
-
-              for (unsigned int ip = 0; ip < particle_to_grain.size(); ip++)
-                {
-                  auto &pmap = particle_to_grain[ip];
-
-                  if (grains_remapped[new_grain.get_order_parameter_id()][ip] ==
-                        false &&
-                      pmap.first == current_grain_id)
-                    {
-                      pmap.first = new_grain_id;
-                      grains_remapped[new_grain.get_order_parameter_id()][ip] =
-                        true;
-                    }
-                }
-            }
         }
 
       // Variables to return the result
@@ -442,6 +413,8 @@ namespace GrainTracker
         std::inserter(disappered_grains, disappered_grains.end()),
         [](const auto &a, const auto &b) { return a.first < b.first; });
 
+      // We will fill the blocks with zeros
+      values = 0;
       for (const auto &[gid, gr] : disappered_grains)
         {
           const unsigned int op_id =
@@ -458,8 +431,6 @@ namespace GrainTracker
              &values,
              op_id](const dealii::DoFCellAccessor<dim, dim, false> &cell,
                     BlockVectorType *                               solution) {
-              cell.get_dof_values(solution->block(op_id), values);
-              values = 0;
               cell.set_dof_values(values, solution->block(op_id));
             });
         }
@@ -634,14 +605,13 @@ namespace GrainTracker
             });
 
           // Then we iterate again to nullify the old dofs
+          values = 0;
           alter_dof_values_for_grain(
             grain,
             [this,
              &values,
              op_id_src](const dealii::DoFCellAccessor<dim, dim, false> &cell,
                         BlockVectorType *solution) {
-              cell.get_dof_values(solution->block(op_id_src), values);
-              values = 0;
               cell.set_dof_values(values, solution->block(op_id_src));
             });
         }
@@ -676,14 +646,13 @@ namespace GrainTracker
             });
 
           // Then we iterate again to nullify the old dofs
+          values = 0;
           alter_dof_values_for_grain(
             grain,
             [this,
              &values,
              op_id_src](const dealii::DoFCellAccessor<dim, dim, false> &cell,
                         BlockVectorType *solution) {
-              cell.get_dof_values(solution->block(op_id_src), values);
-              values = 0;
               cell.set_dof_values(values, solution->block(op_id_src));
             });
         }
