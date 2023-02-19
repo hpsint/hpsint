@@ -1685,7 +1685,7 @@ namespace Sintering
          *
          * TODO: improve the grain tracker logic
          */
-        std::tuple<bool, bool> gt_status;
+        std::tuple<unsigned int, bool, bool> gt_status;
         if (do_initialize)
           {
             ScopedName sc("setup");
@@ -1701,13 +1701,15 @@ namespace Sintering
               grain_tracker.track(solution, sintering_data.n_grains());
           }
 
-        const bool has_reassigned_grains = std::get<0>(gt_status);
-        const bool has_op_number_changed = std::get<1>(gt_status);
+        const unsigned int n_collisions          = std::get<0>(gt_status);
+        const bool         has_reassigned_grains = std::get<1>(gt_status);
+        const bool         has_op_number_changed = std::get<2>(gt_status);
 
-        pcout << std::boolalpha
+        pcout << "\033[96mCollisions detected: " << n_collisions << " | "
+              << std::boolalpha
               << "has_reassigned_grains = " << has_reassigned_grains << " | "
               << "has_op_number_changed = " << has_op_number_changed
-              << std::noboolalpha << std::endl;
+              << std::noboolalpha << "\033[0m" << std::endl;
 
         const double time_total_double =
           std::chrono::duration_cast<std::chrono::nanoseconds>(
