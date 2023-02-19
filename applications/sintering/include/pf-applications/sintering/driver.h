@@ -1984,7 +1984,7 @@ namespace Sintering
 
       // run time loop
       {
-        while (t <= params.time_integration_data.time_end)
+        while (std::abs(t - params.time_integration_data.time_end) > 1e-15)
           {
             ScopedName         sc("time_loop");
             TimerOutput::Scope scope(timer(), sc);
