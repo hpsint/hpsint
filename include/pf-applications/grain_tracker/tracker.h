@@ -381,6 +381,9 @@ namespace GrainTracker
       // Total number of grains remapped
       unsigned int n_grains_remapped = grain_id_to_remapping.size();
 
+      if (n_grains_remapped == 0)
+        return n_grains_remapped;
+
       // Init remapping cache
       std::map<std::vector<unsigned int>, std::list<Remapping>>
         remappings_cache;
