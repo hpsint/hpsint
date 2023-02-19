@@ -5,6 +5,7 @@
 
 #include <deal.II/dofs/dof_handler.h>
 
+#include <pf-applications/base/scoped_name.h>
 #include <pf-applications/base/timer.h>
 
 namespace GrainTracker

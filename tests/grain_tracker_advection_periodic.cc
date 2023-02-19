@@ -228,7 +228,9 @@ main(int argc, char **argv)
         {
           solution.update_ghost_values();
 
-          const auto [has_reassigned_grains, has_op_number_changed] =
+          const auto [n_collisions,
+                      has_reassigned_grains,
+                      has_op_number_changed] =
             std::abs(t - t_start) < 1e-16 ?
               grain_tracker.initial_setup(
                 solution, initial_solution->n_order_parameters()) :
@@ -242,6 +244,11 @@ main(int argc, char **argv)
             }
 
           solution.zero_out_ghost_values();
+
+          if (n_collisions)
+            {
+              pcout << "Number of collisions: " << n_collisions << std::endl;
+            }
 
           if (has_reassigned_grains)
             {
