@@ -295,6 +295,12 @@ public:
       timer.print_wall_time_statistics(MPI_COMM_WORLD);
   }
 
+  bool
+  is_enabled() const
+  {
+    return enabled;
+  }
+
 private:
   dealii::ConditionalOStream pcout;
   dealii::TimerOutput        timer;
@@ -326,12 +332,7 @@ public:
     if (do_timing)
       scope =
         std::make_unique<dealii::TimerOutput::Scope>(timer_, section_name);
-#  ifdef WITH_TIMING_OUTPUT
-    if (dealii::Utilities::MPI::this_mpi_process(MPI_COMM_WORLD) == 0)
-      std::cout << ">>> MyScope: entering <" << section_name << ">"
-                << std::endl;
-    monitor(section_name + "_in_");
-#  endif
+    enter();
 #else
     (void)timer_;
     (void)do_timing;
@@ -344,31 +345,48 @@ public:
     : MyScope(timer_(), section_name, do_timing)
   {}
 
-  MyScope(const std::string &section_name)
+  MyScope(const std::string &section_name, MyTimerOutput *ptr_timer = nullptr)
     : section_name(section_name)
   {
 #ifdef WITH_TIMING
-#  ifdef WITH_TIMING_OUTPUT
-    if (dealii::Utilities::MPI::this_mpi_process(MPI_COMM_WORLD) == 0)
-      std::cout << ">>> MyScope: entering <" << section_name << ">"
-                << std::endl;
-    monitor(section_name + "_in_");
-#  endif
+    if (ptr_timer)
+      scope = std::make_unique<dealii::TimerOutput::Scope>((*ptr_timer)(),
+                                                           section_name);
+    enter();
+#else
+    (void)ptr_timer;
 #endif
   }
 
   ~MyScope()
   {
 #ifdef WITH_TIMING
-#  ifdef WITH_TIMING_OUTPUT
-    if (dealii::Utilities::MPI::this_mpi_process(MPI_COMM_WORLD) == 0)
-      std::cout << ">>> MyScope: leaving <" << section_name << ">" << std::endl;
-    monitor(section_name + "_out");
-#  endif
+    leave();
 #endif
   }
 
 private:
+  void
+  enter()
+  {
+#ifdef WITH_TIMING_OUTPUT
+    if (dealii::Utilities::MPI::this_mpi_process(MPI_COMM_WORLD) == 0)
+      std::cout << ">>> MyScope: entering <" << section_name << ">"
+                << std::endl;
+    monitor(section_name + "_in_");
+#endif
+  }
+
+  void
+  leave()
+  {
+#ifdef WITH_TIMING_OUTPUT
+    if (dealii::Utilities::MPI::this_mpi_process(MPI_COMM_WORLD) == 0)
+      std::cout << ">>> MyScope: leaving <" << section_name << ">" << std::endl;
+    monitor(section_name + "_out");
+#endif
+  }
+
   const std::string section_name;
 #ifdef WITH_TIMING
   std::unique_ptr<dealii::TimerOutput::Scope> scope;

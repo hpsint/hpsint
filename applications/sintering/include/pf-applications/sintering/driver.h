@@ -1659,7 +1659,7 @@ namespace Sintering
 
       const auto run_grain_tracker = [&](const double t,
                                          const bool   do_initialize = false) {
-        ScopedName sc("grain_tracker");
+        ScopedName sc("run_grain_tracker");
         MyScope    scope(timer, sc);
 
         pcout << "Execute grain tracker:" << std::endl;
@@ -1688,7 +1688,7 @@ namespace Sintering
         std::tuple<bool, bool> gt_status;
         if (do_initialize)
           {
-            ScopedName sc("initial_setup");
+            ScopedName sc("setup");
             MyScope    scope(timer, sc);
             gt_status =
               grain_tracker.initial_setup(solution, sintering_data.n_grains());
@@ -1724,6 +1724,8 @@ namespace Sintering
         // Rebuild data structures if grains have been reassigned
         if (has_reassigned_grains || has_op_number_changed)
           {
+            unsigned int n_grains_remapped = 0;
+
             if (has_op_number_changed)
               {
                 const unsigned int n_grains_new =
@@ -1768,7 +1770,8 @@ namespace Sintering
                     ScopedName sc("remap");
                     MyScope    scope(timer, sc);
 
-                    grain_tracker.remap(all_solution_vectors);
+                    n_grains_remapped =
+                      grain_tracker.remap(all_solution_vectors);
 
                     // Move the to be deleted components to the end
                     if (distance > 0)
@@ -1797,7 +1800,8 @@ namespace Sintering
                              ++i)
                           sol->move_block(i, i - distance);
 
-                    grain_tracker.remap(all_solution_vectors);
+                    n_grains_remapped =
+                      grain_tracker.remap(all_solution_vectors);
                   }
 
                 // Change number of components after remapping completed
@@ -1812,8 +1816,12 @@ namespace Sintering
                 auto all_solution_vectors =
                   solutions_except_recent.get_all_solutions();
 
-                grain_tracker.remap(all_solution_vectors);
+                n_grains_remapped = grain_tracker.remap(all_solution_vectors);
               }
+
+            pcout << "\033[96mGrains remapped: " << n_grains_remapped << "/"
+                  << grain_tracker.get_grains().size() << "\033[0m"
+                  << std::endl;
 
             // We need to call track again if advection mechanism is used
             // in order to keep op_particle_ids in sync
