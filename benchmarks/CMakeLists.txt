@@ -17,6 +17,7 @@ FOREACH ( source_file ${SOURCE_FILES} )
   ADD_EXECUTABLE( ${exec} ${source_file})
   DEAL_II_SETUP_TARGET(${exec})
   TARGET_LINK_LIBRARIES(${exec} "pf-applications")
+  target_include_directories(${exec} PUBLIC "../applications/sintering/include")
   
   # add LIKWID to test if requested
   IF(${LIKWID_TO_BE_USED})

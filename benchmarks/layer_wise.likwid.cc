@@ -26,10 +26,18 @@
 #  include <likwid.h>
 #endif
 
+#define MAX_SINTERING_GRAINS 10
+
+#include <pf-applications/sintering/advection.h>
+#include <pf-applications/sintering/mobility.h>
+#include <pf-applications/sintering/operator_sintering_data.h>
+#include <pf-applications/sintering/operator_sintering_generic.h>
+
 static unsigned int likwid_counter = 0;
 
 
 using namespace dealii;
+using namespace Sintering;
 
 struct Parameters
 {
@@ -341,7 +349,9 @@ test(const Parameters &params, ConvergenceTable &table)
     return time;
   };
 
-  for (unsigned int n_components = 1; n_components <= 12; ++n_components)
+  for (unsigned int n_components = 1;
+       n_components <= (MAX_SINTERING_GRAINS + 2);
+       ++n_components)
     {
       table.add_value("dim", dim);
       table.add_value("fe_type", fe_type);
@@ -354,7 +364,39 @@ test(const Parameters &params, ConvergenceTable &table)
       table.add_value("n_dofs", dof_handler.n_dofs());
       table.add_value("n_components", n_components);
 
-      HelmholtzQOperator q_point_operator;
+
+#if false
+    HelmholtzQOperator q_point_operator;
+#else
+      const double        A                      = 16;
+      const double        B                      = 1;
+      const double        kappa_c                = 1;
+      const double        kappa_p                = 0.5;
+      const double        Mvol                   = 1e-2;
+      const double        Mvap                   = 1e-10;
+      const double        Msurf                  = 4;
+      const double        Mgb                    = 0.4;
+      const double        L                      = 1;
+      const double        time_integration_order = 1;
+      const double        t                      = 0.0;
+      const double        dt                     = 0.1;
+      std::vector<double> dts(time_integration_order, 0.0);
+      dts[0] = dt;
+
+      const std::shared_ptr<MobilityProvider> mobility_provider =
+        std::make_shared<ProviderAbstract>(Mvol, Mvap, Msurf, Mgb, L);
+
+      SinteringOperatorData<dim, VectorizedArrayType> sintering_data(
+        A, B, kappa_c, kappa_p, mobility_provider, time_integration_order);
+
+      sintering_data.set_n_components(n_components);
+      sintering_data.time_data.set_all_dt(dts);
+      sintering_data.set_time(t);
+
+      AlignedVector<VectorizedArrayType> buffer;
+      SinteringOperatorGenericResidualQuad<dim, VectorizedArrayType, 1>
+        q_point_operator(sintering_data, buffer);
+#endif
 
       // version 2: vectorial (block system)
       const auto projection_operator =

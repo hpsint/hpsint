@@ -88,9 +88,10 @@ namespace Sintering
     DEAL_II_ALWAYS_INLINE inline std::tuple<
       typename FECellIntegratorType::value_type,
       typename FECellIntegratorType::gradient_type>
-    apply(const unsigned int                                  q,
-          const typename FECellIntegratorType::value_type &   value,
-          const typename FECellIntegratorType::gradient_type &gradient) const
+    operator()(
+      const unsigned int                                  q,
+      const typename FECellIntegratorType::value_type &   value,
+      const typename FECellIntegratorType::gradient_type &gradient) const
     {
       typename FECellIntegratorType::value_type    value_result;
       typename FECellIntegratorType::gradient_type gradient_result;
@@ -244,7 +245,7 @@ namespace Sintering
 
     template <typename T1, typename T2>
     DEAL_II_ALWAYS_INLINE inline std::tuple<T1, T2>
-    apply(const unsigned int q, const T1 &value, const T2 &gradient) const
+    operator()(const unsigned int q, const T1 &value, const T2 &gradient) const
     {
       T1 value_result;
       T2 gradient_result;
@@ -621,7 +622,7 @@ namespace Sintering
           const auto gradient = phi.get_gradient(q);
 
           const auto [value_result, gradient_result] =
-            quad_op.apply(q, value, gradient);
+            quad_op(q, value, gradient);
 
           phi.submit_value(value_result, q);
           phi.submit_gradient(gradient_result, q);
@@ -657,8 +658,7 @@ namespace Sintering
           const auto value    = phi.get_value(q);
           const auto gradient = phi.get_gradient(q);
 
-          auto [value_result, gradient_result] =
-            quad_op.apply(q, value, gradient);
+          auto [value_result, gradient_result] = quad_op(q, value, gradient);
 
           // 4) add advection contributations -> influences c AND etas
           if (this->advection.enabled())
