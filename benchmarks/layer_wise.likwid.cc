@@ -27,6 +27,7 @@
 #endif
 
 #define MAX_SINTERING_GRAINS 10
+#define MAX_N_COMPONENTS MAX_SINTERING_GRAINS + 2
 
 #include <pf-applications/sintering/advection.h>
 #include <pf-applications/sintering/mobility.h>
@@ -174,38 +175,83 @@ create_op(const unsigned int                                  n_components,
           const MatrixFree<dim, Number, VectorizedArrayType> &matrix_free,
           const QPointType &                                  q_point_operator)
 {
+#if MAX_N_COMPONENTS >= 1
   if (n_components == 1)
     return create_op<1>(level, matrix_free, q_point_operator);
-  else if (n_components == 2)
+  else
+#endif
+#if MAX_N_COMPONENTS >= 2
+    if (n_components == 2)
     return create_op<2>(level, matrix_free, q_point_operator);
-  else if (n_components == 3)
+  else
+#endif
+#if MAX_N_COMPONENTS >= 3
+    if (n_components == 3)
     return create_op<3>(level, matrix_free, q_point_operator);
-  else if (n_components == 4)
+  else
+#endif
+#if MAX_N_COMPONENTS >= 4
+    if (n_components == 4)
     return create_op<4>(level, matrix_free, q_point_operator);
-#if 0
-  else if (n_components == 5)
+  else
+#endif
+#if MAX_N_COMPONENTS >= 5
+    if (n_components == 5)
     return create_op<5>(level, matrix_free, q_point_operator);
-  else if (n_components == 6)
+  else
+#endif
+#if MAX_N_COMPONENTS >= 6
+    if (n_components == 6)
     return create_op<6>(level, matrix_free, q_point_operator);
-  else if (n_components == 7)
+  else
+#endif
+#if MAX_N_COMPONENTS >= 7
+    if (n_components == 7)
     return create_op<7>(level, matrix_free, q_point_operator);
-  else if (n_components == 8)
+  else
+#endif
+#if MAX_N_COMPONENTS >= 8
+    if (n_components == 8)
     return create_op<8>(level, matrix_free, q_point_operator);
-  else if (n_components == 9)
+  else
+#endif
+#if MAX_N_COMPONENTS >= 9
+    if (n_components == 9)
     return create_op<9>(level, matrix_free, q_point_operator);
-  else if (n_components == 10)
+  else
+#endif
+#if MAX_N_COMPONENTS >= 10
+    if (n_components == 10)
     return create_op<10>(level, matrix_free, q_point_operator);
-  else if (n_components == 11)
+  else
+#endif
+#if MAX_N_COMPONENTS >= 11
+    if (n_components == 11)
     return create_op<11>(level, matrix_free, q_point_operator);
-  else if (n_components == 12)
+  else
+#endif
+#if MAX_N_COMPONENTS >= 12
+    if (n_components == 12)
     return create_op<12>(level, matrix_free, q_point_operator);
-  else if (n_components == 13)
+  else
+#endif
+#if MAX_N_COMPONENTS >= 13
+    if (n_components == 13)
     return create_op<13>(level, matrix_free, q_point_operator);
-  else if (n_components == 14)
+  else
+#endif
+#if MAX_N_COMPONENTS >= 14
+    if (n_components == 14)
     return create_op<14>(level, matrix_free, q_point_operator);
-  else if (n_components == 15)
+  else
+#endif
+#if MAX_N_COMPONENTS >= 15
+    if (n_components == 15)
     return create_op<15>(level, matrix_free, q_point_operator);
-  else if (n_components == 16)
+  else
+#endif
+#if MAX_N_COMPONENTS >= 16
+    if (n_components == 16)
     return create_op<16>(level, matrix_free, q_point_operator);
 #endif
 

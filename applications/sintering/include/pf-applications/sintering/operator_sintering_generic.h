@@ -251,67 +251,68 @@ namespace Sintering
       T2 gradient_result;
 
       if constexpr (!std::is_same<T1, VectorizedArrayType>::value)
-        {
-          const unsigned int n_comp   = T1::rank;
-          const unsigned int n_grains = n_comp - 2;
+        if constexpr (T1::rank > 2)
+          {
+            const unsigned int n_comp   = T1::rank;
+            const unsigned int n_grains = n_comp - 2;
 
-          const VectorizedArrayType *                etas_value = &value[0] + 2;
-          const Tensor<1, dim, VectorizedArrayType> *etas_gradient =
-            &gradient[0] + 2;
+            const VectorizedArrayType *etas_value = &value[0] + 2;
+            const Tensor<1, dim, VectorizedArrayType> *etas_gradient =
+              &gradient[0] + 2;
 
-          const auto etas_value_power_2_sum =
-            PowerHelper<n_grains, 2>::power_sum(etas_value);
-          const auto etas_value_power_3_sum =
-            PowerHelper<n_grains, 3>::power_sum(etas_value);
+            const auto etas_value_power_2_sum =
+              PowerHelper<n_grains, 2>::power_sum(etas_value);
+            const auto etas_value_power_3_sum =
+              PowerHelper<n_grains, 3>::power_sum(etas_value);
 
-          Tensor<1, n_comp, VectorizedArrayType> value_result;
-          Tensor<1, n_comp, Tensor<1, dim, VectorizedArrayType>>
-            gradient_result;
-
-
-
-          // 1) process c row
-          if (with_time_derivative >= 1)
-            value_result[0] = value[0] * weight;
-          if (with_time_derivative == 2)
-            value_result[0] += buffer[n_comp * q];
-
-          gradient_result[0] = mobility.apply_M(value[0],
-                                                etas_value,
-                                                n_grains,
-                                                gradient[0],
-                                                etas_gradient,
-                                                gradient[1]);
+            Tensor<1, n_comp, VectorizedArrayType> value_result;
+            Tensor<1, n_comp, Tensor<1, dim, VectorizedArrayType>>
+              gradient_result;
 
 
 
-          // 2) process mu row
-          value_result[1] =
-            -value[1] + free_energy.df_dc(value[0],
-                                          etas_value,
-                                          etas_value_power_2_sum,
-                                          etas_value_power_3_sum);
-          gradient_result[1] = kappa_c * gradient[0];
+            // 1) process c row
+            if (with_time_derivative >= 1)
+              value_result[0] = value[0] * weight;
+            if (with_time_derivative == 2)
+              value_result[0] += buffer[n_comp * q];
+
+            gradient_result[0] = mobility.apply_M(value[0],
+                                                  etas_value,
+                                                  n_grains,
+                                                  gradient[0],
+                                                  etas_gradient,
+                                                  gradient[1]);
 
 
 
-          // 3) process eta rows
-          for (unsigned int ig = 0; ig < n_grains; ++ig)
-            {
-              value_result[2 + ig] =
-                L * free_energy.df_detai(value[0],
-                                         etas_value,
-                                         etas_value_power_2_sum,
-                                         ig);
+            // 2) process mu row
+            value_result[1] =
+              -value[1] + free_energy.df_dc(value[0],
+                                            etas_value,
+                                            etas_value_power_2_sum,
+                                            etas_value_power_3_sum);
+            gradient_result[1] = kappa_c * gradient[0];
 
-              if (with_time_derivative >= 1)
-                value_result[ig + 2] += value[ig + 2] * weight;
-              if (with_time_derivative == 2)
-                value_result[2 + ig] += buffer[n_comp * q + 2 + ig];
 
-              gradient_result[2 + ig] = L * kappa_p * gradient[2 + ig];
-            }
-        }
+
+            // 3) process eta rows
+            for (unsigned int ig = 0; ig < n_grains; ++ig)
+              {
+                value_result[2 + ig] =
+                  L * free_energy.df_detai(value[0],
+                                           etas_value,
+                                           etas_value_power_2_sum,
+                                           ig);
+
+                if (with_time_derivative >= 1)
+                  value_result[ig + 2] += value[ig + 2] * weight;
+                if (with_time_derivative == 2)
+                  value_result[2 + ig] += buffer[n_comp * q + 2 + ig];
+
+                gradient_result[2 + ig] = L * kappa_p * gradient[2 + ig];
+              }
+          }
 
       return {value_result, gradient_result};
     }
