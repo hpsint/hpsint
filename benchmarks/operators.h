@@ -791,8 +791,7 @@ private:
                 grad_in[comp][d] =
                   gradients_quad[(comp * dim + d) * nqp + q_index] * jac[d];
 
-            const auto val_out  = val_in;
-            const auto grad_out = grad_in;
+            const auto [val_out, grad_out] = apply_q(q_index, val_in, grad_in);
 
             for (unsigned int comp = 0; comp < nc; ++comp)
               values_quad[comp * nqp + q_index] = val_out[comp] * JxW;
