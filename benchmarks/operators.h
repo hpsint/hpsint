@@ -136,13 +136,38 @@ public:
     vmult_internal(dst, src);
   }
 
+  template <int n_components_>
   DEAL_II_ALWAYS_INLINE inline std::tuple<
-    Tensor<1, n_components, VectorizedArrayType>,
-    Tensor<1, n_components, Tensor<1, dim, VectorizedArrayType>>>
-  apply_q(const unsigned int                                  q,
-          const Tensor<1, n_components, VectorizedArrayType> &value,
-          const Tensor<1, n_components, Tensor<1, dim, VectorizedArrayType>>
+    Tensor<1, n_components_, VectorizedArrayType>,
+    Tensor<1, n_components_, Tensor<1, dim, VectorizedArrayType>>>
+  apply_q(const unsigned int                                   q,
+          const Tensor<1, n_components_, VectorizedArrayType> &value,
+          const Tensor<1, n_components_, Tensor<1, dim, VectorizedArrayType>>
             &gradient) const
+  {
+    (void)q;
+
+    return {value, gradient};
+  }
+
+  template <int n_components_>
+  DEAL_II_ALWAYS_INLINE inline std::tuple<
+    Tensor<1, n_components_, VectorizedArrayType>,
+    Tensor<2, n_components_, VectorizedArrayType>>
+  apply_q(const unsigned int                                   q,
+          const Tensor<1, n_components_, VectorizedArrayType> &value,
+          const Tensor<2, n_components_, VectorizedArrayType> &gradient) const
+  {
+    (void)q;
+
+    return {value, gradient};
+  }
+
+  DEAL_II_ALWAYS_INLINE inline std::tuple<VectorizedArrayType,
+                                          Tensor<1, dim, VectorizedArrayType>>
+  apply_q(const unsigned int                         q,
+          const VectorizedArrayType &                value,
+          const Tensor<1, dim, VectorizedArrayType> &gradient) const
   {
     (void)q;
 
@@ -725,8 +750,11 @@ private:
     if (level == 2)
       for (unsigned int q_index = 0; q_index < phi.n_q_points; ++q_index)
         {
-          phi.submit_value(phi.get_value(q_index), q_index);
-          phi.submit_gradient(phi.get_gradient(q_index), q_index);
+          const auto [value_out, gradient_out] =
+            apply_q(q_index, phi.get_value(q_index), phi.get_gradient(q_index));
+
+          phi.submit_value(value_out, q_index);
+          phi.submit_gradient(gradient_out, q_index);
         }
     else if (level == 3)
       {
@@ -747,39 +775,32 @@ private:
             const VectorizedArrayType JxW =
               J_value[0] * quadrature_weights[q_index];
 
-            // values
-            {
-              // get_value
-              Tensor<1, nc, VectorizedArrayType> val;
+            Tensor<1, nc, VectorizedArrayType>                 val;
+            Tensor<1, nc, Tensor<1, dim, VectorizedArrayType>> grad;
+
+            for (unsigned int comp = 0; comp < nc; ++comp)
+              val[comp] = values_quad[comp * nqp + q_index];
+
+            for (unsigned int comp = 0; comp < nc; ++comp)
+              values_quad[comp * nqp + q_index] = val[comp] * JxW;
+
+            std::array<VectorizedArrayType, dim> jac;
+
+            for (unsigned int d = 0; d < dim; ++d)
+              jac[d] = jacobian[0][d][d];
+
+            for (unsigned int d = 0; d < dim; ++d)
               for (unsigned int comp = 0; comp < nc; ++comp)
-                val[comp] = values_quad[comp * nqp + q_index];
+                grad[comp][d] =
+                  gradients_quad[(comp * dim + d) * nqp + q_index] * jac[d];
 
-              for (unsigned int comp = 0; comp < nc; ++comp)
-                values_quad[comp * nqp + q_index] = val[comp] * JxW;
-            }
-
-            // gradients
-            {
-              Tensor<1, nc, Tensor<1, dim, VectorizedArrayType>> grad;
-
-              std::array<VectorizedArrayType, dim> jac;
-
-              for (unsigned int d = 0; d < dim; ++d)
-                jac[d] = jacobian[0][d][d];
-
-              for (unsigned int d = 0; d < dim; ++d)
+            for (unsigned int d = 0; d < dim; ++d)
+              {
+                const VectorizedArrayType factor = jac[d] * JxW;
                 for (unsigned int comp = 0; comp < nc; ++comp)
-                  grad[comp][d] =
-                    gradients_quad[(comp * dim + d) * nqp + q_index] * jac[d];
-
-              for (unsigned int d = 0; d < dim; ++d)
-                {
-                  const VectorizedArrayType factor = jac[d] * JxW;
-                  for (unsigned int comp = 0; comp < nc; ++comp)
-                    gradients_quad[(comp * dim + d) * nqp + q_index] =
-                      grad[comp][d] * factor;
-                }
-            }
+                  gradients_quad[(comp * dim + d) * nqp + q_index] =
+                    grad[comp][d] * factor;
+              }
           }
       }
 
