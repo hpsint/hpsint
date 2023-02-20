@@ -100,10 +100,12 @@ private:
 template <int n_components,
           int dim,
           typename Number,
-          typename VectorizedArrayType>
+          typename VectorizedArrayType,
+          typename QPointType>
 std::shared_ptr<ProjectionOperatorBase<Number>>
 create_op(const unsigned int                                  level,
-          const MatrixFree<dim, Number, VectorizedArrayType> &matrix_free)
+          const MatrixFree<dim, Number, VectorizedArrayType> &matrix_free,
+          const QPointType &                                  q_point_operator)
 {
   const auto &si = matrix_free.get_shape_info().data.front();
 
@@ -111,69 +113,97 @@ create_op(const unsigned int                                  level,
   const unsigned int n_q_points_1d = si.n_q_points_1d;
 
   if ((fe_degree == 1) && (n_q_points_1d == 2))
-    return std::make_shared<
-      ProjectionOperator<dim, 1, 2, n_components, Number, VectorizedArrayType>>(
-      matrix_free, level);
+    return std::make_shared<ProjectionOperator<dim,
+                                               1,
+                                               2,
+                                               n_components,
+                                               Number,
+                                               VectorizedArrayType,
+                                               QPointType>>(matrix_free,
+                                                            q_point_operator,
+                                                            level);
   if ((fe_degree == 2) && (n_q_points_1d == 4))
-    return std::make_shared<
-      ProjectionOperator<dim, 2, 4, n_components, Number, VectorizedArrayType>>(
-      matrix_free, level);
+    return std::make_shared<ProjectionOperator<dim,
+                                               2,
+                                               4,
+                                               n_components,
+                                               Number,
+                                               VectorizedArrayType,
+                                               QPointType>>(matrix_free,
+                                                            q_point_operator,
+                                                            level);
   if ((fe_degree == 3) && (n_q_points_1d == 6))
-    return std::make_shared<
-      ProjectionOperator<dim, 3, 6, n_components, Number, VectorizedArrayType>>(
-      matrix_free, level);
+    return std::make_shared<ProjectionOperator<dim,
+                                               3,
+                                               6,
+                                               n_components,
+                                               Number,
+                                               VectorizedArrayType,
+                                               QPointType>>(matrix_free,
+                                                            q_point_operator,
+                                                            level);
 
   AssertThrow(false, ExcNotImplemented());
 
-  return std::make_shared<
-    ProjectionOperator<dim, -1, 0, n_components, Number, VectorizedArrayType>>(
-    matrix_free, level);
+  return std::make_shared<ProjectionOperator<dim,
+                                             -1,
+                                             0,
+                                             n_components,
+                                             Number,
+                                             VectorizedArrayType,
+                                             QPointType>>(matrix_free,
+                                                          q_point_operator,
+                                                          level);
 }
 
-template <int dim, typename Number, typename VectorizedArrayType>
+template <int dim,
+          typename Number,
+          typename VectorizedArrayType,
+          typename QPointType>
 std::shared_ptr<ProjectionOperatorBase<Number>>
 create_op(const unsigned int                                  n_components,
           const unsigned int                                  level,
-          const MatrixFree<dim, Number, VectorizedArrayType> &matrix_free)
+          const MatrixFree<dim, Number, VectorizedArrayType> &matrix_free,
+          const QPointType &                                  q_point_operator)
 {
   if (n_components == 1)
-    return create_op<1>(level, matrix_free);
+    return create_op<1>(level, matrix_free, q_point_operator);
   else if (n_components == 2)
-    return create_op<2>(level, matrix_free);
+    return create_op<2>(level, matrix_free, q_point_operator);
   else if (n_components == 3)
-    return create_op<3>(level, matrix_free);
+    return create_op<3>(level, matrix_free, q_point_operator);
   else if (n_components == 4)
-    return create_op<4>(level, matrix_free);
+    return create_op<4>(level, matrix_free, q_point_operator);
 #if 0
   else if (n_components == 5)
-    return create_op<5>(level, matrix_free);
+    return create_op<5>(level, matrix_free, q_point_operator);
   else if (n_components == 6)
-    return create_op<6>(level, matrix_free);
+    return create_op<6>(level, matrix_free, q_point_operator);
   else if (n_components == 7)
-    return create_op<7>(level, matrix_free);
+    return create_op<7>(level, matrix_free, q_point_operator);
   else if (n_components == 8)
-    return create_op<8>(level, matrix_free);
+    return create_op<8>(level, matrix_free, q_point_operator);
   else if (n_components == 9)
-    return create_op<9>(level, matrix_free);
+    return create_op<9>(level, matrix_free, q_point_operator);
   else if (n_components == 10)
-    return create_op<10>(level, matrix_free);
+    return create_op<10>(level, matrix_free, q_point_operator);
   else if (n_components == 11)
-    return create_op<11>(level, matrix_free);
+    return create_op<11>(level, matrix_free, q_point_operator);
   else if (n_components == 12)
-    return create_op<12>(level, matrix_free);
+    return create_op<12>(level, matrix_free, q_point_operator);
   else if (n_components == 13)
-    return create_op<13>(level, matrix_free);
+    return create_op<13>(level, matrix_free, q_point_operator);
   else if (n_components == 14)
-    return create_op<14>(level, matrix_free);
+    return create_op<14>(level, matrix_free, q_point_operator);
   else if (n_components == 15)
-    return create_op<15>(level, matrix_free);
+    return create_op<15>(level, matrix_free, q_point_operator);
   else if (n_components == 16)
-    return create_op<16>(level, matrix_free);
+    return create_op<16>(level, matrix_free, q_point_operator);
 #endif
 
   AssertThrow(false, ExcNotImplemented());
 
-  return create_op<1>(level, matrix_free);
+  return create_op<1>(level, matrix_free, q_point_operator);
 }
 
 template <int dim, typename Number, typename VectorizedArrayType>
@@ -324,9 +354,11 @@ test(const Parameters &params, ConvergenceTable &table)
       table.add_value("n_dofs", dof_handler.n_dofs());
       table.add_value("n_components", n_components);
 
+      HelmholtzQOperator q_point_operator;
+
       // version 2: vectorial (block system)
       const auto projection_operator =
-        create_op(n_components, params.level, matrix_free);
+        create_op(n_components, params.level, matrix_free, q_point_operator);
 
       BlockVectorType src, dst;
       projection_operator->initialize_dof_vector(src);

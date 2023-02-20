@@ -53,7 +53,8 @@ template <int dim,
           int n_q_points,
           int n_components,
           typename Number,
-          typename VectorizedArrayType = VectorizedArray<Number>>
+          typename VectorizedArrayType,
+          typename QPointType>
 class ProjectionOperator : public ProjectionOperatorBase<Number>
 {
 public:
@@ -62,9 +63,11 @@ public:
 
   ProjectionOperator(
     const MatrixFree<dim, Number, VectorizedArrayType> &matrix_free,
+    const QPointType &                                  apply_q,
     unsigned int                                        level = 2)
     : matrix_free(matrix_free)
     , level(level)
+    , apply_q(apply_q)
   {}
 
   void
@@ -734,5 +737,5 @@ private:
 private:
   const MatrixFree<dim, Number, VectorizedArrayType> &matrix_free;
   const unsigned int                                  level;
-  const HelmholtzQOperator                            apply_q;
+  const HelmholtzQOperator &                          apply_q;
 };
