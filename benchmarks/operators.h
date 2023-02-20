@@ -733,8 +733,6 @@ private:
         const auto nqp =
           n_q_points != 0 ? Utilities::pow(n_q_points, dim) : phi.n_q_points;
 
-        Tensor<1, nc, Tensor<1, dim, VectorizedArrayType>> grad;
-
         auto values_quad    = phi.begin_values();
         auto gradients_quad = phi.begin_gradients();
 
@@ -762,6 +760,8 @@ private:
 
             // gradients
             {
+              Tensor<1, nc, Tensor<1, dim, VectorizedArrayType>> grad;
+
               std::array<VectorizedArrayType, dim> jac;
 
               for (unsigned int d = 0; d < dim; ++d)
