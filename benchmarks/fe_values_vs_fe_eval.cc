@@ -119,6 +119,88 @@ helmholtz_operator_fe_values_0(VectorType &           dst,
 }
 
 
+template <int dim, int n_components, typename Number, typename VectorType>
+void
+helmholtz_operator_fe_values_1(VectorType &           dst,
+                               const VectorType &     src,
+                               const Mapping<dim> &   mapping,
+                               const DoFHandler<dim> &dof_handler,
+                               const Quadrature<dim> &quadrature)
+{
+  const auto &fe = dof_handler.get_fe();
+
+  FEValues<dim> fe_values(mapping,
+                          fe,
+                          quadrature,
+                          update_values | update_gradients | update_JxW_values);
+
+  std::vector<Tensor<1, n_components, Number>> values(
+    fe_values.n_quadrature_points);
+  std::vector<Tensor<1, n_components, Tensor<1, dim, Number>>> gradients(
+    fe_values.n_quadrature_points);
+
+  Vector<Number> src_local(fe_values.dofs_per_cell);
+  Vector<Number> dst_local(fe_values.dofs_per_cell);
+
+  src.update_ghost_values();
+
+
+  for (const auto &cell : dof_handler.active_cell_iterators())
+    {
+      if (cell->is_locally_owned() == false)
+        continue;
+
+      fe_values.reinit(cell);
+
+      cell->get_dof_values(src, src_local); // TODO: constraints
+
+      for (const auto q : fe_values.quadrature_point_indices())
+        for (unsigned int c = 0; c < n_components; ++c)
+          {
+            Number                 value = 0.0;
+            Tensor<1, dim, Number> gradient;
+
+            for (const auto i : fe_values.dof_indices())
+              {
+                value +=
+                  src_local[i] * fe_values.shape_value_component(i, q, c);
+                gradient +=
+                  src_local[i] * fe_values.shape_grad_component(i, q, c);
+              }
+
+            values[q][c]    = value;
+            gradients[q][c] = gradient;
+          }
+
+      for (const auto q : fe_values.quadrature_point_indices())
+        {
+          values[q] *= fe_values.JxW(q);
+          gradients[q] *= fe_values.JxW(q);
+        }
+
+      for (const auto i : fe_values.dof_indices())
+        {
+          dst_local[i] = 0.0;
+
+          for (const auto q : fe_values.quadrature_point_indices())
+            {
+              for (unsigned int c = 0; c < n_components; ++c)
+                {
+                  dst_local[i] +=
+                    values[q][c] * fe_values.shape_value_component(i, q, c) +
+                    gradients[q][c] * fe_values.shape_grad_component(i, q, c);
+                }
+            }
+        }
+
+      cell->distribute_local_to_global(dst_local, dst); // TODO: constraints
+    }
+
+  src.zero_out_ghost_values();
+  dst.compress(VectorOperation::add);
+}
+
+
 template <int dim,
           int fe_degree,
           int n_q_points,
@@ -260,12 +342,20 @@ main(int argc, char **argv)
   table.set_scientific("t_0", true);                                           \
   const auto time_1 = run_measurement(                                         \
     [&]() {                                                                    \
+      helmholtz_operator_fe_values_1<dim, c, Number>(                          \
+        dst, src, mapping, dof_handler, quadrature);                           \
+    },                                                                         \
+    n_repetitions);                                                            \
+  table.add_value("t_1", time_1);                                              \
+  table.set_scientific("t_1", true);                                           \
+  const auto time_2 = run_measurement(                                         \
+    [&]() {                                                                    \
       helmholtz_operator_fe_evaluation<dim, fe_degree, n_q_points, c, Number>( \
         dst, src, matrix_free);                                                \
     },                                                                         \
     n_repetitions);                                                            \
-  table.add_value("t_1", time_1);                                              \
-  table.set_scientific("t_1", true);
+  table.add_value("t_2", time_2);                                              \
+  table.set_scientific("t_2", true);
 
 
       EXPAND_OPERATIONS(OPERATION);
