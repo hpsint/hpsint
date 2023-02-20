@@ -347,6 +347,9 @@ main(int argc, char **argv)
     n_repetitions);                                                            \
   table.add_value("t_0", time_0);                                              \
   table.set_scientific("t_0", true);                                           \
+  table.add_value("l_0", dst.l2_norm());                                       \
+  table.set_scientific("l_0", true);                                           \
+                                                                               \
   const auto time_1 = run_measurement(                                         \
     [&]() {                                                                    \
       helmholtz_operator_fe_values_1<dim, c, Number>(                          \
@@ -355,6 +358,9 @@ main(int argc, char **argv)
     n_repetitions);                                                            \
   table.add_value("t_1", time_1);                                              \
   table.set_scientific("t_1", true);                                           \
+  table.add_value("l_1", dst.l2_norm());                                       \
+  table.set_scientific("l_1", true);                                           \
+                                                                               \
   const auto time_2 = run_measurement(                                         \
     [&]() {                                                                    \
       helmholtz_operator_fe_evaluation<dim, fe_degree, n_q_points, c, Number>( \
@@ -362,7 +368,9 @@ main(int argc, char **argv)
     },                                                                         \
     n_repetitions);                                                            \
   table.add_value("t_2", time_2);                                              \
-  table.set_scientific("t_2", true);
+  table.set_scientific("t_2", true);                                           \
+  table.add_value("l_2", dst.l2_norm());                                       \
+  table.set_scientific("l_2", true);
 
 
       EXPAND_OPERATIONS(OPERATION);
