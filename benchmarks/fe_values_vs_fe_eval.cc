@@ -142,6 +142,9 @@ helmholtz_operator_fe_values_1(VectorType &           dst,
   Vector<Number> src_local(fe_values.dofs_per_cell);
   Vector<Number> dst_local(fe_values.dofs_per_cell);
 
+  const unsigned int n_dofs_per_cell_scalar =
+    fe_values.dofs_per_cell / n_components;
+
   src.update_ghost_values();
 
 
@@ -160,8 +163,10 @@ helmholtz_operator_fe_values_1(VectorType &           dst,
             Number                 value = 0.0;
             Tensor<1, dim, Number> gradient;
 
-            for (const auto i : fe_values.dof_indices())
+            for (unsigned int j = 0; j < n_dofs_per_cell_scalar; ++j)
               {
+                const unsigned int i = fe.component_to_system_index(c, j);
+
                 value +=
                   src_local[i] * fe_values.shape_value_component(i, q, c);
                 gradient +=
@@ -179,13 +184,15 @@ helmholtz_operator_fe_values_1(VectorType &           dst,
         }
 
       for (const auto i : fe_values.dof_indices())
-        {
-          dst_local[i] = 0.0;
+        dst_local[i] = 0.0;
 
+      for (unsigned int j = 0; j < n_dofs_per_cell_scalar; ++j)
+        {
           for (const auto q : fe_values.quadrature_point_indices())
             {
               for (unsigned int c = 0; c < n_components; ++c)
                 {
+                  const unsigned int i = fe.component_to_system_index(c, j);
                   dst_local[i] +=
                     values[q][c] * fe_values.shape_value_component(i, q, c) +
                     gradients[q][c] * fe_values.shape_grad_component(i, q, c);
