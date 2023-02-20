@@ -59,6 +59,7 @@ ADD_SUBDIRECTORY(applications/allen_cahn)
 ADD_SUBDIRECTORY(applications/cahn_hilliard)
 ADD_SUBDIRECTORY(applications/sintering)
 ADD_SUBDIRECTORY(applications/structural)
+ADD_SUBDIRECTORY(benchmarks)
 
 if(EXISTS ${CMAKE_SOURCE_DIR}/tests/CMakeLists.txt)
   set(DEAL_II_HAVE_TESTS_DIRECTORY TRUE)
