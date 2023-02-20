@@ -26,7 +26,7 @@ run_measurement(const std::function<void()> &fu,
     if (value < 10000)
       return "" + std::to_string(value);
 
-    AssertThrow(false, ExcInternalError());
+    AssertThrow(false, dealii::StandardExceptions::ExcInternalError());
 
     return "";
   };
