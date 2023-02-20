@@ -144,6 +144,7 @@ create_op(const unsigned int                                  n_components,
     return create_op<3>(level, matrix_free);
   else if (n_components == 4)
     return create_op<4>(level, matrix_free);
+#if 0
   else if (n_components == 5)
     return create_op<5>(level, matrix_free);
   else if (n_components == 6)
@@ -160,7 +161,6 @@ create_op(const unsigned int                                  n_components,
     return create_op<11>(level, matrix_free);
   else if (n_components == 12)
     return create_op<12>(level, matrix_free);
-#if 0
   else if (n_components == 13)
     return create_op<13>(level, matrix_free);
   else if (n_components == 14)
