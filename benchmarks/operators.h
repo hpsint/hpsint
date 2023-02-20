@@ -136,38 +136,9 @@ public:
     vmult_internal(dst, src);
   }
 
-  template <int n_components_>
-  DEAL_II_ALWAYS_INLINE inline std::tuple<
-    Tensor<1, n_components_, VectorizedArrayType>,
-    Tensor<1, n_components_, Tensor<1, dim, VectorizedArrayType>>>
-  apply_q(const unsigned int                                   q,
-          const Tensor<1, n_components_, VectorizedArrayType> &value,
-          const Tensor<1, n_components_, Tensor<1, dim, VectorizedArrayType>>
-            &gradient) const
-  {
-    (void)q;
-
-    return {value, gradient};
-  }
-
-  template <int n_components_>
-  DEAL_II_ALWAYS_INLINE inline std::tuple<
-    Tensor<1, n_components_, VectorizedArrayType>,
-    Tensor<2, n_components_, VectorizedArrayType>>
-  apply_q(const unsigned int                                   q,
-          const Tensor<1, n_components_, VectorizedArrayType> &value,
-          const Tensor<2, n_components_, VectorizedArrayType> &gradient) const
-  {
-    (void)q;
-
-    return {value, gradient};
-  }
-
-  DEAL_II_ALWAYS_INLINE inline std::tuple<VectorizedArrayType,
-                                          Tensor<1, dim, VectorizedArrayType>>
-  apply_q(const unsigned int                         q,
-          const VectorizedArrayType &                value,
-          const Tensor<1, dim, VectorizedArrayType> &gradient) const
+  template <typename T1, typename T2>
+  DEAL_II_ALWAYS_INLINE inline std::tuple<T1, T2>
+  apply_q(const unsigned int q, const T1 &value, const T2 &gradient) const
   {
     (void)q;
 
