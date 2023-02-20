@@ -737,5 +737,5 @@ private:
 private:
   const MatrixFree<dim, Number, VectorizedArrayType> &matrix_free;
   const unsigned int                                  level;
-  const HelmholtzQOperator &                          apply_q;
+  const QPointType &                                  apply_q;
 };
