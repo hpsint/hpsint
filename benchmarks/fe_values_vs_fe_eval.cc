@@ -61,7 +61,7 @@ helmholtz_operator_fe_values_0(VectorType &           dst,
   Vector<Number> dst_local(fe_values.dofs_per_cell);
 
   src.update_ghost_values();
-
+  dst = 0.0;
 
   for (const auto &cell : dof_handler.active_cell_iterators())
     {
@@ -146,7 +146,7 @@ helmholtz_operator_fe_values_1(VectorType &           dst,
     fe_values.dofs_per_cell / n_components;
 
   src.update_ghost_values();
-
+  dst = 0.0;
 
   for (const auto &cell : dof_handler.active_cell_iterators())
     {
