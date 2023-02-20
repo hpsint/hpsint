@@ -119,36 +119,43 @@ helmholtz_operator_fe_values_0(VectorType &           dst,
 }
 
 
-template <int dim, int fe_degree, int n_q_points, int n_components, typename Number, typename VectorType>
+template <int dim,
+          int fe_degree,
+          int n_q_points,
+          int n_components,
+          typename Number,
+          typename VectorType>
 void
-helmholtz_operator_fe_evaluation(VectorType &           dst,
-                               const VectorType &     src,
-                               const MatrixFree<dim, Number> &   matrix_free)
+helmholtz_operator_fe_evaluation(VectorType &                   dst,
+                                 const VectorType &             src,
+                                 const MatrixFree<dim, Number> &matrix_free)
 {
-    matrix_free.template cell_loop<VectorType, VectorType>([](const auto & data, auto & dst, const auto & src, const auto & range){
+  matrix_free.template cell_loop<VectorType, VectorType>(
+    [](const auto &data, auto &dst, const auto &src, const auto &range) {
+      FEEvaluation<dim, fe_degree, n_q_points, n_components, Number> phi(data);
 
-        FEEvaluation<dim, fe_degree, n_q_points, n_components, Number> phi(data);
-        
-        for(unsigned int cell = range.first; cell < range.second; ++cell)
+      for (unsigned int cell = range.first; cell < range.second; ++cell)
         {
-            phi.reinit(cell);
+          phi.reinit(cell);
 
-            phi.gather_evaluate(src,
-                          EvaluationFlags::values | EvaluationFlags::gradients);
+          phi.gather_evaluate(src,
+                              EvaluationFlags::values |
+                                EvaluationFlags::gradients);
 
-            for (unsigned int q_index = 0; q_index < phi.n_q_points; ++q_index)
-              {
-                phi.submit_value(phi.get_value(q_index), q_index);
-                phi.submit_gradient(phi.get_gradient(q_index), q_index);
-              }
+          for (unsigned int q_index = 0; q_index < phi.n_q_points; ++q_index)
+            {
+              phi.submit_value(phi.get_value(q_index), q_index);
+              phi.submit_gradient(phi.get_gradient(q_index), q_index);
+            }
 
-            phi.integrate_scatter(EvaluationFlags::values |
-                              EvaluationFlags::gradients,
-                            dst);
-
+          phi.integrate_scatter(EvaluationFlags::values |
+                                  EvaluationFlags::gradients,
+                                dst);
         }
-
-    }, dst, src, true);
+    },
+    dst,
+    src,
+    true);
 }
 
 #define EXPAND_OPERATIONS(OPERATION)             \
@@ -197,10 +204,10 @@ main(int argc, char **argv)
 
   constexpr unsigned int dim                  = 3;
   constexpr unsigned int fe_degree            = 1;
-  constexpr unsigned int n_q_points          = fe_degree + 1;
+  constexpr unsigned int n_q_points           = fe_degree + 1;
   constexpr unsigned int n_global_refinements = 7; // TODO
   constexpr unsigned int n_repetitions        = 1;
-  using Number                            = double;
+  using Number                                = double;
   using VectorType = LinearAlgebra::distributed::Vector<Number>;
 
   const std::string fe_type = "FE_Q";
@@ -222,8 +229,7 @@ main(int argc, char **argv)
 
       AffineConstraints<Number> constraints;
 
-      typename MatrixFree<dim, Number>::AdditionalData
-        additional_data;
+      typename MatrixFree<dim, Number>::AdditionalData additional_data;
       additional_data.mapping_update_flags =
         update_values | update_gradients | update_quadrature_points;
       additional_data.overlap_communication_computation = false;
@@ -243,23 +249,23 @@ main(int argc, char **argv)
 
       src = 1.0;
 
-#define OPERATION(c, d)                               \
-  const auto time_0 = run_measurement(                \
-    [&]() {                                           \
-      helmholtz_operator_fe_values_0<dim, c, Number>( \
-        dst, src, mapping, dof_handler, quadrature);  \
-    },                                                \
-    n_repetitions);                                   \
-  table.add_value("t_0", time_0);                     \
-  table.set_scientific("t_0", true);                  \
-  const auto time_1 = run_measurement(                \
-    [&]() {                                           \
+#define OPERATION(c, d)                                                        \
+  const auto time_0 = run_measurement(                                         \
+    [&]() {                                                                    \
+      helmholtz_operator_fe_values_0<dim, c, Number>(                          \
+        dst, src, mapping, dof_handler, quadrature);                           \
+    },                                                                         \
+    n_repetitions);                                                            \
+  table.add_value("t_0", time_0);                                              \
+  table.set_scientific("t_0", true);                                           \
+  const auto time_1 = run_measurement(                                         \
+    [&]() {                                                                    \
       helmholtz_operator_fe_evaluation<dim, fe_degree, n_q_points, c, Number>( \
-        dst, src, matrix_free);   \
-    },                                                \
-    n_repetitions);                                   \
-  table.add_value("t_1", time_1);                     \
-  table.set_scientific("t_1", true);                  \
+        dst, src, matrix_free);                                                \
+    },                                                                         \
+    n_repetitions);                                                            \
+  table.add_value("t_1", time_1);                                              \
+  table.set_scientific("t_1", true);
 
 
       EXPAND_OPERATIONS(OPERATION);
