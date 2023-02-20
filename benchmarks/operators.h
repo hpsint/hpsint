@@ -42,25 +42,10 @@ public:
   initialize_dof_vector(BlockVectorType &vector) const = 0;
 
   virtual void
-  compute_inverse_diagonal(VectorType &vector) const = 0;
-
-  virtual void
-  compute_inverse_diagonal(BlockVectorType &vector) const = 0;
-
-  virtual void
   vmult(VectorType &dst, const VectorType &src) const = 0;
 
   virtual void
   vmult(BlockVectorType &dst, const BlockVectorType &src) const = 0;
-
-  virtual void
-  rhs(VectorType &dst) const = 0;
-
-  virtual void
-  rhs(BlockVectorType &dst) const = 0;
-
-  virtual void
-  vmult_local(BlockVectorType &dst, const BlockVectorType &src) const = 0;
 };
 
 template <int dim,
@@ -95,31 +80,6 @@ public:
 
     for (unsigned int b = 0; b < n_components; ++b)
       matrix_free.initialize_dof_vector(vector.block(b));
-  }
-
-  void
-  compute_inverse_diagonal(VectorType &diagonal) const override
-  {
-    matrix_free.initialize_dof_vector(diagonal);
-
-    MatrixFreeTools::compute_diagonal(matrix_free,
-                                      diagonal,
-                                      &ProjectionOperator::do_vmult_cell,
-                                      this);
-
-    for (auto &i : diagonal)
-      i = (std::abs(i) > 1.0e-10) ? (1.0 / i) : 1.0;
-  }
-
-  void
-  compute_inverse_diagonal(BlockVectorType &vector) const override
-  {
-    vector.reinit(n_components);
-
-    for (unsigned int b = 0; b < n_components; ++b)
-      matrix_free.initialize_dof_vector(vector.block(b));
-
-    vector = 1.0; // TODO
   }
 
   void
@@ -689,28 +649,6 @@ public:
         true);
   }
 
-  void
-  vmult_local(BlockVectorType &dst, const BlockVectorType &src) const override
-  {
-    matrix_free.template cell_loop<BlockVectorType, BlockVectorType>(
-      [this](
-        const auto &matrix_free, auto &dst, const auto &src, const auto range) {
-        FEEvaluation<dim, fe_degree, n_q_points, 1, Number, VectorizedArrayType>
-          phi(matrix_free, range);
-
-        for (unsigned int cell = range.first; cell < range.second; ++cell)
-          {
-            phi.reinit(cell);
-
-            for (unsigned int b = 0; b < n_components; ++b)
-              op_local(phi, dst.block(b), src.block(b));
-          }
-      },
-      dst,
-      src,
-      true);
-  }
-
 private:
   template <int nc, typename VT>
   void
@@ -791,54 +729,6 @@ private:
       phi.integrate_scatter(EvaluationFlags::values |
                               EvaluationFlags::gradients,
                             dst);
-  }
-
-public:
-  void
-  rhs(VectorType &dst) const override
-  {
-    rhs_internal(dst);
-  }
-
-  void
-  rhs(BlockVectorType &dst) const override
-  {
-    rhs_internal(dst);
-  }
-
-  template <typename VT>
-  void
-  rhs_internal(VT &dst) const
-  {
-    double dummy = 0.;
-    matrix_free.template cell_loop<VT, double>(
-      [](const auto &matrix_free, auto &dst, const auto &, const auto range) {
-        FEEvaluation<dim,
-                     fe_degree,
-                     n_q_points,
-                     n_components,
-                     Number,
-                     VectorizedArrayType>
-          phi(matrix_free, range);
-
-        for (unsigned int cell = range.first; cell < range.second; ++cell)
-          {
-            phi.reinit(cell);
-
-            for (unsigned int q_index = 0; q_index < phi.n_q_points; ++q_index)
-              {
-                if constexpr (n_components == 1)
-                  phi.submit_value(VectorizedArrayType(1.0), q_index);
-                else
-                  AssertThrow(false, ExcNotImplemented());
-              }
-
-            phi.integrate_scatter(EvaluationFlags::values, dst);
-          }
-      },
-      dst,
-      dummy,
-      true);
   }
 
 private:
