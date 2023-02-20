@@ -9,6 +9,23 @@
 
 using namespace dealii;
 
+class HelmholtzQOperator
+{
+public:
+  HelmholtzQOperator() = default;
+
+  template <typename T1, typename T2>
+  DEAL_II_ALWAYS_INLINE inline std::tuple<T1, T2>
+  operator()(const unsigned int q, const T1 &value, const T2 &gradient) const
+  {
+    (void)q;
+
+    return {value, gradient};
+  }
+
+private:
+};
+
 template <typename Number>
 class ProjectionOperatorBase
 {
@@ -134,15 +151,6 @@ public:
   vmult(BlockVectorType &dst, const BlockVectorType &src) const override
   {
     vmult_internal(dst, src);
-  }
-
-  template <typename T1, typename T2>
-  DEAL_II_ALWAYS_INLINE inline std::tuple<T1, T2>
-  apply_q(const unsigned int q, const T1 &value, const T2 &gradient) const
-  {
-    (void)q;
-
-    return {value, gradient};
   }
 
   template <typename VT>
@@ -836,4 +844,5 @@ public:
 private:
   const MatrixFree<dim, Number, VectorizedArrayType> &matrix_free;
   const unsigned int                                  level;
+  const HelmholtzQOperator                            apply_q;
 };
