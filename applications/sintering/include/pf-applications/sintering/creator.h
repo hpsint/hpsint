@@ -30,6 +30,7 @@ namespace Sintering
       const Point<dim, VectorizedArrayType>)> loading = {})
   {
     (void)advection_mechanism;
+    (void)use_tensorial_mobility_gradient_on_the_fly;
     (void)E;
     (void)nu;
     (void)loading;
