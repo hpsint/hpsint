@@ -775,31 +775,34 @@ private:
             const VectorizedArrayType JxW =
               J_value[0] * quadrature_weights[q_index];
 
-            Tensor<1, nc, VectorizedArrayType>                 val;
-            Tensor<1, nc, Tensor<1, dim, VectorizedArrayType>> grad;
-
-            for (unsigned int comp = 0; comp < nc; ++comp)
-              val[comp] = values_quad[comp * nqp + q_index];
-
-            for (unsigned int comp = 0; comp < nc; ++comp)
-              values_quad[comp * nqp + q_index] = val[comp] * JxW;
-
             std::array<VectorizedArrayType, dim> jac;
 
             for (unsigned int d = 0; d < dim; ++d)
               jac[d] = jacobian[0][d][d];
 
+            Tensor<1, nc, VectorizedArrayType>                 val_in;
+            Tensor<1, nc, Tensor<1, dim, VectorizedArrayType>> grad_in;
+
+            for (unsigned int comp = 0; comp < nc; ++comp)
+              val_in[comp] = values_quad[comp * nqp + q_index];
+
             for (unsigned int d = 0; d < dim; ++d)
               for (unsigned int comp = 0; comp < nc; ++comp)
-                grad[comp][d] =
+                grad_in[comp][d] =
                   gradients_quad[(comp * dim + d) * nqp + q_index] * jac[d];
+
+            const auto val_out  = val_in;
+            const auto grad_out = grad_in;
+
+            for (unsigned int comp = 0; comp < nc; ++comp)
+              values_quad[comp * nqp + q_index] = val_out[comp] * JxW;
 
             for (unsigned int d = 0; d < dim; ++d)
               {
                 const VectorizedArrayType factor = jac[d] * JxW;
                 for (unsigned int comp = 0; comp < nc; ++comp)
                   gradients_quad[(comp * dim + d) * nqp + q_index] =
-                    grad[comp][d] * factor;
+                    grad_out[comp][d] * factor;
               }
           }
       }
