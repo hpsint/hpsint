@@ -224,6 +224,109 @@ namespace Sintering
     }
   };
 
+  template <int dim, typename VectorizedArrayType, int with_time_derivative>
+  class SinteringOperatorGenericResidualQuad
+  {
+  public:
+    using Number = typename VectorizedArrayType::value_type;
+
+    DEAL_II_ALWAYS_INLINE inline SinteringOperatorGenericResidualQuad(
+      const SinteringOperatorData<dim, VectorizedArrayType> &data,
+      const AlignedVector<VectorizedArrayType> &             buffer)
+      : free_energy(data.free_energy)
+      , mobility(data.get_mobility())
+      , kappa_c(data.kappa_c)
+      , kappa_p(data.kappa_p)
+      , weight(data.time_data.get_primary_weight())
+      , L(mobility.Lgb())
+      , buffer(buffer)
+    {}
+
+    template <typename T1, typename T2>
+    DEAL_II_ALWAYS_INLINE inline std::tuple<T1, T2>
+    apply(const unsigned int q, const T1 &value, const T2 &gradient) const
+    {
+      T1 value_result;
+      T2 gradient_result;
+
+      if constexpr (!std::is_same<T1, VectorizedArrayType>::value)
+        {
+          const unsigned int n_comp   = T1::rank;
+          const unsigned int n_grains = n_comp - 2;
+
+          const VectorizedArrayType *                etas_value = &value[0] + 2;
+          const Tensor<1, dim, VectorizedArrayType> *etas_gradient =
+            &gradient[0] + 2;
+
+          const auto etas_value_power_2_sum =
+            PowerHelper<n_grains, 2>::power_sum(etas_value);
+          const auto etas_value_power_3_sum =
+            PowerHelper<n_grains, 3>::power_sum(etas_value);
+
+          Tensor<1, n_comp, VectorizedArrayType> value_result;
+          Tensor<1, n_comp, Tensor<1, dim, VectorizedArrayType>>
+            gradient_result;
+
+
+
+          // 1) process c row
+          if (with_time_derivative >= 1)
+            value_result[0] = value[0] * weight;
+          if (with_time_derivative == 2)
+            value_result[0] += buffer[n_comp * q];
+
+          gradient_result[0] = mobility.apply_M(value[0],
+                                                etas_value,
+                                                n_grains,
+                                                gradient[0],
+                                                etas_gradient,
+                                                gradient[1]);
+
+
+
+          // 2) process mu row
+          value_result[1] =
+            -value[1] + free_energy.df_dc(value[0],
+                                          etas_value,
+                                          etas_value_power_2_sum,
+                                          etas_value_power_3_sum);
+          gradient_result[1] = kappa_c * gradient[0];
+
+
+
+          // 3) process eta rows
+          for (unsigned int ig = 0; ig < n_grains; ++ig)
+            {
+              value_result[2 + ig] =
+                L * free_energy.df_detai(value[0],
+                                         etas_value,
+                                         etas_value_power_2_sum,
+                                         ig);
+
+              if (with_time_derivative >= 1)
+                value_result[ig + 2] += value[ig + 2] * weight;
+              if (with_time_derivative == 2)
+                value_result[2 + ig] += buffer[n_comp * q + 2 + ig];
+
+              gradient_result[2 + ig] = L * kappa_p * gradient[2 + ig];
+            }
+        }
+
+      return {value_result, gradient_result};
+    }
+
+  private:
+    const FreeEnergy<VectorizedArrayType> &free_energy;
+    const typename SinteringOperatorData<dim, VectorizedArrayType>::MobilityType
+      &          mobility;
+    const Number kappa_c;
+    const Number kappa_p;
+    const Number weight;
+    const Number L;
+
+    const AlignedVector<VectorizedArrayType> &buffer;
+  };
+
   template <int dim, typename Number, typename VectorizedArrayType>
   class SinteringOperatorGeneric
     : public SinteringOperatorBase<
@@ -537,12 +640,10 @@ namespace Sintering
     {
       const unsigned int cell = phi.get_current_cell_index();
 
-      const auto &free_energy = this->data.free_energy;
-      const auto &mobility    = this->data.get_mobility();
-      const auto &kappa_c     = this->data.kappa_c;
-      const auto &kappa_p     = this->data.kappa_p;
-      const auto &weights     = this->data.time_data.get_weights();
-      const auto &L           = mobility.Lgb();
+      SinteringOperatorGenericResidualQuad<dim,
+                                           VectorizedArrayType,
+                                           with_time_derivative>
+        quad_op(this->data, buffer);
 
       phi.evaluate(EvaluationFlags::EvaluationFlags::values |
                    EvaluationFlags::EvaluationFlags::gradients);
@@ -553,66 +654,11 @@ namespace Sintering
 
       for (unsigned int q = 0; q < phi.n_q_points; ++q)
         {
-          auto value    = phi.get_value(q);
-          auto gradient = phi.get_gradient(q);
+          const auto value    = phi.get_value(q);
+          const auto gradient = phi.get_gradient(q);
 
-          const VectorizedArrayType *                etas_value = &value[0] + 2;
-          const Tensor<1, dim, VectorizedArrayType> *etas_gradient =
-            &gradient[0] + 2;
-
-          const auto etas_value_power_2_sum =
-            PowerHelper<n_grains, 2>::power_sum(etas_value);
-          const auto etas_value_power_3_sum =
-            PowerHelper<n_grains, 3>::power_sum(etas_value);
-
-          Tensor<1, n_comp, VectorizedArrayType> value_result;
-          Tensor<1, n_comp, Tensor<1, dim, VectorizedArrayType>>
-            gradient_result;
-
-
-
-          // 1) process c row
-          if (with_time_derivative >= 1)
-            value_result[0] = value[0] * weights[0];
-          if (with_time_derivative == 2)
-            value_result[0] += buffer[n_comp * q];
-
-          gradient_result[0] = mobility.apply_M(value[0],
-                                                etas_value,
-                                                n_grains,
-                                                gradient[0],
-                                                etas_gradient,
-                                                gradient[1]);
-
-
-
-          // 2) process mu row
-          value_result[1] =
-            -value[1] + free_energy.df_dc(value[0],
-                                          etas_value,
-                                          etas_value_power_2_sum,
-                                          etas_value_power_3_sum);
-          gradient_result[1] = kappa_c * gradient[0];
-
-
-
-          // 3) process eta rows
-          for (unsigned int ig = 0; ig < n_grains; ++ig)
-            {
-              value_result[2 + ig] =
-                L * free_energy.df_detai(value[0],
-                                         etas_value,
-                                         etas_value_power_2_sum,
-                                         ig);
-
-              if (with_time_derivative >= 1)
-                value_result[ig + 2] += value[ig + 2] * weights[0];
-              if (with_time_derivative == 2)
-                value_result[2 + ig] += buffer[n_comp * q + 2 + ig];
-
-              gradient_result[2 + ig] = L * kappa_p * gradient[2 + ig];
-            }
-
+          auto [value_result, gradient_result] =
+            quad_op.apply(q, value, gradient);
 
           // 4) add advection contributations -> influences c AND etas
           if (this->advection.enabled())
