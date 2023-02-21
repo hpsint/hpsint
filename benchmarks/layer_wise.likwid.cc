@@ -26,6 +26,8 @@
 #  include <likwid.h>
 #endif
 
+//#define WITH_TENSORIAL_MOBILITY
+
 #define MAX_SINTERING_GRAINS 10
 #define MAX_N_COMPONENTS MAX_SINTERING_GRAINS + 2
 

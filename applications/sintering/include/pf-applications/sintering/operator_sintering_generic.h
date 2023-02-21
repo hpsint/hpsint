@@ -251,9 +251,9 @@ namespace Sintering
       T2 gradient_result;
 
       if constexpr (!std::is_same<T1, VectorizedArrayType>::value)
-        if constexpr (T1::rank > 2)
+        if constexpr (T1::dimension >= 2)
           {
-            const unsigned int n_comp   = T1::rank;
+            const unsigned int n_comp   = T1::dimension;
             const unsigned int n_grains = n_comp - 2;
 
             const VectorizedArrayType *etas_value = &value[0] + 2;
@@ -264,12 +264,6 @@ namespace Sintering
               PowerHelper<n_grains, 2>::power_sum(etas_value);
             const auto etas_value_power_3_sum =
               PowerHelper<n_grains, 3>::power_sum(etas_value);
-
-            Tensor<1, n_comp, VectorizedArrayType> value_result;
-            Tensor<1, n_comp, Tensor<1, dim, VectorizedArrayType>>
-              gradient_result;
-
-
 
             // 1) process c row
             if (with_time_derivative >= 1)
@@ -284,8 +278,6 @@ namespace Sintering
                                                   etas_gradient,
                                                   gradient[1]);
 
-
-
             // 2) process mu row
             value_result[1] =
               -value[1] + free_energy.df_dc(value[0],
@@ -293,7 +285,6 @@ namespace Sintering
                                             etas_value_power_2_sum,
                                             etas_value_power_3_sum);
             gradient_result[1] = kappa_c * gradient[0];
-
 
 
             // 3) process eta rows
