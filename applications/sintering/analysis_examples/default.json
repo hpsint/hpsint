@@ -59,7 +59,7 @@
         "Mechanics": {
             "E": "1",
             "nu": "0.25",
-            "Type": "none"
+            "Type": "None"
         },
         "MobilityAbstract": {
             "L": "1",
@@ -86,7 +86,7 @@
         "Contour": "true",
         "ContourNCoarseningSteps": "0",
         "Debug": "false",
-        "Fields": "CH,AC,bnds,dt,d2f,M,dM,kappa,L,subdomain",
+        "Fields": "CH,AC,bnds,dt,d2f,kappa,L,subdomain",
         "FluxesDivergences": "false",
         "HigherOrderCells": "false",
         "OutputTimeInterval": "10",
