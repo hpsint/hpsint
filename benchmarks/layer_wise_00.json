@@ -1,8 +1,8 @@
 {
-  "dim" : 3,
-  "n global refinements" : 8,
-  "fe degree" : 1,
-  "n subdivisions" : 1,
-  "fe type" : "FE_Q",
-  "level" : 5
+    "dim": 3,
+    "n global refinements": 8,
+    "fe degree": 1,
+    "n subdivisions": 1,
+    "fe type": "FE_Q",
+    "level": 5
 }
