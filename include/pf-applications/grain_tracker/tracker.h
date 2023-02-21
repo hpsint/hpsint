@@ -23,6 +23,7 @@
 #include <pf-applications/lac/dynamic_block_vector.h>
 
 #include <functional>
+#include <stack>
 
 #include "distributed_stitching.h"
 #include "grain.h"
@@ -548,8 +549,7 @@ namespace GrainTracker
               const auto &solution_copy = solutions_copy[i];
 
               // Prepare temp storage
-              std::vector<Vector<Number>> temp_values;
-              unsigned int                temp_id = 0;
+              std::stack<Vector<Number>> temp_values;
 
               for (const auto &re : remap_sequence)
                 {
@@ -563,8 +563,8 @@ namespace GrainTracker
                     }
                   else
                     {
-                      values = temp_values[temp_id];
-                      --temp_id;
+                      values = temp_values.top();
+                      temp_values.pop();
                     }
 
                   // Set values to the existing block or temp storage
@@ -576,8 +576,7 @@ namespace GrainTracker
                     }
                   else
                     {
-                      temp_values.push_back(values);
-                      ++temp_id;
+                      temp_values.push(values);
                     }
 
                   // Nullify source
