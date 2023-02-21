@@ -39,14 +39,15 @@ class Benchmark
 {
 public:
   Benchmark(const Sintering::InitialValues<dim> &initial_solution,
-            const double                         interface_width)
+            const double                         interface_width,
+            const double                         divisions_per_interface,
+            const double                         boundary_factor)
     : fe(fe_degree)
     , tria(MPI_COMM_WORLD)
     , dof_handler(tria)
   {
     // Domain geometry
-    auto         boundaries      = initial_solution.get_domain_boundaries();
-    const double boundary_factor = 0.5;
+    auto boundaries = initial_solution.get_domain_boundaries();
 
     for (unsigned int i = 0; i < dim; i++)
       {
@@ -55,7 +56,6 @@ public:
       }
 
     // Mesh parameters
-    const double       divisions_per_interface            = 2;
     const bool         periodic                           = false;
     const auto         global_refine                      = InitialRefine::Base;
     const unsigned int max_prime                          = 20;
@@ -346,25 +346,31 @@ main(int argc, char **argv)
 
   if (std::string(argv[1]) == "--hypercube")
     {
-      AssertThrow(
-        argc >= 3,
-        ExcMessage(
-          "Usage: --hypercube max_grains_per_row [radius = 7.5] [interface_width = 1.0]"));
+      AssertThrow(argc >= 3,
+                  ExcMessage(
+                    "Usage: --hypercube max_grains_per_row [radius = 7.5] "
+                    "[interface_width = 1.0] [divisions_per_interface = 2.0] "
+                    "[boundary_factor = 0.5]"));
 
       // geometry
       const unsigned int max_grains_per_row = atoi(argv[2]);
       const double       radius             = (argc >= 4 ? atof(argv[3]) : 7.5);
       const double       interface_width    = (argc >= 5 ? atof(argv[4]) : 1.0);
+      const double divisions_per_interface  = (argc >= 6 ? atof(argv[5]) : 2.0);
+      const double boundary_factor          = (argc >= 7 ? atof(argv[6]) : 0.5);
 
       AssertThrow(
         max_grains_per_row > 1,
         ExcMessage(
           "Maximum number of particles per row has to be grater than 1"));
-
       AssertThrow(radius > 0, ExcMessage("Radius has to be grater than 0"));
-
       AssertThrow(interface_width > 0,
                   ExcMessage("Interface width has to be grater than 0"));
+      AssertThrow(divisions_per_interface > 0,
+                  ExcMessage(
+                    "Divisions per interface has to be grater than 0"));
+      AssertThrow(boundary_factor > 0,
+                  ExcMessage("Boundary factor has to be grater than 0"));
 
       for (unsigned int n_grains_per_row = 2;
            n_grains_per_row <= max_grains_per_row;
@@ -382,7 +388,10 @@ main(int argc, char **argv)
           Sintering::InitialValuesHypercube<dim> initial_solution(
             radius, interface_width, n_grains_dir, 2, is_accumulative);
 
-          Benchmark<dim> benchmark(initial_solution, interface_width);
+          Benchmark<dim> benchmark(initial_solution,
+                                   interface_width,
+                                   divisions_per_interface,
+                                   boundary_factor);
 
           // Analize for different number of order parameters
           for (unsigned int n_max_op_for_ic = 2;
@@ -403,10 +412,11 @@ main(int argc, char **argv)
     }
   else if (std::string(argv[1]) == "--cloud")
     {
-      AssertThrow(
-        argc >= 3,
-        ExcMessage(
-          "Usage: --cloud cloud_file [interface_width = 1.0] [interface_buffer_ratio = 1.0]"));
+      AssertThrow(argc >= 3,
+                  ExcMessage(
+                    "Usage: --cloud cloud_file [interface_width = 1.0] "
+                    "[interface_buffer_ratio = 1.0] "
+                    "[divisions_per_interface = 2.0] [boundary_factor = 0.5]"));
 
       std::string   file_cloud = std::string(argv[2]);
       std::ifstream fstream(file_cloud);
@@ -416,14 +426,20 @@ main(int argc, char **argv)
 
       const bool minimize_order_parameters = true;
 
-      const double interface_width        = (argc >= 4 ? atof(argv[3]) : 1.0);
-      const double interface_buffer_ratio = (argc >= 5 ? atof(argv[4]) : 1.0);
+      const double interface_width         = (argc >= 4 ? atof(argv[3]) : 1.0);
+      const double interface_buffer_ratio  = (argc >= 5 ? atof(argv[4]) : 1.0);
+      const double divisions_per_interface = (argc >= 6 ? atof(argv[5]) : 2.0);
+      const double boundary_factor         = (argc >= 7 ? atof(argv[6]) : 0.5);
 
       AssertThrow(interface_width > 0,
                   ExcMessage("Interface width has to be grater than 0"));
-
       AssertThrow(interface_buffer_ratio > 0,
                   ExcMessage("Interface buffer ratio has to be grater than 0"));
+      AssertThrow(divisions_per_interface > 0,
+                  ExcMessage(
+                    "Divisions per interface has to be grater than 0"));
+      AssertThrow(boundary_factor > 0,
+                  ExcMessage("Boundary factor has to be grater than 0"));
 
       Sintering::InitialValuesCloud<dim> initial_solution(
         particles,
@@ -431,7 +447,10 @@ main(int argc, char **argv)
         minimize_order_parameters,
         interface_buffer_ratio);
 
-      Benchmark<dim> benchmark(initial_solution, interface_width);
+      Benchmark<dim> benchmark(initial_solution,
+                               interface_width,
+                               divisions_per_interface,
+                               boundary_factor);
 
       benchmark.run_tests(initial_solution, table);
     }
