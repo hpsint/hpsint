@@ -96,7 +96,7 @@ namespace Sintering
 
                   // If distance is smaller than the maximum value, then we have
                   // an overlap
-                  if (distance <= dist_max)
+                  if (distance <= dist_max - 1e-3 * dist_max)
                     {
                       // Compute the radius of the neck
                       const double s = (r1 + r2 + distance) / 2;
