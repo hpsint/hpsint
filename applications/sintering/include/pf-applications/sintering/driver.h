@@ -1636,6 +1636,8 @@ namespace Sintering
                                   min_allowed_level,
                                   max_allowed_level,
                                   after_amr,
+                                  params.adaptivity_data.interface_val_min,
+                                  params.adaptivity_data.interface_val_max,
                                   block_estimate_start,
                                   block_estimate_end);
 
