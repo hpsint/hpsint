@@ -391,7 +391,9 @@ namespace Sintering
                           const double               top_fraction_of_cells,
                           const double               bottom_fraction_of_cells,
                           const unsigned int         min_allowed_level,
-                          const unsigned int         max_allowed_level)
+                          const unsigned int         max_allowed_level,
+                          const typename VectorType::value_type val_min = 0.05,
+                          const typename VectorType::value_type val_max = 0.95)
   {
     // Mark cells and prepare refinement
     internal::prepare_coarsening_and_refinement(solution_to_estimate,
@@ -401,7 +403,9 @@ namespace Sintering
                                                 top_fraction_of_cells,
                                                 bottom_fraction_of_cells,
                                                 min_allowed_level,
-                                                max_allowed_level);
+                                                max_allowed_level,
+                                                val_min,
+                                                val_max);
 
     // Execute refinement
     tria.execute_coarsening_and_refinement();
@@ -416,11 +420,13 @@ namespace Sintering
     AffineConstraints<typename VectorType::value_type> &constraints,
     const Quadrature<dim - 1> &                         quad,
     const double                                        top_fraction_of_cells,
-    const double                      bottom_fraction_of_cells,
-    const unsigned int                min_allowed_level,
-    const unsigned int                max_allowed_level,
-    std::function<void(VectorType &)> reinitializer,
-    const unsigned int                block_estimate_start = 0,
+    const double                          bottom_fraction_of_cells,
+    const unsigned int                    min_allowed_level,
+    const unsigned int                    max_allowed_level,
+    std::function<void(VectorType &)>     reinitializer,
+    const typename VectorType::value_type val_min              = 0.05,
+    const typename VectorType::value_type val_max              = 0.95,
+    const unsigned int                    block_estimate_start = 0,
     const unsigned int block_estimate_end = numbers::invalid_unsigned_int)
   {
     // Build partitioner
@@ -457,7 +463,9 @@ namespace Sintering
                                                 top_fraction_of_cells,
                                                 bottom_fraction_of_cells,
                                                 min_allowed_level,
-                                                max_allowed_level);
+                                                max_allowed_level,
+                                                val_min,
+                                                val_max);
 
     // Raw pointers
     std::vector<typename VectorType::BlockType *> solution_ptr(
