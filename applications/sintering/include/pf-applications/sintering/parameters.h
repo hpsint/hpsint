@@ -59,6 +59,8 @@ namespace Sintering
     unsigned int max_refinement_depth     = 0;
     unsigned int refinement_frequency     = 10; // 0 - no refinement
     bool         extra_coarsening         = false;
+    double       interface_val_min        = 0.05;
+    double       interface_val_max        = 0.95;
 
     bool   quality_control = false;
     double quality_min     = 0.5;
@@ -506,6 +508,12 @@ namespace Sintering
       prm.add_parameter("ExtraCoarsening",
                         adaptivity_data.extra_coarsening,
                         "Allow reduce quality of the mesh.");
+      prm.add_parameter("InterfaceValMin",
+                        adaptivity_data.interface_val_min,
+                        "Minimum value at the interface.");
+      prm.add_parameter("InterfaceValMax",
+                        adaptivity_data.interface_val_max,
+                        "Maximum value at the interface.");
       prm.leave_subsection();
 
 
