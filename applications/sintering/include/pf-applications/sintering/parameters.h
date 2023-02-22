@@ -508,10 +508,10 @@ namespace Sintering
       prm.add_parameter("ExtraCoarsening",
                         adaptivity_data.extra_coarsening,
                         "Allow reduce quality of the mesh.");
-      prm.add_parameter("InterfaceValMin",
+      prm.add_parameter("InterfaceValueMin",
                         adaptivity_data.interface_val_min,
                         "Minimum value at the interface.");
-      prm.add_parameter("InterfaceValMax",
+      prm.add_parameter("InterfaceValueMax",
                         adaptivity_data.interface_val_max,
                         "Maximum value at the interface.");
       prm.leave_subsection();
