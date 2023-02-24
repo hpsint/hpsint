@@ -199,7 +199,7 @@ namespace Sintering
                                     "AC",
                                     "displ",
                                     "bnds",
-                                    "dt",
+                                    "gb",
                                     "d2f",
                                     "M",
                                     "dM",
@@ -750,7 +750,7 @@ namespace Sintering
                         output_data.vtk_path,
                         "Path to write VTK files.");
       const std::string output_fields_options =
-        "CH|AC|displ|bnds|dt|d2f|M|dM|kappa|L|energy|flux|subdomain";
+        "CH|AC|displ|bnds|gb|d2f|M|dM|kappa|L|energy|flux|subdomain";
       prm.add_parameter("Fields",
                         output_data.fields,
                         "Fields to output.",
