@@ -73,7 +73,7 @@ namespace Sintering
       enum OutputFields
       {
         FieldBnds,
-        FieldDt,
+        FieldGb,
         FieldD2f,
         FieldM,
         FieldDM,
@@ -89,7 +89,7 @@ namespace Sintering
                        n_data_variants>
         possible_entries = {
           {{"bnds", FieldBnds, 1},
-           {"dt", FieldDt, 1},
+           {"gb", FieldGb, 1},
            {"d2f", FieldD2f, 1 + 2 * n_grains + n_grains * (n_grains - 1) / 2},
            {"M", FieldM, 1},
            {"dM", FieldDM, 2 + n_grains},
@@ -180,10 +180,14 @@ namespace Sintering
                   temp[counter++] = PowerHelper<n_grains, 2>::power_sum(etas);
                 }
 
-              if (entries_mask[FieldDt])
+              if (entries_mask[FieldGb])
                 {
-                  temp[counter++] =
-                    VectorizedArrayType(data.time_data.get_current_dt());
+                  VectorizedArrayType etaijSum = 0.0;
+                  for (unsigned int i = 0; i < n_grains; ++i)
+                    for (unsigned int j = 0; j < i; ++j)
+                      etaijSum += etas[i] * etas[j];
+
+                  temp[counter++] = etaijSum;
                 }
 
               if (entries_mask[FieldD2f])
@@ -313,9 +317,9 @@ namespace Sintering
           names.push_back("bnds");
         }
 
-      if (entries_mask[FieldDt])
+      if (entries_mask[FieldGb])
         {
-          names.push_back("dt");
+          names.push_back("gb");
         }
 
       if (entries_mask[FieldD2f])
