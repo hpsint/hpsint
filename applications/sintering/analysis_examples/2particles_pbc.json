@@ -55,7 +55,7 @@
         "Contour": "true",
         "ContourNCoarseningSteps": "0",
         "Debug": "false",
-        "Fields": "AC, CH, L, M, bnds, d2f, dM, dt, kappa, subdomain",
+        "Fields": "AC, CH, L, M, bnds, d2f, dM, gb, kappa, subdomain",
         "HigherOrderCells": "true",
         "OutputTimeInterval": "5",
         "Regular": "true",
