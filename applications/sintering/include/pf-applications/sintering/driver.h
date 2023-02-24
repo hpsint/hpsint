@@ -2779,8 +2779,7 @@ namespace Sintering
                   dof_handler,
                   solution,
                   0.5,
-                  sintering_operator.n_grains(),
-                  0.14);
+                  sintering_operator.n_grains());
 
               table.add_value("iso_gb_area", gb_area);
             }
@@ -2821,7 +2820,6 @@ namespace Sintering
             0.5,
             output,
             sintering_operator.n_grains(),
-            0.14,
             params.output_data.n_coarsening_steps);
         }
 
