@@ -2,6 +2,8 @@
     "MatrixBased": "false",
     "Adaptivity": {
         "BottomFractionOfCells": "0.1",
+        "InterfaceValueMin": "0.05",
+        "InterfaceValueMax": "0.95",
         "MaxRefinementDepth": "1",
         "MinRefinementDepth": "3",
         "QualityControl": "false",
