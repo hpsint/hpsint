@@ -661,8 +661,7 @@ namespace Sintering
         mc(mapping, background_dof_handler.get_fe(), n_subdivisions, tolerance);
 
       for (const auto &cell : background_dof_handler.active_cell_iterators())
-        if (cell->is_locally_owned() &&
-            (!predicate || predicate(cell->barycenter())))
+        if (cell->is_locally_owned())
           mc.process_cell(cell, concentration, iso_level, vertices, cells);
 
       typename VectorType::value_type surf_area = 0;
@@ -672,7 +671,9 @@ namespace Sintering
           tria.create_triangulation(vertices, cells, subcelldata);
 
           for (const auto &cell : tria.active_cell_iterators())
-            surf_area += cell->measure();
+            if (cell->is_locally_owned() &&
+                (!predicate || predicate(cell->barycenter())))
+              surf_area += cell->measure();
         }
       surf_area =
         Utilities::MPI::sum(surf_area,
