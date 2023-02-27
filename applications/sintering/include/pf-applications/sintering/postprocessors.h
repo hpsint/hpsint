@@ -672,7 +672,7 @@ namespace Sintering
 
           for (const auto &cell : tria.active_cell_iterators())
             if (cell->is_locally_owned() &&
-                (!predicate || predicate(cell->barycenter())))
+                (!predicate || predicate(cell->center())))
               surf_area += cell->measure();
         }
       surf_area =
@@ -716,7 +716,7 @@ namespace Sintering
       if (tria_not_empty)
         for (const auto &cell : tria.active_cell_iterators())
           if (cell->is_locally_owned() &&
-              (!predicate || predicate(cell->barycenter())))
+              (!predicate || predicate(cell->center())))
             gb_area += cell->measure();
 
       gb_area =
