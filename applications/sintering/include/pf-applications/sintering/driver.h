@@ -2836,6 +2836,7 @@ namespace Sintering
             iso_value,
             output,
             sintering_operator.n_grains(),
+            gb_lim,
             params.output_data.n_coarsening_steps);
         }
 

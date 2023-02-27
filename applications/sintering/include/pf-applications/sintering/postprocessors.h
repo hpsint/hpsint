@@ -731,6 +731,7 @@ namespace Sintering
                                               vector,
                                               iso_level,
                                               n_grains,
+                                              gb_lim,
                                               n_coarsening_steps,
                                               n_subdivisions,
                                               tolerance);
