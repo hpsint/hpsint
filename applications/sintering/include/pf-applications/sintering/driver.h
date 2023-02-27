@@ -2591,6 +2591,10 @@ namespace Sintering
       ScopedName sc("output_result");
       MyScope    scope(timer, sc);
 
+      // Some settings
+      const double iso_value = 0.5;
+      const double gb_lim    = 0.14;
+
       if (counters.find(label) == counters.end())
         counters[label] = 0;
 
@@ -2773,21 +2777,10 @@ namespace Sintering
                 table.add_value(q_labels[i], q_values[i]);
             }
 
-          // Settings for iso surface calculations
-          const double       iso_values         = 0.5;
-          const unsigned int iso_n_subdivisions = 1;
-          const double       iso_tolerance      = 1e-10;
-
           if (params.output_data.iso_surf_area)
             {
-              const auto surface_area =
-                Postprocessors::compute_surface_area(mapping,
-                                                     dof_handler,
-                                                     solution,
-                                                     iso_values,
-                                                     iso_n_subdivisions,
-                                                     iso_tolerance,
-                                                     predicate_iso);
+              const auto surface_area = Postprocessors::compute_surface_area(
+                mapping, dof_handler, solution, iso_value, predicate_iso);
 
               table.add_value("iso_surf_area", surface_area);
             }
@@ -2799,10 +2792,9 @@ namespace Sintering
                   mapping,
                   dof_handler,
                   solution,
-                  iso_values,
+                  iso_value,
                   sintering_operator.n_grains(),
-                  iso_n_subdivisions,
-                  iso_tolerance,
+                  gb_lim,
                   predicate_iso);
 
               table.add_value("iso_gb_area", gb_area);
@@ -2822,7 +2814,7 @@ namespace Sintering
             mapping,
             dof_handler,
             solution,
-            0.5,
+            iso_value,
             output,
             sintering_operator.n_grains(),
             grain_tracker,
@@ -2841,7 +2833,7 @@ namespace Sintering
             mapping,
             dof_handler,
             solution,
-            0.5,
+            iso_value,
             output,
             sintering_operator.n_grains(),
             params.output_data.n_coarsening_steps);
@@ -2859,7 +2851,7 @@ namespace Sintering
           Postprocessors::output_grain_contours(mapping,
                                                 dof_handler,
                                                 solution,
-                                                0.5,
+                                                iso_value,
                                                 output,
                                                 sintering_operator.n_grains(),
                                                 grain_tracker);
