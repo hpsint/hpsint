@@ -2,10 +2,13 @@ import matplotlib
 import matplotlib.pyplot as plt
 import numpy as np
 import warnings
+import os
 from mpl_toolkits.mplot3d import Axes3D
 from argparse import ArgumentParser
 from scipy.stats import norm
 from matplotlib.ticker import PercentFormatter
+
+from contacts import ends_gap
 
 def to_degs(rads):
     return rads * 180. / np.pi
@@ -63,7 +66,7 @@ def distribute_in_segments(particles, lims, divs, direction):
             'rel_density': 0
         }
 
-        for p_id, p in particles.items():
+        for p in particles:
 
             r = p['radius']
 
@@ -130,34 +133,25 @@ def distribute_in_segments(particles, lims, divs, direction):
     return densities
 
 parser = ArgumentParser()
-parser.add_argument("-f", "--file", dest="filename", required=True, help="Filename without extension")
+parser.add_argument("-f", "--file", dest="filename", required=True, help="Filename with extension")
 parser.add_argument("-d", "--divisions", dest="divisions", required=False,  help="Number of divisions", default=10, type=int)
 parser.add_argument("-s", "--save", dest="save", required=False,  help="Save plots", action='store_true', default=False)
 
 args = parser.parse_args()
 
-# Filenames
-pfname = args.filename + ".particles"
-cfname = args.filename + ".contacts"
-
 # Read nodes data first
-pdata = np.genfromtxt(pfname, dtype=None, delimiter=',', skip_header=1)
+pdata = np.genfromtxt(args.filename, dtype=None, delimiter=',', names=True)
 
 ax1 = plt.subplot(2, 1, 1)
 ax1.set_xlabel('r')
 ax1.set_ylabel('ratio')
 
 # Read all paticles to the dict
-particles = {}
-for particle in pdata:
+particles = []
+for row in pdata:
+    particles.append({'center': np.array([row['x'], row['y'], row['z']]), 'radius': row['r']})
 
-    idx = particle[0]
-    x = particle[1]
-    y = particle[2]
-    z = particle[3]
-    r = particle[4]
-
-    particles[idx] = {'center': np.array([x, y, z]), 'radius': r}
+n_particles = len(particles)
 
 angle0xy = 0
 angle0xz = 0
@@ -167,18 +161,40 @@ nx = np.array([1, 0, 0])
 ny = np.array([0, 1, 0])
 nz = np.array([0, 0, 1])
 
-coordination_number = {}
-for ip, p in particles.items():
-    coordination_number[ip] = 0
+coordination_number = [0.]*n_particles
 
 # Read contacts
-cdata = np.genfromtxt(cfname, delimiter=',', dtype=None, names=True)
-for row in cdata:
-    id1 = row['p1']
-    id2 = row['p2']
+fname_without_ext = os.path.splitext(args.filename)[0]
+cfname = fname_without_ext + ".contacts"
+contacts = []
 
-    p1 = particles[id1]
-    p2 = particles[id2]
+if os.path.isfile(cfname):
+    print("Found precomputed contacts file...\r\n")
+
+    cdata = np.genfromtxt(cfname, delimiter=',', dtype=None, names=True)
+    
+    for row in cdata:
+        contacts.append((row['p1'], row['p2']))
+
+else:
+    print("No precomputed contacts file, building contacts automatically...\r\n")
+    
+    poss = np.zeros((len(pdata),3))
+    radii = np.zeros((len(pdata)))
+
+    counter = 0
+    for p in particles:
+        poss[counter] = p['center']
+        radii[counter] = p['radius']
+        counter += 1
+
+    _, contacts, _, _ = ends_gap(poss, radii)
+
+n_contacts = len(contacts)
+
+for c in contacts:
+    p1 = particles[c[0]]
+    p2 = particles[c[1]]
 
     v1 = p1['center']
     v2 = p2['center']
@@ -198,8 +214,8 @@ for row in cdata:
     angle0xz += Txz
     angle0yz += Tyz
 
-    coordination_number[id1] += 1
-    coordination_number[id2] += 1
+    coordination_number[c[0]] += 1
+    coordination_number[c[1]] += 1
 
 x_min = 1e9
 x_max = -1e9
@@ -210,7 +226,7 @@ z_max = -1e9
 
 V_particles = 0
 radii = []
-for ip, p in particles.items():
+for p in particles:
     radii.append(p['radius'])
 
     V_particles += 4./3. * np.pi * p['radius']**3
@@ -236,16 +252,13 @@ V_solid = x_sz * y_sz * z_sz
 
 density = V_particles/V_solid
 
-coord_avg = sum(coordination_number.values()) / len(particles)
+coord_avg = sum(coordination_number) / n_particles
 
 radii.sort()
 r_min = min(radii)
 r_max = max(radii)
 r_avg = (r_min + r_max) / 2.
 dr = (r_max - r_avg)
-
-n_particles = len(particles)
-n_contacts = len(cdata)
 
 print("Average particle radius:     {} +- {} (+- {}%)".format(r_avg, dr, dr/r_avg*100))
 print("Average coordination number: {}".format(coord_avg))

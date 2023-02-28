@@ -3,16 +3,16 @@ import numpy as np
 from argparse import ArgumentParser
 
 def extract(filename, scale=1., limits_x=None, limits_y=None, limits_z=None, save_path=None, postfix="particles.cloud"):
-    cdata = np.genfromtxt(filename, delimiter=',', dtype=None, skip_header=1)
+    cdata = np.genfromtxt(filename, delimiter=',', dtype=None, names=True)
 
     X = np.empty((0,4), float)
     count_particles = 0
     for row in cdata:
 
-        new_x = float(row[1])
-        new_y = float(row[2])
-        new_z = float(row[3])
-        new_r = float(row[4])
+        new_x = float(row['x'])
+        new_y = float(row['y'])
+        new_z = float(row['z'])
+        new_r = float(row['r'])
 
         add_particle = True
 
@@ -47,7 +47,7 @@ def extract(filename, scale=1., limits_x=None, limits_y=None, limits_z=None, sav
 if __name__ == '__main__':
 
     parser = ArgumentParser()
-    parser.add_argument("-f", "--file", dest="filename", required=True, help="Filename without extension")
+    parser.add_argument("-f", "--file", dest="filename", required=True, help="Filename")
     parser.add_argument("-s", "--scale", dest='scale', required=False, help="Scale dimensions", default=1.0, type=float)
     parser.add_argument("-x", "--limits_x", dest='limits_x', nargs=2, required=False, help="Limits in x-direction", type=float)
     parser.add_argument("-y", "--limits_y", dest='limits_y', nargs=2, required=False, help="Limits in y-direction", type=float)
@@ -55,6 +55,4 @@ if __name__ == '__main__':
 
     args = parser.parse_args()
 
-    # filename name
-    pname = args.filename + ".particles"
-    extract(pname, args.scale, args.limits_x, args.limits_y, args.limits_z)
+    extract(args.filename, args.scale, args.limits_x, args.limits_y, args.limits_z)
