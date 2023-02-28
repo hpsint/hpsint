@@ -2807,6 +2807,35 @@ namespace Sintering
             }
         }
 
+      std::function<int(const Point<dim> &)> box_filter;
+      if (params.output_data.use_control_box &&
+          (params.output_data.contours || params.output_data.grain_boundaries))
+        {
+          box_filter = [&control_box](const Point<dim> &p) {
+            /* Point locations:
+             * -1 - outside, 0 - at the boundary, 1 - inside
+             */
+            int point_location = -1;
+
+            for (unsigned int d = 0; d < dim; ++d)
+              {
+                if (std::abs(control_box.lower_bound(d) - p[d]) <
+                      std::numeric_limits<Number>::epsilon() ||
+                    std::abs(control_box.upper_bound(d) - p[d]) <
+                      std::numeric_limits<Number>::epsilon())
+                  {
+                    point_location = 0;
+                    break;
+                  }
+              }
+
+            if (point_location != 0 && control_box.point_inside(p))
+              point_location = 1;
+
+            return point_location;
+          };
+        }
+
       if (params.output_data.contours)
         {
           std::string output = params.output_data.vtk_path + "/contour_" +
@@ -2815,35 +2844,6 @@ namespace Sintering
 
           pcout << "Outputing data at t = " << t << " (" << output << ")"
                 << std::endl;
-
-          std::function<int(const Point<dim> &)> box_filter;
-
-          if (params.output_data.use_control_box)
-            {
-              box_filter = [&control_box](const Point<dim> &p) {
-                /* Point locations:
-                 * -1 - outside, 0 - at the boundary, 1 - inside
-                 */
-                int point_location = -1;
-
-                for (unsigned int d = 0; d < dim; ++d)
-                  {
-                    if (std::abs(control_box.lower_bound(d) - p[d]) <
-                          std::numeric_limits<Number>::epsilon() ||
-                        std::abs(control_box.upper_bound(d) - p[d]) <
-                          std::numeric_limits<Number>::epsilon())
-                      {
-                        point_location = 0;
-                        break;
-                      }
-                  }
-
-                if (point_location != 0 && control_box.point_inside(p))
-                  point_location = 1;
-
-                return point_location;
-              };
-            }
 
           Postprocessors::output_grain_contours_vtu(
             mapping,
