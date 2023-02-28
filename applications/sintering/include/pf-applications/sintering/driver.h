@@ -2850,6 +2850,25 @@ namespace Sintering
             box_filter);
         }
 
+      if (params.output_data.concentration_contour)
+        {
+          std::string output = params.output_data.vtk_path + "/surface_" +
+                               label + "." + std::to_string(counters[label]) +
+                               ".vtu";
+
+          pcout << "Outputing data at t = " << t << " (" << output << ")"
+                << std::endl;
+
+          Postprocessors::output_concentration_contour_vtu(
+            mapping,
+            dof_handler,
+            solution,
+            iso_value,
+            output,
+            params.output_data.n_coarsening_steps,
+            box_filter);
+        }
+
       if (params.output_data.grain_boundaries)
         {
           std::string output = params.output_data.vtk_path + "/gb_" + label +
