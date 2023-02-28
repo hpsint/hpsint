@@ -169,6 +169,7 @@ namespace Sintering
                                   const VectorType &     vector,
                                   const double           iso_level,
                                   const unsigned int     n_grains,
+                                  const double           gb_lim = 0.14,
                                   const unsigned int     n_coarsening_steps = 0,
                                   const unsigned int     n_subdivisions     = 1,
                                   const double           tolerance = 1e-10)
@@ -218,17 +219,25 @@ namespace Sintering
         Vector<Number> values(
           background_dof_handler_to_be_used->get_fe().n_dofs_per_cell());
 
-        for (unsigned int i = 0; i < n_grains; ++i)
-          {
-            for (const auto &cell :
-                 background_dof_handler_to_be_used->active_cell_iterators())
-              if (cell->is_locally_owned())
+        Vector<Number> values_i(
+          background_dof_handler_to_be_used->get_fe().n_dofs_per_cell());
+        Vector<Number> values_j(
+          background_dof_handler_to_be_used->get_fe().n_dofs_per_cell());
+        Vector<Number> gb(
+          background_dof_handler_to_be_used->get_fe().n_dofs_per_cell());
+
+        for (const auto &cell :
+             background_dof_handler_to_be_used->active_cell_iterators())
+          if (cell->is_locally_owned())
+            {
+              for (unsigned int i = 0; i < n_grains; ++i)
                 {
-                  cell->get_dof_values(vector_to_be_used->block(2 + i), values);
+                  cell->get_dof_values(vector_to_be_used->block(2 + i),
+                                       values_i);
 
                   bool i_upper = false;
                   bool i_lower = false;
-                  for (const auto i_val : values)
+                  for (const auto i_val : values_i)
                     {
                       if (i_val > iso_level)
                         i_upper = true;
@@ -236,18 +245,22 @@ namespace Sintering
                         i_lower = true;
                     }
 
+                  gb = 0;
                   if (i_upper && i_lower)
                     {
                       bool has_others = false;
 
-                      for (unsigned int j = 0; j < i; ++j)
+                      for (unsigned int j = 0; j < n_grains; ++j)
                         {
+                          if (i == j)
+                            continue;
+
                           cell->get_dof_values(vector_to_be_used->block(2 + j),
-                                               values);
+                                               values_j);
 
                           bool j_upper = false;
                           bool j_lower = false;
-                          for (const auto j_val : values)
+                          for (const auto j_val : values_j)
                             {
                               if (j_val > iso_level)
                                 j_upper = true;
@@ -259,15 +272,22 @@ namespace Sintering
                             {
                               has_others = true;
 
-                              mc.process_cell(cell,
-                                              vector_to_be_used->block(2 + j),
-                                              iso_level,
-                                              vertices,
-                                              cells);
+                              break;
                             }
+
+                          gb += values_j;
                         }
 
-                      if (has_others)
+                      gb.scale(values_i);
+
+                      const bool has_strong_gb =
+                        std::any_of(gb.begin(),
+                                    gb.end(),
+                                    [gb_lim](const auto &val) {
+                                      return val > gb_lim;
+                                    });
+
+                      if (has_others || has_strong_gb)
                         mc.process_cell(cell,
                                         vector_to_be_used->block(2 + i),
                                         iso_level,
@@ -275,7 +295,7 @@ namespace Sintering
                                         cells);
                     }
                 }
-          }
+            }
 
         if (vertices.size() > 0)
           tria.create_triangulation(vertices, cells, subcelldata);
@@ -605,6 +625,7 @@ namespace Sintering
                                 const double           iso_level,
                                 const std::string      filename,
                                 const unsigned int     n_grains,
+                                const double           gb_lim = 0.14,
                                 const unsigned int     n_coarsening_steps = 0,
                                 const unsigned int     n_subdivisions     = 1,
                                 const double           tolerance = 1e-10)
@@ -618,6 +639,7 @@ namespace Sintering
                                               vector,
                                               iso_level,
                                               n_grains,
+                                              gb_lim,
                                               n_coarsening_steps,
                                               n_subdivisions,
                                               tolerance);
@@ -636,12 +658,14 @@ namespace Sintering
 
     template <int dim, typename VectorType>
     typename VectorType::value_type
-    compute_surface_area(const Mapping<dim> &   mapping,
-                         const DoFHandler<dim> &background_dof_handler,
-                         const VectorType &     vector,
-                         const double           iso_level,
-                         const unsigned int     n_subdivisions = 1,
-                         const double           tolerance      = 1e-10)
+    compute_surface_area(
+      const Mapping<dim> &                    mapping,
+      const DoFHandler<dim> &                 background_dof_handler,
+      const VectorType &                      vector,
+      const double                            iso_level,
+      std::function<bool(const Point<dim> &)> predicate      = nullptr,
+      const unsigned int                      n_subdivisions = 1,
+      const double                            tolerance      = 1e-10)
     {
       const auto &concentration = vector.block(0);
 
@@ -669,7 +693,9 @@ namespace Sintering
           tria.create_triangulation(vertices, cells, subcelldata);
 
           for (const auto &cell : tria.active_cell_iterators())
-            surf_area += cell->measure();
+            if (cell->is_locally_owned() &&
+                (!predicate || predicate(cell->center())))
+              surf_area += cell->measure();
         }
       surf_area =
         Utilities::MPI::sum(surf_area,
@@ -683,13 +709,16 @@ namespace Sintering
 
     template <int dim, typename VectorType>
     typename VectorType::value_type
-    compute_grain_boundaries_area(const Mapping<dim> &   mapping,
-                                  const DoFHandler<dim> &background_dof_handler,
-                                  const VectorType &     vector,
-                                  const double           iso_level,
-                                  const unsigned int     n_grains,
-                                  const unsigned int     n_subdivisions = 1,
-                                  const double           tolerance      = 1e-10)
+    compute_grain_boundaries_area(
+      const Mapping<dim> &                    mapping,
+      const DoFHandler<dim> &                 background_dof_handler,
+      const VectorType &                      vector,
+      const double                            iso_level,
+      const unsigned int                      n_grains,
+      const double                            gb_lim         = 0.14,
+      std::function<bool(const Point<dim> &)> predicate      = nullptr,
+      const unsigned int                      n_subdivisions = 1,
+      const double                            tolerance      = 1e-10)
     {
       Triangulation<dim - 1, dim> tria;
 
@@ -702,6 +731,7 @@ namespace Sintering
                                               vector,
                                               iso_level,
                                               n_grains,
+                                              gb_lim,
                                               n_coarsening_steps,
                                               n_subdivisions,
                                               tolerance);
@@ -709,7 +739,9 @@ namespace Sintering
       typename VectorType::value_type gb_area = 0;
       if (tria_not_empty)
         for (const auto &cell : tria.active_cell_iterators())
-          gb_area += cell->measure();
+          if (cell->is_locally_owned() &&
+              (!predicate || predicate(cell->center())))
+            gb_area += cell->measure();
 
       gb_area =
         Utilities::MPI::sum(gb_area, background_dof_handler.get_communicator());

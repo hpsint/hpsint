@@ -2591,6 +2591,10 @@ namespace Sintering
       ScopedName sc("output_result");
       MyScope    scope(timer, sc);
 
+      // Some settings
+      const double iso_value = 0.5;
+      const double gb_lim    = 0.14;
+
       if (counters.find(label) == counters.end())
         counters[label] = 0;
 
@@ -2675,6 +2679,70 @@ namespace Sintering
                           sintering_operator.get_data().n_components() - 2);
           table.add_value("n_grains", grain_tracker.get_grains().size());
 
+          std::function<VectorizedArrayType(
+            const Point<dim, VectorizedArrayType> &)>
+                                                  predicate_integrals;
+          std::function<bool(const Point<dim> &)> predicate_iso;
+
+          if (params.output_data.use_control_box)
+            {
+              Point<dim> bottom_left;
+              Point<dim> top_right;
+
+              if (dim >= 1)
+                {
+                  bottom_left[0] = params.output_data.control_box_data.x_min;
+                  top_right[0]   = params.output_data.control_box_data.x_max;
+                }
+
+              if (dim >= 2)
+                {
+                  bottom_left[1] = params.output_data.control_box_data.y_min;
+                  top_right[1]   = params.output_data.control_box_data.y_max;
+                }
+
+              if (dim >= 3)
+                {
+                  bottom_left[2] = params.output_data.control_box_data.z_min;
+                  top_right[2]   = params.output_data.control_box_data.z_max;
+                }
+
+              BoundingBox control_box(std::make_pair(bottom_left, top_right));
+
+              predicate_integrals =
+                [control_box](const Point<dim, VectorizedArrayType> &p) {
+                  const auto zeros = VectorizedArrayType(0.0);
+                  const auto ones  = VectorizedArrayType(1.0);
+
+                  VectorizedArrayType filter = ones;
+
+                  for (unsigned int d = 0; d < dim; ++d)
+                    {
+                      filter =
+                        compare_and_apply_mask<SIMDComparison::greater_than>(
+                          p[d],
+                          VectorizedArrayType(control_box.lower_bound(d)),
+                          filter,
+                          zeros);
+
+                      filter =
+                        compare_and_apply_mask<SIMDComparison::less_than>(
+                          p[d],
+                          VectorizedArrayType(control_box.upper_bound(d)),
+                          filter,
+                          zeros);
+                    }
+
+                  return filter;
+                };
+
+              predicate_iso = [control_box](const Point<dim> &p) {
+                return control_box.point_inside(p);
+              };
+
+              table.add_value("cntrl_box", control_box.volume());
+            }
+
           if (!params.output_data.domain_integrals.empty())
             {
               std::vector<std::string> q_labels;
@@ -2694,64 +2762,8 @@ namespace Sintering
 
               if (params.output_data.use_control_box)
                 {
-                  Point<dim> bottom_left;
-                  Point<dim> top_right;
-
-                  if (dim >= 1)
-                    {
-                      bottom_left[0] =
-                        params.output_data.control_box_data.x_min;
-                      top_right[0] = params.output_data.control_box_data.x_max;
-                    }
-
-                  if (dim >= 2)
-                    {
-                      bottom_left[1] =
-                        params.output_data.control_box_data.y_min;
-                      top_right[1] = params.output_data.control_box_data.y_max;
-                    }
-
-                  if (dim >= 3)
-                    {
-                      bottom_left[2] =
-                        params.output_data.control_box_data.z_min;
-                      top_right[2] = params.output_data.control_box_data.z_max;
-                    }
-
-                  BoundingBox control_box(
-                    std::make_pair(bottom_left, top_right));
-
-                  auto predicate = [&control_box](
-                                     const Point<dim, VectorizedArrayType> &p) {
-                    const auto zeros = VectorizedArrayType(0.0);
-                    const auto ones  = VectorizedArrayType(1.0);
-
-                    VectorizedArrayType filter = ones;
-
-                    for (unsigned int d = 0; d < dim; ++d)
-                      {
-                        filter =
-                          compare_and_apply_mask<SIMDComparison::greater_than>(
-                            p[d],
-                            VectorizedArrayType(control_box.lower_bound(d)),
-                            filter,
-                            zeros);
-
-                        filter =
-                          compare_and_apply_mask<SIMDComparison::less_than>(
-                            p[d],
-                            VectorizedArrayType(control_box.upper_bound(d)),
-                            filter,
-                            zeros);
-                      }
-
-                    return filter;
-                  };
-
                   q_values = sintering_operator.calc_domain_quantities(
-                    quantities, solution, predicate, eval_flags);
-
-                  table.add_value("cntrl_box", control_box.volume());
+                    quantities, solution, predicate_integrals, eval_flags);
                 }
               else
                 {
@@ -2768,7 +2780,7 @@ namespace Sintering
           if (params.output_data.iso_surf_area)
             {
               const auto surface_area = Postprocessors::compute_surface_area(
-                mapping, dof_handler, solution, 0.5);
+                mapping, dof_handler, solution, iso_value, predicate_iso);
 
               table.add_value("iso_surf_area", surface_area);
             }
@@ -2780,8 +2792,10 @@ namespace Sintering
                   mapping,
                   dof_handler,
                   solution,
-                  0.5,
-                  sintering_operator.n_grains());
+                  iso_value,
+                  sintering_operator.n_grains(),
+                  gb_lim,
+                  predicate_iso);
 
               table.add_value("iso_gb_area", gb_area);
             }
@@ -2800,7 +2814,7 @@ namespace Sintering
             mapping,
             dof_handler,
             solution,
-            0.5,
+            iso_value,
             output,
             sintering_operator.n_grains(),
             grain_tracker,
@@ -2819,9 +2833,10 @@ namespace Sintering
             mapping,
             dof_handler,
             solution,
-            0.5,
+            iso_value,
             output,
             sintering_operator.n_grains(),
+            gb_lim,
             params.output_data.n_coarsening_steps);
         }
 
@@ -2837,7 +2852,7 @@ namespace Sintering
           Postprocessors::output_grain_contours(mapping,
                                                 dof_handler,
                                                 solution,
-                                                0.5,
+                                                iso_value,
                                                 output,
                                                 sintering_operator.n_grains(),
                                                 grain_tracker);
