@@ -168,7 +168,6 @@ namespace Sintering
         const DoFHandler<dim> &                background_dof_handler,
         VectorType &                           vector,
         const double                           iso_level,
-        const unsigned int                     n_grains,
         std::function<int(const Point<dim> &)> box_filter)
       {
         const auto &  fe = background_dof_handler.get_fe();
@@ -188,7 +187,7 @@ namespace Sintering
 
             fe_values.reinit(cell);
 
-            for (unsigned int b = 0; b < n_grains; ++b)
+            for (unsigned int b = 0; b < vector.n_blocks(); ++b)
               {
                 const auto &points = fe_values.get_quadrature_points();
 
@@ -196,8 +195,7 @@ namespace Sintering
                   {
                     const int pred_status = box_filter(points[i]);
 
-                    auto &global_dof_value =
-                      vector.block(b + 2)[dof_indices[i]];
+                    auto &global_dof_value = vector.block(b)[dof_indices[i]];
                     if (pred_status == 0)
                       global_dof_value = std::min(global_dof_value, iso_level);
                     else if (pred_status == -1)
@@ -262,12 +260,14 @@ namespace Sintering
                 vector_to_be_used = &vector_coarsened;
               }
 
+            auto only_order_params =
+              vector_coarsened.create_view(2, 2 + n_grains);
+
             internal::filter_mesh_withing_bounding_box(
               mapping,
               *background_dof_handler_to_be_used,
-              vector_coarsened,
+              *only_order_params,
               iso_level,
-              n_grains,
               box_filter);
           }
 
@@ -607,12 +607,13 @@ namespace Sintering
               vector_to_be_used = &solution_dealii;
             }
 
+          auto only_order_params = solution_dealii.create_view(2, 2 + n_grains);
+
           internal::filter_mesh_withing_bounding_box(
             mapping,
             *background_dof_handler_to_be_used,
-            solution_dealii,
+            *only_order_params,
             iso_level,
-            n_grains,
             box_filter);
         }
 
