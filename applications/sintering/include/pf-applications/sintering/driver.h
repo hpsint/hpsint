@@ -2817,20 +2817,22 @@ namespace Sintering
              */
             int point_location = -1;
 
-            for (unsigned int d = 0; d < dim; ++d)
+            if (control_box.point_inside(p))
               {
-                if (std::abs(control_box.lower_bound(d) - p[d]) <
-                      std::numeric_limits<Number>::epsilon() ||
-                    std::abs(control_box.upper_bound(d) - p[d]) <
-                      std::numeric_limits<Number>::epsilon())
+                point_location = 1;
+
+                for (unsigned int d = 0; d < dim; ++d)
                   {
-                    point_location = 0;
-                    break;
+                    if (std::abs(control_box.lower_bound(d) - p[d]) <
+                          std::numeric_limits<Number>::epsilon() ||
+                        std::abs(control_box.upper_bound(d) - p[d]) <
+                          std::numeric_limits<Number>::epsilon())
+                      {
+                        point_location = 0;
+                        break;
+                      }
                   }
               }
-
-            if (point_location != 0 && control_box.point_inside(p))
-              point_location = 1;
 
             return point_location;
           };
