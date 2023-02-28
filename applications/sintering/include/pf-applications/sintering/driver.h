@@ -2668,6 +2668,35 @@ namespace Sintering
           data_out.write_vtu_in_parallel(output, MPI_COMM_WORLD);
         }
 
+      // Bounding box can be used for scalar table output and for the surface
+      // and gb contours
+      BoundingBox<dim> control_box;
+      if (params.output_data.use_control_box)
+        {
+          Point<dim> bottom_left;
+          Point<dim> top_right;
+
+          if (dim >= 1)
+            {
+              bottom_left[0] = params.output_data.control_box_data.x_min;
+              top_right[0]   = params.output_data.control_box_data.x_max;
+            }
+
+          if (dim >= 2)
+            {
+              bottom_left[1] = params.output_data.control_box_data.y_min;
+              top_right[1]   = params.output_data.control_box_data.y_max;
+            }
+
+          if (dim >= 3)
+            {
+              bottom_left[2] = params.output_data.control_box_data.z_min;
+              top_right[2]   = params.output_data.control_box_data.z_max;
+            }
+
+          control_box = BoundingBox(std::make_pair(bottom_left, top_right));
+        }
+
       if (params.output_data.table)
         {
           table.add_value("step", counters[label]);
@@ -2686,31 +2715,8 @@ namespace Sintering
 
           if (params.output_data.use_control_box)
             {
-              Point<dim> bottom_left;
-              Point<dim> top_right;
-
-              if (dim >= 1)
-                {
-                  bottom_left[0] = params.output_data.control_box_data.x_min;
-                  top_right[0]   = params.output_data.control_box_data.x_max;
-                }
-
-              if (dim >= 2)
-                {
-                  bottom_left[1] = params.output_data.control_box_data.y_min;
-                  top_right[1]   = params.output_data.control_box_data.y_max;
-                }
-
-              if (dim >= 3)
-                {
-                  bottom_left[2] = params.output_data.control_box_data.z_min;
-                  top_right[2]   = params.output_data.control_box_data.z_max;
-                }
-
-              BoundingBox control_box(std::make_pair(bottom_left, top_right));
-
               predicate_integrals =
-                [control_box](const Point<dim, VectorizedArrayType> &p) {
+                [&control_box](const Point<dim, VectorizedArrayType> &p) {
                   const auto zeros = VectorizedArrayType(0.0);
                   const auto ones  = VectorizedArrayType(1.0);
 
@@ -2736,7 +2742,7 @@ namespace Sintering
                   return filter;
                 };
 
-              predicate_iso = [control_box](const Point<dim> &p) {
+              predicate_iso = [&control_box](const Point<dim> &p) {
                 return control_box.point_inside(p);
               };
 
@@ -2810,6 +2816,35 @@ namespace Sintering
           pcout << "Outputing data at t = " << t << " (" << output << ")"
                 << std::endl;
 
+          std::function<int(const Point<dim> &)> box_filter;
+
+          if (params.output_data.use_control_box)
+            {
+              box_filter = [&control_box](const Point<dim> &p) {
+                /* Point locations:
+                 * -1 - outside, 0 - at the boundary, 1 - inside
+                 */
+                int point_location = -1;
+
+                for (unsigned int d = 0; d < dim; ++d)
+                  {
+                    if (std::abs(control_box.lower_bound(d) - p[d]) <
+                          std::numeric_limits<Number>::epsilon() ||
+                        std::abs(control_box.upper_bound(d) - p[d]) <
+                          std::numeric_limits<Number>::epsilon())
+                      {
+                        point_location = 0;
+                        break;
+                      }
+                  }
+
+                if (point_location != 0 && control_box.point_inside(p))
+                  point_location = 1;
+
+                return point_location;
+              };
+            }
+
           Postprocessors::output_grain_contours_vtu(
             mapping,
             dof_handler,
@@ -2818,7 +2853,8 @@ namespace Sintering
             output,
             sintering_operator.n_grains(),
             grain_tracker,
-            params.output_data.n_coarsening_steps);
+            params.output_data.n_coarsening_steps,
+            box_filter);
         }
 
       if (params.output_data.grain_boundaries)
