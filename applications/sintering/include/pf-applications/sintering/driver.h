@@ -2873,7 +2873,8 @@ namespace Sintering
             output,
             sintering_operator.n_grains(),
             gb_lim,
-            params.output_data.n_coarsening_steps);
+            params.output_data.n_coarsening_steps,
+            box_filter);
         }
 
       if (params.output_data.contours_tex)
