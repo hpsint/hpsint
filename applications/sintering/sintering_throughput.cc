@@ -109,7 +109,6 @@ main(int argc, char **argv)
   constexpr bool test_helmholtz         = true;
   constexpr bool test_sintering_generic = true;
   constexpr bool test_sintering_wang    = true & scalar_mobility;
-  constexpr bool test_sintering_coupled = false & scalar_mobility;
 
   // some arbitrary constants
   const double        A                      = 16;
@@ -376,69 +375,6 @@ main(int argc, char **argv)
         else
           {
             test_operator_dummy("wang");
-          }
-
-      if constexpr (test_sintering_coupled)
-        if (n_components >= 4 + dim) // test coupled sintering operator
-          {
-            const std::shared_ptr<MobilityProvider> mobility_provider =
-              std::make_shared<ProviderAbstract>(Mvol, Mvap, Msurf, Mgb, L);
-
-            TimeIntegration::SolutionHistory<BlockVectorType> solution_history(
-              time_integration_order + 1);
-
-            SinteringOperatorData<dim, VectorizedArrayType> sintering_data(
-              A,
-              B,
-              kappa_c,
-              kappa_p,
-              mobility_provider,
-              time_integration_order);
-
-            sintering_data.set_n_components(n_components - dim);
-            sintering_data.time_data.set_all_dt(dts);
-            sintering_data.set_time(t);
-
-            std::vector<AdvectionCellData<dim, Number, VectorizedArrayType>>
-              current_cell_data(n_components - 2 - dim);
-
-            for (auto &entry : current_cell_data)
-              {
-                entry.volume_inv = 1.0; // dummy values
-                entry.force[0]   = 1.0; //
-                entry.torque[0]  = 1.0; //
-              }
-
-            AdvectionMechanism<dim, Number, VectorizedArrayType>
-              advection_mechanism(mt, mr, current_cell_data);
-
-            const SinteringOperatorCoupledWang<dim, Number, VectorizedArrayType>
-              sintering_operator(matrix_free,
-                                 constraints,
-                                 sintering_data,
-                                 solution_history,
-                                 advection_mechanism,
-                                 false,
-                                 E,
-                                 nu,
-                                 Structural::MaterialPlaneType::none,
-                                 {});
-
-            BlockVectorType src;
-            sintering_operator.initialize_dof_vector(src);
-            src = 1.0;
-
-            sintering_data.fill_quadrature_point_values(matrix_free,
-                                                        src,
-                                                        true /*TODO: gradient*/,
-                                                        false);
-
-
-            test_operator(sintering_operator, "coupled");
-          }
-        else
-          {
-            test_operator_dummy("coupled");
           }
     }
 
