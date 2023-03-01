@@ -22,6 +22,8 @@ namespace Sintering
       for (unsigned int ip = 0; ip < n_grains; ip++)
         {
           std::array<double, dim> scoords{{h, ip * alfa}};
+          if (dim == 3)
+            scoords[2] = M_PI / 2.;
           this->centers.push_back(
             dealii::GeometricUtilities::Coordinates::from_spherical<dim>(
               scoords));
