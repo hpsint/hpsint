@@ -1,5 +1,6 @@
 
 #include <pf-applications/sintering/operator_sintering_generic.h>
+
 #include <pf-applications/structural/material.h>
 
 namespace Sintering
@@ -47,7 +48,6 @@ namespace Sintering
         advection_mechanism,
         matrix_based,
         use_tensorial_mobility_gradient_on_the_fly);
-
   }
 
 } // namespace Sintering
