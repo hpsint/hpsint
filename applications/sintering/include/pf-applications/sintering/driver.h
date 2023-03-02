@@ -72,8 +72,7 @@
 #include <pf-applications/sintering/initial_values.h>
 #include <pf-applications/sintering/operator_advection.h>
 #include <pf-applications/sintering/operator_postproc.h>
-#include <pf-applications/sintering/operator_sintering_coupled_diffusion.h>
-#include <pf-applications/sintering/operator_sintering_coupled_wang.h>
+#include <pf-applications/sintering/operator_sintering_coupled_base.h>
 #include <pf-applications/sintering/operator_sintering_generic.h>
 #include <pf-applications/sintering/parameters.h>
 #include <pf-applications/sintering/postprocessors.h>
@@ -106,10 +105,6 @@ namespace Sintering
     using NonLinearOperator =
 #if OPERATOR == OPERATOR_GENERIC
       SinteringOperatorGeneric<dim, Number, VectorizedArrayType>;
-#elif OPERATOR == OPERATOR_COUPLED_WANG
-      SinteringOperatorCoupledWang<dim, Number, VectorizedArrayType>;
-#elif OPERATOR == OPERATOR_COUPLED_DIFFUSION
-      SinteringOperatorCoupledDiffusion<dim, Number, VectorizedArrayType>;
 #else
 #  error "Option OPERATOR has to be specified"
 #endif
@@ -931,13 +926,9 @@ namespace Sintering
           NonLinearSolvers::JacobianFree<Number, NonLinearOperator>>(
           nonlinear_operator);
 
-      // Save all blocks at quadrature points if either the advection mechanism
-      // is enabled or the coupled diffusion based sintering operator is used
-      const bool save_all_blocks =
-        params.advection_data.enable ||
-        std::is_same_v<
-          SinteringOperatorCoupledDiffusion<dim, Number, VectorizedArrayType>,
-          NonLinearOperator>;
+      // Save all blocks at quadrature points if the advection mechanism is
+      // enabled
+      const bool save_all_blocks = params.advection_data.enable;
 
       // ... preconditioner
       std::unique_ptr<Preconditioners::PreconditionerBase<Number>>

@@ -5,6 +5,8 @@
 
 #include <pf-applications/sintering/operator_sintering_data.h>
 
+#include <pf-applications/structural/stvenantkirchhoff.h>
+
 namespace Sintering
 {
   using namespace dealii;

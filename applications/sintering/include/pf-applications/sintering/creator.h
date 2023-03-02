@@ -1,7 +1,7 @@
 
-#include <pf-applications/sintering/operator_sintering_coupled_diffusion.h>
-#include <pf-applications/sintering/operator_sintering_coupled_wang.h>
 #include <pf-applications/sintering/operator_sintering_generic.h>
+
+#include <pf-applications/structural/material.h>
 
 namespace Sintering
 {
@@ -48,40 +48,6 @@ namespace Sintering
         advection_mechanism,
         matrix_based,
         use_tensorial_mobility_gradient_on_the_fly);
-
-    else if constexpr (
-      std::is_same_v<
-        NonLinearOperator,
-        SinteringOperatorCoupledWang<dim, Number, VectorizedArrayType>>)
-
-      return SinteringOperatorCoupledWang<dim, Number, VectorizedArrayType>(
-        matrix_free,
-        constraints,
-        sintering_data,
-        solution_history,
-        advection_mechanism,
-        matrix_based,
-        E,
-        nu,
-        type,
-        loading);
-
-    else if constexpr (
-      std::is_same_v<
-        NonLinearOperator,
-        SinteringOperatorCoupledDiffusion<dim, Number, VectorizedArrayType>>)
-
-      return SinteringOperatorCoupledDiffusion<dim,
-                                               Number,
-                                               VectorizedArrayType>(
-        matrix_free,
-        constraints,
-        sintering_data,
-        solution_history,
-        matrix_based,
-        E,
-        nu,
-        type);
   }
 
 } // namespace Sintering
