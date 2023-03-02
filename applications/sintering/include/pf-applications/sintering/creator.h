@@ -1,5 +1,6 @@
 
 #include <pf-applications/sintering/operator_sintering_generic.h>
+#include <pf-applications/structural/material.h>
 
 namespace Sintering
 {

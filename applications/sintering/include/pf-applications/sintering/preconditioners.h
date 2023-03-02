@@ -4,6 +4,7 @@
 #include <pf-applications/lac/preconditioners.h>
 
 #include <pf-applications/sintering/operator_sintering_data.h>
+#include <pf-applications/structural/stvenantkirchhoff.h>
 
 namespace Sintering
 {
