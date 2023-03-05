@@ -825,9 +825,16 @@ namespace Preconditioners
 
       AssertThrow(src.n_blocks() == dst.n_blocks(), ExcNotImplemented());
 
-      for (unsigned int b = 0; b < src.n_blocks(); ++b)
-        precondition_ilu[single_block ? 0 : b]->vmult(dst.block(b),
-                                                      src.block(b));
+      if (single_block)
+        {
+          for (unsigned int b = 0; b < src.n_blocks(); ++b)
+            precondition_ilu[0]->vmult(dst.block(b), src.block(b));
+        }
+      else
+        {
+          for (unsigned int b = 0; b < src.n_blocks(); ++b)
+            precondition_ilu[b]->vmult(dst.block(b), src.block(b));
+        }
     }
 
     void
