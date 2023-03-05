@@ -413,8 +413,8 @@ test(const Parameters &params, ConvergenceTable &table)
       table.add_value("n_components", n_components);
 
 
-#if false
-    HelmholtzQOperator q_point_operator;
+#if true
+      HelmholtzQOperator q_point_operator;
 #else
       const double        A                      = 16;
       const double        B                      = 1;
