@@ -36,6 +36,8 @@
 
 using namespace dealii;
 
+//#define USE_SUBDIVISIONS
+
 
 template <int dim, int n_components, typename Number, typename VectorType>
 void
@@ -291,22 +293,34 @@ main(int argc, char **argv)
   LIKWID_MARKER_THREADINIT;
 #endif
 
-  constexpr unsigned int dim                  = 3;
+  constexpr unsigned int dim = 3;
+#ifdef USE_SUBDIVISIONS
+  constexpr unsigned int fe_degree            = 2;
+  constexpr unsigned int n_q_points           = fe_degree * 2;
+  constexpr unsigned int n_global_refinements = 6; // TODO
+  const std::string      fe_type              = "FE_Q_ISO_Q1";
+#else
   constexpr unsigned int fe_degree            = 1;
   constexpr unsigned int n_q_points           = fe_degree + 1;
   constexpr unsigned int n_global_refinements = 7; // TODO
-  constexpr unsigned int n_repetitions        = 1;
-  using Number                                = double;
+  const std::string      fe_type              = "FE_Q";
+#endif
+  constexpr unsigned int n_repetitions = 1;
+  using Number                         = double;
   using VectorType = LinearAlgebra::distributed::Vector<Number>;
-
-  const std::string fe_type = "FE_Q";
 
   ConvergenceTable table;
 
   for (unsigned int n_components = 1; n_components <= 4; ++n_components)
     {
-      const FESystem<dim>  fe(FE_Q<dim>(fe_degree), n_components);
-      const QGauss<dim>    quadrature(n_q_points);
+#ifdef USE_SUBDIVISIONS
+      const FESystem<dim>  fe(FE_Q_iso_Q1<dim>(fe_degree), n_components);
+      const QIterated<dim> quadrature(QGauss<1>(2), fe_degree);
+#else
+      const FESystem<dim> fe(FE_Q<dim>(fe_degree), n_components);
+      const QGauss<dim>   quadrature(n_q_points);
+#endif
+
       const MappingQ1<dim> mapping;
 
       parallel::distributed::Triangulation<dim> tria(MPI_COMM_WORLD);
