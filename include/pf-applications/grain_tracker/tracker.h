@@ -749,24 +749,13 @@ namespace GrainTracker
             MyScope    scope(timer, sc, timer.is_enabled());
 
             for (const auto &cell : dof_handler.active_cell_iterators())
-              {
-                const bool has_ghost_elements =
-                  solution_order_parameter.has_ghost_elements();
-
-                if (has_ghost_elements == false)
-                  solution_order_parameter.update_ghost_values();
-
-                if (run_flooding<dim>(cell,
-                                      solution_order_parameter,
-                                      particle_ids,
-                                      counter,
-                                      threshold_lower,
-                                      invalid_particle_id) > 0)
-                  counter++;
-
-                if (has_ghost_elements == false)
-                  solution_order_parameter.zero_out_ghost_values();
-              }
+              if (run_flooding<dim>(cell,
+                                    solution_order_parameter,
+                                    particle_ids,
+                                    counter,
+                                    threshold_lower,
+                                    invalid_particle_id) > 0)
+                counter++;
           }
 
           // step 2) determine the global number of locally determined particles
