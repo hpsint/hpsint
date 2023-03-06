@@ -490,12 +490,17 @@ namespace GrainTracker
                     }
                 }
 
+              AssertThrowDistributedDimension(
+                (static_cast<unsigned int>(graph.empty())));
+
               /* If graph is not empty, then have some dependencies in remapping
                * and need to perform at first those at the end of the graph in
                * order not to break the configuration of the domain.
                */
               if (!graph.empty())
                 {
+                  AssertThrowDistributedDimension(remappings.size());
+
                   // At frist resolve cyclic remappings if any cycle exists
                   const auto remappings_via_temp =
                     graph.resolve_cycles(remappings);
