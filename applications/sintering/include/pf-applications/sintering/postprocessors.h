@@ -168,8 +168,16 @@ namespace Sintering
         const DoFHandler<dim> &                background_dof_handler,
         VectorType &                           vector,
         const double                           iso_level,
-        std::function<int(const Point<dim> &)> box_filter)
+        std::function<int(const Point<dim> &)> box_filter,
+        const double                           null_value = 0.)
       {
+        AssertThrow(std::abs(iso_level - null_value) >
+                      std::numeric_limits<Number>::epsilon(),
+                    ExcMessage(
+                      "iso_level = " + std::to_string(iso_level) +
+                      " and null_value = " + std::to_string(null_value) +
+                      " have to be different"));
+
         const auto &  fe = background_dof_handler.get_fe();
         FEValues<dim> fe_values(mapping,
                                 fe,
@@ -199,7 +207,7 @@ namespace Sintering
                     if (pred_status == 0)
                       global_dof_value = std::min(global_dof_value, iso_level);
                     else if (pred_status == -1)
-                      global_dof_value = 0.;
+                      global_dof_value = null_value;
                   }
               }
           }
