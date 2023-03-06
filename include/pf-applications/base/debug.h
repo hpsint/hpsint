@@ -3,14 +3,6 @@
 #include <sstream>
 #include <string>
 
-#define AssertThrowDistributedDimension(size)                        \
-  {                                                                  \
-    const auto min_size = Utilities::MPI::min(size, MPI_COMM_WORLD); \
-    const auto max_size = Utilities::MPI::max(size, MPI_COMM_WORLD); \
-    AssertThrow(min_size == max_size,                                \
-                ExcDimensionMismatch(min_size, max_size));           \
-  }
-
 namespace debug
 {
   template <typename BlockVectorType, typename Stream>
