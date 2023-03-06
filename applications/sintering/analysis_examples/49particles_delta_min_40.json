@@ -73,7 +73,7 @@
         "NewtonReusePreconditioner": false
     },
     "Output": {
-        "Contour": "true",
+        "Contour": "false",
         "ContourNCoarseningSteps": "0",
         "Debug": "false",
         "Fields": "bnds",
