@@ -172,7 +172,7 @@ namespace Sintering
         const double                           null_value = 0.)
       {
         AssertThrow(std::abs(iso_level - null_value) >
-                      std::numeric_limits<Number>::epsilon(),
+                      std::numeric_limits<double>::epsilon(),
                     ExcMessage(
                       "iso_level = " + std::to_string(iso_level) +
                       " and null_value = " + std::to_string(null_value) +
