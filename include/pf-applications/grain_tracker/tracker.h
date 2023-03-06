@@ -385,11 +385,6 @@ namespace GrainTracker
       std::map<std::vector<unsigned int>, std::list<Remapping>>
         remappings_cache;
 
-      // Copy solutions
-      std::vector<std::shared_ptr<BlockVectorType>> solutions_copy;
-      for (const auto solution : solutions)
-        solutions_copy.push_back(std::make_shared<BlockVectorType>(*solution));
-
       // Main remapping loop
       for (auto &cell : dof_handler.active_cell_iterators())
         {
@@ -525,24 +520,20 @@ namespace GrainTracker
             }
           const auto &remap_sequence = it_cache->second;
 
-          for (unsigned int i = 0; i < solutions.size(); ++i)
+          for (auto &solution : solutions)
             {
-              const auto &solution      = solutions[i];
-              const auto &solution_copy = solutions_copy[i];
-
               // Prepare temp storage
               std::vector<Vector<Number>> temp_values;
               unsigned int                temp_id = 0;
 
               for (const auto &re : remap_sequence)
                 {
-                  // Retrieve values from the existing block or temp storage
+                  // Retreive values from the existing block or temp storage
                   if (re.from != numbers::invalid_unsigned_int)
                     {
                       const unsigned int op_id_src =
                         re.from + order_parameters_offset;
-                      cell->get_dof_values(solution_copy->block(op_id_src),
-                                           values);
+                      cell->get_dof_values(solution->block(op_id_src), values);
                     }
                   else
                     {
@@ -563,7 +554,9 @@ namespace GrainTracker
                       ++temp_id;
                     }
 
-                  // Nullify source
+                  /* Nullify source. This is where the algorithm actually break
+                   * because we have CG approximation.
+                   */
                   if (re.from != numbers::invalid_unsigned_int)
                     {
                       const unsigned int op_id_src =
