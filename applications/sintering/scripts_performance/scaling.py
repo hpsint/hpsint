@@ -33,9 +33,9 @@ source ~/.bashrc
 
 pwd
 
-for i in 49 108 186 290 608 1089
+for i in 51 102 212 316 603 1037 3076 6140 10245
 do
-    mpirun -np {2} ../applications/sintering/sintering-3D-generic-scalar --cloud ../../applications/sintering/sintering_cloud_examples/${{i}}particles.cloud ./input.json 
+    mpirun -np {2} ../applications/sintering/sintering-3D-generic-scalar --cloud ../../applications/sintering/sintering_cloud_examples/packings_10k/${{i}}particles.cloud ./input.json || exit 1
 done
 
 """
