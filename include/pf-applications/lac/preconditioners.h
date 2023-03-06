@@ -825,9 +825,37 @@ namespace Preconditioners
 
       AssertThrow(src.n_blocks() == dst.n_blocks(), ExcNotImplemented());
 
-      for (unsigned int b = 0; b < src.n_blocks(); ++b)
-        precondition_ilu[single_block ? 0 : b]->vmult(dst.block(b),
-                                                      src.block(b));
+      if (single_block)
+        {
+          const Epetra_Operator &prec =
+            precondition_ilu[0]->trilinos_operator();
+
+          AssertThrow(dst.n_blocks() < 20, ExcNotImplemented());
+          double *dst_ptrs[20], *src_ptrs[20];
+
+          for (unsigned int b = 0; b < src.n_blocks(); ++b)
+            {
+              dst_ptrs[b] = dst.block(b).begin();
+              src_ptrs[b] = const_cast<double *>(src.block(b).begin());
+            }
+
+          Epetra_MultiVector trilinos_dst(View,
+                                          prec.OperatorRangeMap(),
+                                          dst_ptrs,
+                                          dst.n_blocks());
+          Epetra_MultiVector trilinos_src(View,
+                                          prec.OperatorDomainMap(),
+                                          src_ptrs,
+                                          src.n_blocks());
+
+          const int ierr = prec.ApplyInverse(trilinos_src, trilinos_dst);
+          AssertThrow(ierr == 0, ExcTrilinosError(ierr));
+        }
+      else
+        {
+          for (unsigned int b = 0; b < src.n_blocks(); ++b)
+            precondition_ilu[b]->vmult(dst.block(b), src.block(b));
+        }
     }
 
     void
