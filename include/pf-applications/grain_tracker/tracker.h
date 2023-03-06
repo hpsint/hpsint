@@ -565,6 +565,22 @@ namespace GrainTracker
             }
         }
 
+
+      std::cout << std::endl;
+      std::cout << "Remappings cache:" << std::endl;
+      for (const auto &[efirst, esecond] : remappings_cache)
+        {
+          std::cout << "grains = " << debug::to_string(efirst) << std::endl;
+          for (const auto &re : esecond)
+            {
+              std::cout << re.grain_id << " (" << re.from << " -> " << re.to
+                        << ")" << std::endl;
+            }
+        }
+      std::cout << std::endl;
+
+      // AssertThrow(false, ExcNotImplemented());
+
       return n_grains_remapped;
     }
 
