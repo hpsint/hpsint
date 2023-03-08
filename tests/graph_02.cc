@@ -46,7 +46,9 @@ main(int argc, char **argv)
     }
 
   const auto results = Utilities::MPI::gather(
-    comm, GrainTracker::connected_components_distributed(comm, input), 0);
+    comm,
+    GrainTracker::perform_distributed_stitching_via_graph(comm, input),
+    0);
 
   if (my_rank == 0)
     for (const auto &result : results)

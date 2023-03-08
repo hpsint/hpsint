@@ -97,11 +97,15 @@ namespace GrainTracker
   }
 
   std::vector<unsigned int>
-  connected_components_distributed(
+  perform_distributed_stitching_via_graph(
     const MPI_Comm comm,
     const std::vector<std::vector<std::tuple<unsigned int, unsigned int>>>
-      &edges_in)
+      &            edges_in,
+    MyTimerOutput *timer = nullptr)
   {
+    ScopedName sc("perform_distributed_stitching");
+    MyScope    scope(sc, timer);
+
     const unsigned int n_procs = Utilities::MPI::n_mpi_processes(comm);
     const unsigned int my_rank = Utilities::MPI::this_mpi_process(comm);
 
@@ -158,11 +162,6 @@ namespace GrainTracker
   {
     ScopedName sc("perform_distributed_stitching");
     MyScope    scope(sc, timer);
-
-    if (true)
-      {
-        return connected_components_distributed(comm, input);
-      }
 
     const unsigned int n_ranks = Utilities::MPI::n_mpi_processes(comm);
     const unsigned int my_rank = Utilities::MPI::this_mpi_process(comm);
