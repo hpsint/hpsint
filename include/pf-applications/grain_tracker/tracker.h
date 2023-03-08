@@ -814,6 +814,8 @@ namespace GrainTracker
 
       const MPI_Comm comm = MPI_COMM_WORLD;
 
+      constexpr bool use_stitching_via_graphs = true;
+
       // Numerator
       unsigned int grains_numerator = 0;
 
@@ -932,8 +934,17 @@ namespace GrainTracker
             ScopedName sc("distributed_stitching");
             MyScope    scope(timer, sc, timer.is_enabled());
 
-            local_to_global_particle_ids = perform_distributed_stitching(
-              comm, local_connectiviy, timer.is_enabled() ? &timer : nullptr);
+            local_to_global_particle_ids =
+              use_stitching_via_graphs ?
+                perform_distributed_stitching_via_graph(comm,
+                                                        local_connectiviy,
+                                                        timer.is_enabled() ?
+                                                          &timer :
+                                                          nullptr) :
+                perform_distributed_stitching(comm,
+                                              local_connectiviy,
+                                              timer.is_enabled() ? &timer :
+                                                                   nullptr);
           }
 
           // step 5) determine properties of particles (volume, radius, center)
