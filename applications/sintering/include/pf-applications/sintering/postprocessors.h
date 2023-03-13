@@ -162,17 +162,71 @@ namespace Sintering
       }
 
       template <int dim, typename VectorType>
+      void
+      filter_mesh_withing_bounding_box(
+        const Mapping<dim> &                   mapping,
+        const DoFHandler<dim> &                background_dof_handler,
+        VectorType &                           vector,
+        const double                           iso_level,
+        std::function<int(const Point<dim> &)> box_filter,
+        const double                           null_value = 0.)
+      {
+        AssertThrow(std::abs(iso_level - null_value) >
+                      std::numeric_limits<double>::epsilon(),
+                    ExcMessage(
+                      "iso_level = " + std::to_string(iso_level) +
+                      " and null_value = " + std::to_string(null_value) +
+                      " have to be different"));
+
+        const auto &  fe = background_dof_handler.get_fe();
+        FEValues<dim> fe_values(mapping,
+                                fe,
+                                fe.get_unit_support_points(),
+                                update_quadrature_points);
+
+        std::vector<types::global_dof_index> dof_indices(fe.n_dofs_per_cell());
+
+        for (const auto &cell : background_dof_handler.active_cell_iterators())
+          {
+            if (!cell->is_locally_owned())
+              continue;
+
+            cell->get_dof_indices(dof_indices);
+
+            fe_values.reinit(cell);
+
+            for (unsigned int b = 0; b < vector.n_blocks(); ++b)
+              {
+                const auto &points = fe_values.get_quadrature_points();
+
+                for (unsigned int i = 0; i < fe.n_dofs_per_cell(); ++i)
+                  {
+                    const int pred_status = box_filter(points[i]);
+
+                    auto &global_dof_value = vector.block(b)[dof_indices[i]];
+                    if (pred_status == 0)
+                      global_dof_value = std::min(global_dof_value, iso_level);
+                    else if (pred_status == -1)
+                      global_dof_value = null_value;
+                  }
+              }
+          }
+      }
+
+      template <int dim, typename VectorType>
       bool
-      build_grain_boundaries_mesh(Triangulation<dim - 1, dim> &tria,
-                                  const Mapping<dim> &         mapping,
-                                  const DoFHandler<dim> &background_dof_handler,
-                                  const VectorType &     vector,
-                                  const double           iso_level,
-                                  const unsigned int     n_grains,
-                                  const double           gb_lim = 0.14,
-                                  const unsigned int     n_coarsening_steps = 0,
-                                  const unsigned int     n_subdivisions     = 1,
-                                  const double           tolerance = 1e-10)
+      build_grain_boundaries_mesh(
+        Triangulation<dim - 1, dim> &          tria,
+        const Mapping<dim> &                   mapping,
+        const DoFHandler<dim> &                background_dof_handler,
+        const VectorType &                     vector,
+        const double                           iso_level,
+        const unsigned int                     n_grains,
+        const double                           gb_lim             = 0.14,
+        const unsigned int                     n_coarsening_steps = 0,
+        std::function<int(const Point<dim> &)> box_filter         = nullptr,
+        const unsigned int                     n_subdivisions     = 1,
+        const double                           tolerance          = 1e-10)
       {
         using Number = typename VectorType::value_type;
 
@@ -202,6 +256,27 @@ namespace Sintering
 
             vector_to_be_used                 = &vector_coarsened;
             background_dof_handler_to_be_used = &dof_handler_copy;
+          }
+
+        if (box_filter)
+          {
+            // Copy vector if not done before
+            if (n_coarsening_steps == 0)
+              {
+                vector_coarsened = vector;
+                vector_coarsened.update_ghost_values();
+                vector_to_be_used = &vector_coarsened;
+              }
+
+            auto only_order_params =
+              vector_coarsened.create_view(2, 2 + n_grains);
+
+            internal::filter_mesh_withing_bounding_box(
+              mapping,
+              *background_dof_handler_to_be_used,
+              *only_order_params,
+              iso_level,
+              box_filter);
           }
 
         // step 1) create surface mesh
@@ -485,6 +560,7 @@ namespace Sintering
       const unsigned int                        n_grains,
       const GrainTracker::Tracker<dim, Number> &grain_tracker_in,
       const unsigned int                        n_coarsening_steps = 0,
+      std::function<int(const Point<dim> &)>    box_filter         = nullptr,
       const unsigned int                        n_subdivisions     = 1,
       const double                              tolerance          = 1e-10)
     {
@@ -529,6 +605,25 @@ namespace Sintering
             grain_tracker->track(vector, n_grains, true);
         }
 
+      if (box_filter)
+        {
+          // Copy vector if not done before
+          if (n_coarsening_steps == 0)
+            {
+              solution_dealii = vector;
+              solution_dealii.update_ghost_values();
+              vector_to_be_used = &solution_dealii;
+            }
+
+          auto only_order_params = solution_dealii.create_view(2, 2 + n_grains);
+
+          internal::filter_mesh_withing_bounding_box(
+            mapping,
+            *background_dof_handler_to_be_used,
+            *only_order_params,
+            iso_level,
+            box_filter);
+        }
 
 
       // step 1) create surface mesh
@@ -619,16 +714,18 @@ namespace Sintering
 
     template <int dim, typename VectorType>
     void
-    output_grain_boundaries_vtu(const Mapping<dim> &   mapping,
-                                const DoFHandler<dim> &background_dof_handler,
-                                const VectorType &     vector,
-                                const double           iso_level,
-                                const std::string      filename,
-                                const unsigned int     n_grains,
-                                const double           gb_lim = 0.14,
-                                const unsigned int     n_coarsening_steps = 0,
-                                const unsigned int     n_subdivisions     = 1,
-                                const double           tolerance = 1e-10)
+    output_grain_boundaries_vtu(
+      const Mapping<dim> &                   mapping,
+      const DoFHandler<dim> &                background_dof_handler,
+      const VectorType &                     vector,
+      const double                           iso_level,
+      const std::string                      filename,
+      const unsigned int                     n_grains,
+      const double                           gb_lim             = 0.14,
+      const unsigned int                     n_coarsening_steps = 0,
+      std::function<int(const Point<dim> &)> box_filter         = nullptr,
+      const unsigned int                     n_subdivisions     = 1,
+      const double                           tolerance          = 1e-10)
     {
       Triangulation<dim - 1, dim> tria;
 
@@ -641,6 +738,7 @@ namespace Sintering
                                               n_grains,
                                               gb_lim,
                                               n_coarsening_steps,
+                                              box_filter,
                                               n_subdivisions,
                                               tolerance);
 
@@ -722,7 +820,8 @@ namespace Sintering
     {
       Triangulation<dim - 1, dim> tria;
 
-      const unsigned int n_coarsening_steps = 0;
+      const unsigned int                     n_coarsening_steps = 0;
+      std::function<int(const Point<dim> &)> box_filter         = nullptr;
 
       const bool tria_not_empty =
         internal::build_grain_boundaries_mesh(tria,
@@ -733,6 +832,7 @@ namespace Sintering
                                               n_grains,
                                               gb_lim,
                                               n_coarsening_steps,
+                                              box_filter,
                                               n_subdivisions,
                                               tolerance);
 
