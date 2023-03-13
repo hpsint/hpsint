@@ -755,6 +755,109 @@ namespace Sintering
     }
 
     template <int dim, typename VectorType>
+    void
+    output_concentration_contour_vtu(
+      const Mapping<dim> &                   mapping,
+      const DoFHandler<dim> &                background_dof_handler,
+      const VectorType &                     vector,
+      const double                           iso_level,
+      const std::string                      filename,
+      const unsigned int                     n_coarsening_steps = 0,
+      std::function<int(const Point<dim> &)> box_filter         = nullptr,
+      const unsigned int                     n_subdivisions     = 1,
+      const double                           tolerance          = 1e-10)
+    {
+      const auto  only_concentration_ptr = vector.create_view(0, 1);
+      const auto &only_concentration     = *only_concentration_ptr;
+
+      const bool has_ghost_elements = only_concentration.has_ghost_elements();
+
+      if (has_ghost_elements == false)
+        only_concentration.update_ghost_values();
+
+      auto vector_to_be_used                 = &only_concentration;
+      auto background_dof_handler_to_be_used = &background_dof_handler;
+
+      parallel::distributed::Triangulation<dim> tria_copy(
+        background_dof_handler.get_communicator());
+      DoFHandler<dim> dof_handler_copy;
+      VectorType      solution_dealii;
+
+      if (n_coarsening_steps != 0)
+        {
+          internal::coarsen_triangulation(tria_copy,
+                                          background_dof_handler,
+                                          dof_handler_copy,
+                                          only_concentration,
+                                          solution_dealii,
+                                          n_coarsening_steps);
+
+          vector_to_be_used                 = &solution_dealii;
+          background_dof_handler_to_be_used = &dof_handler_copy;
+        }
+
+      if (box_filter)
+        {
+          // Copy vector if not done before
+          if (n_coarsening_steps == 0)
+            {
+              solution_dealii = only_concentration;
+              solution_dealii.update_ghost_values();
+              vector_to_be_used = &solution_dealii;
+            }
+
+          internal::filter_mesh_withing_bounding_box(
+            mapping,
+            *background_dof_handler_to_be_used,
+            solution_dealii,
+            iso_level,
+            box_filter);
+        }
+
+
+      // step 1) create surface mesh
+      std::vector<Point<dim>>        vertices;
+      std::vector<CellData<dim - 1>> cells;
+      SubCellData                    subcelldata;
+
+      const GridTools::MarchingCubeAlgorithm<dim,
+                                             typename VectorType::BlockType>
+        mc(mapping,
+           background_dof_handler_to_be_used->get_fe(),
+           n_subdivisions,
+           tolerance);
+
+      for (const auto &cell :
+           background_dof_handler_to_be_used->active_cell_iterators())
+        if (cell->is_locally_owned())
+          mc.process_cell(
+            cell, vector_to_be_used->block(0), iso_level, vertices, cells);
+
+      Triangulation<dim - 1, dim> tria;
+
+      if (vertices.size() > 0)
+        tria.create_triangulation(vertices, cells, subcelldata);
+      else
+        GridGenerator::hyper_cube(tria, -1e-6, 1e-6);
+
+      Vector<float> vector_rank(tria.n_active_cells());
+      vector_rank = Utilities::MPI::this_mpi_process(
+        background_dof_handler.get_communicator());
+
+      // step 2) output mesh
+      MyDataOut<dim - 1, dim> data_out;
+      data_out.attach_triangulation(tria);
+      data_out.add_data_vector(vector_rank, "subdomain");
+
+      data_out.build_patches();
+      data_out.write_vtu_in_parallel(filename,
+                                     background_dof_handler.get_communicator());
+
+      if (has_ghost_elements == false)
+        only_concentration.zero_out_ghost_values();
+    }
+
+    template <int dim, typename VectorType>
     typename VectorType::value_type
     compute_surface_area(
       const Mapping<dim> &                    mapping,
