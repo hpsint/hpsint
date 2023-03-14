@@ -4,5 +4,5 @@
     "fe degree": 1,
     "n subdivisions": 2,
     "fe type": "FE_Q_iso_Q1",
-    "level": 2
+    "level": 5
 }

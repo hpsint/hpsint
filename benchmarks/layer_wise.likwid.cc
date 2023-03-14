@@ -413,9 +413,8 @@ test(const Parameters &params, ConvergenceTable &table)
       table.add_value("n_components", n_components);
 
 
-#if true
-      HelmholtzQOperator q_point_operator;
-#else
+      HelmholtzQOperator q_point_operator_h;
+
       const double        A                      = 16;
       const double        B                      = 1;
       const double        kappa_c                = 1;
@@ -443,33 +442,37 @@ test(const Parameters &params, ConvergenceTable &table)
 
       AlignedVector<VectorizedArrayType> buffer;
       SinteringOperatorGenericResidualQuad<dim, VectorizedArrayType, 1>
-        q_point_operator(sintering_data, buffer);
-#endif
+        q_point_operator_s(sintering_data, buffer);
 
-      // version 2: vectorial (block system)
-      const auto projection_operator =
-        create_op(n_components, params.level, matrix_free, q_point_operator);
+      const auto run_op = [&](auto &q_point_operator, const std::string label) {
+        // version 2: vectorial (block system)
+        const auto projection_operator =
+          create_op(n_components, params.level, matrix_free, q_point_operator);
 
-      BlockVectorType src, dst;
-      projection_operator->initialize_dof_vector(src);
-      projection_operator->initialize_dof_vector(dst);
+        BlockVectorType src, dst;
+        projection_operator->initialize_dof_vector(src);
+        projection_operator->initialize_dof_vector(dst);
 
-      for (unsigned int i = 0; i < n_components; ++i)
-        VectorTools::interpolate(dof_handler,
-                                 RightHandSide<dim>(i),
-                                 src.block(i));
+        for (unsigned int i = 0; i < n_components; ++i)
+          VectorTools::interpolate(dof_handler,
+                                   RightHandSide<dim>(i),
+                                   src.block(i));
 
-      unsigned int counter = 0;
+        unsigned int counter = 0;
 
-      const auto time = run([&]() {
-        projection_operator->vmult(dst, src);
+        const auto time = run([&]() {
+          projection_operator->vmult(dst, src);
 
-        if (print_l2_norm && (counter++ == 0))
-          pcout << dst.l2_norm() << std::endl;
-      });
+          if (print_l2_norm && (counter++ == 0))
+            pcout << dst.l2_norm() << std::endl;
+        });
 
-      table.add_value("t_vector", time / n_components);
-      table.set_scientific("t_vector", true);
+        table.add_value("t_vector_" + label, time / n_components);
+        table.set_scientific("t_vector_" + label, true);
+      };
+
+      run_op(q_point_operator_h, "h");
+      run_op(q_point_operator_s, "s");
     }
 }
 
