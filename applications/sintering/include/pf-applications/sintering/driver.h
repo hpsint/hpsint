@@ -868,6 +868,7 @@ namespace Sintering
       // New grains can not appear in current sintering simulations
       const bool         allow_new_grains        = false;
       const unsigned int order_parameters_offset = 2;
+      const bool         do_timing               = true;
 
       GrainTracker::Tracker<dim, Number> grain_tracker(
         dof_handler,
@@ -880,7 +881,9 @@ namespace Sintering
         params.grain_tracker_data.threshold_upper,
         params.grain_tracker_data.buffer_distance_ratio,
         params.grain_tracker_data.buffer_distance_fixed,
-        order_parameters_offset);
+        order_parameters_offset,
+        do_timing,
+        params.grain_tracker_data.use_old_remap);
 
       // Advection physics for shrinkage
       AdvectionMechanism<dim, Number, VectorizedArrayType> advection_mechanism(

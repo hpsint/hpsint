@@ -76,6 +76,7 @@ namespace Sintering
 
     bool fast_reassignment  = false;
     bool track_with_quality = false;
+    bool use_old_remap      = false;
   };
 
   struct EnergyAbstractData
@@ -541,6 +542,9 @@ namespace Sintering
         "TrackWithQuality",
         grain_tracker_data.track_with_quality,
         "Run grain tracker if the mesh refinement is triggered by the quality control.");
+      prm.add_parameter("UseOldRemap",
+                        grain_tracker_data.use_old_remap,
+                        "Use old remapping algo.");
       prm.leave_subsection();
 
 
