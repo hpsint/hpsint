@@ -39,6 +39,7 @@ namespace Sintering
     double          interface_width                    = 2.0;
     bool            minimize_order_parameters          = true;
     double          interface_buffer_ratio             = 1.0;
+    double          radius_buffer_ratio                = 0.0;
     bool            periodic                           = false;
     bool            custom_bounding_box                = false;
     bool            custom_divisions                   = false;
@@ -430,6 +431,9 @@ namespace Sintering
       prm.add_parameter("InterfaceBufferRatio",
                         geometry_data.interface_buffer_ratio,
                         "Interface buffer ratio.");
+      prm.add_parameter("RadiusBufferRatio",
+                        geometry_data.radius_buffer_ratio,
+                        "Max radius based buffer ratio.");
       prm.add_parameter("Periodic",
                         geometry_data.periodic,
                         "Is domain periodic.");

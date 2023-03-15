@@ -249,7 +249,8 @@ main(int argc, char **argv)
           particles,
           params.geometry_data.interface_width,
           params.geometry_data.minimize_order_parameters,
-          params.geometry_data.interface_buffer_ratio);
+          params.geometry_data.interface_buffer_ratio,
+          params.geometry_data.radius_buffer_ratio);
 
       AssertThrow(
         initial_solution->n_order_parameters() <= MAX_SINTERING_GRAINS,
