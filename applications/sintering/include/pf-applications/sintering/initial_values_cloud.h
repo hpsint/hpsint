@@ -18,7 +18,8 @@ namespace Sintering
     InitialValuesCloud(const std::vector<Particle<dim>> &particles_in,
                        const double                      interface_width,
                        const bool   minimize_order_parameters,
-                       const double interface_buffer_ratio = 0.5)
+                       const double interface_buffer_ratio = 0.5,
+                       const double radius_buffer_ratio    = 0.0)
       : InitialValues<dim>()
       , particles(particles_in)
       , interface_width(interface_width)
@@ -162,7 +163,8 @@ namespace Sintering
                   if (minimize_order_parameters)
                     {
                       double buffer = interface_width +
-                                      interface_buffer_ratio * interface_width;
+                                      interface_buffer_ratio * interface_width +
+                                      radius_buffer_ratio * std::max(r1, r2);
                       if (distance <= dist_max + buffer)
                         {
                           dsp.add(i, j);
