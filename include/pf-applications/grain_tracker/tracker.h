@@ -136,13 +136,13 @@ namespace GrainTracker
           grains_candidates.insert(gid);
         }
 
-      // Create map with the grains whose ids has been changed
+      // Create map with the grains whose ids have been changed
       std::vector<std::vector<bool>> grains_ids_changed(
         particle_ids_to_grain_ids.size());
 
       for (unsigned int iop = 0; iop < particle_ids_to_grain_ids.size(); ++iop)
         grains_ids_changed[iop].assign(particle_ids_to_grain_ids[iop].size(),
-                                    false);
+                                       false);
 
       // Create segments and transfer grain_id's for them
       for (const auto &[current_grain_id, new_grain] : new_grains)
@@ -256,13 +256,13 @@ namespace GrainTracker
                 {
                   auto &pmap = particle_to_grain[ip];
 
-                  if (grains_ids_changed[new_grain.get_order_parameter_id()][ip] ==
-                        false &&
+                  if (grains_ids_changed[new_grain.get_order_parameter_id()]
+                                        [ip] == false &&
                       pmap.first == current_grain_id)
                     {
                       pmap.first = new_grain_id;
-                      grains_ids_changed[new_grain.get_order_parameter_id()][ip] =
-                        true;
+                      grains_ids_changed[new_grain.get_order_parameter_id()]
+                                        [ip] = true;
                     }
                 }
             }
