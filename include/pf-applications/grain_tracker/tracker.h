@@ -57,7 +57,8 @@ namespace GrainTracker
             const double       buffer_distance_ratio                = 0.05,
             const double       buffer_distance_fixed                = 0.0,
             const unsigned int order_parameters_offset              = 2,
-            const bool         do_timing                            = true)
+            const bool         do_timing                            = true,
+            const bool         use_old_remap                        = false)
       : dof_handler(dof_handler)
       , tria(tria)
       , greedy_init(greedy_init)
@@ -71,6 +72,7 @@ namespace GrainTracker
       , order_parameters_offset(order_parameters_offset)
       , pcout(std::cout, Utilities::MPI::this_mpi_process(MPI_COMM_WORLD) == 0)
       , timer(do_timing)
+      , use_old_remap(use_old_remap)
     {}
 
     std::shared_ptr<Tracker<dim, Number>>
@@ -371,9 +373,16 @@ namespace GrainTracker
       return remap(raw_ptrs);
     }
 
-    // Remap state vectors
     unsigned int
     remap(std::vector<BlockVectorType *> solutions) const
+    {
+      return use_old_remap ? remap_old(solutions) : remap_new(solutions);
+    }
+
+  private:
+    // Remap state vectors
+    unsigned int
+    remap_new(std::vector<BlockVectorType *> solutions) const
     {
       ScopedName sc("tracker::remap");
       MyScope    scope(timer, sc, timer.is_enabled());
@@ -595,7 +604,7 @@ namespace GrainTracker
     }
 
     unsigned int
-    remap(std::vector<BlockVectorType *> solutions) const
+    remap_old(std::vector<BlockVectorType *> solutions) const
     {
       ScopedName sc("tracker::remap");
       MyScope    scope(timer, sc, timer.is_enabled());
@@ -939,6 +948,7 @@ namespace GrainTracker
       return n_grains_remapped;
     }
 
+  public:
     const std::map<unsigned int, Grain<dim>> &
     get_grains() const
     {
@@ -2067,6 +2077,9 @@ namespace GrainTracker
 
     // Total number of segments
     unsigned int n_total_segments;
+
+    // Use old remapping algo
+    const bool use_old_remap;
 
     std::map<unsigned int, Grain<dim>> grains;
     std::map<unsigned int, Grain<dim>> old_grains;
