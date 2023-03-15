@@ -594,6 +594,351 @@ namespace GrainTracker
       return n_grains_remapped;
     }
 
+    unsigned int
+    remap(std::vector<BlockVectorType *> solutions) const
+    {
+      ScopedName sc("tracker::remap");
+      MyScope    scope(timer, sc, timer.is_enabled());
+
+      // Logging for remapping
+      std::vector<std::string> log;
+
+      // Vector for dof values transfer
+      Vector<Number> values(dof_handler.get_fe().n_dofs_per_cell());
+
+      // lambda to perform certain modifications of the solution dof values
+      // clang-format off
+      auto alter_dof_values_for_grain =
+        [this, &solutions] (const Grain<dim> &grain,
+          std::function<void(
+            const dealii::DoFCellAccessor<dim, dim, false> &cell,
+            BlockVectorType *solution)> callback) {
+          // clang-format on
+
+          ScopedName sc("alter_dof_values_for_grain");
+          MyScope    scope(timer, sc, timer.is_enabled());
+
+          const double transfer_buffer = grain.transfer_buffer();
+
+          for (auto &cell : dof_handler.active_cell_iterators())
+            {
+              if (cell->is_locally_owned())
+                {
+                  bool in_grain = false;
+                  for (const auto &segment : grain.get_segments())
+                    {
+                      if (cell->barycenter().distance(segment.get_center()) <
+                          segment.get_radius() + transfer_buffer)
+                        {
+                          in_grain = true;
+                          break;
+                        }
+                    }
+
+                  if (in_grain)
+                    {
+                      for (auto &solution : solutions)
+                        {
+                          callback(*cell, solution);
+                        }
+                    }
+                }
+            }
+        };
+
+      // At first let us clean up those grains which disappered completely
+      std::map<unsigned int, Grain<dim>> disappered_grains;
+      std::set_difference(
+        old_grains.begin(),
+        old_grains.end(),
+        grains.begin(),
+        grains.end(),
+        std::inserter(disappered_grains, disappered_grains.end()),
+        [](const auto &a, const auto &b) { return a.first < b.first; });
+
+      // We will fill the blocks with zeros
+      values = 0;
+      for (const auto &[gid, gr] : disappered_grains)
+        {
+          const unsigned int op_id =
+            gr.get_order_parameter_id() + order_parameters_offset;
+
+          std::ostringstream ss;
+          ss << "Grain " << gr.get_grain_id() << " having order parameter "
+             << op_id << " has disappered" << std::endl;
+          log.emplace_back(ss.str());
+
+          alter_dof_values_for_grain(
+            gr,
+            [this,
+             &values,
+             op_id](const dealii::DoFCellAccessor<dim, dim, false> &cell,
+                    BlockVectorType *                               solution) {
+              cell.set_dof_values(values, solution->block(op_id));
+            });
+        }
+
+      // Build a sequence of remappings
+      std::list<Remapping> remappings;
+      for (const auto &[gid, grain] : grains)
+        {
+          (void)gid;
+
+          if (grain.get_order_parameter_id() !=
+              grain.get_old_order_parameter_id())
+            {
+              remappings.emplace(remappings.end(),
+                                 grain.get_grain_id(),
+                                 grain.get_old_order_parameter_id(),
+                                 grain.get_order_parameter_id());
+            }
+        }
+
+      // Total number of grains remapped
+      unsigned int n_grains_remapped = remappings.size();
+
+      // Build graph to resolve overlapping remappings
+      RemapGraph graph;
+
+      // Check for collisions in the remappings
+      for (const auto &ri : remappings)
+        {
+          const auto &grain_i = grains.at(ri.grain_id);
+
+          for (const auto &rj : remappings)
+            {
+              const auto &grain_j = grains.at(rj.grain_id);
+
+              if (ri != rj)
+                {
+                  const double buffer_i = grain_i.transfer_buffer();
+                  const double buffer_j = grain_j.transfer_buffer();
+
+                  const bool has_overlap =
+                    grain_i.distance(grain_j) - buffer_i - buffer_j < 0;
+
+                  /* If the two grains involved in remappings overlap and share
+                   * the same order parameter in the current and previous
+                   * states, then we add them for analysis to the graph.
+                   */
+                  if (has_overlap && ri.to == rj.from)
+                    {
+                      graph.add_remapping(ri.from, ri.to, ri.grain_id);
+
+                      /* Besides that, we need to add also the subsequent
+                       * remapping for the second grain to the graph too.
+                       */
+
+                      auto it_re =
+                        std::find_if(remappings.begin(),
+                                     remappings.end(),
+                                     [target_grain_id =
+                                        rj.grain_id](const auto &a) {
+                                       return a.grain_id == target_grain_id;
+                                     });
+
+                      AssertThrow(it_re != remappings.end(),
+                                  ExcMessage("Particles collision detected!"));
+
+                      graph.add_remapping(it_re->from,
+                                          it_re->to,
+                                          it_re->grain_id);
+                    }
+                }
+            }
+        }
+
+      // Transfer cycled grains to temporary vectors
+      std::vector<std::pair<Remapping, Remapping>> remappings_via_temp;
+
+      AssertThrowDistributedDimension(
+        (static_cast<unsigned int>(graph.empty())));
+
+      /* If graph is not empty, then have some dependencies in remapping and
+       * need to perform at first those at the end of the graph in order not to
+       * break the configuration of the domain.
+       */
+      if (!graph.empty())
+        {
+          ScopedName sc("resolve_cycles");
+          MyScope    scope(timer, sc, timer.is_enabled());
+
+          /* Check if the graph has cycles - these are unlikely situations and
+           * at the moment we do not handle them due to complexity.
+           */
+
+          std::ostringstream ss;
+          ss << "Remapping dependencies have been detected and resolved."
+             << std::endl;
+          graph.print(ss);
+          log.emplace_back(ss.str());
+
+          AssertThrowDistributedDimension(remappings.size());
+
+          // At frist resolve cyclic remappings
+          remappings_via_temp = graph.resolve_cycles(remappings);
+
+          // Then rearrange the rest
+          graph.rearrange(remappings);
+        }
+
+      // Create temporary vectors for grain transfers
+      std::map<const BlockVectorType *, std::shared_ptr<BlockVectorType>>
+        solutions_to_temps;
+
+      if (!remappings_via_temp.empty())
+        {
+          const auto partitioner =
+            std::make_shared<Utilities::MPI::Partitioner>(
+              dof_handler.locally_owned_dofs(),
+              DoFTools::extract_locally_relevant_dofs(dof_handler),
+              dof_handler.get_communicator());
+
+          AssertThrowDistributedDimension(solutions.size());
+
+          for (const auto &solution : solutions)
+            {
+              /* Sicne boost graphs algorithms are not deterministic, the number
+               * of remapping performed with the aid of temporary vectors may
+               * vary. We then create a temporary block vector of the maximum
+               * size to fit all ranks. However, we may also think of picking up
+               * a remapping sequence among all of the available ones
+               * with thee smallest number of remapping steps. */
+              const auto max_size =
+                Utilities::MPI::max(remappings_via_temp.size(), MPI_COMM_WORLD);
+
+              auto temp = std::make_shared<BlockVectorType>(max_size);
+              for (unsigned int b = 0; b < temp->n_blocks(); ++b)
+                {
+                  temp->block(b).reinit(partitioner);
+                  temp->block(b).update_ghost_values();
+                }
+
+              solutions_to_temps.emplace(solution, temp);
+            }
+        }
+
+      // Transfer some grains to temp vectors to break the cycles
+      for (auto it = remappings_via_temp.cbegin();
+           it != remappings_via_temp.cend();
+           ++it)
+        {
+          const auto &re    = it->first;
+          const auto &grain = grains.at(re.grain_id);
+
+          std::ostringstream ss;
+          ss << "Remap order parameter for grain id = " << re.grain_id
+             << ": from " << re.from << " to temp" << std::endl;
+          log.emplace_back(ss.str());
+
+          const unsigned int op_id_src = re.from + order_parameters_offset;
+          const unsigned int op_id_dst = it - remappings_via_temp.begin();
+
+          /* At first we transfer the values from the dofs related to the
+           * old order parameters to the temporary blocks.
+           */
+          alter_dof_values_for_grain(
+            grain,
+            [this, &values, op_id_src, op_id_dst, &solutions_to_temps](
+              const dealii::DoFCellAccessor<dim, dim, false> &cell,
+              BlockVectorType *                               solution) {
+              cell.get_dof_values(solution->block(op_id_src), values);
+              cell.set_dof_values(
+                values, solutions_to_temps.at(solution)->block(op_id_dst));
+            });
+
+          // Then we iterate again to nullify the old dofs
+          values = 0;
+          alter_dof_values_for_grain(
+            grain,
+            [this,
+             &values,
+             op_id_src](const dealii::DoFCellAccessor<dim, dim, false> &cell,
+                        BlockVectorType *solution) {
+              cell.set_dof_values(values, solution->block(op_id_src));
+            });
+        }
+
+      // Now transfer values for the remaining grains
+      for (const auto &re : remappings)
+        {
+          const auto &grain = grains.at(re.grain_id);
+
+          /* Transfer buffer is the extra zone around the grain within which
+           * the order parameters are swapped. Its maximum size is the half
+           * of the distance to the nearest neighbor.
+           */
+          const unsigned int op_id_src = re.from + order_parameters_offset;
+          const unsigned int op_id_dst = re.to + order_parameters_offset;
+
+          std::ostringstream ss;
+          ss << "Remap order parameter for grain id = " << re.grain_id
+             << ": from " << re.from << " to " << re.to << std::endl;
+          log.emplace_back(ss.str());
+
+          /* At first we transfer the values from the dofs related to the
+           * old order parameters to the dofs of the new order parameter.
+           */
+          alter_dof_values_for_grain(
+            grain,
+            [this, &values, op_id_src, op_id_dst](
+              const dealii::DoFCellAccessor<dim, dim, false> &cell,
+              BlockVectorType *                               solution) {
+              cell.get_dof_values(solution->block(op_id_src), values);
+              cell.set_dof_values(values, solution->block(op_id_dst));
+            });
+
+          // Then we iterate again to nullify the old dofs
+          values = 0;
+          alter_dof_values_for_grain(
+            grain,
+            [this,
+             &values,
+             op_id_src](const dealii::DoFCellAccessor<dim, dim, false> &cell,
+                        BlockVectorType *solution) {
+              cell.set_dof_values(values, solution->block(op_id_src));
+            });
+        }
+
+      // Transfer the grains from temp to where they had to be
+      for (auto it = remappings_via_temp.cbegin();
+           it != remappings_via_temp.cend();
+           ++it)
+        {
+          const auto &re    = it->second;
+          const auto &grain = grains.at(re.grain_id);
+
+          std::ostringstream ss;
+          ss << "Remap order parameter for grain id = " << re.grain_id
+             << ": from temp to " << re.to << std::endl;
+          log.emplace_back(ss.str());
+
+          const unsigned int op_id_src = it - remappings_via_temp.begin();
+          const unsigned int op_id_dst = re.to + order_parameters_offset;
+
+          /* At first we transfer the values from the dofs related to the
+           * old order parameters to the temporary blocks.
+           */
+          alter_dof_values_for_grain(
+            grain,
+            [this, &values, op_id_src, op_id_dst, &solutions_to_temps](
+              const dealii::DoFCellAccessor<dim, dim, false> &cell,
+              BlockVectorType *                               solution) {
+              cell.get_dof_values(
+                solutions_to_temps.at(solution)->block(op_id_src), values);
+              cell.set_dof_values(values, solution->block(op_id_dst));
+            });
+
+          /* We do not need to iterate again to nullify the old dofs since the
+           * temporary vectors will get deleted
+           */
+        }
+
+      print_log(log);
+
+      return n_grains_remapped;
+    }
+
     const std::map<unsigned int, Grain<dim>> &
     get_grains() const
     {
