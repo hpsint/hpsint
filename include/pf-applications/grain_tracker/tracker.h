@@ -150,6 +150,11 @@ namespace GrainTracker
         grains_ids_changed[iop].assign(particle_ids_to_grain_ids[iop].size(),
                                        false);
 
+      // Map of invalid grains if any detected.
+      // Map is used here for compatibility with print_grains()
+      std::map<unsigned int, Grain<dim>> invalid_grains;
+      unsigned int                       numerator_invalid = 0;
+
       // Create segments and transfer grain_id's for them
       for (const auto &[current_grain_id, new_grain] : new_grains)
         {
@@ -189,31 +194,20 @@ namespace GrainTracker
           // Dynamics of the new grain
           typename Grain<dim>::Dynamics new_dynamics = Grain<dim>::None;
 
-          // Set up the grain number
+          // Check the grain number
           if (new_grain_id == std::numeric_limits<unsigned int>::max())
             {
               if (allow_new_grains)
                 {
+                  // If new grains are allowed, then simply assign the next
+                  // available index
                   new_grain_id = grain_numberer++;
                 }
               else
                 {
-                  std::ostringstream ss;
-                  ss << "Unable to match a new grain with an old one "
-                     << "from the previous configuration!" << std::endl;
-                  ss << std::endl;
-
-                  ss << "Problematic grain:" << std::endl;
-                  print_grain(new_grain, ss);
-                  ss << std::endl;
-
-                  ss << "Grains which have been assigned so far:" << std::endl;
-                  print_grains(grains, ss);
-
-                  // Check if we have found anything
-                  AssertThrow(new_grain_id !=
-                                std::numeric_limits<unsigned int>::max(),
-                              ExcGrainsInconsistency(ss.str()));
+                  // Otherwise add to the map of invalid grains
+                  invalid_grains.emplace(
+                    std::make_pair(numerator_invalid++, new_grain));
                 }
             }
           else
@@ -247,31 +241,54 @@ namespace GrainTracker
               grains_candidates.erase(new_grain_id);
             }
 
-          // Insert new grain
-          grains.emplace(std::make_pair(new_grain_id, new_grain));
-          grains.at(new_grain_id).set_grain_id(new_grain_id);
-          grains.at(new_grain_id).set_dynamics(new_dynamics);
-
-          // Update mapping if we changed the grain id
-          if (new_grain_id != current_grain_id)
+          // Insert new grain if it has been identified or new ones are allowed
+          if (new_grain_id != std::numeric_limits<unsigned int>::max())
             {
-              auto &particle_to_grain =
-                particle_ids_to_grain_ids[new_grain.get_order_parameter_id()];
+              grains.emplace(std::make_pair(new_grain_id, new_grain));
+              grains.at(new_grain_id).set_grain_id(new_grain_id);
+              grains.at(new_grain_id).set_dynamics(new_dynamics);
 
-              for (unsigned int ip = 0; ip < particle_to_grain.size(); ip++)
+              // Update mapping if we changed the grain id
+              if (new_grain_id != current_grain_id)
                 {
-                  auto &pmap = particle_to_grain[ip];
+                  auto &particle_to_grain =
+                    particle_ids_to_grain_ids[new_grain
+                                                .get_order_parameter_id()];
 
-                  if (grains_ids_changed[new_grain.get_order_parameter_id()]
-                                        [ip] == false &&
-                      pmap.first == current_grain_id)
+                  for (unsigned int ip = 0; ip < particle_to_grain.size(); ip++)
                     {
-                      pmap.first = new_grain_id;
-                      grains_ids_changed[new_grain.get_order_parameter_id()]
-                                        [ip] = true;
+                      auto &pmap = particle_to_grain[ip];
+
+                      if (grains_ids_changed[new_grain.get_order_parameter_id()]
+                                            [ip] == false &&
+                          pmap.first == current_grain_id)
+                        {
+                          pmap.first = new_grain_id;
+                          grains_ids_changed[new_grain.get_order_parameter_id()]
+                                            [ip] = true;
+                        }
                     }
                 }
             }
+        }
+
+      // Throw exception if some invalid grains have been detected
+      if (!invalid_grains.empty())
+        {
+          std::ostringstream ss;
+          ss << "Unable to match some new grains with old ones "
+             << "from the previous configuration!" << std::endl;
+          ss << std::endl;
+
+          ss << "Problematic grains:" << std::endl;
+          print_grains(invalid_grains, ss);
+          ss << std::endl;
+
+          ss << "Grains which were successfully assigned:" << std::endl;
+          print_grains(grains, ss);
+
+          // Thrown an exception
+          AssertThrow(invalid_grains.empty(), ExcGrainsInconsistency(ss.str()));
         }
 
       // Variables to return the result
