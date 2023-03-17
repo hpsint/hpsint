@@ -47,6 +47,7 @@ static_assert(false, "No grains number has been given!");
 #include <pf-applications/sintering/initial_values_hypercube.h>
 
 #include <cstdlib>
+#include <regex>
 
 using namespace dealii;
 
@@ -68,12 +69,36 @@ parse_params(const int              argc,
              Sintering::Parameters &params,
              ConditionalOStream &   pcout)
 {
-  if (argc == offset + 1)
+  const auto u_argc = static_cast<unsigned int>(argc);
+
+  if (u_argc >= offset + 1)
     {
       pcout << "Input parameters file:" << std::endl;
       pcout << std::ifstream(argv[offset]).rdbuf() << std::endl;
 
       params.parse(std::string(argv[offset]));
+    }
+
+  // Override params directly via command line
+  for (unsigned int i = offset + 1; i < u_argc; ++i)
+    {
+      const std::string flag = std::string(argv[i]);
+
+      if (flag.substr(0, 2) == "--")
+        {
+          std::regex  rgx("--([(\\w*).]*)=\"?(.*)\"?");
+          std::smatch matches;
+
+          AssertThrow(std::regex_search(flag, matches, rgx),
+                      ExcMessage("Incorrect parameter string specified: " +
+                                 flag + "\nThe correct format is:\n" +
+                                 "--Path.To.Option=\"value\""));
+
+          const std::string param_name  = matches[1].str();
+          const std::string param_value = matches[2].str();
+
+          params.set(param_name, param_value);
+        }
     }
 
   params.check();
@@ -111,7 +136,7 @@ main(int argc, char **argv)
     }
   else if (std::string(argv[1]) == "--circle")
     {
-      AssertThrow(4 <= argc && argc <= 5, ExcNotImplemented());
+      AssertThrow(argc >= 4, ExcNotImplemented());
 
       // geometry
       const double          r0              = atof(argv[2]);
@@ -148,8 +173,7 @@ main(int argc, char **argv)
     }
   else if (std::string(argv[1]) == "--hypercube")
     {
-      AssertThrow(3 + SINTERING_DIM <= argc && argc <= 4 + SINTERING_DIM,
-                  ExcNotImplemented());
+      AssertThrow(argc >= 3 + SINTERING_DIM, ExcNotImplemented());
 
       // geometry
       const double r0 = atof(argv[2]);
@@ -208,7 +232,7 @@ main(int argc, char **argv)
     }
   else if (std::string(argv[1]) == "--cloud")
     {
-      AssertThrow(3 <= argc && argc <= 4,
+      AssertThrow(argc >= 3,
                   ExcMessage("Argument cloud_file has to be provided!"));
 
       std::string   file_cloud = std::string(argv[2]);
@@ -251,7 +275,7 @@ main(int argc, char **argv)
     }
   else if (std::string(argv[1]) == "--restart")
     {
-      AssertThrow(3 <= argc && argc <= 4, ExcNotImplemented());
+      AssertThrow(argc >= 3, ExcNotImplemented());
 
       const std::string restart_path = std::string(argv[2]);
 
