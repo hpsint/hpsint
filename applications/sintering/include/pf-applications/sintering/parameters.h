@@ -6,6 +6,8 @@
 
 #include <pf-applications/sintering/preconditioners.h>
 
+#include <boost/algorithm/string.hpp>
+
 namespace Sintering
 {
   struct ApproximationData
@@ -323,6 +325,22 @@ namespace Sintering
       add_parameters(prm);
 
       prm.parse_input(file_name, "", true);
+    }
+
+    void
+    set(const std::string param, const std::string val)
+    {
+      dealii::ParameterHandler prm;
+      add_parameters(prm);
+
+      std::vector<std::string> param_path;
+      boost::split(param_path, param, boost::is_any_of("."));
+
+      for (auto it = param_path.begin(); it != param_path.end(); ++it)
+        if (std::distance(it, param_path.end()) > 1)
+          prm.enter_subsection(*it);
+        else
+          prm.set(*it, val);
     }
 
     void
