@@ -92,7 +92,9 @@ parse_params(const int              argc,
           AssertThrow(std::regex_search(flag, matches, rgx),
                       ExcMessage("Incorrect parameter string specified: " +
                                  flag + "\nThe correct format is:\n" +
-                                 "--Path.To.Option=\"value\""));
+                                 "--Path.To.Option=\"value\"\nor\n" +
+                                 "--Path.To.Option=value\n" +
+                                 "if 'value' does not contain spaces"));
 
           const std::string param_name  = matches[1].str();
           const std::string param_value = matches[2].str();
