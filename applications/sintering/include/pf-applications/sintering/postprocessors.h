@@ -420,7 +420,7 @@ namespace Sintering
         if (has_ghost_elements == false)
           vector.zero_out_ghost_values();
 
-        return vertices.size() > 0;
+        return vertices.size() > 0 && cells.size() > 0;
       }
     } // namespace internal
 
