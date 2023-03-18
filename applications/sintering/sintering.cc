@@ -69,9 +69,7 @@ parse_params(const int              argc,
              Sintering::Parameters &params,
              ConditionalOStream &   pcout)
 {
-  const auto u_argc = static_cast<unsigned int>(argc);
-
-  if (u_argc >= offset + 1)
+  if (static_cast<unsigned int>(argc) >= offset + 1)
     {
       pcout << "Input parameters file:" << std::endl;
       pcout << std::ifstream(argv[offset]).rdbuf() << std::endl;
@@ -80,7 +78,7 @@ parse_params(const int              argc,
     }
 
   // Override params directly via command line
-  for (unsigned int i = offset + 1; i < u_argc; ++i)
+  for (unsigned int i = offset + 1; i < static_cast<unsigned int>(argc); ++i)
     {
       const std::string flag = std::string(argv[i]);
 
