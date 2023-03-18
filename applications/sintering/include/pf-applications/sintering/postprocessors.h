@@ -5,6 +5,8 @@
 
 #include <deal.II/grid/grid_tools.h>
 
+#include <deal.II/matrix_free/fe_point_evaluation.h>
+
 #include <deal.II/numerics/data_out.h>
 
 #include <pf-applications/sintering/operator_sintering_data.h>
@@ -228,7 +230,7 @@ namespace Sintering
         const unsigned int                     n_subdivisions     = 1,
         const double                           tolerance          = 1e-10)
       {
-        const bool treat_shared_cells_as_gb = false;
+        const bool treat_shared_cells_as_gb = true;
 
         using Number = typename VectorType::value_type;
 
@@ -280,6 +282,9 @@ namespace Sintering
               iso_level,
               box_filter);
           }
+
+        const auto &fe = background_dof_handler_to_be_used->get_fe();
+        FEPointEvaluation<1, dim> fe_evaluation(mapping, fe, update_values);
 
         // step 1) create surface mesh
         std::vector<Point<dim>>        vertices;
@@ -369,16 +374,47 @@ namespace Sintering
                          (has_others && treat_shared_cells_as_gb));
 
                       if (is_gb_candidate)
-                        mc.process_cell(cell,
-                                        vector_to_be_used->block(2 + i),
-                                        iso_level,
-                                        vertices,
-                                        cells);
+                        {
+                          std::vector<CellData<dim - 1>> local_cells;
+
+                          mc.process_cell(cell,
+                                          vector_to_be_used->block(2 + i),
+                                          iso_level,
+                                          vertices,
+                                          local_cells);
+
+                          std::vector<Point<dim>> real_centroids;
+                          for (const auto &new_cell : local_cells)
+                            {
+                              Point<dim> centoroid;
+                              for (const auto &vertex_id : new_cell.vertices)
+                                centoroid += vertices[vertex_id];
+                              centoroid /= new_cell.vertices.size();
+
+                              real_centroids.push_back(centoroid);
+                            }
+                          std::vector<Point<dim>> unit_centroids(
+                            real_centroids.size());
+
+                          mapping.transform_points_real_to_unit_cell(
+                            cell, real_centroids, unit_centroids);
+
+                          fe_evaluation.reinit(cell, unit_centroids);
+
+                          ArrayView<Number> gb_via_array_view(&gb[0],
+                                                              gb.size());
+                          fe_evaluation.evaluate(gb_via_array_view,
+                                                 EvaluationFlags::values);
+
+                          for (unsigned int i = 0; i < local_cells.size(); ++i)
+                            if (fe_evaluation.get_value(i) > gb_lim)
+                              cells.push_back(local_cells[i]);
+                        }
                     }
                 }
             }
 
-        if (vertices.size() > 0)
+        if (vertices.size() > 0 && cells.size() > 0)
           tria.create_triangulation(vertices, cells, subcelldata);
 
         if (has_ghost_elements == false)
