@@ -189,6 +189,7 @@ namespace Sintering
     bool                  contours               = true;
     bool                  contours_tex           = false;
     unsigned int          n_coarsening_steps     = 0;
+    unsigned int          n_mca_subdivisions     = 1;
     bool                  porosity               = false;
     bool                  shrinkage              = false;
     bool                  quality                = false;
@@ -739,6 +740,9 @@ namespace Sintering
       prm.add_parameter("ContourNCoarseningSteps",
                         output_data.n_coarsening_steps,
                         "Whether contour output is enabled.");
+      prm.add_parameter("MCASubdivisions",
+                        output_data.n_mca_subdivisions,
+                        "Marching cube algorithm subdivisions.");
       prm.add_parameter("Porosity",
                         output_data.porosity,
                         "Determine porosity.");
