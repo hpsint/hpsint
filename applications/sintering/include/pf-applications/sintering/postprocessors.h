@@ -230,8 +230,6 @@ namespace Sintering
         const unsigned int                     n_subdivisions     = 1,
         const double                           tolerance          = 1e-10)
       {
-        const bool treat_shared_cells_as_gb = true;
-
         using Number = typename VectorType::value_type;
 
         const bool has_ghost_elements = vector.has_ghost_elements();
@@ -339,25 +337,18 @@ namespace Sintering
 
                           gb += values_j;
 
-                          if (treat_shared_cells_as_gb)
+                          bool j_upper = false;
+                          bool j_lower = false;
+                          for (const auto j_val : values_j)
                             {
-                              bool j_upper = false;
-                              bool j_lower = false;
-                              for (const auto j_val : values_j)
-                                {
-                                  if (j_val > iso_level)
-                                    j_upper = true;
-                                  if (j_val < iso_level)
-                                    j_lower = true;
-                                }
-
-                              if (j_upper && j_lower)
-                                {
-                                  has_others = true;
-
-                                  break;
-                                }
+                              if (j_val > iso_level)
+                                j_upper = true;
+                              if (j_val < iso_level)
+                                j_lower = true;
                             }
+
+                          if (j_upper && j_lower)
+                            has_others = true;
                         }
 
                       gb.scale(values_i);
@@ -370,8 +361,7 @@ namespace Sintering
                                     });
 
                       const bool is_gb_candidate =
-                        (has_strong_gb ||
-                         (has_others && treat_shared_cells_as_gb));
+                        (has_strong_gb || has_others);
 
                       if (is_gb_candidate)
                         {
