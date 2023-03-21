@@ -74,7 +74,7 @@ main(int argc, char **argv)
   pcout << "  - deal.II (branch: " << DEAL_II_GIT_BRANCH
         << "; revision: " << DEAL_II_GIT_REVISION
         << "; short: " << DEAL_II_GIT_SHORTREV << ")" << std::endl;
-  pcout << "  - deal.II (branch: " << PF_APPLICATIONS_GIT_BRANCH
+  pcout << "  - hpsint (branch: " << PF_APPLICATIONS_GIT_BRANCH
         << "; revision: " << PF_APPLICATIONS_GIT_REVISION
         << "; short: " << PF_APPLICATIONS_GIT_SHORTREV << ")" << std::endl;
   pcout << std::endl;
