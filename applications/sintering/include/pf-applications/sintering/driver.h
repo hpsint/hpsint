@@ -2590,7 +2590,6 @@ namespace Sintering
 
       // Some settings
       const double iso_value = 0.5;
-      const double gb_lim    = 0.14;
 
       if (counters.find(label) == counters.end())
         counters[label] = 0;
@@ -2802,7 +2801,7 @@ namespace Sintering
                   solution,
                   iso_value,
                   sintering_operator.n_grains(),
-                  gb_lim,
+                  params.output_data.gb_threshold,
                   predicate_iso,
                   params.output_data.n_mca_subdivisions);
 
@@ -2898,7 +2897,7 @@ namespace Sintering
             iso_value,
             output,
             sintering_operator.n_grains(),
-            gb_lim,
+            params.output_data.gb_threshold,
             params.output_data.n_coarsening_steps,
             box_filter,
             params.output_data.n_mca_subdivisions);
