@@ -595,7 +595,7 @@ namespace Sintering
                                  const Tensor<1, dim, VectorizedArrayType> &c_grad) const
     {
       // Surface anisotropic part
-      VectorizedArrayType fsurf = Msurf * (c * c) * (1. - c) * (1. - c);
+      VectorizedArrayType fsurf = Msurf * 4.0 * (c * c) * (1. - c) * (1. - c);
       Tensor<1, dim, VectorizedArrayType> nc = unit_vector(c_grad);
       Tensor<2, dim, VectorizedArrayType> M  = projector_matrix(nc, fsurf);
 
@@ -646,7 +646,7 @@ namespace Sintering
       (void)etas;
       (void)etas_grad;
 
-      const auto c2_1minusc2 = c * c * (1. - c) * (1. - c);
+      const auto c2_1minusc2 = 4.0 * c * c * (1. - c) * (1. - c);
       const auto dphidc      = 30.0 * c2_1minusc2;
 
       // Volumetric and vaporization parts, the same as for isotropic
@@ -654,7 +654,7 @@ namespace Sintering
 
       // Surface part
       const auto fsurf  = Msurf * c2_1minusc2;
-      auto       dfsurf = Msurf * 2. * c * (1. - c) * (1. - 2. * c);
+      auto       dfsurf = Msurf * 8.0 * c * (1. - c) * (1. - 2. * c);
 
       dfsurf = compare_and_apply_mask<SIMDComparison::less_than>(
         fsurf, VectorizedArrayType(1e-6), VectorizedArrayType(0.0), dfsurf);
@@ -674,7 +674,7 @@ namespace Sintering
                                      const Tensor<1, dim, VectorizedArrayType> &c_grad,
                                      const Tensor<1, dim, VectorizedArrayType> &mu_grad) const
     {
-      auto fsurf = Msurf * (c * c) * ((1. - c) * (1. - c));
+      auto fsurf = Msurf * 4.0 * (c * c) * ((1. - c) * (1. - c));
       auto nrm   = c_grad.norm();
 
       fsurf = compare_and_apply_mask<SIMDComparison::less_than>(
@@ -744,7 +744,7 @@ namespace Sintering
       const auto f_vol_vap = Mvol * phi + Mvap * (1.0 - phi);
 
       // Surface anisotropic part
-      const auto fsurf = Msurf * (lin_c_value * lin_c_value) *
+      const auto fsurf = Msurf * 4.0 * (lin_c_value * lin_c_value) *
                          ((1. - lin_c_value) * (1. - lin_c_value));
       const auto nc = unit_vector(lin_c_gradient);
 
@@ -811,7 +811,7 @@ namespace Sintering
         const auto f_vol_vap = Mvol * phi + Mvap * (1.0 - phi);
 
         // Surface anisotropic part
-        const auto fsurf = Msurf * (lin_c_value * lin_c_value) *
+        const auto fsurf = Msurf * 4.0 * (lin_c_value * lin_c_value) *
                            ((1. - lin_c_value) * (1. - lin_c_value));
 
         out =
@@ -820,8 +820,8 @@ namespace Sintering
 
       // 2) for dM_dc
       {
-        const auto c2_1minusc2 =
-          lin_c_value * lin_c_value * (1. - lin_c_value) * (1. - lin_c_value);
+        const auto c2_1minusc2 = 4.0 * lin_c_value * lin_c_value *
+                                 (1. - lin_c_value) * (1. - lin_c_value);
         const auto dphidc = 30.0 * c2_1minusc2;
 
         // Volumetric and vaporization parts, the same as for isotropic
@@ -829,7 +829,7 @@ namespace Sintering
 
         // Surface part
         const auto fsurf  = Msurf * c2_1minusc2;
-        auto       dfsurf = Msurf * 2. * lin_c_value * (1. - lin_c_value) *
+        auto       dfsurf = Msurf * 8.0 * lin_c_value * (1. - lin_c_value) *
                       (1. - 2. * lin_c_value);
 
         dfsurf = compare_and_apply_mask<SIMDComparison::less_than>(
@@ -842,7 +842,7 @@ namespace Sintering
 
       // 3) for dM_dgrad_c
       {
-        auto fsurf = Msurf * (lin_c_value * lin_c_value) *
+        auto fsurf = Msurf * 4.0 * (lin_c_value * lin_c_value) *
                      ((1. - lin_c_value) * (1. - lin_c_value));
         auto nrm = lin_c_gradient.norm();
 
