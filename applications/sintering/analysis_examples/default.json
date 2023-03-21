@@ -87,6 +87,7 @@
     "Output": {
         "Contour": "true",
         "ContourNCoarseningSteps": "0",
+        "MCASubdivisions": "1",
         "Debug": "false",
         "Fields": "CH,AC,bnds,gb,d2f,kappa,L,subdomain",
         "FluxesDivergences": "false",

@@ -297,12 +297,12 @@ namespace Sintering
     DEAL_II_ALWAYS_INLINE VectorizedArrayType
     M_vol(const VectorizedArrayType &c) const
     {
-      VectorizedArrayType phi = c * c * c * (10.0 - 15.0 * c + 6.0 * c * c);
+      VectorizedArrayType c_filtered = std::max(VectorizedArrayType(0.0), c);
+      c_filtered = std::min(VectorizedArrayType(1.0), c_filtered);
 
-      phi = compare_and_apply_mask<SIMDComparison::less_than>(
-        phi, VectorizedArrayType(0.0), VectorizedArrayType(0.0), phi);
-      phi = compare_and_apply_mask<SIMDComparison::greater_than>(
-        phi, VectorizedArrayType(1.0), VectorizedArrayType(1.0), phi);
+      VectorizedArrayType phi =
+        c_filtered * c_filtered * c_filtered *
+        (10.0 - 15.0 * c_filtered + 6.0 * c_filtered * c_filtered);
 
       return Mvol * phi;
     }
@@ -313,12 +313,12 @@ namespace Sintering
     DEAL_II_ALWAYS_INLINE VectorizedArrayType
     M_vap(const VectorizedArrayType &c) const
     {
-      VectorizedArrayType phi = c * c * c * (10.0 - 15.0 * c + 6.0 * c * c);
+      VectorizedArrayType c_filtered = std::max(VectorizedArrayType(0.0), c);
+      c_filtered = std::min(VectorizedArrayType(1.0), c_filtered);
 
-      phi = compare_and_apply_mask<SIMDComparison::less_than>(
-        phi, VectorizedArrayType(0.0), VectorizedArrayType(0.0), phi);
-      phi = compare_and_apply_mask<SIMDComparison::greater_than>(
-        phi, VectorizedArrayType(1.0), VectorizedArrayType(1.0), phi);
+      VectorizedArrayType phi =
+        c_filtered * c_filtered * c_filtered *
+        (10.0 - 15.0 * c_filtered + 6.0 * c_filtered * c_filtered);
 
       return Mvap * (1.0 - phi);
     }
@@ -332,7 +332,10 @@ namespace Sintering
     {
       (void)c_grad;
 
-      return Msurf * 4.0 * c * c * (1.0 - c) * (1.0 - c);
+      VectorizedArrayType c_filtered = std::max(VectorizedArrayType(0.0), c);
+      c_filtered = std::min(VectorizedArrayType(1.0), c_filtered);
+
+      return Msurf * c_filtered * (1.0 - c_filtered);
     }
 
 
@@ -369,10 +372,15 @@ namespace Sintering
       (void)c_grad;
       (void)etas_grad;
 
-      const VectorizedArrayType dphidc = 30.0 * c * c * (1.0 - c) * (1.0 - c);
+      VectorizedArrayType c_filtered = std::max(VectorizedArrayType(0.0), c);
+      c_filtered = std::min(VectorizedArrayType(1.0), c_filtered);
+
+      const VectorizedArrayType dphidc = 30.0 * c_filtered * c_filtered *
+                                         (1.0 - c_filtered) *
+                                         (1.0 - c_filtered);
       const VectorizedArrayType dMdc =
         Mvol * dphidc - Mvap * dphidc +
-        Msurf * 8.0 * c * (1.0 - 3.0 * c + 2.0 * c * c);
+        Msurf * c_filtered * (1.0 - 2.0 * c_filtered);
 
       return dMdc;
     }
@@ -439,17 +447,16 @@ namespace Sintering
         for (unsigned int j = 0; j < i; ++j)
           etaijSum += lin_etas_value[i] * lin_etas_value[j];
 
-      VectorizedArrayType phi =
-        lin_c_value * lin_c_value * lin_c_value *
-        (10.0 - 15.0 * lin_c_value + 6.0 * lin_c_value * lin_c_value);
+      VectorizedArrayType c_filtered =
+        std::max(VectorizedArrayType(0.0), lin_c_value);
+      c_filtered = std::min(VectorizedArrayType(1.0), c_filtered);
 
-      phi = std::max(VectorizedArrayType(0.0), phi);
-      phi = std::min(VectorizedArrayType(1.0), phi);
+      VectorizedArrayType phi =
+        c_filtered * c_filtered * c_filtered *
+        (10.0 - 15.0 * c_filtered + 6.0 * c_filtered * c_filtered);
 
       const VectorizedArrayType M = Mvol * phi + Mvap * (1.0 - phi) +
-                                    Msurf * 4.0 * lin_c_value * lin_c_value *
-                                      (1.0 - lin_c_value) *
-                                      (1.0 - lin_c_value) +
+                                    Msurf * c_filtered * (1.0 - c_filtered) +
                                     (2.0 * Mgb) * etaijSum;
 
       return M * mu_gradient;
@@ -485,27 +492,25 @@ namespace Sintering
             eta_ij_sum += lin_etas_value[i] * lin_etas_value[j];
         }
 
-      VectorizedArrayType phi =
-        lin_c_value * lin_c_value * lin_c_value *
-        (10.0 - 15.0 * lin_c_value + 6.0 * lin_c_value * lin_c_value);
+      VectorizedArrayType c_filtered =
+        std::max(VectorizedArrayType(0.0), lin_c_value);
+      c_filtered = std::min(VectorizedArrayType(1.0), c_filtered);
 
-      phi = std::max(VectorizedArrayType(0.0), phi);
-      phi = std::min(VectorizedArrayType(1.0), phi);
+      VectorizedArrayType phi =
+        c_filtered * c_filtered * c_filtered *
+        (10.0 - 15.0 * c_filtered + 6.0 * c_filtered * c_filtered);
 
       const VectorizedArrayType M = Mvol * phi + Mvap * (1.0 - phi) +
-                                    Msurf * 4.0 * lin_c_value * lin_c_value *
-                                      (1.0 - lin_c_value) *
-                                      (1.0 - lin_c_value) +
+                                    Msurf * c_filtered * (1.0 - c_filtered) +
                                     (2.0 * Mgb) * eta_ij_sum;
 
       // 2) for dM_dc
-      const VectorizedArrayType dphidc = 30.0 * lin_c_value * lin_c_value *
-                                         (1.0 - lin_c_value) *
-                                         (1.0 - lin_c_value);
+      const VectorizedArrayType dphidc = 30.0 * c_filtered * c_filtered *
+                                         (1.0 - c_filtered) *
+                                         (1.0 - c_filtered);
       const VectorizedArrayType dMdc =
         Mvol * dphidc - Mvap * dphidc +
-        Msurf * 8.0 * lin_c_value *
-          (1.0 - 3.0 * lin_c_value + 2.0 * lin_c_value * lin_c_value);
+        Msurf * c_filtered * (1.0 - 2.0 * c_filtered);
 
       // 3) for dM_detai
       VectorizedArrayType factor = 0.0;
