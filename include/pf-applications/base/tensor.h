@@ -117,7 +117,7 @@ namespace Sintering
 
   template <int dim, typename Number>
   DEAL_II_ALWAYS_INLINE inline Tensor<1, dim, Number>
-  unit_vector(const Tensor<1, dim, Number> &vec, const Number zero_tol = 1e-4)
+  unit_vector(const Tensor<1, dim, Number> &vec, const Number zero_tol = 1e-10)
   {
     const Number zeros = 0.0;
     const Number ones  = 1.0;
@@ -137,7 +137,7 @@ namespace Sintering
   template <int dim, typename Number>
   DEAL_II_ALWAYS_INLINE inline Number
   unit_vector_filter_2(const Tensor<1, dim, Number> &vec,
-                       const Number                  zero_tol = 1e-8)
+                       const Number                  zero_tol = 1e-20)
   {
     const Number zeros = 0.0;
     const Number ones  = 1.0;
