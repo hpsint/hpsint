@@ -5,6 +5,8 @@
 
 #include <deal.II/grid/grid_tools.h>
 
+#include <deal.II/matrix_free/fe_point_evaluation.h>
+
 #include <deal.II/numerics/data_out.h>
 
 #include <pf-applications/sintering/operator_sintering_data.h>
@@ -279,6 +281,9 @@ namespace Sintering
               box_filter);
           }
 
+        const auto &fe = background_dof_handler_to_be_used->get_fe();
+        FEPointEvaluation<1, dim> fe_evaluation(mapping, fe, update_values);
+
         // step 1) create surface mesh
         std::vector<Point<dim>>        vertices;
         std::vector<CellData<dim - 1>> cells;
@@ -290,9 +295,6 @@ namespace Sintering
              background_dof_handler_to_be_used->get_fe(),
              n_subdivisions,
              tolerance);
-
-        Vector<Number> values(
-          background_dof_handler_to_be_used->get_fe().n_dofs_per_cell());
 
         Vector<Number> values_i(
           background_dof_handler_to_be_used->get_fe().n_dofs_per_cell());
@@ -333,6 +335,8 @@ namespace Sintering
                           cell->get_dof_values(vector_to_be_used->block(2 + j),
                                                values_j);
 
+                          gb += values_j;
+
                           bool j_upper = false;
                           bool j_lower = false;
                           for (const auto j_val : values_j)
@@ -344,13 +348,7 @@ namespace Sintering
                             }
 
                           if (j_upper && j_lower)
-                            {
-                              has_others = true;
-
-                              break;
-                            }
-
-                          gb += values_j;
+                            has_others = true;
                         }
 
                       gb.scale(values_i);
@@ -362,23 +360,57 @@ namespace Sintering
                                       return val > gb_lim;
                                     });
 
-                      if (has_others || has_strong_gb)
-                        mc.process_cell(cell,
-                                        vector_to_be_used->block(2 + i),
-                                        iso_level,
-                                        vertices,
-                                        cells);
+                      const bool is_gb_candidate =
+                        (has_strong_gb || has_others);
+
+                      if (is_gb_candidate)
+                        {
+                          std::vector<CellData<dim - 1>> local_cells;
+
+                          mc.process_cell(cell,
+                                          vector_to_be_used->block(2 + i),
+                                          iso_level,
+                                          vertices,
+                                          local_cells);
+
+                          std::vector<Point<dim>> real_centroids;
+                          for (const auto &new_cell : local_cells)
+                            {
+                              Point<dim> centoroid;
+                              for (const auto &vertex_id : new_cell.vertices)
+                                centoroid += vertices[vertex_id];
+                              centoroid /= new_cell.vertices.size();
+
+                              real_centroids.push_back(centoroid);
+                            }
+                          std::vector<Point<dim>> unit_centroids(
+                            real_centroids.size());
+
+                          mapping.transform_points_real_to_unit_cell(
+                            cell, real_centroids, unit_centroids);
+
+                          fe_evaluation.reinit(cell, unit_centroids);
+
+                          ArrayView<Number> gb_via_array_view(&gb[0],
+                                                              gb.size());
+                          fe_evaluation.evaluate(gb_via_array_view,
+                                                 EvaluationFlags::values);
+
+                          for (unsigned int i = 0; i < local_cells.size(); ++i)
+                            if (fe_evaluation.get_value(i) > gb_lim)
+                              cells.push_back(local_cells[i]);
+                        }
                     }
                 }
             }
 
-        if (vertices.size() > 0)
+        if (vertices.size() > 0 && cells.size() > 0)
           tria.create_triangulation(vertices, cells, subcelldata);
 
         if (has_ghost_elements == false)
           vector.zero_out_ghost_values();
 
-        return vertices.size() > 0;
+        return vertices.size() > 0 && cells.size() > 0;
       }
     } // namespace internal
 
