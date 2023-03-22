@@ -2697,9 +2697,17 @@ namespace Sintering
       if (params.output_data.table)
         {
           table.add_value("step", counters[label]);
+
           table.add_value("time", t);
-          table.add_value(
-            "dt", sintering_operator.get_data().time_data.get_current_dt());
+          if (t < 1.)
+            table.set_scientific("time", true);
+
+          const auto current_dt =
+            sintering_operator.get_data().time_data.get_current_dt();
+          table.add_value("dt", current_dt);
+          if (current_dt < 1.)
+            table.set_scientific("dt", true);
+
           table.add_value("n_dofs", dof_handler.n_dofs());
           table.add_value("n_op",
                           sintering_operator.get_data().n_components() - 2);
