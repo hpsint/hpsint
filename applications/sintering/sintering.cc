@@ -47,6 +47,7 @@ static_assert(false, "No grains number has been given!");
 #include <pf-applications/sintering/initial_values_hypercube.h>
 
 #include <cstdlib>
+#include <regex>
 
 using namespace dealii;
 
@@ -59,6 +60,52 @@ concatenate_strings(const int argc, char **argv)
     result = result + " " + std::string(argv[i]);
 
   return result;
+}
+
+void
+parse_params(const int              argc,
+             char **                argv,
+             const unsigned int     offset,
+             Sintering::Parameters &params,
+             ConditionalOStream &   pcout)
+{
+  if (static_cast<unsigned int>(argc) >= offset + 1)
+    {
+      pcout << "Input parameters file:" << std::endl;
+      pcout << std::ifstream(argv[offset]).rdbuf() << std::endl;
+
+      params.parse(std::string(argv[offset]));
+    }
+
+  // Override params directly via command line
+  for (unsigned int i = offset + 1; i < static_cast<unsigned int>(argc); ++i)
+    {
+      const std::string flag = std::string(argv[i]);
+
+      if (flag.substr(0, 2) == "--")
+        {
+          std::regex  rgx("--([(\\w*).]*)=\"?(.*)\"?");
+          std::smatch matches;
+
+          AssertThrow(std::regex_search(flag, matches, rgx),
+                      ExcMessage("Incorrect parameter string specified: " +
+                                 flag + "\nThe correct format is:\n" +
+                                 "--Path.To.Option=\"value\"\nor\n" +
+                                 "--Path.To.Option=value\n" +
+                                 "if 'value' does not contain spaces"));
+
+          const std::string param_name  = matches[1].str();
+          const std::string param_value = matches[2].str();
+
+          params.set(param_name, param_value);
+        }
+    }
+
+  params.check();
+
+  pcout << "Parameters in JSON format:" << std::endl;
+  params.print_input();
+  pcout << std::endl;
 }
 
 int
@@ -89,7 +136,7 @@ main(int argc, char **argv)
     }
   else if (std::string(argv[1]) == "--circle")
     {
-      AssertThrow(4 <= argc && argc <= 5, ExcNotImplemented());
+      AssertThrow(argc >= 4, ExcNotImplemented());
 
       // geometry
       const double          r0              = atof(argv[2]);
@@ -107,19 +154,7 @@ main(int argc, char **argv)
       pcout << "Number of grains: " << n_grains << std::endl;
       pcout << std::endl;
 
-      if (argc == 5)
-        {
-          pcout << "Input parameters file:" << std::endl;
-          pcout << std::ifstream(argv[4]).rdbuf() << std::endl;
-
-          params.parse(std::string(argv[4]));
-        }
-
-      params.check();
-
-      pcout << "Parameters in JSON format:" << std::endl;
-      params.print_input();
-      pcout << std::endl;
+      parse_params(argc, argv, 4, params, pcout);
 
       const auto initial_solution =
         std::make_shared<Sintering::InitialValuesCircle<SINTERING_DIM>>(
@@ -138,8 +173,7 @@ main(int argc, char **argv)
     }
   else if (std::string(argv[1]) == "--hypercube")
     {
-      AssertThrow(3 + SINTERING_DIM <= argc && argc <= 4 + SINTERING_DIM,
-                  ExcNotImplemented());
+      AssertThrow(argc >= 3 + SINTERING_DIM, ExcNotImplemented());
 
       // geometry
       const double r0 = atof(argv[2]);
@@ -174,19 +208,7 @@ main(int argc, char **argv)
       pcout << " = " << n_total_grains << std::endl;
       pcout << std::endl;
 
-      if (argc == 4 + SINTERING_DIM)
-        {
-          pcout << "Input parameters file:" << std::endl;
-          pcout << std::ifstream(argv[3 + SINTERING_DIM]).rdbuf() << std::endl;
-
-          params.parse(std::string(argv[3 + SINTERING_DIM]));
-        }
-
-      params.check();
-
-      pcout << "Parameters in JSON format:" << std::endl;
-      params.print_input();
-      pcout << std::endl;
+      parse_params(argc, argv, 3 + SINTERING_DIM, params, pcout);
 
       // By default, 2 order parameters are enough for the packing description
       // If minimization is not required, then 0 value disables it
@@ -210,7 +232,7 @@ main(int argc, char **argv)
     }
   else if (std::string(argv[1]) == "--cloud")
     {
-      AssertThrow(3 <= argc && argc <= 4,
+      AssertThrow(argc >= 3,
                   ExcMessage("Argument cloud_file has to be provided!"));
 
       std::string   file_cloud = std::string(argv[2]);
@@ -230,15 +252,7 @@ main(int argc, char **argv)
       pcout << fstream.rdbuf();
       pcout << std::endl;
 
-      if (argc == 4)
-        {
-          pcout << "Input parameters file:" << std::endl;
-          pcout << std::ifstream(argv[3]).rdbuf() << std::endl;
-
-          params.parse(std::string(argv[3]));
-        }
-
-      params.check();
+      parse_params(argc, argv, 3, params, pcout);
 
       pcout << "Parameters in JSON format:" << std::endl;
       params.print_input();
@@ -261,7 +275,7 @@ main(int argc, char **argv)
     }
   else if (std::string(argv[1]) == "--restart")
     {
-      AssertThrow(3 <= argc && argc <= 4, ExcNotImplemented());
+      AssertThrow(argc >= 3, ExcNotImplemented());
 
       const std::string restart_path = std::string(argv[2]);
 
@@ -270,19 +284,7 @@ main(int argc, char **argv)
       pcout << "Restart path: " << restart_path << std::endl;
       pcout << std::endl;
 
-      if (argc == 4)
-        {
-          pcout << "Input parameters file:" << std::endl;
-          pcout << std::ifstream(argv[3]).rdbuf() << std::endl;
-
-          params.parse(std::string(argv[3]));
-        }
-
-      params.check();
-
-      pcout << "Parameters in JSON format:" << std::endl;
-      params.print_input();
-      pcout << std::endl;
+      parse_params(argc, argv, 3, params, pcout);
 
       Sintering::Problem<SINTERING_DIM> runner(params, restart_path);
     }
@@ -291,19 +293,7 @@ main(int argc, char **argv)
       // Output case specific info
       pcout << "Mode: debug" << std::endl;
 
-      if (argc == 3)
-        {
-          pcout << "Input parameters file:" << std::endl;
-          pcout << std::ifstream(argv[2]).rdbuf() << std::endl;
-
-          params.parse(std::string(argv[2]));
-        }
-
-      params.check();
-
-      pcout << "Parameters in JSON format:" << std::endl;
-      params.print_input();
-      pcout << std::endl;
+      parse_params(argc, argv, 2, params, pcout);
 
       const auto initial_solution =
         std::make_shared<Sintering::InitialValuesDebug<SINTERING_DIM>>();
