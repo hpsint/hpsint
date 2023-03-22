@@ -60,7 +60,7 @@ mpirun -np 320 ./applications/sintering/sintering-3D-generic-scalar --cloud ../a
 
 ... as propsed in https://github.com/peterrum/pf-applications/pull/329.
 
-Test case to run the simulation up to time `T=100000` where only 2 massive grains remaining. This case also outputs grains contours and various scalar quantities to control the results:
+Test case to run the simulation up to time `T=100000` when only 2 massive grains remaining. This case also outputs grains contours and various scalar quantities to control the results:
 ```
 mpirun -np 320 ./applications/sintering/sintering-3D-generic-scalar --cloud ../applications/sintering/sintering_cloud_examples/49particles.cloud ../applications/sintering/analysis_examples/49particles_delta_min_40_ultimate.json
 ```
