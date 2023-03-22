@@ -17,11 +17,13 @@
 #include <deal.II/particles/data_out.h>
 #include <deal.II/particles/particle_handler.h>
 
+#include <pf-applications/base/debug.h>
 #include <pf-applications/base/timer.h>
 
 #include <pf-applications/lac/dynamic_block_vector.h>
 
 #include <functional>
+#include <stack>
 
 #include "distributed_stitching.h"
 #include "grain.h"
@@ -29,14 +31,6 @@
 #include "remap_graph.h"
 #include "remapping.h"
 #include "segment.h"
-
-#define AssertThrowDistributedDimension(size)                        \
-  {                                                                  \
-    const auto min_size = Utilities::MPI::min(size, MPI_COMM_WORLD); \
-    const auto max_size = Utilities::MPI::max(size, MPI_COMM_WORLD); \
-    AssertThrow(min_size == max_size,                                \
-                ExcDimensionMismatch(min_size, max_size));           \
-  }
 
 namespace GrainTracker
 {
@@ -63,7 +57,8 @@ namespace GrainTracker
             const double       buffer_distance_ratio                = 0.05,
             const double       buffer_distance_fixed                = 0.0,
             const unsigned int order_parameters_offset              = 2,
-            const bool         do_timing                            = true)
+            const bool         do_timing                            = true,
+            const bool         use_old_remap                        = false)
       : dof_handler(dof_handler)
       , tria(tria)
       , greedy_init(greedy_init)
@@ -77,6 +72,7 @@ namespace GrainTracker
       , order_parameters_offset(order_parameters_offset)
       , pcout(std::cout, Utilities::MPI::this_mpi_process(MPI_COMM_WORLD) == 0)
       , timer(do_timing)
+      , use_old_remap(use_old_remap)
     {}
 
     std::shared_ptr<Tracker<dim, Number>>
@@ -394,9 +390,238 @@ namespace GrainTracker
       return remap(raw_ptrs);
     }
 
-    // Remap state vectors
     unsigned int
     remap(std::vector<BlockVectorType *> solutions) const
+    {
+      return use_old_remap ? remap_old(solutions) : remap_new(solutions);
+    }
+
+  private:
+    // Remap state vectors
+    unsigned int
+    remap_new(std::vector<BlockVectorType *> solutions) const
+    {
+      ScopedName sc("tracker::remap");
+      MyScope    scope(timer, sc, timer.is_enabled());
+
+      // Vector for dof values transfer
+      Vector<Number> values(dof_handler.get_fe().n_dofs_per_cell());
+
+      // Build a list of remappings for grains
+      std::map<unsigned int, Remapping> grain_id_to_remapping;
+      for (const auto &[gid, grain] : grains)
+        {
+          (void)gid;
+
+          if (grain.get_order_parameter_id() !=
+              grain.get_old_order_parameter_id())
+            {
+              grain_id_to_remapping.emplace(
+                grain.get_grain_id(),
+                Remapping(grain.get_grain_id(),
+                          grain.get_old_order_parameter_id(),
+                          grain.get_order_parameter_id()));
+            }
+        }
+
+      // Total number of grains remapped
+      unsigned int n_grains_remapped = grain_id_to_remapping.size();
+
+      if (n_grains_remapped == 0)
+        return n_grains_remapped;
+
+      // Init remapping cache
+      std::map<std::vector<unsigned int>, std::list<Remapping>>
+        remappings_cache;
+
+      // Copy solutions
+      std::vector<std::shared_ptr<BlockVectorType>> solutions_copy;
+      for (const auto solution : solutions)
+        solutions_copy.push_back(std::make_shared<BlockVectorType>(*solution));
+
+      // Main remapping loop
+      for (auto &cell : dof_handler.active_cell_iterators())
+        {
+          if (!cell->is_locally_owned())
+            continue;
+
+          const auto cell_index = cell->global_active_cell_index();
+
+          std::vector<unsigned int> grains_at_cell;
+
+          for (unsigned int op = 0; op < op_particle_ids.n_blocks(); ++op)
+            {
+              const auto particle_id_for_op =
+                get_particle_index(op, cell_index);
+
+              if (particle_id_for_op != numbers::invalid_unsigned_int)
+                {
+                  const auto grain_id =
+                    get_grain_and_segment(op, particle_id_for_op).first;
+
+                  grains_at_cell.push_back(grain_id);
+                }
+            }
+
+          // If no any grain at the current cell then skip the rest
+          if (grains_at_cell.empty())
+            continue;
+
+          // Try to get the cached value
+          auto it_cache = remappings_cache.find(grains_at_cell);
+
+          // Build the remappings sequence if nothing in cache
+          if (it_cache == remappings_cache.end())
+            {
+              // Build local remappings at the cell
+              std::list<Remapping> remappings;
+              for (const auto &gid : grains_at_cell)
+                {
+                  const auto it_remap = grain_id_to_remapping.find(gid);
+
+                  if (it_remap != grain_id_to_remapping.end())
+                    remappings.insert(remappings.end(), it_remap->second);
+                }
+
+              // The local remappings now have to checked for collisions
+              // Build graph to resolve overlapping remappings
+              RemapGraph graph;
+
+              // Check for collisions in the remappings
+              for (const auto &ri : remappings)
+                {
+                  const auto &grain_i = grains.at(ri.grain_id);
+
+                  for (const auto &rj : remappings)
+                    {
+                      const auto &grain_j = grains.at(rj.grain_id);
+
+                      if (ri != rj)
+                        {
+                          const double buffer_i = grain_i.transfer_buffer();
+                          const double buffer_j = grain_j.transfer_buffer();
+
+                          const bool has_overlap =
+                            grain_i.distance(grain_j) - buffer_i - buffer_j < 0;
+
+                          /* If the two grains involved in remappings overlap
+                           * and share the same order parameter in the current
+                           * and previous states, then we add them for analysis
+                           * to the graph.
+                           */
+                          if (has_overlap && ri.to == rj.from)
+                            {
+                              graph.add_remapping(ri.from, ri.to, ri.grain_id);
+
+                              /* Besides that, we need to add also the
+                               * subsequent remapping for the second grain to
+                               * the graph too.
+                               */
+                              auto it_re = std::find_if(
+                                remappings.begin(),
+                                remappings.end(),
+                                [target_grain_id = rj.grain_id](const auto &a) {
+                                  return a.grain_id == target_grain_id;
+                                });
+
+                              AssertThrow(it_re != remappings.end(),
+                                          ExcMessage(
+                                            "Particles collision detected!"));
+
+                              graph.add_remapping(it_re->from,
+                                                  it_re->to,
+                                                  it_re->grain_id);
+                            }
+                        }
+                    }
+                }
+
+              /* If graph is not empty, then have some dependencies in remapping
+               * and need to perform at first those at the end of the graph in
+               * order not to break the configuration of the domain.
+               */
+              if (!graph.empty())
+                {
+                  // At frist resolve cyclic remappings if any cycle exists
+                  const auto remappings_via_temp =
+                    graph.resolve_cycles(remappings);
+
+                  // Then rearrange the rest
+                  graph.rearrange(remappings);
+
+                  for (const auto &[to_temp, from_temp] : remappings_via_temp)
+                    {
+                      remappings.insert(remappings.begin(), to_temp);
+                      remappings.insert(remappings.end(), from_temp);
+                    }
+                }
+
+              // Update iterator to the recently added remapping sequence
+              bool status = false;
+              std::tie(it_cache, status) =
+                remappings_cache.emplace(grains_at_cell, remappings);
+
+              AssertThrow(
+                status,
+                ExcMessage(
+                  "Failed to insert remappings into cache for cells with grains " +
+                  debug::to_string(grains_at_cell)));
+            }
+          const auto &remap_sequence = it_cache->second;
+
+          for (unsigned int i = 0; i < solutions.size(); ++i)
+            {
+              const auto &solution      = solutions[i];
+              const auto &solution_copy = solutions_copy[i];
+
+              // Prepare temp storage
+              std::stack<Vector<Number>> temp_values;
+
+              for (const auto &re : remap_sequence)
+                {
+                  // Retrieve values from the existing block or temp storage
+                  if (re.from != numbers::invalid_unsigned_int)
+                    {
+                      const unsigned int op_id_src =
+                        re.from + order_parameters_offset;
+                      cell->get_dof_values(solution_copy->block(op_id_src),
+                                           values);
+                    }
+                  else
+                    {
+                      values = temp_values.top();
+                      temp_values.pop();
+                    }
+
+                  // Set values to the existing block or temp storage
+                  if (re.to != numbers::invalid_unsigned_int)
+                    {
+                      const unsigned int op_id_dst =
+                        re.to + order_parameters_offset;
+                      cell->set_dof_values(values, solution->block(op_id_dst));
+                    }
+                  else
+                    {
+                      temp_values.push(values);
+                    }
+
+                  // Nullify source
+                  if (re.from != numbers::invalid_unsigned_int)
+                    {
+                      const unsigned int op_id_src =
+                        re.from + order_parameters_offset;
+                      values = 0;
+                      cell->set_dof_values(values, solution->block(op_id_src));
+                    }
+                }
+            }
+        }
+
+      return n_grains_remapped;
+    }
+
+    unsigned int
+    remap_old(std::vector<BlockVectorType *> solutions) const
     {
       ScopedName sc("tracker::remap");
       MyScope    scope(timer, sc, timer.is_enabled());
@@ -740,6 +965,7 @@ namespace GrainTracker
       return n_grains_remapped;
     }
 
+  public:
     const std::map<unsigned int, Grain<dim>> &
     get_grains() const
     {
@@ -894,13 +1120,24 @@ namespace GrainTracker
             MyScope    scope(timer, sc, timer.is_enabled());
 
             for (const auto &cell : dof_handler.active_cell_iterators())
-              if (run_flooding<dim>(cell,
-                                    solution_order_parameter,
-                                    particle_ids,
-                                    counter,
-                                    threshold_lower,
-                                    invalid_particle_id) > 0)
-                counter++;
+              {
+                const bool has_ghost_elements =
+                  solution_order_parameter.has_ghost_elements();
+
+                if (has_ghost_elements == false)
+                  solution_order_parameter.update_ghost_values();
+
+                if (run_flooding<dim>(cell,
+                                      solution_order_parameter,
+                                      particle_ids,
+                                      counter,
+                                      threshold_lower,
+                                      invalid_particle_id) > 0)
+                  counter++;
+
+                if (has_ghost_elements == false)
+                  solution_order_parameter.zero_out_ghost_values();
+              }
           }
 
           // step 2) determine the global number of locally determined particles
@@ -1857,6 +2094,9 @@ namespace GrainTracker
 
     // Total number of segments
     unsigned int n_total_segments;
+
+    // Use old remapping algo
+    const bool use_old_remap;
 
     std::map<unsigned int, Grain<dim>> grains;
     std::map<unsigned int, Grain<dim>> old_grains;
