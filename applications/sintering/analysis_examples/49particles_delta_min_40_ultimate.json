@@ -1,5 +1,6 @@
 {
     "MatrixBased": "false",
+    "GrainCutOffTolerance": "0.00000",
     "Adaptivity": {
         "BottomFractionOfCells": "0.1",
         "MaxRefinementDepth": "1",
@@ -15,10 +16,10 @@
     "Geometry": {
         "BoundaryFactor": "0.5",
         "CustomBoundingBox": "false",
-        "DivisionsPerInterface": "2",
+        "DivisionsPerInterface": "3",
         "HangingNodeWeight": "1",
-        "InterfaceBufferRatio": "4",
-        "InterfaceWidth": "6",
+        "InterfaceBufferRatio": "3",
+        "InterfaceWidth": "8",
         "MinimizeOrderParameters": "true",
         "Periodic": "false",
         "BoundingBox": {
@@ -38,10 +39,10 @@
     },
     "Material": {
         "EnergyAbstract": {
-            "A": "5.8",
-            "B": "0.2",
-            "KappaC": "6.75",
-            "KappaP": "1.35"
+            "A": "4.35",
+            "B": "0.15",
+            "KappaC": "9.0",
+            "KappaP": "1.79"
         },
         "MobilityAbstract": {
             "L": "1",
@@ -55,17 +56,27 @@
     "NonLinearData": {
         "LinearRelativeTolerance": 0.01,
         "NewtonUseDamping": true,
-        "NonLinearSolverType": "NOX"
+        "NonLinearSolverType": "NOX",
+        "JacobiFree": false,
+        "LinearMaxIterations": 100,
+        "NewtonThresholdNewtonIterations": 100,
+        "NewtonThresholdLinearIterations": 50,
+        "NewtonReusePreconditioner": false
     },
     "Output": {
-        "Contour": "false",
+        "Contour": "true",
         "ContourNCoarseningSteps": "0",
         "Debug": "false",
+        "DomainIntegrals": "gb_area,solid_vol,surf_area,avg_grain_size,free_energy",
         "Fields": "bnds",
         "HigherOrderCells": "false",
-        "OutputTimeInterval": "50",
+        "IsoGrainBoundariesArea": "true",
+        "IsoSurfaceArea": "true",
+        "OutputTimeInterval": "500",
         "Regular": "false",
-        "VtkPath": "."
+        "Table": "true",
+        "VtkPath": ".",
+        "MeshOverheadEstimate": false
     },
     "Preconditioners": {
         "OuterPreconditioner": "BlockPreconditioner2",
@@ -81,17 +92,17 @@
         "OutputMemoryConsumption": "false"
     },
     "Restart": {
-        "Interval": "5000",
+        "Interval": "20000",
         "MaximalOutput": "1",
         "Prefix": "./restart",
         "Type": "simulation_time"
     },
     "TimeIntegration": {
         "IntegrationScheme": "BDF2",
-        "DesirableLinearIterations": "100",
-        "DesirableNewtonIterations": "5",
+        "DesirableLinearIterations": "200",
+        "DesirableNewtonIterations": "10",
         "GrowthFactor": "1.2",
-        "TimeEnd": "15000",
+        "TimeEnd": "100000",
         "TimeStart": "0",
         "TimeStepInit": "0.1",
         "TimeStepMax": "100",

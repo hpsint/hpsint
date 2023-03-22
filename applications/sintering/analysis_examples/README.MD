@@ -40,7 +40,7 @@ as proposed in https://github.com/peterrum/pf-applications/issues/402#issuecomme
 mpirun -np 320 ./applications/sintering/sintering-3D-generic-scalar --cloud ../applications/sintering/sintering_cloud_examples/49particles.cloud ../applications/sintering/analysis_examples/49particles.json
 ```
 
-Variations with `delta_min=0.5, 1.0, 2.0, 3.0, 4.0` (as proposed in https://github.com/peterrum/pf-applications/issues/313):
+Variations with different interface thicknesses `delta_min=0.5, 1.0, 2.0, 3.0, 4.0` (the thickness value is controled by the free energy parameters), as proposed in https://github.com/peterrum/pf-applications/issues/313:
 
 ```bash
 mpirun -np 320 ./applications/sintering/sintering-3D-generic-scalar --cloud ../applications/sintering/sintering_cloud_examples/49particles.cloud ../applications/sintering/analysis_examples/49particles_delta_min_05.json
@@ -59,3 +59,8 @@ mpirun -np 320 ./applications/sintering/sintering-3D-generic-scalar --cloud ../a
 ```
 
 ... as propsed in https://github.com/peterrum/pf-applications/pull/329.
+
+Test case to run the simulation up to time `T=100000` when only 2 massive grains are remaining. This case also outputs grains contours and various scalar quantities to control the results:
+```
+mpirun -np 320 ./applications/sintering/sintering-3D-generic-scalar --cloud ../applications/sintering/sintering_cloud_examples/49particles.cloud ../applications/sintering/analysis_examples/49particles_delta_min_40_ultimate.json
+```
