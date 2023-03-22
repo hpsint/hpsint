@@ -4,7 +4,7 @@ set(MAX_SINTERING_GRAINS 10)
 # Possible options variants
 set(VARIANTS_DIM      "2D;3D")
 set(VARIANTS_MOBILITY "scalar;tensorial")
-set(VARIANTS_OPERATOR "generic;wang;diffusion")
+set(VARIANTS_OPERATOR "generic")
 
 # Mapping
 set(OPTION_DIM_2D "SINTERING_DIM=2")
