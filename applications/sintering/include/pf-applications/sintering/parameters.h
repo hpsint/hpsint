@@ -189,6 +189,7 @@ namespace Sintering
     bool                  contours               = true;
     bool                  contours_tex           = false;
     unsigned int          n_coarsening_steps     = 0;
+    unsigned int          n_mca_subdivisions     = 1;
     bool                  porosity               = false;
     bool                  shrinkage              = false;
     bool                  quality                = false;
@@ -222,6 +223,7 @@ namespace Sintering
     bool                  grain_boundaries = false;
     bool                  iso_surf_area    = false;
     bool                  iso_gb_area      = false;
+    double                gb_threshold     = 0.14;
   };
 
   struct RestartData
@@ -739,6 +741,9 @@ namespace Sintering
       prm.add_parameter("ContourNCoarseningSteps",
                         output_data.n_coarsening_steps,
                         "Whether contour output is enabled.");
+      prm.add_parameter("MCASubdivisions",
+                        output_data.n_mca_subdivisions,
+                        "Marching cube algorithm subdivisions.");
       prm.add_parameter("Porosity",
                         output_data.porosity,
                         "Determine porosity.");
@@ -804,6 +809,9 @@ namespace Sintering
       prm.add_parameter("IsoGrainBoundariesArea",
                         output_data.iso_gb_area,
                         "Compute GB area from isocontours.");
+      prm.add_parameter("GrainBoundariesThreshold",
+                        output_data.gb_threshold,
+                        "Grain boundary detection threshold.");
 
       prm.leave_subsection();
 

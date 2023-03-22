@@ -2590,7 +2590,6 @@ namespace Sintering
 
       // Some settings
       const double iso_value = 0.5;
-      const double gb_lim    = 0.14;
 
       if (counters.find(label) == counters.end())
         counters[label] = 0;
@@ -2791,7 +2790,12 @@ namespace Sintering
           if (params.output_data.iso_surf_area)
             {
               const auto surface_area = Postprocessors::compute_surface_area(
-                mapping, dof_handler, solution, iso_value, predicate_iso);
+                mapping,
+                dof_handler,
+                solution,
+                iso_value,
+                predicate_iso,
+                params.output_data.n_mca_subdivisions);
 
               table.add_value("iso_surf_area", surface_area);
             }
@@ -2805,8 +2809,9 @@ namespace Sintering
                   solution,
                   iso_value,
                   sintering_operator.n_grains(),
-                  gb_lim,
-                  predicate_iso);
+                  params.output_data.gb_threshold,
+                  predicate_iso,
+                  params.output_data.n_mca_subdivisions);
 
               table.add_value("iso_gb_area", gb_area);
             }
@@ -2861,7 +2866,8 @@ namespace Sintering
             sintering_operator.n_grains(),
             grain_tracker,
             params.output_data.n_coarsening_steps,
-            box_filter);
+            box_filter,
+            params.output_data.n_mca_subdivisions);
         }
 
       if (params.output_data.concentration_contour)
@@ -2880,7 +2886,8 @@ namespace Sintering
             iso_value,
             output,
             params.output_data.n_coarsening_steps,
-            box_filter);
+            box_filter,
+            params.output_data.n_mca_subdivisions);
         }
 
       if (params.output_data.grain_boundaries)
@@ -2898,9 +2905,10 @@ namespace Sintering
             iso_value,
             output,
             sintering_operator.n_grains(),
-            gb_lim,
+            params.output_data.gb_threshold,
             params.output_data.n_coarsening_steps,
-            box_filter);
+            box_filter,
+            params.output_data.n_mca_subdivisions);
         }
 
       if (params.output_data.contours_tex)
