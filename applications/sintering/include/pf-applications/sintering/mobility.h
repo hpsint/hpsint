@@ -546,6 +546,7 @@ namespace Sintering
   public:
     MobilityTensorial(std::shared_ptr<MobilityProvider> provider)
       : Mobility(provider)
+      , projector_scale(1.001)
     {}
 
 
@@ -907,7 +908,7 @@ namespace Sintering
     }
 
   private:
-    const VectorizedArrayType projector_scale{1.001};
+    const VectorizedArrayType projector_scale;
   };
 
 } // namespace Sintering
