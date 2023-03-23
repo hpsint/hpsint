@@ -546,7 +546,6 @@ namespace Sintering
   public:
     MobilityTensorial(std::shared_ptr<MobilityProvider> provider)
       : Mobility(provider)
-      , projector_scale(1.001)
     {}
 
 
@@ -661,7 +660,8 @@ namespace Sintering
         fsurf, VectorizedArrayType(1e-6), VectorizedArrayType(0.0), dfsurf);
 
       const auto nc = unit_vector(c_grad);
-      dMdc += projector_matrix(nc, dfsurf, projector_scale);
+      dMdc +=
+        projector_matrix(nc, dfsurf, VectorizedArrayType(projector_scale));
 
       return dMdc;
     }
@@ -908,7 +908,7 @@ namespace Sintering
     }
 
   private:
-    const VectorizedArrayType projector_scale;
+    const typename VectorizedArrayType::value_type projector_scale = 0.001;
   };
 
 } // namespace Sintering
