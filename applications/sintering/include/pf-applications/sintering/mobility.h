@@ -660,7 +660,7 @@ namespace Sintering
         fsurf, VectorizedArrayType(1e-6), VectorizedArrayType(0.0), dfsurf);
 
       const auto nc = unit_vector(c_grad);
-      dMdc += projector_matrix(nc, dfsurf);
+      dMdc += projector_matrix(nc, dfsurf, projector_scale);
 
       return dMdc;
     }
@@ -747,8 +747,8 @@ namespace Sintering
                          ((1. - lin_c_value) * (1. - lin_c_value));
       const auto nc = unit_vector(lin_c_gradient);
 
-      const auto out =
-        (f_vol_vap + fsurf) * mu_gradient - nc * (fsurf * (nc * mu_gradient));
+      const auto out = (f_vol_vap + fsurf * projector_scale) * mu_gradient -
+                       nc * (fsurf * (nc * mu_gradient));
 
       if (n_grains <= 1)
         return out;
@@ -834,7 +834,7 @@ namespace Sintering
         dfsurf = compare_and_apply_mask<SIMDComparison::less_than>(
           fsurf, VectorizedArrayType(1e-6), VectorizedArrayType(0.0), dfsurf);
 
-        out += ((f_vol_vap + dfsurf) * lin_mu_gradient -
+        out += ((f_vol_vap + dfsurf * projector_scale) * lin_mu_gradient -
                 nc * (dfsurf * (nc * lin_mu_gradient))) *
                c_value;
       }
@@ -905,6 +905,9 @@ namespace Sintering
     {
       return L;
     }
+
+  private:
+    const VectorizedArrayType projector_scale{1.001};
   };
 
 } // namespace Sintering
