@@ -156,9 +156,11 @@ namespace Sintering
 
   template <int dim, typename Number>
   DEAL_II_ALWAYS_INLINE inline Tensor<2, dim, Number>
-  projector_matrix(const Tensor<1, dim, Number> vec, const Number &fac = 1.)
+  projector_matrix(const Tensor<1, dim, Number> vec,
+                   const Number &               fac  = 1.,
+                   const Number &               diag = 1.)
   {
-    auto tensor = diagonal_matrix<dim, Number>(1.) - outer_product(vec, vec);
+    auto tensor = diagonal_matrix<dim, Number>(diag) - outer_product(vec, vec);
     tensor *= fac;
 
     return tensor;
