@@ -908,7 +908,7 @@ namespace Sintering
     }
 
   private:
-    const typename VectorizedArrayType::value_type projector_scale = 0.001;
+    const typename VectorizedArrayType::value_type projector_scale = 1.001;
   };
 
 } // namespace Sintering
