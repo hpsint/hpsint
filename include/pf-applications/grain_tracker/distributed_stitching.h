@@ -52,8 +52,13 @@ namespace GrainTracker
 
     cell->get_dof_values(solution, values);
 
-    if (values.linfty_norm() < threshold_lower ||
-        values.mean_value() < threshold_lower)
+    const bool has_particle = std::any_of(values.begin(),
+                                          values.end(),
+                                          [threshold_lower](const auto &val) {
+                                            return val > threshold_lower;
+                                          }) &&
+                              values.mean_value() > 0;
+    if (!has_particle)
       return 0; // cell has no particle
 
     particle_ids[cell->global_active_cell_index()] = id;
