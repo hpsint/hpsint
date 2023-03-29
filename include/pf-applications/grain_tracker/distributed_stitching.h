@@ -52,7 +52,8 @@ namespace GrainTracker
 
     cell->get_dof_values(solution, values);
 
-    if (values.linfty_norm() < threshold_lower)
+    if (values.linfty_norm() < threshold_lower ||
+        values.mean_value() < threshold_lower)
       return 0; // cell has no particle
 
     particle_ids[cell->global_active_cell_index()] = id;
