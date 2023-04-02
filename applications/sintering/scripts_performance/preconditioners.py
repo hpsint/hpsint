@@ -57,7 +57,7 @@ def run_instance(time_end, n_nodes, config):
 
 def main():
     time_end = 500
-    n_nodes  = 5
+    n_nodes  = 6
 
     short_simulation = True
 

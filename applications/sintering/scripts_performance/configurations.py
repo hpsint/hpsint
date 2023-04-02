@@ -7,7 +7,7 @@ JOB="""#PBS -l nodes={1}:ppn=40
 #PBS -q gold
 #PBS -j oe
 
-cd ~/sw-sintering/pf-applications/build/configurations
+cd $PBS_O_WORKDIR
 
 mpirun -np {2} ../applications/sintering/sintering-3D-generic-{3} --cloud ../../applications/sintering/sintering_cloud_examples/49particles.cloud ./job_{0}.json | tee ./job_{0}.out
 """
@@ -43,18 +43,22 @@ def run_instance(counter, time_end, n_nodes, jacobian_free = False, cut_off = Fa
 
 def main():
     time_end = 500
-    n_nodes  = 5
+    n_nodes  = 6
 
-    run_instance(0, time_end, n_nodes)
-    run_instance(1, time_end, n_nodes, jacobian_free=True)
-    run_instance(2, time_end, n_nodes, cut_off=True)
-    run_instance(3, time_end, n_nodes, jacobian_free=True, cut_off=True)
+    run_instance( 0, time_end, n_nodes)
+    run_instance( 1, time_end, n_nodes, jacobian_free=True)
+    run_instance( 2, time_end, n_nodes, cut_off=True)
+    run_instance( 3, time_end, n_nodes, jacobian_free=True, cut_off=True)
 
-    run_instance(4, time_end, n_nodes, tenosrial=True, jacobian_free=True)
-    run_instance(5, time_end, n_nodes, tenosrial=True, jacobian_free=True, cut_off=True)
+    run_instance( 4, time_end, n_nodes, tenosrial=True)
+    run_instance( 5, time_end, n_nodes, tenosrial=True, jacobian_free=True)
+    run_instance( 6, time_end, n_nodes, tenosrial=True, cut_off=True)
+    run_instance( 7, time_end, n_nodes, tenosrial=True, jacobian_free=True, cut_off=True)
 
-    run_instance(6, time_end, n_nodes, advection=True, jacobian_free=True)
-    run_instance(7, time_end, n_nodes, advection=True, jacobian_free=True, cut_off=True)
+    run_instance( 8, time_end, n_nodes, advection=True)
+    run_instance( 9, time_end, n_nodes, advection=True, jacobian_free=True)
+    run_instance(10, time_end, n_nodes, advection=True, cut_off=True)
+    run_instance(11, time_end, n_nodes, advection=True, jacobian_free=True, cut_off=True)
 
 
 if __name__== "__main__":
