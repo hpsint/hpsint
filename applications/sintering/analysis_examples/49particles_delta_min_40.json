@@ -107,7 +107,7 @@
         "DesirableLinearIterations": "100",
         "DesirableNewtonIterations": "5",
         "GrowthFactor": "1.2",
-        "TimeEnd": "550",
+        "TimeEnd": "15000",
         "TimeStart": "0",
         "TimeStepInit": "0.1",
         "TimeStepMax": "100",
