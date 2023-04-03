@@ -512,7 +512,7 @@ namespace Sintering
     }
 
     void
-    initialize_system_matrix() const
+    initialize_system_matrix(const bool print_stats = true) const
     {
       const bool system_matrix_is_empty =
         system_matrix.m() == 0 || system_matrix.n() == 0;
@@ -552,12 +552,15 @@ namespace Sintering
 
           system_matrix.reinit(dsp);
 
-          this->pcout << std::endl;
-          this->pcout << "Create sparsity pattern (" << this->label
-                      << ") with:" << std::endl;
-          this->pcout << " - NNZ: " << system_matrix.n_nonzero_elements()
-                      << std::endl;
-          this->pcout << std::endl;
+          if (print_stats)
+            {
+              this->pcout << std::endl;
+              this->pcout << "Create sparsity pattern (" << this->label
+                          << ") with:" << std::endl;
+              this->pcout << " - NNZ: " << system_matrix.n_nonzero_elements()
+                          << std::endl;
+              this->pcout << std::endl;
+            }
         }
 
       {
