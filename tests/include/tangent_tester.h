@@ -83,7 +83,7 @@ namespace Test
     const unsigned int n_sinter_components    = 4;
 
     std::shared_ptr<MobilityProvider> mobility_provider =
-      std::make_shared<ProviderAbstract>(1e-3, 1e-10, 1e-2, 1e-3, 1.);
+      std::make_shared<ProviderAbstract>(1e-1, 1e-8, 1e1, 1e0, 1e1);
 
     SinteringOperatorData<dim, VectorizedArrayType> sintering_data(
       A, B, kappa_c, kappa_p, mobility_provider, time_integration_order);
