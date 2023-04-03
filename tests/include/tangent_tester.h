@@ -123,7 +123,7 @@ namespace Test
                                                      op_offset);
 
     const double mt = 1.;
-    const double mr = 0.;
+    const double mr = 1.;
 
     AdvectionMechanism<dim, Number, VectorizedArrayType> advection_mechanism(
       enable_rbm, mt, mr);
