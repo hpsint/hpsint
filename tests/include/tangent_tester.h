@@ -30,9 +30,10 @@ namespace Test
             typename VectorizedArrayType,
             typename NonLinearOperator>
   void
-  check_tangent(const bool   enable_rbm,
-                const double tol_abs = 1e-3,
-                const double tol_rel = 1e-6)
+  check_tangent(const bool        enable_rbm,
+                const std::string prefix,
+                const double      tol_abs = 1e-3,
+                const double      tol_rel = 1e-6)
   {
     using VectorType = LinearAlgebra::distributed::DynamicBlockVector<Number>;
 
@@ -286,8 +287,8 @@ namespace Test
       (dealii::Utilities::MPI::sum<unsigned int>(is_correct, comm) ==
        Utilities::MPI::n_mpi_processes(comm));
 
-    pcout << "Tangent is " << (all_correct ? "OK" : "ERROR")
-          << " within tol_abs = " << tol_abs << " tol_rel = " << tol_rel
+    pcout << "Tangent << " << prefix << " is " << (all_correct ? "OK" : "ERROR")
+          << " wit tol_abs = " << tol_abs << " tol_rel = " << tol_rel
           << std::endl;
 
     if (!all_correct)
