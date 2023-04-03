@@ -217,7 +217,6 @@ namespace Test
     const double epsilon   = 1e-7;
     const double tolerance = 1e-12;
 
-    // Nonlinear sintering operator
     VectorType residual;
     nonlinear_operator.initialize_dof_vector(residual);
 
@@ -284,11 +283,11 @@ namespace Test
 
     const bool is_correct = error_abs < tol_abs && error_rel < tol_rel;
     const bool all_correct =
-      (dealii::Utilities::MPI::sum<unsigned int>(is_correct, comm) ==
+      (Utilities::MPI::sum<unsigned int>(is_correct, comm) ==
        Utilities::MPI::n_mpi_processes(comm));
 
-    pcout << "Tangent << " << prefix << " is " << (all_correct ? "OK" : "ERROR")
-          << " wit tol_abs = " << tol_abs << " tol_rel = " << tol_rel
+    pcout << "Tangent " << prefix << " is " << (all_correct ? "OK" : "ERROR")
+          << " with tol_abs = " << tol_abs << " tol_rel = " << tol_rel
           << std::endl;
 
     if (!all_correct)
