@@ -88,7 +88,7 @@
         "OutputMemoryConsumption": "false"
     },
     "Restart": {
-        "Interval": "20000",
+        "Interval": "5000",
         "MaximalOutput": "1",
         "Prefix": "./restart",
         "Type": "simulation_time"
