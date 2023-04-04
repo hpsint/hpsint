@@ -135,11 +135,14 @@ namespace Test
     TimeIntegration::SolutionHistory<VectorType> solution_history(2);
 
     // External loading
-    auto body_force_x = [](const Point<dim, VectorizedArrayType> &p) {
+    auto body_force = [](const Point<dim, VectorizedArrayType> &p) {
       (void)p;
 
       Tensor<1, dim, VectorizedArrayType> value_result;
       value_result[0] = -0.5;
+      value_result[1] = -0.2;
+      if (dim == 3)
+        value_result[2] = -0.7;
 
       return value_result;
     };
@@ -168,7 +171,7 @@ namespace Test
       E,
       nu,
       plane_type,
-      body_force_x);
+      body_force);
 
     std::function<void(VectorType &)> f_init =
       [&nonlinear_operator](VectorType &v) {
