@@ -266,12 +266,14 @@ namespace Test
                         epsilon;
 
                       if (std::abs(value) > tolerance)
-                        tangent_numeric[b_ + i_ * n_blocks][b + i * n_blocks] =
-                          value;
+                        tangent_numeric.set(b_ + i_ * n_blocks,
+                                            b + i * n_blocks,
+                                            value);
 
                       else if ((b == b_) && (i == i_))
-                        tangent_numeric[b_ + i_ * n_blocks][b + i * n_blocks] =
-                          1.0;
+                        tangent_numeric.set(b_ + i_ * n_blocks,
+                                            b + i * n_blocks,
+                                            1.0);
                     }
                 }
         }
