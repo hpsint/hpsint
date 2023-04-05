@@ -140,7 +140,8 @@ namespace Sintering
               const InitialRefine refine,
               const unsigned int  max_prime                          = 0,
               const double        max_level0_divisions_per_interface = 1.0,
-              const unsigned int  divisions_per_element              = 1)
+              const unsigned int  divisions_per_element              = 1,
+              const bool          print_stats                        = true)
   {
     // Domain size
     const auto domain_size = top_right - bottom_left;
@@ -226,7 +227,9 @@ namespace Sintering
         n_delayed = n_refinements_base + n_refinements_interface;
       }
 
-    print_mesh_info(bottom_left, top_right, subdivisions, n_global, n_delayed);
+    if (print_stats)
+      print_mesh_info(
+        bottom_left, top_right, subdivisions, n_global, n_delayed);
 
     return n_delayed;
   }
@@ -238,7 +241,8 @@ namespace Sintering
               const Point<dim> &               top_right,
               const std::vector<unsigned int> &subdivisions,
               const bool                       periodic,
-              const unsigned int               n_refinements)
+              const unsigned int               n_refinements,
+              const bool                       print_stats = true)
   {
     GridGenerator::subdivided_hyper_rectangle(
       tria, subdivisions, bottom_left, top_right, true);
@@ -261,7 +265,8 @@ namespace Sintering
 
     tria.refine_global(n_refinements);
 
-    print_mesh_info(bottom_left, top_right, subdivisions, n_refinements, 0);
+    if (print_stats)
+      print_mesh_info(bottom_left, top_right, subdivisions, n_refinements, 0);
 
     // Return 0 delayed lazy refinements for consistency of the interfaces
     return 0;
