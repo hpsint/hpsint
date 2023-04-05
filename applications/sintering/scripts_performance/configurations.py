@@ -53,12 +53,12 @@ def main():
     run_instance( 4, time_end, n_nodes, tenosrial=True)
     run_instance( 5, time_end, n_nodes, tenosrial=True, jacobian_free=True)
     run_instance( 6, time_end, n_nodes, tenosrial=True, cut_off=True)
-    run_instance( 7, time_end, n_nodes, tenosrial=True, jacobian_free=True, cut_off=True)
+    #run_instance( 7, time_end, n_nodes, tenosrial=True, jacobian_free=True, cut_off=True)
 
-    run_instance( 8, time_end, n_nodes, advection=True)
-    run_instance( 9, time_end, n_nodes, advection=True, jacobian_free=True)
-    run_instance(10, time_end, n_nodes, advection=True, cut_off=True)
-    run_instance(11, time_end, n_nodes, advection=True, jacobian_free=True, cut_off=True)
+    run_instance( 7, time_end, n_nodes, advection=True)
+    run_instance( 8, time_end, n_nodes, advection=True, jacobian_free=True)
+    run_instance( 9, time_end, n_nodes, advection=True, cut_off=True)
+    run_instance(10, time_end, n_nodes, advection=True, jacobian_free=True, cut_off=True)
 
 
 if __name__== "__main__":
