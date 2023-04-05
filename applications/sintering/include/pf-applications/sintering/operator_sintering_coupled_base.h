@@ -55,7 +55,7 @@ namespace Sintering
       for (const auto i : partitioner->locally_owned_range())
         {
           const auto local_index = partitioner->global_to_local(i);
-          if (solution.block(0)[local_index] < c_min)
+          if (solution.block(0).local_element(local_index) < c_min)
             zero_c_constraints_indices.emplace_back(local_index);
         }
     }
