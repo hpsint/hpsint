@@ -320,7 +320,7 @@ namespace Test
        Utilities::MPI::n_mpi_processes(comm));
 
     pcout << "Tangent " << prefix << " is " << (all_correct ? "OK" : "ERROR")
-          << " with tol_abs = " << tol_abs << " tol_rel = " << tol_rel
+          << " with tol_abs = " << tol_abs << " and tol_rel = " << tol_rel
           << std::endl;
 
     if (!all_correct)
