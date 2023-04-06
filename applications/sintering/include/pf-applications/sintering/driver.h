@@ -878,7 +878,7 @@ namespace Sintering
         params.grain_tracker_data.fast_reassignment,
         MAX_SINTERING_GRAINS,
         params.grain_tracker_data.threshold_lower,
-        params.grain_tracker_data.threshold_upper,
+        params.grain_tracker_data.threshold_new_grains,
         params.grain_tracker_data.buffer_distance_ratio,
         params.grain_tracker_data.buffer_distance_fixed,
         order_parameters_offset,

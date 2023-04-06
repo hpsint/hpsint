@@ -52,13 +52,13 @@ namespace GrainTracker
             const bool                              allow_new_grains,
             const bool                              fast_reassignment,
             const unsigned int                      max_order_parameters_num,
-            const double                            threshold_lower = 0.01,
-            const double                            threshold_upper = 1.01,
-            const double       buffer_distance_ratio                = 0.05,
-            const double       buffer_distance_fixed                = 0.0,
-            const unsigned int order_parameters_offset              = 2,
-            const bool         do_timing                            = true,
-            const bool         use_old_remap                        = false)
+            const double                            threshold_lower      = 0.01,
+            const double                            threshold_new_grains = 0.02,
+            const double       buffer_distance_ratio                     = 0.05,
+            const double       buffer_distance_fixed                     = 0.0,
+            const unsigned int order_parameters_offset                   = 2,
+            const bool         do_timing                                 = true,
+            const bool         use_old_remap = false)
       : dof_handler(dof_handler)
       , tria(tria)
       , greedy_init(greedy_init)
@@ -66,7 +66,7 @@ namespace GrainTracker
       , fast_reassignment(fast_reassignment)
       , max_order_parameters_num(max_order_parameters_num)
       , threshold_lower(threshold_lower)
-      , threshold_upper(threshold_upper)
+      , threshold_new_grains(threshold_new_grains)
       , buffer_distance_ratio(buffer_distance_ratio)
       , buffer_distance_fixed(buffer_distance_fixed)
       , order_parameters_offset(order_parameters_offset)
@@ -88,7 +88,7 @@ namespace GrainTracker
                                                fast_reassignment,
                                                max_order_parameters_num,
                                                threshold_lower,
-                                               threshold_upper,
+                                               threshold_new_grains,
                                                buffer_distance_ratio,
                                                buffer_distance_fixed,
                                                order_parameters_offset,
@@ -191,7 +191,8 @@ namespace GrainTracker
           typename Grain<dim>::Dynamics new_dynamics = Grain<dim>::None;
 
           // Check the grain number
-          if (new_grain_id == std::numeric_limits<unsigned int>::max())
+          if (new_grain_id == std::numeric_limits<unsigned int>::max() &&
+              new_grain.get_max_value() > threshold_new_grains)
             {
               if (allow_new_grains)
                 {
@@ -2104,8 +2105,8 @@ namespace GrainTracker
     // Minimum value of order parameter value
     const double threshold_lower;
 
-    // Maximum value of order parameter value
-    const double threshold_upper;
+    // Minimum threshold for the new grains
+    const double threshold_new_grains;
 
     // Buffer zone around the grain - ratio value
     const double buffer_distance_ratio;

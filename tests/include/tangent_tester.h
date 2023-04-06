@@ -166,7 +166,7 @@ namespace Test
 
     // Grain tracker settings
     const double       threshold_lower          = 1e-15;
-    const double       threshold_upper          = 1.01;
+    const double       threshold_new_grains     = 1e-15;
     const double       buffer_distance_ratio    = 0.05;
     const double       buffer_distance_fixed    = 0.0;
     const bool         allow_new_grains         = false;
@@ -182,7 +182,7 @@ namespace Test
                                                      fast_reassignment,
                                                      max_order_parameters_num,
                                                      threshold_lower,
-                                                     threshold_upper,
+                                                     threshold_new_grains,
                                                      buffer_distance_ratio,
                                                      buffer_distance_fixed,
                                                      op_offset);
