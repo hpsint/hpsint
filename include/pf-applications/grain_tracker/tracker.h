@@ -207,7 +207,7 @@ namespace GrainTracker
                     std::make_pair(numerator_invalid++, new_grain));
                 }
             }
-          else
+          else if (new_grain_id != std::numeric_limits<unsigned int>::max())
             {
               // clang-format off
               AssertThrow(old_grains.at(new_grain_id).get_order_parameter_id() 
