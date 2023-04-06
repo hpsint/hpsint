@@ -55,7 +55,7 @@ namespace GrainTracker
     cell->get_dof_values(solution, values);
 
     const auto cell_max_value = *std::max_element(values.begin(), values.end());
-    const bool has_particle   = cell_max_value > 0;
+    const bool has_particle   = cell_max_value > threshold_lower;
 
     if (!has_particle)
       return 0; // cell has no particle
