@@ -1112,7 +1112,7 @@ namespace GrainTracker
 
           unsigned int counter      = 0;
           unsigned int offset       = 0;
-          double       op_max_value = std::numeric_limits<double>::min();
+          double       op_max_value = std::numeric_limits<double>::lowest();
 
           const auto &solution_order_parameter = solution.block(
             current_order_parameter_id + order_parameters_offset);
@@ -1142,7 +1142,7 @@ namespace GrainTracker
                   {
                     counter++;
                     local_particle_max_values.push_back(op_max_value);
-                    op_max_value = std::numeric_limits<double>::min();
+                    op_max_value = std::numeric_limits<double>::lowest();
                   }
               }
 

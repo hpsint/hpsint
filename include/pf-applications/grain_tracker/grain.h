@@ -214,6 +214,6 @@ namespace GrainTracker
 
     Dynamics dynamics{None};
 
-    double max_value{std::numeric_limits<double>::min()};
+    double max_value{std::numeric_limits<double>::lowest()};
   };
 } // namespace GrainTracker
