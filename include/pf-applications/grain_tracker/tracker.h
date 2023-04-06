@@ -1116,6 +1116,8 @@ namespace GrainTracker
           const auto &solution_order_parameter = solution.block(
             current_order_parameter_id + order_parameters_offset);
 
+          std::vector<double> local_particle_max_values;
+
           {
             ScopedName sc("run_flooding");
             MyScope    scope(timer, sc, timer.is_enabled());
@@ -1126,8 +1128,6 @@ namespace GrainTracker
 
             if (has_ghost_elements == false)
               solution_order_parameter.update_ghost_values();
-
-            std::vector<double> local_particle_max_values;
 
             for (const auto &cell : dof_handler.active_cell_iterators())
               {
