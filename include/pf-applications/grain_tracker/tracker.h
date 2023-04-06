@@ -1246,7 +1246,8 @@ namespace GrainTracker
               n_particles = Utilities::MPI::max(n_particles, comm) + 1;
             }
 
-          std::vector<double> particle_info(n_particles * (1 + dim));
+          const unsigned int n_features = 1 + dim;
+          std::vector<double> particle_info(n_particles * n_features);
 
           // ... compute local information
           for (const auto &cell :
@@ -1264,10 +1265,10 @@ namespace GrainTracker
 
                 AssertIndexRange(unique_id, n_particles);
 
-                particle_info[(dim + 1) * unique_id + 0] += cell->measure();
+                particle_info[n_features * unique_id + 0] += cell->measure();
 
                 for (unsigned int d = 0; d < dim; ++d)
-                  particle_info[(dim + 1) * unique_id + 1 + d] +=
+                  particle_info[n_features * unique_id + 1 + d] +=
                     cell->center()[d] * cell->measure();
               }
 
@@ -1286,8 +1287,8 @@ namespace GrainTracker
               for (unsigned int d = 0; d < dim; ++d)
                 {
                   particle_centers[i][d] =
-                    particle_info[i * (1 + dim) + 1 + d] /
-                    particle_info[i * (1 + dim)];
+                    particle_info[i * n_features + 1 + d] /
+                    particle_info[i * n_features];
                 }
             }
 
