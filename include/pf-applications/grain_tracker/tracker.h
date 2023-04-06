@@ -1110,8 +1110,9 @@ namespace GrainTracker
           // local ids
           particle_ids = invalid_particle_id;
 
-          unsigned int counter = 0;
-          unsigned int offset  = 0;
+          unsigned int counter      = 0;
+          unsigned int offset       = 0;
+          double       op_max_value = std::numeric_limits<double>::min();
 
           const auto &solution_order_parameter = solution.block(
             current_order_parameter_id + order_parameters_offset);
@@ -1131,18 +1132,17 @@ namespace GrainTracker
 
             for (const auto &cell : dof_handler.active_cell_iterators())
               {
-                double max_value = std::numeric_limits<double>::min();
-
                 if (run_flooding<dim>(cell,
                                       solution_order_parameter,
                                       particle_ids,
                                       counter,
-                                      max_value,
+                                      op_max_value,
                                       threshold_lower,
                                       invalid_particle_id) > 0)
                   {
                     counter++;
-                    local_particle_max_values.push_back(max_value);
+                    local_particle_max_values.push_back(op_max_value);
+                    op_max_value = std::numeric_limits<double>::min();
                   }
               }
 
