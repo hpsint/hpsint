@@ -31,6 +31,12 @@ namespace GrainTracker
     }
 
     double
+    get_max_value() const
+    {
+      return max_value;
+    }
+
+    double
     distance(const Segment<dim> &other) const
     {
       const double distance_centers = get_center().distance(other.get_center());
@@ -45,5 +51,7 @@ namespace GrainTracker
     Point<dim> center;
 
     double radius;
+
+    double max_value;
   };
 } // namespace GrainTracker

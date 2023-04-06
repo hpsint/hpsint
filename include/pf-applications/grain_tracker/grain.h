@@ -72,6 +72,13 @@ namespace GrainTracker
       return max_radius;
     }
 
+    /* Maximum value of the order parameter in the grain. */
+    double
+    get_max_value() const
+    {
+      return max_value;
+    }
+
     /* Get grain id. */
     unsigned int
     get_grain_id() const
@@ -134,14 +141,18 @@ namespace GrainTracker
       segments.push_back(segment);
 
       max_radius = std::max(max_radius, segment.get_radius());
+      max_value  = std::max(max_value, segment.get_max_value());
     }
 
     void
-    add_segment(const Point<dim> &center, const double radius)
+    add_segment(const Point<dim> &center,
+                const double      radius,
+                const double      op_value)
     {
-      segments.emplace_back(center, radius);
+      segments.emplace_back(center, radius, op_value);
 
       max_radius = std::max(max_radius, radius);
+      max_value  = std::max(max_value, op_value);
     }
 
     /* Add a grain's neighbor. Neighbors are grains having the same order
@@ -202,5 +213,7 @@ namespace GrainTracker
     double distance_to_nearest_neighbor{std::numeric_limits<double>::max()};
 
     Dynamics dynamics{None};
+
+    double max_value{std::numeric_limits<double>::min()};
   };
 } // namespace GrainTracker

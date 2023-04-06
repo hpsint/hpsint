@@ -1126,15 +1126,23 @@ namespace GrainTracker
             if (has_ghost_elements == false)
               solution_order_parameter.update_ghost_values();
 
+            std::vector<double> local_particle_max_values;
+
             for (const auto &cell : dof_handler.active_cell_iterators())
               {
+                double max_value = std::numeric_limits<double>::min();
+
                 if (run_flooding<dim>(cell,
                                       solution_order_parameter,
                                       particle_ids,
                                       counter,
+                                      max_value,
                                       threshold_lower,
                                       invalid_particle_id) > 0)
-                  counter++;
+                  {
+                    counter++;
+                    local_particle_max_values.push_back(max_value);
+                  }
               }
 
             if (has_ghost_elements == false)
@@ -1246,8 +1254,9 @@ namespace GrainTracker
               n_particles = Utilities::MPI::max(n_particles, comm) + 1;
             }
 
-          const unsigned int n_features = 1 + dim;
+          const unsigned int  n_features = 1 + dim;
           std::vector<double> particle_info(n_particles * n_features);
+          std::vector<double> particle_max_values(n_particles);
 
           // ... compute local information
           for (const auto &cell :
@@ -1270,6 +1279,9 @@ namespace GrainTracker
                 for (unsigned int d = 0; d < dim; ++d)
                   particle_info[n_features * unique_id + 1 + d] +=
                     cell->center()[d] * cell->measure();
+
+                particle_max_values[unique_id] =
+                  local_particle_max_values[particle_id];
               }
 
           // ... reduce information
@@ -1278,6 +1290,14 @@ namespace GrainTracker
                         particle_info.size(),
                         MPI_DOUBLE,
                         MPI_SUM,
+                        comm);
+
+          // ... reduce information
+          MPI_Allreduce(MPI_IN_PLACE,
+                        particle_max_values.data(),
+                        particle_max_values.size(),
+                        MPI_DOUBLE,
+                        MPI_MAX,
                         comm);
 
           // ... compute particles centers
@@ -1426,7 +1446,8 @@ namespace GrainTracker
                                          current_order_parameter_id);
 
                   new_grains.at(grain_id).add_segment(particle_centers[i],
-                                                      particle_radii[i]);
+                                                      particle_radii[i],
+                                                      particle_max_values[i]);
 
                   free_particles.erase(i);
 
@@ -1452,7 +1473,8 @@ namespace GrainTracker
                                      current_order_parameter_id);
 
               new_grains.at(grain_id).add_segment(particle_centers[i],
-                                                  particle_radii[i]);
+                                                  particle_radii[i],
+                                                  particle_max_values[i]);
 
               const unsigned int last_segment_id =
                 new_grains.at(grain_id).n_segments() - 1;
