@@ -10,7 +10,7 @@ JOB="""#PBS -l nodes={1}:ppn=40
 
 cd $PBS_O_WORKDIR
 
-mpirun -np {2} ../applications/sintering/sintering-3D-generic-scalar --cloud ../../applications/sintering/sintering_cloud_examples/49particles.cloud ./job_{0}.json | tee ./job_{0}.out
+mpirun -np {2} ../applications/sintering/sintering-3D-generic-scalar --cloud ../../applications/sintering/sintering_cloud_examples/packings_10k/51particles.cloud ./job_{0}.json | tee ./job_{0}.out
 """
 
 counter = 0
