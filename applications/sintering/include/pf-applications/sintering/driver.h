@@ -1768,6 +1768,7 @@ namespace Sintering
                     ScopedName sc("remap");
                     MyScope    scope(timer, sc);
 
+                    pcout << "remapping::1" << std::endl;
                     n_grains_remapped =
                       grain_tracker.remap(all_solution_vectors);
 
@@ -1798,6 +1799,7 @@ namespace Sintering
                              ++i)
                           sol->move_block(i, i - distance);
 
+                    pcout << "remapping::2" << std::endl;
                     n_grains_remapped =
                       grain_tracker.remap(all_solution_vectors);
                   }
@@ -1814,6 +1816,7 @@ namespace Sintering
                 auto all_solution_vectors =
                   solutions_except_recent.get_all_solutions();
 
+                pcout << "remapping::3" << std::endl;
                 n_grains_remapped = grain_tracker.remap(all_solution_vectors);
               }
 

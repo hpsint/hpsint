@@ -623,6 +623,8 @@ namespace GrainTracker
                                     " is out range (" +
                                     std::to_string(solution->n_blocks()) +
                                     ")."));
+                      debug::log_without_barrier("remap_new::D::I::" +
+                                                 std::to_string(op_id_dst));
                       cell->set_dof_values(values, solution->block(op_id_dst));
                       debug::log_without_barrier("remap_new::D::I");
                     }
