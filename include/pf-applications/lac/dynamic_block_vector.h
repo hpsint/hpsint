@@ -97,6 +97,8 @@ namespace dealii
               if (blocks[b] == nullptr)
                 blocks[b] = std::make_shared<BlockType>();
               block(b).reinit(V.block(b), omit_zeroing_entries);
+              if (block(0).has_ghost_elements())
+                block(b).update_ghost_values();
             }
 
           size_ = 0;
