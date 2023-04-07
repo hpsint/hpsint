@@ -52,13 +52,13 @@ namespace GrainTracker
             const bool                              allow_new_grains,
             const bool                              fast_reassignment,
             const unsigned int                      max_order_parameters_num,
-            const double                            threshold_lower = 0.01,
-            const double                            threshold_upper = 1.01,
-            const double       buffer_distance_ratio                = 0.05,
-            const double       buffer_distance_fixed                = 0.0,
-            const unsigned int order_parameters_offset              = 2,
-            const bool         do_timing                            = true,
-            const bool         use_old_remap                        = false)
+            const double                            threshold_lower      = 0.01,
+            const double                            threshold_new_grains = 0.02,
+            const double       buffer_distance_ratio                     = 0.05,
+            const double       buffer_distance_fixed                     = 0.0,
+            const unsigned int order_parameters_offset                   = 2,
+            const bool         do_timing                                 = true,
+            const bool         use_old_remap = false)
       : dof_handler(dof_handler)
       , tria(tria)
       , greedy_init(greedy_init)
@@ -66,7 +66,7 @@ namespace GrainTracker
       , fast_reassignment(fast_reassignment)
       , max_order_parameters_num(max_order_parameters_num)
       , threshold_lower(threshold_lower)
-      , threshold_upper(threshold_upper)
+      , threshold_new_grains(threshold_new_grains)
       , buffer_distance_ratio(buffer_distance_ratio)
       , buffer_distance_fixed(buffer_distance_fixed)
       , order_parameters_offset(order_parameters_offset)
@@ -88,7 +88,7 @@ namespace GrainTracker
                                                fast_reassignment,
                                                max_order_parameters_num,
                                                threshold_lower,
-                                               threshold_upper,
+                                               threshold_new_grains,
                                                buffer_distance_ratio,
                                                buffer_distance_fixed,
                                                order_parameters_offset,
@@ -191,7 +191,8 @@ namespace GrainTracker
           typename Grain<dim>::Dynamics new_dynamics = Grain<dim>::None;
 
           // Check the grain number
-          if (new_grain_id == std::numeric_limits<unsigned int>::max())
+          if (new_grain_id == std::numeric_limits<unsigned int>::max() &&
+              new_grain.get_max_value() > threshold_new_grains)
             {
               if (allow_new_grains)
                 {
@@ -206,7 +207,7 @@ namespace GrainTracker
                     std::make_pair(numerator_invalid++, new_grain));
                 }
             }
-          else
+          else if (new_grain_id != std::numeric_limits<unsigned int>::max())
             {
               // clang-format off
               AssertThrow(old_grains.at(new_grain_id).get_order_parameter_id() 
@@ -1109,11 +1110,14 @@ namespace GrainTracker
           // local ids
           particle_ids = invalid_particle_id;
 
-          unsigned int counter = 0;
-          unsigned int offset  = 0;
+          unsigned int counter      = 0;
+          unsigned int offset       = 0;
+          double       op_max_value = std::numeric_limits<double>::lowest();
 
           const auto &solution_order_parameter = solution.block(
             current_order_parameter_id + order_parameters_offset);
+
+          std::vector<double> local_particle_max_values;
 
           {
             ScopedName sc("run_flooding");
@@ -1132,9 +1136,14 @@ namespace GrainTracker
                                       solution_order_parameter,
                                       particle_ids,
                                       counter,
+                                      op_max_value,
                                       threshold_lower,
                                       invalid_particle_id) > 0)
-                  counter++;
+                  {
+                    counter++;
+                    local_particle_max_values.push_back(op_max_value);
+                    op_max_value = std::numeric_limits<double>::lowest();
+                  }
               }
 
             if (has_ghost_elements == false)
@@ -1246,7 +1255,9 @@ namespace GrainTracker
               n_particles = Utilities::MPI::max(n_particles, comm) + 1;
             }
 
-          std::vector<double> particle_info(n_particles * (1 + dim));
+          const unsigned int  n_features = 1 + dim;
+          std::vector<double> particle_info(n_particles * n_features);
+          std::vector<double> particle_max_values(n_particles);
 
           // ... compute local information
           for (const auto &cell :
@@ -1264,11 +1275,14 @@ namespace GrainTracker
 
                 AssertIndexRange(unique_id, n_particles);
 
-                particle_info[(dim + 1) * unique_id + 0] += cell->measure();
+                particle_info[n_features * unique_id + 0] += cell->measure();
 
                 for (unsigned int d = 0; d < dim; ++d)
-                  particle_info[(dim + 1) * unique_id + 1 + d] +=
+                  particle_info[n_features * unique_id + 1 + d] +=
                     cell->center()[d] * cell->measure();
+
+                particle_max_values[unique_id] =
+                  local_particle_max_values[particle_id];
               }
 
           // ... reduce information
@@ -1279,6 +1293,14 @@ namespace GrainTracker
                         MPI_SUM,
                         comm);
 
+          // ... reduce information
+          MPI_Allreduce(MPI_IN_PLACE,
+                        particle_max_values.data(),
+                        particle_max_values.size(),
+                        MPI_DOUBLE,
+                        MPI_MAX,
+                        comm);
+
           // ... compute particles centers
           std::vector<Point<dim>> particle_centers(n_particles);
           for (unsigned int i = 0; i < n_particles; i++)
@@ -1286,8 +1308,8 @@ namespace GrainTracker
               for (unsigned int d = 0; d < dim; ++d)
                 {
                   particle_centers[i][d] =
-                    particle_info[i * (1 + dim) + 1 + d] /
-                    particle_info[i * (1 + dim)];
+                    particle_info[i * n_features + 1 + d] /
+                    particle_info[i * n_features];
                 }
             }
 
@@ -1425,7 +1447,8 @@ namespace GrainTracker
                                          current_order_parameter_id);
 
                   new_grains.at(grain_id).add_segment(particle_centers[i],
-                                                      particle_radii[i]);
+                                                      particle_radii[i],
+                                                      particle_max_values[i]);
 
                   free_particles.erase(i);
 
@@ -1451,7 +1474,8 @@ namespace GrainTracker
                                      current_order_parameter_id);
 
               new_grains.at(grain_id).add_segment(particle_centers[i],
-                                                  particle_radii[i]);
+                                                  particle_radii[i],
+                                                  particle_max_values[i]);
 
               const unsigned int last_segment_id =
                 new_grains.at(grain_id).n_segments() - 1;
@@ -2081,8 +2105,8 @@ namespace GrainTracker
     // Minimum value of order parameter value
     const double threshold_lower;
 
-    // Maximum value of order parameter value
-    const double threshold_upper;
+    // Minimum threshold for the new grains
+    const double threshold_new_grains;
 
     // Buffer zone around the grain - ratio value
     const double buffer_distance_ratio;

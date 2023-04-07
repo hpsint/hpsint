@@ -116,12 +116,14 @@ main(int argc, char **argv)
   unsigned int counter   = 0;
   unsigned int offset    = 0;
   const double threshold = 1e-9;
+  double       max_value = std::numeric_limits<double>::min();
 
   for (const auto &cell : dof_handler.active_cell_iterators())
     if (GrainTracker::run_flooding<dim>(cell,
                                         solution,
                                         particle_ids,
                                         counter,
+                                        max_value,
                                         threshold,
                                         invalid_particle_id) > 0)
       counter++;

@@ -72,7 +72,7 @@ namespace Sintering
   struct GrainTrackerData
   {
     double       threshold_lower         = 0.01;
-    double       threshold_upper         = 1.01;
+    double       threshold_new_grains    = 0.02;
     double       buffer_distance_ratio   = 0.05;
     double       buffer_distance_fixed   = 0.0;
     unsigned int grain_tracker_frequency = 10; // 0 - no grain tracker
@@ -547,9 +547,9 @@ namespace Sintering
       prm.add_parameter("ThresholdLower",
                         grain_tracker_data.threshold_lower,
                         "Lower boundary for detecting grain.");
-      prm.add_parameter("ThresholdUpper",
-                        grain_tracker_data.threshold_upper,
-                        "Upper boundary for detecting grain.");
+      prm.add_parameter("ThresholdNewGrains",
+                        grain_tracker_data.threshold_new_grains,
+                        "Lower boundary for detecting new grain.");
       prm.add_parameter("BufferDistanceRatio",
                         grain_tracker_data.buffer_distance_ratio,
                         "Ratio of the transfer buffer (to the grain radius).");

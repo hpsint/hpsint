@@ -49,7 +49,7 @@
         "BufferDistanceRatio": "0.05",
         "GrainTrackerFrequency": "10",
         "ThresholdLower": "0.01",
-        "ThresholdUpper": "1.01"
+        "ThresholdNewGrains": "0.02"
     },
     "Material": {
         "EnergyAbstract": {

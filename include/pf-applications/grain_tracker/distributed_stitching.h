@@ -22,6 +22,7 @@ namespace GrainTracker
                const VectorSolution &                         solution,
                VectorIds &                                    particle_ids,
                const unsigned int                             id,
+               double &                                       max_value,
                const double threshold_lower     = 0,
                const double invalid_particle_id = -1.0)
   {
@@ -34,6 +35,7 @@ namespace GrainTracker
                                        solution,
                                        particle_ids,
                                        id,
+                                       max_value,
                                        threshold_lower,
                                        invalid_particle_id);
 
@@ -52,16 +54,15 @@ namespace GrainTracker
 
     cell->get_dof_values(solution, values);
 
-    const bool has_particle = std::any_of(values.begin(),
-                                          values.end(),
-                                          [threshold_lower](const auto &val) {
-                                            return val > threshold_lower;
-                                          }) &&
-                              values.mean_value() > 0;
+    const auto cell_max_value = *std::max_element(values.begin(), values.end());
+    const bool has_particle   = cell_max_value > threshold_lower;
+
     if (!has_particle)
       return 0; // cell has no particle
 
     particle_ids[cell->global_active_cell_index()] = id;
+
+    max_value = std::max(max_value, cell_max_value);
 
     unsigned int counter = 1;
 
@@ -71,6 +72,7 @@ namespace GrainTracker
                                      solution,
                                      particle_ids,
                                      id,
+                                     max_value,
                                      threshold_lower,
                                      invalid_particle_id);
 
