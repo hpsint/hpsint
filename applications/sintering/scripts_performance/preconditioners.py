@@ -13,9 +13,45 @@ cd $PBS_O_WORKDIR
 mpirun -np {2} ../applications/sintering/sintering-3D-generic-scalar --cloud ../../applications/sintering/sintering_cloud_examples/packings_10k/51particles.cloud ./job_{0}.json | tee ./job_{0}.out
 """
 
+JOB_SKX="""#!/bin/bash
+# Job Name and Files (also --job-name)
+#SBATCH -J LIKWID
+#Output and error (also --output, --error):
+#SBATCH -o node-{1}.out
+#SBATCH -e node-{1}.e
+#Initial working directory (also --chdir):
+#SBATCH -D ./
+#Notification and type
+#SBATCH --mail-type=END
+#SBATCH --mail-user=peter.muench@uni-a.de
+# Wall clock limit:
+#SBATCH --time=0:30:00
+#SBATCH --no-requeue
+#Setup of execution environment
+#SBATCH --export=NONE
+#SBATCH --get-user-env
+#SBATCH --account=pn36li
+#
+## #SBATCH --switches=4@24:00:00
+#SBATCH --partition={3}
+#Number of nodes and MPI tasks per node:
+#SBATCH --nodes={0}
+#SBATCH --ntasks-per-node=48
+#SBATCH --cpus-per-task=1
+
+#module list
+
+source ~/.bashrc
+
+pwd
+
+mpirun -np {2} ../applications/sintering/sintering-3D-generic-scalar --cloud ../../applications/sintering/sintering_cloud_examples/packings_10k/51particles.cloud ./job_{0}.json | tee ./job_{0}.out
+
+"""
+
 counter = 0
 
-def run_instance(time_end, n_nodes, config):
+def run_instance(time_end, n_nodes, use_gold, config):
     global counter 
 
     with open(os.path.dirname(os.path.abspath(__file__)) + "/../analysis_examples/49particles_delta_min_40.json", 'r') as f:
@@ -51,13 +87,26 @@ def run_instance(time_end, n_nodes, config):
         json.dump(datastore, f, indent=4, separators=(',', ': '))
 
     with open("./job_%d.cmd" % (counter), 'w') as f:
-        f.write(JOB.format(counter, n_nodes, n_nodes * 40))
+        if use_gold:
+            f.write(JOB.format(counter, n_nodes, n_nodes * 40))
+        else:
+            label = ""
+            if n_nodes <= 16:
+                label = "test"
+            elif n_nodes <= 768:
+                label = "general"
+            elif n_nodes <= 3072:
+                label = "large"
+
+            f.write(JOB_SKX.format(counter, n_nodes, n_nodes * 48, label))
+
 
     counter = counter + 1
 
 def main():
     time_end = 500
     n_nodes  = 6
+    use_gold = True
 
     short_simulation = True
 
@@ -66,17 +115,17 @@ def main():
         time_end = 15000
 
     if short_simulation:
-        run_instance(time_end, n_nodes, "ILU")
+        run_instance(time_end, n_nodes, use_gold, "ILU")
 
     if short_simulation:
-        run_instance(time_end, n_nodes, "ILU|ILU")
-    run_instance(time_end, n_nodes, "ILU|BlockILU|all")
+        run_instance(time_end, n_nodes, use_gold, "ILU|ILU")
+    run_instance(time_end, n_nodes, use_gold, "ILU|BlockILU|all")
 
     if short_simulation:
-        run_instance(time_end, n_nodes, "ILU|BlockILU|const")
+        run_instance(time_end, n_nodes, use_gold, "ILU|BlockILU|const")
 
-    run_instance(time_end, n_nodes, "ILU|BlockILU|avg")
-    run_instance(time_end, n_nodes, "ILU|BlockILU|max")
+    run_instance(time_end, n_nodes, use_gold, "ILU|BlockILU|avg")
+    run_instance(time_end, n_nodes, use_gold, "ILU|BlockILU|max")
 
 
 if __name__== "__main__":
