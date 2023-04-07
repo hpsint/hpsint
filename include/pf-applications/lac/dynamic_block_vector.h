@@ -56,7 +56,7 @@ namespace dealii
                 blocks[b] = std::make_shared<BlockType>();
               block(b).reinit(V.block(b), true);
               block(b) = V.block(b);
-              
+
               if (V.block(b).has_ghost_elements())
                 block(b).update_ghost_values();
             }
