@@ -118,6 +118,8 @@ main(int argc, char **argv)
                              0);
 
   pcout << "Running: " << concatenate_strings(argc, argv) << std::endl;
+  pcout << "  - with n MPI processes:"
+        << Utilities::MPI::n_mpi_processes(MPI_COMM_WORLD) << std::endl;
   pcout << "  - deal.II (branch: " << DEAL_II_GIT_BRANCH
         << "; revision: " << DEAL_II_GIT_REVISION
         << "; short: " << DEAL_II_GIT_SHORTREV << ")" << std::endl;
