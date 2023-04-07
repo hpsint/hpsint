@@ -17,8 +17,8 @@ JOB_SKX="""#!/bin/bash
 # Job Name and Files (also --job-name)
 #SBATCH -J LIKWID
 #Output and error (also --output, --error):
-#SBATCH -o node-{1}.out
-#SBATCH -e node-{1}.e
+#SBATCH -o job_{0}_%j.out
+#SBATCH -e job_{0}_%j.e
 #Initial working directory (also --chdir):
 #SBATCH -D ./
 #Notification and type
@@ -35,7 +35,7 @@ JOB_SKX="""#!/bin/bash
 ## #SBATCH --switches=4@24:00:00
 #SBATCH --partition={3}
 #Number of nodes and MPI tasks per node:
-#SBATCH --nodes={0}
+#SBATCH --nodes={1}
 #SBATCH --ntasks-per-node=48
 #SBATCH --cpus-per-task=1
 
