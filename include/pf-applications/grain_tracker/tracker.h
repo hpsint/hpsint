@@ -580,47 +580,68 @@ namespace GrainTracker
 
           for (unsigned int i = 0; i < solutions.size(); ++i)
             {
+              debug::log_without_barrier("remap_new::D::A");
+
               const auto &solution      = solutions[i];
               const auto &solution_copy = solutions_copy[i];
 
               // Prepare temp storage
               std::stack<Vector<Number>> temp_values;
 
+              debug::log_without_barrier("remap_new::D::B");
+
               for (const auto &re : remap_sequence)
                 {
+                  debug::log_without_barrier("remap_new::D::C");
                   // Retrieve values from the existing block or temp storage
                   if (re.from != numbers::invalid_unsigned_int)
                     {
+                      debug::log_without_barrier("remap_new::D::D");
                       const unsigned int op_id_src =
                         re.from + order_parameters_offset;
                       cell->get_dof_values(solution_copy->block(op_id_src),
                                            values);
+                      debug::log_without_barrier("remap_new::D::E");
                     }
                   else
                     {
+                      debug::log_without_barrier("remap_new::D::F");
                       values = temp_values.top();
                       temp_values.pop();
+                      debug::log_without_barrier("remap_new::D::G");
                     }
 
                   // Set values to the existing block or temp storage
                   if (re.to != numbers::invalid_unsigned_int)
                     {
+                      debug::log_without_barrier("remap_new::D::H");
                       const unsigned int op_id_dst =
                         re.to + order_parameters_offset;
+                      AssertThrow(op_id_dst < solution->n_blocks(),
+                                  ExcMessage(
+                                    "Index " + std::to_string(op_id_dst) +
+                                    " is out range (" +
+                                    std::to_string(solution->n_blocks()) +
+                                    ")."));
                       cell->set_dof_values(values, solution->block(op_id_dst));
+                      debug::log_without_barrier("remap_new::D::I");
                     }
                   else
                     {
+                      debug::log_without_barrier("remap_new::D::J");
                       temp_values.push(values);
+                      debug::log_without_barrier("remap_new::D::K");
                     }
 
                   // Nullify source
                   if (re.from != numbers::invalid_unsigned_int)
                     {
+                      debug::log_without_barrier("remap_new::D::L");
                       const unsigned int op_id_src =
                         re.from + order_parameters_offset;
                       values = 0;
                       cell->set_dof_values(values, solution->block(op_id_src));
+                      debug::log_without_barrier("remap_new::D::M");
                     }
                 }
             }
