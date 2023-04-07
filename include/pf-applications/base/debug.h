@@ -1,5 +1,7 @@
 #pragma once
 
+#include <deal.II/base/mpi.h>
+
 #include <sstream>
 #include <string>
 
@@ -45,4 +47,47 @@ namespace debug
       }
     return ss.str();
   }
+
+  std::ofstream &
+  get_log()
+  {
+    const unsigned int rank =
+      dealii::Utilities::MPI::this_mpi_process(MPI_COMM_WORLD);
+
+    std::string rank_str = "";
+
+    if (rank < 10)
+      rank_str = "000" + std::to_string(rank);
+    else if (rank < 100)
+      rank_str = "00" + std::to_string(rank);
+    else if (rank < 1000)
+      rank_str = "0" + std::to_string(rank);
+    else if (rank < 10000)
+      rank_str = "" + std::to_string(rank);
+    else
+      AssertThrow(false, dealii::ExcNotImplemented());
+
+    static std::ofstream myfile("temp_" + rank_str, std::ios::out);
+
+    return myfile;
+  }
+
+  void
+  log_with_barrier(const std::string &label)
+  {
+    auto &my_file = get_log();
+
+    my_file << label << "::0" << std::endl;
+    MPI_Barrier(MPI_COMM_WORLD);
+    my_file << label << "::1" << std::endl;
+  }
+
+  void
+  log_without_barrier(const std::string &label)
+  {
+    auto &my_file = get_log();
+
+    my_file << label << std::endl;
+  }
+
 } // namespace debug

@@ -439,11 +439,15 @@ namespace GrainTracker
       for (const auto solution : solutions)
         solutions_copy.push_back(std::make_shared<BlockVectorType>(*solution));
 
+      debug::log_with_barrier("remap_new::A");
+
       // Main remapping loop
       for (auto &cell : dof_handler.active_cell_iterators())
         {
           if (!cell->is_locally_owned())
             continue;
+
+          debug::log_without_barrier("remap_new::B");
 
           const auto cell_index = cell->global_active_cell_index();
 
@@ -462,6 +466,8 @@ namespace GrainTracker
                   grains_at_cell.push_back(grain_id);
                 }
             }
+
+          debug::log_without_barrier("remap_new::C");
 
           // If no any grain at the current cell then skip the rest
           if (grains_at_cell.empty())
@@ -567,6 +573,9 @@ namespace GrainTracker
                   "Failed to insert remappings into cache for cells with grains " +
                   debug::to_string(grains_at_cell)));
             }
+
+          debug::log_without_barrier("remap_new::D");
+
           const auto &remap_sequence = it_cache->second;
 
           for (unsigned int i = 0; i < solutions.size(); ++i)
@@ -615,7 +624,11 @@ namespace GrainTracker
                     }
                 }
             }
+
+          debug::log_without_barrier("remap_new::E");
         }
+
+      debug::log_with_barrier("remap_new::F");
 
       return n_grains_remapped;
     }
