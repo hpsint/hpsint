@@ -119,8 +119,6 @@ main(int argc, char **argv)
   const double        Mgb                    = 0.4;
   const double        L                      = 1;
   const double        time_integration_order = 1;
-  const double        E                      = 1.0;
-  const double        nu                     = 0.25;
   const double        mt                     = 1.0;
   const double        mr                     = 1.0;
   const double        t                      = 0.0;
