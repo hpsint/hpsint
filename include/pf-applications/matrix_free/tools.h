@@ -408,27 +408,8 @@ namespace dealii
       const InVector &src,
       const bool      zero_dst_vector = false)
     {
-      if (true)
-        {
-          if (zero_dst_vector)
-            dst = 0.0;
-
-          src.update_ghost_values();
-
-          (owning_class->*cell_operation)(matrix_free,
-                                          dst,
-                                          src,
-                                          std::pair<unsigned int, unsigned int>{
-                                            0, matrix_free.n_cell_batches()});
-
-          src.zero_out_ghost_values();
-          dst.compress(VectorOperation::add);
-        }
-      else
-        {
-          matrix_free.cell_loop(
-            cell_operation, owning_class, dst, src, zero_dst_vector);
-        }
+      matrix_free.cell_loop(
+        cell_operation, owning_class, dst, src, zero_dst_vector);
     }
 
   } // namespace MyMatrixFreeTools

@@ -400,6 +400,8 @@ namespace dealii
           std::swap(this->size_, V.size_);
         }
 
+        static constexpr unsigned int communication_block_size = 0;
+
       private:
         std::vector<std::shared_ptr<BlockType>> blocks;
 
