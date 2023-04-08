@@ -69,7 +69,7 @@ namespace Preconditioners
     {}
 
     virtual void
-    clear()
+    clear() override
     {}
 
     void
@@ -89,7 +89,7 @@ namespace Preconditioners
     {}
 
     virtual std::size_t
-    memory_consumption() const
+    memory_consumption() const override
     {
       return 0;
     }
@@ -110,7 +110,7 @@ namespace Preconditioners
     {}
 
     virtual void
-    clear()
+    clear() override
     {
       diagonal_matrix.clear();
     }
@@ -136,7 +136,7 @@ namespace Preconditioners
     }
 
     virtual std::size_t
-    memory_consumption() const
+    memory_consumption() const override
     {
       return diagonal_matrix.memory_consumption();
     }
@@ -163,7 +163,7 @@ namespace Preconditioners
     {}
 
     virtual void
-    clear()
+    clear() override
     {
       diagonal_matrix.clear();
     }
@@ -552,7 +552,7 @@ namespace Preconditioners
     {}
 
     virtual void
-    clear()
+    clear() override
     {
       precondition_amg.clear();
       src_.reinit(0);
@@ -594,7 +594,7 @@ namespace Preconditioners
     }
 
     virtual std::size_t
-    memory_consumption() const
+    memory_consumption() const override
     {
       return precondition_amg.memory_consumption() + src_.memory_consumption() +
              dst_.memory_consumption();
@@ -630,7 +630,7 @@ namespace Preconditioners
     {}
 
     virtual void
-    clear()
+    clear() override
     {
       precondition_amg.clear();
     }
@@ -669,7 +669,7 @@ namespace Preconditioners
     }
 
     virtual std::size_t
-    memory_consumption() const
+    memory_consumption() const override
     {
       return MyMemoryConsumption::memory_consumption(precondition_amg);
     }
@@ -711,7 +711,7 @@ namespace Preconditioners
     {}
 
     virtual void
-    clear()
+    clear() override
     {
       precondition_ilu.clear();
       src_.reinit(0);
@@ -752,7 +752,7 @@ namespace Preconditioners
     }
 
     virtual std::size_t
-    memory_consumption() const
+    memory_consumption() const override
     {
       std::size_t result = 0;
 
@@ -805,7 +805,7 @@ namespace Preconditioners
     {}
 
     virtual void
-    clear()
+    clear() override
     {
       precondition_ilu.clear();
     }
@@ -878,7 +878,7 @@ namespace Preconditioners
     }
 
     virtual std::size_t
-    memory_consumption() const
+    memory_consumption() const override
     {
       std::size_t result = 0;
 
@@ -947,7 +947,7 @@ namespace Preconditioners
     {}
 
     virtual void
-    clear()
+    clear() override
     {
       preconditioner.reset();
       mg.reset();

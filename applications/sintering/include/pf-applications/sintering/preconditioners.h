@@ -1151,7 +1151,7 @@ namespace Sintering
     }
 
     virtual void
-    clear()
+    clear() override
     {
       // clear operators
       if (operator_0)
@@ -1251,7 +1251,7 @@ namespace Sintering
     }
 
     virtual std::size_t
-    memory_consumption() const
+    memory_consumption() const override
     {
       return MyMemoryConsumption::memory_consumption(operator_0) +
              MyMemoryConsumption::memory_consumption(operator_1) +
