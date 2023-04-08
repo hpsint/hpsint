@@ -42,7 +42,7 @@ namespace Sintering
     {}
 
     MobilityCoefficients
-    calculate(const double t) const
+    calculate(const double t) const override
     {
       (void)t;
 
@@ -108,7 +108,7 @@ namespace Sintering
     {}
 
     MobilityCoefficients
-    calculate(const double time) const
+    calculate(const double time) const override
     {
       (void)time;
 
