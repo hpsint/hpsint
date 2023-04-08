@@ -465,7 +465,7 @@ namespace Sintering
     }
 
     virtual unsigned int
-    n_unique_components() const
+    n_unique_components() const override
     {
       return single_block ? 1 : n_components();
     }
