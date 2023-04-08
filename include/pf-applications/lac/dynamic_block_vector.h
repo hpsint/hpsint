@@ -56,6 +56,9 @@ namespace dealii
                 blocks[b] = std::make_shared<BlockType>();
               block(b).reinit(V.block(b), true);
               block(b) = V.block(b);
+
+              if (V.block(b).has_ghost_elements())
+                block(b).update_ghost_values();
             }
 
           size_ = 0;
@@ -78,7 +81,11 @@ namespace dealii
                 blocks[b] = std::make_shared<BlockType>();
 
               if (old_blocks_size != 0)
-                block(b).reinit(block(0), omit_zeroing_entries);
+                {
+                  block(b).reinit(block(0), omit_zeroing_entries);
+                  if (block(0).has_ghost_elements())
+                    block(b).update_ghost_values();
+                }
             }
 
           size_ = 0;
@@ -97,6 +104,8 @@ namespace dealii
               if (blocks[b] == nullptr)
                 blocks[b] = std::make_shared<BlockType>();
               block(b).reinit(V.block(b), omit_zeroing_entries);
+              if (block(0).has_ghost_elements())
+                block(b).update_ghost_values();
             }
 
           size_ = 0;
