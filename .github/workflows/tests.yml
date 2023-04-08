@@ -1,9 +1,10 @@
 name: GitHub CI
 
 on:
+  push:
+    branches: [ master ]
   pull_request:
     branches: [ master ]
-    types: [ opened, synchronize, reopened, labeled ]
   schedule:
   - cron:  '0 0 * * *'
     
@@ -16,9 +17,8 @@ env:
 
 jobs:
   build:
-    if: ${{ github.event_name == 'schedule' || contains(github.event.pull_request.labels.*.name, 'ready to test') }}
-    name: Build ${{ matrix.build_type }}-dealii:${{ matrix.dealii_version }}-${{ matrix.adaflo }}
-    runs-on: [ubuntu-18.04]
+    name: Build ${{ matrix.build_type }}-dealii:${{ matrix.dealii_version }}
+    runs-on: ubuntu-latest
 
     strategy:
       fail-fast: false
