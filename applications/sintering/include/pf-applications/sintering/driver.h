@@ -579,6 +579,8 @@ namespace Sintering
                params.output_data.use_control_box))
             additional_data.mapping_update_flags |= update_quadrature_points;
 
+          additional_data.allow_ghosted_vectors_in_loops = false;
+
           matrix_free.reinit(
             mapping, dof_handler, constraints, quad, additional_data);
         }
@@ -635,6 +637,8 @@ namespace Sintering
                 AdditionalData additional_data;
               additional_data.mapping_update_flags =
                 update_values | update_gradients;
+
+              additional_data.allow_ghosted_vectors_in_loops = false;
 
               matrix_free.reinit(
                 mapping, dof_handler, constraints, quad, additional_data);
