@@ -24,7 +24,7 @@ public:
   Solution() = default;
 
   virtual double
-  value(const Point<dim> &p, const unsigned int component = 0) const
+  value(const Point<dim> &p, const unsigned int component = 0) const override
   {
     (void)component;
 

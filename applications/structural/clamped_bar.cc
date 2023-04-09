@@ -310,6 +310,6 @@ main(int argc, char **argv)
   constexpr int fe_degree   = 1;
   constexpr int n_points_1D = fe_degree + 1;
 
-  Test<dim, fe_degree, n_points_1D, double, VectorizedArray<double, 4>> runner;
+  Test<dim, fe_degree, n_points_1D, double, VectorizedArray<double>> runner;
   runner.run(matrix_based, manual_constraints, n_refinements);
 }

@@ -70,9 +70,9 @@ namespace GrainTracker
       , buffer_distance_ratio(buffer_distance_ratio)
       , buffer_distance_fixed(buffer_distance_fixed)
       , order_parameters_offset(order_parameters_offset)
+      , use_old_remap(use_old_remap)
       , pcout(std::cout, Utilities::MPI::this_mpi_process(MPI_COMM_WORLD) == 0)
       , timer(do_timing)
-      , use_old_remap(use_old_remap)
     {}
 
     std::shared_ptr<Tracker<dim, Number>>

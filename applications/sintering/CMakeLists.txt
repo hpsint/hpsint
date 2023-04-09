@@ -17,8 +17,6 @@ set(OPTION_OP_DIFFUSION "OPERATOR=3")
 
 message(STATUS "Maximum sintering grains: ${MAX_SINTERING_GRAINS}")
 
-OPTION(USE_SNES "Use SNES (experimantal)." OFF)
-
 message(STATUS "Configured executables:")
 foreach(VAR_DIM ${VARIANTS_DIM})
   foreach(VAR_MOB ${VARIANTS_MOBILITY})
@@ -39,10 +37,6 @@ foreach(VAR_DIM ${VARIANTS_DIM})
           -D${OPTION_MOB_${VAR_MOB_UP}}
           -D${OPTION_OP_${VAR_OP_UP}}
       )
-
-      IF(${USE_SNES})
-        target_compile_definitions(${executable_name} PUBLIC USE_SNES)
-      ENDIF()
 
       TARGET_LINK_LIBRARIES(${executable_name} "pf-applications")
       target_include_directories(${executable_name} PUBLIC "include/" "../structural/include/")
