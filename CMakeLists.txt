@@ -54,6 +54,7 @@ DEAL_II_SETUP_TARGET(pf-applications)
 target_include_directories(pf-applications PUBLIC "include/" ${CMAKE_CURRENT_BINARY_DIR}/include)
 
 OPTION(USE_SNES "Use SNES (experimantal)." OFF)
+OPTION(DEAL_II_WITH_USE_SNES ${USE_SNES})
 
 IF(${USE_SNES})
   target_compile_definitions(pf-applications PUBLIC USE_SNES)
