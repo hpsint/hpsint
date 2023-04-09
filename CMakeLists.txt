@@ -53,6 +53,12 @@ DEAL_II_SETUP_TARGET(pf-applications)
 
 target_include_directories(pf-applications PUBLIC "include/" ${CMAKE_CURRENT_BINARY_DIR}/include)
 
+OPTION(USE_SNES "Use SNES (experimantal)." OFF)
+
+IF(${USE_SNES})
+  target_compile_definitions(pf-applications PUBLIC USE_SNES)
+ENDIF()
+
 FILE(GLOB SOURCE_FILES "*.cc")
 
 ADD_SUBDIRECTORY(applications/allen_cahn)
