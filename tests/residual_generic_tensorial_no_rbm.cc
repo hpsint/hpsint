@@ -25,5 +25,6 @@ main(int argc, char **argv)
   using NonLinearOperator =
     SinteringOperatorGeneric<dim, Number, VectorizedArrayType>;
 
-  Test::calc_residual<dim, Number, VectorizedArrayType, NonLinearOperator>(false);
+  Test::calc_residual<dim, Number, VectorizedArrayType, NonLinearOperator>(
+    false);
 }

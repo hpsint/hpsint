@@ -101,8 +101,7 @@ namespace Test
 
     const auto comm = dof_handler.get_communicator();
 
-    const bool is_zero_rank =
-      Utilities::MPI::this_mpi_process(comm) == 0;
+    const bool is_zero_rank = Utilities::MPI::this_mpi_process(comm) == 0;
     ConditionalOStream pcout(std::cout, is_zero_rank);
 
     // How to compute residual
