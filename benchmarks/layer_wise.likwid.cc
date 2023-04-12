@@ -36,8 +36,9 @@
 #include <pf-applications/sintering/operator_sintering_data.h>
 #include <pf-applications/sintering/operator_sintering_generic.h>
 
+#ifdef LIKWID_PERFMON
 static unsigned int likwid_counter = 0;
-
+#endif
 
 using namespace dealii;
 using namespace Sintering;
