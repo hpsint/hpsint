@@ -118,7 +118,7 @@ namespace Test
       // set initial condition
       InitialValuesDebug<dim> initial_solution;
 
-      // External loading
+      // External loading - not used at the moment
       auto body_force = [](const Point<dim, VectorizedArrayType> &p) {
         (void)p;
 
@@ -130,6 +130,7 @@ namespace Test
 
         return value_result;
       };
+      (void)body_force;
 
       const bool matrix_based                               = true;
       const bool use_tensorial_mobility_gradient_on_the_fly = false;
