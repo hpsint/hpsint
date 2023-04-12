@@ -1,0 +1,34 @@
+===== Output from rank 0 (total = 2) =====
+block 0: Process #0
+Local range: [0, 4), global size: 6
+Vector data:
+-1.092e-01 -2.885e-01 3.682e-02 2.885e-01
+block 1: Process #0
+Local range: [0, 4), global size: 6
+Vector data:
+-7.278e-02 -2.011e-01 -9.778e-02 -2.511e-01
+block 2: Process #0
+Local range: [0, 4), global size: 6
+Vector data:
+-2.469e+00 -7.415e-01 -2.469e+00 -7.415e-01
+block 3: Process #0
+Local range: [0, 4), global size: 6
+Vector data:
+1.261e+00 -7.415e-01 1.261e+00 -7.415e-01
+===== Output from rank 1 (total = 2) =====
+block 0: Process #1
+Local range: [4, 6), global size: 6
+Vector data:
+-3.682e-02 1.092e-01
+block 1: Process #1
+Local range: [4, 6), global size: 6
+Vector data:
+-1.061e-01 -1.311e-01
+block 2: Process #1
+Local range: [4, 6), global size: 6
+Vector data:
+1.261e+00 1.261e+00
+block 3: Process #1
+Local range: [4, 6), global size: 6
+Vector data:
+-2.469e+00 -2.469e+00

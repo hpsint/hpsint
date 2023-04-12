@@ -1,3 +1,4 @@
+#pragma once
 
 #include <pf-applications/sintering/operator_sintering_generic.h>
 
