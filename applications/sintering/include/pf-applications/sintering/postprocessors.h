@@ -1742,99 +1742,124 @@ namespace Sintering
                             const Tensor<1, dim, VectorizedArrayType> *,
                             const unsigned int)>;
 
-      std::vector<QuantityCallback> quantities;
+      std::vector<std::string>      q_labels;
+      std::vector<QuantityCallback> q_evaluators;
 
       for (const auto &qty : labels)
         {
-          QuantityCallback callback;
-
           if (qty == "solid_vol")
-            callback = [](const VectorizedArrayType *                value,
-                          const Tensor<1, dim, VectorizedArrayType> *gradient,
-                          const unsigned int                         n_grains) {
-              (void)gradient;
-              (void)n_grains;
+            q_evaluators.emplace_back(
+              [](const VectorizedArrayType *                value,
+                 const Tensor<1, dim, VectorizedArrayType> *gradient,
+                 const unsigned int                         n_grains) {
+                (void)gradient;
+                (void)n_grains;
 
-              return value[0];
-            };
+                return value[0];
+              });
           else if (qty == "surf_area")
-            callback = [](const VectorizedArrayType *                value,
-                          const Tensor<1, dim, VectorizedArrayType> *gradient,
-                          const unsigned int                         n_grains) {
-              (void)gradient;
-              (void)n_grains;
+            q_evaluators.emplace_back(
+              [](const VectorizedArrayType *                value,
+                 const Tensor<1, dim, VectorizedArrayType> *gradient,
+                 const unsigned int                         n_grains) {
+                (void)gradient;
+                (void)n_grains;
 
-              return value[0] * (1.0 - value[0]);
-            };
+                return value[0] * (1.0 - value[0]);
+              });
           else if (qty == "gb_area")
-            callback = [](const VectorizedArrayType *                value,
-                          const Tensor<1, dim, VectorizedArrayType> *gradient,
-                          const unsigned int                         n_grains) {
-              (void)gradient;
+            q_evaluators.emplace_back(
+              [](const VectorizedArrayType *                value,
+                 const Tensor<1, dim, VectorizedArrayType> *gradient,
+                 const unsigned int                         n_grains) {
+                (void)gradient;
 
-              VectorizedArrayType eta_ij_sum = 0.0;
-              for (unsigned int i = 0; i < n_grains; ++i)
-                for (unsigned int j = i + 1; j < n_grains; ++j)
-                  eta_ij_sum += value[2 + i] * value[2 + j];
+                VectorizedArrayType eta_ij_sum = 0.0;
+                for (unsigned int i = 0; i < n_grains; ++i)
+                  for (unsigned int j = i + 1; j < n_grains; ++j)
+                    eta_ij_sum += value[2 + i] * value[2 + j];
 
-              return eta_ij_sum;
-            };
+                return eta_ij_sum;
+              });
           else if (qty == "avg_grain_size")
-            callback = [](const VectorizedArrayType *                value,
-                          const Tensor<1, dim, VectorizedArrayType> *gradient,
-                          const unsigned int                         n_grains) {
-              (void)gradient;
+            q_evaluators.emplace_back(
+              [](const VectorizedArrayType *                value,
+                 const Tensor<1, dim, VectorizedArrayType> *gradient,
+                 const unsigned int                         n_grains) {
+                (void)gradient;
 
-              VectorizedArrayType eta_i2_sum = 0.0;
-              for (unsigned int i = 0; i < n_grains; ++i)
-                eta_i2_sum += value[2 + i] * value[2 + i];
+                VectorizedArrayType eta_i2_sum = 0.0;
+                for (unsigned int i = 0; i < n_grains; ++i)
+                  eta_i2_sum += value[2 + i] * value[2 + i];
 
-              return eta_i2_sum;
-            };
+                return eta_i2_sum;
+              });
           else if (qty == "surf_area_nrm")
-            callback = [](const VectorizedArrayType *                value,
-                          const Tensor<1, dim, VectorizedArrayType> *gradient,
-                          const unsigned int                         n_grains) {
-              (void)gradient;
-              (void)n_grains;
+            q_evaluators.emplace_back(
+              [](const VectorizedArrayType *                value,
+                 const Tensor<1, dim, VectorizedArrayType> *gradient,
+                 const unsigned int                         n_grains) {
+                (void)gradient;
+                (void)n_grains;
 
-              VectorizedArrayType c_int(1.0);
-              c_int = compare_and_apply_mask<SIMDComparison::less_than>(
-                value[0],
-                VectorizedArrayType(0.45),
-                VectorizedArrayType(0.0),
-                c_int);
-              c_int = compare_and_apply_mask<SIMDComparison::greater_than>(
-                value[0],
-                VectorizedArrayType(0.55),
-                VectorizedArrayType(0.0),
-                c_int);
+                VectorizedArrayType c_int(1.0);
+                c_int = compare_and_apply_mask<SIMDComparison::less_than>(
+                  value[0],
+                  VectorizedArrayType(0.45),
+                  VectorizedArrayType(0.0),
+                  c_int);
+                c_int = compare_and_apply_mask<SIMDComparison::greater_than>(
+                  value[0],
+                  VectorizedArrayType(0.55),
+                  VectorizedArrayType(0.0),
+                  c_int);
 
-              return c_int;
-            };
+                return c_int;
+              });
           else if (qty == "free_energy")
-            callback = [&sintering_data](
-                         const VectorizedArrayType *                value,
-                         const Tensor<1, dim, VectorizedArrayType> *gradient,
-                         const unsigned int                         n_grains) {
-              (void)gradient;
+            q_evaluators.emplace_back(
+              [&sintering_data](
+                const VectorizedArrayType *                value,
+                const Tensor<1, dim, VectorizedArrayType> *gradient,
+                const unsigned int                         n_grains) {
+                (void)gradient;
 
-              const VectorizedArrayType &c = value[0];
+                const VectorizedArrayType &c = value[0];
 
-              std::vector<VectorizedArrayType> etas(n_grains);
-              for (unsigned int ig = 0; ig < n_grains; ++ig)
-                etas[ig] = value[2 + ig];
+                std::vector<VectorizedArrayType> etas(n_grains);
+                for (unsigned int ig = 0; ig < n_grains; ++ig)
+                  etas[ig] = value[2 + ig];
 
-              return sintering_data.free_energy.f(c, etas);
-            };
+                return sintering_data.free_energy.f(c, etas);
+              });
+          else if (qty == "order_params")
+            for (unsigned int i = 0; i < MAX_SINTERING_GRAINS; ++i)
+              {
+                // The number of order parameters can vary so we will output the
+                // maximum number of them. The unused order parameters will be
+                // simply filled with zeros.
+                q_labels.push_back("op_" + std::to_string(i));
+
+                q_evaluators.emplace_back(
+                  [i](const VectorizedArrayType *                value,
+                      const Tensor<1, dim, VectorizedArrayType> *gradient,
+                      const unsigned int                         n_grains) {
+                    (void)gradient;
+
+                    return i < n_grains ? value[2 + i] : 0.;
+                  });
+              }
           else
             AssertThrow(false,
                         ExcMessage("Invalid domain integral provided: " + qty));
 
-          quantities.push_back(callback);
+          if (qty != "order_params")
+            q_labels.push_back(qty);
         }
 
-      return quantities;
+      AssertDimension(q_labels.size(), q_evaluators.size());
+
+      return std::make_tuple(q_labels, q_evaluators);
     }
 
   } // namespace Postprocessors

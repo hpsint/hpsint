@@ -2764,14 +2764,14 @@ namespace Sintering
 
           if (!params.output_data.domain_integrals.empty())
             {
-              std::vector<std::string> q_labels;
+              std::vector<std::string> quantities;
               std::copy(params.output_data.domain_integrals.begin(),
                         params.output_data.domain_integrals.end(),
-                        std::back_inserter(q_labels));
+                        std::back_inserter(quantities));
 
-              auto quantities = Postprocessors::
+              auto [q_labels, q_evaluators] = Postprocessors::
                 build_domain_quantities_evaluators<dim, VectorizedArrayType>(
-                  q_labels, sintering_operator.get_data());
+                  quantities, sintering_operator.get_data());
 
               // TODO: each quantity should provide its flag
               EvaluationFlags::EvaluationFlags eval_flags =
@@ -2782,17 +2782,17 @@ namespace Sintering
               if (params.output_data.use_control_box)
                 {
                   q_values = sintering_operator.calc_domain_quantities(
-                    quantities, solution, predicate_integrals, eval_flags);
+                    q_evaluators, solution, predicate_integrals, eval_flags);
                 }
               else
                 {
                   q_values =
-                    sintering_operator.calc_domain_quantities(quantities,
+                    sintering_operator.calc_domain_quantities(q_evaluators,
                                                               solution,
                                                               eval_flags);
                 }
 
-              for (unsigned int i = 0; i < quantities.size(); ++i)
+              for (unsigned int i = 0; i < q_evaluators.size(); ++i)
                 table.add_value(q_labels[i], q_values[i]);
             }
 
