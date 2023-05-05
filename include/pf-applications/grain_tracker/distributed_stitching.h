@@ -333,4 +333,65 @@ namespace GrainTracker
 
     return result;
   }
+
+  template <int dim, typename VectorIds>
+  auto
+  build_local_connectivity(
+    const DoFHandler<dim> &dof_handler,
+    const VectorIds &      particle_ids,
+    const double local_grains_num,
+    const double local_offset,
+    const double invalid_particle_id = -1.0)
+  {
+    std::vector<std::vector<std::tuple<unsigned int, unsigned int>>>
+      local_connectivity(local_grains_num);
+
+    for (const auto &ghost_cell :
+         dof_handler.get_triangulation().active_cell_iterators())
+      if (ghost_cell->is_ghost())
+        {
+          const auto particle_id =
+            particle_ids[ghost_cell->global_active_cell_index()];
+
+          if (particle_id == invalid_particle_id)
+            continue;
+
+          for (const auto face : ghost_cell->face_indices())
+            {
+              if (ghost_cell->at_boundary(face))
+                continue;
+
+              const auto add = [&](const auto &ghost_cell,
+                                   const auto &local_cell) {
+                if (local_cell->is_locally_owned() == false)
+                  return;
+
+                const auto neighbor_particle_id =
+                  particle_ids[local_cell->global_active_cell_index()];
+
+                if (neighbor_particle_id == invalid_particle_id)
+                  return;
+
+                auto &temp = local_connectivity[neighbor_particle_id - local_offset];
+                temp.emplace_back(ghost_cell->subdomain_id(), particle_id);
+                std::sort(temp.begin(), temp.end());
+                temp.erase(std::unique(temp.begin(), temp.end()), temp.end());
+              };
+
+              if (ghost_cell->neighbor(face)->has_children())
+                {
+                  for (unsigned int subface = 0;
+                       subface < GeometryInfo<dim>::n_subfaces(
+                                   internal::SubfaceCase<dim>::case_isotropic);
+                       ++subface)
+                    add(ghost_cell,
+                        ghost_cell->neighbor_child_on_subface(face, subface));
+                }
+              else
+                add(ghost_cell, ghost_cell->neighbor(face));
+            }
+        }
+
+    return local_connectivity;
+  }
 } // namespace GrainTracker
