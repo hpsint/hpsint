@@ -1281,62 +1281,15 @@ namespace Sintering
       // particles and ghost particles might be one particle
       particle_ids.update_ghost_values();
 
-      std::vector<std::vector<std::tuple<unsigned int, unsigned int>>>
-        local_connectiviy(counter);
-
-      for (const auto &ghost_cell :
-           dof_handler.get_triangulation().active_cell_iterators())
-        if (ghost_cell->is_ghost())
-          {
-            const auto particle_id =
-              particle_ids[ghost_cell->global_active_cell_index()];
-
-            if (particle_id == invalid_particle_id)
-              continue;
-
-            for (const auto face : ghost_cell->face_indices())
-              {
-                if (ghost_cell->at_boundary(face))
-                  continue;
-
-                const auto add = [&](const auto &ghost_cell,
-                                     const auto &local_cell) {
-                  if (local_cell->is_locally_owned() == false)
-                    return;
-
-                  const auto neighbor_particle_id =
-                    particle_ids[local_cell->global_active_cell_index()];
-
-                  if (neighbor_particle_id == invalid_particle_id)
-                    return;
-
-                  auto &temp = local_connectiviy[neighbor_particle_id - offset];
-                  temp.emplace_back(ghost_cell->subdomain_id(), particle_id);
-                  std::sort(temp.begin(), temp.end());
-                  temp.erase(std::unique(temp.begin(), temp.end()), temp.end());
-                };
-
-                if (ghost_cell->neighbor(face)->has_children())
-                  {
-                    for (unsigned int subface = 0;
-                         subface <
-                         GeometryInfo<dim>::n_subfaces(
-                           dealii::internal::SubfaceCase<dim>::case_isotropic);
-                         ++subface)
-                      add(ghost_cell,
-                          ghost_cell->neighbor_child_on_subface(face, subface));
-                  }
-                else
-                  add(ghost_cell, ghost_cell->neighbor(face));
-              }
-          }
+      auto local_connectivity = GrainTracker::build_local_connectivity(
+        dof_handler, particle_ids, counter, offset, invalid_particle_id);
 
       // step 4) based on the local-ghost information, figure out all
       // particles on all processes that belong togher (unification ->
       // clique), give each clique an unique id, and return mapping from the
       // global non-unique ids to the global ids
       const auto local_to_global_particle_ids =
-        GrainTracker::perform_distributed_stitching(comm, local_connectiviy);
+        GrainTracker::perform_distributed_stitching(comm, local_connectivity);
 
       Vector<double> cell_to_id(tria->n_active_cells());
 
