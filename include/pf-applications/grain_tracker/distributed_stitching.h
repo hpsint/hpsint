@@ -336,12 +336,11 @@ namespace GrainTracker
 
   template <int dim, typename VectorIds>
   auto
-  build_local_connectivity(
-    const DoFHandler<dim> &dof_handler,
-    const VectorIds &      particle_ids,
-    const double local_grains_num,
-    const double local_offset,
-    const double invalid_particle_id = -1.0)
+  build_local_connectivity(const DoFHandler<dim> &dof_handler,
+                           const VectorIds &      particle_ids,
+                           const double           local_grains_num,
+                           const double           local_offset,
+                           const double           invalid_particle_id = -1.0)
   {
     std::vector<std::vector<std::tuple<unsigned int, unsigned int>>>
       local_connectivity(local_grains_num);
@@ -372,7 +371,8 @@ namespace GrainTracker
                 if (neighbor_particle_id == invalid_particle_id)
                   return;
 
-                auto &temp = local_connectivity[neighbor_particle_id - local_offset];
+                auto &temp =
+                  local_connectivity[neighbor_particle_id - local_offset];
                 temp.emplace_back(ghost_cell->subdomain_id(), particle_id);
                 std::sort(temp.begin(), temp.end());
                 temp.erase(std::unique(temp.begin(), temp.end()), temp.end());
