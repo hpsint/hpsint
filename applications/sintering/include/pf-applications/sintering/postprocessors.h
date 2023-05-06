@@ -1361,7 +1361,17 @@ namespace Sintering
                       const VectorType &     solution,
                       const std::string      output)
     {
+      const auto comm = dof_handler.get_communicator();
+
+      if (Utilities::MPI::this_mpi_process(comm) != 0)
+        return;
+
       const double invalid_particle_id = -1.0; // TODO
+
+      LinearAlgebra::distributed::Vector<double> particle_ids(
+        dof_handler.get_triangulation()
+          .global_active_cell_index_partitioner()
+          .lock());
 
       // Detect pores and assign ids
       auto [local_to_global_particle_ids, offset] = internal::detect_pores(
@@ -1377,6 +1387,25 @@ namespace Sintering
                             local_to_global_particle_ids,
                             offset,
                             invalid_particle_id);
+
+      TableHandler table;
+
+      std::vector<std::string> labels{"x", "y", "z"};
+
+      for (unsigned int i = 0; i <= n_pores; ++i)
+        {
+          table.add_value("id", i);
+          table.add_value("measure", pores_measures[i]);
+          table.add_value("radius", pores_radii[i]);
+
+          for (unsigned int d = 0; d < dim; ++d)
+            table.add_value(labels[d], pores_centers[i][d]);
+        }
+
+      // Output to file
+      std::ofstream out_file(output);
+      table.write_tex(out_file);
+      out_file.close();
     }
 
     template <int dim, typename Number>
