@@ -1188,112 +1188,18 @@ namespace GrainTracker
           }
 
           // step 5) determine properties of particles (volume, radius, center)
-          unsigned int n_particles = 0;
-
-          // ... determine the number of particles
-          if (Utilities::MPI::sum(local_to_global_particle_ids.size(), comm) ==
-              0)
-            n_particles = 0;
-          else
-            {
-              n_particles =
-                (local_to_global_particle_ids.size() == 0) ?
-                  0 :
-                  *std::max_element(local_to_global_particle_ids.begin(),
-                                    local_to_global_particle_ids.end());
-              n_particles = Utilities::MPI::max(n_particles, comm) + 1;
-            }
-
-          const unsigned int  n_features = 1 + dim;
-          std::vector<double> particle_info(n_particles * n_features);
-          std::vector<double> particle_max_values(n_particles);
-
-          // ... compute local information
-          for (const auto &cell :
-               dof_handler.get_triangulation().active_cell_iterators())
-            if (cell->is_locally_owned())
-              {
-                const auto particle_id =
-                  particle_ids[cell->global_active_cell_index()];
-
-                if (particle_id == invalid_particle_id)
-                  continue;
-
-                const unsigned int unique_id = local_to_global_particle_ids
-                  [static_cast<unsigned int>(particle_id) - offset];
-
-                AssertIndexRange(unique_id, n_particles);
-
-                particle_info[n_features * unique_id + 0] += cell->measure();
-
-                for (unsigned int d = 0; d < dim; ++d)
-                  particle_info[n_features * unique_id + 1 + d] +=
-                    cell->center()[d] * cell->measure();
-
-                particle_max_values[unique_id] =
-                  local_particle_max_values[particle_id];
-              }
-
-          // ... reduce information
-          MPI_Allreduce(MPI_IN_PLACE,
-                        particle_info.data(),
-                        particle_info.size(),
-                        MPI_DOUBLE,
-                        MPI_SUM,
-                        comm);
-
-          // ... reduce information
-          MPI_Allreduce(MPI_IN_PLACE,
-                        particle_max_values.data(),
-                        particle_max_values.size(),
-                        MPI_DOUBLE,
-                        MPI_MAX,
-                        comm);
-
-          // ... compute particles centers
-          std::vector<Point<dim>> particle_centers(n_particles);
-          for (unsigned int i = 0; i < n_particles; i++)
-            {
-              for (unsigned int d = 0; d < dim; ++d)
-                {
-                  particle_centers[i][d] =
-                    particle_info[i * n_features + 1 + d] /
-                    particle_info[i * n_features];
-                }
-            }
-
-          // ... compute particles radii
-          std::vector<double> particle_radii(n_particles, 0.);
-          for (const auto &cell :
-               dof_handler.get_triangulation().active_cell_iterators())
-            if (cell->is_locally_owned())
-              {
-                const auto particle_id =
-                  particle_ids[cell->global_active_cell_index()];
-
-                if (particle_id == invalid_particle_id)
-                  continue;
-
-                const unsigned int unique_id = local_to_global_particle_ids
-                  [static_cast<unsigned int>(particle_id) - offset];
-
-                AssertIndexRange(unique_id, n_particles);
-
-                const auto &center = particle_centers[unique_id];
-
-                const double dist =
-                  center.distance(cell->barycenter()) + cell->diameter() / 2.;
-                particle_radii[unique_id] =
-                  std::max(particle_radii[unique_id], dist);
-              }
-
-          // ... reduce information
-          MPI_Allreduce(MPI_IN_PLACE,
-                        particle_radii.data(),
-                        particle_radii.size(),
-                        MPI_DOUBLE,
-                        MPI_MAX,
-                        comm);
+          const auto [n_particles,
+                      particle_centers,
+                      particle_radii,
+                      particle_measures,
+                      particle_max_values] =
+            compute_particles_info(dof_handler,
+                                   particle_ids,
+                                   local_to_global_particle_ids,
+                                   offset,
+                                   invalid_particle_id,
+                                   local_particle_max_values);
+          (void)particle_measures; // we do not need this data
 
           // Set global ids to the particles
           for (auto &particle_id : particle_ids)

@@ -394,4 +394,131 @@ namespace GrainTracker
 
     return local_connectivity;
   }
+
+  template <int dim, typename VectorIds>
+  std::tuple<unsigned int,            // n_particles
+             std::vector<Point<dim>>, // particle_centers
+             std::vector<double>,     // particle_radii
+             std::vector<double>,     // particle_measures
+             std::vector<double>>     // particle_max_values
+  compute_particles_info(
+    const DoFHandler<dim> &    dof_handler,
+    const VectorIds &          particle_ids,
+    std::vector<unsigned int> &local_to_global_particle_ids,
+    const unsigned int         local_offset,
+    const double               invalid_particle_id       = -1.0,
+    const std::vector<double> &local_particle_max_values = {})
+  {
+    const auto comm = dof_handler.get_communicator();
+
+    unsigned int n_particles = 0;
+
+    // Determine the number of particles
+    if (Utilities::MPI::sum(local_to_global_particle_ids.size(), comm) > 0)
+      {
+        n_particles = (local_to_global_particle_ids.size() == 0) ?
+                        0 :
+                        *std::max_element(local_to_global_particle_ids.begin(),
+                                          local_to_global_particle_ids.end());
+        n_particles = Utilities::MPI::max(n_particles, comm) + 1;
+      }
+
+    const unsigned int  n_features = 1 + dim;
+    std::vector<double> particle_info(n_particles * n_features);
+    std::vector<double> particle_max_values(n_particles);
+
+    // Compute local information
+    for (const auto &cell :
+         dof_handler.get_triangulation().active_cell_iterators())
+      if (cell->is_locally_owned())
+        {
+          const auto particle_id =
+            particle_ids[cell->global_active_cell_index()];
+
+          if (particle_id == invalid_particle_id)
+            continue;
+
+          const unsigned int unique_id = local_to_global_particle_ids
+            [static_cast<unsigned int>(particle_id) - local_offset];
+
+          AssertIndexRange(unique_id, n_particles);
+
+          particle_info[n_features * unique_id + 0] += cell->measure();
+
+          for (unsigned int d = 0; d < dim; ++d)
+            particle_info[n_features * unique_id + 1 + d] +=
+              cell->center()[d] * cell->measure();
+
+          if (!local_particle_max_values.empty())
+            particle_max_values[unique_id] =
+              local_particle_max_values[particle_id];
+        }
+
+    // Reduce information - particles info
+    MPI_Allreduce(MPI_IN_PLACE,
+                  particle_info.data(),
+                  particle_info.size(),
+                  MPI_DOUBLE,
+                  MPI_SUM,
+                  comm);
+
+    // Reduce information - particles max values
+    MPI_Allreduce(MPI_IN_PLACE,
+                  particle_max_values.data(),
+                  particle_max_values.size(),
+                  MPI_DOUBLE,
+                  MPI_MAX,
+                  comm);
+
+    // Compute particles centers
+    std::vector<Point<dim>> particle_centers(n_particles);
+    std::vector<double>     particle_measures(n_particles);
+    for (unsigned int i = 0; i < n_particles; i++)
+      {
+        for (unsigned int d = 0; d < dim; ++d)
+          {
+            particle_centers[i][d] = particle_info[i * n_features + 1 + d] /
+                                     particle_info[i * n_features];
+          }
+        particle_measures[i] = particle_info[i * n_features];
+      }
+
+    // Compute particles radii
+    std::vector<double> particle_radii(n_particles, 0.);
+    for (const auto &cell :
+         dof_handler.get_triangulation().active_cell_iterators())
+      if (cell->is_locally_owned())
+        {
+          const auto particle_id =
+            particle_ids[cell->global_active_cell_index()];
+
+          if (particle_id == invalid_particle_id)
+            continue;
+
+          const unsigned int unique_id = local_to_global_particle_ids
+            [static_cast<unsigned int>(particle_id) - local_offset];
+
+          AssertIndexRange(unique_id, n_particles);
+
+          const auto &center = particle_centers[unique_id];
+
+          const double dist =
+            center.distance(cell->barycenter()) + cell->diameter() / 2.;
+          particle_radii[unique_id] = std::max(particle_radii[unique_id], dist);
+        }
+
+    // Reduce information - particles radii
+    MPI_Allreduce(MPI_IN_PLACE,
+                  particle_radii.data(),
+                  particle_radii.size(),
+                  MPI_DOUBLE,
+                  MPI_MAX,
+                  comm);
+
+    return std::make_tuple(n_particles,
+                           std::move(particle_centers),
+                           std::move(particle_radii),
+                           std::move(particle_measures),
+                           std::move(particle_max_values));
+  }
 } // namespace GrainTracker
