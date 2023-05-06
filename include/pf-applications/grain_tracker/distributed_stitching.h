@@ -396,7 +396,11 @@ namespace GrainTracker
   }
 
   template <int dim, typename VectorIds>
-  auto
+  std::tuple<unsigned int,            // n_particles
+             std::vector<Point<dim>>, // particle_centers
+             std::vector<double>,     // particle_radii
+             std::vector<double>,     // particle_measures
+             std::vector<double>>     // particle_max_values
   compute_particles_info(
     const DoFHandler<dim> &    dof_handler,
     const VectorIds &          particle_ids,
