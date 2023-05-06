@@ -2955,14 +2955,14 @@ namespace Sintering
 
       if (params.output_data.porosity_stats)
         {
-          std::string output = params.output_data.vtk_path + "/porosity_" +
+          std::string output = params.output_data.vtk_path + "/porosity_stats_" +
                                label + "." + std::to_string(counters[label]) +
                                ".log";
 
           pcout << "Outputing data at t = " << t << " (" << output << ")"
                 << std::endl;
 
-          Postprocessors::estimate_porosity(dof_handler, solution, output);
+          Postprocessors::output_porosity_stats(dof_handler, solution, output);
         }
 
       if (params.output_data.shrinkage)

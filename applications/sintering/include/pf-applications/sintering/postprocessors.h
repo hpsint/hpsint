@@ -1356,9 +1356,9 @@ namespace Sintering
 
     template <int dim, typename VectorType>
     void
-    estimate_porosity(const DoFHandler<dim> &dof_handler,
-                      const VectorType &     solution,
-                      const std::string      output)
+    output_porosity_stats(const DoFHandler<dim> &dof_handler,
+                          const VectorType &     solution,
+                          const std::string      output)
     {
       const auto comm = dof_handler.get_communicator();
 
