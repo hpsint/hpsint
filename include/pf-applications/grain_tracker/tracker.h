@@ -1193,12 +1193,12 @@ namespace GrainTracker
                       particle_measures,
                       particle_radii,
                       particle_max_values] =
-            calc_particles_info(dof_handler,
-                                particle_ids,
-                                local_to_global_particle_ids,
-                                offset,
-                                invalid_particle_id,
-                                local_particle_max_values);
+            compute_particles_info(dof_handler,
+                                   particle_ids,
+                                   local_to_global_particle_ids,
+                                   offset,
+                                   invalid_particle_id,
+                                   local_particle_max_values);
           (void)particle_measures; // we do not need this data
 
           // Set global ids to the particles
