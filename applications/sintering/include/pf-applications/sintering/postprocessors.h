@@ -1382,11 +1382,11 @@ namespace Sintering
                   pores_measures,
                   pores_radii,
                   pores_max_values] =
-        calc_particles_info(dof_handler,
-                            particle_ids,
-                            local_to_global_particle_ids,
-                            offset,
-                            invalid_particle_id);
+        GrainTracker::calc_particles_info(dof_handler,
+                                          particle_ids,
+                                          local_to_global_particle_ids,
+                                          offset,
+                                          invalid_particle_id);
 
       TableHandler table;
 
