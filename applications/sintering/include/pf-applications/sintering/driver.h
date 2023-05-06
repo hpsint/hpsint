@@ -3000,6 +3000,22 @@ namespace Sintering
                                                 output);
         }
 
+      if (params.output_data.grains_stats)
+        {
+          std::string output = params.output_data.vtk_path + "/grains_stats_" +
+                               label + "." + std::to_string(counters[label]) +
+                               ".vtu";
+
+          pcout << "Outputing data at t = " << t << " (" << output << ")"
+                << std::endl;
+
+          Postprocessors::output_grains_stats(dof_handler,
+                                              sintering_operator.n_grains(),
+                                              grain_tracker,
+                                              solution,
+                                              output);
+        }
+
       if (params.output_data.table)
         {
           std::string output =
