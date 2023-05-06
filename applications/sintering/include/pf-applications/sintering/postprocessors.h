@@ -1351,6 +1351,31 @@ namespace Sintering
       data_out.write_vtu_in_parallel(output, dof_handler.get_communicator());
     }
 
+    template <int dim, typename VectorType>
+    void
+    estimate_porosity(const Mapping<dim> &   mapping,
+                      const DoFHandler<dim> &dof_handler,
+                      const VectorType &     solution,
+                      const std::string      output)
+    {
+      const double invalid_particle_id = -1.0; // TODO
+
+      // Detect pores and assign ids
+      auto [local_to_global_particle_ids, offset] = internal::detect_pores(
+        dof_handler, solution, particle_ids, invalid_particle_id);
+
+      const auto [n_pores,
+                  pores_centers,
+                  pores_measures,
+                  pores_radii,
+                  pores_max_values] =
+        calc_particles_info(dof_handler,
+                            particle_ids,
+                            local_to_global_particle_ids,
+                            offset,
+                            invalid_particle_id);
+    }
+
     template <int dim, typename Number>
     void
     write_bounding_box(const BoundingBox<dim, Number> &bb,
