@@ -2947,10 +2947,10 @@ namespace Sintering
           pcout << "Outputing data at t = " << t << " (" << output << ")"
                 << std::endl;
 
-          Postprocessors::estimate_porosity(mapping,
-                                            dof_handler,
-                                            solution,
-                                            output);
+          Postprocessors::output_porosity(mapping,
+                                          dof_handler,
+                                          solution,
+                                          output);
         }
 
       if (params.output_data.shrinkage)

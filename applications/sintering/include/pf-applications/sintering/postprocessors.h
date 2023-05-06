@@ -1284,10 +1284,10 @@ namespace Sintering
 
     template <int dim, typename VectorType>
     void
-    estimate_porosity(const Mapping<dim> &   mapping,
-                      const DoFHandler<dim> &dof_handler,
-                      const VectorType &     solution,
-                      const std::string      output)
+    output_porosity(const Mapping<dim> &   mapping,
+                    const DoFHandler<dim> &dof_handler,
+                    const VectorType &     solution,
+                    const std::string      output)
     {
       const double invalid_particle_id = -1.0; // TODO
 
