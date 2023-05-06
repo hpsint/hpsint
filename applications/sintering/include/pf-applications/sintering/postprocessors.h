@@ -1403,7 +1403,7 @@ namespace Sintering
 
       // Output to file
       std::ofstream out_file(output);
-      table.write_tex(out_file);
+      table.write_text(out_file);
       out_file.close();
     }
 
