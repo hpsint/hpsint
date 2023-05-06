@@ -1815,5 +1815,50 @@ namespace Sintering
       return std::make_tuple(q_labels, q_evaluators);
     }
 
+    template <int dim, typename VectorType, typename Number>
+    void
+    output_grains_stats(
+      const DoFHandler<dim> &                   dof_handler,
+      const unsigned int                        n_op,
+      const GrainTracker::Tracker<dim, Number> &grain_tracker_in,
+      const VectorType &                        solution,
+      const std::string                         output)
+    {
+      const auto comm = dof_handler.get_communicator();
+
+      const bool has_ghost_elements = solution.has_ghost_elements();
+
+      if (has_ghost_elements == false)
+        solution.update_ghost_values();
+
+      auto grain_tracker = grain_tracker_in.clone();
+      grain_tracker->track(solution, n_op, true);
+
+      TableHandler table;
+
+      std::vector<std::string> labels{"x", "y", "z"};
+
+      for (const auto &[grain_id, grain] : grain_tracker->get_grains())
+        {
+          table.add_value("id", grain_id);
+          table.add_value("measure", grain->get_measure());
+          table.add_value("radius", grain->get_max_radius());
+
+          for (unsigned int d = 0; d < dim; ++d)
+            table.add_value(labels[d],
+                            grain.n_segments() == 1 ?
+                              grain.get_segments()[0].get_center()[d] :
+                              std::numeric_limits<double>::quiet_NaN());
+        }
+
+      // Output to file
+      std::ofstream out_file(output);
+      table.write_text(out_file);
+      out_file.close();
+
+      if (has_ghost_elements == false)
+        solution.zero_out_ghost_values();
+    }
+
   } // namespace Postprocessors
 } // namespace Sintering
