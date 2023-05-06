@@ -2955,9 +2955,9 @@ namespace Sintering
 
       if (params.output_data.porosity_stats)
         {
-          std::string output = params.output_data.vtk_path + "/porosity_stats_" +
-                               label + "." + std::to_string(counters[label]) +
-                               ".log";
+          std::string output = params.output_data.vtk_path +
+                               "/porosity_stats_" + label + "." +
+                               std::to_string(counters[label]) + ".log";
 
           pcout << "Outputing data at t = " << t << " (" << output << ")"
                 << std::endl;
