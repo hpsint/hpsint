@@ -1303,6 +1303,7 @@ namespace GrainTracker
 
                   new_grains.at(grain_id).add_segment(particle_centers[i],
                                                       particle_radii[i],
+                                                      particle_measures[i],
                                                       particle_max_values[i]);
 
                   free_particles.erase(i);
@@ -1330,6 +1331,7 @@ namespace GrainTracker
 
               new_grains.at(grain_id).add_segment(particle_centers[i],
                                                   particle_radii[i],
+                                                  particle_measures[i],
                                                   particle_max_values[i]);
 
               const unsigned int last_segment_id =
