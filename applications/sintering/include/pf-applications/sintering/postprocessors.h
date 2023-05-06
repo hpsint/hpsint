@@ -1834,6 +1834,12 @@ namespace Sintering
       auto grain_tracker = grain_tracker_in.clone();
       grain_tracker->track(solution, n_op, true);
 
+      if (has_ghost_elements == false)
+        solution.zero_out_ghost_values();
+
+      if (Utilities::MPI::this_mpi_process(comm) != 0)
+        return;
+
       TableHandler table;
 
       std::vector<std::string> labels{"x", "y", "z"};
@@ -1841,8 +1847,8 @@ namespace Sintering
       for (const auto &[grain_id, grain] : grain_tracker->get_grains())
         {
           table.add_value("id", grain_id);
-          table.add_value("measure", grain->get_measure());
-          table.add_value("radius", grain->get_max_radius());
+          table.add_value("measure", grain.get_measure());
+          table.add_value("radius", grain.get_max_radius());
 
           for (unsigned int d = 0; d < dim; ++d)
             table.add_value(labels[d],
@@ -1855,9 +1861,6 @@ namespace Sintering
       std::ofstream out_file(output);
       table.write_text(out_file);
       out_file.close();
-
-      if (has_ghost_elements == false)
-        solution.zero_out_ghost_values();
     }
 
   } // namespace Postprocessors
