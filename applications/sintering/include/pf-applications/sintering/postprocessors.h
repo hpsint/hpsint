@@ -1180,11 +1180,10 @@ namespace Sintering
       run_flooding(const typename DoFHandler<dim>::cell_iterator &cell,
                    const BlockVectorType &                        solution,
                    LinearAlgebra::distributed::Vector<Number> &   particle_ids,
-                   const unsigned int                             id)
+                   const unsigned int                             id,
+                   const double threshold_lower     = 0.5,
+                   const double invalid_particle_id = -1.0)
       {
-        const double threshold_lower     = 0.8;  // TODO
-        const double invalid_particle_id = -1.0; // TODO
-
         if (cell->has_children())
           {
             unsigned int counter = 0;
@@ -1236,6 +1235,51 @@ namespace Sintering
 
         return counter;
       }
+
+      template <int dim, typename VectorType>
+      auto
+      detect_pores(const DoFHandler<dim> &                     dof_handler,
+                   const VectorType &                          solution,
+                   LinearAlgebra::distributed::Vector<double> &particle_ids,
+                   const double invalid_particle_id = -1.0)
+      {
+        const auto comm = dof_handler.get_communicator();
+
+        // step 1) run flooding and determine local particles and give them
+        // local ids
+        particle_ids = invalid_particle_id;
+
+        unsigned int counter = 0;
+        unsigned int offset  = 0;
+
+        for (const auto &cell : dof_handler.active_cell_iterators())
+          if (run_flooding<dim>(cell, solution, particle_ids, counter) > 0)
+            counter++;
+
+        // step 2) determine the global number of locally determined particles
+        // and give each one an unique id by shifting the ids
+        MPI_Exscan(&counter, &offset, 1, MPI_UNSIGNED, MPI_SUM, comm);
+
+        for (auto &particle_id : particle_ids)
+          if (particle_id != invalid_particle_id)
+            particle_id += offset;
+
+        // step 3) get particle ids on ghost cells and figure out if local
+        // particles and ghost particles might be one particle
+        particle_ids.update_ghost_values();
+
+        auto local_connectivity = GrainTracker::build_local_connectivity(
+          dof_handler, particle_ids, counter, offset, invalid_particle_id);
+
+        // step 4) based on the local-ghost information, figure out all
+        // particles on all processes that belong togher (unification ->
+        // clique), give each clique an unique id, and return mapping from the
+        // global non-unique ids to the global ids
+        const auto local_to_global_particle_ids =
+          GrainTracker::perform_distributed_stitching(comm, local_connectivity);
+
+        return std::make_pair(local_to_global_particle_ids, offset);
+      }
     } // namespace internal
 
     template <int dim, typename VectorType>
@@ -1252,45 +1296,14 @@ namespace Sintering
 
       AssertThrow(tria, ExcNotImplemented());
 
-      const auto comm = dof_handler.get_communicator();
-
       LinearAlgebra::distributed::Vector<double> particle_ids(
         tria->global_active_cell_index_partitioner().lock());
 
-      // step 1) run flooding and determine local particles and give them
-      // local ids
-      particle_ids = invalid_particle_id;
+      // Detect pores and assign ids
+      auto [local_to_global_particle_ids, offset] = internal::detect_pores(
+        dof_handler, solution, particle_ids, invalid_particle_id);
 
-      unsigned int counter = 0;
-      unsigned int offset  = 0;
-
-      for (const auto &cell : dof_handler.active_cell_iterators())
-        if (internal::run_flooding<dim>(cell, solution, particle_ids, counter) >
-            0)
-          counter++;
-
-      // step 2) determine the global number of locally determined particles
-      // and give each one an unique id by shifting the ids
-      MPI_Exscan(&counter, &offset, 1, MPI_UNSIGNED, MPI_SUM, comm);
-
-      for (auto &particle_id : particle_ids)
-        if (particle_id != invalid_particle_id)
-          particle_id += offset;
-
-      // step 3) get particle ids on ghost cells and figure out if local
-      // particles and ghost particles might be one particle
-      particle_ids.update_ghost_values();
-
-      auto local_connectivity = GrainTracker::build_local_connectivity(
-        dof_handler, particle_ids, counter, offset, invalid_particle_id);
-
-      // step 4) based on the local-ghost information, figure out all
-      // particles on all processes that belong togher (unification ->
-      // clique), give each clique an unique id, and return mapping from the
-      // global non-unique ids to the global ids
-      const auto local_to_global_particle_ids =
-        GrainTracker::perform_distributed_stitching(comm, local_connectivity);
-
+      // Output pores to VTK
       Vector<double> cell_to_id(tria->n_active_cells());
 
       for (const auto &cell :
