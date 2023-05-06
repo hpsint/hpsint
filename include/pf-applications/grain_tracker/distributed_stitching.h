@@ -402,7 +402,7 @@ namespace GrainTracker
                       std::vector<unsigned int> &local_to_global_particle_ids,
                       const unsigned int         local_offset,
                       const double               invalid_particle_id = -1.0,
-                      std::vector<double> &      local_particle_max_values = {})
+                      const std::vector<double> &local_particle_max_values = {})
   {
     const auto comm = dof_handler.get_communicator();
 
