@@ -1360,11 +1360,6 @@ namespace Sintering
                           const VectorType &     solution,
                           const std::string      output)
     {
-      const auto comm = dof_handler.get_communicator();
-
-      if (Utilities::MPI::this_mpi_process(comm) != 0)
-        return;
-
       const double invalid_particle_id = -1.0; // TODO
 
       LinearAlgebra::distributed::Vector<double> particle_ids(
@@ -1386,6 +1381,11 @@ namespace Sintering
                                              local_to_global_particle_ids,
                                              offset,
                                              invalid_particle_id);
+
+      const auto comm = dof_handler.get_communicator();
+
+      if (Utilities::MPI::this_mpi_process(comm) != 0)
+        return;
 
       TableHandler table;
 
