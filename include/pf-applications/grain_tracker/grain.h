@@ -79,6 +79,13 @@ namespace GrainTracker
       return max_value;
     }
 
+    /* Grain measure. */
+    double
+    get_measure() const
+    {
+      return sum_measure;
+    }
+
     /* Get grain id. */
     unsigned int
     get_grain_id() const
