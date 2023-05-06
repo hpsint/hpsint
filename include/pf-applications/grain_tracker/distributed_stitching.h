@@ -517,8 +517,8 @@ namespace GrainTracker
 
     return std::make_tuple(n_particles,
                            std::move(particle_centers),
-                           std::move(particle_measures),
                            std::move(particle_radii),
+                           std::move(particle_measures),
                            std::move(particle_max_values));
   }
 } // namespace GrainTracker

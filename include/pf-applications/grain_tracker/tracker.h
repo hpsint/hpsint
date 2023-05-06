@@ -1190,8 +1190,8 @@ namespace GrainTracker
           // step 5) determine properties of particles (volume, radius, center)
           const auto [n_particles,
                       particle_centers,
-                      particle_measures,
                       particle_radii,
+                      particle_measures,
                       particle_max_values] =
             compute_particles_info(dof_handler,
                                    particle_ids,
