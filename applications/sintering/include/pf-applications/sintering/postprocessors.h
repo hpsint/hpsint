@@ -1391,7 +1391,7 @@ namespace Sintering
 
       std::vector<std::string> labels{"x", "y", "z"};
 
-      for (unsigned int i = 0; i <= n_pores; ++i)
+      for (unsigned int i = 0; i < n_pores; ++i)
         {
           table.add_value("id", i);
           table.add_value("measure", pores_measures[i]);
