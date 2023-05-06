@@ -1275,10 +1275,10 @@ namespace Sintering
         // particles on all processes that belong togher (unification ->
         // clique), give each clique an unique id, and return mapping from the
         // global non-unique ids to the global ids
-        const auto local_to_global_particle_ids =
+        auto local_to_global_particle_ids =
           GrainTracker::perform_distributed_stitching(comm, local_connectivity);
 
-        return std::make_pair(local_to_global_particle_ids, offset);
+        return std::make_pair(std::move(local_to_global_particle_ids), offset);
       }
     } // namespace internal
 
@@ -1300,8 +1300,11 @@ namespace Sintering
         tria->global_active_cell_index_partitioner().lock());
 
       // Detect pores and assign ids
-      auto [local_to_global_particle_ids, offset] = internal::detect_pores(
-        dof_handler, solution, particle_ids, invalid_particle_id);
+      const auto [local_to_global_particle_ids, offset] =
+        internal::detect_pores(dof_handler,
+                               solution,
+                               particle_ids,
+                               invalid_particle_id);
 
       // Output pores to VTK
       Vector<double> cell_to_id(tria->n_active_cells());
