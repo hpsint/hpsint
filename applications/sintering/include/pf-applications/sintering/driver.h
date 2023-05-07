@@ -3004,7 +3004,7 @@ namespace Sintering
         {
           std::string output = params.output_data.vtk_path + "/grains_stats_" +
                                label + "." + std::to_string(counters[label]) +
-                               ".vtu";
+                               ".log";
 
           pcout << "Outputing data at t = " << t << " (" << output << ")"
                 << std::endl;

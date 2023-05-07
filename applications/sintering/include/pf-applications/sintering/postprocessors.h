@@ -1832,7 +1832,11 @@ namespace Sintering
         solution.update_ghost_values();
 
       auto grain_tracker = grain_tracker_in.clone();
-      grain_tracker->track(solution, n_op, true);
+
+      if (grain_tracker->get_grains().empty())
+        grain_tracker->initial_setup(solution, n_op);
+      else
+        grain_tracker->track(solution, n_op, true);
 
       if (has_ghost_elements == false)
         solution.zero_out_ghost_values();
