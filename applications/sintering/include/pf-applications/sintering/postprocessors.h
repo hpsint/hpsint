@@ -1237,13 +1237,19 @@ namespace Sintering
       }
 
       template <int dim, typename VectorType>
-      auto
-      detect_pores(const DoFHandler<dim> &                     dof_handler,
-                   const VectorType &                          solution,
-                   LinearAlgebra::distributed::Vector<double> &particle_ids,
-                   const double invalid_particle_id = -1.0)
+      std::tuple<LinearAlgebra::distributed::Vector<double>,
+                 std::vector<unsigned int>,
+                 unsigned int>
+      detect_pores(const DoFHandler<dim> &dof_handler,
+                   const VectorType &     solution,
+                   const double           invalid_particle_id = -1.0)
       {
         const auto comm = dof_handler.get_communicator();
+
+        LinearAlgebra::distributed::Vector<double> particle_ids(
+          dof_handler.get_triangulation()
+            .global_active_cell_index_partitioner()
+            .lock());
 
         // step 1) run flooding and determine local particles and give them
         // local ids
@@ -1278,7 +1284,9 @@ namespace Sintering
         auto local_to_global_particle_ids =
           GrainTracker::perform_distributed_stitching(comm, local_connectivity);
 
-        return std::make_pair(std::move(local_to_global_particle_ids), offset);
+        return std::make_tuple(std::move(particle_ids),
+                               std::move(local_to_global_particle_ids),
+                               offset);
       }
     } // namespace internal
 
@@ -1296,15 +1304,9 @@ namespace Sintering
 
       AssertThrow(tria, ExcNotImplemented());
 
-      LinearAlgebra::distributed::Vector<double> particle_ids(
-        tria->global_active_cell_index_partitioner().lock());
-
       // Detect pores and assign ids
-      const auto [local_to_global_particle_ids, offset] =
-        internal::detect_pores(dof_handler,
-                               solution,
-                               particle_ids,
-                               invalid_particle_id);
+      const auto [particle_ids, local_to_global_particle_ids, offset] =
+        internal::detect_pores(dof_handler, solution, invalid_particle_id);
 
       // Output pores to VTK
       Vector<double> cell_to_id(tria->n_active_cells());
@@ -1362,14 +1364,9 @@ namespace Sintering
     {
       const double invalid_particle_id = -1.0; // TODO
 
-      LinearAlgebra::distributed::Vector<double> particle_ids(
-        dof_handler.get_triangulation()
-          .global_active_cell_index_partitioner()
-          .lock());
-
       // Detect pores and assign ids
-      auto [local_to_global_particle_ids, offset] = internal::detect_pores(
-        dof_handler, solution, particle_ids, invalid_particle_id);
+      const auto [particle_ids, local_to_global_particle_ids, offset] =
+        internal::detect_pores(dof_handler, solution, invalid_particle_id);
 
       const auto [n_pores,
                   pores_centers,
