@@ -2940,9 +2940,9 @@ namespace Sintering
 
       if (params.output_data.porosity)
         {
-          std::string output = params.output_data.vtk_path + "/porosity_" +
-                               label + "." + std::to_string(counters[label]) +
-                               ".vtu";
+          const std::string output = params.output_data.vtk_path +
+                                     "/porosity_" + label + "." +
+                                     std::to_string(counters[label]) + ".vtu";
 
           pcout << "Outputing data at t = " << t << " (" << output << ")"
                 << std::endl;
@@ -2955,9 +2955,9 @@ namespace Sintering
 
       if (params.output_data.porosity_stats)
         {
-          std::string output = params.output_data.vtk_path +
-                               "/porosity_stats_" + label + "." +
-                               std::to_string(counters[label]) + ".log";
+          const std::string output = params.output_data.vtk_path +
+                                     "/porosity_stats_" + label + "." +
+                                     std::to_string(counters[label]) + ".log";
 
           pcout << "Outputing data at t = " << t << " (" << output << ")"
                 << std::endl;
