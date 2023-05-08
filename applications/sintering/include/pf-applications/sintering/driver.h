@@ -2948,8 +2948,12 @@ namespace Sintering
           pcout << "Outputing data at t = " << t << " (" << output << ")"
                 << std::endl;
 
-          Postprocessors::output_porosity(
-            mapping, dof_handler, solution, output, box_filter);
+          Postprocessors::output_porosity(mapping,
+                                          dof_handler,
+                                          solution,
+                                          output,
+                                          params.output_data.porosity_max_value,
+                                          box_filter);
         }
 
       if (params.output_data.porosity_stats)
@@ -2961,10 +2965,12 @@ namespace Sintering
           pcout << "Outputing data at t = " << t << " (" << output << ")"
                 << std::endl;
 
-          Postprocessors::output_porosity_stats(dof_handler,
-                                                solution,
-                                                output,
-                                                box_filter);
+          Postprocessors::output_porosity_stats(
+            dof_handler,
+            solution,
+            output,
+            params.output_data.porosity_max_value,
+            box_filter);
         }
 
       if (params.output_data.shrinkage)

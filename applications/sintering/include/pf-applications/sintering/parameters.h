@@ -195,6 +195,7 @@ namespace Sintering
     unsigned int          n_mca_subdivisions     = 1;
     bool                  porosity               = false;
     bool                  porosity_stats         = false;
+    double                porosity_max_value     = 0.8;
     bool                  shrinkage              = false;
     bool                  quality                = false;
     bool                  table                  = false;
@@ -773,6 +774,9 @@ namespace Sintering
       prm.add_parameter("PorosityStats",
                         output_data.porosity_stats,
                         "Determine porosity and output its stats.");
+      prm.add_parameter("PorosityMaxValue",
+                        output_data.porosity_max_value,
+                        "Maximum value of concentration inside pores.");
       prm.add_parameter("Shrinkage",
                         output_data.shrinkage,
                         "Determine shrinkage.");

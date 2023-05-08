@@ -1181,7 +1181,7 @@ namespace Sintering
                    const BlockVectorType &                        solution,
                    LinearAlgebra::distributed::Vector<Number> &   particle_ids,
                    const unsigned int                             id,
-                   const double threshold_lower                      = 0.8,
+                   const double threshold_upper                      = 0.8,
                    const double invalid_particle_id                  = -1.0,
                    std::function<int(const Point<dim> &)> box_filter = nullptr)
       {
@@ -1194,7 +1194,7 @@ namespace Sintering
                                            solution,
                                            particle_ids,
                                            id,
-                                           threshold_lower,
+                                           threshold_upper,
                                            invalid_particle_id,
                                            box_filter);
 
@@ -1218,7 +1218,7 @@ namespace Sintering
               {
                 cell->get_dof_values(solution.block(b), values);
 
-                if (values.linfty_norm() >= threshold_lower)
+                if (values.linfty_norm() >= threshold_upper)
                   return 0;
               }
           }
@@ -1226,7 +1226,7 @@ namespace Sintering
           {
             cell->get_dof_values(solution.block(0), values);
 
-            if (values.linfty_norm() >= threshold_lower)
+            if (values.linfty_norm() >= threshold_upper)
               return 0;
           }
 
@@ -1240,7 +1240,7 @@ namespace Sintering
                                          solution,
                                          particle_ids,
                                          id,
-                                         threshold_lower,
+                                         threshold_upper,
                                          invalid_particle_id,
                                          box_filter);
 
@@ -1254,10 +1254,9 @@ namespace Sintering
       detect_pores(const DoFHandler<dim> &dof_handler,
                    const VectorType &     solution,
                    const double           invalid_particle_id        = -1.0,
+                   const double           threshold_upper            = 0.8,
                    std::function<int(const Point<dim> &)> box_filter = nullptr)
       {
-        const double threshold_lower = 0.8;
-
         const auto comm = dof_handler.get_communicator();
 
         LinearAlgebra::distributed::Vector<double> particle_ids(
@@ -1277,7 +1276,7 @@ namespace Sintering
                                 solution,
                                 particle_ids,
                                 counter,
-                                threshold_lower,
+                                threshold_upper,
                                 invalid_particle_id,
                                 box_filter) > 0)
             counter++;
@@ -1312,10 +1311,11 @@ namespace Sintering
 
     template <int dim, typename VectorType>
     void
-    output_porosity(const Mapping<dim> &                   mapping,
-                    const DoFHandler<dim> &                dof_handler,
-                    const VectorType &                     solution,
-                    const std::string                      output,
+    output_porosity(const Mapping<dim> &   mapping,
+                    const DoFHandler<dim> &dof_handler,
+                    const VectorType &     solution,
+                    const std::string      output,
+                    const double           threshold_upper            = 0.8,
                     std::function<int(const Point<dim> &)> box_filter = nullptr)
     {
       const double invalid_particle_id = -1.0; // TODO
@@ -1330,6 +1330,7 @@ namespace Sintering
         internal::detect_pores(dof_handler,
                                solution,
                                invalid_particle_id,
+                               threshold_upper,
                                box_filter);
 
       // Output pores to VTK
@@ -1386,7 +1387,8 @@ namespace Sintering
       const DoFHandler<dim> &                dof_handler,
       const VectorType &                     solution,
       const std::string                      output,
-      std::function<int(const Point<dim> &)> box_filter = nullptr)
+      const double                           threshold_upper = 0.8,
+      std::function<int(const Point<dim> &)> box_filter      = nullptr)
     {
       const double invalid_particle_id = -1.0; // TODO
 
@@ -1395,6 +1397,7 @@ namespace Sintering
         internal::detect_pores(dof_handler,
                                solution,
                                invalid_particle_id,
+                               threshold_upper,
                                box_filter);
 
       const auto [n_pores,
