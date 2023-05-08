@@ -195,6 +195,7 @@ namespace Sintering
     unsigned int          n_mca_subdivisions     = 1;
     bool                  porosity               = false;
     bool                  shrinkage              = false;
+    bool                  grains_stats           = false;
     bool                  quality                = false;
     bool                  table                  = false;
     bool                  debug                  = false;
@@ -772,6 +773,9 @@ namespace Sintering
       prm.add_parameter("Shrinkage",
                         output_data.shrinkage,
                         "Determine shrinkage.");
+      prm.add_parameter("GrainsStats",
+                        output_data.grains_stats,
+                        "Grains statistics.");
       prm.add_parameter("Quality", output_data.quality, "Output mesh quality.");
       prm.add_parameter("Table", output_data.table, "Output table.");
       prm.add_parameter("Debug",
