@@ -1181,7 +1181,7 @@ namespace Sintering
                    const BlockVectorType &                        solution,
                    LinearAlgebra::distributed::Vector<Number> &   particle_ids,
                    const unsigned int                             id,
-                   const double threshold_lower     = 0.5,
+                   const double threshold_lower     = 0.8,
                    const double invalid_particle_id = -1.0)
       {
         if (cell->has_children())
