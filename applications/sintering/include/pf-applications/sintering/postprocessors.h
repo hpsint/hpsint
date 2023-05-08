@@ -1181,20 +1181,28 @@ namespace Sintering
                    const BlockVectorType &                        solution,
                    LinearAlgebra::distributed::Vector<Number> &   particle_ids,
                    const unsigned int                             id,
-                   const double threshold_lower     = 0.8,
-                   const double invalid_particle_id = -1.0)
+                   const double threshold_lower                      = 0.8,
+                   const double invalid_particle_id                  = -1.0,
+                   std::function<int(const Point<dim> &)> box_filter = nullptr)
       {
         if (cell->has_children())
           {
             unsigned int counter = 0;
 
             for (const auto &child : cell->child_iterators())
-              counter += run_flooding<dim>(child, solution, particle_ids, id);
+              counter += run_flooding<dim>(child,
+                                           solution,
+                                           particle_ids,
+                                           id,
+                                           threshold_lower,
+                                           invalid_particle_id,
+                                           box_filter);
 
             return counter;
           }
 
-        if (cell->is_locally_owned() == false)
+        if (cell->is_locally_owned() == false ||
+            (box_filter && box_filter(cell->barycenter()) < 0))
           return 0;
 
         const auto particle_id = particle_ids[cell->global_active_cell_index()];
@@ -1231,7 +1239,10 @@ namespace Sintering
             counter += run_flooding<dim>(cell->neighbor(face),
                                          solution,
                                          particle_ids,
-                                         id);
+                                         id,
+                                         threshold_lower,
+                                         invalid_particle_id,
+                                         box_filter);
 
         return counter;
       }
@@ -1242,8 +1253,11 @@ namespace Sintering
                  unsigned int>
       detect_pores(const DoFHandler<dim> &dof_handler,
                    const VectorType &     solution,
-                   const double           invalid_particle_id = -1.0)
+                   const double           invalid_particle_id        = -1.0,
+                   std::function<int(const Point<dim> &)> box_filter = nullptr)
       {
+        const double threshold_lower = 0.8;
+
         const auto comm = dof_handler.get_communicator();
 
         LinearAlgebra::distributed::Vector<double> particle_ids(
@@ -1259,7 +1273,13 @@ namespace Sintering
         unsigned int offset  = 0;
 
         for (const auto &cell : dof_handler.active_cell_iterators())
-          if (run_flooding<dim>(cell, solution, particle_ids, counter) > 0)
+          if (run_flooding<dim>(cell,
+                                solution,
+                                particle_ids,
+                                counter,
+                                threshold_lower,
+                                invalid_particle_id,
+                                box_filter) > 0)
             counter++;
 
         // step 2) determine the global number of locally determined particles
@@ -1292,10 +1312,11 @@ namespace Sintering
 
     template <int dim, typename VectorType>
     void
-    output_porosity(const Mapping<dim> &   mapping,
-                    const DoFHandler<dim> &dof_handler,
-                    const VectorType &     solution,
-                    const std::string      output)
+    output_porosity(const Mapping<dim> &                   mapping,
+                    const DoFHandler<dim> &                dof_handler,
+                    const VectorType &                     solution,
+                    const std::string                      output,
+                    std::function<int(const Point<dim> &)> box_filter = nullptr)
     {
       const double invalid_particle_id = -1.0; // TODO
 
@@ -1306,7 +1327,10 @@ namespace Sintering
 
       // Detect pores and assign ids
       const auto [particle_ids, local_to_global_particle_ids, offset] =
-        internal::detect_pores(dof_handler, solution, invalid_particle_id);
+        internal::detect_pores(dof_handler,
+                               solution,
+                               invalid_particle_id,
+                               box_filter);
 
       // Output pores to VTK
       Vector<double> cell_to_id(tria->n_active_cells());
@@ -1358,15 +1382,20 @@ namespace Sintering
 
     template <int dim, typename VectorType>
     void
-    output_porosity_stats(const DoFHandler<dim> &dof_handler,
-                          const VectorType &     solution,
-                          const std::string      output)
+    output_porosity_stats(
+      const DoFHandler<dim> &                dof_handler,
+      const VectorType &                     solution,
+      const std::string                      output,
+      std::function<int(const Point<dim> &)> box_filter = nullptr)
     {
       const double invalid_particle_id = -1.0; // TODO
 
       // Detect pores and assign ids
       const auto [particle_ids, local_to_global_particle_ids, offset] =
-        internal::detect_pores(dof_handler, solution, invalid_particle_id);
+        internal::detect_pores(dof_handler,
+                               solution,
+                               invalid_particle_id,
+                               box_filter);
 
       const auto [n_pores,
                   pores_centers,

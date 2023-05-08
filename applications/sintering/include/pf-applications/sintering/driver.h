@@ -2828,7 +2828,8 @@ namespace Sintering
 
       std::function<int(const Point<dim> &)> box_filter;
       if (params.output_data.use_control_box &&
-          (params.output_data.contours || params.output_data.grain_boundaries))
+          (params.output_data.contours || params.output_data.grain_boundaries ||
+           params.output_data.porosity || params.output_data.porosity_stats))
         {
           box_filter = [&control_box](const Point<dim> &p) {
             /* Point locations:
@@ -2947,10 +2948,8 @@ namespace Sintering
           pcout << "Outputing data at t = " << t << " (" << output << ")"
                 << std::endl;
 
-          Postprocessors::output_porosity(mapping,
-                                          dof_handler,
-                                          solution,
-                                          output);
+          Postprocessors::output_porosity(
+            mapping, dof_handler, solution, output, box_filter);
         }
 
       if (params.output_data.porosity_stats)
@@ -2962,7 +2961,10 @@ namespace Sintering
           pcout << "Outputing data at t = " << t << " (" << output << ")"
                 << std::endl;
 
-          Postprocessors::output_porosity_stats(dof_handler, solution, output);
+          Postprocessors::output_porosity_stats(dof_handler,
+                                                solution,
+                                                output,
+                                                box_filter);
         }
 
       if (params.output_data.shrinkage)
