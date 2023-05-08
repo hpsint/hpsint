@@ -3002,9 +3002,9 @@ namespace Sintering
 
       if (params.output_data.grains_stats)
         {
-          std::string output = params.output_data.vtk_path + "/grains_stats_" +
-                               label + "." + std::to_string(counters[label]) +
-                               ".log";
+          const std::string output = params.output_data.vtk_path +
+                                     "/grains_stats_" + label + "." +
+                                     std::to_string(counters[label]) + ".log";
 
           pcout << "Outputing data at t = " << t << " (" << output << ")"
                 << std::endl;
