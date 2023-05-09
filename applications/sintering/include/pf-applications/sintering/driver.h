@@ -2890,10 +2890,12 @@ namespace Sintering
           pcout << "Outputing data at t = " << t << " (" << output << ")"
                 << std::endl;
 
+          const auto only_concentration = solution.create_view(0, 1);
+
           Postprocessors::output_concentration_contour_vtu(
             mapping,
             dof_handler,
-            solution,
+            *only_concentration,
             iso_value,
             output,
             params.output_data.n_coarsening_steps,

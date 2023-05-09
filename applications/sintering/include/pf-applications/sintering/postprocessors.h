@@ -799,15 +799,12 @@ namespace Sintering
       const unsigned int                     n_subdivisions     = 1,
       const double                           tolerance          = 1e-10)
     {
-      const auto  only_concentration_ptr = vector.create_view(0, 1);
-      const auto &only_concentration     = *only_concentration_ptr;
-
-      const bool has_ghost_elements = only_concentration.has_ghost_elements();
+      const bool has_ghost_elements = vector.has_ghost_elements();
 
       if (has_ghost_elements == false)
-        only_concentration.update_ghost_values();
+        vector.update_ghost_values();
 
-      auto vector_to_be_used                 = &only_concentration;
+      auto vector_to_be_used                 = &vector;
       auto background_dof_handler_to_be_used = &background_dof_handler;
 
       parallel::distributed::Triangulation<dim> tria_copy(
@@ -820,7 +817,7 @@ namespace Sintering
           internal::coarsen_triangulation(tria_copy,
                                           background_dof_handler,
                                           dof_handler_copy,
-                                          only_concentration,
+                                          vector,
                                           solution_dealii,
                                           n_coarsening_steps);
 
@@ -833,7 +830,7 @@ namespace Sintering
           // Copy vector if not done before
           if (n_coarsening_steps == 0)
             {
-              solution_dealii = only_concentration;
+              solution_dealii = vector;
               solution_dealii.update_ghost_values();
               vector_to_be_used = &solution_dealii;
             }
@@ -886,7 +883,7 @@ namespace Sintering
                                      background_dof_handler.get_communicator());
 
       if (has_ghost_elements == false)
-        only_concentration.zero_out_ghost_values();
+        vector.zero_out_ghost_values();
     }
 
     template <int dim, typename VectorType>
