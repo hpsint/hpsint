@@ -2829,6 +2829,7 @@ namespace Sintering
       std::function<int(const Point<dim> &)> box_filter;
       if (params.output_data.use_control_box &&
           (params.output_data.contours || params.output_data.grain_boundaries ||
+           params.output_data.concentration_contour ||
            params.output_data.porosity || params.output_data.porosity_stats))
         {
           box_filter = [&control_box](const Point<dim> &p) {
