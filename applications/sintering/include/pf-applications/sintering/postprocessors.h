@@ -1383,6 +1383,122 @@ namespace Sintering
 
     template <int dim, typename VectorType>
     void
+    output_porosity_contours_vtu(
+      const Mapping<dim> &                   mapping,
+      const DoFHandler<dim> &                dof_handler,
+      const VectorType &                     solution,
+      const double                           iso_level,
+      const std::string                      output,
+      const double                           threshold_upper    = 0.8,
+      const unsigned int                     n_coarsening_steps = 0,
+      std::function<int(const Point<dim> &)> box_filter         = nullptr,
+      const unsigned int                     n_subdivisions     = 1,
+      const double                           tolerance          = 1e-10)
+    {
+      const auto comm = dof_handler.get_communicator();
+
+      const double invalid_pore_id = -1.0;
+
+      // Detect pores and assign ids
+      const auto [pore_ids, local_to_global_pore_ids, offset] =
+        internal::detect_pores(
+          dof_handler, solution, invalid_pore_id, threshold_upper, box_filter);
+
+      std::set<unsigned int> unique_boundary_pores_ids;
+
+      // Eliminate pores touching the domain boundary
+      for (const auto &cell : dof_handler.active_cell_iterators())
+        {
+          if (!cell->is_locally_owned())
+            continue;
+
+          const auto pore_id = pore_ids[cell->global_active_cell_index()];
+
+          if (pore_id == invalid_pore_id)
+            continue;
+
+          for (const auto face : cell->face_indices())
+            if (cell->at_boundary(face))
+              {
+                unique_boundary_pores_ids.insert(
+                  local_to_global_pore_ids[static_cast<unsigned int>(pore_id) -
+                                           offset]);
+                break;
+              }
+        }
+
+      std::vector<unsigned int> global_boundary_pores_ids(
+        unique_boundary_pores_ids.begin(), unique_boundary_pores_ids.end());
+
+      const auto global_boundary_pores_temp =
+        Utilities::MPI::gather(comm, global_boundary_pores_ids, 0);
+
+      std::set<unsigned int> all_unique_boundary_pores_ids;
+      for (auto &boundary_pores : global_boundary_pores_temp)
+        std::copy(boundary_pores.begin(),
+                  boundary_pores.end(),
+                  std::inserter(all_unique_boundary_pores_ids,
+                                all_unique_boundary_pores_ids.end()));
+
+      std::vector<unsigned int> all_global_boundary_pores_ids(
+        all_unique_boundary_pores_ids.begin(),
+        all_unique_boundary_pores_ids.end());
+
+      all_global_boundary_pores_ids =
+        Utilities::MPI::broadcast(comm, all_global_boundary_pores_ids, 0);
+
+      std::unordered_set<unsigned int> boundary_pores(
+        all_global_boundary_pores_ids.begin(),
+        all_global_boundary_pores_ids.end());
+
+      // Build a vector for MCA
+      VectorType pores_data(1);
+      const auto partitioner = std::make_shared<Utilities::MPI::Partitioner>(
+        dof_handler.locally_owned_dofs(),
+        DoFTools::extract_locally_relevant_dofs(dof_handler),
+        dof_handler.get_communicator());
+
+      for (unsigned int b = 0; b < pores_data.n_blocks(); ++b)
+        pores_data.block(b).reinit(partitioner);
+
+      pores_data.block(0) = 0;
+      pores_data.update_ghost_values();
+
+      Vector<typename VectorType::value_type> values(
+        dof_handler.get_fe().n_dofs_per_cell());
+      values = 1.0;
+
+      for (const auto &cell : dof_handler.active_cell_iterators())
+        {
+          if (!cell->is_locally_owned())
+            continue;
+
+          const auto pore_id = pore_ids[cell->global_active_cell_index()];
+
+          if (pore_id == invalid_pore_id)
+            continue;
+
+          const auto global_pore_id =
+            local_to_global_pore_ids[static_cast<unsigned int>(pore_id) -
+                                     offset];
+
+          if (boundary_pores.find(global_pore_id) == boundary_pores.end())
+            cell->set_dof_values(values, pores_data.block(0));
+        }
+
+      output_concentration_contour_vtu(mapping,
+                                       dof_handler,
+                                       pores_data,
+                                       iso_level,
+                                       output,
+                                       n_coarsening_steps,
+                                       box_filter,
+                                       n_subdivisions,
+                                       tolerance);
+    }
+
+    template <int dim, typename VectorType>
+    void
     output_porosity_stats(
       const DoFHandler<dim> &                dof_handler,
       const VectorType &                     solution,
