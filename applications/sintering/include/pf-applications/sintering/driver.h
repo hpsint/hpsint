@@ -2828,7 +2828,9 @@ namespace Sintering
 
       std::function<int(const Point<dim> &)> box_filter;
       if (params.output_data.use_control_box &&
-          (params.output_data.contours || params.output_data.grain_boundaries))
+          (params.output_data.contours || params.output_data.grain_boundaries ||
+           params.output_data.concentration_contour ||
+           params.output_data.porosity || params.output_data.porosity_stats))
         {
           box_filter = [&control_box](const Point<dim> &p) {
             /* Point locations:
@@ -2940,17 +2942,36 @@ namespace Sintering
 
       if (params.output_data.porosity)
         {
-          std::string output = params.output_data.vtk_path + "/porosity_" +
-                               label + "." + std::to_string(counters[label]) +
-                               ".vtu";
+          const std::string output = params.output_data.vtk_path +
+                                     "/porosity_" + label + "." +
+                                     std::to_string(counters[label]) + ".vtu";
 
           pcout << "Outputing data at t = " << t << " (" << output << ")"
                 << std::endl;
 
-          Postprocessors::estimate_porosity(mapping,
-                                            dof_handler,
-                                            solution,
-                                            output);
+          Postprocessors::output_porosity(mapping,
+                                          dof_handler,
+                                          solution,
+                                          output,
+                                          params.output_data.porosity_max_value,
+                                          box_filter);
+        }
+
+      if (params.output_data.porosity_stats)
+        {
+          const std::string output = params.output_data.vtk_path +
+                                     "/porosity_stats_" + label + "." +
+                                     std::to_string(counters[label]) + ".log";
+
+          pcout << "Outputing data at t = " << t << " (" << output << ")"
+                << std::endl;
+
+          Postprocessors::output_porosity_stats(
+            dof_handler,
+            solution,
+            output,
+            params.output_data.porosity_max_value,
+            box_filter);
         }
 
       if (params.output_data.shrinkage)

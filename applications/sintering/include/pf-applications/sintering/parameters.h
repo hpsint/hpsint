@@ -194,6 +194,8 @@ namespace Sintering
     unsigned int          n_coarsening_steps     = 0;
     unsigned int          n_mca_subdivisions     = 1;
     bool                  porosity               = false;
+    bool                  porosity_stats         = false;
+    double                porosity_max_value     = 0.8;
     bool                  shrinkage              = false;
     bool                  grains_stats           = false;
     bool                  quality                = false;
@@ -769,7 +771,13 @@ namespace Sintering
                         "Marching cube algorithm subdivisions.");
       prm.add_parameter("Porosity",
                         output_data.porosity,
-                        "Determine porosity.");
+                        "Output porosity to VTK.");
+      prm.add_parameter("PorosityStats",
+                        output_data.porosity_stats,
+                        "Determine porosity and output its stats.");
+      prm.add_parameter("PorosityMaxValue",
+                        output_data.porosity_max_value,
+                        "Maximum value of concentration inside pores.");
       prm.add_parameter("Shrinkage",
                         output_data.shrinkage,
                         "Determine shrinkage.");

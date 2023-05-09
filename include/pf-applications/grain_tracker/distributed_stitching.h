@@ -402,12 +402,12 @@ namespace GrainTracker
              std::vector<double>,     // particle_measures
              std::vector<double>>     // particle_max_values
   compute_particles_info(
-    const DoFHandler<dim> &    dof_handler,
-    const VectorIds &          particle_ids,
-    std::vector<unsigned int> &local_to_global_particle_ids,
-    const unsigned int         local_offset,
-    const double               invalid_particle_id       = -1.0,
-    const std::vector<double> &local_particle_max_values = {})
+    const DoFHandler<dim> &          dof_handler,
+    const VectorIds &                particle_ids,
+    const std::vector<unsigned int> &local_to_global_particle_ids,
+    const unsigned int               local_offset,
+    const double                     invalid_particle_id       = -1.0,
+    const std::vector<double> &      local_particle_max_values = {})
   {
     const auto comm = dof_handler.get_communicator();
 

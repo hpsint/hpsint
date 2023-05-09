@@ -1180,22 +1180,29 @@ namespace Sintering
       run_flooding(const typename DoFHandler<dim>::cell_iterator &cell,
                    const BlockVectorType &                        solution,
                    LinearAlgebra::distributed::Vector<Number> &   particle_ids,
-                   const unsigned int                             id)
+                   const unsigned int                             id,
+                   const double threshold_upper                      = 0.8,
+                   const double invalid_particle_id                  = -1.0,
+                   std::function<int(const Point<dim> &)> box_filter = nullptr)
       {
-        const double threshold_lower     = 0.8;  // TODO
-        const double invalid_particle_id = -1.0; // TODO
-
         if (cell->has_children())
           {
             unsigned int counter = 0;
 
             for (const auto &child : cell->child_iterators())
-              counter += run_flooding<dim>(child, solution, particle_ids, id);
+              counter += run_flooding<dim>(child,
+                                           solution,
+                                           particle_ids,
+                                           id,
+                                           threshold_upper,
+                                           invalid_particle_id,
+                                           box_filter);
 
             return counter;
           }
 
-        if (cell->is_locally_owned() == false)
+        if (cell->is_locally_owned() == false ||
+            (box_filter && box_filter(cell->barycenter()) < 0))
           return 0;
 
         const auto particle_id = particle_ids[cell->global_active_cell_index()];
@@ -1211,7 +1218,7 @@ namespace Sintering
               {
                 cell->get_dof_values(solution.block(b), values);
 
-                if (values.linfty_norm() >= threshold_lower)
+                if (values.linfty_norm() >= threshold_upper)
                   return 0;
               }
           }
@@ -1219,7 +1226,7 @@ namespace Sintering
           {
             cell->get_dof_values(solution.block(0), values);
 
-            if (values.linfty_norm() >= threshold_lower)
+            if (values.linfty_norm() >= threshold_upper)
               return 0;
           }
 
@@ -1232,18 +1239,84 @@ namespace Sintering
             counter += run_flooding<dim>(cell->neighbor(face),
                                          solution,
                                          particle_ids,
-                                         id);
+                                         id,
+                                         threshold_upper,
+                                         invalid_particle_id,
+                                         box_filter);
 
         return counter;
+      }
+
+      template <int dim, typename VectorType>
+      std::tuple<LinearAlgebra::distributed::Vector<double>,
+                 std::vector<unsigned int>,
+                 unsigned int>
+      detect_pores(const DoFHandler<dim> &dof_handler,
+                   const VectorType &     solution,
+                   const double           invalid_particle_id        = -1.0,
+                   const double           threshold_upper            = 0.8,
+                   std::function<int(const Point<dim> &)> box_filter = nullptr)
+      {
+        const auto comm = dof_handler.get_communicator();
+
+        LinearAlgebra::distributed::Vector<double> particle_ids(
+          dof_handler.get_triangulation()
+            .global_active_cell_index_partitioner()
+            .lock());
+
+        // step 1) run flooding and determine local particles and give them
+        // local ids
+        particle_ids = invalid_particle_id;
+
+        unsigned int counter = 0;
+        unsigned int offset  = 0;
+
+        for (const auto &cell : dof_handler.active_cell_iterators())
+          if (run_flooding<dim>(cell,
+                                solution,
+                                particle_ids,
+                                counter,
+                                threshold_upper,
+                                invalid_particle_id,
+                                box_filter) > 0)
+            counter++;
+
+        // step 2) determine the global number of locally determined particles
+        // and give each one an unique id by shifting the ids
+        MPI_Exscan(&counter, &offset, 1, MPI_UNSIGNED, MPI_SUM, comm);
+
+        for (auto &particle_id : particle_ids)
+          if (particle_id != invalid_particle_id)
+            particle_id += offset;
+
+        // step 3) get particle ids on ghost cells and figure out if local
+        // particles and ghost particles might be one particle
+        particle_ids.update_ghost_values();
+
+        auto local_connectivity = GrainTracker::build_local_connectivity(
+          dof_handler, particle_ids, counter, offset, invalid_particle_id);
+
+        // step 4) based on the local-ghost information, figure out all
+        // particles on all processes that belong togher (unification ->
+        // clique), give each clique an unique id, and return mapping from the
+        // global non-unique ids to the global ids
+        auto local_to_global_particle_ids =
+          GrainTracker::perform_distributed_stitching(comm, local_connectivity);
+
+        return std::make_tuple(std::move(particle_ids),
+                               std::move(local_to_global_particle_ids),
+                               offset);
       }
     } // namespace internal
 
     template <int dim, typename VectorType>
     void
-    estimate_porosity(const Mapping<dim> &   mapping,
-                      const DoFHandler<dim> &dof_handler,
-                      const VectorType &     solution,
-                      const std::string      output)
+    output_porosity(const Mapping<dim> &   mapping,
+                    const DoFHandler<dim> &dof_handler,
+                    const VectorType &     solution,
+                    const std::string      output,
+                    const double           threshold_upper            = 0.8,
+                    std::function<int(const Point<dim> &)> box_filter = nullptr)
     {
       const double invalid_particle_id = -1.0; // TODO
 
@@ -1252,45 +1325,15 @@ namespace Sintering
 
       AssertThrow(tria, ExcNotImplemented());
 
-      const auto comm = dof_handler.get_communicator();
+      // Detect pores and assign ids
+      const auto [particle_ids, local_to_global_particle_ids, offset] =
+        internal::detect_pores(dof_handler,
+                               solution,
+                               invalid_particle_id,
+                               threshold_upper,
+                               box_filter);
 
-      LinearAlgebra::distributed::Vector<double> particle_ids(
-        tria->global_active_cell_index_partitioner().lock());
-
-      // step 1) run flooding and determine local particles and give them
-      // local ids
-      particle_ids = invalid_particle_id;
-
-      unsigned int counter = 0;
-      unsigned int offset  = 0;
-
-      for (const auto &cell : dof_handler.active_cell_iterators())
-        if (internal::run_flooding<dim>(cell, solution, particle_ids, counter) >
-            0)
-          counter++;
-
-      // step 2) determine the global number of locally determined particles
-      // and give each one an unique id by shifting the ids
-      MPI_Exscan(&counter, &offset, 1, MPI_UNSIGNED, MPI_SUM, comm);
-
-      for (auto &particle_id : particle_ids)
-        if (particle_id != invalid_particle_id)
-          particle_id += offset;
-
-      // step 3) get particle ids on ghost cells and figure out if local
-      // particles and ghost particles might be one particle
-      particle_ids.update_ghost_values();
-
-      auto local_connectivity = GrainTracker::build_local_connectivity(
-        dof_handler, particle_ids, counter, offset, invalid_particle_id);
-
-      // step 4) based on the local-ghost information, figure out all
-      // particles on all processes that belong togher (unification ->
-      // clique), give each clique an unique id, and return mapping from the
-      // global non-unique ids to the global ids
-      const auto local_to_global_particle_ids =
-        GrainTracker::perform_distributed_stitching(comm, local_connectivity);
-
+      // Output pores to VTK
       Vector<double> cell_to_id(tria->n_active_cells());
 
       for (const auto &cell :
@@ -1336,6 +1379,61 @@ namespace Sintering
       data_out.add_data_vector(cell_to_id, "ids");
       data_out.build_patches(mapping);
       data_out.write_vtu_in_parallel(output, dof_handler.get_communicator());
+    }
+
+    template <int dim, typename VectorType>
+    void
+    output_porosity_stats(
+      const DoFHandler<dim> &                dof_handler,
+      const VectorType &                     solution,
+      const std::string                      output,
+      const double                           threshold_upper = 0.8,
+      std::function<int(const Point<dim> &)> box_filter      = nullptr)
+    {
+      const double invalid_particle_id = -1.0; // TODO
+
+      // Detect pores and assign ids
+      const auto [particle_ids, local_to_global_particle_ids, offset] =
+        internal::detect_pores(dof_handler,
+                               solution,
+                               invalid_particle_id,
+                               threshold_upper,
+                               box_filter);
+
+      const auto [n_pores,
+                  pores_centers,
+                  pores_radii,
+                  pores_measures,
+                  pores_max_values] =
+        GrainTracker::compute_particles_info(dof_handler,
+                                             particle_ids,
+                                             local_to_global_particle_ids,
+                                             offset,
+                                             invalid_particle_id);
+
+      const auto comm = dof_handler.get_communicator();
+
+      if (Utilities::MPI::this_mpi_process(comm) != 0)
+        return;
+
+      TableHandler table;
+
+      std::vector<std::string> labels{"x", "y", "z"};
+
+      for (unsigned int i = 0; i < n_pores; ++i)
+        {
+          table.add_value("id", i);
+          table.add_value("measure", pores_measures[i]);
+          table.add_value("radius", pores_radii[i]);
+
+          for (unsigned int d = 0; d < dim; ++d)
+            table.add_value(labels[d], pores_centers[i][d]);
+        }
+
+      // Output to file
+      std::ofstream out_file(output);
+      table.write_text(out_file);
+      out_file.close();
     }
 
     template <int dim, typename Number>
