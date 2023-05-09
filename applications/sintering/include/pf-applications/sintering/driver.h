@@ -2830,7 +2830,8 @@ namespace Sintering
       if (params.output_data.use_control_box &&
           (params.output_data.contours || params.output_data.grain_boundaries ||
            params.output_data.concentration_contour ||
-           params.output_data.porosity || params.output_data.porosity_stats))
+           params.output_data.porosity || params.output_data.porosity_stats ||
+           params.output_data.porosity_contours))
         {
           box_filter = [&control_box](const Point<dim> &p) {
             /* Point locations:
@@ -2972,6 +2973,29 @@ namespace Sintering
             output,
             params.output_data.porosity_max_value,
             box_filter);
+        }
+
+      if (params.output_data.porosity_contours)
+        {
+          const std::string output = params.output_data.vtk_path +
+                                     "/porosity_contours_" + label + "." +
+                                     std::to_string(counters[label]) + ".vtu";
+
+          pcout << "Outputing data at t = " << t << " (" << output << ")"
+                << std::endl;
+
+          const auto only_concentration = solution.create_view(0, 1);
+
+          Postprocessors::output_porosity_contours_vtu(
+            mapping,
+            dof_handler,
+            *only_concentration,
+            iso_value,
+            output,
+            params.output_data.porosity_max_value,
+            params.output_data.n_coarsening_steps,
+            box_filter,
+            params.output_data.n_mca_subdivisions);
         }
 
       if (params.output_data.shrinkage)
