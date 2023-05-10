@@ -1298,7 +1298,8 @@ namespace Sintering
         // clique), give each clique an unique id, and return mapping from the
         // global non-unique ids to the global ids
         auto local_to_global_particle_ids =
-          GrainTracker::perform_distributed_stitching(comm, local_connectivity);
+          GrainTracker::perform_distributed_stitching_via_graph(
+            comm, local_connectivity);
 
         return std::make_tuple(std::move(particle_ids),
                                std::move(local_to_global_particle_ids),
