@@ -1428,8 +1428,11 @@ namespace Sintering
         }
 
       // Output to file
+      std::stringstream ss;
+      table.write_text(ss);
+
       std::ofstream out_file(output);
-      table.write_text(out_file);
+      out_file << ss.rdbuf();
       out_file.close();
     }
 
@@ -1957,8 +1960,11 @@ namespace Sintering
         }
 
       // Output to file
+      std::stringstream ss;
+      table.write_text(ss);
+
       std::ofstream out_file(output);
-      table.write_text(out_file);
+      out_file << ss.rdbuf();
       out_file.close();
     }
 
