@@ -10,6 +10,8 @@ parser = argparse.ArgumentParser(description='Process shrinkage data')
 parser.add_argument("-m", "--mask", type=str, help="File mask", required=True)
 parser.add_argument("-f", "--file", type=str, help="Solution file", required=True)
 parser.add_argument("-b", "--bins", type=int, help="Number of bins", default=10)
+parser.add_argument("-t", "--start", type=int, help="Step to start with", default=0)
+parser.add_argument("-e", "--end", type=int, help="Step to end with", default=0)
 parser.add_argument("-d", "--delete", action='store_true', help="Delete the largest entity", required=False, default=False)
 
 group = parser.add_mutually_exclusive_group()
@@ -63,6 +65,9 @@ curves.append({
 
 for idx, log_file in enumerate(files_list):
 
+    if idx < args.start or (args.end != 0 and idx > args.end):
+        continue
+
     print("Parsing file {} ({}/{})".format(log_file, idx + 1, n_rows))
 
     qdata = np.genfromtxt(log_file, dtype=None, names=True)
@@ -87,9 +92,9 @@ for idx, log_file in enumerate(files_list):
 
         continue
 
-    if (idx == 0):
+    if idx == args.start:
         plot_histogram(data_to_plot, ax_init, fdata["time"][idx], args.bins)
-    elif (idx == n_rows - 1):
+    elif (args.end != 0 and idx == args.end) or idx == n_rows - 1:
         plot_histogram(data_to_plot, ax_final, fdata["time"][idx], args.bins)
 
     mu, std = norm.fit(data_to_plot)
@@ -105,11 +110,11 @@ for idx, curves_set in enumerate(curves):
     time = curves_set['time']
     total = curves_set['total']
 
-    ax_mu_std.plot(time, means, marker='o', color='blue')
+    ax_mu_std.plot(time, means, linewidth=2, color='blue')
     ax_mu_std.fill_between(time, means-stds, means+stds, alpha=0.4, color='#888888')
     ax_mu_std.fill_between(time, means-2*stds, means+2*stds, alpha=0.4, color='#cccccc')
 
-    ax_total.plot(time, total, marker='x', color='red')
+    ax_total.plot(time, total, linewidth=2, color='red')
 
     if idx < len(curves) - 1:
         ax_mu_std.axvspan(time[-1], curves[idx + 1]['time'][0], color='blue', alpha=0.1)
