@@ -1457,22 +1457,24 @@ namespace Sintering
         all_global_boundary_pores_ids.begin(),
         all_global_boundary_pores_ids.end());
 
-      // Build a vector for MCA
+      // Build a vector for MCA, we need only one block
       VectorType pores_data(1);
       const auto partitioner = std::make_shared<Utilities::MPI::Partitioner>(
         dof_handler.locally_owned_dofs(),
         DoFTools::extract_locally_relevant_dofs(dof_handler),
         dof_handler.get_communicator());
 
-      for (unsigned int b = 0; b < pores_data.n_blocks(); ++b)
-        pores_data.block(b).reinit(partitioner);
+      pores_data.block(0).reinit(partitioner);
+      pores_data.block(0).copy_locally_owned_data_from(solution.block(0));
+      pores_data.block(0) *= -1.0;
+      for (auto &v : pores_data.block(0))
+        v += 1.0;
 
-      pores_data.block(0) = 0;
       pores_data.update_ghost_values();
 
       Vector<typename VectorType::value_type> values(
         dof_handler.get_fe().n_dofs_per_cell());
-      values = 1.0;
+      values = 0.0;
 
       for (const auto &cell : dof_handler.active_cell_iterators())
         {
@@ -1488,7 +1490,7 @@ namespace Sintering
             local_to_global_pore_ids[static_cast<unsigned int>(pore_id) -
                                      offset];
 
-          if (boundary_pores.find(global_pore_id) == boundary_pores.end())
+          if (boundary_pores.find(global_pore_id) != boundary_pores.end())
             cell->set_dof_values(values, pores_data.block(0));
         }
 
