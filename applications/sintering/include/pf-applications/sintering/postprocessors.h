@@ -1406,7 +1406,11 @@ namespace Sintering
 
       std::set<unsigned int> unique_boundary_pores_ids;
 
-      // Eliminate pores touching the domain boundary
+      // Eliminate pores touching the domain boundary. This improves readability
+      // of the rendered picture in 3D but if there is a big pore going through
+      // the microstructure, that can be observed at the beginning of the
+      // sintering, then, unfortunately, it will get eliminated too. One should
+      // keep this side effect in mind.
       for (const auto &cell : dof_handler.active_cell_iterators())
         {
           if (!cell->is_locally_owned())
@@ -1427,6 +1431,7 @@ namespace Sintering
               }
         }
 
+      // We convert a set to a vector since boost can not serializes sets
       std::vector<unsigned int> global_boundary_pores_ids(
         unique_boundary_pores_ids.begin(), unique_boundary_pores_ids.end());
 
@@ -1440,6 +1445,7 @@ namespace Sintering
                   std::inserter(all_unique_boundary_pores_ids,
                                 all_unique_boundary_pores_ids.end()));
 
+      // We convert a set to a vector since boost can not serializes sets
       std::vector<unsigned int> all_global_boundary_pores_ids(
         all_unique_boundary_pores_ids.begin(),
         all_unique_boundary_pores_ids.end());
