@@ -1351,9 +1351,8 @@ namespace Sintering
 
       DataOut<dim> data_out;
 
-      const auto next_cell = [&](const auto &, const auto cell_in) {
+      const auto get_valid_cell = [&](const auto cell_in) {
         auto cell = cell_in;
-        cell++;
 
         while (cell != tria->end())
           {
@@ -1367,8 +1366,15 @@ namespace Sintering
         return cell;
       };
 
+      const auto next_cell = [&](const auto &, const auto cell_in) {
+        auto cell = cell_in;
+        cell++;
+
+        return get_valid_cell(cell);
+      };
+
       const auto first_cell = [&](const auto &tria) {
-        return next_cell(tria, tria.begin());
+        return get_valid_cell(tria.begin());
       };
 
       data_out.set_cell_selection(first_cell, next_cell);
