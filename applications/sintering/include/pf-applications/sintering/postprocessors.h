@@ -1461,7 +1461,12 @@ namespace Sintering
         all_global_boundary_pores_ids.begin(),
         all_global_boundary_pores_ids.end());
 
-      // Build a vector for MCA, we need only one block
+      // Build a vector for MCA, we need only one block. We simply set the
+      // vector values to 1 if a cell belongs to a pore that does not touch the
+      // domain boundary. An alternative solution would be to process quantity
+      // (1-c) but that generates sometimes not desirable output when the outer
+      // void has to be eliminated. So this choice generates slightly less
+      // smooth but more physically representative surface contours.
       VectorType pores_data(1);
       const auto partitioner = std::make_shared<Utilities::MPI::Partitioner>(
         dof_handler.locally_owned_dofs(),
@@ -1469,16 +1474,13 @@ namespace Sintering
         dof_handler.get_communicator());
 
       pores_data.block(0).reinit(partitioner);
-      pores_data.block(0).copy_locally_owned_data_from(solution.block(0));
-      pores_data.block(0) *= -1.0;
-      for (auto &v : pores_data.block(0))
-        v += 1.0;
+      pores_data.block(0) = 0;
 
       pores_data.update_ghost_values();
 
       Vector<typename VectorType::value_type> values(
         dof_handler.get_fe().n_dofs_per_cell());
-      values = 0.0;
+      values = 1.0;
 
       for (const auto &cell : dof_handler.active_cell_iterators())
         {
@@ -1494,7 +1496,7 @@ namespace Sintering
             local_to_global_pore_ids[static_cast<unsigned int>(pore_id) -
                                      offset];
 
-          if (boundary_pores.find(global_pore_id) != boundary_pores.end())
+          if (boundary_pores.find(global_pore_id) == boundary_pores.end())
             cell->set_dof_values(values, pores_data.block(0));
         }
 
