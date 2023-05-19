@@ -2664,8 +2664,9 @@ namespace Sintering
 
           data_out.build_patches(mapping, this->fe->tensor_degree());
 
-          std::string output = params.output_data.vtk_path + "/" + label + "." +
-                               std::to_string(counters[label]) + ".vtu";
+          const std::string output = params.output_data.vtk_path + "/" + label +
+                                     "." + std::to_string(counters[label]) +
+                                     ".vtu";
 
           pcout << "Outputing data at t = " << t << " (" << output << ")"
                 << std::endl;
@@ -2861,9 +2862,9 @@ namespace Sintering
 
       if (params.output_data.contours)
         {
-          std::string output = params.output_data.vtk_path + "/contour_" +
-                               label + "." + std::to_string(counters[label]) +
-                               ".vtu";
+          const std::string output = params.output_data.vtk_path + "/contour_" +
+                                     label + "." +
+                                     std::to_string(counters[label]) + ".vtu";
 
           pcout << "Outputing data at t = " << t << " (" << output << ")"
                 << std::endl;
@@ -2883,17 +2884,19 @@ namespace Sintering
 
       if (params.output_data.concentration_contour)
         {
-          std::string output = params.output_data.vtk_path + "/surface_" +
-                               label + "." + std::to_string(counters[label]) +
-                               ".vtu";
+          const std::string output = params.output_data.vtk_path + "/surface_" +
+                                     label + "." +
+                                     std::to_string(counters[label]) + ".vtu";
 
           pcout << "Outputing data at t = " << t << " (" << output << ")"
                 << std::endl;
 
+          const auto only_concentration = solution.create_view(0, 1);
+
           Postprocessors::output_concentration_contour_vtu(
             mapping,
             dof_handler,
-            solution,
+            *only_concentration,
             iso_value,
             output,
             params.output_data.n_coarsening_steps,
@@ -2903,8 +2906,9 @@ namespace Sintering
 
       if (params.output_data.grain_boundaries)
         {
-          std::string output = params.output_data.vtk_path + "/gb_" + label +
-                               "." + std::to_string(counters[label]) + ".vtu";
+          const std::string output = params.output_data.vtk_path + "/gb_" +
+                                     label + "." +
+                                     std::to_string(counters[label]) + ".vtu";
 
           pcout << "Outputing data at t = " << t << " (" << output << ")"
                 << std::endl;
@@ -2924,9 +2928,9 @@ namespace Sintering
 
       if (params.output_data.contours_tex)
         {
-          std::string output = params.output_data.vtk_path + "/contour_" +
-                               label + "." + std::to_string(counters[label]) +
-                               ".txt";
+          const std::string output = params.output_data.vtk_path + "/contour_" +
+                                     label + "." +
+                                     std::to_string(counters[label]) + ".txt";
 
           pcout << "Outputing data at t = " << t << " (" << output << ")"
                 << std::endl;
@@ -2976,9 +2980,9 @@ namespace Sintering
 
       if (params.output_data.shrinkage)
         {
-          std::string output = params.output_data.vtk_path + "/shrinkage_" +
-                               label + "." + std::to_string(counters[label]) +
-                               ".vtu";
+          const std::string output = params.output_data.vtk_path +
+                                     "/shrinkage_" + label + "." +
+                                     std::to_string(counters[label]) + ".vtu";
 
           pcout << "Outputing data at t = " << t << " (" << output << ")"
                 << std::endl;
@@ -3004,9 +3008,9 @@ namespace Sintering
 
       if (params.output_data.quality)
         {
-          std::string output = params.output_data.vtk_path + "/mesh_quality_" +
-                               label + "." + std::to_string(counters[label]) +
-                               ".vtu";
+          const std::string output = params.output_data.vtk_path +
+                                     "/mesh_quality_" + label + "." +
+                                     std::to_string(counters[label]) + ".vtu";
 
           pcout << "Outputing data at t = " << t << " (" << output << ")"
                 << std::endl;
@@ -3039,7 +3043,7 @@ namespace Sintering
 
       if (params.output_data.table)
         {
-          std::string output =
+          const std::string output =
             params.output_data.vtk_path + "/" + label + ".log";
           Postprocessors::write_table(table, t, MPI_COMM_WORLD, output);
         }
