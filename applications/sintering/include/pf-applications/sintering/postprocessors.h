@@ -1389,7 +1389,6 @@ namespace Sintering
       const VectorType &                     solution,
       const double                           iso_level,
       const std::string                      output,
-      const double                           threshold_upper    = 0.8,
       const unsigned int                     n_coarsening_steps = 0,
       std::function<int(const Point<dim> &)> box_filter         = nullptr,
       const unsigned int                     n_subdivisions     = 1,
@@ -1398,6 +1397,11 @@ namespace Sintering
       const auto comm = dof_handler.get_communicator();
 
       const double invalid_pore_id = -1.0;
+
+      // We set up the upper bound this way to ensure that all the cells that
+      // could contribute to the later construction of isocontours get captured
+      // as voids.
+      const double threshold_upper = std::min(1.1 * iso_level, 0.99);
 
       // Detect pores and assign ids
       const auto [pore_ids, local_to_global_pore_ids, offset] =

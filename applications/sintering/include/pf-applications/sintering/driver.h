@@ -2992,7 +2992,6 @@ namespace Sintering
             *only_concentration,
             iso_value,
             output,
-            params.output_data.porosity_max_value,
             params.output_data.n_coarsening_steps,
             box_filter,
             params.output_data.n_mca_subdivisions);
