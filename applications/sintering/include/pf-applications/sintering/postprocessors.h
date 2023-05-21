@@ -1381,6 +1381,12 @@ namespace Sintering
       data_out.write_vtu_in_parallel(output, dof_handler.get_communicator());
     }
 
+    /* The function outputs the contours of the pores, i.e. the void regions
+     * where mass concentration equals to zero (distinctly from particles/grains
+     * where concentration equals to 1). Furthermore, since usually the
+     * simulation domains are constructed such that there is always a void
+     * region surrounding the particles assembly, this function attempts to
+     * detect that region and exclude it from the output. */
     template <int dim, typename VectorType>
     void
     output_porosity_contours_vtu(
