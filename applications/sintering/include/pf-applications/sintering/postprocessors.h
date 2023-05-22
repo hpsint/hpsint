@@ -1385,6 +1385,142 @@ namespace Sintering
       data_out.write_vtu_in_parallel(output, dof_handler.get_communicator());
     }
 
+    /* The function outputs the contours of the pores, i.e. the void regions
+     * where mass concentration equals to zero (distinctly from particles/grains
+     * where concentration equals to 1). Furthermore, since usually the
+     * simulation domains are constructed such that there is always a void
+     * region surrounding the particles assembly, this function attempts to
+     * detect that region and exclude it from the output. */
+    template <int dim, typename VectorType>
+    void
+    output_porosity_contours_vtu(
+      const Mapping<dim> &                   mapping,
+      const DoFHandler<dim> &                dof_handler,
+      const VectorType &                     solution,
+      const double                           iso_level,
+      const std::string                      output,
+      const unsigned int                     n_coarsening_steps = 0,
+      std::function<int(const Point<dim> &)> box_filter         = nullptr,
+      const unsigned int                     n_subdivisions     = 1,
+      const double                           tolerance          = 1e-10)
+    {
+      const auto comm = dof_handler.get_communicator();
+
+      const double invalid_pore_id = -1.0;
+
+      // We set up the upper bound this way to ensure that all the cells that
+      // could contribute to the later construction of isocontours get captured
+      // as voids.
+      const double threshold_upper = std::min(1.1 * iso_level, 0.99);
+
+      // Detect pores and assign ids
+      const auto [pore_ids, local_to_global_pore_ids, offset] =
+        internal::detect_pores(
+          dof_handler, solution, invalid_pore_id, threshold_upper, box_filter);
+
+      std::set<unsigned int> unique_boundary_pores_ids;
+
+      // Eliminate pores touching the domain boundary. This improves readability
+      // of the rendered picture in 3D but if there is a big pore going through
+      // the microstructure, that can be observed at the beginning of the
+      // sintering, then, unfortunately, it will get eliminated too. One should
+      // keep this side effect in mind.
+      for (const auto &cell : dof_handler.active_cell_iterators())
+        {
+          if (!cell->is_locally_owned())
+            continue;
+
+          const auto pore_id = pore_ids[cell->global_active_cell_index()];
+
+          if (pore_id == invalid_pore_id)
+            continue;
+
+          for (const auto face : cell->face_indices())
+            if (cell->at_boundary(face))
+              {
+                unique_boundary_pores_ids.insert(
+                  local_to_global_pore_ids[static_cast<unsigned int>(pore_id) -
+                                           offset]);
+                break;
+              }
+        }
+
+      // We convert a set to a vector since boost can not serializes sets
+      std::vector<unsigned int> global_boundary_pores_ids(
+        unique_boundary_pores_ids.begin(), unique_boundary_pores_ids.end());
+
+      const auto global_boundary_pores_temp =
+        Utilities::MPI::gather(comm, global_boundary_pores_ids, 0);
+
+      std::set<unsigned int> all_unique_boundary_pores_ids;
+      for (auto &boundary_pores : global_boundary_pores_temp)
+        std::copy(boundary_pores.begin(),
+                  boundary_pores.end(),
+                  std::inserter(all_unique_boundary_pores_ids,
+                                all_unique_boundary_pores_ids.end()));
+
+      // We convert a set to a vector since boost can not serializes sets
+      std::vector<unsigned int> all_global_boundary_pores_ids(
+        all_unique_boundary_pores_ids.begin(),
+        all_unique_boundary_pores_ids.end());
+
+      all_global_boundary_pores_ids =
+        Utilities::MPI::broadcast(comm, all_global_boundary_pores_ids, 0);
+
+      std::unordered_set<unsigned int> boundary_pores(
+        all_global_boundary_pores_ids.begin(),
+        all_global_boundary_pores_ids.end());
+
+      // Build a vector for MCA, we need only one block. We simply set the
+      // vector values to 1 if a cell belongs to a pore that does not touch the
+      // domain boundary. An alternative solution would be to process quantity
+      // (1-c) but that generates sometimes not desirable output when the outer
+      // void has to be eliminated. So this choice generates slightly less
+      // smooth but more physically representative surface contours.
+      VectorType pores_data(1);
+      const auto partitioner = std::make_shared<Utilities::MPI::Partitioner>(
+        dof_handler.locally_owned_dofs(),
+        DoFTools::extract_locally_relevant_dofs(dof_handler),
+        dof_handler.get_communicator());
+
+      pores_data.block(0).reinit(partitioner);
+      pores_data.block(0) = 0;
+
+      pores_data.update_ghost_values();
+
+      Vector<typename VectorType::value_type> values(
+        dof_handler.get_fe().n_dofs_per_cell());
+      values = 1.0;
+
+      for (const auto &cell : dof_handler.active_cell_iterators())
+        {
+          if (!cell->is_locally_owned())
+            continue;
+
+          const auto pore_id = pore_ids[cell->global_active_cell_index()];
+
+          if (pore_id == invalid_pore_id)
+            continue;
+
+          const auto global_pore_id =
+            local_to_global_pore_ids[static_cast<unsigned int>(pore_id) -
+                                     offset];
+
+          if (boundary_pores.find(global_pore_id) == boundary_pores.end())
+            cell->set_dof_values(values, pores_data.block(0));
+        }
+
+      output_concentration_contour_vtu(mapping,
+                                       dof_handler,
+                                       pores_data,
+                                       iso_level,
+                                       output,
+                                       n_coarsening_steps,
+                                       box_filter,
+                                       n_subdivisions,
+                                       tolerance);
+    }
+
     template <int dim, typename VectorType>
     void
     output_porosity_stats(
