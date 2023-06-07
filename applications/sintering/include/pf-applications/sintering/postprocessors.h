@@ -73,6 +73,14 @@ namespace Sintering
 {
   namespace Postprocessors
   {
+    template <int dim, int spacedim>
+    using SurfaceDataOut =
+#ifdef DISABLE_MPI_IO_SURFACE_OUTPUT
+      MyDataOut<dim, spacedim>;
+#else
+      DataOut<dim, spacedim>;
+#endif
+
     namespace internal
     {
       template <int dim, typename VectorType>
@@ -730,7 +738,7 @@ namespace Sintering
         background_dof_handler.get_communicator());
 
       // step 2) output mesh
-      MyDataOut<dim - 1, dim> data_out;
+      SurfaceDataOut<dim - 1, dim> data_out;
       data_out.attach_triangulation(tria);
       data_out.add_data_vector(vector_grain_id, "grain_id");
       data_out.add_data_vector(vector_order_parameter_id, "order_parameter_id");
@@ -778,7 +786,7 @@ namespace Sintering
         GridGenerator::hyper_cube(tria, -1e-6, 1e-6);
 
       // step 2) output mesh
-      MyDataOut<dim - 1, dim> data_out;
+      SurfaceDataOut<dim - 1, dim> data_out;
       data_out.attach_triangulation(tria);
 
       data_out.build_patches();
@@ -874,7 +882,7 @@ namespace Sintering
         background_dof_handler.get_communicator());
 
       // step 2) output mesh
-      MyDataOut<dim - 1, dim> data_out;
+      SurfaceDataOut<dim - 1, dim> data_out;
       data_out.attach_triangulation(tria);
       data_out.add_data_vector(vector_rank, "subdomain");
 
