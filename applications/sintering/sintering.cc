@@ -35,6 +35,7 @@ static_assert(false, "No grains number has been given!");
 
 #define WITH_TIMING
 //#define WITH_TIMING_OUTPUT
+//#define DISABLE_MPI_IO_SURFACE_OUTPUT
 
 #include <deal.II/base/revision.h>
 

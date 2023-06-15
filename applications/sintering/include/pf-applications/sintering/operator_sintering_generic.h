@@ -18,7 +18,6 @@
 #include <deal.II/matrix_free/tensor_product_kernels.h>
 
 #include <pf-applications/sintering/advection.h>
-#include <pf-applications/sintering/instantiation.h>
 #include <pf-applications/sintering/operator_sintering_base.h>
 
 namespace Sintering

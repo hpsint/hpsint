@@ -88,6 +88,14 @@ namespace Sintering
 {
   namespace Postprocessors
   {
+    template <int dim, int spacedim>
+    using SurfaceDataOut =
+#ifdef DISABLE_MPI_IO_SURFACE_OUTPUT
+      MyDataOut<dim, spacedim>;
+#else
+      DataOut<dim, spacedim>;
+#endif
+
     namespace internal
     {
       template <int dim, typename VectorType>
@@ -745,7 +753,7 @@ namespace Sintering
         background_dof_handler.get_communicator());
 
       // step 2) output mesh
-      MyDataOut<dim - 1, dim> data_out;
+      SurfaceDataOut<dim - 1, dim> data_out;
       data_out.attach_triangulation(tria);
       data_out.add_data_vector(vector_grain_id, "grain_id");
       data_out.add_data_vector(vector_order_parameter_id, "order_parameter_id");
@@ -793,7 +801,7 @@ namespace Sintering
         GridGenerator::hyper_cube(tria, -1e-6, 1e-6);
 
       // step 2) output mesh
-      MyDataOut<dim - 1, dim> data_out;
+      SurfaceDataOut<dim - 1, dim> data_out;
       data_out.attach_triangulation(tria);
 
       data_out.build_patches();
@@ -814,15 +822,12 @@ namespace Sintering
       const unsigned int                     n_subdivisions     = 1,
       const double                           tolerance          = 1e-10)
     {
-      const auto  only_concentration_ptr = vector.create_view(0, 1);
-      const auto &only_concentration     = *only_concentration_ptr;
-
-      const bool has_ghost_elements = only_concentration.has_ghost_elements();
+      const bool has_ghost_elements = vector.has_ghost_elements();
 
       if (has_ghost_elements == false)
-        only_concentration.update_ghost_values();
+        vector.update_ghost_values();
 
-      auto vector_to_be_used                 = &only_concentration;
+      auto vector_to_be_used                 = &vector;
       auto background_dof_handler_to_be_used = &background_dof_handler;
 
       parallel::distributed::Triangulation<dim> tria_copy(
@@ -835,7 +840,7 @@ namespace Sintering
           internal::coarsen_triangulation(tria_copy,
                                           background_dof_handler,
                                           dof_handler_copy,
-                                          only_concentration,
+                                          vector,
                                           solution_dealii,
                                           n_coarsening_steps);
 
@@ -848,7 +853,7 @@ namespace Sintering
           // Copy vector if not done before
           if (n_coarsening_steps == 0)
             {
-              solution_dealii = only_concentration;
+              solution_dealii = vector;
               solution_dealii.update_ghost_values();
               vector_to_be_used = &solution_dealii;
             }
@@ -892,7 +897,7 @@ namespace Sintering
         background_dof_handler.get_communicator());
 
       // step 2) output mesh
-      MyDataOut<dim - 1, dim> data_out;
+      SurfaceDataOut<dim - 1, dim> data_out;
       data_out.attach_triangulation(tria);
       data_out.add_data_vector(vector_rank, "subdomain");
 
@@ -901,7 +906,7 @@ namespace Sintering
                                      background_dof_handler.get_communicator());
 
       if (has_ghost_elements == false)
-        only_concentration.zero_out_ghost_values();
+        vector.zero_out_ghost_values();
     }
 
     template <int dim, typename VectorType>
@@ -1195,22 +1200,29 @@ namespace Sintering
       run_flooding(const typename DoFHandler<dim>::cell_iterator &cell,
                    const BlockVectorType &                        solution,
                    LinearAlgebra::distributed::Vector<Number> &   particle_ids,
-                   const unsigned int                             id)
+                   const unsigned int                             id,
+                   const double threshold_upper                      = 0.8,
+                   const double invalid_particle_id                  = -1.0,
+                   std::function<int(const Point<dim> &)> box_filter = nullptr)
       {
-        const double threshold_lower     = 0.8;  // TODO
-        const double invalid_particle_id = -1.0; // TODO
-
         if (cell->has_children())
           {
             unsigned int counter = 0;
 
             for (const auto &child : cell->child_iterators())
-              counter += run_flooding<dim>(child, solution, particle_ids, id);
+              counter += run_flooding<dim>(child,
+                                           solution,
+                                           particle_ids,
+                                           id,
+                                           threshold_upper,
+                                           invalid_particle_id,
+                                           box_filter);
 
             return counter;
           }
 
-        if (cell->is_locally_owned() == false)
+        if (cell->is_locally_owned() == false ||
+            (box_filter && box_filter(cell->barycenter()) < 0))
           return 0;
 
         const auto particle_id = particle_ids[cell->global_active_cell_index()];
@@ -1226,7 +1238,7 @@ namespace Sintering
               {
                 cell->get_dof_values(solution.block(b), values);
 
-                if (values.linfty_norm() >= threshold_lower)
+                if (values.linfty_norm() >= threshold_upper)
                   return 0;
               }
           }
@@ -1234,7 +1246,7 @@ namespace Sintering
           {
             cell->get_dof_values(solution.block(0), values);
 
-            if (values.linfty_norm() >= threshold_lower)
+            if (values.linfty_norm() >= threshold_upper)
               return 0;
           }
 
@@ -1247,18 +1259,85 @@ namespace Sintering
             counter += run_flooding<dim>(cell->neighbor(face),
                                          solution,
                                          particle_ids,
-                                         id);
+                                         id,
+                                         threshold_upper,
+                                         invalid_particle_id,
+                                         box_filter);
 
         return counter;
+      }
+
+      template <int dim, typename VectorType>
+      std::tuple<LinearAlgebra::distributed::Vector<double>,
+                 std::vector<unsigned int>,
+                 unsigned int>
+      detect_pores(const DoFHandler<dim> &dof_handler,
+                   const VectorType &     solution,
+                   const double           invalid_particle_id        = -1.0,
+                   const double           threshold_upper            = 0.8,
+                   std::function<int(const Point<dim> &)> box_filter = nullptr)
+      {
+        const auto comm = dof_handler.get_communicator();
+
+        LinearAlgebra::distributed::Vector<double> particle_ids(
+          dof_handler.get_triangulation()
+            .global_active_cell_index_partitioner()
+            .lock());
+
+        // step 1) run flooding and determine local particles and give them
+        // local ids
+        particle_ids = invalid_particle_id;
+
+        unsigned int counter = 0;
+        unsigned int offset  = 0;
+
+        for (const auto &cell : dof_handler.active_cell_iterators())
+          if (run_flooding<dim>(cell,
+                                solution,
+                                particle_ids,
+                                counter,
+                                threshold_upper,
+                                invalid_particle_id,
+                                box_filter) > 0)
+            counter++;
+
+        // step 2) determine the global number of locally determined particles
+        // and give each one an unique id by shifting the ids
+        MPI_Exscan(&counter, &offset, 1, MPI_UNSIGNED, MPI_SUM, comm);
+
+        for (auto &particle_id : particle_ids)
+          if (particle_id != invalid_particle_id)
+            particle_id += offset;
+
+        // step 3) get particle ids on ghost cells and figure out if local
+        // particles and ghost particles might be one particle
+        particle_ids.update_ghost_values();
+
+        auto local_connectivity = GrainTracker::build_local_connectivity(
+          dof_handler, particle_ids, counter, offset, invalid_particle_id);
+
+        // step 4) based on the local-ghost information, figure out all
+        // particles on all processes that belong togher (unification ->
+        // clique), give each clique an unique id, and return mapping from the
+        // global non-unique ids to the global ids
+        auto local_to_global_particle_ids =
+          GrainTracker::perform_distributed_stitching_via_graph(
+            comm, local_connectivity);
+
+        return std::make_tuple(std::move(particle_ids),
+                               std::move(local_to_global_particle_ids),
+                               offset);
       }
     } // namespace internal
 
     template <int dim, typename VectorType>
     void
-    estimate_porosity(const Mapping<dim> &   mapping,
-                      const DoFHandler<dim> &dof_handler,
-                      const VectorType &     solution,
-                      const std::string      output)
+    output_porosity(const Mapping<dim> &   mapping,
+                    const DoFHandler<dim> &dof_handler,
+                    const VectorType &     solution,
+                    const std::string      output,
+                    const double           threshold_upper            = 0.8,
+                    std::function<int(const Point<dim> &)> box_filter = nullptr)
     {
       const double invalid_particle_id = -1.0; // TODO
 
@@ -1267,92 +1346,15 @@ namespace Sintering
 
       AssertThrow(tria, ExcNotImplemented());
 
-      const auto comm = dof_handler.get_communicator();
+      // Detect pores and assign ids
+      const auto [particle_ids, local_to_global_particle_ids, offset] =
+        internal::detect_pores(dof_handler,
+                               solution,
+                               invalid_particle_id,
+                               threshold_upper,
+                               box_filter);
 
-      LinearAlgebra::distributed::Vector<double> particle_ids(
-        tria->global_active_cell_index_partitioner().lock());
-
-      // step 1) run flooding and determine local particles and give them
-      // local ids
-      particle_ids = invalid_particle_id;
-
-      unsigned int counter = 0;
-      unsigned int offset  = 0;
-
-      for (const auto &cell : dof_handler.active_cell_iterators())
-        if (internal::run_flooding<dim>(cell, solution, particle_ids, counter) >
-            0)
-          counter++;
-
-      // step 2) determine the global number of locally determined particles
-      // and give each one an unique id by shifting the ids
-      MPI_Exscan(&counter, &offset, 1, MPI_UNSIGNED, MPI_SUM, comm);
-
-      for (auto &particle_id : particle_ids)
-        if (particle_id != invalid_particle_id)
-          particle_id += offset;
-
-      // step 3) get particle ids on ghost cells and figure out if local
-      // particles and ghost particles might be one particle
-      particle_ids.update_ghost_values();
-
-      std::vector<std::vector<std::tuple<unsigned int, unsigned int>>>
-        local_connectiviy(counter);
-
-      for (const auto &ghost_cell :
-           dof_handler.get_triangulation().active_cell_iterators())
-        if (ghost_cell->is_ghost())
-          {
-            const auto particle_id =
-              particle_ids[ghost_cell->global_active_cell_index()];
-
-            if (particle_id == invalid_particle_id)
-              continue;
-
-            for (const auto face : ghost_cell->face_indices())
-              {
-                if (ghost_cell->at_boundary(face))
-                  continue;
-
-                const auto add = [&](const auto &ghost_cell,
-                                     const auto &local_cell) {
-                  if (local_cell->is_locally_owned() == false)
-                    return;
-
-                  const auto neighbor_particle_id =
-                    particle_ids[local_cell->global_active_cell_index()];
-
-                  if (neighbor_particle_id == invalid_particle_id)
-                    return;
-
-                  auto &temp = local_connectiviy[neighbor_particle_id - offset];
-                  temp.emplace_back(ghost_cell->subdomain_id(), particle_id);
-                  std::sort(temp.begin(), temp.end());
-                  temp.erase(std::unique(temp.begin(), temp.end()), temp.end());
-                };
-
-                if (ghost_cell->neighbor(face)->has_children())
-                  {
-                    for (unsigned int subface = 0;
-                         subface <
-                         GeometryInfo<dim>::n_subfaces(
-                           dealii::internal::SubfaceCase<dim>::case_isotropic);
-                         ++subface)
-                      add(ghost_cell,
-                          ghost_cell->neighbor_child_on_subface(face, subface));
-                  }
-                else
-                  add(ghost_cell, ghost_cell->neighbor(face));
-              }
-          }
-
-      // step 4) based on the local-ghost information, figure out all
-      // particles on all processes that belong togher (unification ->
-      // clique), give each clique an unique id, and return mapping from the
-      // global non-unique ids to the global ids
-      const auto local_to_global_particle_ids =
-        GrainTracker::perform_distributed_stitching(comm, local_connectiviy);
-
+      // Output pores to VTK
       Vector<double> cell_to_id(tria->n_active_cells());
 
       for (const auto &cell :
@@ -1372,9 +1374,8 @@ namespace Sintering
 
       DataOut<dim> data_out;
 
-      const auto next_cell = [&](const auto &, const auto cell_in) {
+      const auto get_valid_cell = [&](const auto cell_in) {
         auto cell = cell_in;
-        cell++;
 
         while (cell != tria->end())
           {
@@ -1388,8 +1389,15 @@ namespace Sintering
         return cell;
       };
 
+      const auto next_cell = [&](const auto &, const auto cell_in) {
+        auto cell = cell_in;
+        cell++;
+
+        return get_valid_cell(cell);
+      };
+
       const auto first_cell = [&](const auto &tria) {
-        return next_cell(tria, tria.begin());
+        return get_valid_cell(tria.begin());
       };
 
       data_out.set_cell_selection(first_cell, next_cell);
@@ -1398,6 +1406,200 @@ namespace Sintering
       data_out.add_data_vector(cell_to_id, "ids");
       data_out.build_patches(mapping);
       data_out.write_vtu_in_parallel(output, dof_handler.get_communicator());
+    }
+
+    /* The function outputs the contours of the pores, i.e. the void regions
+     * where mass concentration equals to zero (distinctly from particles/grains
+     * where concentration equals to 1). Furthermore, since usually the
+     * simulation domains are constructed such that there is always a void
+     * region surrounding the particles assembly, this function attempts to
+     * detect that region and exclude it from the output. */
+    template <int dim, typename VectorType>
+    void
+    output_porosity_contours_vtu(
+      const Mapping<dim> &                   mapping,
+      const DoFHandler<dim> &                dof_handler,
+      const VectorType &                     solution,
+      const double                           iso_level,
+      const std::string                      output,
+      const unsigned int                     n_coarsening_steps = 0,
+      std::function<int(const Point<dim> &)> box_filter         = nullptr,
+      const unsigned int                     n_subdivisions     = 1,
+      const double                           tolerance          = 1e-10)
+    {
+      const auto comm = dof_handler.get_communicator();
+
+      const double invalid_pore_id = -1.0;
+
+      // We set up the upper bound this way to ensure that all the cells that
+      // could contribute to the later construction of isocontours get captured
+      // as voids.
+      const double threshold_upper = std::min(1.1 * iso_level, 0.99);
+
+      // Detect pores and assign ids
+      const auto [pore_ids, local_to_global_pore_ids, offset] =
+        internal::detect_pores(
+          dof_handler, solution, invalid_pore_id, threshold_upper, box_filter);
+
+      std::set<unsigned int> unique_boundary_pores_ids;
+
+      // Eliminate pores touching the domain boundary. This improves readability
+      // of the rendered picture in 3D but if there is a big pore going through
+      // the microstructure, that can be observed at the beginning of the
+      // sintering, then, unfortunately, it will get eliminated too. One should
+      // keep this side effect in mind.
+      for (const auto &cell : dof_handler.active_cell_iterators())
+        {
+          if (!cell->is_locally_owned())
+            continue;
+
+          const auto pore_id = pore_ids[cell->global_active_cell_index()];
+
+          if (pore_id == invalid_pore_id)
+            continue;
+
+          for (const auto face : cell->face_indices())
+            if (cell->at_boundary(face))
+              {
+                unique_boundary_pores_ids.insert(
+                  local_to_global_pore_ids[static_cast<unsigned int>(pore_id) -
+                                           offset]);
+                break;
+              }
+        }
+
+      // We convert a set to a vector since boost can not serializes sets
+      std::vector<unsigned int> global_boundary_pores_ids(
+        unique_boundary_pores_ids.begin(), unique_boundary_pores_ids.end());
+
+      const auto global_boundary_pores_temp =
+        Utilities::MPI::gather(comm, global_boundary_pores_ids, 0);
+
+      std::set<unsigned int> all_unique_boundary_pores_ids;
+      for (auto &boundary_pores : global_boundary_pores_temp)
+        std::copy(boundary_pores.begin(),
+                  boundary_pores.end(),
+                  std::inserter(all_unique_boundary_pores_ids,
+                                all_unique_boundary_pores_ids.end()));
+
+      // We convert a set to a vector since boost can not serializes sets
+      std::vector<unsigned int> all_global_boundary_pores_ids(
+        all_unique_boundary_pores_ids.begin(),
+        all_unique_boundary_pores_ids.end());
+
+      all_global_boundary_pores_ids =
+        Utilities::MPI::broadcast(comm, all_global_boundary_pores_ids, 0);
+
+      std::unordered_set<unsigned int> boundary_pores(
+        all_global_boundary_pores_ids.begin(),
+        all_global_boundary_pores_ids.end());
+
+      // Build a vector for MCA, we need only one block. We simply set the
+      // vector values to 1 if a cell belongs to a pore that does not touch the
+      // domain boundary. An alternative solution would be to process quantity
+      // (1-c) but that generates sometimes not desirable output when the outer
+      // void has to be eliminated. So this choice generates slightly less
+      // smooth but more physically representative surface contours.
+      VectorType pores_data(1);
+      const auto partitioner = std::make_shared<Utilities::MPI::Partitioner>(
+        dof_handler.locally_owned_dofs(),
+        DoFTools::extract_locally_relevant_dofs(dof_handler),
+        dof_handler.get_communicator());
+
+      pores_data.block(0).reinit(partitioner);
+      pores_data.block(0) = 0;
+
+      pores_data.update_ghost_values();
+
+      Vector<typename VectorType::value_type> values(
+        dof_handler.get_fe().n_dofs_per_cell());
+      values = 1.0;
+
+      for (const auto &cell : dof_handler.active_cell_iterators())
+        {
+          if (!cell->is_locally_owned())
+            continue;
+
+          const auto pore_id = pore_ids[cell->global_active_cell_index()];
+
+          if (pore_id == invalid_pore_id)
+            continue;
+
+          const auto global_pore_id =
+            local_to_global_pore_ids[static_cast<unsigned int>(pore_id) -
+                                     offset];
+
+          if (boundary_pores.find(global_pore_id) == boundary_pores.end())
+            cell->set_dof_values(values, pores_data.block(0));
+        }
+
+      output_concentration_contour_vtu(mapping,
+                                       dof_handler,
+                                       pores_data,
+                                       iso_level,
+                                       output,
+                                       n_coarsening_steps,
+                                       box_filter,
+                                       n_subdivisions,
+                                       tolerance);
+    }
+
+    template <int dim, typename VectorType>
+    void
+    output_porosity_stats(
+      const DoFHandler<dim> &                dof_handler,
+      const VectorType &                     solution,
+      const std::string                      output,
+      const double                           threshold_upper = 0.8,
+      std::function<int(const Point<dim> &)> box_filter      = nullptr)
+    {
+      const double invalid_particle_id = -1.0; // TODO
+
+      // Detect pores and assign ids
+      const auto [particle_ids, local_to_global_particle_ids, offset] =
+        internal::detect_pores(dof_handler,
+                               solution,
+                               invalid_particle_id,
+                               threshold_upper,
+                               box_filter);
+
+      const auto [n_pores,
+                  pores_centers,
+                  pores_radii,
+                  pores_measures,
+                  pores_max_values] =
+        GrainTracker::compute_particles_info(dof_handler,
+                                             particle_ids,
+                                             local_to_global_particle_ids,
+                                             offset,
+                                             invalid_particle_id);
+
+      const auto comm = dof_handler.get_communicator();
+
+      if (Utilities::MPI::this_mpi_process(comm) != 0)
+        return;
+
+      TableHandler table;
+
+      std::vector<std::string> labels{"x", "y", "z"};
+
+      for (unsigned int i = 0; i < n_pores; ++i)
+        {
+          table.add_value("id", i);
+          table.add_value("measure", pores_measures[i]);
+          table.add_value("radius", pores_radii[i]);
+
+          for (unsigned int d = 0; d < dim; ++d)
+            table.add_value(labels[d], pores_centers[i][d]);
+        }
+
+      // Output to file
+      std::stringstream ss;
+      table.write_text(ss);
+
+      std::ofstream out_file(output);
+      out_file << ss.rdbuf();
+      out_file.close();
     }
 
     template <int dim, typename Number>
@@ -1757,99 +1959,179 @@ namespace Sintering
                             const Tensor<1, dim, VectorizedArrayType> *,
                             const unsigned int)>;
 
-      std::vector<QuantityCallback> quantities;
+      std::vector<std::string>      q_labels;
+      std::vector<QuantityCallback> q_evaluators;
 
       for (const auto &qty : labels)
         {
-          QuantityCallback callback;
-
           if (qty == "solid_vol")
-            callback = [](const VectorizedArrayType *                value,
-                          const Tensor<1, dim, VectorizedArrayType> *gradient,
-                          const unsigned int                         n_grains) {
-              (void)gradient;
-              (void)n_grains;
+            q_evaluators.emplace_back(
+              [](const VectorizedArrayType *                value,
+                 const Tensor<1, dim, VectorizedArrayType> *gradient,
+                 const unsigned int                         n_grains) {
+                (void)gradient;
+                (void)n_grains;
 
-              return value[0];
-            };
+                return value[0];
+              });
           else if (qty == "surf_area")
-            callback = [](const VectorizedArrayType *                value,
-                          const Tensor<1, dim, VectorizedArrayType> *gradient,
-                          const unsigned int                         n_grains) {
-              (void)gradient;
-              (void)n_grains;
+            q_evaluators.emplace_back(
+              [](const VectorizedArrayType *                value,
+                 const Tensor<1, dim, VectorizedArrayType> *gradient,
+                 const unsigned int                         n_grains) {
+                (void)gradient;
+                (void)n_grains;
 
-              return value[0] * (1.0 - value[0]);
-            };
+                return value[0] * (1.0 - value[0]);
+              });
           else if (qty == "gb_area")
-            callback = [](const VectorizedArrayType *                value,
-                          const Tensor<1, dim, VectorizedArrayType> *gradient,
-                          const unsigned int                         n_grains) {
-              (void)gradient;
+            q_evaluators.emplace_back(
+              [](const VectorizedArrayType *                value,
+                 const Tensor<1, dim, VectorizedArrayType> *gradient,
+                 const unsigned int                         n_grains) {
+                (void)gradient;
 
-              VectorizedArrayType eta_ij_sum = 0.0;
-              for (unsigned int i = 0; i < n_grains; ++i)
-                for (unsigned int j = i + 1; j < n_grains; ++j)
-                  eta_ij_sum += value[2 + i] * value[2 + j];
+                VectorizedArrayType eta_ij_sum = 0.0;
+                for (unsigned int i = 0; i < n_grains; ++i)
+                  for (unsigned int j = i + 1; j < n_grains; ++j)
+                    eta_ij_sum += value[2 + i] * value[2 + j];
 
-              return eta_ij_sum;
-            };
+                return eta_ij_sum;
+              });
           else if (qty == "avg_grain_size")
-            callback = [](const VectorizedArrayType *                value,
-                          const Tensor<1, dim, VectorizedArrayType> *gradient,
-                          const unsigned int                         n_grains) {
-              (void)gradient;
+            q_evaluators.emplace_back(
+              [](const VectorizedArrayType *                value,
+                 const Tensor<1, dim, VectorizedArrayType> *gradient,
+                 const unsigned int                         n_grains) {
+                (void)gradient;
 
-              VectorizedArrayType eta_i2_sum = 0.0;
-              for (unsigned int i = 0; i < n_grains; ++i)
-                eta_i2_sum += value[2 + i] * value[2 + i];
+                VectorizedArrayType eta_i2_sum = 0.0;
+                for (unsigned int i = 0; i < n_grains; ++i)
+                  eta_i2_sum += value[2 + i] * value[2 + i];
 
-              return eta_i2_sum;
-            };
+                return eta_i2_sum;
+              });
           else if (qty == "surf_area_nrm")
-            callback = [](const VectorizedArrayType *                value,
-                          const Tensor<1, dim, VectorizedArrayType> *gradient,
-                          const unsigned int                         n_grains) {
-              (void)gradient;
-              (void)n_grains;
+            q_evaluators.emplace_back(
+              [](const VectorizedArrayType *                value,
+                 const Tensor<1, dim, VectorizedArrayType> *gradient,
+                 const unsigned int                         n_grains) {
+                (void)gradient;
+                (void)n_grains;
 
-              VectorizedArrayType c_int(1.0);
-              c_int = compare_and_apply_mask<SIMDComparison::less_than>(
-                value[0],
-                VectorizedArrayType(0.45),
-                VectorizedArrayType(0.0),
-                c_int);
-              c_int = compare_and_apply_mask<SIMDComparison::greater_than>(
-                value[0],
-                VectorizedArrayType(0.55),
-                VectorizedArrayType(0.0),
-                c_int);
+                VectorizedArrayType c_int(1.0);
+                c_int = compare_and_apply_mask<SIMDComparison::less_than>(
+                  value[0],
+                  VectorizedArrayType(0.45),
+                  VectorizedArrayType(0.0),
+                  c_int);
+                c_int = compare_and_apply_mask<SIMDComparison::greater_than>(
+                  value[0],
+                  VectorizedArrayType(0.55),
+                  VectorizedArrayType(0.0),
+                  c_int);
 
-              return c_int;
-            };
+                return c_int;
+              });
           else if (qty == "free_energy")
-            callback = [&sintering_data](
-                         const VectorizedArrayType *                value,
-                         const Tensor<1, dim, VectorizedArrayType> *gradient,
-                         const unsigned int                         n_grains) {
-              (void)gradient;
+            q_evaluators.emplace_back(
+              [&sintering_data](
+                const VectorizedArrayType *                value,
+                const Tensor<1, dim, VectorizedArrayType> *gradient,
+                const unsigned int                         n_grains) {
+                (void)gradient;
 
-              const VectorizedArrayType &c = value[0];
+                const VectorizedArrayType &c = value[0];
 
-              std::vector<VectorizedArrayType> etas(n_grains);
-              for (unsigned int ig = 0; ig < n_grains; ++ig)
-                etas[ig] = value[2 + ig];
+                std::vector<VectorizedArrayType> etas(n_grains);
+                for (unsigned int ig = 0; ig < n_grains; ++ig)
+                  etas[ig] = value[2 + ig];
 
-              return sintering_data.free_energy.f(c, etas);
-            };
+                return sintering_data.free_energy.f(c, etas);
+              });
+          else if (qty == "order_params")
+            for (unsigned int i = 0; i < MAX_SINTERING_GRAINS; ++i)
+              {
+                // The number of order parameters can vary so we will output the
+                // maximum number of them. The unused order parameters will be
+                // simply filled with zeros.
+                q_labels.push_back("op_" + std::to_string(i));
+
+                q_evaluators.emplace_back(
+                  [i](const VectorizedArrayType *                value,
+                      const Tensor<1, dim, VectorizedArrayType> *gradient,
+                      const unsigned int                         n_grains) {
+                    (void)gradient;
+
+                    return i < n_grains ? value[2 + i] : 0.;
+                  });
+              }
           else
             AssertThrow(false,
                         ExcMessage("Invalid domain integral provided: " + qty));
 
-          quantities.push_back(callback);
+          if (qty != "order_params")
+            q_labels.push_back(qty);
         }
 
-      return quantities;
+      AssertDimension(q_labels.size(), q_evaluators.size());
+
+      return std::make_tuple(q_labels, q_evaluators);
+    }
+
+    template <int dim, typename VectorType, typename Number>
+    void
+    output_grains_stats(
+      const DoFHandler<dim> &                   dof_handler,
+      const unsigned int                        n_op,
+      const GrainTracker::Tracker<dim, Number> &grain_tracker_in,
+      const VectorType &                        solution,
+      const std::string                         output)
+    {
+      const auto comm = dof_handler.get_communicator();
+
+      const bool has_ghost_elements = solution.has_ghost_elements();
+
+      if (has_ghost_elements == false)
+        solution.update_ghost_values();
+
+      auto grain_tracker = grain_tracker_in.clone();
+
+      if (grain_tracker->get_grains().empty())
+        grain_tracker->initial_setup(solution, n_op);
+      else
+        grain_tracker->track(solution, n_op, true);
+
+      if (has_ghost_elements == false)
+        solution.zero_out_ghost_values();
+
+      if (Utilities::MPI::this_mpi_process(comm) != 0)
+        return;
+
+      TableHandler table;
+
+      std::vector<std::string> labels{"x", "y", "z"};
+
+      for (const auto &[grain_id, grain] : grain_tracker->get_grains())
+        {
+          table.add_value("id", grain_id);
+          table.add_value("measure", grain.get_measure());
+          table.add_value("radius", grain.get_max_radius());
+
+          for (unsigned int d = 0; d < dim; ++d)
+            table.add_value(labels[d],
+                            grain.n_segments() == 1 ?
+                              grain.get_segments()[0].get_center()[d] :
+                              std::numeric_limits<double>::quiet_NaN());
+        }
+
+      // Output to file
+      std::stringstream ss;
+      table.write_text(ss);
+
+      std::ofstream out_file(output);
+      out_file << ss.rdbuf();
+      out_file.close();
     }
 
   } // namespace Postprocessors

@@ -1177,59 +1177,8 @@ namespace GrainTracker
           // particles and ghost particles might be one particle
           particle_ids.update_ghost_values();
 
-          std::vector<std::vector<std::tuple<unsigned int, unsigned int>>>
-            local_connectiviy(counter);
-
-          for (const auto &ghost_cell :
-               dof_handler.get_triangulation().active_cell_iterators())
-            if (ghost_cell->is_ghost())
-              {
-                const auto particle_id =
-                  particle_ids[ghost_cell->global_active_cell_index()];
-
-                if (particle_id == invalid_particle_id)
-                  continue;
-
-                for (const auto face : ghost_cell->face_indices())
-                  {
-                    if (ghost_cell->at_boundary(face))
-                      continue;
-
-                    const auto add = [&](const auto &ghost_cell,
-                                         const auto &local_cell) {
-                      if (local_cell->is_locally_owned() == false)
-                        return;
-
-                      const auto neighbor_particle_id =
-                        particle_ids[local_cell->global_active_cell_index()];
-
-                      if (neighbor_particle_id == invalid_particle_id)
-                        return;
-
-                      auto &temp =
-                        local_connectiviy[neighbor_particle_id - offset];
-                      temp.emplace_back(ghost_cell->subdomain_id(),
-                                        particle_id);
-                      std::sort(temp.begin(), temp.end());
-                      temp.erase(std::unique(temp.begin(), temp.end()),
-                                 temp.end());
-                    };
-
-                    if (ghost_cell->neighbor(face)->has_children())
-                      {
-                        for (unsigned int subface = 0;
-                             subface <
-                             GeometryInfo<dim>::n_subfaces(
-                               internal::SubfaceCase<dim>::case_isotropic);
-                             ++subface)
-                          add(ghost_cell,
-                              ghost_cell->neighbor_child_on_subface(face,
-                                                                    subface));
-                      }
-                    else
-                      add(ghost_cell, ghost_cell->neighbor(face));
-                  }
-              }
+          auto local_connectivity = build_local_connectivity(
+            dof_handler, particle_ids, counter, offset, invalid_particle_id);
 
           // step 4) based on the local-ghost information, figure out all
           // particles on all processes that belong togher (unification ->
@@ -1243,123 +1192,29 @@ namespace GrainTracker
             local_to_global_particle_ids =
               use_stitching_via_graphs ?
                 perform_distributed_stitching_via_graph(comm,
-                                                        local_connectiviy,
+                                                        local_connectivity,
                                                         timer.is_enabled() ?
                                                           &timer :
                                                           nullptr) :
                 perform_distributed_stitching(comm,
-                                              local_connectiviy,
+                                              local_connectivity,
                                               timer.is_enabled() ? &timer :
                                                                    nullptr);
           }
 
           // step 5) determine properties of particles (volume, radius, center)
-          unsigned int n_particles = 0;
-
-          // ... determine the number of particles
-          if (Utilities::MPI::sum(local_to_global_particle_ids.size(), comm) ==
-              0)
-            n_particles = 0;
-          else
-            {
-              n_particles =
-                (local_to_global_particle_ids.size() == 0) ?
-                  0 :
-                  *std::max_element(local_to_global_particle_ids.begin(),
-                                    local_to_global_particle_ids.end());
-              n_particles = Utilities::MPI::max(n_particles, comm) + 1;
-            }
-
-          const unsigned int  n_features = 1 + dim;
-          std::vector<double> particle_info(n_particles * n_features);
-          std::vector<double> particle_max_values(n_particles);
-
-          // ... compute local information
-          for (const auto &cell :
-               dof_handler.get_triangulation().active_cell_iterators())
-            if (cell->is_locally_owned())
-              {
-                const auto particle_id =
-                  particle_ids[cell->global_active_cell_index()];
-
-                if (particle_id == invalid_particle_id)
-                  continue;
-
-                const unsigned int unique_id = local_to_global_particle_ids
-                  [static_cast<unsigned int>(particle_id) - offset];
-
-                AssertIndexRange(unique_id, n_particles);
-
-                particle_info[n_features * unique_id + 0] += cell->measure();
-
-                for (unsigned int d = 0; d < dim; ++d)
-                  particle_info[n_features * unique_id + 1 + d] +=
-                    cell->center()[d] * cell->measure();
-
-                particle_max_values[unique_id] =
-                  local_particle_max_values[particle_id];
-              }
-
-          // ... reduce information
-          MPI_Allreduce(MPI_IN_PLACE,
-                        particle_info.data(),
-                        particle_info.size(),
-                        MPI_DOUBLE,
-                        MPI_SUM,
-                        comm);
-
-          // ... reduce information
-          MPI_Allreduce(MPI_IN_PLACE,
-                        particle_max_values.data(),
-                        particle_max_values.size(),
-                        MPI_DOUBLE,
-                        MPI_MAX,
-                        comm);
-
-          // ... compute particles centers
-          std::vector<Point<dim>> particle_centers(n_particles);
-          for (unsigned int i = 0; i < n_particles; i++)
-            {
-              for (unsigned int d = 0; d < dim; ++d)
-                {
-                  particle_centers[i][d] =
-                    particle_info[i * n_features + 1 + d] /
-                    particle_info[i * n_features];
-                }
-            }
-
-          // ... compute particles radii
-          std::vector<double> particle_radii(n_particles, 0.);
-          for (const auto &cell :
-               dof_handler.get_triangulation().active_cell_iterators())
-            if (cell->is_locally_owned())
-              {
-                const auto particle_id =
-                  particle_ids[cell->global_active_cell_index()];
-
-                if (particle_id == invalid_particle_id)
-                  continue;
-
-                const unsigned int unique_id = local_to_global_particle_ids
-                  [static_cast<unsigned int>(particle_id) - offset];
-
-                AssertIndexRange(unique_id, n_particles);
-
-                const auto &center = particle_centers[unique_id];
-
-                const double dist =
-                  center.distance(cell->barycenter()) + cell->diameter() / 2.;
-                particle_radii[unique_id] =
-                  std::max(particle_radii[unique_id], dist);
-              }
-
-          // ... reduce information
-          MPI_Allreduce(MPI_IN_PLACE,
-                        particle_radii.data(),
-                        particle_radii.size(),
-                        MPI_DOUBLE,
-                        MPI_MAX,
-                        comm);
+          const auto [n_particles,
+                      particle_centers,
+                      particle_radii,
+                      particle_measures,
+                      particle_max_values] =
+            compute_particles_info(dof_handler,
+                                   particle_ids,
+                                   local_to_global_particle_ids,
+                                   offset,
+                                   invalid_particle_id,
+                                   local_particle_max_values);
+          (void)particle_measures; // we do not need this data
 
           // Set global ids to the particles
           for (auto &particle_id : particle_ids)
@@ -1463,6 +1318,7 @@ namespace GrainTracker
 
                   new_grains.at(grain_id).add_segment(particle_centers[i],
                                                       particle_radii[i],
+                                                      particle_measures[i],
                                                       particle_max_values[i]);
 
                   free_particles.erase(i);
@@ -1490,6 +1346,7 @@ namespace GrainTracker
 
               new_grains.at(grain_id).add_segment(particle_centers[i],
                                                   particle_radii[i],
+                                                  particle_measures[i],
                                                   particle_max_values[i]);
 
               const unsigned int last_segment_id =

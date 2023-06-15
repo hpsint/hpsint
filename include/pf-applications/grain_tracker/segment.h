@@ -22,8 +22,8 @@ namespace GrainTracker
   using namespace dealii;
 
   /* Segment is a part of a grain created from the previously detected cloud.
-   * Segments are represented as circles with a given center, radius and order
-   * parameter maximum value.
+   * Segments are represented as circles with a given center, radius, measure
+   * and order parameter maximum value.
    */
   template <int dim>
   class Segment
@@ -31,9 +31,11 @@ namespace GrainTracker
   public:
     Segment(const Point<dim> &center_in,
             const double      radius_in,
+            const double      measure_in,
             const double      max_value_in = 0.0)
       : center(center_in)
       , radius(radius_in)
+      , measure(measure_in)
       , max_value(max_value_in)
     {}
 
@@ -48,6 +50,13 @@ namespace GrainTracker
     {
       return radius;
     }
+
+    double
+    get_measure() const
+    {
+      return measure;
+    }
+
 
     double
     get_max_value() const
@@ -70,7 +79,7 @@ namespace GrainTracker
     Point<dim> center;
 
     double radius;
-
+    double measure;
     double max_value;
   };
 } // namespace GrainTracker

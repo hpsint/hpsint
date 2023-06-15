@@ -25,93 +25,12 @@
 #include <pf-applications/numerics/functions.h>
 #include <pf-applications/numerics/vector_tools.h>
 
+#include <pf-applications/sintering/instantiation.h>
+
 #include <pf-applications/dofs/dof_tools.h>
 #include <pf-applications/matrix_free/tools.h>
 
 #include <fstream>
-
-template <typename T>
-using n_grains_t = decltype(std::declval<T const>().n_grains());
-
-template <typename T>
-using n_grains_to_n_components_t =
-  decltype(std::declval<T const>().n_grains_to_n_components(
-    std::declval<const unsigned int>()));
-
-template <typename T>
-constexpr bool has_n_grains_method =
-  dealii::internal::is_supported_operation<n_grains_t, T>
-    &&dealii::internal::is_supported_operation<n_grains_to_n_components_t, T>;
-
-// clang-format off
-/**
- * Macro that converts a runtime number (n_components() or n_grains())
- * to constant expressions that can be used for templating and calles
- * the provided function with the two parameters: 1) number of
- * components and 2) number of grains (if it makes sence; else -1).
- *
- * The relation between number of components and number of grains
- * is encrypted in the method T::n_grains_to_n_components().
- * 
- * The function can be used the following way:
- * ```
- * #define OPERATION(c, d) std::cout << c << " " << d << std::endl;
- * EXPAND_OPERATIONS(OPERATION);
- * #undef OPERATION
- * ```
- */
-#define EXPAND_OPERATIONS(OPERATION)                                                                                  \
-  if constexpr(has_n_grains_method<T>)                                                                                \
-    {                                                                                                                 \
-      constexpr int max_grains = MAX_SINTERING_GRAINS;                                                                \
-      const unsigned int n_grains = static_cast<const T&>(*this).n_grains();                                          \
-      AssertIndexRange(n_grains, max_grains + 1);                                                                     \
-      switch (n_grains)                                                                                               \
-        {                                                                                                             \
-          case  0: OPERATION(T::n_grains_to_n_components(std::min(max_grains,  0)), std::min(max_grains,  0)); break; \
-          case  1: OPERATION(T::n_grains_to_n_components(std::min(max_grains,  1)), std::min(max_grains,  1)); break; \
-          case  2: OPERATION(T::n_grains_to_n_components(std::min(max_grains,  2)), std::min(max_grains,  2)); break; \
-          case  3: OPERATION(T::n_grains_to_n_components(std::min(max_grains,  3)), std::min(max_grains,  3)); break; \
-          case  4: OPERATION(T::n_grains_to_n_components(std::min(max_grains,  4)), std::min(max_grains,  4)); break; \
-          case  5: OPERATION(T::n_grains_to_n_components(std::min(max_grains,  5)), std::min(max_grains,  5)); break; \
-          case  6: OPERATION(T::n_grains_to_n_components(std::min(max_grains,  6)), std::min(max_grains,  6)); break; \
-          case  7: OPERATION(T::n_grains_to_n_components(std::min(max_grains,  7)), std::min(max_grains,  7)); break; \
-          case  8: OPERATION(T::n_grains_to_n_components(std::min(max_grains,  8)), std::min(max_grains,  8)); break; \
-          case  9: OPERATION(T::n_grains_to_n_components(std::min(max_grains,  9)), std::min(max_grains,  9)); break; \
-          case 10: OPERATION(T::n_grains_to_n_components(std::min(max_grains, 10)), std::min(max_grains, 10)); break; \
-          case 11: OPERATION(T::n_grains_to_n_components(std::min(max_grains, 11)), std::min(max_grains, 11)); break; \
-          case 12: OPERATION(T::n_grains_to_n_components(std::min(max_grains, 12)), std::min(max_grains, 12)); break; \
-          case 13: OPERATION(T::n_grains_to_n_components(std::min(max_grains, 13)), std::min(max_grains, 13)); break; \
-          case 14: OPERATION(T::n_grains_to_n_components(std::min(max_grains, 14)), std::min(max_grains, 14)); break; \
-          default:                                                                                                    \
-            AssertThrow(false, ExcNotImplemented());                                                                  \
-        }                                                                                                             \
-    }                                                                                                                 \
-  else                                                                                                                \
-    {                                                                                                                 \
-      constexpr int max_components = MAX_SINTERING_GRAINS + 2;                                                        \
-      AssertIndexRange(this->n_components(), max_components + 1);                                                     \
-      switch (this->n_components())                                                                                   \
-        {                                                                                                             \
-          case  1: OPERATION(std::min(max_components,  1), -1); break;                                                \
-          case  2: OPERATION(std::min(max_components,  2), -1); break;                                                \
-          case  3: OPERATION(std::min(max_components,  3), -1); break;                                                \
-          case  4: OPERATION(std::min(max_components,  4), -1); break;                                                \
-          case  5: OPERATION(std::min(max_components,  5), -1); break;                                                \
-          case  6: OPERATION(std::min(max_components,  6), -1); break;                                                \
-          case  7: OPERATION(std::min(max_components,  7), -1); break;                                                \
-          case  8: OPERATION(std::min(max_components,  8), -1); break;                                                \
-          case  9: OPERATION(std::min(max_components,  9), -1); break;                                                \
-          case 10: OPERATION(std::min(max_components, 10), -1); break;                                                \
-          case 11: OPERATION(std::min(max_components, 11), -1); break;                                                \
-          case 12: OPERATION(std::min(max_components, 12), -1); break;                                                \
-          case 13: OPERATION(std::min(max_components, 13), -1); break;                                                \
-          case 14: OPERATION(std::min(max_components, 14), -1); break;                                                \
-          default:                                                                                                    \
-            AssertThrow(false, ExcNotImplemented());                                                                  \
-        }                                                                                                             \
-  }
-// clang-format on
 
 namespace Sintering
 {

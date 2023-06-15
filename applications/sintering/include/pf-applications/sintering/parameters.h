@@ -209,7 +209,11 @@ namespace Sintering
     unsigned int          n_coarsening_steps     = 0;
     unsigned int          n_mca_subdivisions     = 1;
     bool                  porosity               = false;
+    bool                  porosity_contours      = false;
+    bool                  porosity_stats         = false;
+    double                porosity_max_value     = 0.8;
     bool                  shrinkage              = false;
+    bool                  grains_stats           = false;
     bool                  quality                = false;
     bool                  table                  = false;
     bool                  debug                  = false;
@@ -783,10 +787,22 @@ namespace Sintering
                         "Marching cube algorithm subdivisions.");
       prm.add_parameter("Porosity",
                         output_data.porosity,
-                        "Determine porosity.");
+                        "Output porosity to VTK.");
+      prm.add_parameter("PorosityContours",
+                        output_data.porosity_contours,
+                        "Output porosity contours to VTK.");
+      prm.add_parameter("PorosityStats",
+                        output_data.porosity_stats,
+                        "Determine porosity and output its stats.");
+      prm.add_parameter("PorosityMaxValue",
+                        output_data.porosity_max_value,
+                        "Maximum value of concentration inside pores.");
       prm.add_parameter("Shrinkage",
                         output_data.shrinkage,
                         "Determine shrinkage.");
+      prm.add_parameter("GrainsStats",
+                        output_data.grains_stats,
+                        "Grains statistics.");
       prm.add_parameter("Quality", output_data.quality, "Output mesh quality.");
       prm.add_parameter("Table", output_data.table, "Output table.");
       prm.add_parameter("Debug",
@@ -821,7 +837,7 @@ namespace Sintering
                         output_data.use_control_box,
                         "Use control box for domain integrals.");
       const std::string domain_integrals_options =
-        "gb_area|solid_vol|surf_area|avg_grain_size|surf_area_nrm|free_energy";
+        "gb_area|solid_vol|surf_area|avg_grain_size|surf_area_nrm|free_energy|order_params";
       prm.add_parameter("DomainIntegrals",
                         output_data.domain_integrals,
                         "Domain integral quantities.",
