@@ -180,12 +180,16 @@ namespace Structural
     void
     post_system_matrix_compute() const override
     {
+      const auto &partitioner = this->matrix_free.get_vector_partitioner();
+
       for (unsigned int d = 0; d < dim; ++d)
         for (unsigned int i = 0; i < dirichlet_constraints_indices[d].size();
              ++i)
           {
-            const unsigned int matrix_index =
-              dim * dirichlet_constraints_indices[d][i] + d;
+            const auto global_index =
+              partitioner->local_to_global(dirichlet_constraints_indices[d][i]);
+
+            const unsigned int matrix_index = dim * global_index + d;
 
             this->system_matrix.clear_row(matrix_index, 1.0);
           }
