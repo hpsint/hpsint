@@ -88,11 +88,11 @@ namespace LinearSolvers
       typename SolverGMRES<T>::AdditionalData additional_data;
 
       if (data.orthogonalization_strategy == "classical gram schmidt")
-        additional_data.orthogonalization_strategy = SolverGMRES<
-          T>::AdditionalData::OrthogonalizationStrategy::classical_gram_schmidt;
+        additional_data.orthogonalization_strategy =
+          LinearAlgebra::OrthogonalizationStrategy::classical_gram_schmidt;
       else if (data.orthogonalization_strategy == "modified gram schmidt")
-        additional_data.orthogonalization_strategy = SolverGMRES<
-          T>::AdditionalData::OrthogonalizationStrategy::modified_gram_schmidt;
+        additional_data.orthogonalization_strategy =
+          LinearAlgebra::OrthogonalizationStrategy::modified_gram_schmidt;
       else
         AssertThrow(false, ExcNotImplemented());
 
