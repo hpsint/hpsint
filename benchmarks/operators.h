@@ -177,10 +177,12 @@ public:
           const VectorizedArrayType grad = Number(n_sub) / (val0 - val1);
 
           const auto src_vectors =
-            internal::get_vector_data<n_components>(src, 0, false, 0, &dof_info)
+            dealii::internal::get_vector_data<n_components>(
+              src, 0, false, 0, &dof_info)
               .first;
           const auto dst_vectors =
-            internal::get_vector_data<n_components>(dst, 0, false, 0, &dof_info)
+            dealii::internal::get_vector_data<n_components>(
+              dst, 0, false, 0, &dof_info)
               .first;
 
           for (unsigned int cell = range.first; cell < range.second; ++cell)
