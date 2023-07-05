@@ -78,12 +78,16 @@ namespace Sintering
     void
     post_system_matrix_compute() const override
     {
+      const auto &partitioner = this->matrix_free.get_vector_partitioner();
+
       for (const unsigned int index : zero_c_constraints_indices)
         for (unsigned int d = 0; d < dim; ++d)
           {
-            const unsigned int matrix_index = this->n_components() * index +
-                                              this->data.n_components() +
-                                              n_additional_components() + d;
+            const auto global_index = partitioner->local_to_global(index);
+
+            const unsigned int matrix_index =
+              this->n_components() * global_index + this->data.n_components() +
+              n_additional_components() + d;
 
             this->system_matrix.clear_row(matrix_index, 1.0);
           }
@@ -91,9 +95,11 @@ namespace Sintering
       for (unsigned int d = 0; d < dim; ++d)
         for (const unsigned int index : displ_constraints_indices[d])
           {
-            const unsigned int matrix_index = this->n_components() * index +
-                                              this->data.n_components() +
-                                              n_additional_components() + d;
+            const auto global_index = partitioner->local_to_global(index);
+
+            const unsigned int matrix_index =
+              this->n_components() * global_index + this->data.n_components() +
+              n_additional_components() + d;
 
             this->system_matrix.clear_row(matrix_index, 1.0);
           }

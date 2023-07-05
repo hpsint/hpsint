@@ -250,10 +250,14 @@ namespace Sintering
     void
     post_system_matrix_compute() const override
     {
+      const auto &partitioner = this->matrix_free.get_vector_partitioner();
+
       for (unsigned int d = 0; d < dim; ++d)
         for (const unsigned int index : displ_constraints_indices[d])
           {
-            const unsigned int matrix_index = dim * index + d;
+            const auto global_index = partitioner->local_to_global(index);
+
+            const unsigned int matrix_index = dim * global_index + d;
 
             this->system_matrix.clear_row(matrix_index, 1.0);
           }
