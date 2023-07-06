@@ -453,8 +453,9 @@ namespace GrainTracker
           if (particle_id == invalid_particle_id)
             continue;
 
-          const unsigned int unique_id = local_to_global_particle_ids
-            [static_cast<unsigned int>(particle_id) - local_offset];
+          const unsigned int local_id =
+            static_cast<unsigned int>(particle_id) - local_offset;
+          const unsigned int unique_id = local_to_global_particle_ids[local_id];
 
           AssertIndexRange(unique_id, n_particles);
 
@@ -466,7 +467,7 @@ namespace GrainTracker
 
           if (!local_particle_max_values.empty())
             particle_max_values[unique_id] =
-              local_particle_max_values[particle_id];
+              local_particle_max_values[local_id];
         }
 
     // Reduce information - particles info
@@ -510,8 +511,9 @@ namespace GrainTracker
           if (particle_id == invalid_particle_id)
             continue;
 
-          const unsigned int unique_id = local_to_global_particle_ids
-            [static_cast<unsigned int>(particle_id) - local_offset];
+          const unsigned int local_id =
+            static_cast<unsigned int>(particle_id) - local_offset;
+          const unsigned int unique_id = local_to_global_particle_ids[local_id];
 
           AssertIndexRange(unique_id, n_particles);
 
