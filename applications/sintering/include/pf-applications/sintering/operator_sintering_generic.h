@@ -55,6 +55,7 @@ namespace Sintering
       , kappa_p(data.kappa_p)
       , weight(data.time_data.get_primary_weight())
       , L(mobility.Lgb())
+      , dt(data.time_data.get_current_dt())
       , advection(advection)
       , gradient_buffer(gradient_buffer)
     {
@@ -181,6 +182,19 @@ namespace Sintering
               const auto &velocity_ig =
                 this->advection.get_velocity(ig, phi.quadrature_point(q));
 
+              // Check Courant condition
+              const auto cdt = velocity_ig.norm() * dt;
+              auto courant = compare_and_apply_mask<SIMDComparison::less_than>(
+                cdt,
+                this->advection.get_cell_diameters()[cell],
+                VectorizedArrayType(0.0),
+                VectorizedArrayType(1.0));
+
+              AssertThrow(
+                courant.sum() == 0.,
+                ExcMessage(
+                  "Courant condition was violated. The advection speed is too high."));
+
               value_result[0] += velocity_ig * gradient[0];
 
               value_result[ig + 2] += velocity_ig * gradient[ig + 2];
@@ -211,6 +225,7 @@ namespace Sintering
     const Number                                                kappa_p;
     const Number                                                weight;
     const Number                                                L;
+    const Number                                                dt;
     const AdvectionMechanism<dim, Number, VectorizedArrayType> &advection;
 
     Tensor<1, n_comp, VectorizedArrayType> *gradient_buffer;
@@ -673,6 +688,21 @@ namespace Sintering
                 {
                   const auto &velocity_ig =
                     this->advection.get_velocity(ig, phi.quadrature_point(q));
+
+                  // Check Courant condition
+                  const auto cdt =
+                    velocity_ig.norm() * this->data.time_data.get_current_dt();
+                  auto courant =
+                    compare_and_apply_mask<SIMDComparison::less_than>(
+                      cdt,
+                      this->advection.get_cell_diameters()[cell],
+                      VectorizedArrayType(0.0),
+                      VectorizedArrayType(1.0));
+
+                  AssertThrow(
+                    courant.sum() == 0,
+                    ExcMessage(
+                      "Courant condition was violated. The advection speed is too high."));
 
                   value_result[0] += velocity_ig * gradient[0];
                   value_result[2 + ig] += velocity_ig * gradient[2 + ig];
