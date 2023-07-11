@@ -190,10 +190,7 @@ namespace Sintering
                 VectorizedArrayType(0.0),
                 VectorizedArrayType(1.0));
 
-              AssertThrow(
-                courant.sum() == 0.,
-                ExcMessage(
-                  "Courant condition was violated. The advection speed is too high."));
+              AssertThrow(courant.sum() == 0., ExcCourantConditionViolated());
 
               value_result[0] += velocity_ig * gradient[0];
 
@@ -699,10 +696,8 @@ namespace Sintering
                       VectorizedArrayType(0.0),
                       VectorizedArrayType(1.0));
 
-                  AssertThrow(
-                    courant.sum() == 0,
-                    ExcMessage(
-                      "Courant condition was violated. The advection speed is too high."));
+                  AssertThrow(courant.sum() == 0,
+                              ExcCourantConditionViolated());
 
                   value_result[0] += velocity_ig * gradient[0];
                   value_result[2 + ig] += velocity_ig * gradient[2 + ig];

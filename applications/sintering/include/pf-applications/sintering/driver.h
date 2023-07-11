@@ -2452,6 +2452,10 @@ namespace Sintering
                 process_failure("Linear solver did not converge",
                                 "linear_solver_not_converged");
               }
+            catch (const ExcCourantConditionViolated &e)
+              {
+                process_failure(e.message(), "courant_violated");
+              }
 
             if (has_converged)
               solution_history.commit_old_solutions();
