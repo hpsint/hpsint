@@ -2309,6 +2309,14 @@ namespace Sintering
                 // constraints applied
                 non_linear_solver_executor->solve(solution);
 
+                // Check Courant condition
+                if (params.advection_data.enable)
+                  {
+                    AssertThrow(
+                      advection_operator.check_courant(advection_mechanism, dt),
+                      ExcCourantConditionViolated());
+                  }
+
                 has_converged = true;
 
                 pcout << std::endl;

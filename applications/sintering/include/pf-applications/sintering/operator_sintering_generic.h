@@ -182,16 +182,6 @@ namespace Sintering
               const auto &velocity_ig =
                 this->advection.get_velocity(ig, phi.quadrature_point(q));
 
-              // Check Courant condition
-              const auto cdt = velocity_ig.norm() * dt;
-              auto courant = compare_and_apply_mask<SIMDComparison::less_than>(
-                cdt,
-                this->advection.get_cell_diameters()[cell],
-                VectorizedArrayType(0.0),
-                VectorizedArrayType(1.0));
-
-              AssertThrow(courant.sum() == 0., ExcCourantConditionViolated());
-
               value_result[0] += velocity_ig * gradient[0];
 
               value_result[ig + 2] += velocity_ig * gradient[ig + 2];
@@ -685,19 +675,6 @@ namespace Sintering
                 {
                   const auto &velocity_ig =
                     this->advection.get_velocity(ig, phi.quadrature_point(q));
-
-                  // Check Courant condition
-                  const auto cdt =
-                    velocity_ig.norm() * this->data.time_data.get_current_dt();
-                  auto courant =
-                    compare_and_apply_mask<SIMDComparison::less_than>(
-                      cdt,
-                      this->advection.get_cell_diameters()[cell],
-                      VectorizedArrayType(0.0),
-                      VectorizedArrayType(1.0));
-
-                  AssertThrow(courant.sum() == 0,
-                              ExcCourantConditionViolated());
 
                   value_result[0] += velocity_ig * gradient[0];
                   value_result[2 + ig] += velocity_ig * gradient[2 + ig];

@@ -560,25 +560,4 @@ namespace Sintering
     const TimeIntegration::BDFIntegrator<dim, Number, VectorizedArrayType>
       time_integrator;
   };
-
-  class ExcCourantConditionViolated : public dealii::ExceptionBase
-  {
-  public:
-    ExcCourantConditionViolated() = default;
-
-    virtual ~ExcCourantConditionViolated() noexcept override = default;
-
-    virtual void
-    print_info(std::ostream &out) const override
-    {
-      out << message() << std::endl;
-    }
-
-    std::string
-    message() const
-    {
-      return "The Courant condition was violated. "
-             "The advection velocity is too high.";
-    }
-  };
 } // namespace Sintering
