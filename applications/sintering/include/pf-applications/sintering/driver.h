@@ -2310,7 +2310,8 @@ namespace Sintering
                 non_linear_solver_executor->solve(solution);
 
                 // Check Courant condition
-                if (params.advection_data.enable)
+                if (params.advection_data.enable &&
+                    params.advection_data.check_courant)
                   {
                     AssertThrow(
                       advection_operator.check_courant(advection_mechanism, dt),

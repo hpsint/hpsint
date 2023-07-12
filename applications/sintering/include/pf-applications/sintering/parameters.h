@@ -176,6 +176,8 @@ namespace Sintering
     double mr  = 1.;
     double cgb = 0.1;
     double ceq = 1.;
+
+    bool check_courant = true;
   };
 
   struct BoundaryConditionsData
@@ -715,6 +717,9 @@ namespace Sintering
       prm.add_parameter("Ceq",
                         advection_data.ceq,
                         "Grain boundary equilibrium concentration.");
+      prm.add_parameter("CheckCourant",
+                        advection_data.check_courant,
+                        "Check Courant condition at the end of the timestep");
       prm.leave_subsection();
 
 
