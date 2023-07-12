@@ -55,7 +55,6 @@ namespace Sintering
       , kappa_p(data.kappa_p)
       , weight(data.time_data.get_primary_weight())
       , L(mobility.Lgb())
-      , dt(data.time_data.get_current_dt())
       , advection(advection)
       , gradient_buffer(gradient_buffer)
     {
@@ -212,7 +211,6 @@ namespace Sintering
     const Number                                                kappa_p;
     const Number                                                weight;
     const Number                                                L;
-    const Number                                                dt;
     const AdvectionMechanism<dim, Number, VectorizedArrayType> &advection;
 
     Tensor<1, n_comp, VectorizedArrayType> *gradient_buffer;
