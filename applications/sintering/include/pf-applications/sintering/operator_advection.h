@@ -207,10 +207,6 @@ namespace Sintering
       std::vector<unsigned int> index_ptr = {0};
       std::vector<unsigned int> index_values;
 
-      // Init cell diameters vector according to the number of batches
-      advection_mechanism.get_cell_diameters().resize(range.second -
-                                                      range.first);
-
       for (auto cell = range.first; cell < range.second; ++cell)
         {
           phi_sint.reinit(cell);
@@ -388,14 +384,6 @@ namespace Sintering
           AssertDimension(index_values.size() % VectorizedArrayType::size(), 0);
 
           index_ptr.push_back(index_values.size());
-
-          // Cache cell diameters as well
-          for (unsigned int i = 0; i < VectorizedArrayType::size(); ++i)
-            {
-              const auto icell = matrix_free.get_cell_iterator(cell, i);
-              advection_mechanism.get_cell_diameters()[cell][i] =
-                icell->diameter();
-            }
         }
 
       advection_mechanism.set_grain_table(index_ptr, index_values);

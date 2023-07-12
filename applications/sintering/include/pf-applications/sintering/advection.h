@@ -292,18 +292,6 @@ namespace Sintering
       return grains_data;
     }
 
-    std::vector<VectorizedArrayType> &
-    get_cell_diameters()
-    {
-      return cell_diameters;
-    }
-
-    const std::vector<VectorizedArrayType> &
-    get_cell_diameters() const
-    {
-      return cell_diameters;
-    }
-
     bool
     enabled() const
     {
@@ -358,7 +346,5 @@ namespace Sintering
 
     std::vector<Number> grains_data;
     std::vector<Number> grains_center;
-
-    std::vector<VectorizedArrayType> cell_diameters;
   };
 } // namespace Sintering
