@@ -3058,10 +3058,10 @@ namespace Sintering
             solution.create_view(2,
                                  sintering_operator.get_data().n_components());
 
-          Postprocessors::output_mesh_quality(mapping,
-                                              dof_handler,
-                                              *only_order_parameters,
-                                              output);
+          const auto quality = Postprocessors::output_mesh_quality_and_min(
+            mapping, dof_handler, *only_order_parameters, output);
+
+          table.add_value("mesh_quality", quality);
         }
 
       if (params.output_data.grains_stats)
