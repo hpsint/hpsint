@@ -1648,6 +1648,10 @@ namespace Sintering
           const auto old_old_solutions = solution_history.filter(false, false);
           old_old_solutions.update_ghost_values();
 
+          if (params.advection_data.enable &&
+              params.advection_data.check_courant)
+            advection_operator.precompute_cell_diameters();
+
           output_result(solution,
                         nonlinear_operator,
                         grain_tracker,
