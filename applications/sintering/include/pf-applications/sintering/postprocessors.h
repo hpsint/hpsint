@@ -1944,7 +1944,7 @@ namespace Sintering
                        const DoFCellAccessor<dim, dim, false> &   cell) {
           quality[cell.active_cell_index()] = qval;
 
-          min_quality = std::min(quality, qval);
+          min_quality = std::min(min_quality, qval);
         };
 
       internal::do_estimate_mesh_quality<dim>(dof_handler, solution, callback);
@@ -1955,9 +1955,10 @@ namespace Sintering
       data_out.build_patches(mapping);
       data_out.write_vtu_in_parallel(output, dof_handler.get_communicator());
 
-      quality = Utilities::MPI::min(quality, dof_handler.get_communicator());
+      min_quality =
+        Utilities::MPI::min(min_quality, dof_handler.get_communicator());
 
-      return quality;
+      return min_quality;
     }
 
     /* Estimate min mesh quality: 0 - low, 1 - high */
