@@ -102,8 +102,9 @@ namespace Sintering
 
       for (auto cell = range.first; cell < range.second; ++cell)
         {
-          for (unsigned int i = 0;
-               i < this->matrix_free.n_active_entries_per_cell_batch(cell);
+          unsigned int i = 0;
+
+          for (; i < this->matrix_free.n_active_entries_per_cell_batch(cell);
                ++i)
             {
               const auto icell = this->matrix_free.get_cell_iterator(cell, i);
@@ -112,8 +113,8 @@ namespace Sintering
 
           // Assign max double for irregular cells
           for (; i < VectorizedArrayType::size(); ++i)
-            cell_diameters[cell][i] =
-              std::numeric_limits<VectorizedArrayType::value_type>::max();
+            cell_diameters[cell][i] = std::numeric_limits<
+              typename VectorizedArrayType::value_type>::max();
         }
     }
 
