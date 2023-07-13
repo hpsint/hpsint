@@ -426,7 +426,7 @@ namespace Sintering
     const SinteringOperatorData<dim, VectorizedArrayType> &data;
     const GrainTracker::Tracker<dim, Number> &             grain_tracker;
 
-    std::vector<VectorizedArrayType> cell_diameters;
+    AlignedVector<VectorizedArrayType> cell_diameters;
   };
 
   class ExcCourantConditionViolated : public dealii::ExceptionBase
