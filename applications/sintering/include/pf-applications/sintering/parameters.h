@@ -247,6 +247,7 @@ namespace Sintering
     bool                  grain_boundaries = false;
     bool                  iso_surf_area    = false;
     bool                  iso_gb_area      = false;
+    bool                  quality_min      = false;
     double                gb_threshold     = 0.14;
   };
 
@@ -867,6 +868,9 @@ namespace Sintering
       prm.add_parameter("IsoGrainBoundariesArea",
                         output_data.iso_gb_area,
                         "Compute GB area from isocontours.");
+      prm.add_parameter("QualityMin",
+                        output_data.quality_min,
+                        "Output min mesh quality.");
       prm.add_parameter("GrainBoundariesThreshold",
                         output_data.gb_threshold,
                         "Grain boundary detection threshold.");
