@@ -1897,6 +1897,32 @@ namespace Sintering
 
         solution.zero_out_ghost_values();
       }
+
+      template <int dim, typename BlockVectorType>
+      void
+      do_output_mesh_quality(
+        const Mapping<dim> &                          mapping,
+        const DoFHandler<dim> &                       dof_handler,
+        const BlockVectorType &                       solution,
+        const std::string                             output,
+        Vector<typename BlockVectorType::value_type> &quality)
+      {
+        const auto callback =
+          [&quality](const typename BlockVectorType::value_type qval,
+                     const DoFCellAccessor<dim, dim, false> &   cell) {
+            quality[cell.active_cell_index()] = qval;
+          };
+
+        internal::do_estimate_mesh_quality<dim>(dof_handler,
+                                                solution,
+                                                callback);
+
+        DataOut<dim> data_out;
+        data_out.attach_triangulation(dof_handler.get_triangulation());
+        data_out.add_data_vector(quality, "quality");
+        data_out.build_patches(mapping);
+        data_out.write_vtu_in_parallel(output, dof_handler.get_communicator());
+      }
     } // namespace internal
 
     /* Output mesh quality: 0 - low, 1 - high */
@@ -1910,19 +1936,8 @@ namespace Sintering
       Vector<typename BlockVectorType::value_type> quality(
         dof_handler.get_triangulation().n_active_cells());
 
-      const auto callback =
-        [&quality](const typename BlockVectorType::value_type qval,
-                   const DoFCellAccessor<dim, dim, false> &   cell) {
-          quality[cell.active_cell_index()] = qval;
-        };
-
-      internal::do_estimate_mesh_quality<dim>(dof_handler, solution, callback);
-
-      DataOut<dim> data_out;
-      data_out.attach_triangulation(dof_handler.get_triangulation());
-      data_out.add_data_vector(quality, "quality");
-      data_out.build_patches(mapping);
-      data_out.write_vtu_in_parallel(output, dof_handler.get_communicator());
+      internal::do_output_mesh_quality(
+        mapping, dof_handler, solution, output, quality);
     }
 
     /* Output mesh quality and return its min: 0 - low, 1 - high */
@@ -1936,29 +1951,13 @@ namespace Sintering
       Vector<typename BlockVectorType::value_type> quality(
         dof_handler.get_triangulation().n_active_cells());
 
-      typename BlockVectorType::value_type min_quality = 1.;
+      internal::do_output_mesh_quality(
+        mapping, dof_handler, solution, output, quality);
 
-      const auto callback =
-        [&quality,
-         &min_quality](const typename BlockVectorType::value_type qval,
-                       const DoFCellAccessor<dim, dim, false> &   cell) {
-          quality[cell.active_cell_index()] = qval;
+      const auto min_quality =
+        *std::min_element(quality.begin(), quality.end());
 
-          min_quality = std::min(min_quality, qval);
-        };
-
-      internal::do_estimate_mesh_quality<dim>(dof_handler, solution, callback);
-
-      DataOut<dim> data_out;
-      data_out.attach_triangulation(dof_handler.get_triangulation());
-      data_out.add_data_vector(quality, "quality");
-      data_out.build_patches(mapping);
-      data_out.write_vtu_in_parallel(output, dof_handler.get_communicator());
-
-      min_quality =
-        Utilities::MPI::min(min_quality, dof_handler.get_communicator());
-
-      return min_quality;
+      return Utilities::MPI::min(min_quality, dof_handler.get_communicator());
     }
 
     /* Estimate min mesh quality: 0 - low, 1 - high */
