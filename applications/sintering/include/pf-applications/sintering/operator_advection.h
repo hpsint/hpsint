@@ -101,11 +101,20 @@ namespace Sintering
         0, this->matrix_free.n_cell_batches()};
 
       for (auto cell = range.first; cell < range.second; ++cell)
-        for (unsigned int i = 0; i < VectorizedArrayType::size(); ++i)
-          {
-            const auto icell = this->matrix_free.get_cell_iterator(cell, i);
-            cell_diameters[cell][i] = icell->diameter();
-          }
+        {
+          for (unsigned int i = 0;
+               i < this->matrix_free.n_active_entries_per_cell_batch(cell);
+               ++i)
+            {
+              const auto icell = this->matrix_free.get_cell_iterator(cell, i);
+              cell_diameters[cell][i] = icell->diameter();
+            }
+
+          // Assign max double for irregular cells
+          for (; i < VectorizedArrayType::size(); ++i)
+            cell_diameters[cell][i] =
+              std::numeric_limits<VectorizedArrayType::value_type>::max();
+        }
     }
 
     bool
