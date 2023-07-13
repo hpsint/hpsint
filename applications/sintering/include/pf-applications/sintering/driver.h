@@ -2305,6 +2305,18 @@ namespace Sintering
                     save_all_blocks,
                     params.grain_cut_off_tolerance);
 
+                // Check Courant condition
+                if (params.advection_data.enable &&
+                    params.advection_data.check_courant)
+                  {
+                    advection_operator.evaluate_forces(solution,
+                                                       advection_mechanism);
+
+                    AssertThrow(
+                      advection_operator.check_courant(advection_mechanism, dt),
+                      ExcCourantConditionViolated());
+                  }
+
                 // note: input/output (solution) needs/has the right
                 // constraints applied
                 non_linear_solver_executor->solve(solution);
@@ -2451,6 +2463,10 @@ namespace Sintering
               {
                 process_failure("Linear solver did not converge",
                                 "linear_solver_not_converged");
+              }
+            catch (const ExcCourantConditionViolated &e)
+              {
+                process_failure(e.message(), "courant_violated");
               }
 
             if (has_converged)

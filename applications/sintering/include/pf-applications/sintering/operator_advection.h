@@ -92,6 +92,61 @@ namespace Sintering
       src.zero_out_ghost_values();
     }
 
+    bool
+    check_courant(const AdvectionMechanism<dim, Number, VectorizedArrayType>
+                    &          advection_mechanism,
+                  const double dt) const
+    {
+      MyScope scope(this->timer,
+                    "advection_op::check_courant",
+                    this->do_timing);
+
+      FECellIntegrator<dim, 1, Number, VectorizedArrayType> phi(
+        this->matrix_free, this->dof_index);
+
+      VectorizedArrayType cell_diameters;
+      VectorizedArrayType zeros(0.0);
+      VectorizedArrayType ones(1.0);
+
+      std::pair<unsigned int, unsigned int> range{
+        0, this->matrix_free.n_cell_batches()};
+
+      for (auto cell = range.first; cell < range.second; ++cell)
+        {
+          phi.reinit(cell);
+
+          // Reinit advection data for the current cells batch
+          advection_mechanism.reinit(cell);
+
+          // Get cell diameters
+          for (unsigned int i = 0; i < VectorizedArrayType::size(); ++i)
+            {
+              const auto icell  = this->matrix_free.get_cell_iterator(cell, i);
+              cell_diameters[i] = icell->diameter();
+            }
+
+          for (unsigned int q = 0; q < phi.n_q_points; ++q)
+            for (unsigned int ig = 0; ig < n_grains(); ++ig)
+              if (advection_mechanism.has_velocity(ig))
+                {
+                  const auto &velocity_ig =
+                    advection_mechanism.get_velocity(ig,
+                                                     phi.quadrature_point(q));
+
+                  // Check Courant condition
+                  const auto cdt = velocity_ig.norm() * dt;
+                  auto       courant =
+                    compare_and_apply_mask<SIMDComparison::less_than>(
+                      cdt, cell_diameters, zeros, ones);
+
+                  if (courant.sum() > 0)
+                    return false;
+                }
+        }
+
+      return true;
+    }
+
     void
     do_update()
     {
@@ -348,5 +403,26 @@ namespace Sintering
 
     const SinteringOperatorData<dim, VectorizedArrayType> &data;
     const GrainTracker::Tracker<dim, Number> &             grain_tracker;
+  };
+
+  class ExcCourantConditionViolated : public dealii::ExceptionBase
+  {
+  public:
+    ExcCourantConditionViolated() = default;
+
+    virtual ~ExcCourantConditionViolated() noexcept override = default;
+
+    virtual void
+    print_info(std::ostream &out) const override
+    {
+      out << message() << std::endl;
+    }
+
+    std::string
+    message() const
+    {
+      return "The Courant condition was violated. "
+             "The advection velocity is too high.";
+    }
   };
 } // namespace Sintering
