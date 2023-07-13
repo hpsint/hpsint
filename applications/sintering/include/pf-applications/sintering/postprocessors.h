@@ -1910,7 +1910,7 @@ namespace Sintering
       Vector<typename BlockVectorType::value_type> quality(
         dof_handler.get_triangulation().n_active_cells());
 
-      auto callback =
+      const auto callback =
         [&quality](const typename BlockVectorType::value_type qval,
                    const DoFCellAccessor<dim, dim, false> &   cell) {
           quality[cell.active_cell_index()] = qval;
@@ -1938,7 +1938,7 @@ namespace Sintering
 
       typename BlockVectorType::value_type min_quality = 1.;
 
-      auto callback =
+      const auto callback =
         [&quality,
          &min_quality](const typename BlockVectorType::value_type qval,
                        const DoFCellAccessor<dim, dim, false> &   cell) {
@@ -1969,7 +1969,7 @@ namespace Sintering
     {
       typename BlockVectorType::value_type quality = 1.;
 
-      auto callback =
+      const auto callback =
         [&quality](const typename BlockVectorType::value_type qval,
                    const DoFCellAccessor<dim, dim, false> &   cell) {
           (void)cell;
