@@ -3045,6 +3045,9 @@ namespace Sintering
             }
         }
 
+      // Estimate mesh quality
+      const auto only_order_parameters =
+        solution.create_view(2, sintering_operator.get_data().n_components());
       if (params.output_data.quality)
         {
           const std::string output = params.output_data.vtk_path +
@@ -3054,12 +3057,26 @@ namespace Sintering
           pcout << "Outputing data at t = " << t << " (" << output << ")"
                 << std::endl;
 
-          const auto only_order_parameters =
-            solution.create_view(2,
-                                 sintering_operator.get_data().n_components());
+          if (params.output_data.quality_min)
+            {
+              const auto quality = Postprocessors::output_mesh_quality_and_min(
+                mapping, dof_handler, *only_order_parameters, output);
 
-          const auto quality = Postprocessors::output_mesh_quality_and_min(
-            mapping, dof_handler, *only_order_parameters, output);
+              table.add_value("mesh_quality", quality);
+            }
+          else
+            {
+              Postprocessors::output_mesh_quality(mapping,
+                                                  dof_handler,
+                                                  *only_order_parameters,
+                                                  output);
+            }
+        }
+      else if (params.output_data.quality_min)
+        {
+          const auto quality =
+            Postprocessors::estimate_mesh_quality_min(dof_handler,
+                                                      *only_order_parameters);
 
           table.add_value("mesh_quality", quality);
         }
