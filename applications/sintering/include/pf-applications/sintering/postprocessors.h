@@ -1899,13 +1899,13 @@ namespace Sintering
       }
     } // namespace internal
 
-    /* Estimate mesh quality: 0 - low, 1 - high */
+    /* Output mesh quality: 0 - low, 1 - high */
     template <int dim, typename BlockVectorType>
     void
-    estimate_mesh_quality(const Mapping<dim> &   mapping,
-                          const DoFHandler<dim> &dof_handler,
-                          const BlockVectorType &solution,
-                          const std::string      output)
+    output_mesh_quality(const Mapping<dim> &   mapping,
+                        const DoFHandler<dim> &dof_handler,
+                        const BlockVectorType &solution,
+                        const std::string      output)
     {
       Vector<typename BlockVectorType::value_type> quality(
         dof_handler.get_triangulation().n_active_cells());
