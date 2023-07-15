@@ -1,0 +1,24 @@
+#!/bin/bash
+# Output and error (also --output, --error):
+#SBATCH -o ./%x.%j.out
+#SBATCH -e ./%x.%j.err
+# Initial working directory (also --chdir):
+#SBATCH -D ./
+# Notification and type
+#SBATCH --mail-type=END
+# Wall clock limit:
+#SBATCH --no-requeue
+# Number of nodes - set via cmd
+# Setup of execution environment
+#SBATCH --export=NONE
+#SBATCH --get-user-env
+
+executable="$1"
+simulation_case="$2"
+settings_file="$3"
+settings_extra="$4"
+lock_file="$5"
+
+mpirun $executable $simulation_case $settings_file $settings_extra
+
+rm $lock_file
