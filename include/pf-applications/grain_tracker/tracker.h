@@ -259,26 +259,25 @@ namespace GrainTracker
               grains.emplace(std::make_pair(new_grain_id, new_grain));
               grains.at(new_grain_id).set_grain_id(new_grain_id);
               grains.at(new_grain_id).set_dynamics(new_dynamics);
+            }
 
-              // Update mapping if we changed the grain id
-              if (new_grain_id != current_grain_id)
+          // Update mapping if we changed the grain id
+          if (new_grain_id != current_grain_id)
+            {
+              auto &particle_to_grain =
+                particle_ids_to_grain_ids[new_grain.get_order_parameter_id()];
+
+              for (unsigned int ip = 0; ip < particle_to_grain.size(); ip++)
                 {
-                  auto &particle_to_grain =
-                    particle_ids_to_grain_ids[new_grain
-                                                .get_order_parameter_id()];
+                  auto &pmap = particle_to_grain[ip];
 
-                  for (unsigned int ip = 0; ip < particle_to_grain.size(); ip++)
+                  if (grains_ids_changed[new_grain.get_order_parameter_id()]
+                                        [ip] == false &&
+                      pmap.first == current_grain_id)
                     {
-                      auto &pmap = particle_to_grain[ip];
-
-                      if (grains_ids_changed[new_grain.get_order_parameter_id()]
-                                            [ip] == false &&
-                          pmap.first == current_grain_id)
-                        {
-                          pmap.first = new_grain_id;
-                          grains_ids_changed[new_grain.get_order_parameter_id()]
-                                            [ip] = true;
-                        }
+                      pmap.first = new_grain_id;
+                      grains_ids_changed[new_grain.get_order_parameter_id()]
+                                        [ip] = true;
                     }
                 }
             }
