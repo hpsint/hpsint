@@ -1060,6 +1060,10 @@ namespace GrainTracker
     get_segment_center(const unsigned int grain_id,
                        const unsigned int segment_id) const
     {
+      Assert(grains.find(grain_id) != grains.cend(),
+             ExcMessage("Grain with grain_id = " + std::to_string(grain_id) +
+                        " does not exist in the grains map"));
+
       return grains.at(grain_id).get_segments()[segment_id].get_center();
     }
 
@@ -1067,7 +1071,20 @@ namespace GrainTracker
     get_grain_segment_index(const unsigned int grain_id,
                             const unsigned int segment_id) const
     {
-      return grain_segment_ids_numbering.at(grain_id).at(segment_id);
+      Assert(grain_segment_ids_numbering.find(grain_id) !=
+               grain_segment_ids_numbering.cend(),
+             ExcMessage("Grain with grain_id = " + std::to_string(grain_id) +
+                        " does not exist in the inverse mapping"));
+
+      const auto &grain = grain_segment_ids_numbering.at(grain_id);
+
+      Assert(grain.find(segment_id) != grain.cend(),
+             ExcMessage(
+               "Segment with segment_id = " + std::to_string(segment_id) +
+               " does not exist in the grain with grain_id = " +
+               std::to_string(grain_id)));
+
+      return grain.at(segment_id);
     }
 
     unsigned int
