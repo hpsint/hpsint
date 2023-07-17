@@ -1375,6 +1375,13 @@ namespace GrainTracker
             }
         }
 
+      AssertThrow(
+        grains_numerator == static_cast<unsigned int>(new_grains.size()),
+        ExcMessage(
+          "Inconsistent grains numbering: grains_numerator = " +
+          std::to_string(grains_numerator) +
+          " and new_grains.size() = " + std::to_string(new_grains.size())));
+
       return new_grains;
     }
 
