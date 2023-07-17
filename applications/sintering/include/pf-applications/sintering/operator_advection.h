@@ -258,6 +258,8 @@ namespace Sintering
 
               for (; i < segments.size(); ++i)
                 {
+                  bool set_invalid = false;
+
                   const auto icell = matrix_free.get_cell_iterator(cell, i);
                   const auto cell_index = icell->global_active_cell_index();
 
@@ -269,19 +271,33 @@ namespace Sintering
                       const auto grain_and_segment =
                         grain_tracker.get_grain_and_segment(ig, particle_id);
 
-                      const auto &rc_i = grain_tracker.get_segment_center(
-                        grain_and_segment.first, grain_and_segment.second);
+                      if (grain_and_segment.first !=
+                          numbers::invalid_unsigned_int)
+                        {
+                          const auto &rc_i = grain_tracker.get_segment_center(
+                            grain_and_segment.first, grain_and_segment.second);
 
-                      for (unsigned int d = 0; d < dim; ++d)
-                        rc[d][i] = rc_i[d];
+                          for (unsigned int d = 0; d < dim; ++d)
+                            rc[d][i] = rc_i[d];
 
-                      segments[i] = grain_and_segment;
+                          segments[i] = grain_and_segment;
 
-                      index_values.push_back(
-                        grain_tracker.get_grain_segment_index(
-                          grain_and_segment.first, grain_and_segment.second));
+                          index_values.push_back(
+                            grain_tracker.get_grain_segment_index(
+                              grain_and_segment.first,
+                              grain_and_segment.second));
+                        }
+                      else
+                        {
+                          set_invalid = true;
+                        }
                     }
                   else
+                    {
+                      set_invalid = true;
+                    }
+
+                  if (set_invalid)
                     {
                       segments[i] =
                         std::make_pair(numbers::invalid_unsigned_int,
