@@ -24,15 +24,28 @@
     },
     "Special": {
         "Generic": {
-            "Advection": {"Mt": 1}
+            "Advection": {
+                "Mt": 1
+            }
         },
         "Coupled": {
-            "Advection": {"Mt": 0.001}
+            "Advection": {
+                "Mt": 0.001
+            }
         }
     },
     "Runs": {
-        "Dimensions": ["2d", "3d"],
-        "Physics": ["generic", "generic_wang"],
-        "Mobility": ["scalar", "tensorial"]
+        "Dimensions": [
+            "2d",
+            "3d"
+        ],
+        "Physics": [
+            "generic",
+            "generic_wang"
+        ],
+        "Mobility": [
+            "scalar",
+            "tensorial"
+        ]
     }
 }
