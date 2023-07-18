@@ -10,7 +10,7 @@
         "SlurmOptions": "--output=./%x.%j.out --error=./%x.%j.err --mail-type=END --no-requeue --export=NONE --get-user-env"
     },
     "Simulation": {
-        "CmdTemplate": "sbatch {slurm} mpirun {executable} {options} {lock_file} \\; rm {lock_file}",
+        "CmdTemplate": "sbatch {slurm} mpirun {executable} {options} \\; rm {lock_file}",
         "BuildRoot": "HPSINT_BUILD_PATH",
         "Mode": "--cloud",
         "Params": "40particles_no_overlap.cloud"
