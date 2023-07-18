@@ -14,11 +14,9 @@
 #SBATCH --get-user-env
 
 executable="$1"
-simulation_case="$2"
-settings_file="$3"
-settings_extra="$4"
-lock_file="$5"
+options="$2"
+lock_file="$3"
 
-mpirun $executable $simulation_case $settings_file $settings_extra
+mpirun $executable $options
 
 rm $lock_file
