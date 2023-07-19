@@ -1,0 +1,51 @@
+{
+    "User": {
+        "Account": "YOU_CAN_INPUT_YOUR_ACCOUNT_HERE",
+        "Email": "YOU_CAN_INPUT_YOUR_EMAIL_HERE"
+    },
+    "Cluster": {
+        "Nodes": "32",
+        "Time": "24:00:00",
+        "Partition": "general",
+        "SlurmOptions": "--output=./%x.%j.out --error=./%x.%j.err --mail-type=END --no-requeue --export=NONE --get-user-env"
+    },
+    "Simulation": {
+        "CmdTemplate": "sbatch {slurm} mpirun {executable} {options} \\; rm {lock_file}",
+        "BuildRoot": "HPSINT_BUILD_PATH",
+        "Mode": "--cloud",
+        "Params": "40particles_no_overlap.cloud"
+    },
+    "Settings": {
+        "File": "coupled_wang_studies_0.json",
+        "DisableRegularOutputFor3D": "true",
+        "CleanOutputFolder": "true",
+        "IgnoreLocks": "false",
+        "StudyRoot": "DIRECTORY_THAT_CONTAINS_output_clouds_settings_FOLDERS"
+    },
+    "Special": {
+        "Generic": {
+            "Advection": {
+                "Mt": 1
+            }
+        },
+        "Coupled": {
+            "Advection": {
+                "Mt": 0.001
+            }
+        }
+    },
+    "Runs": {
+        "Dimensions": [
+            "2d",
+            "3d"
+        ],
+        "Physics": [
+            "generic",
+            "generic_wang"
+        ],
+        "Mobility": [
+            "scalar",
+            "tensorial"
+        ]
+    }
+}
