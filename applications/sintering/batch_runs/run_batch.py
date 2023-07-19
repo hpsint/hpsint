@@ -38,6 +38,8 @@ parser.add_argument("-f", "--file", type=str, help="Batch file to process", requ
 parser.add_argument("-d", "--debug", action='store_true', help="Debug and print jobs only without submission", required=False, default=False)
 parser.add_argument("-a", "--account", type=str, help="User account", required=False)
 parser.add_argument("-e", "--email", type=str, help="Email for notification", required=False)
+parser.add_argument("-x", "--extra", type=str, help="Extra settings passed to the solver", required=False)
+parser.add_argument("-s", "--suffix", type=str, help="Suffix for output folder", required=False)
 
 args = parser.parse_args()
 
@@ -101,6 +103,8 @@ with open(args.file) as json_data:
     common_options["settings_extra"] = ""
     if "Extra" in data["Settings"].keys():
         common_options["settings_extra"] = data["Settings"]["Extra"]
+    if args.extra:
+        common_options["settings_extra"] += " " + args.extra
 
     # Generate output directory name
     default_job_folder = data["Simulation"]["Mode"].split('--', 1)[1] + "_"
@@ -175,8 +179,13 @@ with open(args.file) as json_data:
                 if "DisableRegularOutputFor3D" in data["Settings"].keys() and data["Settings"]["DisableRegularOutputFor3D"] == "true" and dim == '3d':
                     case_options["settings_extra"] += " --Output.Regular=false"
 
+                # Output folder suffix
+                suffix = ""
+                if args.suffix:
+                    suffix += "_" + args.suffix
+
                 # Output directory
-                job_dir = os.path.join(default_job_root, dim + "_" + phys)
+                job_dir = os.path.join(default_job_root, dim + "_" + phys + suffix)
                 if not os.path.isdir(job_dir):
                     try:
                         os.makedirs(job_dir)
