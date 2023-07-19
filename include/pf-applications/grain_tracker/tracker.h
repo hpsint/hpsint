@@ -321,10 +321,7 @@ namespace GrainTracker
 
           // Check if number of order parameters has changed
           op_number_changed =
-            (active_order_parameters.size() !=
-               build_old_order_parameter_ids(grains).size() ||
-             active_order_parameters.size() !=
-               build_active_order_parameter_ids(old_grains).size());
+            (active_order_parameters.size() != n_order_params);
         }
       else
         {
@@ -372,8 +369,8 @@ namespace GrainTracker
             reassign_grains(force_reassignment, fast_reassignment);
 
           // Check if number of order parameters has changed
-          op_number_changed = (active_order_parameters.size() !=
-                               build_old_order_parameter_ids(grains).size());
+          op_number_changed =
+            (active_order_parameters.size() != n_order_params);
         }
 
       // Build inverse mapping after grains are detected
@@ -1399,22 +1396,6 @@ namespace GrainTracker
         }
 
       return active_op_ids;
-    }
-
-    // Build a set of old order parameters
-    std::set<unsigned int>
-    build_old_order_parameter_ids(
-      const std::map<unsigned int, Grain<dim>> &all_grains) const
-    {
-      std::set<unsigned int> old_op_ids;
-
-      for (const auto &[gid, gr] : all_grains)
-        {
-          (void)gid;
-          old_op_ids.insert(gr.get_old_order_parameter_id());
-        }
-
-      return old_op_ids;
     }
 
     // Reassign grains order parameters to prevent collision
