@@ -1375,22 +1375,6 @@ namespace GrainTracker
       return active_op_ids;
     }
 
-    // Build a set of old order parameters
-    std::set<unsigned int>
-    build_old_order_parameter_ids(
-      const std::map<unsigned int, Grain<dim>> &all_grains) const
-    {
-      std::set<unsigned int> old_op_ids;
-
-      for (const auto &[gid, gr] : all_grains)
-        {
-          (void)gid;
-          old_op_ids.insert(gr.get_old_order_parameter_id());
-        }
-
-      return old_op_ids;
-    }
-
     // Reassign grains order parameters to prevent collision
     std::tuple<unsigned int, bool>
     reassign_grains(const bool force_reassignment,
