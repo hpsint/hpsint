@@ -259,26 +259,25 @@ namespace GrainTracker
               grains.emplace(std::make_pair(new_grain_id, new_grain));
               grains.at(new_grain_id).set_grain_id(new_grain_id);
               grains.at(new_grain_id).set_dynamics(new_dynamics);
+            }
 
-              // Update mapping if we changed the grain id
-              if (new_grain_id != current_grain_id)
+          // Update mapping if we changed the grain id
+          if (new_grain_id != current_grain_id)
+            {
+              auto &particle_to_grain =
+                particle_ids_to_grain_ids[new_grain.get_order_parameter_id()];
+
+              for (unsigned int ip = 0; ip < particle_to_grain.size(); ip++)
                 {
-                  auto &particle_to_grain =
-                    particle_ids_to_grain_ids[new_grain
-                                                .get_order_parameter_id()];
+                  auto &pmap = particle_to_grain[ip];
 
-                  for (unsigned int ip = 0; ip < particle_to_grain.size(); ip++)
+                  if (grains_ids_changed[new_grain.get_order_parameter_id()]
+                                        [ip] == false &&
+                      pmap.first == current_grain_id)
                     {
-                      auto &pmap = particle_to_grain[ip];
-
-                      if (grains_ids_changed[new_grain.get_order_parameter_id()]
-                                            [ip] == false &&
-                          pmap.first == current_grain_id)
-                        {
-                          pmap.first = new_grain_id;
-                          grains_ids_changed[new_grain.get_order_parameter_id()]
-                                            [ip] = true;
-                        }
+                      pmap.first = new_grain_id;
+                      grains_ids_changed[new_grain.get_order_parameter_id()]
+                                        [ip] = true;
                     }
                 }
             }
@@ -1061,6 +1060,10 @@ namespace GrainTracker
     get_segment_center(const unsigned int grain_id,
                        const unsigned int segment_id) const
     {
+      Assert(grains.find(grain_id) != grains.cend(),
+             ExcMessage("Grain with grain_id = " + std::to_string(grain_id) +
+                        " does not exist in the grains map"));
+
       return grains.at(grain_id).get_segments()[segment_id].get_center();
     }
 
@@ -1068,7 +1071,20 @@ namespace GrainTracker
     get_grain_segment_index(const unsigned int grain_id,
                             const unsigned int segment_id) const
     {
-      return grain_segment_ids_numbering.at(grain_id).at(segment_id);
+      Assert(grain_segment_ids_numbering.find(grain_id) !=
+               grain_segment_ids_numbering.cend(),
+             ExcMessage("Grain with grain_id = " + std::to_string(grain_id) +
+                        " does not exist in the inverse mapping"));
+
+      const auto &grain = grain_segment_ids_numbering.at(grain_id);
+
+      Assert(grain.find(segment_id) != grain.cend(),
+             ExcMessage(
+               "Segment with segment_id = " + std::to_string(segment_id) +
+               " does not exist in the grain with grain_id = " +
+               std::to_string(grain_id)));
+
+      return grain.at(segment_id);
     }
 
     unsigned int
@@ -1358,6 +1374,13 @@ namespace GrainTracker
               ++grains_numerator;
             }
         }
+
+      AssertThrow(
+        grains_numerator == static_cast<unsigned int>(new_grains.size()),
+        ExcMessage(
+          "Inconsistent grains numbering: grains_numerator = " +
+          std::to_string(grains_numerator) +
+          " and new_grains.size() = " + std::to_string(new_grains.size())));
 
       return new_grains;
     }
