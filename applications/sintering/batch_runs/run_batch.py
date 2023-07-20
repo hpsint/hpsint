@@ -24,7 +24,7 @@ def traverse(dic, path=None):
             local_path = path[:]
             local_path.append(x)
             for b in traverse(dic[x], local_path):
-                 yield b
+                yield b
     else: 
         yield path,dic
 
@@ -227,7 +227,7 @@ with open(args.file) as json_data:
                 exec_options = case_options["simulation_case"] + " " + case_options["settings_file"] + " " + case_options["settings_extra"]
 
                 cmd = data["Simulation"]["CmdTemplate"].format(slurm=slurm_options, executable=case_options["executable"], 
-                                                               options=exec_options, lock_file=lock_file)
+                                                               options=exec_options, lock_file=lock_file)
                 
                 print(cmd)
 
