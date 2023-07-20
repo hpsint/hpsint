@@ -50,8 +50,8 @@ with open(args.file) as json_data:
 
     # Set default slurm options if any
     default_slurm_options = None
-    if "SlurmOptions" in data["Cluster"].keys():
-        default_slurm_options = data["Cluster"]["SlurmOptions"]
+    if "SlurmOptions" in data["Simulation"].keys():
+        default_slurm_options = data["Simulation"]["SlurmOptions"]
 
     # Cluster settings
     common_options["--nodes"] = data["Cluster"]["Nodes"]
