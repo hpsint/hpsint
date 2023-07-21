@@ -1592,6 +1592,7 @@ namespace Sintering
           output_result(solution,
                         nonlinear_operator,
                         grain_tracker,
+                        statistics,
                         t,
                         timer,
                         "refinement");
@@ -1655,6 +1656,7 @@ namespace Sintering
           output_result(solution,
                         nonlinear_operator,
                         grain_tracker,
+                        statistics,
                         t,
                         timer,
                         "refinement");
@@ -1677,8 +1679,13 @@ namespace Sintering
 
         solutions_except_recent.update_ghost_values();
 
-        output_result(
-          solution, nonlinear_operator, grain_tracker, t, timer, "track");
+        output_result(solution,
+                      nonlinear_operator,
+                      grain_tracker,
+                      statistics,
+                      t,
+                      timer,
+                      "track");
 
         const auto time_total = std::chrono::system_clock::now();
 
@@ -1844,8 +1851,13 @@ namespace Sintering
                                     skip_reassignment);
               }
 
-            output_result(
-              solution, nonlinear_operator, grain_tracker, t, timer, "remap");
+            output_result(solution,
+                          nonlinear_operator,
+                          grain_tracker,
+                          statistics,
+                          t,
+                          timer,
+                          "remap");
           }
 
         pcout << std::endl;
@@ -1982,6 +1994,7 @@ namespace Sintering
         output_result(solution,
                       nonlinear_operator,
                       grain_tracker,
+                      statistics,
                       time_last_output,
                       timer,
                       "solution",
@@ -2080,6 +2093,7 @@ namespace Sintering
                         output_result(solution,
                                       nonlinear_operator,
                                       grain_tracker,
+                                      statistics,
                                       time_last_output,
                                       timer,
                                       "grains_inconsistency");
@@ -2278,6 +2292,7 @@ namespace Sintering
               output_result(solution,
                             nonlinear_operator,
                             grain_tracker,
+                            statistics,
                             time_last_output,
                             timer,
                             label);
@@ -2490,6 +2505,7 @@ namespace Sintering
                 output_result(solution,
                               nonlinear_operator,
                               grain_tracker,
+                              statistics,
                               time_last_output,
                               timer,
                               "solution",
@@ -2603,13 +2619,14 @@ namespace Sintering
   private:
     void
     output_result(
-      const VectorType &                          solution,
-      const NonLinearOperator &                   sintering_operator,
-      const GrainTracker::Tracker<dim, Number> &  grain_tracker,
-      const double                                t,
-      MyTimerOutput &                             timer,
-      const std::string                           label = "solution",
-      std::function<void(DataOut<dim> &data_out)> additional_output = {})
+      const VectorType &                                 solution,
+      const NonLinearOperator &                          sintering_operator,
+      const GrainTracker::Tracker<dim, Number> &         grain_tracker,
+      const NonLinearSolvers::NewtonSolverSolverControl &statistics,
+      const double                                       t,
+      MyTimerOutput &                                    timer,
+      const std::string                                  label = "solution",
+      std::function<void(DataOut<dim> &data_out)>        additional_output = {})
     {
       if (!params.output_data.debug && label != "solution")
         return; // nothing to do for debug for non-solution
@@ -2741,6 +2758,10 @@ namespace Sintering
           table.add_value("n_op",
                           sintering_operator.get_data().n_components() - 2);
           table.add_value("n_grains", grain_tracker.get_grains().size());
+
+          table.add_value("n_newton_iter", statistics.n_newton_iterations());
+          table.add_value("n_linear_iter", statistics.n_linear_iterations());
+          table.add_value("n_resid_eval", statistics.n_residual_evaluations());
 
           std::function<VectorizedArrayType(
             const Point<dim, VectorizedArrayType> &)>
