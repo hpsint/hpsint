@@ -1291,6 +1291,11 @@ namespace Sintering
         unsigned int counter = 0;
         unsigned int offset  = 0;
 
+        const bool has_ghost_elements = solution.has_ghost_elements();
+
+        if (has_ghost_elements == false)
+          solution.update_ghost_values();
+
         for (const auto &cell : dof_handler.active_cell_iterators())
           if (run_flooding<dim>(cell,
                                 solution,
@@ -1300,6 +1305,9 @@ namespace Sintering
                                 invalid_particle_id,
                                 box_filter) > 0)
             counter++;
+
+        if (has_ghost_elements == false)
+          solution.zero_out_ghost_values();
 
         // step 2) determine the global number of locally determined particles
         // and give each one an unique id by shifting the ids
