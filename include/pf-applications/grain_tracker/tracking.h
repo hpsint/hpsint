@@ -1,0 +1,101 @@
+#pragma once
+
+#include <deal.II/numerics/rtree.h>
+
+#include "grain.h"
+
+namespace GrainTracker
+{
+  using namespace dealii;
+
+  template <int dim>
+  std::vector<std::vector<unsigned int>>
+  extract_grain_indices_per_op(const std::map<unsigned int, Grain<dim>> &grains,
+                               const unsigned int n_order_params)
+  {
+    std::vector<std::vector<unsigned int>> grains_per_op(n_order_params);
+
+    for (const auto &[grain_id, grain] : grains)
+      grains_per_op[grain.get_order_parameter_id()].push_back(grain_id);
+
+    return grains_per_op;
+  }
+
+  /* Advanced ids assignment algo based on rtrees. It currently implies that
+   * grain consist of a single segment only. This is OK at the moment. */
+  template <int dim>
+  std::map<unsigned int, unsigned int>
+  transfer_grain_ids(const std::map<unsigned int, Grain<dim>> &new_grains,
+                     const std::map<unsigned int, Grain<dim>> &old_grains,
+                     const unsigned int                        n_order_params)
+  {
+    // This algorithm works now only for grains with a single segment
+    namespace bgi = boost::geometry::index;
+
+    using PP = std::pair<Point<dim>, Point<dim>>;
+
+    using ContainerType = std::vector<BoundingBox<dim>>;
+
+    const auto old_grains_per_op =
+      extract_grain_indices_per_op(old_grains, n_order_params);
+    const auto new_grains_per_op =
+      extract_grain_indices_per_op(new_grains, n_order_params);
+
+    // This can be refactored such that vector is used
+    std::map<unsigned int, unsigned int> new_grains_to_old;
+
+    for (unsigned int op = 0; op < n_order_params; ++op)
+      {
+        ContainerType boxes;
+
+        for (const unsigned int grain_id : new_grains_per_op[op])
+          {
+            new_grains_to_old.try_emplace(
+              grain_id, std::numeric_limits<unsigned int>::max());
+
+            const Point<dim> &center =
+              new_grains.at(grain_id).get_segments()[0].get_center();
+            const double radius = new_grains.at(grain_id).get_max_radius();
+
+            Point<dim> lower_left = center;
+            Point<dim> top_right  = center;
+            for (unsigned int d = 0; d < dim; ++d)
+              {
+                lower_left[d] -= radius;
+                top_right[d] += radius;
+              }
+
+            boxes.emplace_back(PP{lower_left, top_right});
+          }
+
+        const auto tree = pack_rtree_of_indices(boxes);
+
+        for (const unsigned int grain_id : old_grains_per_op[op])
+          {
+            const Point<dim> &center =
+              old_grains.at(grain_id).get_segments()[0].get_center();
+            const double radius = old_grains.at(grain_id).get_max_radius();
+
+            Point<dim> lower_left = center;
+            Point<dim> top_right  = center;
+            for (unsigned int d = 0; d < dim; ++d)
+              {
+                lower_left[d] -= radius;
+                top_right[d] += radius;
+              }
+
+            BoundingBox<dim> box({lower_left, top_right});
+            std::vector<typename ContainerType::size_type> result;
+
+            tree.query(bgi::intersects(box) && bgi::nearest(center, 1),
+                       std::back_inserter(result));
+
+            if (!result.empty())
+              new_grains_to_old.at(new_grains_per_op[op][result[0]]) = grain_id;
+          }
+      }
+
+    return new_grains_to_old;
+  }
+
+} // namespace GrainTracker
