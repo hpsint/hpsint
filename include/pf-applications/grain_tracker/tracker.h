@@ -147,13 +147,6 @@ namespace GrainTracker
       // Numberer for new grains
       unsigned int grain_numberer = old_grains.rbegin()->first + 1;
 
-      // Create a list of grain candidates
-      std::set<unsigned int> grains_candidates;
-      for (const auto &[gid, gr] : old_grains)
-        {
-          grains_candidates.insert(gid);
-        }
-
       // Create map with the grains whose ids have been changed
       std::vector<std::vector<bool>> grains_ids_changed(
         particle_ids_to_grain_ids.size());
@@ -180,8 +173,7 @@ namespace GrainTracker
       // Create segments and transfer grain_id's for them
       for (const auto &[current_grain_id, new_grain] : new_grains)
         {
-          const unsigned int new_grain_id =
-            new_grains_to_old.at(current_grain_id);
+          unsigned int new_grain_id = new_grains_to_old.at(current_grain_id);
 
           // Dynamics of the new grain
           typename Grain<dim>::Dynamics new_dynamics = Grain<dim>::None;
@@ -228,8 +220,6 @@ namespace GrainTracker
                 old_grains.at(new_grain_id).get_max_radius();
               new_dynamics =
                 is_growing ? Grain<dim>::Growing : Grain<dim>::Shrinking;
-
-              grains_candidates.erase(new_grain_id);
             }
 
           // Insert new grain if it has been identified or new ones are allowed
