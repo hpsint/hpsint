@@ -2,6 +2,8 @@
 
 #include <deal.II/numerics/rtree.h>
 
+#include <pf-applications/base/geometry.h>
+
 #include "grain.h"
 
 namespace GrainTracker
@@ -57,15 +59,8 @@ namespace GrainTracker
               new_grains.at(grain_id).get_segments()[0].get_center();
             const double radius = new_grains.at(grain_id).get_max_radius();
 
-            Point<dim> lower_left = center;
-            Point<dim> top_right  = center;
-            for (unsigned int d = 0; d < dim; ++d)
-              {
-                lower_left[d] -= radius;
-                top_right[d] += radius;
-              }
-
-            boxes.emplace_back(PP{lower_left, top_right});
+            boxes.emplace_back(
+              create_bounding_box_around_point(center, radius));
           }
 
         const auto tree = pack_rtree_of_indices(boxes);
@@ -76,15 +71,8 @@ namespace GrainTracker
               old_grains.at(grain_id).get_segments()[0].get_center();
             const double radius = old_grains.at(grain_id).get_max_radius();
 
-            Point<dim> lower_left = center;
-            Point<dim> top_right  = center;
-            for (unsigned int d = 0; d < dim; ++d)
-              {
-                lower_left[d] -= radius;
-                top_right[d] += radius;
-              }
+            const auto box = create_bounding_box_around_point(center, radius);
 
-            BoundingBox<dim> box({lower_left, top_right});
             std::vector<typename ContainerType::size_type> result;
 
             tree.query(bgi::intersects(box) && bgi::nearest(center, 1),
