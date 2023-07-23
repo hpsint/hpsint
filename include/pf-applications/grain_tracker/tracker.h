@@ -180,38 +180,8 @@ namespace GrainTracker
       // Create segments and transfer grain_id's for them
       for (const auto &[current_grain_id, new_grain] : new_grains)
         {
-          /* Search for an old segment closest to the new one and get its grain
-           * id, this will be assigned the new segment.
-           */
-          double       min_distance = std::numeric_limits<double>::max();
-          unsigned int new_grain_id = std::numeric_limits<unsigned int>::max();
-
-          for (const auto &new_segment : new_grain.get_segments())
-            {
-              for (const auto &old_grain_id : grains_candidates)
-                {
-                  const auto &old_grain = old_grains.at(old_grain_id);
-
-                  if (new_grain.get_order_parameter_id() ==
-                      old_grain.get_order_parameter_id())
-                    {
-                      for (const auto &old_segment : old_grain.get_segments())
-                        {
-                          const double distance =
-                            new_segment.get_center().distance(
-                              old_segment.get_center());
-
-                          if (distance < std::max(new_segment.get_radius(),
-                                                  old_segment.get_radius()) &&
-                              distance < min_distance)
-                            {
-                              min_distance = distance;
-                              new_grain_id = old_grain.get_grain_id();
-                            }
-                        }
-                    }
-                }
-            }
+          const unsigned int new_grain_id =
+            new_grains_to_old.at(current_grain_id);
 
           // Dynamics of the new grain
           typename Grain<dim>::Dynamics new_dynamics = Grain<dim>::None;
@@ -246,8 +216,6 @@ namespace GrainTracker
                   std::to_string(old_grains.at(new_grain_id).get_order_parameter_id()) + 
                   std::string("\r\n    new grain order parameter   = ") +
                   std::to_string(new_grain.get_order_parameter_id()) + 
-                  std::string("\r\n    min_distance                = ") +
-                  std::to_string(min_distance) + std::string("\r\n\r\n") + 
                   std::string("This could have happened if track() or initial_setup()") +
                   std::string(" was invoked resulting in the grains reassignement but the") +
                   std::string(" subsequent remap() was not called for the solution vector(s).")
