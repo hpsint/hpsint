@@ -21,7 +21,7 @@ using namespace dealii;
 using namespace GrainTracker;
 
 int
-main(int argc, char **argv)
+main()
 {
   // Map 3 old grains to 2 new grains: 1 disappeared
 
