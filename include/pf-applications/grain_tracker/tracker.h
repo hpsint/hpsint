@@ -163,13 +163,6 @@ namespace GrainTracker
       const auto new_grains_to_old =
         transfer_grain_ids(new_grains, old_grains, n_order_params);
 
-      std::cout << std::endl << "track_grains():" << std::endl;
-      for (const auto &[new_id, old_id] : new_grains_to_old)
-        {
-          std::cout << new_id << " -> " << old_id << std::endl;
-        }
-      std::cout << std::endl;
-
       // Create segments and transfer grain_id's for them
       for (const auto &[current_grain_id, new_grain] : new_grains)
         {
