@@ -86,13 +86,6 @@ with open(args.file) as json_data:
     # Executable name
     common_options["executable"] = os.path.join(data["Simulation"]["BuildRoot"], "applications/sintering")
 
-    # Simulation case to run
-    simulation_mode_params = data["Simulation"]["Params"]
-    if data["Simulation"]["Mode"] == "--cloud" and not(simulation_mode_params[0] == "/" or simulation_mode_params[0] == "~"):
-        simulation_mode_params = os.path.join(study_clouds, simulation_mode_params)
-
-    common_options["simulation_case"] = data["Simulation"]["Mode"] + " " + simulation_mode_params
-
     # Settings file
     settings_file = data["Settings"]["File"]
     if not(settings_file[0] == "/" or settings_file[0] == "~"):
@@ -106,138 +99,146 @@ with open(args.file) as json_data:
     if args.extra:
         common_options["settings_extra"] += " " + args.extra
 
-    # Generate output directory name
-    default_job_folder = data["Simulation"]["Mode"].split('--', 1)[1] + "_"
-    if data["Simulation"]["Mode"] == "--cloud":
-        default_job_folder += os.path.splitext(os.path.basename(simulation_mode_params))[0]
-    elif data["Simulation"]["Mode"] == ("--circle" or "--hypercube"):
-        default_job_folder += simulation_mode_params.replace(' ', 'x')
-    else:
-        raise Exception("Mode '{}' not supported".format(data["Simulation"]["Mode"]))
-    default_job_root = os.path.join(default_output_root, default_job_folder)
-
     # Casewise options
     counter = 0
-    for dim in data["Runs"]["Dimensions"]:
-        for phys in data["Runs"]["Physics"]:
-            for mobility in data["Runs"]["Mobility"]:
+    for case in data["Runs"]["Cases"]:
 
-                # Copy common options
-                case_options = copy.deepcopy(common_options)
+        # Simulation case to run
+        simulation_mode_params = case
+        if data["Simulation"]["Mode"] == "--cloud" and not(simulation_mode_params[0] == "/" or simulation_mode_params[0] == "~"):
+            simulation_mode_params = os.path.join(study_clouds, simulation_mode_params)
 
-                # Determine physics
-                physics = dim.upper() + "-"
+        common_options["simulation_case"] = data["Simulation"]["Mode"] + " " + simulation_mode_params
 
-                # Possible special options per case
-                special_names = []
+        # Generate output directory name
+        default_job_folder = data["Simulation"]["Mode"].split('--', 1)[1] + "_"
+        if data["Simulation"]["Mode"] == ("--cloud" or "--restart"):
+            default_job_folder += os.path.splitext(os.path.basename(simulation_mode_params))[0]
+        elif data["Simulation"]["Mode"] == ("--circle" or "--hypercube"):
+            default_job_folder += simulation_mode_params.replace(' ', 'x')
 
-                # Also build up a meaningful job name
-                job_name = dim
+        default_job_root = os.path.join(default_output_root, default_job_folder)
 
-                if phys == "generic":
-                    physics += "generic"
-                    case_options["settings_extra"] += " " + "--Advection.Enable=false"
-                    job_name += '_gen'
-                    special_names.append("Generic")
+        for dim in data["Runs"]["Dimensions"]:
+            for phys in data["Runs"]["Physics"]:
+                for mobility in data["Runs"]["Mobility"]:
 
-                elif phys == "generic_wang":
-                    physics += "generic"
-                    case_options["settings_extra"] += " " + "--Advection.Enable=true"
-                    job_name += '_gea'
-                    special_names.append("Generic")
+                    # Copy common options
+                    case_options = copy.deepcopy(common_options)
 
-                elif phys == "coupled_wang":
-                    physics += "wang"
-                    case_options["settings_extra"] += " " + "--Advection.Enable=true"
-                    job_name += '_cwa'
-                    special_names.append("Coupled")
+                    # Determine physics
+                    physics = dim.upper() + "-"
 
-                job_name += '_' + mobility[0]
-                case_options["--job-name"] = job_name
+                    # Possible special options per case
+                    special_names = []
 
-                case_options["executable"] = os.path.join(common_options["executable"], "sintering-{}-{}".format(physics, mobility))
+                    # Also build up a meaningful job name
+                    job_name = dim
 
-                # Other options
-                special_names.append(special_names[0] + dim.upper())
-                special_names.append(special_names[1] + mobility.capitalize())
+                    if phys == "generic":
+                        physics += "generic"
+                        case_options["settings_extra"] += " " + "--Advection.Enable=false"
+                        job_name += '_gen'
+                        special_names.append("Generic")
 
-                # Check if special options were defined
-                if "Special" in data.keys():
-                    for special_name in special_names:
-                        if special_name in data["Special"].keys():
-                            for x in traverse(data["Special"][special_name]):
-                                opt = ('.'.join(x[0])).encode('ascii', 'ignore').decode("utf-8") 
-                                val = x[1]
-                                if isinstance(val, str):
-                                    val = val.encode('ascii', 'ignore')
-                                else:
-                                    val = str(val)
-                                
-                                case_options["settings_extra"] += " --" + opt + "=" + val
+                    elif phys == "generic_wang":
+                        physics += "generic"
+                        case_options["settings_extra"] += " " + "--Advection.Enable=true"
+                        job_name += '_gea'
+                        special_names.append("Generic")
 
-                # Disable 3D VTK output 
-                if "DisableRegularOutputFor3D" in data["Settings"].keys() and data["Settings"]["DisableRegularOutputFor3D"] == "true" and dim == '3d':
-                    case_options["settings_extra"] += " --Output.Regular=false"
+                    elif phys == "coupled_wang":
+                        physics += "wang"
+                        case_options["settings_extra"] += " " + "--Advection.Enable=true"
+                        job_name += '_cwa'
+                        special_names.append("Coupled")
 
-                # Output folder suffix
-                suffix = ""
-                if args.suffix:
-                    suffix += "_" + args.suffix
+                    job_name += '_' + mobility[0]
+                    case_options["--job-name"] = job_name
 
-                # Output directory
-                job_dir = os.path.join(default_job_root, dim + "_" + phys + suffix)
-                if not os.path.isdir(job_dir):
-                    try:
-                        os.makedirs(job_dir)
-                    except OSError:
-                        pass
-                case_options["--chdir"] = job_dir
+                    case_options["executable"] = os.path.join(common_options["executable"], "sintering-{}-{}".format(physics, mobility))
 
-                # Print options
-                print("\nRunning case #{}:".format(counter))
-                counter += 1
-                for key, value in case_options.items():
-                    print("  {}: {}".format(key.rjust(20), value))
+                    # Other options
+                    special_names.append(special_names[0] + dim.upper())
+                    special_names.append(special_names[1] + mobility.capitalize())
 
-                # Can we proceed - check if there is something using the folder
-                lock_file = os.path.join(job_dir, "job.lock")
-                print("")
-                if os.path.isfile(lock_file):
-                    print("NOTICE: there is another job using this folder -> ", end='')
-                    if "IgnoreLocks" in data["Settings"].keys() and data["Settings"]["IgnoreLocks"] == "true":
-                        print("WARNING: the lock file is ignored")
+                    # Check if special options were defined
+                    if "Special" in data.keys():
+                        for special_name in special_names:
+                            if special_name in data["Special"].keys():
+                                for x in traverse(data["Special"][special_name]):
+                                    opt = ('.'.join(x[0])).encode('ascii', 'ignore').decode("utf-8") 
+                                    val = x[1]
+                                    if isinstance(val, str):
+                                        val = val.encode('ascii', 'ignore')
+                                    else:
+                                        val = str(val)
+                                    
+                                    case_options["settings_extra"] += " --" + opt + "=" + val
+
+                    # Disable 3D VTK output 
+                    if "DisableRegularOutputFor3D" in data["Settings"].keys() and data["Settings"]["DisableRegularOutputFor3D"] == "true" and dim == '3d':
+                        case_options["settings_extra"] += " --Output.Regular=false"
+
+                    # Output folder suffix
+                    suffix = ""
+                    if args.suffix:
+                        suffix += "_" + args.suffix
+
+                    # Output directory
+                    job_dir = os.path.join(default_job_root, dim + "_" + phys + suffix)
+                    if not os.path.isdir(job_dir):
+                        try:
+                            os.makedirs(job_dir)
+                        except OSError:
+                            pass
+                    case_options["--chdir"] = job_dir
+
+                    # Print options
+                    print("\nRunning case #{}:".format(counter))
+                    counter += 1
+                    for key, value in case_options.items():
+                        print("  {}: {}".format(key.rjust(20), value))
+
+                    # Can we proceed - check if there is something using the folder
+                    lock_file = os.path.join(job_dir, "job.lock")
+                    print("")
+                    if os.path.isfile(lock_file):
+                        print("NOTICE: there is another job using this folder -> ", end='')
+                        if "IgnoreLocks" in data["Settings"].keys() and data["Settings"]["IgnoreLocks"] == "true":
+                            print("WARNING: the lock file is ignored")
+                        else:
+                            print("ERROR: the job is ignored")
+                            continue
                     else:
-                        print("ERROR: the job is ignored")
-                        continue
-                else:
-                    print("NOTICE: no other job is using this folder, we are going to take it")
-                touch(lock_file)
-                print("")
+                        print("NOTICE: no other job is using this folder, we are going to take it")
+                    touch(lock_file)
+                    print("")
 
-                # Generate command
-                slurm_params = []
-                for key, value in case_options.items():
-                    if key.startswith("--"):
-                        slurm_params.append(key + "=" + value)
-                slurm_options = ' '.join(slurm_params)
+                    # Generate command
+                    slurm_params = []
+                    for key, value in case_options.items():
+                        if key.startswith("--"):
+                            slurm_params.append(key + "=" + value)
+                    slurm_options = ' '.join(slurm_params)
 
-                if default_slurm_options:
-                    slurm_options = default_slurm_options + " " + slurm_options
+                    if default_slurm_options:
+                        slurm_options = default_slurm_options + " " + slurm_options
 
-                exec_options = case_options["simulation_case"] + " " + case_options["settings_file"] + " " + case_options["settings_extra"]
+                    exec_options = case_options["simulation_case"] + " " + case_options["settings_file"] + " " + case_options["settings_extra"]
 
-                cmd = data["Simulation"]["CmdTemplate"].format(slurm=slurm_options, executable=case_options["executable"], 
-                                                               options=exec_options, lock_file=lock_file)
-                
-                print(cmd)
+                    cmd = data["Simulation"]["CmdTemplate"].format(slurm=slurm_options, executable=case_options["executable"], 
+                                                                options=exec_options, lock_file=lock_file)
+                    
+                    print(cmd)
 
-                # Run real job after all options are set
-                if not(args.debug):
-                    # Clean output folder or not
-                    if "CleanOutputFolder" in data["Settings"].keys() and data["Settings"]["CleanOutputFolder"] == "true":
-                        clean_folder(job_dir)
+                    # Run real job after all options are set
+                    if not(args.debug):
+                        # Clean output folder or not
+                        if "CleanOutputFolder" in data["Settings"].keys() and data["Settings"]["CleanOutputFolder"] == "true":
+                            clean_folder(job_dir)
 
-                    os.system(cmd)
+                        os.system(cmd)
 
-                    # Wait for 3 seconds
-                    time.sleep(3)
+                        # Wait for 3 seconds
+                        time.sleep(3)
