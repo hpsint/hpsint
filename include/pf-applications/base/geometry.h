@@ -25,14 +25,9 @@ namespace dealii
   create_bounding_box_around_point(const Point<dim> &center,
                                    const double      radius)
   {
-    Point<dim> lower_left = center;
-    Point<dim> top_right  = center;
-    for (unsigned int d = 0; d < dim; ++d)
-      {
-        lower_left[d] -= radius;
-        top_right[d] += radius;
-      }
+    BoundingBox<dim> box(center);
+    box.extend(radius);
 
-    return BoundingBox<dim>({lower_left, top_right});
+    return box;
   }
 } // namespace dealii
