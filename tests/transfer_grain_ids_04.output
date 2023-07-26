@@ -1,0 +1,7 @@
+# of old grains = 3
+# of new grains = 4
+Grains mapping (new_id -> old_id):
+0 -> 4
+1 -> 7
+2 -> 6
+3 -> 4294967295
