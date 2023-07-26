@@ -110,4 +110,21 @@ namespace GrainTracker
     return new_grains_to_old;
   }
 
+  // Build a set of active order parameters from the map of grains
+  template <int dim>
+  std::set<unsigned int>
+  extract_active_order_parameter_ids(
+    const std::map<unsigned int, Grain<dim>> &grains)
+  {
+    std::set<unsigned int> active_op_ids;
+
+    for (const auto &[gid, gr] : grains)
+      {
+        (void)gid;
+        active_op_ids.insert(gr.get_order_parameter_id());
+      }
+
+    return active_op_ids;
+  }
+
 } // namespace GrainTracker
