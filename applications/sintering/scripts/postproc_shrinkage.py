@@ -1,11 +1,9 @@
 import numpy as np
 import matplotlib.pyplot as plt
 import argparse
-import glob
-import re
 import sys
 import collections.abc
-from library import get_hex_colors
+import library
 
 parser = argparse.ArgumentParser(description='Process shrinkage data')
 parser.add_argument("-f", "--files", dest="files", nargs='+', required=True, help="Source filenames, can be defined as masks")
@@ -21,20 +19,9 @@ if not isinstance(args.directions, collections.abc.Sequence):
     args.directions = [args.directions]
 
 # Get all files to process
-files_list = []
-for fm in args.files:
-    current_files_list = glob.glob(fm, recursive=True)
-    current_files_list.sort(key=lambda f: int(re.sub('\D', '', f)))
-    files_list += current_files_list
+files_list = library.get_solutions(args.files)
 
-files_list = sorted(list(set(files_list)))
-
-print("The complete list of files to process:")
-for f in files_list:
-    print(f)
-
-n_files = len(files_list)
-colors = get_hex_colors(n_files)
+colors = library.get_hex_colors(len(files_list))
 
 csv_header = ["dim_x", "dim_y", "dim_z", "volume", "shrinkage_x", "shrinkage_y", "shrinkage_z", "densification"]
 n_qtys = 4
