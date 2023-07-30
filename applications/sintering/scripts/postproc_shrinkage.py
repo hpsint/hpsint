@@ -37,37 +37,7 @@ fig.suptitle('Shrinkage and densification')
 
 # Generate labels
 if args.collapse:
-    min_len = min([len(f) for f in files_list])
-
-    s_start = 0
-    s_end = 0
-    
-    for i in range(min_len):
-        string_equal = True
-        for f in files_list:
-            if not(f[i] == files_list[0][i]):
-                string_equal = False
-                break
-
-        if string_equal:
-            s_start += 1
-        else:
-            break
-
-    for i in range(min_len):
-        string_equal = True
-        for f in files_list:
-            if not(f[-1-i] == files_list[0][-1-i]):
-                string_equal = False
-                break
-
-        if string_equal:
-            s_end += 1
-        else:
-            break
-
-    labels = [f[s_start:-s_end] for f in files_list]
-
+    labels = library.generate_short_labels(files_list)
 else:
     labels = files_list
 
