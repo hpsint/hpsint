@@ -9,7 +9,7 @@ parser = argparse.ArgumentParser(description='Process shrinkage data')
 parser.add_argument("-f", "--files", dest="files", nargs='+', required=True, help="Source filenames, can be defined as masks")
 parser.add_argument("-d", "--directions", dest="directions", nargs='+',
     required=False, default="all", help="Directions", choices=['x', 'y', 'z', 'vol', 'all'])
-parser.add_argument("-t", "--limit_t", dest='limit_t', required=False, help="Max time limit", type=float, default=sys.float_info.max)
+parser.add_argument("-l", "--limits", dest='limits', required=False, help="Limits for x-axis", type=float, default=[sys.float_info.min, sys.float_info.max])
 parser.add_argument("-m", "--markers", dest='markers', required=False, help="Number of markers", type=int, default=30)
 parser.add_argument("-c", "--collapse", dest='collapse', required=False, help="Shorten labels", action="store_true", default=False)
 
@@ -54,7 +54,7 @@ for f, lbl, clr in zip(files_list, labels, colors):
             ref0 = fdata[qty_name][0]
             ref_qty = (ref0 - fdata[qty_name]) / ref0
 
-            mask = fdata["time"] < args.limit_t
+            mask = (args.limits[0] <= fdata["time"]) & (fdata["time"] <= args.limits[1])
 
             if args.markers > 0:
                 n_every = round(len(fdata["time"][mask]) / args.markers)
