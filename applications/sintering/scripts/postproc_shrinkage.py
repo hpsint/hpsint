@@ -11,7 +11,7 @@ parser.add_argument("-d", "--directions", dest="directions", nargs='+',
     required=False, default="all", help="Directions", choices=['x', 'y', 'z', 'vol', 'all'])
 parser.add_argument("-t", "--limit_t", dest='limit_t', required=False, help="Max time limit", type=float, default=sys.float_info.max)
 parser.add_argument("-m", "--markers", dest='markers', required=False, help="Number of markers", type=int, default=30)
-parser.add_argument("-c", "--collapse", dest='collapse', required=False, help="Number of markers", action="store_true", default=False)
+parser.add_argument("-c", "--collapse", dest='collapse', required=False, help="Shorten labels", action="store_true", default=False)
 
 args = parser.parse_args()
 
