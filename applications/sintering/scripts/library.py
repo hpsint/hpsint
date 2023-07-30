@@ -60,3 +60,16 @@ def generate_short_labels(files_list):
     labels = [f[s_start:-s_end] for f in files_list]
 
     return labels
+
+def get_markers(n_plot, n_points, n_total_markers, available_markers = None):
+
+    if available_markers and n_total_markers > 0:
+        n_every = round(n_points / n_total_markers)
+        n_every = max(1, n_every)
+
+        m_type = available_markers[n_plot % len(available_markers)]
+    else:
+        n_every = 1
+        m_type = None
+
+    return m_type, n_every
