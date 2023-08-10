@@ -112,9 +112,9 @@ with open(args.file) as json_data:
 
         # Generate output directory name
         default_job_folder = data["Simulation"]["Mode"].split('--', 1)[1] + "_"
-        if data["Simulation"]["Mode"] == ("--cloud" or "--restart"):
+        if data["Simulation"]["Mode"] == "--cloud" or data["Simulation"]["Mode"] == "--restart":
             default_job_folder += os.path.splitext(os.path.basename(simulation_mode_params))[0]
-        elif data["Simulation"]["Mode"] == ("--circle" or "--hypercube"):
+        elif data["Simulation"]["Mode"] == "--circle" or data["Simulation"]["Mode"] == "--hypercube":
             default_job_folder += simulation_mode_params.replace(' ', 'x')
 
         default_job_root = os.path.join(default_output_root, default_job_folder)
