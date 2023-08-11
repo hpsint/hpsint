@@ -24,6 +24,9 @@
 
 #include <deal.II/numerics/data_out.h>
 
+#include <pf-applications/base/data.h>
+
+#include <pf-applications/sintering/advection.h>
 #include <pf-applications/sintering/operator_sintering_data.h>
 
 #include <pf-applications/grain_tracker/distributed_stitching.h>
@@ -2122,14 +2125,19 @@ namespace Sintering
       return std::make_tuple(q_labels, q_evaluators);
     }
 
-    template <int dim, typename VectorType, typename Number>
+    template <int dim,
+              typename VectorType,
+              typename VectorizedArrayType,
+              typename Number>
     void
     output_grains_stats(
       const DoFHandler<dim> &                   dof_handler,
       const unsigned int                        n_op,
       const GrainTracker::Tracker<dim, Number> &grain_tracker_in,
-      const VectorType &                        solution,
-      const std::string                         output)
+      const AdvectionMechanism<dim, Number, VectorizedArrayType>
+        &               advection_mechanism,
+      const VectorType &solution,
+      const std::string output)
     {
       const auto comm = dof_handler.get_communicator();
 
@@ -2153,7 +2161,16 @@ namespace Sintering
 
       TableHandler table;
 
-      std::vector<std::string> labels{"x", "y", "z"};
+      const std::vector labels_coords{"x", "y", "z"};
+      const std::vector labels_forces{"fx", "fy", "fz"};
+      const std::vector labels_torques =
+        (moment_s<dim, VectorizedArrayType> == 1) ?
+          std::vector({"t"}) :
+          std::vector({"tx", "ty", "tz"});
+
+      const auto dummy =
+        create_array<1 + dim + moment_s<dim, VectorizedArrayType>>(
+          std::numeric_limits<double>::quiet_NaN());
 
       for (const auto &[grain_id, grain] : grain_tracker->get_grains())
         {
@@ -2162,10 +2179,32 @@ namespace Sintering
           table.add_value("radius", grain.get_max_radius());
 
           for (unsigned int d = 0; d < dim; ++d)
-            table.add_value(labels[d],
+            table.add_value(labels_coords[d],
                             grain.n_segments() == 1 ?
                               grain.get_segments()[0].get_center()[d] :
                               std::numeric_limits<double>::quiet_NaN());
+
+          if (advection_mechanism.enabled())
+            {
+              const Number *data =
+                (!advection_mechanism.get_grains_data().empty() &&
+                 grain.n_segments() == 1) ?
+                  advection_mechanism.grain_data(
+                    grain_tracker->get_grain_segment_index(grain_id, 0)) :
+                  dummy.data();
+
+              // Output volume should be less than measure
+              table.add_value("volume", *data++);
+
+              // Output forces
+              for (unsigned int d = 0; d < dim; ++d)
+                table.add_value(labels_forces[d], *data++);
+
+              // Output torques
+              for (unsigned int d = 0; d < moment_s<dim, VectorizedArrayType>;
+                   ++d)
+                table.add_value(labels_torques[d], *data++);
+            }
         }
 
       // Output to file
