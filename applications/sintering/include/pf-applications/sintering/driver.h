@@ -2627,10 +2627,11 @@ namespace Sintering
   private:
     void
     output_result(
-      const VectorType &                                 solution,
-      const NonLinearOperator &                          sintering_operator,
-      const GrainTracker::Tracker<dim, Number> &         grain_tracker,
-      const AdvectionMechanism<dim, Number, VectorizedArrayType>& advection_mechanism,
+      const VectorType &                        solution,
+      const NonLinearOperator &                 sintering_operator,
+      const GrainTracker::Tracker<dim, Number> &grain_tracker,
+      const AdvectionMechanism<dim, Number, VectorizedArrayType>
+        &                                                advection_mechanism,
       const NonLinearSolvers::NewtonSolverSolverControl &statistics,
       const double                                       t,
       MyTimerOutput &                                    timer,
