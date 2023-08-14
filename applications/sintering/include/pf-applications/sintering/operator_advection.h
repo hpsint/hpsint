@@ -141,33 +141,50 @@ namespace Sintering
       std::pair<unsigned int, unsigned int> range{
         0, this->matrix_free.n_cell_batches()};
 
+      bool status = true;
+
       for (auto cell = range.first; cell < range.second; ++cell)
         {
+          if (!status)
+            break;
+
           phi.reinit(cell);
 
           // Reinit advection data for the current cells batch
           advection_mechanism.reinit(cell);
 
-          for (unsigned int q = 0; q < phi.n_q_points; ++q)
-            for (unsigned int ig = 0; ig < n_grains(); ++ig)
-              if (advection_mechanism.has_velocity(ig))
+          const auto grain_to_relevant_grain =
+            this->data.get_grain_to_relevant_grain(cell);
+
+          for (unsigned int ig = 0; ig < n_grains() && status; ++ig)
+            if (grain_to_relevant_grain[ig] !=
+                  static_cast<unsigned char>(255) &&
+                advection_mechanism.has_velocity(grain_to_relevant_grain[ig]))
+              for (unsigned int q = 0; q < phi.n_q_points; ++q)
                 {
-                  const auto &velocity_ig =
-                    advection_mechanism.get_velocity(ig,
-                                                     phi.quadrature_point(q));
+                  const auto &velocity_ig = advection_mechanism.get_velocity(
+                    grain_to_relevant_grain[ig], phi.quadrature_point(q));
 
                   // Check Courant condition
                   const auto cdt = velocity_ig.norm() * dt;
-                  auto       courant =
+
+                  const auto courant =
                     compare_and_apply_mask<SIMDComparison::less_than>(
                       cdt, cell_diameters[cell], zeros, ones);
 
                   if (courant.sum() > 0)
-                    return false;
+                    {
+                      status = false;
+                      break;
+                    }
                 }
         }
 
-      return true;
+      status = static_cast<bool>(Utilities::MPI::min(
+        static_cast<unsigned int>(status),
+        this->matrix_free.get_dof_handler().get_communicator()));
+
+      return status;
     }
 
     void
