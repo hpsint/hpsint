@@ -7,7 +7,8 @@ import library
 
 def create_axes(n):
     if n==1:
-        return plt.subplots(1, 1)
+        fig, ax = plt.subplots(1, 1)
+        return fig, [ax]
     elif n==2:
         return plt.subplots(1, 2)
     elif n==3:
