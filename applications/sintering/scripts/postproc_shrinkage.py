@@ -51,7 +51,7 @@ if args.save:
         file_names = library.generate_short_labels(files_list) if not args.collapse else labels
         csv_names = [os.path.join(args.output, n.replace(os.sep, "_") + "_shrinkage.csv")  for n in file_names]
     else:
-        csv_names = [os.path.splitext(f)[0] + ".csv" for f in files_list]
+        csv_names = [os.path.splitext(f)[0] + "_shrinkage.csv" for f in files_list]
 
 for f, lbl, clr in zip(files_list, labels, colors):
 
