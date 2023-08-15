@@ -25,12 +25,16 @@ if args.path is not None:
     list_solution_files = library.get_solutions([os.path.join(args.path, args.file)])
     list_distribution_folders = [os.path.dirname(s) for s in list_solution_files]
     print("")
-    
-    #file_solution = os.path.join(args.path, file_solution)
-    #file_distribution = os.path.join(args.path, file_distribution)
+
+    if not list_solution_files:
+        raise Exception("No files detected that would fit the provided masks")
+
 else:
     list_solution_files = [args.file]
     list_distribution_folders = [os.path.dirname(args.file)]
+
+    if not os.path.isfile(args.file):
+        raise Exception("The provided solution file does not exist")
 
 # Read distribution data
 list_distributions = []
