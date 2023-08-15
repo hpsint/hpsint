@@ -1,7 +1,9 @@
 import numpy as np
 import matplotlib.pyplot as plt
 import argparse
+import os
 import sys
+import pathlib
 import collections.abc
 import library
 
@@ -12,6 +14,8 @@ parser.add_argument("-d", "--directions", dest="directions", nargs='+',
 parser.add_argument("-l", "--limits", dest='limits', nargs=2, required=False, help="Limits for x-axis", type=float, default=[-sys.float_info.max, sys.float_info.max])
 parser.add_argument("-m", "--markers", dest='markers', required=False, help="Number of markers", type=int, default=30)
 parser.add_argument("-c", "--collapse", dest='collapse', required=False, help="Shorten labels", action="store_true", default=False)
+parser.add_argument("-s", "--save", dest='save', required=False, help="Save shrinkage data", action="store_true", default=False)
+parser.add_argument("-o", "--output", dest='output', required=False, help="Destination path to output csv files", type=str, default=None)
 
 args = parser.parse_args()
 
@@ -23,7 +27,7 @@ files_list = library.get_solutions(args.files)
 
 colors = library.get_hex_colors(len(files_list))
 
-csv_header = ["dim_x", "dim_y", "dim_z", "volume", "shrinkage_x", "shrinkage_y", "shrinkage_z", "densification"]
+header = ["dim_x", "dim_y", "dim_z", "volume", "shrinkage_x", "shrinkage_y", "shrinkage_z", "densification"]
 n_qtys = 4
 markers = ["s", "D", "o", "x"]
 
@@ -41,29 +45,74 @@ if args.collapse:
 else:
     labels = files_list
 
+# CSV names
+if args.save:
+    if args.output is not None:
+        file_names = library.generate_short_labels(files_list) if not args.collapse else labels
+        csv_names = [os.path.join(args.output, n.replace(os.sep, "_") + "_shrinkage.csv")  for n in file_names]
+    else:
+        csv_names = [os.path.splitext(f)[0] + ".csv" for f in files_list]
+
 for f, lbl, clr in zip(files_list, labels, colors):
 
     fdata = np.genfromtxt(f, dtype=None, names=True)
 
     alpha = 1
 
+    mask = (args.limits[0] <= fdata["time"]) & (fdata["time"] <= args.limits[1])
+
+    if args.save:
+
+        # Determine the number of active fields that exist in the file
+        n_active = 0
+        for i in range(n_qtys):
+            if header[i] in fdata.dtype.names and active[i]:
+                n_active += 1
+
+        csv_data = np.empty((len(fdata["time"][mask]), 2 * n_active + 1), float)
+        csv_data[:,0] = fdata["time"][mask]
+
+        csv_format = ["%g"] * (2*n_active + 1)
+        csv_format = " ".join(csv_format)
+
+        csv_header = [""] * (2*n_active + 1)
+        csv_header[0] = "time"
+
+        i_active = 0
+        for i in range(n_qtys):
+            if header[i] in fdata.dtype.names and active[i]:
+                csv_header[i_active+1] = header[i]
+                csv_header[i_active+n_active+1] = header[i+n_qtys]
+                i_active += 1
+
+        csv_header = " ".join(csv_header)
+
+    i_active = 0
     for i in range(n_qtys):
-        if csv_header[i] in fdata.dtype.names and active[i]:
-            qty_name = csv_header[i]
+        if header[i] in fdata.dtype.names and active[i]:
+            qty_name = header[i]
 
             ref0 = fdata[qty_name][0]
             ref_qty = (ref0 - fdata[qty_name]) / ref0
 
-            mask = (args.limits[0] <= fdata["time"]) & (fdata["time"] <= args.limits[1])
-
             m_type, n_every = library.get_markers(i, len(fdata["time"][mask]), args.markers, markers)
 
-            axes[0].plot(fdata["time"][mask], fdata[qty_name][mask], label=" ".join([lbl, csv_header[i]]), 
+            axes[0].plot(fdata["time"][mask], fdata[qty_name][mask], label=" ".join([lbl, header[i]]), 
                 marker=m_type, color=clr, alpha=alpha, markevery=n_every)
-            axes[1].plot(fdata["time"][mask], ref_qty[mask], label=" ".join([lbl, csv_header[i+n_qtys]]),
+            axes[1].plot(fdata["time"][mask], ref_qty[mask], label=" ".join([lbl, header[i+n_qtys]]),
                 marker=m_type, color=clr, alpha=alpha, markevery=n_every)
 
             alpha -= 0.2
+
+            if args.save:
+                csv_data[:,i_active+1] = fdata[qty_name][mask]
+                csv_data[:,i_active+n_active+1] = ref_qty[mask]
+                i_active += 1
+
+    if args.save:
+        file_path = csv_names.pop(0)
+        pathlib.Path(os.path.dirname(file_path)).mkdir(parents=True, exist_ok=True)
+        np.savetxt(file_path, csv_data, delimiter=' ', header=csv_header, fmt=csv_format, comments='')
 
 for i in range(2):
     axes[i].grid(True)
