@@ -63,7 +63,7 @@ def generate_short_labels(files_list):
 
     labels = [f[s_start:-s_end] for f in files_list]
 
-    # If there is a single empty label then append everythin that is before \
+    # If there is a single empty label then append everything that is before and/or after os.sep
     if '' in labels:
         labels = []
 
