@@ -3,12 +3,14 @@ import matplotlib.pyplot as plt
 import argparse
 import glob
 import re
+import os
 import numpy.ma as ma
 from scipy.stats import norm
 
 parser = argparse.ArgumentParser(description='Process shrinkage data')
 parser.add_argument("-m", "--mask", type=str, help="File mask", required=True)
 parser.add_argument("-f", "--file", type=str, help="Solution file", required=True)
+parser.add_argument("-p", "--path", type=str, help="Common path", required=False, default=None)
 parser.add_argument("-b", "--bins", type=int, help="Number of bins", default=10)
 parser.add_argument("-t", "--start", type=int, help="Step to start with", default=0)
 parser.add_argument("-e", "--end", type=int, help="Step to end with", default=0)
@@ -40,8 +42,15 @@ def plot_histogram(quantity, ax, time, n_bins = 10):
     ax.set_xlabel(qty_name)
     ax.grid(True)
 
+# Deal with path names
+file_solution = args.file
+file_distribution = args.mask
+if args.path is not None:
+    file_solution = os.path.join(args.path, file_solution)
+    file_distribution = os.path.join(args.path, file_distribution)
+
 # Get files according to the mask and sort them by number
-files_list = glob.glob(args.mask)
+files_list = glob.glob(file_distribution)
 files_list.sort(key=lambda f: int(re.sub('\D', '', f)))
 
 n_rows = len(files_list)
@@ -52,7 +61,7 @@ ax_mu_std = plt.subplot(222)
 ax_total = plt.subplot(224)
 
 
-fdata = np.genfromtxt(args.file, dtype=None, names=True)
+fdata = np.genfromtxt(file_solution, dtype=None, names=True)
 
 curves = []
 
@@ -133,6 +142,6 @@ ax_total.set_ylabel("#")
 
 plt.tight_layout()
 
-plt.suptitle("Solution: {}  |  data: {}".format(args.file, args.mask))
+plt.suptitle("Solution: {}  |  data: {}".format(file_solution, file_distribution))
 
 plt.show()

@@ -1,5 +1,6 @@
 import colorsys
 import glob
+import os
 import re
 
 def get_hex_colors(N):
@@ -11,6 +12,9 @@ def get_hex_colors(N):
     return hex_out
 
 def get_solutions(files, do_print = True):
+
+    if type(files) is not list:
+        raise Exception("Variable files={} is not list".format(files))
 
     files_list = []
     for fm in files:
@@ -58,6 +62,34 @@ def generate_short_labels(files_list):
             break
 
     labels = [f[s_start:-s_end] for f in files_list]
+
+    # If there is a single empty label then append everything that is before and/or after os.sep
+    if '' in labels:
+        labels = []
+
+        do_start = any(os.sep != f[s_start] for f in files_list)
+        do_end = any(os.sep != f[-s_end] for f in files_list)
+
+        for f in files_list:
+
+            s_start_current = s_start
+            s_end_current = s_end
+
+            if do_start:
+                s_start_current = s_start - 1
+                while f[s_start_current] is not os.sep and s_start_current > 0:
+                    s_start_current -= 1
+                if f[s_start_current] is os.sep:
+                    s_start_current += 1
+
+            if do_end:
+                s_end_current = s_end + 1
+                while f[-s_end_current] is not os.sep and s_end_current < 0:
+                    s_end_current += 1
+                if f[-s_end_current] is os.sep:
+                    s_end_current -= 1
+        
+            labels.append(f[s_start_current:-s_end_current])
 
     return labels
 
