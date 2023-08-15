@@ -12,6 +12,9 @@ def get_hex_colors(N):
 
 def get_solutions(files, do_print = True):
 
+    if type(files) is not list:
+        raise Exception("Variable files={} is not list".format(files))
+
     files_list = []
     for fm in files:
         current_files_list = glob.glob(fm, recursive=True)
