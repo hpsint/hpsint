@@ -144,6 +144,53 @@ namespace Sintering
     pcout << " subdivisions" << std::endl << std::endl;
   }
 
+  namespace internal
+  {
+    unsigned int
+    adjust_divisions_to_primes(const unsigned int         max_prime,
+                               std::vector<unsigned int> &subdivisions)
+    {
+      // Further reduce the number of initial subdivisions
+      unsigned int n_refinements_base = 0;
+      if (max_prime > 0)
+        {
+          const unsigned int n_ref =
+            *std::min_element(subdivisions.begin(), subdivisions.end());
+
+          const auto         pair = decompose_to_prime_tuple(n_ref, max_prime);
+          const unsigned int optimal_prime = pair.first;
+
+          n_refinements_base = pair.second;
+
+          for (unsigned int d = 0; d < dim; d++)
+            {
+              subdivisions[d] = static_cast<unsigned int>(std::ceil(
+                static_cast<double>(subdivisions[d]) / n_ref * optimal_prime));
+            }
+        }
+
+      return n_refinements_base;
+    }
+
+    template <int dim, typename Triangulation>
+    void
+    impose_periodicity(Triangulation &tria)
+    {
+      // Need to work with triangulation here
+      std::vector<
+        GridTools::PeriodicFacePair<typename Triangulation::cell_iterator>>
+        periodicity_vector;
+
+      for (unsigned int d = 0; d < dim; ++d)
+        {
+          GridTools::collect_periodic_faces(
+            tria, 2 * d, 2 * d + 1, d, periodicity_vector);
+        }
+
+      tria.add_periodicity(periodicity_vector);
+    }
+  } // namespace internal
+
   template <typename Triangulation, int dim>
   unsigned int
   create_mesh(Triangulation &     tria,
