@@ -189,6 +189,37 @@ namespace Sintering
 
       tria.add_periodicity(periodicity_vector);
     }
+
+    template <typename Triangulation>
+    std::pair<unsigned int, unsigned int>
+    make_initial_refines(const InitialRefine refine,
+                         const unsigned int  n_refinements_base,
+                         const unsigned int  n_refinements_interface)
+    {
+      unsigned int n_global  = 0;
+      unsigned int n_delayed = 0;
+      if (refine == InitialRefine::Base)
+        {
+          tria.refine_global(n_refinements_base);
+
+          n_global  = n_refinements_base;
+          n_delayed = n_refinements_interface;
+        }
+      else if (refine == InitialRefine::Full)
+        {
+          tria.refine_global(n_refinements_base + n_refinements_interface);
+
+          n_global  = n_refinements_base + n_refinements_interface;
+          n_delayed = 0;
+        }
+      else
+        {
+          n_global  = 0;
+          n_delayed = n_refinements_base + n_refinements_interface;
+        }
+
+      return {n_global, n_delayed};
+    }
   } // namespace internal
 
   template <typename Triangulation, int dim>
@@ -239,27 +270,10 @@ namespace Sintering
     if (periodic)
       internal::impose_periodicity<dim>(tria);
 
-    unsigned int n_global  = 0;
-    unsigned int n_delayed = 0;
-    if (refine == InitialRefine::Base)
-      {
-        tria.refine_global(n_refinements_base);
-
-        n_global  = n_refinements_base;
-        n_delayed = n_refinements_interface;
-      }
-    else if (refine == InitialRefine::Full)
-      {
-        tria.refine_global(n_refinements_base + n_refinements_interface);
-
-        n_global  = n_refinements_base + n_refinements_interface;
-        n_delayed = 0;
-      }
-    else
-      {
-        n_global  = 0;
-        n_delayed = n_refinements_base + n_refinements_interface;
-      }
+    const auto [n_global, n_delayed] =
+      internal::make_initial_refines(refine,
+                                     n_refinements_base,
+                                     n_refinements_interface);
 
     if (print_stats)
       print_mesh_info(
