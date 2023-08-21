@@ -296,20 +296,7 @@ namespace Sintering
       tria, subdivisions, bottom_left, top_right, true);
 
     if (periodic)
-      {
-        // Need to work with triangulation here
-        std::vector<
-          GridTools::PeriodicFacePair<typename Triangulation::cell_iterator>>
-          periodicity_vector;
-
-        for (unsigned int d = 0; d < dim; ++d)
-          {
-            GridTools::collect_periodic_faces(
-              tria, 2 * d, 2 * d + 1, d, periodicity_vector);
-          }
-
-        tria.add_periodicity(periodicity_vector);
-      }
+      internal::impose_periodicity<dim>(tria);
 
     tria.refine_global(n_refinements);
 
