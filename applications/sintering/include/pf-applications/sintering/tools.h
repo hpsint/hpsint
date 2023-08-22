@@ -224,17 +224,18 @@ namespace Sintering
 
   template <typename Triangulation, int dim>
   unsigned int
-  create_mesh(Triangulation &     tria,
-              const Point<dim> &  bottom_left,
-              const Point<dim> &  top_right,
-              const double        interface_width,
-              const double        divisions_per_interface,
-              const bool          periodic,
-              const InitialRefine refine,
-              const unsigned int  max_prime                          = 0,
-              const double        max_level0_divisions_per_interface = 1.0,
-              const unsigned int  divisions_per_element              = 1,
-              const bool          print_stats                        = true)
+  create_mesh_from_interface(
+    Triangulation &     tria,
+    const Point<dim> &  bottom_left,
+    const Point<dim> &  top_right,
+    const double        interface_width,
+    const double        divisions_per_interface,
+    const bool          periodic,
+    const InitialRefine refine,
+    const unsigned int  max_prime                          = 0,
+    const double        max_level0_divisions_per_interface = 1.0,
+    const unsigned int  divisions_per_element              = 1,
+    const bool          print_stats                        = true)
   {
     // Domain size
     const auto domain_size = top_right - bottom_left;

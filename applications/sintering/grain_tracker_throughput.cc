@@ -63,16 +63,16 @@ public:
     const unsigned int divisions_per_element              = 1;
 
     const unsigned int n_refinements_remaining =
-      create_mesh(tria,
-                  boundaries.first,
-                  boundaries.second,
-                  interface_width,
-                  divisions_per_interface,
-                  periodic,
-                  global_refine,
-                  max_prime,
-                  max_level0_divisions_per_interface,
-                  divisions_per_element);
+      create_mesh_from_interface(tria,
+                                 boundaries.first,
+                                 boundaries.second,
+                                 interface_width,
+                                 divisions_per_interface,
+                                 periodic,
+                                 global_refine,
+                                 max_prime,
+                                 max_level0_divisions_per_interface,
+                                 divisions_per_element);
 
     // AMR settings
     const double       top_fraction_of_cells    = 0.9;
