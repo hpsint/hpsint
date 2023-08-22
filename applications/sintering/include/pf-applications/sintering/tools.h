@@ -308,6 +308,65 @@ namespace Sintering
     return 0;
   }
 
+  // Create mesh from the largest particle radius
+  template <typename Triangulation, int dim>
+  unsigned int
+  create_mesh_from_radius(Triangulation &     tria,
+                          const Point<dim> &  bottom_left,
+                          const Point<dim> &  top_right,
+                          const double        interface_width,
+                          const double        divisions_per_interface,
+                          const double        r_ref,
+                          const bool          periodic,
+                          const InitialRefine refine,
+                          const unsigned int  max_prime             = 0,
+                          const unsigned int  divisions_per_element = 1,
+                          const bool          print_stats           = true)
+  {
+    // Domain size
+    const auto domain_size = top_right - bottom_left;
+
+    // Recompute divisions to elements
+    const double elements_per_interface =
+      static_cast<double>(divisions_per_interface) / divisions_per_element;
+
+    // Desirable smallest element size
+    const double h_e = interface_width / elements_per_interface;
+
+    // Reference size (diameter)
+    const double h_ref = 2 * r_ref;
+
+    // Number of refinements to get the desirable element size
+    const unsigned int n_refinements_interface =
+      static_cast<unsigned int>(std::log2(h_ref / h_e));
+
+    std::vector<unsigned int> subdivisions(dim);
+    for (unsigned int d = 0; d < dim; d++)
+      subdivisions[d] =
+        static_cast<unsigned int>(std::round(domain_size[d] / h_ref));
+
+    // Try to reduce the number of initial subdivisions
+    unsigned int n_refinements_base =
+      internal::adjust_divisions_to_primes(max_prime, subdivisions);
+
+    GridGenerator::subdivided_hyper_rectangle(
+      tria, subdivisions, bottom_left, top_right, true);
+
+    if (periodic)
+      internal::impose_periodicity<dim>(tria);
+
+    const auto [n_global, n_delayed] =
+      internal::make_initial_refines(refine,
+                                     n_refinements_base,
+                                     n_refinements_interface);
+
+    if (print_stats)
+      print_mesh_info(
+        bottom_left, top_right, subdivisions, n_global, n_delayed);
+
+    return n_delayed;
+  }
+
   namespace internal
   {
     template <typename VectorType, typename Triangulation, int dim>
