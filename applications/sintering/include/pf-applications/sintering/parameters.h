@@ -59,9 +59,9 @@ namespace Sintering
     double          radius_buffer_ratio                = 0.0;
     bool            periodic                           = false;
     bool            custom_bounding_box                = false;
-    bool            custom_divisions                   = false;
     unsigned int    max_prime                          = 20;
     std::string     global_refinement                  = "None";
+    std::string     initial_mesh                       = "Interface";
     double          max_level0_divisions_per_interface = 1.0 - 1e-9;
     BoundingBoxData bounding_box_data;
     DivisionsData   divisions_data;
@@ -483,9 +483,6 @@ namespace Sintering
       prm.add_parameter("CustomBoundingBox",
                         geometry_data.custom_bounding_box,
                         "Is custom bounding box specified.");
-      prm.add_parameter("CustomDivisions",
-                        geometry_data.custom_divisions,
-                        "Is custom number of divisions specified.");
       prm.add_parameter("MaxPrime",
                         geometry_data.max_prime,
                         "Max prime number for subdivisions decomposition.");
@@ -493,6 +490,10 @@ namespace Sintering
                         geometry_data.global_refinement,
                         "Perform global refinements.",
                         Patterns::Selection("None|Base|Full"));
+      prm.add_parameter("InitialMesh",
+                        geometry_data.initial_mesh,
+                        "Method for building initial mesh.",
+                        Patterns::Selection("Interface|MaxRadius|Divisions"));
       prm.add_parameter("MaxLevel0DivisionsPerInterface",
                         geometry_data.max_level0_divisions_per_interface,
                         "Maximum initial number of divisions per interface.");

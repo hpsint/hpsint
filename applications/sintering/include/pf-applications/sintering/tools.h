@@ -42,6 +42,13 @@ namespace Sintering
     Full
   };
 
+  enum class InitialMesh
+  {
+    Interface,
+    MaxRadius,
+    Divisions
+  };
+
   std::vector<unsigned int>
   get_primes(unsigned int start, unsigned int end)
   {
