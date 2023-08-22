@@ -65,13 +65,13 @@ namespace Test
       const unsigned int n_refinements = 0;
       const bool         print_stats   = false;
 
-      create_mesh(tria,
-                  bottom_left,
-                  top_right,
-                  subdivisions,
-                  periodic,
-                  n_refinements,
-                  print_stats);
+      create_mesh_from_divisions(tria,
+                                 bottom_left,
+                                 top_right,
+                                 subdivisions,
+                                 periodic,
+                                 n_refinements,
+                                 print_stats);
 
       // setup DoFHandlers
       dof_handler.distribute_dofs(fe);

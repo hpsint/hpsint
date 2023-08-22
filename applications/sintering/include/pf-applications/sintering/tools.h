@@ -285,13 +285,13 @@ namespace Sintering
 
   template <typename Triangulation, int dim>
   unsigned int
-  create_mesh(Triangulation &                  tria,
-              const Point<dim> &               bottom_left,
-              const Point<dim> &               top_right,
-              const std::vector<unsigned int> &subdivisions,
-              const bool                       periodic,
-              const unsigned int               n_refinements,
-              const bool                       print_stats = true)
+  create_mesh_from_divisions(Triangulation &                  tria,
+                             const Point<dim> &               bottom_left,
+                             const Point<dim> &               top_right,
+                             const std::vector<unsigned int> &subdivisions,
+                             const bool                       periodic,
+                             const unsigned int               n_refinements,
+                             const bool print_stats = true)
   {
     GridGenerator::subdivided_hyper_rectangle(
       tria, subdivisions, bottom_left, top_right, true);
