@@ -199,7 +199,8 @@ namespace Sintering
 
     template <typename Triangulation>
     std::pair<unsigned int, unsigned int>
-    make_initial_refines(const InitialRefine refine,
+    make_initial_refines(Triangulation &     tria,
+                         const InitialRefine refine,
                          const unsigned int  n_refinements_base,
                          const unsigned int  n_refinements_interface)
     {
@@ -278,10 +279,8 @@ namespace Sintering
     if (periodic)
       internal::impose_periodicity<dim>(tria);
 
-    const auto [n_global, n_delayed] =
-      internal::make_initial_refines(refine,
-                                     n_refinements_base,
-                                     n_refinements_interface);
+    const auto [n_global, n_delayed] = internal::make_initial_refines(
+      tria, refine, n_refinements_base, n_refinements_interface);
 
     if (print_stats)
       print_mesh_info(
@@ -362,10 +361,8 @@ namespace Sintering
     if (periodic)
       internal::impose_periodicity<dim>(tria);
 
-    const auto [n_global, n_delayed] =
-      internal::make_initial_refines(refine,
-                                     n_refinements_base,
-                                     n_refinements_interface);
+    const auto [n_global, n_delayed] = internal::make_initial_refines(
+      tria, refine, n_refinements_base, n_refinements_interface);
 
     if (print_stats)
       print_mesh_info(
