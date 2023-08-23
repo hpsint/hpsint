@@ -169,11 +169,9 @@ namespace Sintering
 
           n_refinements_base = pair.second;
 
-          for (unsigned int d = 0; d < dim; d++)
-            {
-              subdivisions[d] = static_cast<unsigned int>(std::ceil(
-                static_cast<double>(subdivisions[d]) / n_ref * optimal_prime));
-            }
+          for (unsigned int d = 0; d < subdivisions.size(); d++)
+            subdivisions[d] = static_cast<unsigned int>(std::ceil(
+              static_cast<double>(subdivisions[d]) / n_ref * optimal_prime));
         }
 
       return n_refinements_base;
