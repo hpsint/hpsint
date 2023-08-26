@@ -342,7 +342,7 @@ namespace Sintering
 
     // Number of refinements to get the desirable element size
     const unsigned int n_refinements_interface =
-      static_cast<unsigned int>(std::log2(h_ref / h_e));
+      static_cast<unsigned int>(std::ceil(std::log2(h_ref / h_e)));
 
     std::vector<unsigned int> subdivisions(dim);
     for (unsigned int d = 0; d < dim; d++)
