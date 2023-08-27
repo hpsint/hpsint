@@ -464,7 +464,11 @@ namespace Sintering
         vector.update_ghost_values();
 
       auto grain_tracker = grain_tracker_in.clone();
-      grain_tracker->track(vector, n_op, true);
+
+      if (grain_tracker->get_grains().empty())
+        grain_tracker->initial_setup(vector, n_op);
+      else
+        grain_tracker->track(vector, n_op, true);
 
       std::ofstream outfile(filename);
 
