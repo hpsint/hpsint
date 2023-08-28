@@ -161,17 +161,22 @@ namespace Sintering
       unsigned int n_refinements_base = 0;
       if (max_prime > 0)
         {
-          const unsigned int n_ref =
-            *std::min_element(subdivisions.begin(), subdivisions.end());
+          std::vector<unsigned int> refinements(subdivisions.size());
 
-          const auto         pair = decompose_to_prime_tuple(n_ref, max_prime);
-          const unsigned int optimal_prime = pair.first;
+          for (unsigned int d = 0; d < subdivisions.size(); ++d)
+            {
+              const auto pair =
+                decompose_to_prime_tuple(subdivisions[d], max_prime);
 
-          n_refinements_base = pair.second;
+              subdivisions[d] = pair.first;
+              refinements[d]  = pair.second;
+            }
 
-          for (unsigned int d = 0; d < subdivisions.size(); d++)
-            subdivisions[d] = static_cast<unsigned int>(std::ceil(
-              static_cast<double>(subdivisions[d]) / n_ref * optimal_prime));
+          n_refinements_base =
+            *std::min_element(refinements.begin(), refinements.end());
+
+          for (unsigned int d = 0; d < subdivisions.size(); ++d)
+            subdivisions[d] *= std::pow(2, refinements[d] - n_refinements_base);
         }
 
       return n_refinements_base;
