@@ -1,13 +1,12 @@
-Create subdivided hyperrectangle [438.119400 x 438.318000 x 438.817100] = [-19.655400...418.464000 x -19.993500...418.324500 x -22.259000...416.558100] 
-with 5 refinements (global = 0, delayed = 5) and 3x3x3 subdivisions
+Create subdivided hyperrectangle [438.119400 x 438.318000 x 438.817100] = [-19.655400...418.464000 x -19.993500...418.324500 x -22.259000...416.558100]
+with 4 refinements (global = 0, delayed = 4) and 3x3x3 subdivisions
 
 Initial n_dofs = 64
-Number of local refinements to be performed: 6
-refine | n_dofs 
+Number of local refinements to be performed: 5
+refine | n_dofs
 ------------------
      1 | 343
      2 | 2176
      3 | 13821
      4 | 88790
      5 | 572054
-     6 | 3435696

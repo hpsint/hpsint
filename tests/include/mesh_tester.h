@@ -105,7 +105,7 @@ namespace Test
       }
 
     // Meshing settings
-    const double        divisions_per_interface            = 2;
+    const double        divisions_per_interface            = 1;
     const bool          periodic                           = false;
     const unsigned int  max_prime                          = 20;
     const double        max_level0_divisions_per_interface = 1.0 - 1e-9;
