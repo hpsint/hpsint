@@ -2085,6 +2085,30 @@ namespace Sintering
                 const VectorizedArrayType *                value,
                 const Tensor<1, dim, VectorizedArrayType> *gradient,
                 const unsigned int                         n_grains) {
+                VectorizedArrayType energy(0.0);
+
+                std::vector<VectorizedArrayType> etas(n_grains);
+                for (unsigned int ig = 0; ig < n_grains; ++ig)
+                  {
+                    etas[ig] = value[2 + ig];
+                    energy += gradient[2 + ig].norm_square();
+                  }
+                energy *= 0.5 * sintering_data.kappa_p;
+
+                const auto &c      = value[0];
+                const auto &c_grad = gradient[0];
+                energy += 0.5 * sintering_data.kappa_c * c_grad.norm_square();
+
+                energy += sintering_data.free_energy.f(c, etas);
+
+                return energy;
+              });
+          else if (qty == "bulk_energy")
+            q_evaluators.emplace_back(
+              [&sintering_data](
+                const VectorizedArrayType *                value,
+                const Tensor<1, dim, VectorizedArrayType> *gradient,
+                const unsigned int                         n_grains) {
                 (void)gradient;
 
                 const VectorizedArrayType &c = value[0];
@@ -2094,6 +2118,25 @@ namespace Sintering
                   etas[ig] = value[2 + ig];
 
                 return sintering_data.free_energy.f(c, etas);
+              });
+          else if (qty == "interface_energy")
+            q_evaluators.emplace_back(
+              [&sintering_data](
+                const VectorizedArrayType *                value,
+                const Tensor<1, dim, VectorizedArrayType> *gradient,
+                const unsigned int                         n_grains) {
+                (void)value;
+
+                VectorizedArrayType energy(0.0);
+
+                for (unsigned int ig = 0; ig < n_grains; ++ig)
+                  energy += gradient[2 + ig].norm_square();
+                energy *= 0.5 * sintering_data.kappa_p;
+
+                const auto &c_grad = gradient[0];
+                energy += 0.5 * sintering_data.kappa_c * c_grad.norm_square();
+
+                return energy;
               });
           else if (qty == "order_params")
             for (unsigned int i = 0; i < MAX_SINTERING_GRAINS; ++i)
