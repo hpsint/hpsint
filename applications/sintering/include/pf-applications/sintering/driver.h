@@ -2827,7 +2827,7 @@ namespace Sintering
 
               // TODO: each quantity should provide its flag
               EvaluationFlags::EvaluationFlags eval_flags =
-                EvaluationFlags::values;
+                EvaluationFlags::values | EvaluationFlags::gradients;
 
               std::vector<Number> q_values;
 
