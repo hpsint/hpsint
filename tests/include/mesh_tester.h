@@ -143,6 +143,13 @@ namespace Test
     else
       AssertThrow(false, ExcNotImplemented());
 
+    pcout << "n_refinements_remaining = " << n_refinements_remaining
+          << std::endl;
+    pcout << "tria.n_global_levels()  = " << tria.n_global_levels()
+          << std::endl;
+    pcout << "tria.n_cells(0)         = " << tria.n_cells(0) << std::endl;
+    pcout << std::endl;
+
     const unsigned int n_global_levels_0 =
       tria.n_global_levels() + n_refinements_remaining;
 
@@ -232,14 +239,15 @@ namespace Test
     pcout << "Number of local refinements to be performed: "
           << n_init_refinements << std::endl;
 
-    pcout << "refine | n_dofs " << std::endl;
-    pcout << "------------------" << std::endl;
+    pcout << "refine | n_dofs | n_active_cells" << std::endl;
+    pcout << "--------------------------------" << std::endl;
     for (unsigned int i = 0; i < n_init_refinements; ++i)
       {
         execute_coarsening_and_refinement();
         initialize_solution();
-        pcout << std::setw(6) << (i + 1) << " | " << dof_handler.n_dofs()
-              << std::endl;
+        pcout << std::setw(6) << (i + 1) << " | " << std::setw(6)
+              << dof_handler.n_dofs() << " | " << std::setw(14)
+              << tria.n_active_cells() << std::endl;
       }
   }
 } // namespace Test
