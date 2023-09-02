@@ -153,6 +153,14 @@ namespace Sintering
 
   namespace internal
   {
+    /* The function reduces the initial number of subdivisions n_divs trying to
+    minimize the following quality function: $q = n_{init} - n_{new} *
+    2^{refines}$, where $n_{new}$ is a prime number. The algorithm does this
+    operation for each of the dimensions independentaly. Aparently, this may
+    lead to a situation, when the dimensions have different number of
+    refinements. The minimum is then taken among the latter and the other
+    $n_{new}$ are increased accordingly in order to comply with the chosen
+    number of initial refinements. */
     unsigned int
     adjust_divisions_to_primes(const unsigned int         max_prime,
                                std::vector<unsigned int> &subdivisions)
@@ -182,6 +190,8 @@ namespace Sintering
       return n_refinements_base;
     }
 
+    /* This function imposes peridoc boundary conditions in all dimensions of
+     * the grid. */
     template <int dim, typename Triangulation>
     void
     impose_periodicity(Triangulation &tria)
@@ -200,6 +210,20 @@ namespace Sintering
       tria.add_periodicity(periodicity_vector);
     }
 
+    /* Adjust the initial refinements depending on the chosen refinement
+    strategy. Two types of refinements are discussed: 1) base - this is the
+    reference number of global refinements to reach the desirable coarse grid,
+    that could have been further coarsened and decomposing to prime numbers. 2)
+    interface - these is the reference number of global refinements to reach the
+    desirable quality of the grid at diffuse interface. Depending on the
+    refinement strategy, this function decides when and how these two
+    refinements should be performed. 2) interface
+    - `InitialRefine::Base`: the base refinements are performed as global here
+    and the interface refinements are performed later by the AMR algo;
+    - `InitialRefine::Full`: both base and interface refinements are performed
+    as global here;
+    - `InitialRefine::None`: no global refinements to be performed here and both
+    base and interface refinements are performed later by the AMR algo. */
     template <typename Triangulation>
     std::pair<unsigned int, unsigned int>
     make_initial_refines(Triangulation &     tria,
@@ -233,6 +257,10 @@ namespace Sintering
     }
   } // namespace internal
 
+  /* This function creates a grid departing from the desirable cell size at
+  diffuse interfaces. Based on this information, at first, the maximum numbers
+  of subdivisions in each dimension are computed and then these are reduced by
+  using the prime numbers decomposition. */
   template <typename Triangulation, int dim>
   unsigned int
   create_mesh_from_interface(
@@ -292,6 +320,7 @@ namespace Sintering
     return n_delayed;
   }
 
+  /* This function creates a grid with the predefined number of sudivisions. */
   template <typename Triangulation, int dim>
   unsigned int
   create_mesh_from_divisions(Triangulation &                  tria,
@@ -317,7 +346,11 @@ namespace Sintering
     return 0;
   }
 
-  // Create mesh from the largest particle radius
+  /* This function creates a grid by choosing the coarse one in such a way that
+   * the cell size equals to the diameter of the largest particle of the
+   * packing. This grid if then further coarsened by decomposing to prime
+   * nubmers and refined afterwards to meet the requirements regarding the cell
+   * sizes at the diffuse iterfaces. */
   template <typename Triangulation, int dim>
   unsigned int
   create_mesh_from_radius(Triangulation &     tria,
