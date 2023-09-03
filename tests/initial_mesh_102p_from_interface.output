@@ -9,5 +9,5 @@ Initial n_dofs = 6480
 Number of local refinements to be performed: 2
 refine | n_dofs | n_active_cells
 --------------------------------
-     1 |  36171 |          31755
-     2 | 224275 |         199216
+     1 |  36178 |          31762
+     2 | 224279 |         199223
