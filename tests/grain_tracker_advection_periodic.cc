@@ -125,7 +125,7 @@ main(int argc, char **argv)
   const bool         periodic        = true;
   const unsigned int n_refinements   = 3;
 
-  Sintering::create_mesh(
+  Sintering::create_mesh_from_divisions(
     tria, bottom_left, top_right, subdivisions, periodic, n_refinements);
 
   // setup DoFHandlers

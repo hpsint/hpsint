@@ -42,6 +42,13 @@ namespace Sintering
     Full
   };
 
+  enum class InitialMesh
+  {
+    Interface,
+    MaxRadius,
+    Divisions
+  };
+
   std::vector<unsigned int>
   get_primes(unsigned int start, unsigned int end)
   {
@@ -144,19 +151,130 @@ namespace Sintering
     pcout << " subdivisions" << std::endl << std::endl;
   }
 
+  namespace internal
+  {
+    /* The function reduces the initial number of subdivisions n_divs trying to
+    minimize the following quality function: $q = n_{init} - n_{new} *
+    2^{refines}$, where $n_{new}$ is a prime number. The algorithm does this
+    operation for each of the dimensions independentaly. Aparently, this may
+    lead to a situation, when the dimensions have different number of
+    refinements. The minimum is then taken among the latter and the other
+    $n_{new}$ are increased accordingly in order to comply with the chosen
+    number of initial refinements. */
+    unsigned int
+    adjust_divisions_to_primes(const unsigned int         max_prime,
+                               std::vector<unsigned int> &subdivisions)
+    {
+      // Further reduce the number of initial subdivisions
+      unsigned int n_refinements_base = 0;
+      if (max_prime > 0)
+        {
+          std::vector<unsigned int> refinements(subdivisions.size());
+
+          for (unsigned int d = 0; d < subdivisions.size(); ++d)
+            {
+              const auto pair =
+                decompose_to_prime_tuple(subdivisions[d], max_prime);
+
+              subdivisions[d] = pair.first;
+              refinements[d]  = pair.second;
+            }
+
+          n_refinements_base =
+            *std::min_element(refinements.begin(), refinements.end());
+
+          for (unsigned int d = 0; d < subdivisions.size(); ++d)
+            subdivisions[d] *= std::pow(2, refinements[d] - n_refinements_base);
+        }
+
+      return n_refinements_base;
+    }
+
+    /* This function imposes peridoc boundary conditions in all dimensions of
+     * the grid. */
+    template <int dim, typename Triangulation>
+    void
+    impose_periodicity(Triangulation &tria)
+    {
+      // Need to work with triangulation here
+      std::vector<
+        GridTools::PeriodicFacePair<typename Triangulation::cell_iterator>>
+        periodicity_vector;
+
+      for (unsigned int d = 0; d < dim; ++d)
+        {
+          GridTools::collect_periodic_faces(
+            tria, 2 * d, 2 * d + 1, d, periodicity_vector);
+        }
+
+      tria.add_periodicity(periodicity_vector);
+    }
+
+    /* Adjust the initial refinements depending on the chosen refinement
+    strategy. Two types of refinements are discussed: 1) base - this is the
+    reference number of global refinements to reach the desirable coarse grid,
+    that could have been further coarsened and decomposing to prime numbers. 2)
+    interface - these is the reference number of global refinements to reach the
+    desirable quality of the grid at diffuse interface. Depending on the
+    refinement strategy, this function decides when and how these two
+    refinements should be performed. 2) interface
+    - `InitialRefine::Base`: the base refinements are performed as global here
+    and the interface refinements are performed later by the AMR algo;
+    - `InitialRefine::Full`: both base and interface refinements are performed
+    as global here;
+    - `InitialRefine::None`: no global refinements to be performed here and both
+    base and interface refinements are performed later by the AMR algo. */
+    template <typename Triangulation>
+    std::pair<unsigned int, unsigned int>
+    make_initial_refines(Triangulation &     tria,
+                         const InitialRefine refine,
+                         const unsigned int  n_refinements_base,
+                         const unsigned int  n_refinements_interface)
+    {
+      unsigned int n_global  = 0;
+      unsigned int n_delayed = 0;
+      if (refine == InitialRefine::Base)
+        {
+          tria.refine_global(n_refinements_base);
+
+          n_global  = n_refinements_base;
+          n_delayed = n_refinements_interface;
+        }
+      else if (refine == InitialRefine::Full)
+        {
+          tria.refine_global(n_refinements_base + n_refinements_interface);
+
+          n_global  = n_refinements_base + n_refinements_interface;
+          n_delayed = 0;
+        }
+      else
+        {
+          n_global  = 0;
+          n_delayed = n_refinements_base + n_refinements_interface;
+        }
+
+      return {n_global, n_delayed};
+    }
+  } // namespace internal
+
+  /* This function creates a grid departing from the desirable cell size at
+  diffuse interfaces. Based on this information, at first, the maximum numbers
+  of subdivisions in each dimension are computed and then these are reduced by
+  using the prime numbers decomposition. */
   template <typename Triangulation, int dim>
   unsigned int
-  create_mesh(Triangulation &     tria,
-              const Point<dim> &  bottom_left,
-              const Point<dim> &  top_right,
-              const double        interface_width,
-              const double        divisions_per_interface,
-              const bool          periodic,
-              const InitialRefine refine,
-              const unsigned int  max_prime                          = 0,
-              const double        max_level0_divisions_per_interface = 1.0,
-              const unsigned int  divisions_per_element              = 1,
-              const bool          print_stats                        = true)
+  create_mesh_from_interface(
+    Triangulation &     tria,
+    const Point<dim> &  bottom_left,
+    const Point<dim> &  top_right,
+    const double        interface_width,
+    const double        divisions_per_interface,
+    const bool          periodic,
+    const InitialRefine refine,
+    const unsigned int  max_prime                          = 0,
+    const double        max_level0_divisions_per_interface = 1.0,
+    const unsigned int  divisions_per_element              = 1,
+    const bool          print_stats                        = true)
   {
     // Domain size
     const auto domain_size = top_right - bottom_left;
@@ -183,64 +301,17 @@ namespace Sintering
       }
 
     // Further reduce the number of initial subdivisions
-    unsigned int n_refinements_base = 0;
-    if (max_prime > 0)
-      {
-        const unsigned int n_ref =
-          *std::min_element(subdivisions.begin(), subdivisions.end());
-
-        const auto         pair = decompose_to_prime_tuple(n_ref, max_prime);
-        const unsigned int optimal_prime = pair.first;
-
-        n_refinements_base = pair.second;
-
-        for (unsigned int d = 0; d < dim; d++)
-          {
-            subdivisions[d] = static_cast<unsigned int>(std::ceil(
-              static_cast<double>(subdivisions[d]) / n_ref * optimal_prime));
-          }
-      }
+    unsigned int n_refinements_base =
+      internal::adjust_divisions_to_primes(max_prime, subdivisions);
 
     GridGenerator::subdivided_hyper_rectangle(
       tria, subdivisions, bottom_left, top_right, true);
 
     if (periodic)
-      {
-        // Need to work with triangulation here
-        std::vector<
-          GridTools::PeriodicFacePair<typename Triangulation::cell_iterator>>
-          periodicity_vector;
+      internal::impose_periodicity<dim>(tria);
 
-        for (unsigned int d = 0; d < dim; ++d)
-          {
-            GridTools::collect_periodic_faces(
-              tria, 2 * d, 2 * d + 1, d, periodicity_vector);
-          }
-
-        tria.add_periodicity(periodicity_vector);
-      }
-
-    unsigned int n_global  = 0;
-    unsigned int n_delayed = 0;
-    if (refine == InitialRefine::Base)
-      {
-        tria.refine_global(n_refinements_base);
-
-        n_global  = n_refinements_base;
-        n_delayed = n_refinements_interface;
-      }
-    else if (refine == InitialRefine::Full)
-      {
-        tria.refine_global(n_refinements_base + n_refinements_interface);
-
-        n_global  = n_refinements_base + n_refinements_interface;
-        n_delayed = 0;
-      }
-    else
-      {
-        n_global  = 0;
-        n_delayed = n_refinements_base + n_refinements_interface;
-      }
+    const auto [n_global, n_delayed] = internal::make_initial_refines(
+      tria, refine, n_refinements_base, n_refinements_interface);
 
     if (print_stats)
       print_mesh_info(
@@ -249,34 +320,22 @@ namespace Sintering
     return n_delayed;
   }
 
+  /* This function creates a grid with the predefined number of sudivisions. */
   template <typename Triangulation, int dim>
   unsigned int
-  create_mesh(Triangulation &                  tria,
-              const Point<dim> &               bottom_left,
-              const Point<dim> &               top_right,
-              const std::vector<unsigned int> &subdivisions,
-              const bool                       periodic,
-              const unsigned int               n_refinements,
-              const bool                       print_stats = true)
+  create_mesh_from_divisions(Triangulation &                  tria,
+                             const Point<dim> &               bottom_left,
+                             const Point<dim> &               top_right,
+                             const std::vector<unsigned int> &subdivisions,
+                             const bool                       periodic,
+                             const unsigned int               n_refinements,
+                             const bool print_stats = true)
   {
     GridGenerator::subdivided_hyper_rectangle(
       tria, subdivisions, bottom_left, top_right, true);
 
     if (periodic)
-      {
-        // Need to work with triangulation here
-        std::vector<
-          GridTools::PeriodicFacePair<typename Triangulation::cell_iterator>>
-          periodicity_vector;
-
-        for (unsigned int d = 0; d < dim; ++d)
-          {
-            GridTools::collect_periodic_faces(
-              tria, 2 * d, 2 * d + 1, d, periodicity_vector);
-          }
-
-        tria.add_periodicity(periodicity_vector);
-      }
+      internal::impose_periodicity<dim>(tria);
 
     tria.refine_global(n_refinements);
 
@@ -285,6 +344,67 @@ namespace Sintering
 
     // Return 0 delayed lazy refinements for consistency of the interfaces
     return 0;
+  }
+
+  /* This function creates a grid by choosing the coarse one in such a way that
+   * the cell size equals to the diameter of the largest particle of the
+   * packing. This grid if then further coarsened by decomposing to prime
+   * nubmers and refined afterwards to meet the requirements regarding the cell
+   * sizes at the diffuse iterfaces. */
+  template <typename Triangulation, int dim>
+  unsigned int
+  create_mesh_from_radius(Triangulation &     tria,
+                          const Point<dim> &  bottom_left,
+                          const Point<dim> &  top_right,
+                          const double        interface_width,
+                          const double        divisions_per_interface,
+                          const double        r_ref,
+                          const bool          periodic,
+                          const InitialRefine refine,
+                          const unsigned int  max_prime             = 0,
+                          const unsigned int  divisions_per_element = 1,
+                          const bool          print_stats           = true)
+  {
+    // Domain size
+    const auto domain_size = top_right - bottom_left;
+
+    // Recompute divisions to elements
+    const double elements_per_interface =
+      static_cast<double>(divisions_per_interface) / divisions_per_element;
+
+    // Desirable smallest element size
+    const double h_e = interface_width / elements_per_interface;
+
+    // Reference size (diameter)
+    const double h_ref = 2 * r_ref;
+
+    // Number of refinements to get the desirable element size
+    const unsigned int n_refinements_interface =
+      static_cast<unsigned int>(std::ceil(std::log2(h_ref / h_e)));
+
+    std::vector<unsigned int> subdivisions(dim);
+    for (unsigned int d = 0; d < dim; d++)
+      subdivisions[d] =
+        static_cast<unsigned int>(std::round(domain_size[d] / h_ref));
+
+    // Try to reduce the number of initial subdivisions
+    unsigned int n_refinements_base =
+      internal::adjust_divisions_to_primes(max_prime, subdivisions);
+
+    GridGenerator::subdivided_hyper_rectangle(
+      tria, subdivisions, bottom_left, top_right, true);
+
+    if (periodic)
+      internal::impose_periodicity<dim>(tria);
+
+    const auto [n_global, n_delayed] = internal::make_initial_refines(
+      tria, refine, n_refinements_base, n_refinements_interface);
+
+    if (print_stats)
+      print_mesh_info(
+        bottom_left, top_right, subdivisions, n_global, n_delayed);
+
+    return n_delayed;
   }
 
   namespace internal

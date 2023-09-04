@@ -1,0 +1,24 @@
+max_prime = 30
+subdivisions initial: 28,27,29
+subdivisions reduced: 28,28,29
+subdivisions refined: 28,28,29
+n_refinements_base = 0
+
+max_prime = 20
+subdivisions initial: 28,27,29
+subdivisions reduced: 7,7,7
+subdivisions refined: 28,28,28
+n_refinements_base = 2
+
+max_prime = 20
+subdivisions initial: 33,34,35
+subdivisions reduced: 16,17,17
+subdivisions refined: 32,34,34
+n_refinements_base = 1
+
+max_prime = 20
+subdivisions initial: 42,41,43
+subdivisions reduced: 10,10,11
+subdivisions refined: 40,40,44
+n_refinements_base = 2
+

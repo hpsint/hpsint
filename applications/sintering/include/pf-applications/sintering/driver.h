@@ -210,7 +210,7 @@ namespace Sintering
       this->dts.assign(time_integration_order, 0);
       this->dts[0] = params.time_integration_data.time_step_init;
 
-
+      // Parse initial refinement options
       InitialRefine global_refine;
       if (params.geometry_data.global_refinement == "None")
         global_refine = InitialRefine::None;
@@ -221,7 +221,19 @@ namespace Sintering
       else
         AssertThrow(false, ExcNotImplemented());
 
-      const unsigned int n_refinements_remaining = create_grid(global_refine);
+      // Parse initial mesh otpions
+      InitialMesh initial_mesh;
+      if (params.geometry_data.initial_mesh == "Interface")
+        initial_mesh = InitialMesh::Interface;
+      else if (params.geometry_data.initial_mesh == "MaxRadius")
+        initial_mesh = InitialMesh::MaxRadius;
+      else if (params.geometry_data.initial_mesh == "Divisions")
+        initial_mesh = InitialMesh::Divisions;
+      else
+        AssertThrow(false, ExcNotImplemented());
+
+      const unsigned int n_refinements_remaining =
+        create_grid(initial_mesh, global_refine);
       this->n_global_levels_0 =
         tria.n_global_levels() + n_refinements_remaining;
 
@@ -340,8 +352,19 @@ namespace Sintering
           std::fill(std::next(this->dts.begin()), this->dts.end(), 0.);
         }
 
+      // Parse initial mesh otpions
+      InitialMesh initial_mesh;
+      if (params.geometry_data.initial_mesh == "Interface")
+        initial_mesh = InitialMesh::Interface;
+      else if (params.geometry_data.initial_mesh == "MaxRadius")
+        initial_mesh = InitialMesh::MaxRadius;
+      else if (params.geometry_data.initial_mesh == "Divisions")
+        initial_mesh = InitialMesh::Divisions;
+      else
+        AssertThrow(false, ExcNotImplemented());
+
       // 1) create coarse mesh
-      create_grid(InitialRefine::None);
+      create_grid(initial_mesh, InitialRefine::None);
 
       // 2) load mesh refinement (incl. vectors)
       tria.load(restart_path + "_tria");
@@ -437,7 +460,7 @@ namespace Sintering
     }
 
     unsigned int
-    create_grid(InitialRefine global_refine)
+    create_grid(InitialMesh initial_mesh, InitialRefine global_refine)
     {
       MyScope("Problem::create_grid");
 
@@ -482,19 +505,33 @@ namespace Sintering
         }
 
       unsigned int n_refinements_remaining = 0;
-      if (!params.geometry_data.custom_divisions)
+      if (initial_mesh == InitialMesh::Interface)
         {
-          n_refinements_remaining =
-            create_mesh(tria,
-                        boundaries.first,
-                        boundaries.second,
-                        geometry_interface_width,
-                        params.geometry_data.divisions_per_interface,
-                        params.geometry_data.periodic,
-                        global_refine,
-                        params.geometry_data.max_prime,
-                        params.geometry_data.max_level0_divisions_per_interface,
-                        params.approximation_data.n_subdivisions);
+          n_refinements_remaining = create_mesh_from_interface(
+            tria,
+            boundaries.first,
+            boundaries.second,
+            geometry_interface_width,
+            params.geometry_data.divisions_per_interface,
+            params.geometry_data.periodic,
+            global_refine,
+            params.geometry_data.max_prime,
+            params.geometry_data.max_level0_divisions_per_interface,
+            params.approximation_data.n_subdivisions);
+        }
+      else if (initial_mesh == InitialMesh::MaxRadius)
+        {
+          n_refinements_remaining = create_mesh_from_radius(
+            tria,
+            boundaries.first,
+            boundaries.second,
+            geometry_interface_width,
+            params.geometry_data.divisions_per_interface,
+            geometry_r_max,
+            params.geometry_data.periodic,
+            global_refine,
+            params.geometry_data.max_prime,
+            params.approximation_data.n_subdivisions);
         }
       else
         {
@@ -507,12 +544,13 @@ namespace Sintering
           if (dim >= 3)
             subdivisions[2] = params.geometry_data.divisions_data.nz;
 
-          n_refinements_remaining = create_mesh(tria,
-                                                boundaries.first,
-                                                boundaries.second,
-                                                subdivisions,
-                                                params.geometry_data.periodic,
-                                                0);
+          n_refinements_remaining =
+            create_mesh_from_divisions(tria,
+                                       boundaries.first,
+                                       boundaries.second,
+                                       subdivisions,
+                                       params.geometry_data.periodic,
+                                       0);
         }
 
       helper = std::make_unique<dealii::parallel::Helper<dim>>(tria);
