@@ -1,5 +1,13 @@
-# of old grains = 2
-# of new grains = 2
+# of old grains = 11
+# of new grains = 10
 Grains mapping (new_id -> old_id):
-0 -> 4
-1 -> 2
+701 -> 1
+704 -> 4
+707 -> 7
+712 -> 12
+715 -> 15
+719 -> 19
+738 -> 38
+764 -> 0
+769 -> 69
+774 -> 74
