@@ -58,37 +58,37 @@ namespace GrainTracker
       extract_grain_indices_per_op(new_grains, n_order_params);
 
     // This can be refactored such that vector is used
-    std::map<unsigned int, unsigned int> new_grains_to_old;
+    std::map<unsigned int, unsigned int> old_grains_to_new;
 
     for (unsigned int op = 0; op < n_order_params; ++op)
       {
         ContainerType boxes;
 
-        std::vector<unsigned int> new_segments_to_grains;
-
-        for (const unsigned int grain_id : new_grains_per_op[op])
-          for (const auto &new_segment : new_grains.at(grain_id).get_segments())
-            {
-              new_grains_to_old.try_emplace(
-                grain_id, std::numeric_limits<unsigned int>::max());
-
-              // Flatten all segments of all grains for the given order
-              // parameter
-              new_segments_to_grains.push_back(grain_id);
-
-              boxes.emplace_back(
-                create_bounding_box_around_point(new_segment.get_center(),
-                                                 new_segment.get_radius()));
-            }
-
-        const auto tree = pack_rtree_of_indices(boxes);
+        std::vector<unsigned int> old_segments_to_grains;
 
         for (const unsigned int grain_id : old_grains_per_op[op])
           for (const auto &old_segment : old_grains.at(grain_id).get_segments())
             {
-              const auto box =
+              old_grains_to_new.try_emplace(
+                grain_id, std::numeric_limits<unsigned int>::max());
+
+              // Flatten all segments of all grains for the given order
+              // parameter
+              old_segments_to_grains.push_back(grain_id);
+
+              boxes.emplace_back(
                 create_bounding_box_around_point(old_segment.get_center(),
-                                                 old_segment.get_radius());
+                                                 old_segment.get_radius()));
+            }
+
+        const auto tree = pack_rtree_of_indices(boxes);
+
+        for (const unsigned int grain_id : new_grains_per_op[op])
+          for (const auto &new_segment : new_grains.at(grain_id).get_segments())
+            {
+              const auto box =
+                create_bounding_box_around_point(new_segment.get_center(),
+                                                 new_segment.get_radius());
 
               std::vector<typename ContainerType::size_type> result;
 
@@ -102,49 +102,55 @@ namespace GrainTracker
                    * bgi::nearest() outputs the closest to the face of the box,
                    * not the box having the closest center. */
 
-                  unsigned int new_grain_id = 0;
+                  unsigned int old_grain_id = 0;
 
-                  if (result.size() > 0)
+                  if (result.size() > 1)
                     {
                       double min_dist = std::numeric_limits<double>::max();
 
                       for (const auto &id : result)
                         {
                           const unsigned int candidate_grain_id =
-                            new_segments_to_grains[id];
+                            old_segments_to_grains[id];
 
                           // Compute the segment id
                           unsigned int work_id = id;
                           for (; work_id > 0 &&
-                                 new_segments_to_grains[work_id - 1] ==
-                                   new_segments_to_grains[work_id];
+                                 old_segments_to_grains[work_id - 1] ==
+                                   old_segments_to_grains[work_id];
                                --work_id)
                             ;
                           const unsigned int segment_id = id - work_id;
 
                           const auto &candidate_segment =
-                            new_grains.at(candidate_grain_id)
+                            old_grains.at(candidate_grain_id)
                               .get_segments()[segment_id];
 
                           const auto curent_dist =
                             candidate_segment.get_center().distance(
-                              old_segment.get_center());
+                              new_segment.get_center());
 
                           if (curent_dist < min_dist)
                             {
-                              new_grain_id = candidate_grain_id;
+                              old_grain_id = candidate_grain_id;
                               min_dist     = curent_dist;
                             }
                         }
                     }
                   else
-                    new_grain_id = result[0];
+                    old_grain_id = old_segments_to_grains[result[0]];
 
-                  new_grains_to_old.at(new_grain_id) = grain_id;
+                  old_grains_to_new.at(old_grain_id) = grain_id;
                   break;
                 }
             }
       }
+
+    // Revert map
+    std::map<unsigned int, unsigned int> new_grains_to_old;
+    for (const auto &[old_grain_id, new_grain_id] : old_grains_to_new)
+      if (new_grain_id != std::numeric_limits<unsigned int>::max())
+        new_grains_to_old.try_emplace(new_grain_id, old_grain_id);
 
     return new_grains_to_old;
   }
