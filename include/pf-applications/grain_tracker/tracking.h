@@ -58,7 +58,7 @@ namespace GrainTracker
       extract_grain_indices_per_op(new_grains, n_order_params);
 
     // This can be refactored such that vector is used
-    std::map<unsigned int, unsigned int> old_grains_to_new;
+    std::map<unsigned int, unsigned int> new_grains_to_old;
 
     for (unsigned int op = 0; op < n_order_params; ++op)
       {
@@ -66,12 +66,13 @@ namespace GrainTracker
 
         std::vector<unsigned int> old_segments_to_grains;
 
+        for (const unsigned int grain_id : new_grains_per_op[op])
+          new_grains_to_old.try_emplace(
+            grain_id, std::numeric_limits<unsigned int>::max());
+
         for (const unsigned int grain_id : old_grains_per_op[op])
           for (const auto &old_segment : old_grains.at(grain_id).get_segments())
             {
-              old_grains_to_new.try_emplace(
-                grain_id, std::numeric_limits<unsigned int>::max());
-
               // Flatten all segments of all grains for the given order
               // parameter
               old_segments_to_grains.push_back(grain_id);
@@ -102,17 +103,11 @@ namespace GrainTracker
                 {
                   const unsigned int old_grain_id =
                     old_segments_to_grains[result[0]];
-                  old_grains_to_new.at(old_grain_id) = grain_id;
+                  new_grains_to_old.at(grain_id) = old_grain_id;
                   break;
                 }
             }
       }
-
-    // Revert map
-    std::map<unsigned int, unsigned int> new_grains_to_old;
-    for (const auto &[old_grain_id, new_grain_id] : old_grains_to_new)
-      if (new_grain_id != std::numeric_limits<unsigned int>::max())
-        new_grains_to_old.try_emplace(new_grain_id, old_grain_id);
 
     return new_grains_to_old;
   }
