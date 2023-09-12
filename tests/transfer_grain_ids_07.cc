@@ -27,8 +27,6 @@ main()
 
   constexpr unsigned int dim = 3;
 
-  std::map<unsigned int, Grain<dim>> old_grains;
-
   const auto add_grain = [](std::map<unsigned int, Grain<dim>> &grains,
                             const unsigned int                  grain_id,
                             const double                        x,
@@ -42,19 +40,7 @@ main()
                                     1.0);
   };
 
-  add_grain(old_grains, 0, 94.6154, 29.1288, 29.5799, 45.9676);
-  add_grain(old_grains, 1, 220.696, 45.5308, 34.6221, 55.8711);
-  add_grain(old_grains, 4, 33.2217, 247.147, 31.5111, 76.1837);
-  add_grain(old_grains, 7, 64.537, 59.9542, 217.464, 118.745);
-  add_grain(old_grains, 12, 235.693, 180.914, 188.382, 64.1163);
-  add_grain(old_grains, 15, 69.2122, 275.918, 193.333, 51.0762);
-  add_grain(old_grains, 19, 204.213, 262.26, 289.578, 41.3436);
-  add_grain(old_grains, 38, 252.499, 278.669, 30.8942, 44.5147);
-  add_grain(old_grains, 64, 17.671, 75.6835, 17.7423, 34.5737);
-  add_grain(old_grains, 69, 152.59, 179.064, 28.2257, 37.6444);
-  add_grain(old_grains, 74, 275.344, 27.2085, 262.943, 46.8655);
-
-  /*
+  /* Old grains
   op_index_current = 0 | op_index_old = 0 | segments = 1 | grain_index = 0
       segment: center = 94.6154 29.1288 29.5799 | radius = 45.9676 | max_value = 0.99966
   op_index_current = 0 | op_index_old = 0 | segments = 1 | grain_index = 1
@@ -79,20 +65,21 @@ main()
       segment: center = 275.344 27.2085 262.943 | radius = 46.8655 | max_value = 0.999831
   */
 
-  std::map<unsigned int, Grain<dim>> new_grains;
+  std::map<unsigned int, Grain<dim>> old_grains;
 
-  add_grain(new_grains, 701, 220.84, 45.518, 34.6399, 56.0837);
-  add_grain(new_grains, 704, 33.1791, 247.382, 31.4546, 75.9383);
-  add_grain(new_grains, 707, 64.6469, 59.9564, 217.528, 118.845);
-  add_grain(new_grains, 712, 235.507, 181.562, 188.514, 62.313);
-  add_grain(new_grains, 715, 68.6011, 275.475, 194.369, 55.9826);
-  add_grain(new_grains, 719, 204.239, 262.288, 289.49, 41.4039);
-  add_grain(new_grains, 738, 252.517, 278.719, 30.8824, 44.5405);
-  add_grain(new_grains, 764, 94.2105, 26.5377, 27.7914, 43.5742); // -> this should be grain_id=0
-  add_grain(new_grains, 769, 152.433, 179.354, 28.2189, 37.3907);
-  add_grain(new_grains, 774, 275.57, 26.7379, 263.176, 46.587);
+  add_grain(old_grains, 0, 94.6154, 29.1288, 29.5799, 45.9676);
+  add_grain(old_grains, 1, 220.696, 45.5308, 34.6221, 55.8711);
+  add_grain(old_grains, 4, 33.2217, 247.147, 31.5111, 76.1837);
+  add_grain(old_grains, 7, 64.537, 59.9542, 217.464, 118.745);
+  add_grain(old_grains, 12, 235.693, 180.914, 188.382, 64.1163);
+  add_grain(old_grains, 15, 69.2122, 275.918, 193.333, 51.0762);
+  add_grain(old_grains, 19, 204.213, 262.26, 289.578, 41.3436);
+  add_grain(old_grains, 38, 252.499, 278.669, 30.8942, 44.5147);
+  add_grain(old_grains, 64, 17.671, 75.6835, 17.7423, 34.5737);
+  add_grain(old_grains, 69, 152.59, 179.064, 28.2257, 37.6444);
+  add_grain(old_grains, 74, 275.344, 27.2085, 262.943, 46.8655);
 
-  /*
+  /* New grains
   op_index_current = 0 | op_index_old = 0 | segments = 1 | grain_index = 1
       segment: center = 220.84 45.518 34.6399 | radius = 56.0837 | max_value = 1.00014
   op_index_current = 0 | op_index_old = 0 | segments = 1 | grain_index = 4
@@ -114,6 +101,22 @@ main()
   op_index_current = 0 | op_index_old = 0 | segments = 1 | grain_index = 74
       segment: center = 275.57 26.7379 263.176 | radius = 46.587 | max_value = 0.999785
   */
+
+  std::map<unsigned int, Grain<dim>> new_grains;
+
+  add_grain(new_grains, 701, 220.84, 45.518, 34.6399, 56.0837);
+  add_grain(new_grains, 704, 33.1791, 247.382, 31.4546, 75.9383);
+  add_grain(new_grains, 707, 64.6469, 59.9564, 217.528, 118.845);
+  add_grain(new_grains, 712, 235.507, 181.562, 188.514, 62.313);
+  add_grain(new_grains, 715, 68.6011, 275.475, 194.369, 55.9826);
+  add_grain(new_grains, 719, 204.239, 262.288, 289.49, 41.4039);
+  add_grain(new_grains, 738, 252.517, 278.719, 30.8824, 44.5405);
+
+  // This grain should be assigned to grain_id=0
+  add_grain(new_grains, 764, 94.2105, 26.5377, 27.7914, 43.5742);
+
+  add_grain(new_grains, 769, 152.433, 179.354, 28.2189, 37.3907);
+  add_grain(new_grains, 774, 275.57, 26.7379, 263.176, 46.587);
 
   const unsigned int n_order_params = 1;
 

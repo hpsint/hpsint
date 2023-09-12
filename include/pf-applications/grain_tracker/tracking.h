@@ -48,8 +48,6 @@ namespace GrainTracker
     // This algorithm works now only for grains with a single segment
     namespace bgi = boost::geometry::index;
 
-    using PP = std::pair<Point<dim>, Point<dim>>;
-
     using ContainerType = std::vector<BoundingBox<dim>>;
 
     const auto old_grains_per_op =
