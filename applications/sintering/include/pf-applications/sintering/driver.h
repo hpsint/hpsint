@@ -2014,6 +2014,13 @@ namespace Sintering
               initialize_solution(solution_ptr, timer);
             }
         }
+      else if (params.advection_data.enable &&
+               params.advection_data.check_courant)
+        {
+          // Precompute this here since it is only called inside
+          // execute_coarsening_and_refinement() which has been missed
+          advection_operator.precompute_cell_diameters();
+        }
 
       // Grain tracker - first run after we have initial configuration defined
       if (params.grain_tracker_data.grain_tracker_frequency > 0 ||
