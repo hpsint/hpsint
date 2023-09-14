@@ -472,7 +472,7 @@ namespace Sintering
 
       std::ofstream outfile(filename);
 
-      const auto grains = grain_tracker->get_grains();
+      const auto &grains = grain_tracker->get_grains();
 
       unsigned int n_grains = 0;
 
@@ -488,6 +488,8 @@ namespace Sintering
       // Get grain properties from the grain tracker, assume 1 segment per grain
       for (const auto &[g, grain] : grains)
         {
+          Assert(grain.get_segments().size() == 1, ExcNotImplemented());
+
           const auto &segment = grain.get_segments()[0];
 
           for (unsigned int d = 0; d < dim; ++d)
