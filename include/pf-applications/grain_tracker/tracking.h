@@ -48,8 +48,6 @@ namespace GrainTracker
     // This algorithm works now only for grains with a single segment
     namespace bgi = boost::geometry::index;
 
-    using PP = std::pair<Point<dim>, Point<dim>>;
-
     using ContainerType = std::vector<BoundingBox<dim>>;
 
     const auto old_grains_per_op =
@@ -64,44 +62,46 @@ namespace GrainTracker
       {
         ContainerType boxes;
 
-        std::vector<unsigned int> new_segments_to_grains;
+        std::vector<unsigned int> old_segments_to_grains;
 
         for (const unsigned int grain_id : new_grains_per_op[op])
-          for (const auto &new_segment : new_grains.at(grain_id).get_segments())
-            {
-              new_grains_to_old.try_emplace(
-                grain_id, std::numeric_limits<unsigned int>::max());
-
-              // Flatten all segments of all grains for the given order
-              // parameter
-              new_segments_to_grains.push_back(grain_id);
-
-              boxes.emplace_back(
-                create_bounding_box_around_point(new_segment.get_center(),
-                                                 new_segment.get_radius()));
-            }
-
-        const auto tree = pack_rtree_of_indices(boxes);
+          new_grains_to_old.try_emplace(
+            grain_id, std::numeric_limits<unsigned int>::max());
 
         for (const unsigned int grain_id : old_grains_per_op[op])
           for (const auto &old_segment : old_grains.at(grain_id).get_segments())
             {
-              const auto box =
+              // Flatten all segments of all grains for the given order
+              // parameter
+              old_segments_to_grains.push_back(grain_id);
+
+              boxes.emplace_back(
                 create_bounding_box_around_point(old_segment.get_center(),
-                                                 old_segment.get_radius());
+                                                 old_segment.get_radius()));
+            }
+
+        const auto tree = pack_rtree_of_indices(boxes);
+
+        for (const unsigned int grain_id : new_grains_per_op[op])
+          for (const auto &new_segment : new_grains.at(grain_id).get_segments())
+            {
+              const auto box =
+                create_bounding_box_around_point(new_segment.get_center(),
+                                                 new_segment.get_radius());
 
               std::vector<typename ContainerType::size_type> result;
 
               tree.query(bgi::intersects(box) &&
-                           bgi::nearest(old_segment.get_center(), 1),
+                           bgi::nearest(new_segment.get_center(), 1),
                          std::back_inserter(result));
 
               // If any of the grain was identified, then there is no need to
               // check for the others, so we break the iteration
               if (!result.empty())
                 {
-                  new_grains_to_old.at(new_segments_to_grains[result[0]]) =
-                    grain_id;
+                  const unsigned int old_grain_id =
+                    old_segments_to_grains[result[0]];
+                  new_grains_to_old.at(grain_id) = old_grain_id;
                   break;
                 }
             }
