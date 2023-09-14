@@ -472,7 +472,7 @@ namespace Sintering
 
       std::ofstream outfile(filename);
 
-      const auto grains = grain_tracker->get_grains();
+      const auto &grains = grain_tracker->get_grains();
 
       unsigned int n_grains = 0;
 
@@ -485,47 +485,17 @@ namespace Sintering
 
       std::vector<Number> parameters((dim + 1) * n_grains, 0);
 
-      for (unsigned int b = 0; b < n_op; ++b)
+      // Get grain properties from the grain tracker, assume 1 segment per grain
+      for (const auto &[g, grain] : grains)
         {
-          for (const auto &cell :
-               background_dof_handler.active_cell_iterators())
-            if (cell->is_locally_owned())
-              {
-                if (grain_tracker->get_particle_index(
-                      b, cell->global_active_cell_index()) ==
-                    numbers::invalid_unsigned_int)
-                  continue;
+          Assert(grain.get_segments().size() == 1, ExcNotImplemented());
 
-                const auto grain_id =
-                  grain_tracker
-                    ->get_grain_and_segment(b,
-                                            grain_tracker->get_particle_index(
-                                              b,
-                                              cell->global_active_cell_index()))
-                    .first;
+          const auto &segment = grain.get_segments()[0];
 
-                if (grain_id == numbers::invalid_unsigned_int)
-                  continue;
-
-                const auto center  = cell->center();
-                const auto measure = cell->measure();
-
-                for (unsigned int d = 0; d < dim; ++d)
-                  parameters[grain_id * (dim + 1) + d] += center[d] * measure;
-
-                parameters[grain_id * (dim + 1) + dim] += measure;
-              }
-        }
-
-      Utilities::MPI::sum(parameters, comm, parameters);
-
-      for (unsigned int g = 0; g < n_grains; ++g)
-        {
           for (unsigned int d = 0; d < dim; ++d)
-            if (parameters[g * (dim + 1) + dim] != 0.0)
-              parameters[g * (dim + 1) + d] /= parameters[g * (dim + 1) + dim];
-          parameters[g * (dim + 1) + dim] =
-            std::sqrt(parameters[g * (dim + 1) + dim] / numbers::PI);
+            parameters[g * (dim + 1) + d] = segment.get_center()[d];
+
+          parameters[g * (dim + 1) + dim] = segment.get_radius();
         }
 
       std::vector<std::vector<Point<dim>>> points_local(n_grains);
