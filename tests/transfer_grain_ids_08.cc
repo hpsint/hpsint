@@ -36,7 +36,7 @@ main()
                                1.0);
 
   old_grains.try_emplace(1, 1, 0);
-  old_grains.at(1).add_segment(Point<dim>(3-0.5, 0),
+  old_grains.at(1).add_segment(Point<dim>(3 - 0.5, 0),
                                1.0,
                                std::pow(1.0, 2) * M_PI,
                                1.0);
