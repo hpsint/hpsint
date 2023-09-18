@@ -1,6 +1,7 @@
 {
     "MatrixBased": "false",
     "GrainCutOffTolerance": "0.00000",
+    "TensorialMobilityGradientOnTheFly": true,
     "Adaptivity": {
         "BottomFractionOfCells": "0.1",
         "MaxRefinementDepth": "1",
@@ -12,6 +13,14 @@
         "FEDegree": "1",
         "NPoints1D": "2",
         "NSubdivisions": "1"
+    },
+    "Advection": {
+        "Ceq": "1",
+        "Cgb": "0.14",
+        "Enable": "false",
+        "K": "20",
+        "Mr": "0",
+        "Mt": "1.0"
     },
     "Geometry": {
         "BoundaryFactor": "0.5",
@@ -64,7 +73,7 @@
         "NewtonReusePreconditioner": false
     },
     "Output": {
-        "Contour": "true",
+        "Contour": "false",
         "ContourNCoarseningSteps": "0",
         "Debug": "false",
         "Fields": "bnds",
@@ -88,7 +97,7 @@
         "OutputMemoryConsumption": "false"
     },
     "Restart": {
-        "Interval": "5000",
+        "Interval": "20000",
         "MaximalOutput": "1",
         "Prefix": "./restart",
         "Type": "simulation_time"
