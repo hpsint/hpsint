@@ -129,6 +129,95 @@ namespace Sintering
     pcout << " subdivisions" << std::endl << std::endl;
   }
 
+  namespace internal
+  {
+    /* The function reduces the initial number of subdivisions n_divs trying to
+    minimize the following quality function: $q = n_{init} - n_{new} *
+    2^{refines}$, where $n_{new}$ is a prime number. */
+    unsigned int
+    adjust_divisions_to_primes(const unsigned int         max_prime,
+                               std::vector<unsigned int> &subdivisions)
+    {
+      // Further reduce the number of initial subdivisions
+      unsigned int n_refinements_base = 0;
+      if (max_prime > 0)
+        {
+          std::vector<unsigned int> refinements(subdivisions.size());
+
+          for (unsigned int d = 0; d < subdivisions.size(); ++d)
+            {
+              const auto pair =
+                decompose_to_prime_tuple(subdivisions[d], max_prime);
+
+              subdivisions[d] = pair.first;
+              refinements[d]  = pair.second;
+            }
+
+          n_refinements_base =
+            *std::min_element(refinements.begin(), refinements.end());
+
+          for (unsigned int d = 0; d < subdivisions.size(); ++d)
+            subdivisions[d] *= std::pow(2, refinements[d] - n_refinements_base);
+        }
+
+      return n_refinements_base;
+    }
+
+    /* This function imposes peridoc boundary conditions in all dimensions of
+     * the grid. */
+    template <int dim, typename Triangulation>
+    void
+    impose_periodicity(Triangulation &tria)
+    {
+      // Need to work with triangulation here
+      std::vector<
+        GridTools::PeriodicFacePair<typename Triangulation::cell_iterator>>
+        periodicity_vector;
+
+      for (unsigned int d = 0; d < dim; ++d)
+        {
+          GridTools::collect_periodic_faces(
+            tria, 2 * d, 2 * d + 1, d, periodicity_vector);
+        }
+
+      tria.add_periodicity(periodicity_vector);
+    }
+
+    /* Adjust the initial refinements depending on the chosen refinement
+    strategy. */
+    template <typename Triangulation>
+    std::pair<unsigned int, unsigned int>
+    make_initial_refines(Triangulation &     tria,
+                         const InitialRefine refine,
+                         const unsigned int  n_refinements_base,
+                         const unsigned int  n_refinements_interface)
+    {
+      unsigned int n_global  = 0;
+      unsigned int n_delayed = 0;
+      if (refine == InitialRefine::Base)
+        {
+          tria.refine_global(n_refinements_base);
+
+          n_global  = n_refinements_base;
+          n_delayed = n_refinements_interface;
+        }
+      else if (refine == InitialRefine::Full)
+        {
+          tria.refine_global(n_refinements_base + n_refinements_interface);
+
+          n_global  = n_refinements_base + n_refinements_interface;
+          n_delayed = 0;
+        }
+      else
+        {
+          n_global  = 0;
+          n_delayed = n_refinements_base + n_refinements_interface;
+        }
+
+      return {n_global, n_delayed};
+    }
+  } // namespace internal
+
   template <typename Triangulation, int dim>
   unsigned int
   create_mesh(Triangulation &     tria,
@@ -168,64 +257,17 @@ namespace Sintering
       }
 
     // Further reduce the number of initial subdivisions
-    unsigned int n_refinements_base = 0;
-    if (max_prime > 0)
-      {
-        const unsigned int n_ref =
-          *std::min_element(subdivisions.begin(), subdivisions.end());
-
-        const auto         pair = decompose_to_prime_tuple(n_ref, max_prime);
-        const unsigned int optimal_prime = pair.first;
-
-        n_refinements_base = pair.second;
-
-        for (unsigned int d = 0; d < dim; d++)
-          {
-            subdivisions[d] = static_cast<unsigned int>(std::ceil(
-              static_cast<double>(subdivisions[d]) / n_ref * optimal_prime));
-          }
-      }
+    unsigned int n_refinements_base =
+      internal::adjust_divisions_to_primes(max_prime, subdivisions);
 
     GridGenerator::subdivided_hyper_rectangle(
       tria, subdivisions, bottom_left, top_right, true);
 
     if (periodic)
-      {
-        // Need to work with triangulation here
-        std::vector<
-          GridTools::PeriodicFacePair<typename Triangulation::cell_iterator>>
-          periodicity_vector;
+      internal::impose_periodicity<dim>(tria);
 
-        for (unsigned int d = 0; d < dim; ++d)
-          {
-            GridTools::collect_periodic_faces(
-              tria, 2 * d, 2 * d + 1, d, periodicity_vector);
-          }
-
-        tria.add_periodicity(periodicity_vector);
-      }
-
-    unsigned int n_global  = 0;
-    unsigned int n_delayed = 0;
-    if (refine == InitialRefine::Base)
-      {
-        tria.refine_global(n_refinements_base);
-
-        n_global  = n_refinements_base;
-        n_delayed = n_refinements_interface;
-      }
-    else if (refine == InitialRefine::Full)
-      {
-        tria.refine_global(n_refinements_base + n_refinements_interface);
-
-        n_global  = n_refinements_base + n_refinements_interface;
-        n_delayed = 0;
-      }
-    else
-      {
-        n_global  = 0;
-        n_delayed = n_refinements_base + n_refinements_interface;
-      }
+    const auto [n_global, n_delayed] = internal::make_initial_refines(
+      tria, refine, n_refinements_base, n_refinements_interface);
 
     if (print_stats)
       print_mesh_info(
@@ -248,20 +290,7 @@ namespace Sintering
       tria, subdivisions, bottom_left, top_right, true);
 
     if (periodic)
-      {
-        // Need to work with triangulation here
-        std::vector<
-          GridTools::PeriodicFacePair<typename Triangulation::cell_iterator>>
-          periodicity_vector;
-
-        for (unsigned int d = 0; d < dim; ++d)
-          {
-            GridTools::collect_periodic_faces(
-              tria, 2 * d, 2 * d + 1, d, periodicity_vector);
-          }
-
-        tria.add_periodicity(periodicity_vector);
-      }
+      internal::impose_periodicity<dim>(tria);
 
     tria.refine_global(n_refinements);
 
