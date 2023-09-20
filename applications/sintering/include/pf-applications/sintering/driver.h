@@ -164,7 +164,7 @@ namespace Sintering
 
     std::map<std::string, unsigned int> counters;
 
-    Problem(const Parameters &                  params,
+    Problem(const Parameters                   &params,
             std::shared_ptr<InitialValues<dim>> initial_solution)
       : params(params)
       , pcout(std::cout,
@@ -229,7 +229,7 @@ namespace Sintering
 
       const auto initialize_solution =
         [&](std::vector<typename VectorType::BlockType *> solution_ptr,
-            MyTimerOutput &                               timer) {
+            MyTimerOutput                                &timer) {
           ScopedName sc("initialize_solution");
           MyScope    scope(timer, sc);
 
@@ -361,7 +361,7 @@ namespace Sintering
       const auto initialize_solution =
         [&, flexible_output, n_blocks_total, restart_path](
           std::vector<typename VectorType::BlockType *> solution_ptr,
-          MyTimerOutput &                               timer) {
+          MyTimerOutput                                &timer) {
           ScopedName sc("deserialize_solution");
           MyScope    scope(timer, sc);
 
@@ -1446,7 +1446,7 @@ namespace Sintering
             additional_data, non_linear_parameters);
 
           non_linear_solver.residual = [&nl_residual](const auto &src,
-                                                      auto &      dst) {
+                                                      auto       &dst) {
             nl_residual(src, dst);
             return 0;
           };
@@ -1464,8 +1464,8 @@ namespace Sintering
             };
 
           non_linear_solver.solve_with_jacobian_and_track_n_linear_iterations =
-            [&nl_solve_with_jacobian](const auto & src,
-                                      auto &       dst,
+            [&nl_solve_with_jacobian](const auto  &src,
+                                      auto        &dst,
                                       const double tolerance) {
               (void)tolerance;
               return nl_solve_with_jacobian(src, dst);
@@ -1502,7 +1502,7 @@ namespace Sintering
             additional_data, params.nonlinear_data.snes_data.solver_name);
 
           non_linear_solver.residual = [&nl_residual](const auto &src,
-                                                      auto &      dst) {
+                                                      auto       &dst) {
             nl_residual(src, dst);
             return 0;
           };
@@ -1520,8 +1520,8 @@ namespace Sintering
             };
 
           non_linear_solver.solve_with_jacobian_and_track_n_linear_iterations =
-            [&nl_solve_with_jacobian](const auto & src,
-                                      auto &       dst,
+            [&nl_solve_with_jacobian](const auto  &src,
+                                      auto        &dst,
                                       const double tolerance) {
               (void)tolerance;
               return nl_solve_with_jacobian(src, dst);
@@ -1982,7 +1982,7 @@ namespace Sintering
 
       // run time loop
       {
-        while ((std::abs(t - params.time_integration_data.time_end) > 1e-15) &&
+        while ((t - params.time_integration_data.time_end < -1e-15) &&
                (params.time_integration_data.max_n_time_step == 0 ||
                 n_timestep < params.time_integration_data.max_n_time_step))
           {
@@ -2326,7 +2326,7 @@ namespace Sintering
                 for (int i = dts.size() - 2; i >= 0; --i)
                   dts[i + 1] = dts[i];
 
-                if (std::abs(t - params.time_integration_data.time_end) > 1e-9)
+                if (t - params.time_integration_data.time_end < -1e-9)
                   {
                     if (statistics.n_newton_iterations() <
                           params.time_integration_data
@@ -2356,10 +2356,10 @@ namespace Sintering
                           }
                       }
 
-                    if (t + dt > params.time_integration_data.time_end)
-                      {
-                        dt = params.time_integration_data.time_end - t;
-                      }
+                    // if (t + dt > params.time_integration_data.time_end)
+                    //   {
+                    //     dt = params.time_integration_data.time_end - t;
+                    //   }
                   }
 
                 if (params.profiling_data.output_memory_consumption &&
@@ -2454,7 +2454,7 @@ namespace Sintering
 
             const bool is_last_time_step =
               has_converged &&
-              (std::abs(t - params.time_integration_data.time_end) < 1e-8);
+              (t - params.time_integration_data.time_end > -1e-8);
 
             if ((params.output_data.output_time_interval > 0.0) &&
                 has_converged &&
@@ -2472,82 +2472,84 @@ namespace Sintering
                               additional_output);
               }
 
-            if (has_converged &&
-                (is_last_time_step || restart_predicate.now(t)))
-              {
-                ScopedName sc("restart");
-                MyScope    scope(timer, sc);
+            if (false)
+              if (has_converged &&
+                  (is_last_time_step || restart_predicate.now(t)))
+                {
+                  ScopedName sc("restart");
+                  MyScope    scope(timer, sc);
 
-                unsigned int current_restart_count = restart_counter++;
+                  unsigned int current_restart_count = restart_counter++;
 
-                if (params.restart_data.max_output != 0)
-                  current_restart_count =
-                    current_restart_count % params.restart_data.max_output;
+                  if (params.restart_data.max_output != 0)
+                    current_restart_count =
+                      current_restart_count % params.restart_data.max_output;
 
-                const std::string prefix =
-                  params.restart_data.prefix + "_" +
-                  std::to_string(current_restart_count);
+                  const std::string prefix =
+                    params.restart_data.prefix + "_" +
+                    std::to_string(current_restart_count);
 
-                std::vector<const typename VectorType::BlockType *>
-                  solution_ptr;
+                  std::vector<const typename VectorType::BlockType *>
+                    solution_ptr;
 
-                if (params.restart_data.full_history)
-                  {
-                    auto all_except_old =
-                      solution_history.filter(true, false, true);
+                  if (params.restart_data.full_history)
+                    {
+                      auto all_except_old =
+                        solution_history.filter(true, false, true);
 
-                    const auto history_all_blocks =
-                      all_except_old.get_all_blocks_raw();
-                    solution_ptr.assign(history_all_blocks.begin(),
-                                        history_all_blocks.end());
-                  }
-                else
-                  {
-                    solution_ptr.resize(solution.n_blocks());
-                    for (unsigned int b = 0; b < solution.n_blocks(); ++b)
-                      solution_ptr[b] = &solution.block(b);
-                  }
+                      const auto history_all_blocks =
+                        all_except_old.get_all_blocks_raw();
+                      solution_ptr.assign(history_all_blocks.begin(),
+                                          history_all_blocks.end());
+                    }
+                  else
+                    {
+                      solution_ptr.resize(solution.n_blocks());
+                      for (unsigned int b = 0; b < solution.n_blocks(); ++b)
+                        solution_ptr[b] = &solution.block(b);
+                    }
 
-                if (params.restart_data.flexible_output)
-                  {
-                    if (!solution.has_ghost_elements())
-                      solution.update_ghost_values();
+                  if (params.restart_data.flexible_output)
+                    {
+                      if (!solution.has_ghost_elements())
+                        solution.update_ghost_values();
 
-                    parallel::distributed::
-                      SolutionTransfer<dim, typename VectorType::BlockType>
-                        solution_transfer(dof_handler);
+                      parallel::distributed::
+                        SolutionTransfer<dim, typename VectorType::BlockType>
+                          solution_transfer(dof_handler);
 
-                    solution_transfer.prepare_for_serialization(solution_ptr);
-                    tria.save(prefix + "_tria");
+                      solution_transfer.prepare_for_serialization(solution_ptr);
+                      tria.save(prefix + "_tria");
 
-                    solution.zero_out_ghost_values();
-                  }
-                else
-                  {
-                    parallel::distributed::
-                      SolutionSerialization<dim, typename VectorType::BlockType>
+                      solution.zero_out_ghost_values();
+                    }
+                  else
+                    {
+                      parallel::distributed::SolutionSerialization<
+                        dim,
+                        typename VectorType::BlockType>
                         solution_serialization(dof_handler);
 
-                    solution_serialization.add_vectors(solution_ptr);
+                      solution_serialization.add_vectors(solution_ptr);
 
-                    solution_serialization.save(prefix + "_vectors");
-                    tria.save(prefix + "_tria");
-                  }
+                      solution_serialization.save(prefix + "_vectors");
+                      tria.save(prefix + "_tria");
+                    }
 
-                std::ofstream                   out_stream(prefix + "_driver");
-                boost::archive::binary_oarchive fosb(out_stream);
-                fosb << params.restart_data.flexible_output;
-                fosb << params.restart_data.full_history;
-                fosb << Utilities::MPI::n_mpi_processes(MPI_COMM_WORLD);
-                fosb << sintering_data.n_components();
-                fosb << solution.n_blocks();
-                fosb << static_cast<unsigned int>(solution_ptr.size());
+                  std::ofstream out_stream(prefix + "_driver");
+                  boost::archive::binary_oarchive fosb(out_stream);
+                  fosb << params.restart_data.flexible_output;
+                  fosb << params.restart_data.full_history;
+                  fosb << Utilities::MPI::n_mpi_processes(MPI_COMM_WORLD);
+                  fosb << sintering_data.n_components();
+                  fosb << solution.n_blocks();
+                  fosb << static_cast<unsigned int>(solution_ptr.size());
 
-                if (params.restart_data.full_history)
-                  fosb << static_cast<unsigned int>(dts.size());
+                  if (params.restart_data.full_history)
+                    fosb << static_cast<unsigned int>(dts.size());
 
-                fosb << *this;
-              }
+                  fosb << *this;
+                }
 
             TimerCollection::print_all_wall_time_statistics();
 
@@ -2579,11 +2581,11 @@ namespace Sintering
   private:
     void
     output_result(
-      const VectorType &                          solution,
-      const NonLinearOperator &                   sintering_operator,
-      const GrainTracker::Tracker<dim, Number> &  grain_tracker,
+      const VectorType                           &solution,
+      const NonLinearOperator                    &sintering_operator,
+      const GrainTracker::Tracker<dim, Number>   &grain_tracker,
       const double                                t,
-      MyTimerOutput &                             timer,
+      MyTimerOutput                              &timer,
       const std::string                           label = "solution",
       std::function<void(DataOut<dim> &data_out)> additional_output = {})
     {

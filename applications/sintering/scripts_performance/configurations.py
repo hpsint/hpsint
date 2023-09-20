@@ -1,15 +1,18 @@
 import json
 import os
 
-JOB="""#PBS -l nodes={1}:ppn=40
-#PBS -l walltime=16:00:00
-#PBS -N job-precon-{0}
-#PBS -q gold
-#PBS -j oe
+JOB="""#!/bin/bash
+#SBATCH --nodes=6
+#SBATCH --ntasks-per-node=40
+#SBATCH --time=16:00:00
+#SBATCH -J job-precon-{0}
+#SBATCH --partition gold
 
-cd $PBS_O_WORKDIR
+mkdir -p /scratch/munch
+cd /scratch/munch
 
-mpirun -np {2} ../applications/sintering/sintering-3D-generic-{3} --cloud ../../applications/sintering/sintering_cloud_examples/packings_10k/51particles.cloud ./job_{0}.json | tee ./job_{0}.out
+
+mpirun -np {2} ~/sw-sintering/hpsint/build/configurations-new/../applications/sintering/sintering-3D-generic-{3} --cloud ~/sw-sintering/hpsint/build/configurations-new/../../applications/sintering/sintering_cloud_examples/packings_10k/51particles.cloud ~/sw-sintering/hpsint/build/configurations-new/./job_{0}.json | tee ~/sw-sintering/hpsint/build/configurations-new/./job_{0}.out
 """
 
 def run_instance(counter, time_end, n_nodes, jacobian_free = False, cut_off = False, tenosrial = False, advection = False):

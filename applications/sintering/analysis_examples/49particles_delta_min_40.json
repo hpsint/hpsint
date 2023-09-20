@@ -87,7 +87,7 @@
         "OuterPreconditioner": "BlockPreconditioner2",
         "BlockPreconditioner2": {
             "Block0Preconditioner": "ILU",
-            "Block1Approximation": "avg",
+            "Block1Approximation": "max",
             "Block1Preconditioner": "BlockILU"
         }
     },
