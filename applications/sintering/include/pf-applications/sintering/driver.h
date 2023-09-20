@@ -1886,7 +1886,7 @@ namespace Sintering
                 ScopedName sc("track_fast");
                 MyScope    scope(timer, sc);
 
-                const bool skip_reassignment = false;
+                const bool skip_reassignment = true;
                 grain_tracker.track(solution,
                                     sintering_data.n_grains(),
                                     skip_reassignment);
