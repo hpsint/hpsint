@@ -41,6 +41,11 @@ parser.add_argument("-e", "--email", type=str, help="Email for notification", re
 parser.add_argument("-x", "--extra", type=str, help="Extra settings passed to the solver", required=False)
 parser.add_argument("-s", "--suffix", type=str, help="Suffix for output folder", required=False)
 
+# Options for overriding runs
+parser.add_argument("-i", "--dimensions", type=str, nargs='+', help="Runs dimensions", required=False, default=[])
+parser.add_argument("-y", "--physics", type=str, nargs='+', help="Runs physics", required=False, default=[])
+parser.add_argument("-m", "--mobility", type=str, nargs='+', help="Runs mobility", required=False, default=[])
+
 args = parser.parse_args()
 
 with open(args.file) as json_data:
@@ -68,7 +73,30 @@ with open(args.file) as json_data:
         common_options["--mail-user"] = args.email
     elif "User" in data.keys() and "Account" in data["User"].keys():
         common_options["--mail-user"] = data["User"]["Email"]
+
+    # What cases are to run
+    runs = {}
+
+    if args.dimensions:
+        runs["dimensions"] = args.dimensions
+    elif "Runs" in data.keys() and "Dimensions" in data["Runs"].keys():
+        runs["dimensions"] = data["Runs"]["Dimensions"]
+    else:
+        raise Exception('Runs dimensions have to be provided')
     
+    if args.physics:
+        runs["physics"] = args.physics
+    elif "Runs" in data.keys() and "Physics" in data["Runs"].keys():
+        runs["physics"] = data["Runs"]["Physics"]
+    else:
+        raise Exception('Runs physics have to be provided')
+    
+    if args.mobility:
+        runs["mobility"] = args.mobility
+    elif "Runs" in data.keys() and "Mobility" in data["Runs"].keys():
+        runs["mobility"] = data["Runs"]["Mobility"]
+    else:
+        raise Exception('Runs mobilities have to be provided')
 
     # Default study folder
     # Main study root
@@ -119,9 +147,9 @@ with open(args.file) as json_data:
 
         default_job_root = os.path.join(default_output_root, default_job_folder)
 
-        for dim in data["Runs"]["Dimensions"]:
-            for phys in data["Runs"]["Physics"]:
-                for mobility in data["Runs"]["Mobility"]:
+        for dim in runs["dimensions"]:
+            for phys in runs["physics"]:
+                for mobility in runs["mobility"]:
 
                     # Copy common options
                     case_options = copy.deepcopy(common_options)
