@@ -233,8 +233,9 @@ with open(args.file) as json_data:
                                 for x in traverse(data["Special"][special_name]):
                                     opt = ('.'.join(x[0])).encode('ascii', 'ignore').decode("utf-8") 
                                     val = x[1]
+
                                     if isinstance(val, str):
-                                        val = val.encode('ascii', 'ignore')
+                                        val = val.encode('ascii', 'ignore').decode("utf-8")
                                     else:
                                         val = str(val)
                                     
