@@ -39,7 +39,6 @@ namespace dealii
         explicit DynamicBlockVector(Iterator begin, Iterator end)
         {
           blocks.assign(begin, end);
-          block_counter = blocks.size();
 
           size_ = 0;
           for (unsigned int b = 0; b < n_blocks(); ++b)
@@ -49,8 +48,7 @@ namespace dealii
         DynamicBlockVector<T> &
         operator=(const DynamicBlockVector<T> &V)
         {
-          block_counter = V.n_blocks();
-          blocks.resize(n_blocks());
+          blocks.resize(V.n_blocks());
 
           for (unsigned int b = 0; b < n_blocks(); ++b)
             {
@@ -58,6 +56,9 @@ namespace dealii
                 blocks[b] = std::make_shared<BlockType>();
               block(b).reinit(V.block(b), true);
               block(b) = V.block(b);
+
+              if (V.block(b).has_ghost_elements())
+                block(b).update_ghost_values();
             }
 
           size_ = 0;
@@ -70,21 +71,20 @@ namespace dealii
         void
         reinit(const unsigned int n, const bool omit_zeroing_entries = false)
         {
-          block_counter = n;
-
           const unsigned int old_blocks_size = blocks.size();
 
-          if (n_blocks() > old_blocks_size)
+          blocks.resize(n);
+
+          for (unsigned int b = old_blocks_size; b < n_blocks(); ++b)
             {
-              blocks.resize(n_blocks());
+              if (blocks[b] == nullptr)
+                blocks[b] = std::make_shared<BlockType>();
 
-              for (unsigned int b = old_blocks_size; b < n_blocks(); ++b)
+              if (old_blocks_size != 0)
                 {
-                  if (blocks[b] == nullptr)
-                    blocks[b] = std::make_shared<BlockType>();
-
-                  if (old_blocks_size != 0)
-                    block(b).reinit(block(0), omit_zeroing_entries);
+                  block(b).reinit(block(0), omit_zeroing_entries);
+                  if (block(0).has_ghost_elements())
+                    block(b).update_ghost_values();
                 }
             }
 
@@ -97,14 +97,15 @@ namespace dealii
         reinit(const DynamicBlockVector<T> &V,
                const bool                   omit_zeroing_entries = false)
         {
-          block_counter = V.n_blocks();
-          blocks.resize(n_blocks());
+          blocks.resize(V.n_blocks());
 
           for (unsigned int b = 0; b < n_blocks(); ++b)
             {
               if (blocks[b] == nullptr)
                 blocks[b] = std::make_shared<BlockType>();
               block(b).reinit(V.block(b), omit_zeroing_entries);
+              if (block(0).has_ghost_elements())
+                block(b).update_ghost_values();
             }
 
           size_ = 0;
@@ -134,9 +135,6 @@ namespace dealii
             const_cast<DynamicBlockVector<T> *>(view.get())
               ->blocks.push_back(blocks[i]);
 
-          const_cast<DynamicBlockVector<T> *>(view.get())->block_counter =
-            view->blocks.size();
-
           return view;
         }
 
@@ -150,8 +148,6 @@ namespace dealii
 
           for (unsigned int i = start; i < end; ++i)
             view->blocks.push_back(blocks[i]);
-
-          view->block_counter = view->blocks.size();
 
           return view;
         }
@@ -190,7 +186,7 @@ namespace dealii
         unsigned int
         n_blocks() const
         {
-          return block_counter;
+          return blocks.size();
         }
 
         /* Move block to a new place */
@@ -400,13 +396,11 @@ namespace dealii
         void
         swap(DynamicBlockVector &V)
         {
-          std::swap(this->block_counter, V.block_counter);
           std::swap(this->blocks, V.blocks);
           std::swap(this->size_, V.size_);
         }
 
       private:
-        unsigned int                            block_counter;
         std::vector<std::shared_ptr<BlockType>> blocks;
 
         types::global_dof_index size_;
