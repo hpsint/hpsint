@@ -305,10 +305,7 @@ namespace GrainTracker
 
           // Check if number of order parameters has changed
           op_number_changed =
-            (active_order_parameters.size() !=
-               build_old_order_parameter_ids(grains).size() ||
-             active_order_parameters.size() !=
-               build_active_order_parameter_ids(old_grains).size());
+            (active_order_parameters.size() != n_order_params);
         }
       else
         {
@@ -356,8 +353,8 @@ namespace GrainTracker
             reassign_grains(force_reassignment, fast_reassignment);
 
           // Check if number of order parameters has changed
-          op_number_changed = (active_order_parameters.size() !=
-                               build_old_order_parameter_ids(grains).size());
+          op_number_changed =
+            (active_order_parameters.size() != n_order_params);
         }
 
       // Build inverse mapping after grains are detected
