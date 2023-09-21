@@ -52,6 +52,10 @@ parser.add_argument("-m", "--mobility", type=str, nargs='+', help="Runs mobility
 
 args = parser.parse_args()
 
+# Current directory
+cwd = os.path.split(os.getcwd())[1]
+cwd_short = cwd[:3]
+
 with open(args.file) as json_data:
     data = json.load(json_data)
 
@@ -196,28 +200,33 @@ with open(args.file) as json_data:
                     # Possible special options per case
                     special_names = []
 
+                    # Output folder suffix
+                    suffix = ""
+                    if args.suffix:
+                        suffix += "_" + args.suffix
+
                     # Also build up a meaningful job name
-                    job_name = dim
+                    job_name = cwd_short + "_" + default_job_folder + suffix + "_" + dim
 
                     if phys == "generic":
                         physics += "generic"
                         case_options["settings_extra"] += " " + "--Advection.Enable=false"
-                        job_name += '_gen'
+                        job_name += '_generic'
                         special_names.append("Generic")
 
                     elif phys == "generic_wang":
                         physics += "generic"
                         case_options["settings_extra"] += " " + "--Advection.Enable=true"
-                        job_name += '_gea'
+                        job_name += '_genwang'
                         special_names.append("Generic")
 
                     elif phys == "coupled_wang":
                         physics += "wang"
                         case_options["settings_extra"] += " " + "--Advection.Enable=true"
-                        job_name += '_cwa'
+                        job_name += '_couwang'
                         special_names.append("Coupled")
 
-                    job_name += '_' + mobility[0]
+                    job_name += "_" + mobility[0]
                     case_options["--job-name"] = job_name
 
                     case_options["executable"] = os.path.join(common_options["executable"], "sintering-{}-{}".format(physics, mobility))
@@ -244,11 +253,6 @@ with open(args.file) as json_data:
                     # Disable 3D VTK output 
                     if "DisableRegularOutputFor3D" in data["Settings"].keys() and data["Settings"]["DisableRegularOutputFor3D"] == "true" and dim == '3d':
                         case_options["settings_extra"] += " --Output.Regular=false"
-
-                    # Output folder suffix
-                    suffix = ""
-                    if args.suffix:
-                        suffix += "_" + args.suffix
 
                     # Output directory
                     job_dir = os.path.join(default_job_root, dim + "_" + phys + suffix)
