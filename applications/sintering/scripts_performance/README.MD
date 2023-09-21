@@ -15,7 +15,6 @@ qsub job_6.cmd
 qsub job_7.cmd
 qsub job_8.cmd
 qsub job_9.cmd
-qsub job_10.cmd
 
 ```
 

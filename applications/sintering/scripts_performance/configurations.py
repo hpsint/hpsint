@@ -2,7 +2,7 @@ import json
 import os
 
 JOB="""#!/bin/bash
-#SBATCH --nodes=6
+#SBATCH --nodes={1}
 #SBATCH --ntasks-per-node=40
 #SBATCH --time=16:00:00
 #SBATCH -J job-precon-{0}
@@ -12,7 +12,7 @@ mkdir -p /scratch/munch
 cd /scratch/munch
 
 
-mpirun -np {2} ~/sw-sintering/hpsint/build/configurations-new/../applications/sintering/sintering-3D-generic-{3} --cloud ~/sw-sintering/hpsint/build/configurations-new/../../applications/sintering/sintering_cloud_examples/packings_10k/51particles.cloud ~/sw-sintering/hpsint/build/configurations-new/./job_{0}.json | tee ~/sw-sintering/hpsint/build/configurations-new/./job_{0}.out
+mpirun -np {2} ~/sw-sintering/hpsint-reference/build/configurations-new/../applications/sintering/sintering-3D-generic-{3} --cloud ~/sw-sintering/hpsint-reference/build/configurations-new/../../applications/sintering/sintering_cloud_examples/packings_10k/51particles.cloud ~/sw-sintering/hpsint-reference/build/configurations-new/./job_{0}.json | tee ~/sw-sintering/hpsint-reference/build/configurations-new/./job_{0}.out
 """
 
 def run_instance(counter, time_end, n_nodes, jacobian_free = False, cut_off = False, tenosrial = False, advection = False):
@@ -46,7 +46,7 @@ def run_instance(counter, time_end, n_nodes, jacobian_free = False, cut_off = Fa
 
 def main():
     time_end = 500
-    n_nodes  = 6
+    n_nodes  = 4
 
     run_instance( 0, time_end, n_nodes)
     run_instance( 1, time_end, n_nodes, jacobian_free=True)
@@ -58,10 +58,10 @@ def main():
     run_instance( 6, time_end, n_nodes, tenosrial=True, cut_off=True)
     #run_instance( 7, time_end, n_nodes, tenosrial=True, jacobian_free=True, cut_off=True)
 
-    run_instance( 7, time_end, n_nodes, advection=True)
-    run_instance( 8, time_end, n_nodes, advection=True, jacobian_free=True)
-    run_instance( 9, time_end, n_nodes, advection=True, cut_off=True)
-    run_instance(10, time_end, n_nodes, advection=True, jacobian_free=True, cut_off=True)
+    #run_instance( 7, time_end, n_nodes, advection=True)
+    run_instance( 7, time_end, n_nodes, advection=True, jacobian_free=True)
+    #run_instance( 9, time_end, n_nodes, advection=True, cut_off=True)
+    run_instance(8, time_end, n_nodes, advection=True, jacobian_free=True, cut_off=True)
 
 
 if __name__== "__main__":

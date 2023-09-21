@@ -2,15 +2,18 @@ import json
 import os
 import sys
 
-JOB="""#PBS -l nodes={1}:ppn=40
-#PBS -l walltime=16:00:00
-#PBS -N job-precon-{0}
-#PBS -q gold
-#PBS -j oe
+JOB="""#!/bin/bash
+#SBATCH --nodes={1}
+#SBATCH --ntasks-per-node=40
+#SBATCH --time=16:00:00
+#SBATCH -J job-precon-{0}
+#SBATCH --partition gold
 
-cd $PBS_O_WORKDIR
+mkdir -p /scratch/munch
+cd /scratch/munch
 
-mpirun -np {2} ../applications/sintering/sintering-3D-generic-scalar --cloud ../../applications/sintering/sintering_cloud_examples/packings_10k/51particles.cloud ./job_{0}.json | tee ./job_{0}.out
+
+mpirun -np {2} ~/sw-sintering/hpsint-reference/build/configurations-new/../applications/sintering/sintering-3D-generic-scalar --cloud ~/sw-sintering/hpsint-reference/build/configurations-new/../../applications/sintering/sintering_cloud_examples/packings_10k/51particles.cloud {3}/job_{0}.json | tee {3}/job_{0}.out
 """
 
 JOB_SKX="""#!/bin/bash
@@ -88,7 +91,7 @@ def run_instance(time_end, n_nodes, use_gold, config):
 
     with open("./job_%d.cmd" % (counter), 'w') as f:
         if use_gold:
-            f.write(JOB.format(counter, n_nodes, n_nodes * 40))
+            f.write(JOB.format(counter, n_nodes, n_nodes * 40, os.getcwd()))
         else:
             label = ""
             if n_nodes <= 16:
@@ -105,7 +108,7 @@ def run_instance(time_end, n_nodes, use_gold, config):
 
 def main():
     time_end = 500
-    n_nodes  = 6
+    n_nodes  = 5
     use_gold = True
 
     short_simulation = True
@@ -115,7 +118,7 @@ def main():
         time_end = 15000
 
     if short_simulation:
-        run_instance(time_end, n_nodes, use_gold, "ILU")
+        run_instance(time_end, n_nodes + 1, use_gold, "ILU")
 
     if short_simulation:
         run_instance(time_end, n_nodes, use_gold, "ILU|ILU")
