@@ -4,6 +4,7 @@ import os
 import copy
 import time
 import shutil
+from collections import abc
 
 def clean_folder(folder):
     for filename in os.listdir(folder):
@@ -40,6 +41,9 @@ parser.add_argument("-a", "--account", type=str, help="User account", required=F
 parser.add_argument("-e", "--email", type=str, help="Email for notification", required=False)
 parser.add_argument("-x", "--extra", type=str, help="Extra settings passed to the solver", required=False)
 parser.add_argument("-s", "--suffix", type=str, help="Suffix for output folder", required=False)
+parser.add_argument("-p", "--partition", type=str, help="HPC partition", required=False)
+parser.add_argument("-n", "--nodes", type=str, help="HPC number of nodes", required=False)
+parser.add_argument("-t", "--time", type=str, help="HPC max time", required=False)
 
 # Options for overriding runs
 parser.add_argument("-i", "--dimensions", type=str, nargs='+', help="Runs dimensions", required=False, default=[])
@@ -58,11 +62,6 @@ with open(args.file) as json_data:
     if "SlurmOptions" in data["Simulation"].keys():
         default_slurm_options = data["Simulation"]["SlurmOptions"]
 
-    # Cluster settings
-    common_options["--nodes"] = data["Cluster"]["Nodes"]
-    common_options["--time"] = data["Cluster"]["Time"]
-    common_options["--partition"] = data["Cluster"]["Partition"]
-    
     # User related info is sensitive so can be defined via command line
     if args.account:
         common_options["--account"] = args.account
@@ -73,6 +72,28 @@ with open(args.file) as json_data:
         common_options["--mail-user"] = args.email
     elif "User" in data.keys() and "Account" in data["User"].keys():
         common_options["--mail-user"] = data["User"]["Email"]
+
+    # If cluster information is provided then use it
+    if args.partition:
+        common_options["--partition"] = args.partition
+    elif "Cluster" in data.keys() and "Partition" in data["Cluster"].keys():
+        common_options["--partition"] = data["Cluster"]["Partition"]
+    else:
+        raise Exception('HPC partition has to be provided')
+
+    if args.nodes:
+        common_options["--nodes"] = args.nodes
+    elif "Cluster" in data.keys() and "Nodes" in data["Cluster"].keys():
+        common_options["--nodes"] = data["Cluster"]["Nodes"]
+    else:
+        raise Exception('HPC number of nodes has to be provided')
+
+    if args.time:
+        common_options["--time"] = args.time
+    elif "Cluster" in data.keys() and "Time" in data["Cluster"].keys():
+        common_options["--time"] = data["Cluster"]["Time"]
+    else:
+        raise Exception('HPC max evaluation time has to be provided')
 
     # What cases are to run
     runs = {}
@@ -131,8 +152,21 @@ with open(args.file) as json_data:
     counter = 0
     for case in data["Runs"]["Cases"]:
 
+        # Check if it is a string or dict with more data
+        if isinstance(case, abc.Mapping):
+            simulation_mode_params = case["Name"]
+
+            if "Cluster" in case.keys():
+                if "Partition" in case["Cluster"].keys():
+                    common_options["--partition"] = case["Cluster"]["Partition"]
+                if "Nodes" in case["Cluster"].keys():
+                    common_options["--nodes"] = case["Cluster"]["Nodes"]
+                if "Time" in case["Cluster"].keys():
+                    common_options["--time"] = case["Cluster"]["Time"]
+        else:
+            simulation_mode_params = case
+
         # Simulation case to run
-        simulation_mode_params = case
         if data["Simulation"]["Mode"] == "--cloud" and not(simulation_mode_params[0] == "/" or simulation_mode_params[0] == "~"):
             simulation_mode_params = os.path.join(study_clouds, simulation_mode_params)
 
