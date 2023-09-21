@@ -67,6 +67,8 @@ with open(args.file) as json_data:
         common_options["--account"] = args.account
     elif "User" in data.keys() and "Account" in data["User"].keys():
         common_options["--account"] = data["User"]["Account"]
+    else:
+        raise Exception('User account has to be provided')
 
     if args.email:
         common_options["--mail-user"] = args.email
