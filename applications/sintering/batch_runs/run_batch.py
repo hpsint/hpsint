@@ -4,6 +4,7 @@ import os
 import copy
 import time
 import shutil
+from collections import abc
 
 def clean_folder(folder):
     for filename in os.listdir(folder):
@@ -40,8 +41,20 @@ parser.add_argument("-a", "--account", type=str, help="User account", required=F
 parser.add_argument("-e", "--email", type=str, help="Email for notification", required=False)
 parser.add_argument("-x", "--extra", type=str, help="Extra settings passed to the solver", required=False)
 parser.add_argument("-s", "--suffix", type=str, help="Suffix for output folder", required=False)
+parser.add_argument("-p", "--partition", type=str, help="HPC partition", required=False)
+parser.add_argument("-n", "--nodes", type=str, help="HPC number of nodes", required=False)
+parser.add_argument("-t", "--time", type=str, help="HPC max time", required=False)
+
+# Options for overriding runs
+parser.add_argument("-i", "--dimensions", type=str, nargs='+', help="Runs dimensions", required=False, default=[])
+parser.add_argument("-y", "--physics", type=str, nargs='+', help="Runs physics", required=False, default=[])
+parser.add_argument("-m", "--mobility", type=str, nargs='+', help="Runs mobility", required=False, default=[])
 
 args = parser.parse_args()
+
+# Current directory
+cwd = os.path.split(os.getcwd())[1]
+cwd_short = cwd[:3]
 
 with open(args.file) as json_data:
     data = json.load(json_data)
@@ -53,22 +66,64 @@ with open(args.file) as json_data:
     if "SlurmOptions" in data["Simulation"].keys():
         default_slurm_options = data["Simulation"]["SlurmOptions"]
 
-    # Cluster settings
-    common_options["--nodes"] = data["Cluster"]["Nodes"]
-    common_options["--time"] = data["Cluster"]["Time"]
-    common_options["--partition"] = data["Cluster"]["Partition"]
-    
     # User related info is sensitive so can be defined via command line
     if args.account:
         common_options["--account"] = args.account
     elif "User" in data.keys() and "Account" in data["User"].keys():
         common_options["--account"] = data["User"]["Account"]
+    else:
+        raise Exception('User account has to be provided')
 
     if args.email:
         common_options["--mail-user"] = args.email
     elif "User" in data.keys() and "Account" in data["User"].keys():
         common_options["--mail-user"] = data["User"]["Email"]
+
+    # If cluster information is provided then use it
+    if args.partition:
+        common_options["--partition"] = args.partition
+    elif "Cluster" in data.keys() and "Partition" in data["Cluster"].keys():
+        common_options["--partition"] = data["Cluster"]["Partition"]
+    else:
+        raise Exception('HPC partition has to be provided')
+
+    if args.nodes:
+        common_options["--nodes"] = args.nodes
+    elif "Cluster" in data.keys() and "Nodes" in data["Cluster"].keys():
+        common_options["--nodes"] = data["Cluster"]["Nodes"]
+    else:
+        raise Exception('HPC number of nodes has to be provided')
+
+    if args.time:
+        common_options["--time"] = args.time
+    elif "Cluster" in data.keys() and "Time" in data["Cluster"].keys():
+        common_options["--time"] = data["Cluster"]["Time"]
+    else:
+        raise Exception('HPC max evaluation time has to be provided')
+
+    # What cases are to run
+    runs = {}
+
+    if args.dimensions:
+        runs["dimensions"] = args.dimensions
+    elif "Runs" in data.keys() and "Dimensions" in data["Runs"].keys():
+        runs["dimensions"] = data["Runs"]["Dimensions"]
+    else:
+        raise Exception('Runs dimensions have to be provided')
     
+    if args.physics:
+        runs["physics"] = args.physics
+    elif "Runs" in data.keys() and "Physics" in data["Runs"].keys():
+        runs["physics"] = data["Runs"]["Physics"]
+    else:
+        raise Exception('Runs physics have to be provided')
+    
+    if args.mobility:
+        runs["mobility"] = args.mobility
+    elif "Runs" in data.keys() and "Mobility" in data["Runs"].keys():
+        runs["mobility"] = data["Runs"]["Mobility"]
+    else:
+        raise Exception('Runs mobilities have to be provided')
 
     # Default study folder
     # Main study root
@@ -103,8 +158,21 @@ with open(args.file) as json_data:
     counter = 0
     for case in data["Runs"]["Cases"]:
 
+        # Check if it is a string or dict with more data
+        if isinstance(case, abc.Mapping):
+            simulation_mode_params = case["Name"]
+
+            if "Cluster" in case.keys():
+                if "Partition" in case["Cluster"].keys():
+                    common_options["--partition"] = case["Cluster"]["Partition"]
+                if "Nodes" in case["Cluster"].keys():
+                    common_options["--nodes"] = case["Cluster"]["Nodes"]
+                if "Time" in case["Cluster"].keys():
+                    common_options["--time"] = case["Cluster"]["Time"]
+        else:
+            simulation_mode_params = case
+
         # Simulation case to run
-        simulation_mode_params = case
         if data["Simulation"]["Mode"] == "--cloud" and not(simulation_mode_params[0] == "/" or simulation_mode_params[0] == "~"):
             simulation_mode_params = os.path.join(study_clouds, simulation_mode_params)
 
@@ -119,9 +187,9 @@ with open(args.file) as json_data:
 
         default_job_root = os.path.join(default_output_root, default_job_folder)
 
-        for dim in data["Runs"]["Dimensions"]:
-            for phys in data["Runs"]["Physics"]:
-                for mobility in data["Runs"]["Mobility"]:
+        for dim in runs["dimensions"]:
+            for phys in runs["physics"]:
+                for mobility in runs["mobility"]:
 
                     # Copy common options
                     case_options = copy.deepcopy(common_options)
@@ -132,28 +200,33 @@ with open(args.file) as json_data:
                     # Possible special options per case
                     special_names = []
 
+                    # Output folder suffix
+                    suffix = ""
+                    if args.suffix:
+                        suffix += "_" + args.suffix
+
                     # Also build up a meaningful job name
-                    job_name = dim
+                    job_name = cwd_short + "_" + default_job_folder + suffix + "_" + dim
 
                     if phys == "generic":
                         physics += "generic"
                         case_options["settings_extra"] += " " + "--Advection.Enable=false"
-                        job_name += '_gen'
+                        job_name += '_generic'
                         special_names.append("Generic")
 
                     elif phys == "generic_wang":
                         physics += "generic"
                         case_options["settings_extra"] += " " + "--Advection.Enable=true"
-                        job_name += '_gea'
+                        job_name += '_genwang'
                         special_names.append("Generic")
 
                     elif phys == "coupled_wang":
                         physics += "wang"
                         case_options["settings_extra"] += " " + "--Advection.Enable=true"
-                        job_name += '_cwa'
+                        job_name += '_couwang'
                         special_names.append("Coupled")
 
-                    job_name += '_' + mobility[0]
+                    job_name += "_" + mobility[0]
                     case_options["--job-name"] = job_name
 
                     case_options["executable"] = os.path.join(common_options["executable"], "sintering-{}-{}".format(physics, mobility))
@@ -169,8 +242,9 @@ with open(args.file) as json_data:
                                 for x in traverse(data["Special"][special_name]):
                                     opt = ('.'.join(x[0])).encode('ascii', 'ignore').decode("utf-8") 
                                     val = x[1]
+
                                     if isinstance(val, str):
-                                        val = val.encode('ascii', 'ignore')
+                                        val = val.encode('ascii', 'ignore').decode("utf-8")
                                     else:
                                         val = str(val)
                                     
@@ -179,11 +253,6 @@ with open(args.file) as json_data:
                     # Disable 3D VTK output 
                     if "DisableRegularOutputFor3D" in data["Settings"].keys() and data["Settings"]["DisableRegularOutputFor3D"] == "true" and dim == '3d':
                         case_options["settings_extra"] += " --Output.Regular=false"
-
-                    # Output folder suffix
-                    suffix = ""
-                    if args.suffix:
-                        suffix += "_" + args.suffix
 
                     # Output directory
                     job_dir = os.path.join(default_job_root, dim + "_" + phys + suffix)
