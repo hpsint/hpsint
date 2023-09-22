@@ -181,9 +181,8 @@ namespace Sintering
               const auto &velocity_ig =
                 this->advection.get_velocity(ig, phi.quadrature_point(q));
 
-              value_result[0] += velocity_ig * gradient[0];
-
-              value_result[ig + 2] += velocity_ig * gradient[ig + 2];
+              gradient_result[0] -= velocity_ig * value[0];
+              gradient_result[2 + ig] -= velocity_ig * value[2 + ig];
             }
 
 
@@ -674,8 +673,8 @@ namespace Sintering
                   const auto &velocity_ig =
                     this->advection.get_velocity(ig, phi.quadrature_point(q));
 
-                  value_result[0] += velocity_ig * gradient[0];
-                  value_result[2 + ig] += velocity_ig * gradient[2 + ig];
+                  gradient_result[0] -= velocity_ig * value[0];
+                  gradient_result[2 + ig] -= velocity_ig * value[2 + ig];
                 }
 
 
