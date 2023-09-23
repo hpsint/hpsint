@@ -13,7 +13,9 @@ mkdir -p /scratch/munch
 cd /scratch/munch
 
 
-mpirun -np {2} ~/sw-sintering/hpsint-reference/build/configurations-new/../applications/sintering/sintering-3D-generic-scalar --cloud ~/sw-sintering/hpsint-reference/build/configurations-new/../../applications/sintering/sintering_cloud_examples/packings_10k/51particles.cloud {3}/job_{0}.json | tee {3}/job_{0}.out
+mpirun -np {2} {3}/../applications/sintering/sintering-3D-generic-scalar \\
+    --cloud {3}/../../applications/sintering/sintering_cloud_examples/packings_10k/51particles.cloud \\
+    {3}/job_{0}.json | tee {3}/job_{0}.out
 """
 
 JOB_SKX="""#!/bin/bash
@@ -108,7 +110,7 @@ def run_instance(time_end, n_nodes, use_gold, config):
 
 def main():
     time_end = 500
-    n_nodes  = 5
+    n_nodes  = 4
     use_gold = True
 
     short_simulation = True

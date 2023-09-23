@@ -16,6 +16,7 @@ qsub job_7.cmd
 qsub job_8.cmd
 qsub job_9.cmd
 
+cd ...
 ```
 
 ```
@@ -30,6 +31,7 @@ qsub job_3.cmd
 qsub job_4.cmd
 qsub job_5.cmd
 
+cd ...
 ```
 
 ```
@@ -41,6 +43,7 @@ qsub job_0.cmd
 qsub job_1.cmd
 qsub job_2.cmd
 
+cd ...
 ```
 
 ```

@@ -1,5 +1,6 @@
 import json
 import os
+import sys
 
 JOB="""#!/bin/bash
 #SBATCH --nodes={1}
@@ -12,7 +13,9 @@ mkdir -p /scratch/munch
 cd /scratch/munch
 
 
-mpirun -np {2} ~/sw-sintering/hpsint-reference/build/configurations-new/../applications/sintering/sintering-3D-generic-{3} --cloud ~/sw-sintering/hpsint-reference/build/configurations-new/../../applications/sintering/sintering_cloud_examples/packings_10k/51particles.cloud ~/sw-sintering/hpsint-reference/build/configurations-new/./job_{0}.json | tee ~/sw-sintering/hpsint-reference/build/configurations-new/./job_{0}.out
+mpirun -np {2} {4}/../applications/sintering/sintering-3D-generic-{3} \\
+    --cloud {4}/../../applications/sintering/sintering_cloud_examples/packings_10k/51particles.cloud \\
+    {4}/job_{0}.json | tee {4}/job_{0}.out
 """
 
 def run_instance(counter, time_end, n_nodes, jacobian_free = False, cut_off = False, tenosrial = False, advection = False):
@@ -42,7 +45,7 @@ def run_instance(counter, time_end, n_nodes, jacobian_free = False, cut_off = Fa
         json.dump(datastore, f, indent=4, separators=(',', ': '))
 
     with open("./job_%d.cmd" % (counter), 'w') as f:
-        f.write(JOB.format(counter, n_nodes, n_nodes * 40, type))
+        f.write(JOB.format(counter, n_nodes, n_nodes * 40, type, os.getcwd()))
 
 def main():
     time_end = 500
