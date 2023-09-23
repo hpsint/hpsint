@@ -27,7 +27,7 @@ Vector data:
 block 2: Process #1
 Local range: [0, 4), global size: 6
 Vector data:
--2.469e+00 -7.415e-01 -2.469e+00 -7.415e-01
+-8.393e-01 -7.415e-01 -8.393e-01 -7.415e-01
 block 3: Process #1
 Local range: [0, 4), global size: 6
 Vector data:
@@ -48,4 +48,4 @@ Vector data:
 block 3: Process #2
 Local range: [4, 6), global size: 6
 Vector data:
--2.469e+00 -2.469e+00
+-8.393e-01 -8.393e-01
