@@ -149,7 +149,7 @@ namespace Sintering
               for (unsigned int d = 0; d < dim; ++d)
                 lin_v_adv[d] = val[n_grains + 2 + d] * inv_dt;
 
-              value_result[0] += lin_v_adv * phi.get_gradient(q)[0];
+              gradient_result[0] -= lin_v_adv * phi.get_value(q)[0];
             }
           else if (this->advection.enabled())
             {
@@ -162,7 +162,7 @@ namespace Sintering
                       this->advection.get_velocity(grain_to_relevant_grain[ig],
                                                    phi.quadrature_point(q));
 
-                    value_result[0] += velocity_ig * phi.get_gradient(q)[0];
+                    gradient_result[0] -= velocity_ig * phi.get_value(q)[0];
                   }
             }
 
@@ -394,7 +394,7 @@ namespace Sintering
                     lin_v_adv[d] = val[n_grains + 2 + d] * inv_dt;
 
                   for (unsigned int ig = 0; ig < n_grains; ++ig)
-                    value_result[ig] += lin_v_adv * phi.get_gradient(q)[ig];
+                    gradient_result[ig] -= lin_v_adv * phi.get_value(q)[ig];
                 }
               else if (this->advection.enabled())
                 {
@@ -407,8 +407,8 @@ namespace Sintering
                         const auto &velocity_ig = this->advection.get_velocity(
                           grain_to_relevant_grain[ig], phi.quadrature_point(q));
 
-                        value_result[ig] +=
-                          velocity_ig * phi.get_gradient(q)[ig];
+                        gradient_result[ig] -=
+                          velocity_ig * phi.get_value(q)[ig];
                       }
                 }
 
@@ -557,7 +557,7 @@ namespace Sintering
                     lin_v_adv[d] = val[n_grains + 2 + d] * inv_dt;
 
                   for (unsigned int ig = 0; ig < n_grains; ++ig)
-                    value_result[ig] += lin_v_adv * phi.get_gradient(q)[ig];
+                    gradient_result[ig] -= lin_v_adv * phi.get_value(q)[ig];
                 }
               else if (this->advection.enabled())
                 {
@@ -570,8 +570,8 @@ namespace Sintering
                         const auto &velocity_ig = this->advection.get_velocity(
                           grain_to_relevant_grain[ig], phi.quadrature_point(q));
 
-                        value_result[ig] +=
-                          velocity_ig * phi.get_gradient(q)[ig];
+                        gradient_result[ig] -=
+                          velocity_ig * phi.get_value(q)[ig];
                       }
                 }
 
@@ -825,7 +825,7 @@ namespace Sintering
                                   lin_v_adv[d] =
                                     val[this->n_grains() + 2 + d] * inv_dt;
 
-                                value_result += lin_v_adv * gradient;
+                                gradient_result -= lin_v_adv * value;
                               }
                             else if (grain_to_relevant_grain[b] !=
                                        static_cast<unsigned char>(255) &&
@@ -837,7 +837,7 @@ namespace Sintering
                                     grain_to_relevant_grain[b],
                                     integrator.quadrature_point(q));
 
-                                value_result += velocity_ig * gradient;
+                                gradient_result -= velocity_ig * value;
                               }
                           }
 
