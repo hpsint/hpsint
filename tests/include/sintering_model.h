@@ -184,7 +184,7 @@ namespace Test
       sintering_data.time_data.set_all_dt(dts);
 
       double k   = 100;
-      double cgb = 0.1;
+      double cgb = -1;
       double ceq = 1.0;
 
       advection_operator =
