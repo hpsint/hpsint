@@ -19,7 +19,7 @@ def get_solutions(files, do_print = True):
     files_list = []
     for fm in files:
         current_files_list = glob.glob(fm, recursive=True)
-        current_files_list.sort(key=lambda f: int(re.sub('\D', '', f)))
+        current_files_list.sort()
         files_list += current_files_list
 
     files_list = sorted(list(set(files_list)))
