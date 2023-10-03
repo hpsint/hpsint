@@ -2,6 +2,7 @@ import colorsys
 import glob
 import os
 import re
+import pathlib
 
 def get_hex_colors(N):
     hsv_tuples = [(x * 1.0 / N, 0.5, 0.5) for x in range(N)]
@@ -32,6 +33,10 @@ def get_solutions(files, do_print = True):
     return files_list
 
 def generate_short_labels(files_list):
+    if len(files_list) == 1:
+        labels = [pathlib.PurePath(files_list[0]).parent.name]
+        return labels
+
     min_len = min([len(f) for f in files_list])
 
     s_start = 0
