@@ -10,7 +10,7 @@ import library
 
 parser = argparse.ArgumentParser(description='Process shrinkage data')
 parser.add_argument("-m", "--mask", type=str, help="File mask", required=True)
-parser.add_argument("-f", "--file", type=str, help="Solution file", required=True)
+parser.add_argument("-f", "--file", type=str, help="Solution file", required=False, default="solution.log")
 parser.add_argument("-p", "--path", type=str, help="Common path, can be defined as mask too", required=False, default=None)
 parser.add_argument("-g", "--grains", type=int, help="Grain indices", nargs='+', required=False)
 parser.add_argument("-q", "--quantities", type=str, help="Grain indices", nargs='+', required=False)

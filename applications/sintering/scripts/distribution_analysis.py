@@ -9,7 +9,7 @@ from scipy.stats import norm
 
 parser = argparse.ArgumentParser(description='Process shrinkage data')
 parser.add_argument("-m", "--mask", type=str, help="File mask", required=True)
-parser.add_argument("-f", "--file", type=str, help="Solution file", required=True)
+parser.add_argument("-f", "--file", type=str, help="Solution file", required=False, default="solution.log")
 parser.add_argument("-p", "--path", type=str, help="Common path", required=False, default=None)
 parser.add_argument("-b", "--bins", type=int, help="Number of bins", default=10)
 parser.add_argument("-t", "--start", type=int, help="Step to start with", default=0)
