@@ -15,10 +15,11 @@ parser.add_argument("-b", "--bins", type=int, help="Number of bins", default=10)
 parser.add_argument("-t", "--start", type=int, help="Step to start with", default=0)
 parser.add_argument("-e", "--end", type=int, help="Step to end with", default=0)
 parser.add_argument("-d", "--delete", action='store_true', help="Delete the largest entity", required=False, default=False)
+parser.add_argument("-o", "--output", type=str, help="Destination folder to save data", default=None, required=False)
 
 group = parser.add_mutually_exclusive_group()
 group.add_argument("-r", "--radius", action='store_true', default=True)
-group.add_argument("-s", "--measure", action='store_true')
+group.add_argument("-u", "--measure", action='store_true')
 
 args = parser.parse_args()
 
@@ -55,6 +56,9 @@ files_list.sort(key=lambda f: int(re.sub('\D', '', f)))
 
 n_rows = len(files_list)
 
+if not n_rows:
+    raise Exception("The data files set for analysis is empty, check your path and mask")
+
 ax_init = plt.subplot(221)
 ax_final = plt.subplot(223)
 ax_mu_std = plt.subplot(222)
@@ -72,9 +76,14 @@ curves.append({
     'time': []
 })
 
+done_start = False
+done_end = False
+
 for idx, log_file in enumerate(files_list):
 
-    if idx < args.start or (args.end != 0 and idx > args.end):
+    t = fdata["time"][idx]
+
+    if t < args.start:
         continue
 
     print("Parsing file {} ({}/{})".format(log_file, idx + 1, n_rows))
@@ -101,10 +110,12 @@ for idx, log_file in enumerate(files_list):
 
         continue
 
-    if idx == args.start:
+    if t >= args.start and not done_start:
         plot_histogram(data_to_plot, ax_init, fdata["time"][idx], args.bins)
-    elif (args.end != 0 and idx == args.end) or idx == n_rows - 1:
+        done_start = True
+    elif ((args.end != 0 and t >= args.end) or idx == n_rows - 1) and not done_end:
         plot_histogram(data_to_plot, ax_final, fdata["time"][idx], args.bins)
+        done_end = True
 
     mu, std = norm.fit(data_to_plot)
 
@@ -112,6 +123,9 @@ for idx, log_file in enumerate(files_list):
     curves[-1]['stds'].append(std)
     curves[-1]['total'].append(qdata.size)
     curves[-1]['time'].append(fdata["time"][idx])
+
+    if done_end:
+        break
 
 for idx, curves_set in enumerate(curves):
     means = np.array(curves_set['means'])
