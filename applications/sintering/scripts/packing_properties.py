@@ -278,10 +278,12 @@ mu, std = norm.fit(radii)
 n_bins = 18
 counts, bins = np.histogram(radii, bins=n_bins)
 bins = to_dia_mkm(bins)
-counts_save = np.append(counts, 0)
-counts_save = counts_save/n_particles*100
+
 if args.save:
+    counts_save = np.append(counts, 0)
+    counts_save = counts_save/n_particles*100
     np.savetxt("size_distribution_hist.csv", np.column_stack((bins, counts_save)))
+
 #ax1.hist(radii, bins=n_bins, weights=counts, density=True, alpha=0.6, color='g')
 ax1.hist(bins[:-1], bins, weights=counts, density=True, alpha=0.6, color='g')
 
