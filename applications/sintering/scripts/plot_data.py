@@ -44,7 +44,7 @@ args = parser.parse_args()
 files_list = library.get_solutions(args.files)
 
 if not files_list:
-    exit("The files list is empty, nothing to plot")
+    raise Exception("The files list is empty, nothing to plot")
 
 colors = library.get_hex_colors(len(files_list))
 

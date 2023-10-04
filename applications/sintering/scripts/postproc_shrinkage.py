@@ -26,7 +26,7 @@ if not isinstance(args.directions, collections.abc.Sequence):
 files_list = library.get_solutions(args.files)
 
 if not files_list:
-    exit("The files list is empty, nothing to postprocess")
+    raise Exception("The files list is empty, nothing to postprocess")
 
 colors = library.get_hex_colors(len(files_list))
 

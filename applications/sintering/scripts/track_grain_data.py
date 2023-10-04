@@ -165,12 +165,12 @@ for file_solution, files_list in zip(list_solution_files, list_distributions):
 
             itemindex = np.where(qdata["id"] == gid)
             if not len(itemindex[0]):
-                exit("It seems you provided the wrong grain id = {}, check the list of those available for analysis".format(gid))
+                raise Exception("It seems you provided the wrong grain id = {}, check the list of those available for analysis".format(gid))
 
             for qty in args.quantities:
 
                 if qty not in qdata.dtype.names:
-                    exit("It seems you provided the wrong quantity name \"{}\", check the list of those available for analysis".format(qty))
+                    raise Exception("It seems you provided the wrong quantity name \"{}\", check the list of those available for analysis".format(qty))
 
                 qty_name = "{}_{}".format(qty, gid)
                 
