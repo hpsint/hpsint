@@ -151,6 +151,11 @@ for file_solution, files_list in zip(list_solution_files, list_distributions):
 
     for idx, log_file in enumerate(files_list):
 
+        if idx >= fdata.shape[0]:
+            prefix = "├" if idx + 1 < n_rows else "└"
+            print("{}─ Skipping file {} ({}/{}) due to data inconsistency".format(prefix, log_file, idx + 1, n_rows))
+            continue
+
         csv_data[idx, 0] = fdata["time"][idx]
 
         qdata = np.genfromtxt(log_file, dtype=None, names=True)
