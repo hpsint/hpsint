@@ -6,6 +6,7 @@ import re
 import os
 import numpy.ma as ma
 from scipy.stats import norm
+import library
 
 parser = argparse.ArgumentParser(description='Process shrinkage data')
 parser.add_argument("-m", "--mask", type=str, help="File mask", required=True)
@@ -126,7 +127,7 @@ for idx, log_file in enumerate(files_list):
 
         continue
 
-    save_file = os.path.join(output_folder, "{}_distribution_hist_t_{}.csv".format(qty_name, t)) if args.save else None
+    save_file = os.path.join(output_folder, "{}_distribution_histogram_t_{}.csv".format(qty_name, t)) if args.save else None
 
     if t >= args.start and not done_start:
         plot_histogram(data_to_plot, ax_init, fdata["time"][idx], args.bins, save_file)
@@ -157,11 +158,7 @@ for idx, curves_set in enumerate(curves):
     time = curves_set['time']
     total = curves_set['total']
 
-    ax_mu_std.plot(time, means, linewidth=2, color='blue')
-    ax_mu_std.fill_between(time, means-stds, means+stds, alpha=0.4, color='#888888')
-    ax_mu_std.fill_between(time, means-2*stds, means+2*stds, alpha=0.4, color='#cccccc')
-
-    ax_total.plot(time, total, linewidth=2, color='red')
+    library.plot_distribution_history(ax_mu_std, ax_total, time, means, stds, total)
 
     if idx < len(curves) - 1:
         ax_mu_std.axvspan(time[-1], curves[idx + 1]['time'][0], color='blue', alpha=0.1)
@@ -174,16 +171,7 @@ for idx, curves_set in enumerate(curves):
         file_path = os.path.join(output_folder, "{}_distribution_history{}.csv".format(qty_name, csv_suffix))
         np.savetxt(file_path, csv_data, delimiter=' ', header=csv_header, fmt=csv_format, comments='')
 
-ax_mu_std.grid(True)
-ax_mu_std.set_title("Average value")
-ax_mu_std.set_xlabel("time")
-ax_mu_std.set_ylabel(qty_name)
-#ax_mu_std.set_ylim([0.9*np.min(means-3*stds), 1.1*np.max(means+3*stds)])
-
-ax_total.grid(True)
-ax_total.set_title("Number of entities")
-ax_total.set_xlabel("time")
-ax_total.set_ylabel("#")
+library.format_distribution_plot(ax_mu_std, ax_total, qty_name)
 
 plt.tight_layout()
 
