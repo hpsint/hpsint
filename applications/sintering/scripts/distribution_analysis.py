@@ -20,13 +20,13 @@ parser.add_argument("-o", "--output", type=str, help="Destination folder to save
 group = parser.add_mutually_exclusive_group()
 group.add_argument("-r", "--radius", action='store_true', default=True)
 group.add_argument("-u", "--measure", action='store_true')
+group.add_argument("-s", "--save", action='store_true')
 
 args = parser.parse_args()
 
 qty_name = "measure" if args.measure else "radius"
 
-def plot_histogram(quantity, ax, time, n_bins = 10):
-
+def plot_histogram(quantity, ax, time, n_bins = 10, save_file = None):
     # Fit a normal distribution to the data:
     mu, std = norm.fit(quantity)
 
@@ -42,6 +42,12 @@ def plot_histogram(quantity, ax, time, n_bins = 10):
     ax.set_title("Time t = {}".format(time))
     ax.set_xlabel(qty_name)
     ax.grid(True)
+
+    if save_file:
+        n_particles = len(quantity)
+        counts_save = np.append(counts, 0)
+        counts_save = counts_save/n_particles*100
+        np.savetxt(save_file, np.column_stack((bins, counts_save)))
 
 # Deal with path names
 file_solution = args.file
@@ -76,8 +82,18 @@ curves.append({
     'time': []
 })
 
+# Flags if we saved the first and last distributions
 done_start = False
 done_end = False
+
+if args.save:
+    if args.output:
+        pathlib.Path(args.output).mkdir(parents=True, exist_ok=True)
+        output_folder = args.output
+    else:
+        output_folder = os.path.dirname(file_solution)
+else:
+    output_folder = ""
 
 for idx, log_file in enumerate(files_list):
 
@@ -110,11 +126,13 @@ for idx, log_file in enumerate(files_list):
 
         continue
 
+    save_file = os.path.join(output_folder, "{}_distribution_hist_t_{}.csv".format(qty_name, t)) if args.save else None
+
     if t >= args.start and not done_start:
-        plot_histogram(data_to_plot, ax_init, fdata["time"][idx], args.bins)
+        plot_histogram(data_to_plot, ax_init, fdata["time"][idx], args.bins, save_file)
         done_start = True
     elif ((args.end != 0 and t >= args.end) or idx == n_rows - 1) and not done_end:
-        plot_histogram(data_to_plot, ax_final, fdata["time"][idx], args.bins)
+        plot_histogram(data_to_plot, ax_final, fdata["time"][idx], args.bins, save_file)
         done_end = True
 
     mu, std = norm.fit(data_to_plot)
@@ -126,6 +144,12 @@ for idx, log_file in enumerate(files_list):
 
     if done_end:
         break
+
+# Headers for CSV to save if needed
+csv_header = ["time", "average", "stds", "total"]
+csv_format = ["%g"] * (len(csv_header))
+csv_format = " ".join(csv_format)
+csv_header = " ".join(csv_header)
 
 for idx, curves_set in enumerate(curves):
     means = np.array(curves_set['means'])
@@ -142,6 +166,13 @@ for idx, curves_set in enumerate(curves):
     if idx < len(curves) - 1:
         ax_mu_std.axvspan(time[-1], curves[idx + 1]['time'][0], color='blue', alpha=0.1)
         ax_total.axvspan(time[-1], curves[idx + 1]['time'][0], color='red', alpha=0.1)
+
+    if args.save:
+        csv_data = np.column_stack((time, means, stds, total))
+
+        csv_suffix = "" if len(curves) == 1 else "_{}".format(idx)
+        file_path = os.path.join(output_folder, "{}_distribution_history{}.csv".format(qty_name, csv_suffix))
+        np.savetxt(file_path, csv_data, delimiter=' ', header=csv_header, fmt=csv_format, comments='')
 
 ax_mu_std.grid(True)
 ax_mu_std.set_title("Average value")
