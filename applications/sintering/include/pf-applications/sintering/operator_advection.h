@@ -367,13 +367,12 @@ namespace Sintering
                           auto etai_etaj = eta_i * eta_j;
 
                           // Disable this normalization
-                          /*
-                          etai_etaj      = compare_and_apply_mask<
-                            SIMDComparison::greater_than>(etai_etaj,
-                                                          cgb_lim,
-                                                          ones,
-                                                          zeros);
-                          */
+                          if (cgb >= 0)
+                            etai_etaj = compare_and_apply_mask<
+                              SIMDComparison::greater_than>(etai_etaj,
+                                                            cgb_lim,
+                                                            ones,
+                                                            zeros);
 
                           // Compute force component per cell
                           dF *= k * (c - ceq) * etai_etaj;

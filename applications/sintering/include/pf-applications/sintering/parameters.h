@@ -174,7 +174,7 @@ namespace Sintering
     double k   = 100.;
     double mt  = 1.;
     double mr  = 1.;
-    double cgb = 0.1;
+    double cgb = -1;
     double ceq = 1.;
 
     bool check_courant = true;
