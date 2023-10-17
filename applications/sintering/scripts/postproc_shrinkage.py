@@ -25,6 +25,9 @@ if not isinstance(args.directions, collections.abc.Sequence):
 # Get all files to process
 files_list = library.get_solutions(args.files)
 
+if not files_list:
+    raise Exception("The files list is empty, nothing to postprocess")
+
 colors = library.get_hex_colors(len(files_list))
 
 header = ["dim_x", "dim_y", "dim_z", "volume", "shrinkage_x", "shrinkage_y", "shrinkage_z", "densification"]

@@ -2,6 +2,7 @@ import colorsys
 import glob
 import os
 import re
+import pathlib
 
 def get_hex_colors(N):
     hsv_tuples = [(x * 1.0 / N, 0.5, 0.5) for x in range(N)]
@@ -19,7 +20,7 @@ def get_solutions(files, do_print = True):
     files_list = []
     for fm in files:
         current_files_list = glob.glob(fm, recursive=True)
-        current_files_list.sort(key=lambda f: int(re.sub('\D', '', f)))
+        current_files_list.sort()
         files_list += current_files_list
 
     files_list = sorted(list(set(files_list)))
@@ -32,6 +33,10 @@ def get_solutions(files, do_print = True):
     return files_list
 
 def generate_short_labels(files_list):
+    if len(files_list) == 1:
+        labels = [pathlib.PurePath(files_list[0]).parent.name]
+        return labels
+
     min_len = min([len(f) for f in files_list])
 
     s_start = 0
@@ -105,3 +110,22 @@ def get_markers(n_plot, n_points, n_total_markers, available_markers = None):
         m_type = None
 
     return m_type, n_every
+
+def plot_distribution_history(ax_mu_std, ax_total, time, means, stds, total):
+    ax_mu_std.plot(time, means, linewidth=2, color='blue')
+    ax_mu_std.fill_between(time, means-stds, means+stds, alpha=0.4, color='#888888')
+    ax_mu_std.fill_between(time, means-2*stds, means+2*stds, alpha=0.4, color='#cccccc')
+
+    ax_total.plot(time, total, linewidth=2, color='red')
+
+def format_distribution_plot(ax_mu_std, ax_total, qty_name):
+    ax_mu_std.grid(True)
+    ax_mu_std.set_title("Average value")
+    ax_mu_std.set_xlabel("time")
+    ax_mu_std.set_ylabel(qty_name)
+    #ax_mu_std.set_ylim([0.9*np.min(means-3*stds), 1.1*np.max(means+3*stds)])
+
+    ax_total.grid(True)
+    ax_total.set_title("Number of entities")
+    ax_total.set_xlabel("time")
+    ax_total.set_ylabel("#")

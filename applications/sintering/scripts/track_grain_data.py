@@ -10,7 +10,7 @@ import library
 
 parser = argparse.ArgumentParser(description='Process shrinkage data')
 parser.add_argument("-m", "--mask", type=str, help="File mask", required=True)
-parser.add_argument("-f", "--file", type=str, help="Solution file", required=True)
+parser.add_argument("-f", "--file", type=str, help="Solution file", required=False, default="solution.log")
 parser.add_argument("-p", "--path", type=str, help="Common path, can be defined as mask too", required=False, default=None)
 parser.add_argument("-g", "--grains", type=int, help="Grain indices", nargs='+', required=False)
 parser.add_argument("-q", "--quantities", type=str, help="Grain indices", nargs='+', required=False)
@@ -151,6 +151,11 @@ for file_solution, files_list in zip(list_solution_files, list_distributions):
 
     for idx, log_file in enumerate(files_list):
 
+        if idx >= fdata.shape[0]:
+            prefix = "├" if idx + 1 < n_rows else "└"
+            print("{}─ Skipping file {} ({}/{}) due to data inconsistency".format(prefix, log_file, idx + 1, n_rows))
+            continue
+
         csv_data[idx, 0] = fdata["time"][idx]
 
         qdata = np.genfromtxt(log_file, dtype=None, names=True)
@@ -159,8 +164,13 @@ for file_solution, files_list in zip(list_solution_files, list_distributions):
         for gid in args.grains:
 
             itemindex = np.where(qdata["id"] == gid)
+            if not len(itemindex[0]):
+                raise Exception("It seems you provided the wrong grain id = {}, check the list of those available for analysis".format(gid))
 
             for qty in args.quantities:
+
+                if qty not in qdata.dtype.names:
+                    raise Exception("It seems you provided the wrong quantity name \"{}\", check the list of those available for analysis".format(qty))
 
                 qty_name = "{}_{}".format(qty, gid)
                 
