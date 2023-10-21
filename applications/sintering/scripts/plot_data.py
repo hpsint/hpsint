@@ -37,6 +37,7 @@ parser.add_argument("-m", "--markers", dest='markers', required=False, help="Num
 parser.add_argument("-c", "--collapse", dest='collapse', required=False, help="Shorten labels", action="store_true", default=False)
 parser.add_argument("-s", "--skip-first", dest='skip_first', required=False, help="Skip first entry", action="store_true", default=True)
 parser.add_argument("-g", "--single-legend", dest='single_legend', required=False, help="Use single legend", action="store_true", default=False)
+parser.add_argument("-b", "--labels", dest='labels', required=False, nargs='+', help="Customized labels", default=None)
 
 args = parser.parse_args()
 
@@ -80,6 +81,11 @@ if args.collapse:
     labels = library.generate_short_labels(files_list)
 else:
     labels = files_list
+
+# If we have custom labels
+if args.labels:
+    for i in range(min(len(labels), len(args.labels))):
+        labels[i] = args.labels[i]
 
 for i in range(n_fields):
     field = args.yaxes[i]
