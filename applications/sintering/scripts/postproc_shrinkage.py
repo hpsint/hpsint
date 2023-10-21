@@ -17,6 +17,7 @@ parser.add_argument("-c", "--collapse", dest='collapse', required=False, help="S
 parser.add_argument("-s", "--save", dest='save', required=False, help="Save shrinkage data", action="store_true", default=False)
 parser.add_argument("-o", "--output", dest='output', required=False, help="Destination path to output csv files", type=str, default=None)
 parser.add_argument("-b", "--labels", dest='labels', required=False, nargs='+', help="Customized labels", default=None)
+parser.add_argument("-r", "--delimiter", dest='delimiter', required=False, help="Input file delimiter", default=None)
 
 args = parser.parse_args()
 
@@ -64,7 +65,7 @@ if args.save:
 
 for f, lbl, clr in zip(files_list, labels, colors):
 
-    fdata = np.genfromtxt(f, dtype=None, names=True)
+    fdata = np.genfromtxt(f, dtype=None, names=True, delimiter=args.delimiter)
 
     alpha = 1
 
