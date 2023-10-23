@@ -102,14 +102,24 @@ for f, lbl, clr in zip(files_list, labels, colors):
         if header[i] in fdata.dtype.names and active[i]:
             qty_name = header[i]
 
-            ref0 = fdata[qty_name][0]
+            # In case the first entry is zero, then pick the next non-zero
+            i_ref = 0
+            ref0 = fdata[qty_name][i_ref]
+            while ref0 == 0:
+                i_ref += 1
+                ref0 = fdata[qty_name][i_ref]
+
             ref_qty = (ref0 - fdata[qty_name]) / ref0
 
-            m_type, n_every = library.get_markers(i, len(fdata["time"][mask]), args.markers, markers)
+            mask_plt = mask[:]
+            for i in range(i_ref):
+                mask_plt[i] = False
 
-            axes[0].plot(fdata["time"][mask], fdata[qty_name][mask], label=" ".join([lbl, header[i]]), 
+            m_type, n_every = library.get_markers(i, len(fdata["time"][mask_plt]), args.markers, markers)
+
+            axes[0].plot(fdata["time"][mask_plt], fdata[qty_name][mask_plt], label=" ".join([lbl, header[i]]), 
                 marker=m_type, color=clr, alpha=alpha, markevery=n_every)
-            axes[1].plot(fdata["time"][mask], ref_qty[mask], label=" ".join([lbl, header[i+n_qtys]]),
+            axes[1].plot(fdata["time"][mask_plt], ref_qty[mask_plt], label=" ".join([lbl, header[i+n_qtys]]),
                 marker=m_type, color=clr, alpha=alpha, markevery=n_every)
 
             alpha -= 0.2
