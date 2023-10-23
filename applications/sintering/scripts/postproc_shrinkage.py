@@ -16,6 +16,8 @@ parser.add_argument("-m", "--markers", dest='markers', required=False, help="Num
 parser.add_argument("-c", "--collapse", dest='collapse', required=False, help="Shorten labels", action="store_true", default=False)
 parser.add_argument("-s", "--save", dest='save', required=False, help="Save shrinkage data", action="store_true", default=False)
 parser.add_argument("-o", "--output", dest='output', required=False, help="Destination path to output csv files", type=str, default=None)
+parser.add_argument("-b", "--labels", dest='labels', required=False, nargs='+', help="Customized labels", default=None)
+parser.add_argument("-r", "--delimiter", dest='delimiter', required=False, help="Input file delimiter", default=None)
 
 args = parser.parse_args()
 
@@ -48,6 +50,11 @@ if args.collapse:
 else:
     labels = files_list
 
+# If we have custom labels
+if args.labels:
+    for i in range(min(len(labels), len(args.labels))):
+        labels[i] = args.labels[i]
+
 # CSV names
 if args.save:
     if args.output is not None:
@@ -58,7 +65,7 @@ if args.save:
 
 for f, lbl, clr in zip(files_list, labels, colors):
 
-    fdata = np.genfromtxt(f, dtype=None, names=True)
+    fdata = np.genfromtxt(f, dtype=None, names=True, delimiter=args.delimiter)
 
     alpha = 1
 
@@ -95,14 +102,24 @@ for f, lbl, clr in zip(files_list, labels, colors):
         if header[i] in fdata.dtype.names and active[i]:
             qty_name = header[i]
 
-            ref0 = fdata[qty_name][0]
+            # In case the first entry is zero, then pick the next non-zero
+            i_ref = 0
+            ref0 = fdata[qty_name][i_ref]
+            while ref0 == 0:
+                i_ref += 1
+                ref0 = fdata[qty_name][i_ref]
+
             ref_qty = (ref0 - fdata[qty_name]) / ref0
 
-            m_type, n_every = library.get_markers(i, len(fdata["time"][mask]), args.markers, markers)
+            mask_plt = mask[:]
+            for i in range(i_ref):
+                mask_plt[i] = False
 
-            axes[0].plot(fdata["time"][mask], fdata[qty_name][mask], label=" ".join([lbl, header[i]]), 
+            m_type, n_every = library.get_markers(i, len(fdata["time"][mask_plt]), args.markers, markers)
+
+            axes[0].plot(fdata["time"][mask_plt], fdata[qty_name][mask_plt], label=" ".join([lbl, header[i]]), 
                 marker=m_type, color=clr, alpha=alpha, markevery=n_every)
-            axes[1].plot(fdata["time"][mask], ref_qty[mask], label=" ".join([lbl, header[i+n_qtys]]),
+            axes[1].plot(fdata["time"][mask_plt], ref_qty[mask_plt], label=" ".join([lbl, header[i+n_qtys]]),
                 marker=m_type, color=clr, alpha=alpha, markevery=n_every)
 
             alpha -= 0.2

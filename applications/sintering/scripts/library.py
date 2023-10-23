@@ -33,6 +33,9 @@ def get_solutions(files, do_print = True):
     return files_list
 
 def generate_short_labels(files_list):
+    if len(files_list) == 0:
+        return []
+
     if len(files_list) == 1:
         labels = [pathlib.PurePath(files_list[0]).parent.name]
         return labels

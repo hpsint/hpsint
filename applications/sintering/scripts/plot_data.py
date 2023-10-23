@@ -37,6 +37,8 @@ parser.add_argument("-m", "--markers", dest='markers', required=False, help="Num
 parser.add_argument("-c", "--collapse", dest='collapse', required=False, help="Shorten labels", action="store_true", default=False)
 parser.add_argument("-s", "--skip-first", dest='skip_first', required=False, help="Skip first entry", action="store_true", default=True)
 parser.add_argument("-g", "--single-legend", dest='single_legend', required=False, help="Use single legend", action="store_true", default=False)
+parser.add_argument("-b", "--labels", dest='labels', required=False, nargs='+', help="Customized labels", default=None)
+parser.add_argument("-r", "--delimiter", dest='delimiter', required=False, help="Input file delimiter", default=None)
 
 args = parser.parse_args()
 
@@ -53,7 +55,7 @@ if not args.yaxes:
 
     available_fields = None
     for f in files_list:
-        cdata = np.genfromtxt(f, dtype=None, names=True)
+        cdata = np.genfromtxt(f, dtype=None, names=True, delimiter=args.delimiter)
         if available_fields is None:
             available_fields = set(cdata.dtype.names)
         else:
@@ -81,6 +83,11 @@ if args.collapse:
 else:
     labels = files_list
 
+# If we have custom labels
+if args.labels:
+    for i in range(min(len(labels), len(args.labels))):
+        labels[i] = args.labels[i]
+
 for i in range(n_fields):
     field = args.yaxes[i]
     a = ax[i]
@@ -88,7 +95,7 @@ for i in range(n_fields):
     x_lims = [sys.float_info.max, -sys.float_info.max]
 
     for f, lbl, clr in zip(files_list, labels, colors):
-        cdata = np.genfromtxt(f, dtype=None, names=True)
+        cdata = np.genfromtxt(f, dtype=None, names=True, delimiter=args.delimiter)
         
         mask = [True] * len(cdata[args.xaxis])
         if args.limits:
