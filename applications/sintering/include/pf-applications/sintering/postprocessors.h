@@ -1609,7 +1609,8 @@ namespace Sintering
     BoundingBox<dim, typename VectorType::value_type>
     estimate_shrinkage(const Mapping<dim> &   mapping,
                        const DoFHandler<dim> &dof_handler,
-                       const VectorType &     solution)
+                       const VectorType &     solution,
+                       const unsigned int     n_intervals = 10)
     {
       const double threshold = 0.5 - 1e-2;
       const double abs_tol   = 1e-15;
@@ -1713,7 +1714,6 @@ namespace Sintering
         }
 
       // Generate refined quadrature
-      const unsigned int            n_intervals = 10;
       std::vector<dealii::Point<1>> points(n_intervals - 1);
 
       // The end points are dropped since the support points of the cells have
@@ -1798,9 +1798,11 @@ namespace Sintering
     estimate_shrinkage(const Mapping<dim> &   mapping,
                        const DoFHandler<dim> &dof_handler,
                        const VectorType &     solution,
-                       const std::string      output)
+                       const std::string      output,
+                       const unsigned int     n_intervals = 10)
     {
-      const auto bb = estimate_shrinkage(mapping, dof_handler, solution);
+      const auto bb =
+        estimate_shrinkage(mapping, dof_handler, solution, n_intervals);
 
       write_bounding_box(bb, mapping, dof_handler, output);
     }
