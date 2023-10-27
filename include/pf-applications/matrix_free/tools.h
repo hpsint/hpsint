@@ -427,5 +427,37 @@ namespace dealii
         cell_operation, owning_class, dst, src, zero_dst_vector);
     }
 
+    template <int dim,
+              typename Number,
+              typename VectorizedArrayType,
+              typename CLASS,
+              typename OutVector,
+              typename InVector>
+    void
+    cell_loop_wrapper(
+      const MatrixFree<dim, Number, VectorizedArrayType> &matrix_free,
+      void (CLASS::*cell_operation)(
+        const MatrixFree<dim, Number, VectorizedArrayType> &,
+        OutVector &,
+        const InVector &,
+        const std::pair<unsigned int, unsigned int> &) const,
+      const CLASS *   owning_class,
+      OutVector &     dst,
+      const InVector &src,
+      const std::function<void(const unsigned int, const unsigned int)>
+        &operation_before_loop,
+      const std::function<void(const unsigned int, const unsigned int)>
+        &                operation_after_loop,
+      const unsigned int dof_handler_index_pre_post = 0)
+    {
+      matrix_free.cell_loop(cell_operation,
+                            owning_class,
+                            dst,
+                            src,
+                            operation_before_loop,
+                            operation_after_loop,
+                            dof_handler_index_pre_post);
+    }
+
   } // namespace MyMatrixFreeTools
 } // namespace dealii

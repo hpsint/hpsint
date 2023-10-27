@@ -379,12 +379,31 @@ namespace Sintering
 
     template <unsigned int with_time_derivative = 2>
     void
-    evaluate_nonlinear_residual(BlockVectorType &      dst,
-                                const BlockVectorType &src) const
+    evaluate_nonlinear_residual(
+      BlockVectorType &      dst,
+      const BlockVectorType &src,
+      const std::function<void(const unsigned int, const unsigned int)>
+        pre_operation = {},
+      const std::function<void(const unsigned int, const unsigned int)>
+        post_operation = {}) const
     {
       MyScope scope(this->timer,
                     "sintering_op::nonlinear_residual",
                     this->do_timing);
+
+      std::function<void(const unsigned int, const unsigned int)>
+        pre_operation_to_be_used = pre_operation;
+
+      if (!pre_operation)
+        // no pre-function is given -> attach function to clear dst vector
+        pre_operation_to_be_used = [&](const auto start_range,
+                                       const auto end_range) {
+          for (unsigned int b = 0; b < internal::n_blocks(dst); ++b)
+
+            std::memset(internal::block(dst, b).begin() + start_range,
+                        0,
+                        sizeof(Number) * (end_range - start_range));
+        };
 
       if (this->data.get_component_table().size(0) == 0)
         {
@@ -396,7 +415,8 @@ namespace Sintering
     this,                                                         \
     dst,                                                          \
     src,                                                          \
-    true);
+    pre_operation_to_be_used,                                     \
+    post_operation);
           EXPAND_OPERATIONS(OPERATION);
 #undef OPERATION
         }
@@ -409,7 +429,8 @@ namespace Sintering
             this,
             dst,
             src,
-            true);
+            pre_operation_to_be_used,
+            post_operation);
         }
     }
 

@@ -20,9 +20,10 @@
 
 #include <pf-applications/base/timer.h>
 
-#include <deal.II/trilinos/nox.h>
+#include <pf-applications/lac/dynamic_block_vector.h>
+#include <pf-applications/lac/solvers_nonlinear_snes.h>
 
-#include "solvers_nonlinear_snes.h"
+#include <deal.II/trilinos/nox.h>
 
 namespace NonLinearSolvers
 {
@@ -564,6 +565,27 @@ namespace NonLinearSolvers
     const OperatorType &op;
   };
 
+
+
+  template <typename T, typename VectorType>
+  using evaluate_nonlinear_residual_with_pre_post_t =
+    decltype(std::declval<T const>().evaluate_nonlinear_residual(
+      std::declval<VectorType &>(),
+      std::declval<const VectorType &>(),
+      std::declval<
+        const std::function<void(const unsigned int, const unsigned int)>>(),
+      std::declval<
+        const std::function<void(const unsigned int, const unsigned int)>>()));
+
+  template <typename T, typename VectorType>
+  constexpr bool has_evaluate_nonlinear_residual_with_pre_post =
+    dealii::internal::is_supported_operation<
+      evaluate_nonlinear_residual_with_pre_post_t,
+      T,
+      VectorType>;
+
+
+
   template <typename Number, typename OperatorType>
   class JacobianFree : public JacobianBase<Number>
   {
@@ -628,21 +650,86 @@ namespace NonLinearSolvers
         }
       else
         {
-          // 2) approximate Jacobian-vector product
-          //    cost: 4r + 2w
+          if constexpr (has_evaluate_nonlinear_residual_with_pre_post<
+                          OperatorType,
+                          BlockVectorType>)
+            {
+              const auto  delta     = h;
+              const auto  delta_inv = 1.0 / delta;
+              auto &      tmp       = u;
+              const auto &res       = residual_u;
 
-          // 2a) perturb linerization point -> pre
-          u.add(h, src);
+              const auto pre_op = [&](const auto begin, const auto end) {
+                for (unsigned int b = 0; b < Sintering::internal::n_blocks(dst);
+                     ++b)
+                  {
+                    const auto dst_ptr =
+                      Sintering::internal::block(dst, b).begin();
+                    const auto src_ptr =
+                      Sintering::internal::block(src, b).begin();
+                    const auto tmp_ptr =
+                      Sintering::internal::block(tmp, b).begin();
 
-          // 2b) evalute residual
-          op.template evaluate_nonlinear_residual<1>(dst, u);
+                    DEAL_II_OPENMP_SIMD_PRAGMA
+                    for (std::size_t i = begin; i < end; ++i)
+                      {
+                        // zero out destination vector
+                        dst_ptr[i] = 0.0;
 
-          // 2c) take finite difference -> post
-          dst.add(-1.0, residual_u);
-          dst *= 1.0 / h;
+                        // perturb
+                        tmp_ptr[i] += delta * src_ptr[i];
+                      }
+                  }
+              };
 
-          // 2d) cleanup -> post
-          u.add(-h, src);
+              const auto post_op = [&](const auto begin, const auto end) {
+                for (unsigned int b = 0; b < Sintering::internal::n_blocks(dst);
+                     ++b)
+                  {
+                    const auto dst_ptr =
+                      Sintering::internal::block(dst, b).begin();
+                    const auto src_ptr =
+                      Sintering::internal::block(src, b).begin();
+                    const auto tmp_ptr =
+                      Sintering::internal::block(tmp, b).begin();
+                    const auto res_ptr =
+                      Sintering::internal::block(res, b).begin();
+
+                    DEAL_II_OPENMP_SIMD_PRAGMA
+                    for (std::size_t i = begin; i < end; ++i)
+                      {
+                        // compute finite difference
+                        dst_ptr[i] = (dst_ptr[i] - res_ptr[i]) * delta_inv;
+
+                        // clean up
+                        tmp_ptr[i] -= delta * src_ptr[i];
+                      }
+                  }
+              };
+
+              op.template evaluate_nonlinear_residual<1>(dst,
+                                                         tmp,
+                                                         pre_op,
+                                                         post_op);
+            }
+          else
+            {
+              // 2) approximate Jacobian-vector product
+              //    cost: 4r + 2w
+
+              // 2a) perturb linerization point -> pre
+              u.add(h, src);
+
+              // 2b) evalute residual
+              op.template evaluate_nonlinear_residual<1>(dst, u);
+
+              // 2c) take finite difference -> post
+              dst.add(-1.0, residual_u);
+              dst *= 1.0 / h;
+
+              // 2d) cleanup -> post
+              u.add(-h, src);
+            }
         }
     }
 

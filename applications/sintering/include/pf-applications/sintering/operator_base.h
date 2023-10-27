@@ -36,56 +36,6 @@ namespace Sintering
 {
   using namespace dealii;
 
-  namespace internal
-  {
-    template <typename Number>
-    unsigned int
-    n_blocks(const LinearAlgebra::distributed::Vector<Number> &)
-    {
-      return 1;
-    }
-
-    template <typename Number>
-    unsigned int
-    n_blocks(const LinearAlgebra::distributed::BlockVector<Number> &vector)
-    {
-      return vector.n_blocks();
-    }
-
-    template <typename Number>
-    unsigned int
-    n_blocks(
-      const LinearAlgebra::distributed::DynamicBlockVector<Number> &vector)
-    {
-      return vector.n_blocks();
-    }
-
-    template <typename Number>
-    LinearAlgebra::distributed::Vector<Number> &
-    block(LinearAlgebra::distributed::Vector<Number> &vector,
-          const unsigned int                          b)
-    {
-      AssertThrow(b == 0, ExcInternalError());
-      return vector;
-    }
-
-    template <typename Number>
-    LinearAlgebra::distributed::Vector<Number> &
-    block(LinearAlgebra::distributed::BlockVector<Number> &vector,
-          const unsigned int                               b)
-    {
-      return vector.block(b);
-    }
-
-    template <typename Number>
-    LinearAlgebra::distributed::Vector<Number> &
-    block(LinearAlgebra::distributed::DynamicBlockVector<Number> &vector,
-          const unsigned int                                      b)
-    {
-      return vector.block(b);
-    }
-  } // namespace internal
-
   template <int dim, typename Number, typename VectorizedArrayType, typename T>
   class OperatorBase : public Subscriptor
   {
