@@ -946,6 +946,7 @@ namespace Sintering
       else
         AssertThrow(false, ExcNotImplemented());
 
+      // Nonlinear operator
       auto nonlinear_operator = create_sintering_operator<dim,
                                                           Number,
                                                           VectorizedArrayType,
@@ -962,6 +963,40 @@ namespace Sintering
         params.material_data.mechanics_data.nu,
         plane_type);
 
+      // Advection noperator
+      AdvectionOperator<dim, Number, VectorizedArrayType> advection_operator(
+        params.advection_data.k,
+        params.advection_data.cgb,
+        params.advection_data.ceq,
+        matrix_free,
+        constraints,
+        sintering_data,
+        grain_tracker);
+
+      // Non-linear Newton solver statistics
+      NonLinearSolvers::NewtonSolverSolverControl statistics(
+        params.nonlinear_data.nl_max_iter,
+        params.nonlinear_data.nl_abs_tol,
+        params.nonlinear_data.nl_rel_tol);
+
+      // Timer
+      MyTimerOutput timer;
+      TimerCollection::configure(params.profiling_data.output_time_interval);
+
+      // Lambda to compute residual
+      const auto nl_residual = [&](const auto &src, auto &dst) {
+        ScopedName sc("residual");
+        MyScope    scope(timer, sc);
+
+        // Compute forces
+        if (params.advection_data.enable)
+          advection_operator.evaluate_forces(src, advection_mechanism);
+
+        nonlinear_operator.evaluate_nonlinear_residual(dst, src);
+
+        statistics.increment_residual_evaluations(1);
+      };
+
       std::unique_ptr<NonLinearSolvers::JacobianBase<Number>> jacobian_operator;
 
       if (params.nonlinear_data.jacobi_free == false)
@@ -969,9 +1004,8 @@ namespace Sintering
           NonLinearSolvers::JacobianWrapper<Number, NonLinearOperator>>(
           nonlinear_operator);
       else
-        jacobian_operator = std::make_unique<
-          NonLinearSolvers::JacobianFree<Number, NonLinearOperator>>(
-          nonlinear_operator);
+        jacobian_operator =
+          std::make_unique<NonLinearSolvers::JacobianFree<Number>>(nl_residual);
 
       // Save all blocks at quadrature points if the advection mechanism is
       // enabled
@@ -1077,9 +1111,6 @@ namespace Sintering
           *solver_control_l,
           params.nonlinear_data.l_bisgstab_tries);
 
-      MyTimerOutput timer;
-      TimerCollection::configure(params.profiling_data.output_time_interval);
-
       // Define vector to store additional initializers for additional vectors
       std::vector<std::function<void()>> additional_initializations;
 
@@ -1123,35 +1154,6 @@ namespace Sintering
               postproc_operator.initialize_dof_vector(postproc_rhs);
             });
         }
-
-      AdvectionOperator<dim, Number, VectorizedArrayType> advection_operator(
-        params.advection_data.k,
-        params.advection_data.cgb,
-        params.advection_data.ceq,
-        matrix_free,
-        constraints,
-        sintering_data,
-        grain_tracker);
-
-      // ... non-linear Newton solver
-      NonLinearSolvers::NewtonSolverSolverControl statistics(
-        params.nonlinear_data.nl_max_iter,
-        params.nonlinear_data.nl_abs_tol,
-        params.nonlinear_data.nl_rel_tol);
-
-      // Lambda to compute residual
-      const auto nl_residual = [&](const auto &src, auto &dst) {
-        ScopedName sc("residual");
-        MyScope    scope(timer, sc);
-
-        // Compute forces
-        if (params.advection_data.enable)
-          advection_operator.evaluate_forces(src, advection_mechanism);
-
-        nonlinear_operator.evaluate_nonlinear_residual(dst, src);
-
-        statistics.increment_residual_evaluations(1);
-      };
 
       // Lambda to set up jacobian
       const auto nl_setup_jacobian = [&](const auto &current_u) {
