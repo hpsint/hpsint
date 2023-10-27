@@ -215,6 +215,7 @@ namespace Sintering
     bool                  porosity_stats         = false;
     double                porosity_max_value     = 0.8;
     bool                  shrinkage              = false;
+    unsigned int          shrinkage_intervals    = 20;
     bool                  grains_stats           = false;
     bool                  quality                = false;
     bool                  table                  = false;
@@ -807,6 +808,9 @@ namespace Sintering
       prm.add_parameter("Shrinkage",
                         output_data.shrinkage,
                         "Determine shrinkage.");
+      prm.add_parameter("ShrinkageIntervals",
+                        output_data.shrinkage_intervals,
+                        "Discretization intervals for shrinkage accuracy.");
       prm.add_parameter("GrainsStats",
                         output_data.grains_stats,
                         "Grains statistics.");

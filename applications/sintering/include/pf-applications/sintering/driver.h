@@ -3106,8 +3106,11 @@ namespace Sintering
           pcout << "Outputing data at t = " << t << " (" << output << ")"
                 << std::endl;
 
-          const auto bb =
-            Postprocessors::estimate_shrinkage(mapping, dof_handler, solution);
+          const auto bb = Postprocessors::estimate_shrinkage(
+            mapping,
+            dof_handler,
+            solution,
+            params.output_data.shrinkage_intervals);
 
           Postprocessors::write_bounding_box(bb, mapping, dof_handler, output);
 
