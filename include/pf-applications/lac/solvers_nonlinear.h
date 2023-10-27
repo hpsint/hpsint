@@ -564,7 +564,7 @@ namespace NonLinearSolvers
     const OperatorType &op;
   };
 
-  template <typename Number, typename OperatorType>
+  template <typename Number>
   class JacobianFree : public JacobianBase<Number>
   {
   public:
@@ -573,9 +573,10 @@ namespace NonLinearSolvers
     using VectorType      = typename JacobianBase<Number>::VectorType;
     using BlockVectorType = typename JacobianBase<Number>::BlockVectorType;
 
-    JacobianFree(const OperatorType &op,
-                 const std::string   step_length_algo = "pw")
-      : op(op)
+    JacobianFree(std::function<void(const BlockVectorType &x,
+                                    BlockVectorType &      f)> residual,
+                 const std::string step_length_algo = "pw")
+      : residual(residual)
       , step_length_algo(step_length_algo)
     {}
 
@@ -635,7 +636,7 @@ namespace NonLinearSolvers
           u.add(h, src);
 
           // 2b) evalute residual
-          op.template evaluate_nonlinear_residual<1>(dst, u);
+          residual(u, dst);
 
           // 2c) take finite difference -> post
           dst.add(-1.0, residual_u);
@@ -663,12 +664,12 @@ namespace NonLinearSolvers
         this->u_l2_norm = u.l2_norm();
 
       this->residual_u.reinit(u);
-      op.template evaluate_nonlinear_residual<1>(this->residual_u, u);
+      residual(u, this->residual_u);
     }
 
   private:
-    const OperatorType &op;
-    const std::string   step_length_algo;
+    std::function<void(const BlockVectorType &x, BlockVectorType &f)> residual;
+    const std::string step_length_algo;
 
     mutable BlockVectorType u;
     mutable BlockVectorType residual_u;
