@@ -77,6 +77,7 @@
 #include <pf-applications/sintering/parameters.h>
 #include <pf-applications/sintering/postprocessors.h>
 #include <pf-applications/sintering/preconditioners.h>
+#include <pf-applications/sintering/residual_wrapper.h>
 #include <pf-applications/sintering/tools.h>
 
 #include <deal.II/trilinos/nox.h>
@@ -935,6 +936,16 @@ namespace Sintering
         params.advection_data.mt,
         params.advection_data.mr);
 
+      // Advection operator
+      AdvectionOperator<dim, Number, VectorizedArrayType> advection_operator(
+        params.advection_data.k,
+        params.advection_data.cgb,
+        params.advection_data.ceq,
+        matrix_free,
+        constraints,
+        sintering_data,
+        grain_tracker);
+
       // Mechanics material data - plane type relevant for 2D
       Structural::MaterialPlaneType plane_type;
       if (params.material_data.mechanics_data.plane_type == "None")
@@ -964,14 +975,35 @@ namespace Sintering
 
       std::unique_ptr<NonLinearSolvers::JacobianBase<Number>> jacobian_operator;
 
+      std::unique_ptr<ResidualWrapper<VectorType, NonLinearOperator>>
+        residual_wrapper;
+
       if (params.nonlinear_data.jacobi_free == false)
-        jacobian_operator = std::make_unique<
-          NonLinearSolvers::JacobianWrapper<Number, NonLinearOperator>>(
-          nonlinear_operator);
+        {
+          residual_wrapper =
+            std::make_unique<ResidualWrapper<VectorType, NonLinearOperator>>(
+              nonlinear_operator);
+          jacobian_operator = std::make_unique<
+            NonLinearSolvers::JacobianWrapper<Number, NonLinearOperator>>(
+            nonlinear_operator);
+        }
       else
-        jacobian_operator = std::make_unique<
-          NonLinearSolvers::JacobianFree<Number, NonLinearOperator>>(
-          nonlinear_operator);
+        {
+          const auto evaluate_grain_forces = [&](VectorType &      dst,
+                                                 const VectorType &src) {
+            (void)dst;
+
+            // Compute Wang forces
+            if (params.advection_data.enable)
+              advection_operator.evaluate_forces(src, advection_mechanism);
+          };
+          residual_wrapper =
+            std::make_unique<ResidualWrapper<VectorType, NonLinearOperator>>(
+              nonlinear_operator, evaluate_grain_forces);
+          jacobian_operator = std::make_unique<NonLinearSolvers::JacobianFree<
+            Number,
+            ResidualWrapper<VectorType, NonLinearOperator>>>(*residual_wrapper);
+        }
 
       // Save all blocks at quadrature points if the advection mechanism is
       // enabled
@@ -1124,16 +1156,7 @@ namespace Sintering
             });
         }
 
-      AdvectionOperator<dim, Number, VectorizedArrayType> advection_operator(
-        params.advection_data.k,
-        params.advection_data.cgb,
-        params.advection_data.ceq,
-        matrix_free,
-        constraints,
-        sintering_data,
-        grain_tracker);
-
-      // ... non-linear Newton solver
+      // Non-linear Newton solver statistics
       NonLinearSolvers::NewtonSolverSolverControl statistics(
         params.nonlinear_data.nl_max_iter,
         params.nonlinear_data.nl_abs_tol,
@@ -1144,11 +1167,7 @@ namespace Sintering
         ScopedName sc("residual");
         MyScope    scope(timer, sc);
 
-        // Compute forces
-        if (params.advection_data.enable)
-          advection_operator.evaluate_forces(src, advection_mechanism);
-
-        nonlinear_operator.evaluate_nonlinear_residual(dst, src);
+        residual_wrapper->evaluate_nonlinear_residual(dst, src);
 
         statistics.increment_residual_evaluations(1);
       };
