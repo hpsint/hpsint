@@ -51,7 +51,8 @@ namespace Sintering
       const MatrixFree<dim, Number, VectorizedArrayType> &   matrix_free,
       const AffineConstraints<Number> &                      constraints,
       const SinteringOperatorData<dim, VectorizedArrayType> &data,
-      const GrainTracker::Tracker<dim, Number> &             grain_tracker)
+      const GrainTracker::Tracker<dim, Number> &             grain_tracker,
+      AdvectionMechanism<dim, Number, VectorizedArrayType> &advection_mechanism)
       : OperatorBase<dim,
                      Number,
                      VectorizedArrayType,
@@ -66,6 +67,7 @@ namespace Sintering
       , ceq(ceq)
       , data(data)
       , grain_tracker(grain_tracker)
+      , advection_mechanism(advection_mechanism)
     {}
 
     ~AdvectionOperator()
@@ -235,7 +237,7 @@ namespace Sintering
         matrix_free, this->dof_index);
 
       FECellIntegrator<dim,
-                       advection_mechanism.n_comp_volume_force_torque,
+                       AdvectionMechanism<dim, Number, VectorizedArrayType>::n_comp_volume_force_torque,
                        Number,
                        VectorizedArrayType>
         phi_ft(matrix_free, this->dof_index);
@@ -458,6 +460,8 @@ namespace Sintering
 
     const SinteringOperatorData<dim, VectorizedArrayType> &data;
     const GrainTracker::Tracker<dim, Number> &             grain_tracker;
+
+    AdvectionMechanism<dim, Number, VectorizedArrayType> &advection_mechanism;
 
     AlignedVector<VectorizedArrayType> cell_diameters;
   };

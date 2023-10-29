@@ -944,7 +944,8 @@ namespace Sintering
         matrix_free,
         constraints,
         sintering_data,
-        grain_tracker);
+        grain_tracker,
+        advection_mechanism);
 
       // Mechanics material data - plane type relevant for 2D
       Structural::MaterialPlaneType plane_type;
@@ -2399,12 +2400,10 @@ namespace Sintering
                 if (params.advection_data.enable &&
                     params.advection_data.check_courant)
                   {
-                    advection_operator.evaluate_forces(solution,
-                                                       advection_mechanism);
+                    advection_operator.evaluate_forces(solution);
 
-                    AssertThrow(
-                      advection_operator.check_courant(advection_mechanism, dt),
-                      ExcCourantConditionViolated());
+                    AssertThrow(advection_operator.check_courant(dt),
+                                ExcCourantConditionViolated());
                   }
 
                 // note: input/output (solution) needs/has the right

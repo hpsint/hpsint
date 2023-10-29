@@ -95,7 +95,6 @@ namespace Test
     auto &nonlinear_operator  = sintering_model.get_nonlinear_operator();
     auto &advection_operator  = sintering_model.get_advection_operator();
     auto &grain_tracker       = sintering_model.get_grain_tracker();
-    auto &advection_mechanism = sintering_model.get_advection_mechanism();
     auto &dof_handler         = sintering_model.get_dof_handler();
     auto &solution            = sintering_model.get_solution();
 
@@ -108,7 +107,7 @@ namespace Test
     const std::function<void(const VectorType &, VectorType &)> nl_residual =
       [&](const auto &src, auto &dst) {
         if (enable_rbm)
-          advection_operator.evaluate_forces(src, advection_mechanism);
+          advection_operator.evaluate_forces(src);
 
         nonlinear_operator.evaluate_nonlinear_residual(dst, src);
       };
