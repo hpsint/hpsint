@@ -121,9 +121,7 @@ namespace Sintering
     }
 
     bool
-    check_courant(const AdvectionMechanism<dim, Number, VectorizedArrayType>
-                    &          advection_mechanism,
-                  const double dt) const
+    check_courant(const double dt) const
     {
       MyScope scope(this->timer,
                     "advection_op::check_courant",
