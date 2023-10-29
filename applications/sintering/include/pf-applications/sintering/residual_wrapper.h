@@ -28,12 +28,15 @@ namespace Sintering
   class ResidualWrapper
   {
   public:
-    ResidualWrapper(
-      const OperatorType &op,
-      std::function<void(BlockVectorType &dst, const BlockVectorType &src)>
-        pre_callback = {},
-      std::function<void(BlockVectorType &dst, const BlockVectorType &src)>
-        post_callback = {})
+    using Callback = std::function<
+      void(BlockVectorType &      dst,
+           const BlockVectorType &src,
+           const std::function<void(const unsigned int, const unsigned int)>,
+           const std::function<void(const unsigned int, const unsigned int)>)>;
+
+    ResidualWrapper(const OperatorType &op,
+                    Callback            pre_callback  = {},
+                    Callback            post_callback = {})
       : op(op)
       , pre_callback(pre_callback)
       , post_callback(post_callback)
@@ -41,24 +44,32 @@ namespace Sintering
 
     template <unsigned int with_time_derivative = 2>
     void
-    evaluate_nonlinear_residual(BlockVectorType &      dst,
-                                const BlockVectorType &src) const
+    evaluate_nonlinear_residual(
+      BlockVectorType &      dst,
+      const BlockVectorType &src,
+      const std::function<void(const unsigned int, const unsigned int)>
+        pre_operation = {},
+      const std::function<void(const unsigned int, const unsigned int)>
+        post_operation = {}) const
     {
       if (pre_callback)
-        pre_callback(dst, src);
+        pre_callback(dst, src, pre_operation, post_operation);
 
-      op.template evaluate_nonlinear_residual<with_time_derivative>(dst, src);
+      if constexpr (has_evaluate_nonlinear_residual_with_pre_post<
+                      OperatorType,
+                      BlockVectorType>)
+        op.template evaluate_nonlinear_residual<with_time_derivative>(
+          dst, src, pre_operation, post_operation);
+      else
+        op.template evaluate_nonlinear_residual<with_time_derivative>(dst, src);
 
       if (post_callback)
-        post_callback(dst, src);
+        post_callback(dst, src, pre_operation, post_operation);
     }
 
   private:
     const OperatorType &op;
-    std::function<void(BlockVectorType &dst, const BlockVectorType &src)>
-      pre_callback;
-    std::function<void(BlockVectorType &dst, const BlockVectorType &src)>
-      post_callback;
+    Callback            pre_callback;
+    Callback            post_callback;
   };
-
 } // namespace Sintering
