@@ -990,20 +990,40 @@ namespace Sintering
         }
       else
         {
-          const auto evaluate_grain_forces = [&](VectorType &      dst,
-                                                 const VectorType &src) {
-            (void)dst;
+          if (params.advection_data.enable)
+            {
+              const auto evaluate_grain_forces =
+                [&](
+                  VectorType &                               dst,
+                  const VectorType &                         src,
+                  const std::function<void(
+                    const unsigned int, const unsigned int)> pre_operation = {},
+                  const std::function<void(const unsigned int,
+                                           const unsigned int)> post_operation =
+                    {}) {
+                  (void)dst;
 
-            // Compute Wang forces
-            if (params.advection_data.enable)
-              advection_operator.evaluate_forces(src, advection_mechanism);
-          };
-          residual_wrapper =
-            std::make_unique<ResidualWrapper<VectorType, NonLinearOperator>>(
-              nonlinear_operator, evaluate_grain_forces);
-          jacobian_operator = std::make_unique<NonLinearSolvers::JacobianFree<
-            Number,
-            ResidualWrapper<VectorType, NonLinearOperator>>>(*residual_wrapper);
+                  // Compute Wang forces
+                  advection_operator.evaluate_forces(src,
+                                                     pre_operation,
+                                                     post_operation);
+                };
+
+              residual_wrapper = std::make_unique<
+                ResidualWrapper<VectorType, NonLinearOperator>>(
+                nonlinear_operator, evaluate_grain_forces);
+              jacobian_operator =
+                std::make_unique<NonLinearSolvers::JacobianFree<
+                  Number,
+                  ResidualWrapper<VectorType, NonLinearOperator>>>(
+                  *residual_wrapper);
+            }
+          else
+            {
+              jacobian_operator = std::make_unique<
+                NonLinearSolvers::JacobianFree<Number, NonLinearOperator>>(
+                nonlinear_operator);
+            }
         }
 
       // Save all blocks at quadrature points if the advection mechanism is
