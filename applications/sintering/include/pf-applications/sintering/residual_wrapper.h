@@ -142,10 +142,10 @@ namespace Sintering
       const std::function<void(const unsigned int, const unsigned int)>
         post_operation = {}) const override
     {
-      do_evaluate_nonlinear_residual<2>(dst,
-                                        src,
-                                        pre_operation,
-                                        post_operation);
+      this->template do_evaluate_nonlinear_residual<2>(dst,
+                                                       src,
+                                                       pre_operation,
+                                                       post_operation);
     }
 
     void
@@ -157,10 +157,10 @@ namespace Sintering
       const std::function<void(const unsigned int, const unsigned int)>
         post_operation = {}) const override
     {
-      do_evaluate_nonlinear_residual<1>(dst,
-                                        src,
-                                        pre_operation,
-                                        post_operation);
+      this->template do_evaluate_nonlinear_residual<1>(dst,
+                                                       src,
+                                                       pre_operation,
+                                                       post_operation);
     }
   };
 
@@ -200,10 +200,10 @@ namespace Sintering
         post_operation = {}) const override
     {
       advection_operator.evaluate_forces(src, pre_operation, post_operation);
-      do_evaluate_nonlinear_residual<2>(dst,
-                                        src,
-                                        pre_operation,
-                                        post_operation);
+      this->template do_evaluate_nonlinear_residual<2>(dst,
+                                                       src,
+                                                       pre_operation,
+                                                       post_operation);
     }
 
     void
@@ -216,10 +216,10 @@ namespace Sintering
         post_operation = {}) const override
     {
       advection_operator.evaluate_forces(src, pre_operation, post_operation);
-      do_evaluate_nonlinear_residual<1>(dst,
-                                        src,
-                                        pre_operation,
-                                        post_operation);
+      this->template do_evaluate_nonlinear_residual<1>(dst,
+                                                       src,
+                                                       pre_operation,
+                                                       post_operation);
     }
 
   private:
