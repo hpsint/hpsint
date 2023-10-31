@@ -196,7 +196,7 @@ namespace Test
           constraints,
           sintering_data,
           *grain_tracker,
-          *advection_mechanism);
+          advection_mechanism);
 
       grain_tracker->initial_setup(solution, sintering_data.n_grains());
 
