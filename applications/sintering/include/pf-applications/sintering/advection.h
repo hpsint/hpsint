@@ -241,25 +241,25 @@ namespace Sintering
       return v_adv;
     }
 
-    std::vector<unsigned int>& 
+    std::vector<unsigned int> &
     get_index_ptr()
     {
       return index_ptr;
     }
 
-    std::vector<unsigned int>& 
+    std::vector<unsigned int> &
     get_index_values()
     {
       return index_values;
     }
 
-    const std::vector<unsigned int>& 
+    const std::vector<unsigned int> &
     get_index_ptr() const
     {
       return index_ptr;
     }
 
-    const std::vector<unsigned int>& 
+    const std::vector<unsigned int> &
     get_index_values() const
     {
       return index_values;

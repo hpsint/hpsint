@@ -92,11 +92,11 @@ namespace Test
                    NonLinearOperator>
       sintering_model(enable_rbm);
 
-    auto &nonlinear_operator  = sintering_model.get_nonlinear_operator();
-    auto &advection_operator  = sintering_model.get_advection_operator();
-    auto &grain_tracker       = sintering_model.get_grain_tracker();
-    auto &dof_handler         = sintering_model.get_dof_handler();
-    auto &solution            = sintering_model.get_solution();
+    auto &nonlinear_operator = sintering_model.get_nonlinear_operator();
+    auto &advection_operator = sintering_model.get_advection_operator();
+    auto &grain_tracker      = sintering_model.get_grain_tracker();
+    auto &dof_handler        = sintering_model.get_dof_handler();
+    auto &solution           = sintering_model.get_solution();
 
     const auto comm = dof_handler.get_communicator();
 
