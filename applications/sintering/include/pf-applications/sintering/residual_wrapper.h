@@ -17,6 +17,8 @@
 
 #include <pf-applications/lac/solvers_nonlinear.h>
 
+#include <pf-applications/sintering/operator_advection.h>
+
 #include <functional>
 
 namespace Sintering
@@ -24,25 +26,18 @@ namespace Sintering
   using namespace dealii;
   using namespace NonLinearSolvers;
 
-  template <typename BlockVectorType, typename OperatorType>
-  class ResidualWrapper
+  template <typename Number>
+  class ResidualWrapper : public Subscriptor
   {
   public:
-    using Callback = std::function<
-      void(BlockVectorType &      dst,
-           const BlockVectorType &src,
-           const std::function<void(const unsigned int, const unsigned int)>,
-           const std::function<void(const unsigned int, const unsigned int)>)>;
+    using value_type  = Number;
+    using vector_type = LinearAlgebra::distributed::Vector<Number>;
+    using VectorType  = vector_type;
+    using BlockVectorType =
+      LinearAlgebra::distributed::DynamicBlockVector<Number>;
 
-    ResidualWrapper(const OperatorType &op,
-                    Callback            pre_callback  = {},
-                    Callback            post_callback = {})
-      : op(op)
-      , pre_callback(pre_callback)
-      , post_callback(post_callback)
-    {}
-
-    template <unsigned int with_time_derivative = 2>
+    // This mimic the operator's interface
+    template <int with_time_derivative = 2>
     void
     evaluate_nonlinear_residual(
       BlockVectorType &      dst,
@@ -52,24 +47,183 @@ namespace Sintering
       const std::function<void(const unsigned int, const unsigned int)>
         post_operation = {}) const
     {
-      if (pre_callback)
-        pre_callback(dst, src, pre_operation, post_operation);
+      static_assert(with_time_derivative == 1 || with_time_derivative == 2);
 
-      if constexpr (has_evaluate_nonlinear_residual_with_pre_post<
-                      OperatorType,
-                      BlockVectorType>)
-        op.template evaluate_nonlinear_residual<with_time_derivative>(
-          dst, src, pre_operation, post_operation);
-      else
-        op.template evaluate_nonlinear_residual<with_time_derivative>(dst, src);
-
-      if (post_callback)
-        post_callback(dst, src, pre_operation, post_operation);
+      if constexpr (with_time_derivative == 2)
+        evaluate_for_residual(dst, src, pre_operation, post_operation);
+      else if (with_time_derivative == 1)
+        evaluate_for_jacobian(dst, src, pre_operation, post_operation);
     }
 
   private:
-    const OperatorType &op;
-    Callback            pre_callback;
-    Callback            post_callback;
+    virtual void
+    evaluate_for_residual(
+      BlockVectorType &      dst,
+      const BlockVectorType &src,
+      const std::function<void(const unsigned int, const unsigned int)>
+        pre_operation = {},
+      const std::function<void(const unsigned int, const unsigned int)>
+        post_operation = {}) const = 0;
+
+    virtual void
+    evaluate_for_jacobian(
+      BlockVectorType &      dst,
+      const BlockVectorType &src,
+      const std::function<void(const unsigned int, const unsigned int)>
+        pre_operation = {},
+      const std::function<void(const unsigned int, const unsigned int)>
+        post_operation = {}) const = 0;
+  };
+
+  template <typename Number, typename OperatorType>
+  class ResidualWrapperBase : public ResidualWrapper<Number>
+  {
+  public:
+    using value_type      = typename ResidualWrapper<Number>::value_type;
+    using vector_type     = typename ResidualWrapper<Number>::vector_type;
+    using VectorType      = typename ResidualWrapper<Number>::VectorType;
+    using BlockVectorType = typename ResidualWrapper<Number>::BlockVectorType;
+
+    ResidualWrapperBase(const OperatorType &nonlinear_operator)
+      : nonlinear_operator(nonlinear_operator)
+    {}
+
+  protected:
+    template <unsigned int with_time_derivative = 2>
+    void
+    do_evaluate_nonlinear_residual(
+      BlockVectorType &      dst,
+      const BlockVectorType &src,
+      const std::function<void(const unsigned int, const unsigned int)>
+        pre_operation = {},
+      const std::function<void(const unsigned int, const unsigned int)>
+        post_operation = {}) const
+    {
+      if constexpr (has_evaluate_nonlinear_residual_with_pre_post<
+                      OperatorType,
+                      BlockVectorType>)
+        nonlinear_operator
+          .template evaluate_nonlinear_residual<with_time_derivative>(
+            dst, src, pre_operation, post_operation);
+      else
+        nonlinear_operator
+          .template evaluate_nonlinear_residual<with_time_derivative>(dst, src);
+    }
+
+  private:
+    const OperatorType &nonlinear_operator;
+  };
+
+  template <typename Number, typename OperatorType>
+  class ResidualWrapperGeneric
+    : public ResidualWrapperBase<Number, OperatorType>
+  {
+  public:
+    using value_type =
+      typename ResidualWrapperBase<Number, OperatorType>::value_type;
+    using vector_type =
+      typename ResidualWrapperBase<Number, OperatorType>::vector_type;
+    using VectorType =
+      typename ResidualWrapperBase<Number, OperatorType>::VectorType;
+    using BlockVectorType =
+      typename ResidualWrapperBase<Number, OperatorType>::BlockVectorType;
+
+    ResidualWrapperGeneric(const OperatorType &nonlinear_operator)
+      : ResidualWrapperBase<Number, OperatorType>(nonlinear_operator)
+    {}
+
+  private:
+    void
+    evaluate_for_residual(
+      BlockVectorType &      dst,
+      const BlockVectorType &src,
+      const std::function<void(const unsigned int, const unsigned int)>
+        pre_operation = {},
+      const std::function<void(const unsigned int, const unsigned int)>
+        post_operation = {}) const override
+    {
+      do_evaluate_nonlinear_residual<2>(dst,
+                                        src,
+                                        pre_operation,
+                                        post_operation);
+    }
+
+    void
+    evaluate_for_jacobian(
+      BlockVectorType &      dst,
+      const BlockVectorType &src,
+      const std::function<void(const unsigned int, const unsigned int)>
+        pre_operation = {},
+      const std::function<void(const unsigned int, const unsigned int)>
+        post_operation = {}) const override
+    {
+      do_evaluate_nonlinear_residual<1>(dst,
+                                        src,
+                                        pre_operation,
+                                        post_operation);
+    }
+  };
+
+  template <int dim,
+            typename Number,
+            typename VectorizedArrayType,
+            typename OperatorType>
+  class ResidualWrapperAdvection
+    : public ResidualWrapperBase<Number, OperatorType>
+  {
+  public:
+    using value_type =
+      typename ResidualWrapperBase<Number, OperatorType>::value_type;
+    using vector_type =
+      typename ResidualWrapperBase<Number, OperatorType>::vector_type;
+    using VectorType =
+      typename ResidualWrapperBase<Number, OperatorType>::VectorType;
+    using BlockVectorType =
+      typename ResidualWrapperBase<Number, OperatorType>::BlockVectorType;
+
+    ResidualWrapperAdvection(
+      const AdvectionOperator<dim, Number, VectorizedArrayType>
+        &                 advection_operator,
+      const OperatorType &nonlinear_operator)
+      : ResidualWrapperBase<Number, OperatorType>(nonlinear_operator)
+      , advection_operator(advection_operator)
+    {}
+
+  private:
+    void
+    evaluate_for_residual(
+      BlockVectorType &      dst,
+      const BlockVectorType &src,
+      const std::function<void(const unsigned int, const unsigned int)>
+        pre_operation = {},
+      const std::function<void(const unsigned int, const unsigned int)>
+        post_operation = {}) const override
+    {
+      advection_operator.evaluate_forces(src, pre_operation, post_operation);
+      do_evaluate_nonlinear_residual<2>(dst,
+                                        src,
+                                        pre_operation,
+                                        post_operation);
+    }
+
+    void
+    evaluate_for_jacobian(
+      BlockVectorType &      dst,
+      const BlockVectorType &src,
+      const std::function<void(const unsigned int, const unsigned int)>
+        pre_operation = {},
+      const std::function<void(const unsigned int, const unsigned int)>
+        post_operation = {}) const override
+    {
+      advection_operator.evaluate_forces(src, pre_operation, post_operation);
+      do_evaluate_nonlinear_residual<1>(dst,
+                                        src,
+                                        pre_operation,
+                                        post_operation);
+    }
+
+  private:
+    const AdvectionOperator<dim, Number, VectorizedArrayType>
+      &advection_operator;
   };
 } // namespace Sintering
