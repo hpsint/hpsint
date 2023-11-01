@@ -87,16 +87,15 @@ namespace Sintering
 
       advection_mechanism.nullify_data(grain_tracker.n_segments());
 
-      /* Here solution is also provided as a destination vector. This is a trick
-       * to fit the interface of cell_loop(). In fact, do_evaluate_forces() does
-       * not need it and will not modify it. */
+      // We do not have an output vector
+      BlockVectorType dummy(1);
 
 #define OPERATION(c, d)                           \
   MyMatrixFreeTools::cell_loop_wrapper(           \
     this->matrix_free,                            \
     &AdvectionOperator::do_evaluate_forces<c, d>, \
     this,                                         \
-    const_cast<BlockVectorType &>(src),           \
+    dummy,                                        \
     src,                                          \
     pre_operation,                                \
     post_operation);
