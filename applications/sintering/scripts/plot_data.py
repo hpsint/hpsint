@@ -4,6 +4,8 @@ import numpy as np
 import matplotlib.pyplot as plt
 import argparse
 import library
+from collections.abc import Iterable
+from itertools import cycle, islice
 
 def create_axes(n):
     if n==1:
@@ -90,13 +92,17 @@ if args.labels:
     for i in range(min(len(labels), len(args.labels))):
         labels[i] = args.labels[i]
 
+# Markers
+markers = ["s", "D", "o", "x", "P", "*", "v"]
+markers = list(islice(cycle(markers), n_files))
+
 for i in range(n_fields):
     field = args.yaxes[i]
     a = ax[i]
 
     x_lims = [sys.float_info.max, -sys.float_info.max]
 
-    for f, lbl, clr in zip(files_list, labels, colors):
+    for f, lbl, clr, mrk in zip(files_list, labels, colors, markers):
         cdata = np.genfromtxt(f, dtype=None, names=True, delimiter=args.delimiter)
         
         mask = [True] * len(cdata[args.xaxis])
@@ -111,7 +117,7 @@ for i in range(n_fields):
         x_lims[0] = min(x_lims[0], x[0])
         x_lims[1] = max(x_lims[1], x[-1])
 
-        a.plot(x, y, color=clr, linestyle='-', linewidth=2, label=lbl)
+        a.plot(x, y, color=clr, linestyle='-', linewidth=2, label=lbl, marker=mrk, markevery=n_files)
 
     a.grid(True)
     a.set_xlabel(args.xaxis)
