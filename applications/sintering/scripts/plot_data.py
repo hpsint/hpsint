@@ -48,7 +48,9 @@ files_list = library.get_solutions(args.files)
 if not files_list:
     raise Exception("The files list is empty, nothing to plot")
 
-colors = library.get_hex_colors(len(files_list))
+n_files = len(files_list)
+
+colors = library.get_hex_colors(n_files)
 
 if not args.yaxes:
     print("You did not specify any y-axes field to plot. These are the fields shared between all the provided files:")
@@ -72,7 +74,7 @@ if not args.yaxes:
 print("")
 print("         x-axis: {}".format(args.xaxis))
 print(" fields to plot: " + ", ".join(args.yaxes))
-print("number of files: {}".format(len(files_list)))
+print("number of files: {}".format(n_files))
 
 n_fields = len(args.yaxes)
 fig, ax = create_axes(n_fields)
