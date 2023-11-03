@@ -8,27 +8,39 @@ from collections.abc import Iterable
 from itertools import cycle, islice
 
 def create_axes(n):
+    ax = None
     if n==1:
         fig, ax = plt.subplots(1, 1)
-        return fig, [ax]
+        ax = [ax]
     elif n==2:
-        return plt.subplots(1, 2)
+        fig, axr = plt.subplots(1, 2)
     elif n==3:
-        return plt.subplots(2, 2)
+        fig, axr = plt.subplots(2, 2)
     elif n==4:
-        return plt.subplots(2, 2)
+        fig, axr = plt.subplots(2, 2)
     elif n==5:
-        return plt.subplots(2, 3)
+        fig, axr = plt.subplots(2, 3)
     elif n==6:
-        return plt.subplots(2, 3)
+        fig, axr = plt.subplots(2, 3)
     elif n==7:
-        return plt.subplots(2, 4)
+        fig, axr = plt.subplots(2, 4)
     elif n==8:
-        return plt.subplots(2, 4)
+        fig, axr = plt.subplots(2, 4)
     elif n==9:
-        return plt.subplots(3, 3)
+        fig, axr = plt.subplots(3, 3)
     else:
         exit("Maximum 9 plots can be created")
+
+    if ax is None:
+        ax = []
+        for x in axr:
+            if isinstance(x, Iterable):
+                for y in x:
+                    ax.append(y)
+            else:
+                ax.append(x)
+
+    return fig, ax
 
 parser = argparse.ArgumentParser()
 parser.add_argument("-f", "--files", dest="files", nargs='+', required=True, help="Source filenames, can be defined as masks")
