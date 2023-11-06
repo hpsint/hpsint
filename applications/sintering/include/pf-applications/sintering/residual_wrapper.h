@@ -112,13 +112,15 @@ namespace Sintering
           std::pair<unsigned int, unsigned int> range{
             0, nonlinear_operator.get_matrix_free().n_cell_batches()};
 
-          pre_operation(range.first, range.second);
+          if (pre_operation)
+            pre_operation(range.first, range.second);
 
           nonlinear_operator
             .template evaluate_nonlinear_residual<with_time_derivative>(dst,
                                                                         src);
 
-          post_operation(range.first, range.second);
+          if (post_operation)
+            post_operation(range.first, range.second);
         }
     }
 
