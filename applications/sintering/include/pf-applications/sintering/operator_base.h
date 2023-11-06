@@ -110,6 +110,12 @@ namespace Sintering
       return matrix_free.get_dof_handler(dof_index);
     }
 
+    const MatrixFree<dim, Number, VectorizedArrayType> &
+    get_matrix_free() const
+    {
+      return matrix_free;
+    }
+
     void
     initialize_dof_vector(VectorType &dst) const
     {
