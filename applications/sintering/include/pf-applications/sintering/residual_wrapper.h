@@ -102,12 +102,24 @@ namespace Sintering
       if constexpr (has_evaluate_nonlinear_residual_with_pre_post<
                       OperatorType,
                       BlockVectorType>)
-        nonlinear_operator
-          .template evaluate_nonlinear_residual<with_time_derivative>(
-            dst, src, pre_operation, post_operation);
+        {
+          nonlinear_operator
+            .template evaluate_nonlinear_residual<with_time_derivative>(
+              dst, src, pre_operation, post_operation);
+        }
       else
-        nonlinear_operator
-          .template evaluate_nonlinear_residual<with_time_derivative>(dst, src);
+        {
+          std::pair<unsigned int, unsigned int> range{
+            0, nonlinear_operator.get_matrix_free().n_cell_batches()};
+
+          pre_operation(range.first, range.second);
+
+          nonlinear_operator
+            .template evaluate_nonlinear_residual<with_time_derivative>(dst,
+                                                                        src);
+
+          post_operation(range.first, range.second);
+        }
     }
 
   private:
