@@ -51,7 +51,8 @@ namespace Sintering
       const MatrixFree<dim, Number, VectorizedArrayType> &   matrix_free,
       const AffineConstraints<Number> &                      constraints,
       const SinteringOperatorData<dim, VectorizedArrayType> &data,
-      const GrainTracker::Tracker<dim, Number> &             grain_tracker)
+      const GrainTracker::Tracker<dim, Number> &             grain_tracker,
+      AdvectionMechanism<dim, Number, VectorizedArrayType> &advection_mechanism)
       : OperatorBase<dim,
                      Number,
                      VectorizedArrayType,
@@ -66,30 +67,48 @@ namespace Sintering
       , ceq(ceq)
       , data(data)
       , grain_tracker(grain_tracker)
+      , advection_mechanism(advection_mechanism)
     {}
 
     ~AdvectionOperator()
     {}
 
     void
-    evaluate_forces(const BlockVectorType &src,
-                    AdvectionMechanism<dim, Number, VectorizedArrayType>
-                      &advection_mechanism) const
+    evaluate_forces(
+      const BlockVectorType &src,
+      const std::function<void(const unsigned int, const unsigned int)>
+        pre_operation = {},
+      const std::function<void(const unsigned int, const unsigned int)>
+        post_operation = {}) const
     {
       MyScope scope(this->timer,
-                    "sintering_op::nonlinear_residual",
+                    "advection_op::evaluate_forces",
                     this->do_timing);
 
-      std::pair<unsigned int, unsigned int> range{
-        0, this->matrix_free.n_cell_batches()};
+      advection_mechanism.nullify_data(grain_tracker.n_segments());
 
-      src.update_ghost_values();
+      // We do not have an output vector
+      BlockVectorType dummy(1);
 
-#define OPERATION(c, d) \
-  do_evaluate_forces<c, d>(this->matrix_free, src, advection_mechanism, range);
+#define OPERATION(c, d)                           \
+  MyMatrixFreeTools::cell_loop_wrapper(           \
+    this->matrix_free,                            \
+    &AdvectionOperator::do_evaluate_forces<c, d>, \
+    this,                                         \
+    dummy,                                        \
+    src,                                          \
+    pre_operation,                                \
+    post_operation);
       EXPAND_OPERATIONS(OPERATION);
 #undef OPERATION
-      src.zero_out_ghost_values();
+
+      // Perform global communication
+      MPI_Allreduce(MPI_IN_PLACE,
+                    advection_mechanism.get_grains_data().data(),
+                    advection_mechanism.get_grains_data().size(),
+                    Utilities::MPI::mpi_type_id_for_type<Number>,
+                    MPI_SUM,
+                    MPI_COMM_WORLD);
     }
 
     void
@@ -119,9 +138,7 @@ namespace Sintering
     }
 
     bool
-    check_courant(const AdvectionMechanism<dim, Number, VectorizedArrayType>
-                    &          advection_mechanism,
-                  const double dt) const
+    check_courant(const double dt) const
     {
       MyScope scope(this->timer,
                     "advection_op::check_courant",
@@ -224,18 +241,19 @@ namespace Sintering
     template <int n_comp, int n_grains>
     void
     do_evaluate_forces(
-      const MatrixFree<dim, Number, VectorizedArrayType> &  matrix_free,
-      const BlockVectorType &                               solution,
-      AdvectionMechanism<dim, Number, VectorizedArrayType> &advection_mechanism,
-      const std::pair<unsigned int, unsigned int> &         range) const
+      const MatrixFree<dim, Number, VectorizedArrayType> &matrix_free,
+      BlockVectorType &                                   dummy,
+      const BlockVectorType &                             solution,
+      const std::pair<unsigned int, unsigned int> &       range) const
     {
-      advection_mechanism.nullify_data(grain_tracker.n_segments());
+      (void)dummy;
 
       FECellIntegrator<dim, 2 + n_grains, Number, VectorizedArrayType> phi_sint(
         matrix_free, this->dof_index);
 
       FECellIntegrator<dim,
-                       advection_mechanism.n_comp_volume_force_torque,
+                       AdvectionMechanism<dim, Number, VectorizedArrayType>::
+                         n_comp_volume_force_torque,
                        Number,
                        VectorizedArrayType>
         phi_ft(matrix_free, this->dof_index);
@@ -244,8 +262,10 @@ namespace Sintering
       VectorizedArrayType zeros(0.0);
       VectorizedArrayType ones(1.0);
 
-      std::vector<unsigned int> index_ptr = {0};
-      std::vector<unsigned int> index_values;
+      std::vector<unsigned int> &index_ptr =
+        advection_mechanism.get_index_ptr();
+      std::vector<unsigned int> &index_values =
+        advection_mechanism.get_index_values();
 
       for (auto cell = range.first; cell < range.second; ++cell)
         {
@@ -339,7 +359,8 @@ namespace Sintering
                   const auto &r = phi_sint.quadrature_point(q);
 
                   Tensor<1,
-                         advection_mechanism.n_comp_volume_force_torque,
+                         AdvectionMechanism<dim, Number, VectorizedArrayType>::
+                           n_comp_volume_force_torque,
                          VectorizedArrayType>
                                                       value_result;
                   Tensor<1, dim, VectorizedArrayType> force;
@@ -440,16 +461,6 @@ namespace Sintering
 
           index_ptr.push_back(index_values.size());
         }
-
-      advection_mechanism.set_grain_table(index_ptr, index_values);
-
-      // Perform global communication
-      MPI_Allreduce(MPI_IN_PLACE,
-                    advection_mechanism.get_grains_data().data(),
-                    advection_mechanism.get_grains_data().size(),
-                    Utilities::MPI::mpi_type_id_for_type<Number>,
-                    MPI_SUM,
-                    MPI_COMM_WORLD);
     }
 
     const double k;
@@ -458,6 +469,8 @@ namespace Sintering
 
     const SinteringOperatorData<dim, VectorizedArrayType> &data;
     const GrainTracker::Tracker<dim, Number> &             grain_tracker;
+
+    AdvectionMechanism<dim, Number, VectorizedArrayType> &advection_mechanism;
 
     AlignedVector<VectorizedArrayType> cell_diameters;
   };

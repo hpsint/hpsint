@@ -241,12 +241,28 @@ namespace Sintering
       return v_adv;
     }
 
-    void
-    set_grain_table(const std::vector<unsigned int> &index_ptr,
-                    const std::vector<unsigned int> &index_values)
+    std::vector<unsigned int> &
+    get_index_ptr()
     {
-      this->index_ptr    = index_ptr;
-      this->index_values = index_values;
+      return index_ptr;
+    }
+
+    std::vector<unsigned int> &
+    get_index_values()
+    {
+      return index_values;
+    }
+
+    const std::vector<unsigned int> &
+    get_index_ptr() const
+    {
+      return index_ptr;
+    }
+
+    const std::vector<unsigned int> &
+    get_index_values() const
+    {
+      return index_values;
     }
 
     void
@@ -254,6 +270,11 @@ namespace Sintering
     {
       grains_data.assign(n_comp_volume_force_torque * n_segments, 0);
       grains_center.assign(dim * n_segments, 0);
+
+      index_ptr.clear();
+      index_values.clear();
+
+      index_ptr = {0};
     }
 
     Number *

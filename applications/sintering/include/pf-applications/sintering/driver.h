@@ -77,6 +77,7 @@
 #include <pf-applications/sintering/parameters.h>
 #include <pf-applications/sintering/postprocessors.h>
 #include <pf-applications/sintering/preconditioners.h>
+#include <pf-applications/sintering/residual_wrapper.h>
 #include <pf-applications/sintering/tools.h>
 
 #include <deal.II/trilinos/nox.h>
@@ -935,6 +936,17 @@ namespace Sintering
         params.advection_data.mt,
         params.advection_data.mr);
 
+      // Advection operator
+      AdvectionOperator<dim, Number, VectorizedArrayType> advection_operator(
+        params.advection_data.k,
+        params.advection_data.cgb,
+        params.advection_data.ceq,
+        matrix_free,
+        constraints,
+        sintering_data,
+        grain_tracker,
+        advection_mechanism);
+
       // Mechanics material data - plane type relevant for 2D
       Structural::MaterialPlaneType plane_type;
       if (params.material_data.mechanics_data.plane_type == "None")
@@ -962,16 +974,31 @@ namespace Sintering
         params.material_data.mechanics_data.nu,
         plane_type);
 
-      std::unique_ptr<NonLinearSolvers::JacobianBase<Number>> jacobian_operator;
+      // Create residual wrapper depending on whether we have advection or not
+      std::unique_ptr<ResidualWrapper<Number>> residual_wrapper;
 
+      if (params.advection_data.enable == false)
+        residual_wrapper =
+          std::make_unique<ResidualWrapperGeneric<Number, NonLinearOperator>>(
+            nonlinear_operator);
+      else
+        residual_wrapper =
+          std::make_unique<ResidualWrapperAdvection<dim,
+                                                    Number,
+                                                    VectorizedArrayType,
+                                                    NonLinearOperator>>(
+            advection_operator, nonlinear_operator);
+
+      // Create Jacobian operator
+      std::unique_ptr<NonLinearSolvers::JacobianBase<Number>> jacobian_operator;
       if (params.nonlinear_data.jacobi_free == false)
         jacobian_operator = std::make_unique<
           NonLinearSolvers::JacobianWrapper<Number, NonLinearOperator>>(
           nonlinear_operator);
       else
         jacobian_operator = std::make_unique<
-          NonLinearSolvers::JacobianFree<Number, NonLinearOperator>>(
-          nonlinear_operator);
+          NonLinearSolvers::JacobianFree<Number, ResidualWrapper<Number>>>(
+          *residual_wrapper);
 
       // Save all blocks at quadrature points if the advection mechanism is
       // enabled
@@ -1124,16 +1151,7 @@ namespace Sintering
             });
         }
 
-      AdvectionOperator<dim, Number, VectorizedArrayType> advection_operator(
-        params.advection_data.k,
-        params.advection_data.cgb,
-        params.advection_data.ceq,
-        matrix_free,
-        constraints,
-        sintering_data,
-        grain_tracker);
-
-      // ... non-linear Newton solver
+      // Non-linear Newton solver statistics
       NonLinearSolvers::NewtonSolverSolverControl statistics(
         params.nonlinear_data.nl_max_iter,
         params.nonlinear_data.nl_abs_tol,
@@ -1144,11 +1162,7 @@ namespace Sintering
         ScopedName sc("residual");
         MyScope    scope(timer, sc);
 
-        // Compute forces
-        if (params.advection_data.enable)
-          advection_operator.evaluate_forces(src, advection_mechanism);
-
-        nonlinear_operator.evaluate_nonlinear_residual(dst, src);
+        residual_wrapper->evaluate_nonlinear_residual(dst, src);
 
         statistics.increment_residual_evaluations(1);
       };
@@ -2380,12 +2394,10 @@ namespace Sintering
                 if (params.advection_data.enable &&
                     params.advection_data.check_courant)
                   {
-                    advection_operator.evaluate_forces(solution,
-                                                       advection_mechanism);
+                    advection_operator.evaluate_forces(solution);
 
-                    AssertThrow(
-                      advection_operator.check_courant(advection_mechanism, dt),
-                      ExcCourantConditionViolated());
+                    AssertThrow(advection_operator.check_courant(dt),
+                                ExcCourantConditionViolated());
                   }
 
                 // note: input/output (solution) needs/has the right

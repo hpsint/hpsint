@@ -25,11 +25,10 @@ namespace Test
                    NonLinearOperator>
       sintering_model(enable_rbm);
 
-    auto &nonlinear_operator  = sintering_model.get_nonlinear_operator();
-    auto &advection_operator  = sintering_model.get_advection_operator();
-    auto &advection_mechanism = sintering_model.get_advection_mechanism();
-    auto &dof_handler         = sintering_model.get_dof_handler();
-    auto &solution            = sintering_model.get_solution();
+    auto &nonlinear_operator = sintering_model.get_nonlinear_operator();
+    auto &advection_operator = sintering_model.get_advection_operator();
+    auto &dof_handler        = sintering_model.get_dof_handler();
+    auto &solution           = sintering_model.get_solution();
 
     const auto comm = dof_handler.get_communicator();
 
@@ -41,7 +40,7 @@ namespace Test
     nonlinear_operator.initialize_dof_vector(residual);
 
     if (enable_rbm)
-      advection_operator.evaluate_forces(solution, advection_mechanism);
+      advection_operator.evaluate_forces(solution);
     nonlinear_operator.evaluate_nonlinear_residual(residual, solution);
 
     std::ostringstream ss;
