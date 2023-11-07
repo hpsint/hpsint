@@ -1181,6 +1181,8 @@ namespace Sintering
         // TODO disable this feature for a while, fix later
         // nonlinear_operator.update_state(current_u);
 
+        advection_operator.evaluate_forces_der(current_u);
+
         nonlinear_operator.do_update();
 
         if (params.nonlinear_data.fdm_jacobian_approximation)
