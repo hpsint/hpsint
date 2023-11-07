@@ -19,6 +19,8 @@
 
 #include <deal.II/distributed/tria.h>
 
+#include <pf-applications/lac/dynamic_block_vector.h>
+
 #include <pf-applications/sintering/tools.h>
 
 #include <pf-applications/grain_tracker/tracker.h>
@@ -156,6 +158,12 @@ namespace Sintering
     static constexpr unsigned int n_comp_volume_force_torque =
       (dim == 3 ? 7 : 4);
 
+    static constexpr unsigned int n_comp_force_torque =
+      (dim == 3 ? 6 : 3);
+
+    using BlockVectorType =
+      LinearAlgebra::distributed::DynamicBlockVector<Number>;
+
     AdvectionMechanism()
       : is_active(false)
       , mt(0.0)
@@ -212,6 +220,41 @@ namespace Sintering
         has_velocity_vector[op] = current_cell_data[op].has_non_zero();
     }
 
+    void
+    reinit_der(const unsigned int cell) const
+    {
+      if (index_ptr.size() > 0)
+        {
+          const unsigned int n_lanes = VectorizedArrayType::size();
+
+          const auto n_indices = index_ptr[cell + 1] - index_ptr[cell];
+          const auto n_op      = n_indices / n_lanes;
+
+          AssertDimension(n_indices % n_lanes, 0);
+
+          // TODO This is not very correct due to vectorization !!!
+          current_cell_df_dc.resize(n_op);
+
+          for (unsigned int i = 0; i < n_indices; ++i)
+            {
+              const auto index = index_values[index_ptr[cell] + i];
+
+              if (index != numbers::invalid_unsigned_int)
+                current_cell_df_dc[i / n_lanes] = df_dc[index];
+              else
+                current_cell_df_dc[i / n_lanes] = nullptr;
+            }
+        }
+    }
+
+    template <typename FEEvaluation>
+    void
+    evaluate_der(const unsigned int order_parameter_id, FEEvaluation& phi) const
+    {
+      phi.read_dof_values(*current_cell_df_dc[order_parameter_id]);
+      phi.evaluate(EvaluationFlags::EvaluationFlags::values);
+    }
+
     bool
     has_velocity(const unsigned int order_parameter_id) const
     {
@@ -239,6 +282,14 @@ namespace Sintering
       const auto v_adv = vt + vr;
 
       return v_adv;
+    }
+
+    DEAL_II_ALWAYS_INLINE inline VectorizedArrayType
+    get_velocity_der_df_prefac(const unsigned int order_parameter_id) const
+    {
+      const auto &op_cell_data = current_cell_data.at(order_parameter_id);
+
+      return mt * op_cell_data.volume_inv;
     }
 
     std::vector<unsigned int> &
@@ -275,6 +326,22 @@ namespace Sintering
       index_values.clear();
 
       index_ptr = {0};
+    }
+
+    void
+    nullify_data_der(const MatrixFree<dim, Number, VectorizedArrayType> &matrix_free, const GrainTracker::Tracker<dim, Number> &grain_tracker)
+    {
+      unsigned int n_current = df_dc.size();
+      unsigned int n_new = grain_tracker.n_segments();
+
+      df_dc.resize(n_new);
+      for (unsigned int i = n_current; i < n_new; ++i) {
+        df_dc[i] = std::make_shared<BlockVectorType>(n_comp_force_torque);
+        
+        for (unsigned int b = 0; b < n_comp_force_torque; ++b) {
+          matrix_free.initialize_dof_vector(df_dc[i]->block(b), 0);
+        }
+      }
     }
 
     Number *
@@ -352,6 +419,11 @@ namespace Sintering
       out << std::endl;
     }
 
+    std::vector<std::shared_ptr<BlockVectorType>>& get_df_dc()
+    {
+      return df_dc;
+    }
+
   private:
     const bool   is_active;
     const double mt;
@@ -367,5 +439,9 @@ namespace Sintering
 
     std::vector<Number> grains_data;
     std::vector<Number> grains_center;
+
+    std::vector<std::shared_ptr<BlockVectorType>> df_dc;
+
+    mutable std::vector<std::shared_ptr<BlockVectorType>> current_cell_df_dc;
   };
 } // namespace Sintering
