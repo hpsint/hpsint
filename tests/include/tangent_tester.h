@@ -120,6 +120,9 @@ namespace Test
     const unsigned int n_blocks = solution.n_blocks();
     const unsigned int n_dofs   = dof_handler.n_dofs() * n_blocks;
 
+    if (enable_rbm)
+      advection_operator.evaluate_forces_der(solution);
+
     // At first compute analytic matrix
     FullMatrix<Number> tangent_analytic(n_dofs, n_dofs);
     nonlinear_operator.initialize_system_matrix(false);
