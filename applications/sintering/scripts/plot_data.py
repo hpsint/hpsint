@@ -4,29 +4,43 @@ import numpy as np
 import matplotlib.pyplot as plt
 import argparse
 import library
+from collections.abc import Iterable
+from itertools import cycle, islice
 
 def create_axes(n):
+    ax = None
     if n==1:
         fig, ax = plt.subplots(1, 1)
-        return fig, [ax]
+        ax = [ax]
     elif n==2:
-        return plt.subplots(1, 2)
+        fig, axr = plt.subplots(1, 2)
     elif n==3:
-        return plt.subplots(2, 2)
+        fig, axr = plt.subplots(2, 2)
     elif n==4:
-        return plt.subplots(2, 2)
+        fig, axr = plt.subplots(2, 2)
     elif n==5:
-        return plt.subplots(2, 3)
+        fig, axr = plt.subplots(2, 3)
     elif n==6:
-        return plt.subplots(2, 3)
+        fig, axr = plt.subplots(2, 3)
     elif n==7:
-        return plt.subplots(2, 4)
+        fig, axr = plt.subplots(2, 4)
     elif n==8:
-        return plt.subplots(2, 4)
+        fig, axr = plt.subplots(2, 4)
     elif n==9:
-        return plt.subplots(3, 3)
+        fig, axr = plt.subplots(3, 3)
     else:
         exit("Maximum 9 plots can be created")
+
+    if ax is None:
+        ax = []
+        for x in axr:
+            if isinstance(x, Iterable):
+                for y in x:
+                    ax.append(y)
+            else:
+                ax.append(x)
+
+    return fig, ax
 
 parser = argparse.ArgumentParser()
 parser.add_argument("-f", "--files", dest="files", nargs='+', required=True, help="Source filenames, can be defined as masks")
@@ -48,7 +62,9 @@ files_list = library.get_solutions(args.files)
 if not files_list:
     raise Exception("The files list is empty, nothing to plot")
 
-colors = library.get_hex_colors(len(files_list))
+n_files = len(files_list)
+
+colors = library.get_hex_colors(n_files)
 
 if not args.yaxes:
     print("You did not specify any y-axes field to plot. These are the fields shared between all the provided files:")
@@ -72,7 +88,7 @@ if not args.yaxes:
 print("")
 print("         x-axis: {}".format(args.xaxis))
 print(" fields to plot: " + ", ".join(args.yaxes))
-print("number of files: {}".format(len(files_list)))
+print("number of files: {}".format(n_files))
 
 n_fields = len(args.yaxes)
 fig, ax = create_axes(n_fields)
@@ -88,13 +104,17 @@ if args.labels:
     for i in range(min(len(labels), len(args.labels))):
         labels[i] = args.labels[i]
 
+# Markers
+markers = ["s", "D", "o", "x", "P", "*", "v"]
+markers = list(islice(cycle(markers), n_files))
+
 for i in range(n_fields):
     field = args.yaxes[i]
     a = ax[i]
 
     x_lims = [sys.float_info.max, -sys.float_info.max]
 
-    for f, lbl, clr in zip(files_list, labels, colors):
+    for f, lbl, clr, mrk in zip(files_list, labels, colors, markers):
         cdata = np.genfromtxt(f, dtype=None, names=True, delimiter=args.delimiter)
         
         mask = [True] * len(cdata[args.xaxis])
@@ -109,7 +129,7 @@ for i in range(n_fields):
         x_lims[0] = min(x_lims[0], x[0])
         x_lims[1] = max(x_lims[1], x[-1])
 
-        a.plot(x, y, color=clr, linestyle='-', linewidth=2, label=lbl)
+        a.plot(x, y, color=clr, linestyle='-', linewidth=2, label=lbl, marker=mrk, markevery=n_files)
 
     a.grid(True)
     a.set_xlabel(args.xaxis)
