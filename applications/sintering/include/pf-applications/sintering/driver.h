@@ -1392,7 +1392,7 @@ namespace Sintering
           {
             if (step == 0)
               printf(
-                "\nit      res_abs      res_rel   ch_rel_abs   ch_res_rel   ac_rel_abs   ac_res_rel  mec_rel_abs  mec_res_rel  linear_iter\n");
+                "\nit      res_abs      res_rel   ch_res_abs   ch_res_rel   ac_res_abs   ac_res_rel  mec_res_abs  mec_res_rel  linear_iter\n");
 
             if (step == 0)
               printf(
