@@ -25,9 +25,9 @@ def format_plot(ax):
 
 def plot_step(cdata, x_min, x_max, y_min, y_max, step = None, show = True):
 
-    #fig = plt.figure(figsize=(10, 11.25), dpi=96, facecolor=color_background)
+    #fig = plt.figure(figsize=(10, 11.25), dpi=100, facecolor=color_background)
     #ax = plt.axes()
-    fig, ax = plt.subplots(1, 1, dpi=96, facecolor=color_background)
+    fig, ax = plt.subplots(1, 1, dpi=100, facecolor=color_background)
     fig.set_figheight(args.ysize)
     fig.set_figwidth(args.xsize)
     #fig.patch.set_facecolor(color_background)
@@ -132,8 +132,8 @@ parser.add_argument("-x", "--xaxis", dest="xaxis", required=False, help="x-axis 
 parser.add_argument("-y", "--yaxis", dest="yaxis", required=False, help="y-axis variable")
 parser.add_argument("--xlabel", dest="xlabel", required=False, help="x-axis label")
 parser.add_argument("--ylabel", dest="ylabel", required=False, help="y-axis label")
-parser.add_argument("--xsize", dest="xsize", required=False, help="x size of the figure", default=5., type=float)
-parser.add_argument("--ysize", dest="ysize", required=False, help="y size of the figure", default=5., type=float)
+parser.add_argument("--xsize", dest="xsize", required=False, help="x size of the figure", default=19.2, type=float)
+parser.add_argument("--ysize", dest="ysize", required=False, help="y size of the figure", default=10.8, type=float)
 parser.add_argument("-s", "--span", dest="span", required=False, help="y-axis span", default=0.05)
 parser.add_argument("-o", "--output", type=str, help="Destination folder to save data", default=None, required=False)
 parser.add_argument("-r", "--delimiter", dest='delimiter', required=False, help="Input file delimiter", default=None)
