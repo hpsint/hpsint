@@ -23,13 +23,13 @@ def format_plot(ax):
     ax.tick_params(axis='y', colors=color_axes, labelsize=label_size)
     ax.set_facecolor(color_background)
 
-def plot_step(cdata, x_min, x_max, y_min, y_max, x_size, y_size, step = None, show = True):
+def plot_step(cdata, x_min, x_max, y_min, y_max, step = None, show = True):
 
     #fig = plt.figure(figsize=(10, 11.25), dpi=96, facecolor=color_background)
     #ax = plt.axes()
     fig, ax = plt.subplots(1, 1, dpi=96, facecolor=color_background)
-    fig.set_figheight(y_size)
-    fig.set_figwidth(x_size)
+    fig.set_figheight(args.ysize)
+    fig.set_figwidth(args.xsize)
     #fig.patch.set_facecolor(color_background)
 
     if step is not(None):
@@ -44,7 +44,7 @@ def plot_step(cdata, x_min, x_max, y_min, y_max, x_size, y_size, step = None, sh
     y = cdata[args.yaxis][0:local_limit]
 
     # Plot
-    gradient_fill(x, y, fill_color=color_fill, ax=ax, ymax_custom=y_max, color=color_line)
+    gradient_fill(x, y, fill_color=color_fill, ax=ax, ymin_custom=y_min, ymax_custom=y_max, color=color_line)
     format_plot(ax)
     ax.set_ylim(y_min, y_max)
     ax.set_xlim(x_min, x_max)
@@ -72,7 +72,7 @@ def plot_step(cdata, x_min, x_max, y_min, y_max, x_size, y_size, step = None, sh
     plt.close()
     
 
-def gradient_fill(x, y, fill_color=None, ax=None, ymax_custom=None, **kwargs):
+def gradient_fill(x, y, fill_color=None, ax=None, ymin_custom=None, ymax_custom=None, **kwargs):
     """
     Plot a line with a linear alpha gradient filled beneath it.
 
@@ -112,6 +112,8 @@ def gradient_fill(x, y, fill_color=None, ax=None, ymax_custom=None, **kwargs):
     xmin, xmax, ymin, ymax = x.min(), x.max(), y.min(), y.max()
     if ymax_custom is not(None):
         ymax = ymax_custom
+    if ymin_custom is not(None):
+        ymin = ymin_custom
     im = ax.imshow(z, aspect='auto', extent=[xmin, xmax, ymin, ymax],
                    origin='lower', zorder=zorder)
 
@@ -184,4 +186,4 @@ step_start = 0
 
 for istep in range(step_start, cdata.size):
     print("Plotting step {}".format(istep))
-    plot_step(cdata, x_min, x_max, y_min, y_max, args.xsize, args.ysize, istep, False)
+    plot_step(cdata, x_min, x_max, y_min, y_max, istep, False)
