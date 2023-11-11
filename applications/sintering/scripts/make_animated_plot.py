@@ -17,20 +17,15 @@ def format_plot(ax):
     ax.spines['left'].set_color(color_axes)
     ax.xaxis.label.set_color(color_axes)
     ax.yaxis.label.set_color(color_axes)
-    #ax.yaxis.set_label_coords(-0.08,0.5)
-    #ax.xaxis.set_label_coords(0.5,-0.1)
     ax.tick_params(axis='x', colors=color_axes, labelsize=label_size)
     ax.tick_params(axis='y', colors=color_axes, labelsize=label_size)
     ax.set_facecolor(color_background)
 
 def plot_step(cdata, x_min, x_max, y_min, y_max, step = None, show = True):
 
-    #fig = plt.figure(figsize=(10, 11.25), dpi=100, facecolor=color_background)
-    #ax = plt.axes()
     fig, ax = plt.subplots(1, 1, dpi=100, facecolor=color_background)
     fig.set_figheight(args.ysize)
     fig.set_figwidth(args.xsize)
-    #fig.patch.set_facecolor(color_background)
 
     if step is not(None):
         local_limit = step + 1
@@ -44,7 +39,7 @@ def plot_step(cdata, x_min, x_max, y_min, y_max, step = None, show = True):
     y = cdata[args.yaxis][0:local_limit]
 
     # Plot
-    gradient_fill(x, y, fill_color=color_fill, ax=ax, ymin_custom=y_min, ymax_custom=y_max, color=color_line)
+    gradient_fill(x, y, fill_color=color_fill, ax=ax, ymin_custom=y_min, ymax_custom=y_max, color=color_line, linewidth=line_width)
     format_plot(ax)
     ax.set_ylim(y_min, y_max)
     ax.set_xlim(x_min, x_max)
@@ -56,11 +51,6 @@ def plot_step(cdata, x_min, x_max, y_min, y_max, step = None, show = True):
     ax.set_ylabel(ylabel, fontsize=font_size)
 
     fig.tight_layout(pad=1.5)
-    #plt.subplots_adjust(left=0.15, right=0.9, bottom=0.1, top=0.9)
-    #box = ax.get_position()
-    #box.y0 = box.y0 + 0.03
-    #box.y1 = box.y1 + 0.03
-    #ax.set_position(box)
 
     plt.savefig(os.path.join(output_folder, pngName))
     
@@ -146,6 +136,7 @@ color_line = 'white'
 color_fill = '#1f77b4'
 font_size = 16
 label_size = 14
+line_width = 2.0
 
 args = parser.parse_args()
 
