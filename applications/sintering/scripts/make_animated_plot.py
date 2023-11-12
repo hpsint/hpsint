@@ -176,5 +176,5 @@ if args.span:
 step_start = 0
 
 for istep in range(step_start, cdata.size):
-    print("Plotting step {}".format(istep))
+    print("Rendering step {}/{}".format(istep+1, cdata.size))
     plot_step(cdata, x_min, x_max, y_min, y_max, istep, False)
