@@ -12,6 +12,7 @@ parser.add_argument("-q", "--quantity", type=str, help="Quantity name", required
 parser.add_argument("-t", "--start", type=str, help="File start", required=False, default=None)
 parser.add_argument("-e", "--end", type=str, help="File end", required=False, default=None)
 parser.add_argument("-s", "--history", type=str, help="File history", required=True)
+parser.add_argument("-g", "--common-range", action='store_true', help="Use common range for bins", required=False, default=False)
 
 args = parser.parse_args()
 
@@ -69,6 +70,13 @@ meta_history = Path(path_history).stem.split("_")
 
 plot_histogram(ax_init, data_init[:,0], data_init[:,1], meta_init[-1], args.quantity if args.quantity else meta_init[0])
 plot_histogram(ax_final, data_final[:,0], data_final[:,1], meta_final[-1], args.quantity if args.quantity else meta_final[0])
+
+if args.common_range:
+    x_min = min(data_init[:,0].min(), data_final[:,0].min())
+    x_max = max(data_init[:,0].max(), data_final[:,0].max())
+
+    ax_init.set_xlim((x_min, x_max))
+    ax_final.set_xlim((x_min, x_max))
 
 library.plot_distribution_history(ax_mu_std, ax_total, fdata["time"], fdata["average"], fdata["stds"], fdata["total"])
 
