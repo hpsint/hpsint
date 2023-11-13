@@ -60,6 +60,7 @@ def plot_histogram(ax, bins, counts, time, qty_name):
 
     ax.set_title("Time t = {}".format(time))
     ax.set_xlabel(qty_name)
+    ax.set_ylabel("content ratio")
     ax.grid(True)
 
 meta_init = Path(path_init).stem.split("_")
