@@ -151,6 +151,33 @@ namespace Sintering
   };
 
   template <int dim, typename Number, typename VectorizedArrayType>
+  struct AdvectionCellDataDerBase
+  {
+    static constexpr unsigned int n_comp_force_torque = (dim == 3 ? 6 : 3);
+
+    Tensor<1, n_comp_force_torque, VectorizedArrayType> df_dc;
+
+    void
+    fill(const unsigned int                                         cell_id,
+         const Tensor<1, n_comp_force_torque, VectorizedArrayType> &df_dc_in)
+    {
+      for (unsigned int d = 0; d < n_comp_force_torque; ++d)
+        {
+          df_dc[d][cell_id] = df_dc_in[d][cell_id];
+        }
+    }
+
+    void
+    nullify(const unsigned int cell_id)
+    {
+      for (unsigned int d = 0; d < n_comp_force_torque; ++d)
+        {
+          df_dc[d][cell_id] = 0;
+        }
+    }
+  };
+
+  template <int dim, typename Number, typename VectorizedArrayType>
   class AdvectionMechanism
   {
   public:
@@ -158,8 +185,7 @@ namespace Sintering
     static constexpr unsigned int n_comp_volume_force_torque =
       (dim == 3 ? 7 : 4);
 
-    static constexpr unsigned int n_comp_force_torque =
-      (dim == 3 ? 6 : 3);
+    static constexpr unsigned int n_comp_force_torque = (dim == 3 ? 6 : 3);
 
     using BlockVectorType =
       LinearAlgebra::distributed::DynamicBlockVector<Number>;
@@ -220,8 +246,9 @@ namespace Sintering
         has_velocity_vector[op] = current_cell_data[op].has_non_zero();
     }
 
+    template <typename FEEvaluation>
     void
-    reinit_der(const unsigned int cell) const
+    reinit_der(const unsigned int cell, FEEvaluation &phi) const
     {
       if (index_ptr.size() > 0)
         {
@@ -232,27 +259,71 @@ namespace Sintering
 
           AssertDimension(n_indices % n_lanes, 0);
 
-          // TODO This is not very correct due to vectorization !!!
-          current_cell_df_dc.resize(n_op);
+          current_cell_df_dc_all.clear();
 
           for (unsigned int i = 0; i < n_indices; ++i)
             {
               const auto index = index_values[index_ptr[cell] + i];
 
               if (index != numbers::invalid_unsigned_int)
-                current_cell_df_dc[i / n_lanes] = df_dc[index];
-              else
-                current_cell_df_dc[i / n_lanes] = nullptr;
+                {
+                  if (current_cell_df_dc_all.find(index) ==
+                      current_cell_df_dc_all.end())
+                    {
+                      phi.read_dof_values(*df_dc[index]);
+                      phi.evaluate(EvaluationFlags::EvaluationFlags::values);
+                      current_cell_df_dc_all.try_emplace(index, std::vector<Tensor<1, n_comp_force_torque, VectorizedArrayType>>());
+                    }
+
+                  for (unsigned int q = 0; q < phi.n_q_points; ++q)
+                    {
+                      current_cell_df_dc_all.at(index).push_back(
+                        phi.get_value(q));
+                    }
+                }
             }
+
+          current_cell_df_dc.resize(n_op);
+
+          for (unsigned int i = 0; i < n_indices; ++i)
+            {
+              const auto index = index_values[index_ptr[cell] + i];
+
+              if (current_cell_df_dc[i / n_lanes].size() == 0)
+                {
+                  current_cell_df_dc[i / n_lanes].resize(phi.n_q_points);
+                }
+
+              for (unsigned int q = 0; q < phi.n_q_points; ++q)
+                {
+                  if (index != numbers::invalid_unsigned_int)
+                    current_cell_df_dc[i / n_lanes][q].fill(
+                      i % n_lanes, current_cell_df_dc_all.at(index)[q]);
+                  else
+                    current_cell_df_dc[i / n_lanes][q].nullify(i % n_lanes);
+                }
+            }
+
+          std::cout << "DEBUG START" << std::endl;
+
+          debug::print_vector(*df_dc[0], "df_dc[0]", std::cout);
+          debug::print_vector(*df_dc[1], "df_dc[1]", std::cout);
+
+          for(const auto& i : current_cell_df_dc) {
+            for(const auto& j : i) {
+              std::cout << j.df_dc << std::endl;
+            }
+          }
+          std::cout << "DEBUG END" << std::endl;
         }
     }
 
-    template <typename FEEvaluation>
-    void
-    evaluate_der(const unsigned int order_parameter_id, FEEvaluation& phi) const
+    DEAL_II_ALWAYS_INLINE inline Tensor<1,
+                                        n_comp_force_torque,
+                                        VectorizedArrayType>
+    get_df_dc(const unsigned int order_parameter_id, const unsigned int q) const
     {
-      phi.read_dof_values(*current_cell_df_dc[order_parameter_id]);
-      phi.evaluate(EvaluationFlags::EvaluationFlags::values);
+      return current_cell_df_dc.at(order_parameter_id)[q].df_dc;
     }
 
     bool
@@ -329,19 +400,23 @@ namespace Sintering
     }
 
     void
-    nullify_data_der(const MatrixFree<dim, Number, VectorizedArrayType> &matrix_free, const GrainTracker::Tracker<dim, Number> &grain_tracker)
+    nullify_data_der(
+      const MatrixFree<dim, Number, VectorizedArrayType> &matrix_free,
+      const GrainTracker::Tracker<dim, Number> &          grain_tracker)
     {
       unsigned int n_current = df_dc.size();
-      unsigned int n_new = grain_tracker.n_segments();
+      unsigned int n_new     = grain_tracker.n_segments();
 
       df_dc.resize(n_new);
-      for (unsigned int i = n_current; i < n_new; ++i) {
-        df_dc[i] = std::make_shared<BlockVectorType>(n_comp_force_torque);
-        
-        for (unsigned int b = 0; b < n_comp_force_torque; ++b) {
-          matrix_free.initialize_dof_vector(df_dc[i]->block(b), 0);
+      for (unsigned int i = n_current; i < n_new; ++i)
+        {
+          df_dc[i] = std::make_shared<BlockVectorType>(n_comp_force_torque);
+
+          for (unsigned int b = 0; b < n_comp_force_torque; ++b)
+            {
+              matrix_free.initialize_dof_vector(df_dc[i]->block(b), 0);
+            }
         }
-      }
     }
 
     Number *
@@ -419,7 +494,8 @@ namespace Sintering
       out << std::endl;
     }
 
-    std::vector<std::shared_ptr<BlockVectorType>>& get_df_dc()
+    std::vector<std::shared_ptr<BlockVectorType>> &
+    get_vectors_df_dc()
     {
       return df_dc;
     }
@@ -442,6 +518,12 @@ namespace Sintering
 
     std::vector<std::shared_ptr<BlockVectorType>> df_dc;
 
-    mutable std::vector<std::shared_ptr<BlockVectorType>> current_cell_df_dc;
+    mutable std::map<
+      unsigned int,
+      std::vector<Tensor<1, n_comp_force_torque, VectorizedArrayType>>>
+      current_cell_df_dc_all;
+    mutable std::vector<
+      std::vector<AdvectionCellDataDerBase<dim, Number, VectorizedArrayType>>>
+      current_cell_df_dc;
   };
 } // namespace Sintering

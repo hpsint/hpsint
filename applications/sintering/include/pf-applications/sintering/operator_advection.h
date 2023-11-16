@@ -681,7 +681,7 @@ namespace Sintering
 
                       std::bitset<VectorizedArrayType::size()> mask;
                       mask.set(i, true);
-                      phi_ft.distribute_local_to_global(*(advection_mechanism.get_df_dc()[segment_index]), 0, mask);
+                      phi_ft.distribute_local_to_global(*(advection_mechanism.get_vectors_df_dc()[segment_index]), 0, mask);
                     }
                 }
             }
