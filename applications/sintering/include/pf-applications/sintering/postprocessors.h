@@ -838,6 +838,16 @@ namespace Sintering
             *only_order_params,
             iso_level,
             box_filter);
+
+          DataOutWithRanges<dim> data_out_debug;
+          data_out_debug.attach_dof_handler(*background_dof_handler_to_be_used);
+
+          for (unsigned int ig = 0; ig < only_order_params->n_blocks(); ++ig)
+            data_out_debug.add_data_vector(only_order_params->block(ig), "eta" + std::to_string(ig));
+
+          data_out_debug.build_patches();
+
+          data_out_debug.write_vtu_in_parallel("/mnt/c/Temp/2d_5p_2/filter_debug.vtu", background_dof_handler_to_be_used->get_communicator());
         }
 
 
