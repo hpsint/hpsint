@@ -389,19 +389,22 @@ namespace Sintering
                           double val_max;
                           unsigned int index_max;
                           unsigned int index_min;
+                          double fac_ratio;
                           if (val0 > val1) {
                             val_max = val0;
                             index_max = index0;
                             index_min = index1;
+                            fac_ratio = std::abs(fac);
                           } else {
                             val_max = val1;
                             index_max = index1;
                             index_min = index0;
+                            fac_ratio = 1. - std::abs(fac);
                           }
 
                           const double length = cell->line(il)->diameter();
                           const double ref_value = val_max - iso_level;
-                          const double iso_pos = (fac > 0 ? fac : (1. + fac)) * length;
+                          const double iso_pos = fac_ratio * length;
                           const double k = -ref_value / iso_pos;
                           const double val_min = k * length + val_max;
 
