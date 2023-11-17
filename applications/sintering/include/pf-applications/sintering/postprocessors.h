@@ -189,28 +189,28 @@ namespace Sintering
         return true;
       }
 
-      template <int dim,
-                typename Number>
+      template <int dim, typename Number>
       std::tuple<bool, Number, Tensor<1, dim, Number>>
-      isect_line_plane(const Tensor<1, dim, Number>& p0, const Tensor<1, dim, Number>& p1, 
-        const Tensor<1, dim, Number>& p_co, const Tensor<1, dim, Number>& p_no, Number epsilon = 1e-6)
+      isect_line_plane(const Tensor<1, dim, Number> &p0,
+                       const Tensor<1, dim, Number> &p1,
+                       const Tensor<1, dim, Number> &p_co,
+                       const Tensor<1, dim, Number> &p_no,
+                       Number                        epsilon = 1e-6)
       {
         // u = sub_v3v3(p1, p0)
         Tensor<1, dim, Number> u = p0 - p1;
-          
+
         // dot = dot_v3v3(p_no, u)
         const auto dot = p_no * u;
 
         if (std::abs(dot) > epsilon)
-        {
+          {
             /*
-            * The factor of the point between p0 -> p1 (0 - 1)
-            * if 'fac' is between (0 - 1) the point intersects with the segment.
-            * Otherwise:
-            *  < 0.0: behind p0.
-            *  > 1.0: infront of p1.
-            */
-            //w = sub_v3v3(p0, p_co)
+             * The factor of the point between p0 -> p1 (0 - 1)
+             * if 'fac' is between (0 - 1) the point intersects with the
+             * segment. Otherwise: < 0.0: behind p0. > 1.0: infront of p1.
+             */
+            // w = sub_v3v3(p0, p_co)
             Tensor<1, dim, Number> w = p0 - p_co;
 
             const auto fac = -(p_no * w) / dot;
@@ -218,9 +218,9 @@ namespace Sintering
 
             // add_v3v3(p0, u)
             Tensor<1, dim, Number> res = p0 + u;
-            
+
             return std::make_tuple(true, fac, res);
-        }
+          }
 
         // The segment is parallel to plane.
         return std::make_tuple(false, 0, Tensor<1, dim, Number>());
@@ -300,145 +300,197 @@ namespace Sintering
 
         // Make local constraints
         AffineConstraints<typename VectorType::value_type> constraints;
-        const auto relevant_dofs =
+        const auto                                         relevant_dofs =
           DoFTools::extract_locally_relevant_dofs(background_dof_handler);
 
         constraints.clear();
         constraints.reinit(relevant_dofs);
-        DoFTools::make_hanging_node_constraints(background_dof_handler, constraints);
+        DoFTools::make_hanging_node_constraints(background_dof_handler,
+                                                constraints);
         constraints.close();
 
         // Additional smoothening
-        for (unsigned int ilevel = 0; ilevel < background_dof_handler.get_triangulation().n_global_levels(); ++ilevel)
-        {
-        for (const auto &cell : background_dof_handler.active_cell_iterators_on_level(ilevel))
+        for (unsigned int ilevel = 0;
+             ilevel <
+             background_dof_handler.get_triangulation().n_global_levels();
+             ++ilevel)
           {
-            if (!cell->is_locally_owned())
-              continue;
-
-            cell->get_dof_indices(dof_indices);
-
-            fe_values.reinit(cell);
-
-            for (unsigned int b = 0; b < vector.n_blocks(); ++b)
+            for (const auto &cell :
+                 background_dof_handler.active_cell_iterators_on_level(ilevel))
               {
-                const auto &points = fe_values.get_quadrature_points();
-
-                unsigned int n_larger_than_iso = 0;
-                unsigned int n_small_than_iso = 0;
-
-                for (unsigned int i = 0; i < fe.n_dofs_per_cell(); ++i)
-                {
-                  if (vector.block(b)[dof_indices[i]] > iso_level)
-                    ++n_larger_than_iso;
-                  else if (vector.block(b)[dof_indices[i]] < iso_level)
-                    ++n_small_than_iso;
-                }
-
-                if (n_larger_than_iso == 0)
+                if (!cell->is_locally_owned())
                   continue;
 
-                std::vector<unsigned int> is_active(fe.n_dofs_per_cell(), 0);
-                std::vector<unsigned int> is_inactive(fe.n_dofs_per_cell(), 0);
+                cell->get_dof_indices(dof_indices);
 
-                for (unsigned int i = 0; i < fe.n_dofs_per_cell(); ++i)
+                fe_values.reinit(cell);
+
+                for (unsigned int b = 0; b < vector.n_blocks(); ++b)
                   {
-                    const int pred_status = box_filter(points[i]);
-                    
-                    if (pred_status == -1)
-                      is_inactive[i] = 1;
-                    else if (pred_status == 1)
-                      is_active[i] = 1;
-                  }
+                    const auto &points = fe_values.get_quadrature_points();
 
-                const auto n_active = std::accumulate(is_active.begin(), is_active.end(), 0, std::plus<unsigned int>());
-                const auto n_inactive = std::accumulate(is_inactive.begin(), is_inactive.end(), 0, std::plus<unsigned int>());
-                
-                // There is an intersection
-                if (n_active < fe.n_dofs_per_cell() && n_inactive < fe.n_dofs_per_cell())
-                {
-                  for (unsigned int il = 0; il < cell->n_lines(); il++)
-                  {
-                    const auto index0 = cell->line(il)->vertex_dof_index(0, 0);
-                    const auto index1 = cell->line(il)->vertex_dof_index(1, 0);
-                    const auto val0 = vector.block(b)[index0];
-                    const auto val1 = vector.block(b)[index1];
+                    unsigned int n_larger_than_iso = 0;
+                    unsigned int n_small_than_iso  = 0;
 
-                    // Both points are outside of the interest area - filter them out
-                    const int pred_status0 = box_filter(cell->line(il)->vertex(0));
-                    const int pred_status1 = box_filter(cell->line(il)->vertex(1));
-
-                    const bool filter_out0 = (pred_status0 != 1 || val0 < iso_level);
-                    const bool filter_out1 = (pred_status1 != 1 || val1 < iso_level);
-
-                    if (filter_out0 && filter_out1)
-                      continue;
-                    
-                    for (unsigned int ip = 0; ip < p_cos.size(); ip++)
-                    {
-                      const auto &p_co = p_cos[ip];
-                      const auto &p_no = p_nos[ip];
-
-                      const auto isect = isect_line_plane(cell->line(il)->vertex(0), cell->line(il)->vertex(1), p_co, p_no);
-
-                      if (std::get<0>(isect) && std::abs(std::get<1>(isect)) < 1.)
+                    for (unsigned int i = 0; i < fe.n_dofs_per_cell(); ++i)
                       {
-                        const auto fac = std::get<1>(isect);
-                        const auto& p = std::get<2>(isect);
-                        const auto d0 = p - cell->line(il)->vertex(0);
-                        const auto d1 = p - cell->line(il)->vertex(1);
-
-                        // A true intersection
-                        if (d0 * d1 < 0)
-                        {
-                          std::cout << "fac = " << std::get<1>(isect) << ", p = " << std::get<2>(isect) << std::endl;
-                          std::cout << "v(0) = " << cell->line(il)->vertex(0) << ", v(1) = " << cell->line(il)->vertex(1) << std::endl;
-
-                          std::cout << "index0 = " << index0 << ", index1 = " << index1 << std::endl;
-
-                          double val_max;
-                          unsigned int index_max;
-                          unsigned int index_min;
-                          double fac_ratio;
-                          if (val0 > val1) {
-                            val_max = val0;
-                            index_max = index0;
-                            index_min = index1;
-                            fac_ratio = std::abs(fac);
-                          } else {
-                            val_max = val1;
-                            index_max = index1;
-                            index_min = index0;
-                            fac_ratio = 1. - std::abs(fac);
-                          }
-
-                          const double length = cell->line(il)->diameter();
-                          const double ref_value = val_max - iso_level;
-                          const double iso_pos = fac_ratio * length;
-                          const double k = -ref_value / iso_pos;
-                          const double val_min = k * length + val_max;
-
-                          std::cout << "val0 = " << vector.block(b)[index0] << ", val1 = " << vector.block(b)[index1] << std::endl;
-
-                          vector.block(b)[index_max] = val_max;
-                          vector.block(b)[index_min] = val_min;
-
-                          std::cout << "val0 = " << vector.block(b)[index0] << ", val1 = " << vector.block(b)[index1] << std::endl;
-
-                          std::cout << std::endl;
-                        }
+                        if (vector.block(b)[dof_indices[i]] > iso_level)
+                          ++n_larger_than_iso;
+                        else if (vector.block(b)[dof_indices[i]] < iso_level)
+                          ++n_small_than_iso;
                       }
-                    }
-                  }
-                }                
-              }
-          }
 
-          for (unsigned int b = 0; b < vector.n_blocks(); ++b)
-          {
-            constraints.distribute(vector.block(b));
+                    if (n_larger_than_iso == 0)
+                      continue;
+
+                    std::vector<unsigned int> is_active(fe.n_dofs_per_cell(),
+                                                        0);
+                    std::vector<unsigned int> is_inactive(fe.n_dofs_per_cell(),
+                                                          0);
+
+                    for (unsigned int i = 0; i < fe.n_dofs_per_cell(); ++i)
+                      {
+                        const int pred_status = box_filter(points[i]);
+
+                        if (pred_status == -1)
+                          is_inactive[i] = 1;
+                        else if (pred_status == 1)
+                          is_active[i] = 1;
+                      }
+
+                    const auto n_active =
+                      std::accumulate(is_active.begin(),
+                                      is_active.end(),
+                                      0,
+                                      std::plus<unsigned int>());
+                    const auto n_inactive =
+                      std::accumulate(is_inactive.begin(),
+                                      is_inactive.end(),
+                                      0,
+                                      std::plus<unsigned int>());
+
+                    // There is an intersection
+                    if (n_active < fe.n_dofs_per_cell() &&
+                        n_inactive < fe.n_dofs_per_cell())
+                      {
+                        for (unsigned int il = 0; il < cell->n_lines(); il++)
+                          {
+                            const auto index0 =
+                              cell->line(il)->vertex_dof_index(0, 0);
+                            const auto index1 =
+                              cell->line(il)->vertex_dof_index(1, 0);
+                            const auto val0 = vector.block(b)[index0];
+                            const auto val1 = vector.block(b)[index1];
+
+                            // Both points are outside of the interest area -
+                            // filter them out
+                            const int pred_status0 =
+                              box_filter(cell->line(il)->vertex(0));
+                            const int pred_status1 =
+                              box_filter(cell->line(il)->vertex(1));
+
+                            const bool filter_out0 =
+                              (pred_status0 != 1 || val0 < iso_level);
+                            const bool filter_out1 =
+                              (pred_status1 != 1 || val1 < iso_level);
+
+                            if (filter_out0 && filter_out1)
+                              continue;
+
+                            for (unsigned int ip = 0; ip < p_cos.size(); ip++)
+                              {
+                                const auto &p_co = p_cos[ip];
+                                const auto &p_no = p_nos[ip];
+
+                                const auto isect =
+                                  isect_line_plane(cell->line(il)->vertex(0),
+                                                   cell->line(il)->vertex(1),
+                                                   p_co,
+                                                   p_no);
+
+                                if (std::get<0>(isect) &&
+                                    std::abs(std::get<1>(isect)) < 1.)
+                                  {
+                                    const auto  fac = std::get<1>(isect);
+                                    const auto &p   = std::get<2>(isect);
+                                    const auto  d0 =
+                                      p - cell->line(il)->vertex(0);
+                                    const auto d1 =
+                                      p - cell->line(il)->vertex(1);
+
+                                    // A true intersection
+                                    if (d0 * d1 < 0)
+                                      {
+                                        std::cout
+                                          << "fac = " << std::get<1>(isect)
+                                          << ", p = " << std::get<2>(isect)
+                                          << std::endl;
+                                        std::cout << "v(0) = "
+                                                  << cell->line(il)->vertex(0)
+                                                  << ", v(1) = "
+                                                  << cell->line(il)->vertex(1)
+                                                  << std::endl;
+
+                                        std::cout << "index0 = " << index0
+                                                  << ", index1 = " << index1
+                                                  << std::endl;
+
+                                        double       val_max;
+                                        unsigned int index_max;
+                                        unsigned int index_min;
+                                        double       fac_ratio;
+                                        if (val0 > val1)
+                                          {
+                                            val_max   = val0;
+                                            index_max = index0;
+                                            index_min = index1;
+                                            fac_ratio = std::abs(fac);
+                                          }
+                                        else
+                                          {
+                                            val_max   = val1;
+                                            index_max = index1;
+                                            index_min = index0;
+                                            fac_ratio = 1. - std::abs(fac);
+                                          }
+
+                                        const double length =
+                                          cell->line(il)->diameter();
+                                        const double ref_value =
+                                          val_max - iso_level;
+                                        const double iso_pos =
+                                          fac_ratio * length;
+                                        const double k = -ref_value / iso_pos;
+                                        const double val_min =
+                                          k * length + val_max;
+
+                                        std::cout << "val0 = "
+                                                  << vector.block(b)[index0]
+                                                  << ", val1 = "
+                                                  << vector.block(b)[index1]
+                                                  << std::endl;
+
+                                        vector.block(b)[index_max] = val_max;
+                                        vector.block(b)[index_min] = val_min;
+
+                                        std::cout << "val0 = "
+                                                  << vector.block(b)[index0]
+                                                  << ", val1 = "
+                                                  << vector.block(b)[index1]
+                                                  << std::endl;
+
+                                        std::cout << std::endl;
+                                      }
+                                  }
+                              }
+                          }
+                      }
+                  }
+              }
+
+            for (unsigned int b = 0; b < vector.n_blocks(); ++b)
+              constraints.distribute(vector.block(b));
           }
-        }
 
         std::cout << "Finish filter" << std::endl;
       }
@@ -862,11 +914,14 @@ namespace Sintering
           data_out_debug.attach_dof_handler(*background_dof_handler_to_be_used);
 
           for (unsigned int ig = 0; ig < only_order_params->n_blocks(); ++ig)
-            data_out_debug.add_data_vector(only_order_params->block(ig), "eta" + std::to_string(ig));
+            data_out_debug.add_data_vector(only_order_params->block(ig),
+                                           "eta" + std::to_string(ig));
 
           data_out_debug.build_patches();
 
-          data_out_debug.write_vtu_in_parallel("/mnt/c/Temp/2d_5p_2/filter_debug.vtu", background_dof_handler_to_be_used->get_communicator());
+          data_out_debug.write_vtu_in_parallel(
+            "/mnt/c/Temp/2d_5p_2/filter_debug.vtu",
+            background_dof_handler_to_be_used->get_communicator());
         }
 
 
@@ -899,18 +954,17 @@ namespace Sintering
                 for (unsigned int i = old_size; i < cells.size(); ++i)
                   {
                     if (grain_tracker)
-                    {
-                      const auto particle_id_for_op =
-                        grain_tracker->get_particle_index(b, cell->global_active_cell_index());
+                      {
+                        const auto particle_id_for_op =
+                          grain_tracker->get_particle_index(
+                            b, cell->global_active_cell_index());
 
-                      if (particle_id_for_op != numbers::invalid_unsigned_int)
-                        cells[i].material_id =
-                          grain_tracker
-                            ->get_grain_and_segment(
-                              b,
-                              particle_id_for_op)
-                            .first;
-                    }
+                        if (particle_id_for_op != numbers::invalid_unsigned_int)
+                          cells[i].material_id =
+                            grain_tracker
+                              ->get_grain_and_segment(b, particle_id_for_op)
+                              .first;
+                      }
 
                     cells[i].manifold_id = b;
                   }
