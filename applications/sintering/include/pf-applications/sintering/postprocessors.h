@@ -880,13 +880,18 @@ namespace Sintering
                 for (unsigned int i = old_size; i < cells.size(); ++i)
                   {
                     if (grain_tracker)
-                      cells[i].material_id =
-                        grain_tracker
-                          ->get_grain_and_segment(
-                            b,
-                            grain_tracker->get_particle_index(
-                              b, cell->global_active_cell_index()))
-                          .first;
+                    {
+                      const auto particle_id_for_op =
+                        grain_tracker->get_particle_index(b, cell->global_active_cell_index());
+
+                      if (particle_id_for_op != numbers::invalid_unsigned_int)
+                        cells[i].material_id =
+                          grain_tracker
+                            ->get_grain_and_segment(
+                              b,
+                              particle_id_for_op)
+                            .first;
+                    }
 
                     cells[i].manifold_id = b;
                   }
