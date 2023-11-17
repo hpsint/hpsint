@@ -298,13 +298,23 @@ namespace Sintering
               }
           }
 
-        // Additionaly smoothening
-        for (const auto &cell : background_dof_handler.active_cell_iterators())
+        // Make local constraints
+        AffineConstraints<typename VectorType::value_type> constraints;
+        const auto relevant_dofs =
+          DoFTools::extract_locally_relevant_dofs(background_dof_handler);
+
+        constraints.clear();
+        constraints.reinit(relevant_dofs);
+        DoFTools::make_hanging_node_constraints(background_dof_handler, constraints);
+        constraints.close();
+
+        // Additional smoothening
+        for (unsigned int ilevel = 0; ilevel < background_dof_handler.get_triangulation().n_global_levels(); ++ilevel)
+        {
+        for (const auto &cell : background_dof_handler.active_cell_iterators_on_level(ilevel))
           {
             if (!cell->is_locally_owned())
               continue;
-
-            //std::cout << "cell_index = " << cell->index() << std::endl;
 
             cell->get_dof_indices(dof_indices);
 
@@ -424,7 +434,13 @@ namespace Sintering
               }
           }
 
-          std::cout << "Finish filter" << std::endl;
+          for (unsigned int b = 0; b < vector.n_blocks(); ++b)
+          {
+            constraints.distribute(vector.block(b));
+          }
+        }
+
+        std::cout << "Finish filter" << std::endl;
       }
 
       template <int dim, typename VectorType>
