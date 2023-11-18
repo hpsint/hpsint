@@ -251,25 +251,31 @@ namespace Sintering
 
         std::vector<types::global_dof_index> dof_indices(fe.n_dofs_per_cell());
 
-        std::vector<Tensor<1, dim>> p_cos(4);
-        p_cos[0][0] = 4;
-        p_cos[0][1] = 5;
-        p_cos[1][0] = 4;
-        p_cos[1][1] = 5;
-        p_cos[2][0] = 25;
-        p_cos[2][1] = 27;
-        p_cos[3][0] = 25;
-        p_cos[3][1] = 27;
+        // Debug data
+        Tensor<1, dim> bottom_left;
+        bottom_left[0] = 4;
+        bottom_left[1] = 5;
+        if (dim == 3)
+          bottom_left[2] = -4;
 
-        std::vector<Tensor<1, dim>> p_nos(4);
-        p_nos[0][0] = -1;
-        p_nos[0][1] = 0;
-        p_nos[1][0] = 0;
-        p_nos[1][1] = -1;
-        p_nos[2][0] = 1;
-        p_nos[2][1] = 0;
-        p_nos[3][0] = 0;
-        p_nos[3][1] = 1;
+        Tensor<1, dim> top_right;
+        top_right[0] = 25;
+        top_right[1] = 27;
+        if (dim == 3)
+          top_right[2] = 4;
+
+        std::vector<Tensor<1, dim>> p_cos;
+        for (unsigned int d = 0; d < dim; ++d)
+          p_cos.push_back(bottom_left);
+
+        for (unsigned int d = 0; d < dim; ++d)
+          p_cos.push_back(top_right);
+
+        std::vector<Tensor<1, dim>> p_nos(2 * dim);
+        for (unsigned int d = 0; d < dim; ++d)
+          p_nos[d][d] = -1;
+        for (unsigned int d = 0; d < dim; ++d)
+          p_nos[dim + d][d] = 1;
 
         // With the first loop we eliminate all cells outside of the scope
         for (const auto &cell : background_dof_handler.active_cell_iterators())
@@ -310,10 +316,9 @@ namespace Sintering
         constraints.close();
 
         // Additional smoothening
-        for (unsigned int ilevel = 0;
-             ilevel <
-             background_dof_handler.get_triangulation().n_global_levels();
-             ++ilevel)
+        const unsigned int n_levels =
+          background_dof_handler.get_triangulation().n_global_levels();
+        for (unsigned int ilevel = 0; ilevel < n_levels; ++ilevel)
           {
             for (const auto &cell :
                  background_dof_handler.active_cell_iterators_on_level(ilevel))
@@ -329,16 +334,11 @@ namespace Sintering
                   {
                     const auto &points = fe_values.get_quadrature_points();
 
+                    // Check if there is any point value larger than iso_level
                     unsigned int n_larger_than_iso = 0;
-                    unsigned int n_small_than_iso  = 0;
-
                     for (unsigned int i = 0; i < fe.n_dofs_per_cell(); ++i)
-                      {
-                        if (vector.block(b)[dof_indices[i]] > iso_level)
-                          ++n_larger_than_iso;
-                        else if (vector.block(b)[dof_indices[i]] < iso_level)
-                          ++n_small_than_iso;
-                      }
+                      if (vector.block(b)[dof_indices[i]] > iso_level)
+                        ++n_larger_than_iso;
 
                     if (n_larger_than_iso == 0)
                       continue;
@@ -488,8 +488,9 @@ namespace Sintering
                   }
               }
 
-            for (unsigned int b = 0; b < vector.n_blocks(); ++b)
-              constraints.distribute(vector.block(b));
+            if (ilevel < n_levels - 1)
+              for (unsigned int b = 0; b < vector.n_blocks(); ++b)
+                constraints.distribute(vector.block(b));
           }
 
         std::cout << "Finish filter" << std::endl;
