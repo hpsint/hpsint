@@ -31,6 +31,7 @@
 
 #include <pf-applications/grain_tracker/distributed_stitching.h>
 #include <pf-applications/grain_tracker/tracker.h>
+#include <pf-applications/grid/bounding_box_filter.h>
 
 namespace dealii
 {
@@ -229,12 +230,12 @@ namespace Sintering
       template <int dim, typename VectorType>
       void
       filter_mesh_withing_bounding_box(
-        const Mapping<dim> &                   mapping,
-        const DoFHandler<dim> &                background_dof_handler,
-        VectorType &                           vector,
-        const double                           iso_level,
-        std::function<int(const Point<dim> &)> box_filter,
-        const double                           null_value = 0.)
+        const Mapping<dim> &                          mapping,
+        const DoFHandler<dim> &                       background_dof_handler,
+        VectorType &                                  vector,
+        const double                                  iso_level,
+        std::shared_ptr<const BoundingBoxFilter<dim>> box_filter,
+        const double                                  null_value = 0.)
       {
         AssertThrow(std::abs(iso_level - null_value) >
                       std::numeric_limits<double>::epsilon(),
@@ -293,12 +294,13 @@ namespace Sintering
 
                 for (unsigned int i = 0; i < fe.n_dofs_per_cell(); ++i)
                   {
-                    const int pred_status = box_filter(points[i]);
+                    const auto position = box_filter->position(points[i]);
 
                     auto &global_dof_value = vector.block(b)[dof_indices[i]];
-                    if (pred_status == 0)
+                    if (position == BoundingBoxFilter<dim>::Position::Boundary)
                       global_dof_value = std::min(global_dof_value, iso_level);
-                    else if (pred_status == -1)
+                    else if (position ==
+                             BoundingBoxFilter<dim>::Position::Outside)
                       global_dof_value = null_value;
                   }
               }
@@ -350,11 +352,13 @@ namespace Sintering
 
                     for (unsigned int i = 0; i < fe.n_dofs_per_cell(); ++i)
                       {
-                        const int pred_status = box_filter(points[i]);
+                        const auto position = box_filter->position(points[i]);
 
-                        if (pred_status == -1)
+                        if (position ==
+                            BoundingBoxFilter<dim>::Position::Outside)
                           is_inactive[i] = 1;
-                        else if (pred_status == 1)
+                        else if (position ==
+                                 BoundingBoxFilter<dim>::Position::Inside)
                           is_active[i] = 1;
                       }
 
@@ -384,15 +388,17 @@ namespace Sintering
 
                             // Both points are outside of the interest area -
                             // filter them out
-                            const int pred_status0 =
-                              box_filter(cell->line(il)->vertex(0));
-                            const int pred_status1 =
-                              box_filter(cell->line(il)->vertex(1));
+                            const bool pred_status0 =
+                              box_filter->point_outside_or_boundary(
+                                cell->line(il)->vertex(0));
+                            const bool pred_status1 =
+                              box_filter->point_outside_or_boundary(
+                                cell->line(il)->vertex(1));
 
                             const bool filter_out0 =
-                              (pred_status0 != 1 || val0 < iso_level);
+                              (pred_status0 || val0 < iso_level);
                             const bool filter_out1 =
-                              (pred_status1 != 1 || val1 < iso_level);
+                              (pred_status1 || val1 < iso_level);
 
                             if (filter_out0 && filter_out1)
                               continue;
@@ -499,17 +505,17 @@ namespace Sintering
       template <int dim, typename VectorType>
       bool
       build_grain_boundaries_mesh(
-        Triangulation<dim - 1, dim> &          tria,
-        const Mapping<dim> &                   mapping,
-        const DoFHandler<dim> &                background_dof_handler,
-        const VectorType &                     vector,
-        const double                           iso_level,
-        const unsigned int                     n_grains,
-        const double                           gb_lim             = 0.14,
-        const unsigned int                     n_coarsening_steps = 0,
-        std::function<int(const Point<dim> &)> box_filter         = nullptr,
-        const unsigned int                     n_subdivisions     = 1,
-        const double                           tolerance          = 1e-10)
+        Triangulation<dim - 1, dim> &                 tria,
+        const Mapping<dim> &                          mapping,
+        const DoFHandler<dim> &                       background_dof_handler,
+        const VectorType &                            vector,
+        const double                                  iso_level,
+        const unsigned int                            n_grains,
+        const double                                  gb_lim             = 0.14,
+        const unsigned int                            n_coarsening_steps = 0,
+        std::shared_ptr<const BoundingBoxFilter<dim>> box_filter     = nullptr,
+        const unsigned int                            n_subdivisions = 1,
+        const double                                  tolerance      = 1e-10)
       {
         using Number = typename VectorType::value_type;
 
@@ -839,17 +845,17 @@ namespace Sintering
     template <int dim, typename VectorType, typename Number>
     void
     output_grain_contours_vtu(
-      const Mapping<dim> &                      mapping,
-      const DoFHandler<dim> &                   background_dof_handler,
-      const VectorType &                        vector,
-      const double                              iso_level,
-      const std::string                         filename,
-      const unsigned int                        n_grains,
-      const GrainTracker::Tracker<dim, Number> &grain_tracker_in,
-      const unsigned int                        n_coarsening_steps = 0,
-      std::function<int(const Point<dim> &)>    box_filter         = nullptr,
-      const unsigned int                        n_subdivisions     = 1,
-      const double                              tolerance          = 1e-10)
+      const Mapping<dim> &                          mapping,
+      const DoFHandler<dim> &                       background_dof_handler,
+      const VectorType &                            vector,
+      const double                                  iso_level,
+      const std::string                             filename,
+      const unsigned int                            n_grains,
+      const GrainTracker::Tracker<dim, Number> &    grain_tracker_in,
+      const unsigned int                            n_coarsening_steps = 0,
+      std::shared_ptr<const BoundingBoxFilter<dim>> box_filter     = nullptr,
+      const unsigned int                            n_subdivisions = 1,
+      const double                                  tolerance      = 1e-10)
     {
       std::shared_ptr<GrainTracker::Tracker<dim, Number>> grain_tracker;
       if (n_coarsening_steps == 0)
@@ -1019,17 +1025,17 @@ namespace Sintering
     template <int dim, typename VectorType>
     void
     output_grain_boundaries_vtu(
-      const Mapping<dim> &                   mapping,
-      const DoFHandler<dim> &                background_dof_handler,
-      const VectorType &                     vector,
-      const double                           iso_level,
-      const std::string                      filename,
-      const unsigned int                     n_grains,
-      const double                           gb_lim             = 0.14,
-      const unsigned int                     n_coarsening_steps = 0,
-      std::function<int(const Point<dim> &)> box_filter         = nullptr,
-      const unsigned int                     n_subdivisions     = 1,
-      const double                           tolerance          = 1e-10)
+      const Mapping<dim> &                          mapping,
+      const DoFHandler<dim> &                       background_dof_handler,
+      const VectorType &                            vector,
+      const double                                  iso_level,
+      const std::string                             filename,
+      const unsigned int                            n_grains,
+      const double                                  gb_lim             = 0.14,
+      const unsigned int                            n_coarsening_steps = 0,
+      std::shared_ptr<const BoundingBoxFilter<dim>> box_filter     = nullptr,
+      const unsigned int                            n_subdivisions = 1,
+      const double                                  tolerance      = 1e-10)
     {
       Triangulation<dim - 1, dim> tria;
 
@@ -1061,15 +1067,15 @@ namespace Sintering
     template <int dim, typename VectorType>
     void
     output_concentration_contour_vtu(
-      const Mapping<dim> &                   mapping,
-      const DoFHandler<dim> &                background_dof_handler,
-      const VectorType &                     vector,
-      const double                           iso_level,
-      const std::string                      filename,
-      const unsigned int                     n_coarsening_steps = 0,
-      std::function<int(const Point<dim> &)> box_filter         = nullptr,
-      const unsigned int                     n_subdivisions     = 1,
-      const double                           tolerance          = 1e-10)
+      const Mapping<dim> &                          mapping,
+      const DoFHandler<dim> &                       background_dof_handler,
+      const VectorType &                            vector,
+      const double                                  iso_level,
+      const std::string                             filename,
+      const unsigned int                            n_coarsening_steps = 0,
+      std::shared_ptr<const BoundingBoxFilter<dim>> box_filter     = nullptr,
+      const unsigned int                            n_subdivisions = 1,
+      const double                                  tolerance      = 1e-10)
     {
       const bool has_ghost_elements = vector.has_ghost_elements();
 
@@ -1224,8 +1230,8 @@ namespace Sintering
     {
       Triangulation<dim - 1, dim> tria;
 
-      const unsigned int                     n_coarsening_steps = 0;
-      std::function<int(const Point<dim> &)> box_filter         = nullptr;
+      const unsigned int                            n_coarsening_steps = 0;
+      std::shared_ptr<const BoundingBoxFilter<dim>> box_filter = nullptr;
 
       const bool tria_not_empty =
         internal::build_grain_boundaries_mesh(tria,
@@ -1446,13 +1452,14 @@ namespace Sintering
     {
       template <int dim, typename BlockVectorType, typename Number>
       unsigned int
-      run_flooding(const typename DoFHandler<dim>::cell_iterator &cell,
-                   const BlockVectorType &                        solution,
-                   LinearAlgebra::distributed::Vector<Number> &   particle_ids,
-                   const unsigned int                             id,
-                   const double threshold_upper                      = 0.8,
-                   const double invalid_particle_id                  = -1.0,
-                   std::function<int(const Point<dim> &)> box_filter = nullptr)
+      run_flooding(
+        const typename DoFHandler<dim>::cell_iterator &cell,
+        const BlockVectorType &                        solution,
+        LinearAlgebra::distributed::Vector<Number> &   particle_ids,
+        const unsigned int                             id,
+        const double                                   threshold_upper = 0.8,
+        const double invalid_particle_id                               = -1.0,
+        std::shared_ptr<const BoundingBoxFilter<dim>> box_filter = nullptr)
       {
         if (cell->has_children())
           {
@@ -1471,7 +1478,7 @@ namespace Sintering
           }
 
         if (cell->is_locally_owned() == false ||
-            (box_filter && box_filter(cell->barycenter()) < 0))
+            (box_filter && box_filter->point_outside(cell->barycenter())))
           return 0;
 
         const auto particle_id = particle_ids[cell->global_active_cell_index()];
@@ -1520,11 +1527,12 @@ namespace Sintering
       std::tuple<LinearAlgebra::distributed::Vector<double>,
                  std::vector<unsigned int>,
                  unsigned int>
-      detect_pores(const DoFHandler<dim> &dof_handler,
-                   const VectorType &     solution,
-                   const double           invalid_particle_id        = -1.0,
-                   const double           threshold_upper            = 0.8,
-                   std::function<int(const Point<dim> &)> box_filter = nullptr)
+      detect_pores(
+        const DoFHandler<dim> &dof_handler,
+        const VectorType &     solution,
+        const double           invalid_particle_id               = -1.0,
+        const double           threshold_upper                   = 0.8,
+        std::shared_ptr<const BoundingBoxFilter<dim>> box_filter = nullptr)
       {
         const auto comm = dof_handler.get_communicator();
 
@@ -1589,12 +1597,13 @@ namespace Sintering
 
     template <int dim, typename VectorType>
     void
-    output_porosity(const Mapping<dim> &   mapping,
-                    const DoFHandler<dim> &dof_handler,
-                    const VectorType &     solution,
-                    const std::string      output,
-                    const double           threshold_upper            = 0.8,
-                    std::function<int(const Point<dim> &)> box_filter = nullptr)
+    output_porosity(
+      const Mapping<dim> &                          mapping,
+      const DoFHandler<dim> &                       dof_handler,
+      const VectorType &                            solution,
+      const std::string                             output,
+      const double                                  threshold_upper = 0.8,
+      std::shared_ptr<const BoundingBoxFilter<dim>> box_filter      = nullptr)
     {
       const double invalid_particle_id = -1.0; // TODO
 
@@ -1674,15 +1683,15 @@ namespace Sintering
     template <int dim, typename VectorType>
     void
     output_porosity_contours_vtu(
-      const Mapping<dim> &                   mapping,
-      const DoFHandler<dim> &                dof_handler,
-      const VectorType &                     solution,
-      const double                           iso_level,
-      const std::string                      output,
-      const unsigned int                     n_coarsening_steps = 0,
-      std::function<int(const Point<dim> &)> box_filter         = nullptr,
-      const unsigned int                     n_subdivisions     = 1,
-      const double                           tolerance          = 1e-10)
+      const Mapping<dim> &                          mapping,
+      const DoFHandler<dim> &                       dof_handler,
+      const VectorType &                            solution,
+      const double                                  iso_level,
+      const std::string                             output,
+      const unsigned int                            n_coarsening_steps = 0,
+      std::shared_ptr<const BoundingBoxFilter<dim>> box_filter     = nullptr,
+      const unsigned int                            n_subdivisions = 1,
+      const double                                  tolerance      = 1e-10)
     {
       const auto comm = dof_handler.get_communicator();
 
@@ -1804,11 +1813,11 @@ namespace Sintering
     template <int dim, typename VectorType>
     void
     output_porosity_stats(
-      const DoFHandler<dim> &                dof_handler,
-      const VectorType &                     solution,
-      const std::string                      output,
-      const double                           threshold_upper = 0.8,
-      std::function<int(const Point<dim> &)> box_filter      = nullptr)
+      const DoFHandler<dim> &                       dof_handler,
+      const VectorType &                            solution,
+      const std::string                             output,
+      const double                                  threshold_upper = 0.8,
+      std::shared_ptr<const BoundingBoxFilter<dim>> box_filter      = nullptr)
     {
       const double invalid_particle_id = -1.0; // TODO
 

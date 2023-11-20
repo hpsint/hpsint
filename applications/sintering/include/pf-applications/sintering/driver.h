@@ -2935,38 +2935,15 @@ namespace Sintering
             }
         }
 
-      std::function<int(const Point<dim> &)> box_filter;
+      std::shared_ptr<const BoundingBoxFilter<dim>> box_filter = nullptr;
+
       if (params.output_data.use_control_box &&
           (params.output_data.contours || params.output_data.grain_boundaries ||
            params.output_data.concentration_contour ||
            params.output_data.porosity || params.output_data.porosity_stats ||
            params.output_data.porosity_contours))
         {
-          box_filter = [&control_box](const Point<dim> &p) {
-            /* Point locations:
-             * -1 - outside, 0 - at the boundary, 1 - inside
-             */
-            int point_location = -1;
-
-            if (control_box.point_inside(p))
-              {
-                point_location = 1;
-
-                for (unsigned int d = 0; d < dim; ++d)
-                  {
-                    if (std::abs(control_box.lower_bound(d) - p[d]) <
-                          std::numeric_limits<Number>::epsilon() ||
-                        std::abs(control_box.upper_bound(d) - p[d]) <
-                          std::numeric_limits<Number>::epsilon())
-                      {
-                        point_location = 0;
-                        break;
-                      }
-                  }
-              }
-
-            return point_location;
-          };
+          box_filter = std::make_shared<BoundingBoxFilter<dim>>(control_box);
         }
 
       if (params.output_data.contours)
