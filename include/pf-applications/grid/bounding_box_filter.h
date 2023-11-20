@@ -15,6 +15,8 @@
 
 #include <deal.II/base/bounding_box.h>
 
+#include <type_traits>
+
 namespace dealii
 {
   template <int dim, typename Number = double>
@@ -108,6 +110,37 @@ namespace dealii
     point_outside_or_boundary(const Point<dim> &p) const
     {
       return position(p) != Position::Inside;
+    }
+
+    template <typename VectorizedArrayType>
+    VectorizedArrayType
+    filter(const Point<dim, VectorizedArrayType> &p) const
+    {
+      static_assert(
+        std::is_same_v<typename VectorizedArrayType::value_type, Number>,
+        "Type mismatch");
+
+      const auto zeros = VectorizedArrayType(0.0);
+      const auto ones  = VectorizedArrayType(1.0);
+
+      VectorizedArrayType filter_val = ones;
+
+      for (unsigned int d = 0; d < dim; ++d)
+        {
+          filter_val = compare_and_apply_mask<SIMDComparison::greater_than>(
+            p[d],
+            VectorizedArrayType(bounding_box.lower_bound(d)),
+            filter_val,
+            zeros);
+
+          filter_val = compare_and_apply_mask<SIMDComparison::less_than>(
+            p[d],
+            VectorizedArrayType(bounding_box.upper_bound(d)),
+            filter_val,
+            zeros);
+        }
+
+      return filter_val;
     }
 
   private:

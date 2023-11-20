@@ -2839,30 +2839,8 @@ namespace Sintering
           if (params.output_data.use_control_box)
             {
               predicate_integrals =
-                [&control_box](const Point<dim, VectorizedArrayType> &p) {
-                  const auto zeros = VectorizedArrayType(0.0);
-                  const auto ones  = VectorizedArrayType(1.0);
-
-                  VectorizedArrayType filter = ones;
-
-                  for (unsigned int d = 0; d < dim; ++d)
-                    {
-                      filter =
-                        compare_and_apply_mask<SIMDComparison::greater_than>(
-                          p[d],
-                          VectorizedArrayType(control_box.lower_bound(d)),
-                          filter,
-                          zeros);
-
-                      filter =
-                        compare_and_apply_mask<SIMDComparison::less_than>(
-                          p[d],
-                          VectorizedArrayType(control_box.upper_bound(d)),
-                          filter,
-                          zeros);
-                    }
-
-                  return filter;
+                [&box_filter](const Point<dim, VectorizedArrayType> &p) {
+                  return box_filter->filter(p);
                 };
 
               table.add_value("cntrl_box", control_box.volume());
