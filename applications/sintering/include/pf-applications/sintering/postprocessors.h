@@ -252,32 +252,6 @@ namespace Sintering
 
         std::vector<types::global_dof_index> dof_indices(fe.n_dofs_per_cell());
 
-        // Debug data
-        Tensor<1, dim> bottom_left;
-        bottom_left[0] = 4;
-        bottom_left[1] = 5;
-        if (dim == 3)
-          bottom_left[2] = -4;
-
-        Tensor<1, dim> top_right;
-        top_right[0] = 25;
-        top_right[1] = 27;
-        if (dim == 3)
-          top_right[2] = 4;
-
-        std::vector<Tensor<1, dim>> p_cos;
-        for (unsigned int d = 0; d < dim; ++d)
-          p_cos.push_back(bottom_left);
-
-        for (unsigned int d = 0; d < dim; ++d)
-          p_cos.push_back(top_right);
-
-        std::vector<Tensor<1, dim>> p_nos(2 * dim);
-        for (unsigned int d = 0; d < dim; ++d)
-          p_nos[d][d] = -1;
-        for (unsigned int d = 0; d < dim; ++d)
-          p_nos[dim + d][d] = 1;
-
         // With the first loop we eliminate all cells outside of the scope
         for (const auto &cell : background_dof_handler.active_cell_iterators())
           {
@@ -403,16 +377,13 @@ namespace Sintering
                             if (filter_out0 && filter_out1)
                               continue;
 
-                            for (unsigned int ip = 0; ip < p_cos.size(); ip++)
+                            for (const auto &plane : box_filter->get_planes())
                               {
-                                const auto &p_co = p_cos[ip];
-                                const auto &p_no = p_nos[ip];
-
                                 const auto isect =
                                   isect_line_plane(cell->line(il)->vertex(0),
                                                    cell->line(il)->vertex(1),
-                                                   p_co,
-                                                   p_no);
+                                                   plane.origin,
+                                                   plane.normal);
 
                                 if (std::get<0>(isect) &&
                                     std::abs(std::get<1>(isect)) < 1.)
