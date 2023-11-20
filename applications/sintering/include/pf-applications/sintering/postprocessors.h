@@ -1167,13 +1167,13 @@ namespace Sintering
     template <int dim, typename VectorType>
     typename VectorType::value_type
     compute_surface_area(
-      const Mapping<dim> &                    mapping,
-      const DoFHandler<dim> &                 background_dof_handler,
-      const VectorType &                      vector,
-      const double                            iso_level,
-      std::function<bool(const Point<dim> &)> predicate      = nullptr,
-      const unsigned int                      n_subdivisions = 1,
-      const double                            tolerance      = 1e-10)
+      const Mapping<dim> &                          mapping,
+      const DoFHandler<dim> &                       background_dof_handler,
+      const VectorType &                            vector,
+      const double                                  iso_level,
+      std::shared_ptr<const BoundingBoxFilter<dim>> box_filter     = nullptr,
+      const unsigned int                            n_subdivisions = 1,
+      const double                                  tolerance      = 1e-10)
     {
       const auto &concentration = vector.block(0);
 
@@ -1202,7 +1202,8 @@ namespace Sintering
 
           for (const auto &cell : tria.active_cell_iterators())
             if (cell->is_locally_owned() &&
-                (!predicate || predicate(cell->center())))
+                (!box_filter ||
+                 box_filter->point_inside_or_boundary(cell->center())))
               surf_area += cell->measure();
         }
       surf_area =
@@ -1218,20 +1219,20 @@ namespace Sintering
     template <int dim, typename VectorType>
     typename VectorType::value_type
     compute_grain_boundaries_area(
-      const Mapping<dim> &                    mapping,
-      const DoFHandler<dim> &                 background_dof_handler,
-      const VectorType &                      vector,
-      const double                            iso_level,
-      const unsigned int                      n_grains,
-      const double                            gb_lim         = 0.14,
-      std::function<bool(const Point<dim> &)> predicate      = nullptr,
-      const unsigned int                      n_subdivisions = 1,
-      const double                            tolerance      = 1e-10)
+      const Mapping<dim> &                          mapping,
+      const DoFHandler<dim> &                       background_dof_handler,
+      const VectorType &                            vector,
+      const double                                  iso_level,
+      const unsigned int                            n_grains,
+      const double                                  gb_lim         = 0.14,
+      std::shared_ptr<const BoundingBoxFilter<dim>> box_filter     = nullptr,
+      const unsigned int                            n_subdivisions = 1,
+      const double                                  tolerance      = 1e-10)
     {
       Triangulation<dim - 1, dim> tria;
 
       const unsigned int                            n_coarsening_steps = 0;
-      std::shared_ptr<const BoundingBoxFilter<dim>> box_filter = nullptr;
+      std::shared_ptr<const BoundingBoxFilter<dim>> box_filter_mesh = nullptr;
 
       const bool tria_not_empty =
         internal::build_grain_boundaries_mesh(tria,
@@ -1242,7 +1243,7 @@ namespace Sintering
                                               n_grains,
                                               gb_lim,
                                               n_coarsening_steps,
-                                              box_filter,
+                                              box_filter_mesh,
                                               n_subdivisions,
                                               tolerance);
 
@@ -1250,7 +1251,8 @@ namespace Sintering
       if (tria_not_empty)
         for (const auto &cell : tria.active_cell_iterators())
           if (cell->is_locally_owned() &&
-              (!predicate || predicate(cell->center())))
+              (!box_filter ||
+               box_filter->point_inside_or_boundary(cell->center())))
             gb_area += cell->measure();
 
       gb_area =
