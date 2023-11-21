@@ -169,4 +169,37 @@ namespace dealii
     const BoundingBox<dim, Number> bounding_box;
     std::array<Plane, 2 * dim>     planes;
   };
+
+  template <int dim, typename Number>
+  std::tuple<bool, Number, Point<dim, Number>>
+  intersect_line_plane(const Point<dim, Number> &p0,
+                       const Point<dim, Number> &p1,
+                       const Point<dim, Number> &p_co,
+                       const Point<dim, Number> &p_no,
+                       Number                    epsilon = 1e-6)
+  {
+    auto u = p0 - p1;
+
+    const auto dot = p_no * u;
+
+    if (std::abs(dot) > epsilon)
+      {
+        /*
+         * The factor of the point between p0 -> p1 (0 - 1)
+         * if 'fac' is between (-1 ... 1) the point intersects with the
+         * segment.
+         */
+        const auto w = p0 - p_co;
+
+        const auto fac = -(p_no * w) / dot;
+        u *= fac;
+
+        const auto res = p0 + u;
+
+        return std::make_tuple(true, fac, res);
+      }
+
+    // The segment is parallel to plane.
+    return std::make_tuple(false, 0, Point<dim, Number>());
+  }
 } // namespace dealii

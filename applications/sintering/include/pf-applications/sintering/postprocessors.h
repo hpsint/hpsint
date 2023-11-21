@@ -190,43 +190,6 @@ namespace Sintering
         return true;
       }
 
-      template <int dim, typename Number>
-      std::tuple<bool, Number, Tensor<1, dim, Number>>
-      isect_line_plane(const Tensor<1, dim, Number> &p0,
-                       const Tensor<1, dim, Number> &p1,
-                       const Tensor<1, dim, Number> &p_co,
-                       const Tensor<1, dim, Number> &p_no,
-                       Number                        epsilon = 1e-6)
-      {
-        // u = sub_v3v3(p1, p0)
-        Tensor<1, dim, Number> u = p0 - p1;
-
-        // dot = dot_v3v3(p_no, u)
-        const auto dot = p_no * u;
-
-        if (std::abs(dot) > epsilon)
-          {
-            /*
-             * The factor of the point between p0 -> p1 (0 - 1)
-             * if 'fac' is between (0 - 1) the point intersects with the
-             * segment. Otherwise: < 0.0: behind p0. > 1.0: infront of p1.
-             */
-            // w = sub_v3v3(p0, p_co)
-            Tensor<1, dim, Number> w = p0 - p_co;
-
-            const auto fac = -(p_no * w) / dot;
-            u *= fac;
-
-            // add_v3v3(p0, u)
-            Tensor<1, dim, Number> res = p0 + u;
-
-            return std::make_tuple(true, fac, res);
-          }
-
-        // The segment is parallel to plane.
-        return std::make_tuple(false, 0, Tensor<1, dim, Number>());
-      }
-
       template <int dim, typename VectorType>
       void
       filter_mesh_withing_bounding_box(
@@ -336,10 +299,10 @@ namespace Sintering
                         for (const auto &plane : box_filter->get_planes())
                           {
                             const auto isect =
-                              isect_line_plane(cell->line(il)->vertex(0),
-                                               cell->line(il)->vertex(1),
-                                               plane.origin,
-                                               plane.normal);
+                              intersect_line_plane(cell->line(il)->vertex(0),
+                                                   cell->line(il)->vertex(1),
+                                                   plane.origin,
+                                                   plane.normal);
 
                             if (std::get<0>(isect) &&
                                 std::abs(std::get<1>(isect)) < 1.)
