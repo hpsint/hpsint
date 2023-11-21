@@ -270,63 +270,56 @@ namespace Sintering
                     if (n_larger_than_iso == 0)
                       continue;
 
+                    // Iterate over each line of the cell
                     for (unsigned int il = 0; il < cell->n_lines(); il++)
                       {
+                        // DOFs correspnding to the vertices
                         const auto index0 =
                           cell->line(il)->vertex_dof_index(0, 0);
                         const auto index1 =
                           cell->line(il)->vertex_dof_index(1, 0);
+
+                        // The field values associated with those DOFs
                         const auto val0 = vector.block(b)[index0];
                         const auto val1 = vector.block(b)[index1];
 
-                        // Both points are outside of the interest area -
-                        // filter them out
-                        const bool pred_status0 =
+                        // If both points are outside of the bounding box or
+                        // their values are below the iso level, then skip them
+                        const bool point_outside0 =
                           box_filter->point_outside_or_boundary(
                             cell->line(il)->vertex(0));
-                        const bool pred_status1 =
+                        const bool point_outside1 =
                           box_filter->point_outside_or_boundary(
                             cell->line(il)->vertex(1));
 
                         const bool filter_out0 =
-                          (pred_status0 || val0 < iso_level);
+                          (point_outside0 || val0 < iso_level);
                         const bool filter_out1 =
-                          (pred_status1 || val1 < iso_level);
+                          (point_outside1 || val1 < iso_level);
 
                         if (filter_out0 && filter_out1)
                           continue;
 
+                        const double length = cell->line(il)->diameter();
+
+                        // Check if there are intersections with box planes
                         for (const auto &plane : box_filter->get_planes())
                           {
-                            const auto isect =
+                            const auto [has_itersection, fac, p] =
                               intersect_line_plane(cell->line(il)->vertex(0),
                                                    cell->line(il)->vertex(1),
                                                    plane.origin,
                                                    plane.normal);
 
-                            if (std::get<0>(isect) &&
-                                std::abs(std::get<1>(isect)) < 1.)
+                            if (has_itersection && std::abs(fac) < 1.)
                               {
-                                const auto  fac = std::get<1>(isect);
-                                const auto &p   = std::get<2>(isect);
-                                const auto  d0  = p - cell->line(il)->vertex(0);
-                                const auto  d1  = p - cell->line(il)->vertex(1);
+                                const auto d0 = p - cell->line(il)->vertex(0);
+                                const auto d1 = p - cell->line(il)->vertex(1);
 
-                                // A true intersection
+                                // If the intersection point is indeed within
+                                // the line range
                                 if (d0 * d1 < 0)
                                   {
-                                    std::cout << "fac = " << std::get<1>(isect)
-                                              << ", p = " << std::get<2>(isect)
-                                              << std::endl;
-                                    std::cout
-                                      << "v(0) = " << cell->line(il)->vertex(0)
-                                      << ", v(1) = "
-                                      << cell->line(il)->vertex(1) << std::endl;
-
-                                    std::cout << "index0 = " << index0
-                                              << ", index1 = " << index1
-                                              << std::endl;
-
                                     double       val_max;
                                     unsigned int index_max;
                                     unsigned int index_min;
@@ -346,28 +339,13 @@ namespace Sintering
                                         fac_ratio = 1. - std::abs(fac);
                                       }
 
-                                    const double length =
-                                      cell->line(il)->diameter();
-                                    const double ref_value =
-                                      val_max - iso_level;
+                                    const double ref_val = val_max - iso_level;
                                     const double iso_pos = fac_ratio * length;
-                                    const double k       = -ref_value / iso_pos;
+                                    const double k       = -ref_val / iso_pos;
                                     const double val_min = k * length + val_max;
-
-                                    std::cout
-                                      << "val0 = " << vector.block(b)[index0]
-                                      << ", val1 = " << vector.block(b)[index1]
-                                      << std::endl;
 
                                     vector.block(b)[index_max] = val_max;
                                     vector.block(b)[index_min] = val_min;
-
-                                    std::cout
-                                      << "val0 = " << vector.block(b)[index0]
-                                      << ", val1 = " << vector.block(b)[index1]
-                                      << std::endl;
-
-                                    std::cout << std::endl;
                                   }
                               }
                           }
@@ -379,8 +357,6 @@ namespace Sintering
               for (unsigned int b = 0; b < vector.n_blocks(); ++b)
                 constraints.distribute(vector.block(b));
           }
-
-        std::cout << "Finish filter" << std::endl;
       }
 
       template <int dim, typename VectorType>
@@ -797,19 +773,6 @@ namespace Sintering
             *only_order_params,
             iso_level,
             box_filter);
-
-          DataOutWithRanges<dim> data_out_debug;
-          data_out_debug.attach_dof_handler(*background_dof_handler_to_be_used);
-
-          for (unsigned int ig = 0; ig < only_order_params->n_blocks(); ++ig)
-            data_out_debug.add_data_vector(only_order_params->block(ig),
-                                           "eta" + std::to_string(ig));
-
-          data_out_debug.build_patches();
-
-          data_out_debug.write_vtu_in_parallel(
-            "/mnt/c/Temp/2d_5p_2/filter_debug.vtu",
-            background_dof_handler_to_be_used->get_communicator());
         }
 
 
