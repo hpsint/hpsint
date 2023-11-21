@@ -15,6 +15,8 @@
 
 #include <deal.II/base/bounding_box.h>
 
+#include <deal.II/grid/tria_accessor.h>
+
 #include <type_traits>
 
 namespace dealii
@@ -141,6 +143,26 @@ namespace dealii
         }
 
       return filter_val;
+    }
+
+    bool
+    intersects(const TriaAccessor<dim, dim, dim> &cell) const
+    {
+      unsigned int n_inside  = 0;
+      unsigned int n_outside = 0;
+
+      for (unsigned int i = 0; i < cell.n_vertices(); ++i)
+        {
+          const auto &point = cell.vertex(i);
+          const auto  pos   = position(point);
+
+          if (pos == Position::Outside)
+            ++n_outside;
+          else if (pos == Position::Inside)
+            ++n_inside;
+        }
+
+      return n_inside < cell.n_vertices() && n_outside < cell.n_vertices();
     }
 
   private:

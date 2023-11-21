@@ -290,7 +290,8 @@ namespace Sintering
             for (const auto &cell :
                  background_dof_handler.active_cell_iterators_on_level(ilevel))
               {
-                if (!cell->is_locally_owned())
+                // Skip cell if not locally owned or not intersected
+                if (!cell->is_locally_owned() || !box_filter->intersects(*cell))
                   continue;
 
                 cell->get_dof_indices(dof_indices);
@@ -306,146 +307,104 @@ namespace Sintering
                     if (n_larger_than_iso == 0)
                       continue;
 
-                    std::vector<unsigned int> is_active(fe.n_dofs_per_cell(),
-                                                        0);
-                    std::vector<unsigned int> is_inactive(fe.n_dofs_per_cell(),
-                                                          0);
-
-                    for (unsigned int i = 0; i < cell->n_vertices(); ++i)
+                    for (unsigned int il = 0; il < cell->n_lines(); il++)
                       {
-                        const auto &point    = cell->vertex(i);
-                        const auto  position = box_filter->position(point);
+                        const auto index0 =
+                          cell->line(il)->vertex_dof_index(0, 0);
+                        const auto index1 =
+                          cell->line(il)->vertex_dof_index(1, 0);
+                        const auto val0 = vector.block(b)[index0];
+                        const auto val1 = vector.block(b)[index1];
 
-                        if (position ==
-                            BoundingBoxFilter<dim>::Position::Outside)
-                          is_inactive[i] = 1;
-                        else if (position ==
-                                 BoundingBoxFilter<dim>::Position::Inside)
-                          is_active[i] = 1;
-                      }
+                        // Both points are outside of the interest area -
+                        // filter them out
+                        const bool pred_status0 =
+                          box_filter->point_outside_or_boundary(
+                            cell->line(il)->vertex(0));
+                        const bool pred_status1 =
+                          box_filter->point_outside_or_boundary(
+                            cell->line(il)->vertex(1));
 
-                    const auto n_active =
-                      std::accumulate(is_active.begin(),
-                                      is_active.end(),
-                                      0,
-                                      std::plus<unsigned int>());
-                    const auto n_inactive =
-                      std::accumulate(is_inactive.begin(),
-                                      is_inactive.end(),
-                                      0,
-                                      std::plus<unsigned int>());
+                        const bool filter_out0 =
+                          (pred_status0 || val0 < iso_level);
+                        const bool filter_out1 =
+                          (pred_status1 || val1 < iso_level);
 
-                    // There is an intersection
-                    if (n_active < fe.n_dofs_per_cell() &&
-                        n_inactive < fe.n_dofs_per_cell())
-                      {
-                        for (unsigned int il = 0; il < cell->n_lines(); il++)
+                        if (filter_out0 && filter_out1)
+                          continue;
+
+                        for (const auto &plane : box_filter->get_planes())
                           {
-                            const auto index0 =
-                              cell->line(il)->vertex_dof_index(0, 0);
-                            const auto index1 =
-                              cell->line(il)->vertex_dof_index(1, 0);
-                            const auto val0 = vector.block(b)[index0];
-                            const auto val1 = vector.block(b)[index1];
+                            const auto isect =
+                              isect_line_plane(cell->line(il)->vertex(0),
+                                               cell->line(il)->vertex(1),
+                                               plane.origin,
+                                               plane.normal);
 
-                            // Both points are outside of the interest area -
-                            // filter them out
-                            const bool pred_status0 =
-                              box_filter->point_outside_or_boundary(
-                                cell->line(il)->vertex(0));
-                            const bool pred_status1 =
-                              box_filter->point_outside_or_boundary(
-                                cell->line(il)->vertex(1));
-
-                            const bool filter_out0 =
-                              (pred_status0 || val0 < iso_level);
-                            const bool filter_out1 =
-                              (pred_status1 || val1 < iso_level);
-
-                            if (filter_out0 && filter_out1)
-                              continue;
-
-                            for (const auto &plane : box_filter->get_planes())
+                            if (std::get<0>(isect) &&
+                                std::abs(std::get<1>(isect)) < 1.)
                               {
-                                const auto isect =
-                                  isect_line_plane(cell->line(il)->vertex(0),
-                                                   cell->line(il)->vertex(1),
-                                                   plane.origin,
-                                                   plane.normal);
+                                const auto  fac = std::get<1>(isect);
+                                const auto &p   = std::get<2>(isect);
+                                const auto  d0  = p - cell->line(il)->vertex(0);
+                                const auto  d1  = p - cell->line(il)->vertex(1);
 
-                                if (std::get<0>(isect) &&
-                                    std::abs(std::get<1>(isect)) < 1.)
+                                // A true intersection
+                                if (d0 * d1 < 0)
                                   {
-                                    const auto  fac = std::get<1>(isect);
-                                    const auto &p   = std::get<2>(isect);
-                                    const auto  d0 =
-                                      p - cell->line(il)->vertex(0);
-                                    const auto d1 =
-                                      p - cell->line(il)->vertex(1);
+                                    std::cout << "fac = " << std::get<1>(isect)
+                                              << ", p = " << std::get<2>(isect)
+                                              << std::endl;
+                                    std::cout
+                                      << "v(0) = " << cell->line(il)->vertex(0)
+                                      << ", v(1) = "
+                                      << cell->line(il)->vertex(1) << std::endl;
 
-                                    // A true intersection
-                                    if (d0 * d1 < 0)
+                                    std::cout << "index0 = " << index0
+                                              << ", index1 = " << index1
+                                              << std::endl;
+
+                                    double       val_max;
+                                    unsigned int index_max;
+                                    unsigned int index_min;
+                                    double       fac_ratio;
+                                    if (val0 > val1)
                                       {
-                                        std::cout
-                                          << "fac = " << std::get<1>(isect)
-                                          << ", p = " << std::get<2>(isect)
-                                          << std::endl;
-                                        std::cout << "v(0) = "
-                                                  << cell->line(il)->vertex(0)
-                                                  << ", v(1) = "
-                                                  << cell->line(il)->vertex(1)
-                                                  << std::endl;
-
-                                        std::cout << "index0 = " << index0
-                                                  << ", index1 = " << index1
-                                                  << std::endl;
-
-                                        double       val_max;
-                                        unsigned int index_max;
-                                        unsigned int index_min;
-                                        double       fac_ratio;
-                                        if (val0 > val1)
-                                          {
-                                            val_max   = val0;
-                                            index_max = index0;
-                                            index_min = index1;
-                                            fac_ratio = std::abs(fac);
-                                          }
-                                        else
-                                          {
-                                            val_max   = val1;
-                                            index_max = index1;
-                                            index_min = index0;
-                                            fac_ratio = 1. - std::abs(fac);
-                                          }
-
-                                        const double length =
-                                          cell->line(il)->diameter();
-                                        const double ref_value =
-                                          val_max - iso_level;
-                                        const double iso_pos =
-                                          fac_ratio * length;
-                                        const double k = -ref_value / iso_pos;
-                                        const double val_min =
-                                          k * length + val_max;
-
-                                        std::cout << "val0 = "
-                                                  << vector.block(b)[index0]
-                                                  << ", val1 = "
-                                                  << vector.block(b)[index1]
-                                                  << std::endl;
-
-                                        vector.block(b)[index_max] = val_max;
-                                        vector.block(b)[index_min] = val_min;
-
-                                        std::cout << "val0 = "
-                                                  << vector.block(b)[index0]
-                                                  << ", val1 = "
-                                                  << vector.block(b)[index1]
-                                                  << std::endl;
-
-                                        std::cout << std::endl;
+                                        val_max   = val0;
+                                        index_max = index0;
+                                        index_min = index1;
+                                        fac_ratio = std::abs(fac);
                                       }
+                                    else
+                                      {
+                                        val_max   = val1;
+                                        index_max = index1;
+                                        index_min = index0;
+                                        fac_ratio = 1. - std::abs(fac);
+                                      }
+
+                                    const double length =
+                                      cell->line(il)->diameter();
+                                    const double ref_value =
+                                      val_max - iso_level;
+                                    const double iso_pos = fac_ratio * length;
+                                    const double k       = -ref_value / iso_pos;
+                                    const double val_min = k * length + val_max;
+
+                                    std::cout
+                                      << "val0 = " << vector.block(b)[index0]
+                                      << ", val1 = " << vector.block(b)[index1]
+                                      << std::endl;
+
+                                    vector.block(b)[index_max] = val_max;
+                                    vector.block(b)[index_min] = val_min;
+
+                                    std::cout
+                                      << "val0 = " << vector.block(b)[index0]
+                                      << ", val1 = " << vector.block(b)[index1]
+                                      << std::endl;
+
+                                    std::cout << std::endl;
                                   }
                               }
                           }
