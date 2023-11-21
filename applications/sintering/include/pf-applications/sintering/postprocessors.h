@@ -244,11 +244,7 @@ namespace Sintering
                       " and null_value = " + std::to_string(null_value) +
                       " have to be different"));
 
-        const auto &  fe = background_dof_handler.get_fe();
-        FEValues<dim> fe_values(mapping,
-                                fe,
-                                fe.get_unit_support_points(),
-                                update_quadrature_points);
+        const auto &fe = background_dof_handler.get_fe();
 
         std::vector<types::global_dof_index> dof_indices(fe.n_dofs_per_cell());
 
@@ -260,24 +256,19 @@ namespace Sintering
 
             cell->get_dof_indices(dof_indices);
 
-            fe_values.reinit(cell);
-
             for (unsigned int b = 0; b < vector.n_blocks(); ++b)
-              {
-                const auto &points = fe_values.get_quadrature_points();
+              for (unsigned int i = 0; i < cell->n_vertices(); ++i)
+                {
+                  const auto &point    = cell->vertex(i);
+                  const auto  position = box_filter->position(point);
 
-                for (unsigned int i = 0; i < fe.n_dofs_per_cell(); ++i)
-                  {
-                    const auto position = box_filter->position(points[i]);
-
-                    auto &global_dof_value = vector.block(b)[dof_indices[i]];
-                    if (position == BoundingBoxFilter<dim>::Position::Boundary)
-                      global_dof_value = std::min(global_dof_value, iso_level);
-                    else if (position ==
-                             BoundingBoxFilter<dim>::Position::Outside)
-                      global_dof_value = null_value;
-                  }
-              }
+                  auto &global_dof_value = vector.block(b)[dof_indices[i]];
+                  if (position == BoundingBoxFilter<dim>::Position::Boundary)
+                    global_dof_value = std::min(global_dof_value, iso_level);
+                  else if (position ==
+                           BoundingBoxFilter<dim>::Position::Outside)
+                    global_dof_value = null_value;
+                }
           }
 
         // Make local constraints
@@ -304,12 +295,8 @@ namespace Sintering
 
                 cell->get_dof_indices(dof_indices);
 
-                fe_values.reinit(cell);
-
                 for (unsigned int b = 0; b < vector.n_blocks(); ++b)
                   {
-                    const auto &points = fe_values.get_quadrature_points();
-
                     // Check if there is any point value larger than iso_level
                     unsigned int n_larger_than_iso = 0;
                     for (unsigned int i = 0; i < fe.n_dofs_per_cell(); ++i)
@@ -324,9 +311,10 @@ namespace Sintering
                     std::vector<unsigned int> is_inactive(fe.n_dofs_per_cell(),
                                                           0);
 
-                    for (unsigned int i = 0; i < fe.n_dofs_per_cell(); ++i)
+                    for (unsigned int i = 0; i < cell->n_vertices(); ++i)
                       {
-                        const auto position = box_filter->position(points[i]);
+                        const auto &point    = cell->vertex(i);
+                        const auto  position = box_filter->position(point);
 
                         if (position ==
                             BoundingBoxFilter<dim>::Position::Outside)
