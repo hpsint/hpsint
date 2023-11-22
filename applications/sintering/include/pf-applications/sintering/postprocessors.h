@@ -190,10 +190,12 @@ namespace Sintering
         return true;
       }
 
+      /* Filter out those cells which do not fit the bounding box. Currently it
+       * is assumed that the mapping is linear. For practical cases, there is
+       * not need to go beyond this case, at least at the moment. */
       template <int dim, typename VectorType>
       void
       filter_mesh_withing_bounding_box(
-        const Mapping<dim> &                          mapping,
         const DoFHandler<dim> &                       background_dof_handler,
         VectorType &                                  vector,
         const double                                  iso_level,
@@ -418,7 +420,6 @@ namespace Sintering
               vector_coarsened.create_view(2, 2 + n_grains);
 
             internal::filter_mesh_withing_bounding_box(
-              mapping,
               *background_dof_handler_to_be_used,
               *only_order_params,
               iso_level,
@@ -768,7 +769,6 @@ namespace Sintering
           auto only_order_params = solution_dealii.create_view(2, 2 + n_grains);
 
           internal::filter_mesh_withing_bounding_box(
-            mapping,
             *background_dof_handler_to_be_used,
             *only_order_params,
             iso_level,
@@ -958,7 +958,6 @@ namespace Sintering
             }
 
           internal::filter_mesh_withing_bounding_box(
-            mapping,
             *background_dof_handler_to_be_used,
             solution_dealii,
             iso_level,
