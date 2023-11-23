@@ -213,6 +213,11 @@ namespace Sintering
 
         std::vector<types::global_dof_index> dof_indices(fe.n_dofs_per_cell());
 
+        const bool has_ghost_elements = vector.has_ghost_elements();
+
+        if (has_ghost_elements == false)
+          vector.update_ghost_values();
+
         // With the first loop we eliminate all cells outside of the scope
         for (const auto &cell : background_dof_handler.active_cell_iterators())
           {
@@ -357,8 +362,17 @@ namespace Sintering
 
             if (ilevel < n_levels - 1)
               for (unsigned int b = 0; b < vector.n_blocks(); ++b)
-                constraints.distribute(vector.block(b));
+                {
+                  /* AffineConstraints will make any ghosted vector unghosted
+                   * after distribute() */
+                  vector.block(b).zero_out_ghost_values();
+                  constraints.distribute(vector.block(b));
+                  vector.block(b).update_ghost_values();
+                }
           }
+
+        if (has_ghost_elements == false)
+          vector.zero_out_ghost_values();
       }
 
       template <int dim, typename VectorType>
