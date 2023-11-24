@@ -256,6 +256,31 @@ namespace Sintering
         if (has_ghost_elements == false)
           vector.update_ghost_values();
 
+        const auto partitioner_full =
+          std::make_shared<Utilities::MPI::Partitioner>(
+            background_dof_handler.locally_owned_dofs(),
+            DoFTools::extract_locally_relevant_dofs(background_dof_handler),
+            background_dof_handler.get_communicator());
+
+        auto partitioner_reduced =
+          std::make_shared<Utilities::MPI::Partitioner>(
+            background_dof_handler.locally_owned_dofs(),
+            // DoFTools::extract_locally_relevant_dofs(background_dof_handler),
+            background_dof_handler.get_communicator());
+
+        using Number = typename VectorType::value_type;
+
+        // Make local constraints
+        AffineConstraints<Number> constraints;
+        const auto                relevant_dofs =
+          DoFTools::extract_locally_relevant_dofs(background_dof_handler);
+
+        constraints.clear();
+        constraints.reinit(relevant_dofs);
+        DoFTools::make_hanging_node_constraints(background_dof_handler,
+                                                constraints);
+        constraints.close();
+
         // With the first loop we eliminate all cells outside of the scope
         for (const auto &cell : background_dof_handler.active_cell_iterators())
           {
@@ -279,22 +304,14 @@ namespace Sintering
                 }
           }
 
-        // Make local constraints
-        AffineConstraints<typename VectorType::value_type> constraints;
-        const auto                                         relevant_dofs =
-          DoFTools::extract_locally_relevant_dofs(background_dof_handler);
-
-        constraints.clear();
-        constraints.reinit(relevant_dofs);
-        DoFTools::make_hanging_node_constraints(background_dof_handler,
-                                                constraints);
-        constraints.close();
-
         // Additional smoothening
         const unsigned int n_levels =
           background_dof_handler.get_triangulation().n_global_levels();
         for (unsigned int ilevel = 0; ilevel < n_levels; ++ilevel)
           {
+            std::vector<std::map<unsigned int, std::pair<Number, Number>>>
+              new_values(vector.n_blocks());
+
             for (const auto &cell :
                  background_dof_handler.active_cell_iterators_on_level(ilevel))
               {
@@ -389,8 +406,27 @@ namespace Sintering
                                     const double k       = -ref_val / iso_pos;
                                     const double val_min = k * length + val_max;
 
-                                    vector.block(b)[index_max] = val_max;
-                                    vector.block(b)[index_min] = val_min;
+                                    // vector.block(b)[index_max] = val_max;
+                                    if (std::abs(vector.block(b)[index_min] -
+                                                 val_min) > 1e-6)
+                                      {
+                                        if (partitioner_full->is_ghost_entry(
+                                              index_min))
+                                          {
+                                            if (new_values[b].find(index_min) ==
+                                                new_values[b].end())
+                                              new_values[b].try_emplace(
+                                                index_min,
+                                                std::make_pair(vector.block(
+                                                                 b)[index_min],
+                                                               val_min));
+                                            else
+                                              new_values[b]
+                                                .at(index_min)
+                                                .second = val_min;
+                                          }
+                                        vector.block(b)[index_min] = val_min;
+                                      }
                                   }
                               }
                           }
@@ -398,15 +434,42 @@ namespace Sintering
                   }
               }
 
-            if (ilevel < n_levels - 1)
-              for (unsigned int b = 0; b < vector.n_blocks(); ++b)
-                {
-                  /* AffineConstraints will make any ghosted vector unghosted
-                   * after distribute() */
-                  vector.block(b).zero_out_ghost_values();
-                  constraints.distribute(vector.block(b));
-                  vector.block(b).update_ghost_values();
-                }
+            const double eps_tol = 1e-6;
+
+            // Update modified ghosts
+            for (unsigned int b = 0; b < vector.n_blocks(); ++b)
+              {
+                vector.block(b).zero_out_ghost_values();
+                vector.block(b).update_ghost_values();
+
+                IndexSet local_relevant_reduced;
+                std::vector<Number> ghosts_values;
+
+                for (const auto &[index, value] : new_values[b])
+                  {
+                    // If the value has not changed, meaning that it was not
+                    // modified by the owner
+                    if (std::abs(vector.block(b)[index] - value.first) < eps_tol)
+                      {
+                        local_relevant_reduced.add_index(index);
+                        ghosts_values.push_back(-value.first + value.second);
+                      }
+                  }
+
+                update_ghosts(vector.block(b),
+                              VectorOperation::add,
+                              *partitioner_reduced,
+                              ghosts_values,
+                              local_relevant_reduced,
+                              partitioner_full->ghost_indices());
+
+                if (ilevel < n_levels - 1)
+                  {
+                    vector.block(b).zero_out_ghost_values();
+                    constraints.distribute(vector.block(b));
+                    vector.block(b).update_ghost_values();
+                  }
+              }
           }
 
         if (has_ghost_elements == false)
