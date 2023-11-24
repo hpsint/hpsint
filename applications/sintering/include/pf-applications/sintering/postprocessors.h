@@ -190,6 +190,44 @@ namespace Sintering
         return true;
       }
 
+      template <typename Number, typename VectorType>
+      void
+      update_ghosts(VectorType &                  vector,
+                    const VectorOperation::values operation,
+                    Utilities::MPI::Partitioner & partitioner,
+                    std::vector<Number> &         ghosts_values,
+                    const IndexSet &              ghost_indices,
+                    const IndexSet &              larger_ghost_index_set)
+      {
+        //if (ghosts_values.empty())
+        //  return;
+
+        partitioner.set_ghost_indices(ghost_indices, larger_ghost_index_set);
+
+        std::vector<MPI_Request> requests;
+
+        // From test 7
+        std::vector<Number> temp_array(partitioner.n_import_indices());
+
+        partitioner.import_from_ghosted_array_start(operation,
+                                                    3,
+                                                    make_array_view(
+                                                      ghosts_values),
+                                                    make_array_view(temp_array),
+                                                    requests);
+
+        partitioner.import_from_ghosted_array_finish(
+          operation,
+          ArrayView<const Number>(temp_array.data(), temp_array.size()),
+          ArrayView<Number>(vector.get_values(),
+                            partitioner.locally_owned_size()),
+          make_array_view(ghosts_values),
+          requests);
+
+        vector.zero_out_ghost_values();
+        vector.update_ghost_values();
+      }
+
       /* Filter out those cells which do not fit the bounding box. Currently it
        * is assumed that the mapping is linear. For practical cases, there is
        * not need to go beyond this case, at least at the moment. */
