@@ -261,7 +261,6 @@ namespace Sintering
         auto partitioner_reduced =
           std::make_shared<Utilities::MPI::Partitioner>(
             background_dof_handler.locally_owned_dofs(),
-            // DoFTools::extract_locally_relevant_dofs(background_dof_handler),
             background_dof_handler.get_communicator());
 
         using Number = typename VectorType::value_type;
