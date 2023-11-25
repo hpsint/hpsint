@@ -199,9 +199,6 @@ namespace Sintering
                     const IndexSet &              ghost_indices,
                     const IndexSet &              larger_ghost_index_set)
       {
-        //if (ghosts_values.empty())
-        //  return;
-
         partitioner.set_ghost_indices(ghost_indices, larger_ghost_index_set);
 
         std::vector<MPI_Request> requests;
@@ -383,20 +380,17 @@ namespace Sintering
                                 if (d0 * d1 < 0)
                                   {
                                     double       val_max;
-                                    unsigned int index_max;
                                     unsigned int index_min;
                                     double       fac_ratio;
                                     if (val0 > val1)
                                       {
                                         val_max   = val0;
-                                        index_max = index0;
                                         index_min = index1;
                                         fac_ratio = std::abs(fac);
                                       }
                                     else
                                       {
                                         val_max   = val1;
-                                        index_max = index1;
                                         index_min = index0;
                                         fac_ratio = 1. - std::abs(fac);
                                       }
@@ -406,10 +400,12 @@ namespace Sintering
                                     const double k       = -ref_val / iso_pos;
                                     const double val_min = k * length + val_max;
 
-                                    // vector.block(b)[index_max] = val_max;
                                     if (std::abs(vector.block(b)[index_min] -
                                                  val_min) > 1e-6)
                                       {
+                                        // If not an owner modifies the entry,
+                                        // then we store an old and a new values
+                                        // and then sync them later below
                                         if (partitioner_full->is_ghost_entry(
                                               index_min))
                                           {
@@ -425,6 +421,7 @@ namespace Sintering
                                                 .at(index_min)
                                                 .second = val_min;
                                           }
+
                                         vector.block(b)[index_min] = val_min;
                                       }
                                   }
@@ -439,33 +436,22 @@ namespace Sintering
             // Update modified ghosts
             for (unsigned int b = 0; b < vector.n_blocks(); ++b)
               {
-                vector.block(b).zero_out_ghost_values();
+                // This will overrite ghost values if any of them was modified
+                // not by the owner, this is what we exactly want
                 vector.block(b).update_ghost_values();
 
-                IndexSet local_relevant_reduced;
+                IndexSet            local_relevant_reduced;
                 std::vector<Number> ghosts_values;
-/*
-                for (const auto &[index, value] : new_values[b])
-                  {
-                    // If the value has not changed, meaning that it was not
-                    // modified by the owner
-                    if (std::abs(vector.block(b)[index] - value.first) < eps_tol)
-                      {
-                        local_relevant_reduced.add_index(index);
-                        ghosts_values.push_back(-value.first + value.second);
-                      }
-                  }
 
-                update_ghosts(vector.block(b),
-                              VectorOperation::add,
-                              *partitioner_reduced,
-                              ghosts_values,
-                              local_relevant_reduced,
-                              partitioner_full->ghost_indices());
-*/
-                // 1. Nullify the owner value
-                local_relevant_reduced.clear();
-                ghosts_values.clear();
+                /* 1. Attempt to nullify the owner value.
+                 *
+                 * If a dof value was modified as a ghost not by an owner, we
+                 * then need to transfer this new value to the owner. But that
+                 * should be done in a complex way, since multiple ranks could
+                 * have contributed to this new value. None of the default
+                 * VectorOperation's fit our needs and this justifies the need
+                 * for the algo below.
+                 */
                 std::vector<unsigned int> indices_to_remove;
                 for (const auto &[index, value] : new_values[b])
                   if (std::abs(vector.block(b)[index] - value.first) < eps_tol)
@@ -475,6 +461,8 @@ namespace Sintering
                     }
                   else
                     {
+                      // We get here if a dof value was modified by the owner,
+                      // then we neglect the modifications made by other ranks
                       indices_to_remove.push_back(index);
                     }
 
@@ -482,13 +470,19 @@ namespace Sintering
                   new_values[b].erase(index);
 
                 update_ghosts(vector.block(b),
-                              VectorOperation::max,
+                              VectorOperation::add,
                               *partitioner_reduced,
                               ghosts_values,
                               local_relevant_reduced,
                               partitioner_full->ghost_indices());
 
-                // 2. Nullify any negative owner value if needed
+                /* 2. Nullify any negative owner value if needed
+                 *
+                 * If a dof, that had initial value val0, was modified by not a
+                 * single but K ranks, than after the first step it won't get
+                 * nullified, but rather will be equal to -(K-1)*val0. We then
+                 * nullify it using operation max(0, -(K-1)*val0).
+                 */
                 local_relevant_reduced.clear();
                 ghosts_values.clear();
                 for (const auto &[index, value] : new_values[b])
@@ -505,7 +499,13 @@ namespace Sintering
                               local_relevant_reduced,
                               partitioner_full->ghost_indices());
 
-                // 3. Set up negative values
+                /* 3. Set up negative values
+                 *
+                 * After the first two steps the dof value, that was modified on
+                 * any non-owner and not touched on the owner, is guaranteed to
+                 * be 0 on the owner. We then apply min operation to set up
+                 * those new values which are negative.
+                 */
                 local_relevant_reduced.clear();
                 ghosts_values.clear();
                 for (const auto &[index, value] : new_values[b])
@@ -522,7 +522,11 @@ namespace Sintering
                               local_relevant_reduced,
                               partitioner_full->ghost_indices());
 
-                // 4. Set up positive values
+                /* 4. Set up positive values
+                 *
+                 * This step does the same as step 3 but for those new values
+                 * which are positive.
+                 */
                 local_relevant_reduced.clear();
                 ghosts_values.clear();
                 for (const auto &[index, value] : new_values[b])
