@@ -192,12 +192,12 @@ namespace Sintering
 
       template <typename Number, typename VectorType>
       void
-      update_ghosts(VectorType &                  vector,
-                    const VectorOperation::values operation,
-                    Utilities::MPI::Partitioner & partitioner,
-                    std::vector<Number> &         ghosts_values,
-                    const IndexSet &              ghost_indices,
-                    const IndexSet &              larger_ghost_index_set)
+      update_selected_ghosts(VectorType &                  vector,
+                             const VectorOperation::values operation,
+                             Utilities::MPI::Partitioner & partitioner,
+                             std::vector<Number> &         ghosts_values,
+                             const IndexSet &              ghost_indices,
+                             const IndexSet &larger_ghost_index_set)
       {
         partitioner.set_ghost_indices(ghost_indices, larger_ghost_index_set);
 
@@ -221,7 +221,6 @@ namespace Sintering
           make_array_view(ghosts_values),
           requests);
 
-        vector.zero_out_ghost_values();
         vector.update_ghost_values();
       }
 
@@ -469,12 +468,12 @@ namespace Sintering
                 for (const auto &index : indices_to_remove)
                   new_values[b].erase(index);
 
-                update_ghosts(vector.block(b),
-                              VectorOperation::add,
-                              *partitioner_reduced,
-                              ghosts_values,
-                              local_relevant_reduced,
-                              partitioner_full->ghost_indices());
+                update_selected_ghosts(vector.block(b),
+                                       VectorOperation::add,
+                                       *partitioner_reduced,
+                                       ghosts_values,
+                                       local_relevant_reduced,
+                                       partitioner_full->ghost_indices());
 
                 /* 2. Nullify any negative owner value if needed
                  *
@@ -492,12 +491,12 @@ namespace Sintering
                       ghosts_values.push_back(0.);
                     }
 
-                update_ghosts(vector.block(b),
-                              VectorOperation::max,
-                              *partitioner_reduced,
-                              ghosts_values,
-                              local_relevant_reduced,
-                              partitioner_full->ghost_indices());
+                update_selected_ghosts(vector.block(b),
+                                       VectorOperation::max,
+                                       *partitioner_reduced,
+                                       ghosts_values,
+                                       local_relevant_reduced,
+                                       partitioner_full->ghost_indices());
 
                 /* 3. Set up negative values
                  *
@@ -515,12 +514,12 @@ namespace Sintering
                       ghosts_values.push_back(value.second);
                     }
 
-                update_ghosts(vector.block(b),
-                              VectorOperation::min,
-                              *partitioner_reduced,
-                              ghosts_values,
-                              local_relevant_reduced,
-                              partitioner_full->ghost_indices());
+                update_selected_ghosts(vector.block(b),
+                                       VectorOperation::min,
+                                       *partitioner_reduced,
+                                       ghosts_values,
+                                       local_relevant_reduced,
+                                       partitioner_full->ghost_indices());
 
                 /* 4. Set up positive values
                  *
@@ -536,12 +535,12 @@ namespace Sintering
                       ghosts_values.push_back(value.second);
                     }
 
-                update_ghosts(vector.block(b),
-                              VectorOperation::max,
-                              *partitioner_reduced,
-                              ghosts_values,
-                              local_relevant_reduced,
-                              partitioner_full->ghost_indices());
+                update_selected_ghosts(vector.block(b),
+                                       VectorOperation::max,
+                                       *partitioner_reduced,
+                                       ghosts_values,
+                                       local_relevant_reduced,
+                                       partitioner_full->ghost_indices());
 
                 if (ilevel < n_levels - 1)
                   {
