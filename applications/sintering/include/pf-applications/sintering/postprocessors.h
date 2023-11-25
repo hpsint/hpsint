@@ -444,7 +444,7 @@ namespace Sintering
 
                 IndexSet local_relevant_reduced;
                 std::vector<Number> ghosts_values;
-
+/*
                 for (const auto &[index, value] : new_values[b])
                   {
                     // If the value has not changed, meaning that it was not
@@ -458,6 +458,82 @@ namespace Sintering
 
                 update_ghosts(vector.block(b),
                               VectorOperation::add,
+                              *partitioner_reduced,
+                              ghosts_values,
+                              local_relevant_reduced,
+                              partitioner_full->ghost_indices());
+*/
+                // 1. Nullify the owner value
+                local_relevant_reduced.clear();
+                ghosts_values.clear();
+                std::vector<unsigned int> indices_to_remove;
+                for (const auto &[index, value] : new_values[b])
+                  if (std::abs(vector.block(b)[index] - value.first) < eps_tol)
+                    {
+                      local_relevant_reduced.add_index(index);
+                      ghosts_values.push_back(-value.first);
+                    }
+                  else
+                    {
+                      indices_to_remove.push_back(index);
+                    }
+
+                for (const auto &index : indices_to_remove)
+                  new_values[b].erase(index);
+
+                update_ghosts(vector.block(b),
+                              VectorOperation::max,
+                              *partitioner_reduced,
+                              ghosts_values,
+                              local_relevant_reduced,
+                              partitioner_full->ghost_indices());
+
+                // 2. Nullify any negative owner value if needed
+                local_relevant_reduced.clear();
+                ghosts_values.clear();
+                for (const auto &[index, value] : new_values[b])
+                  if (vector.block(b)[index] < -eps_tol)
+                    {
+                      local_relevant_reduced.add_index(index);
+                      ghosts_values.push_back(0.);
+                    }
+
+                update_ghosts(vector.block(b),
+                              VectorOperation::max,
+                              *partitioner_reduced,
+                              ghosts_values,
+                              local_relevant_reduced,
+                              partitioner_full->ghost_indices());
+
+                // 3. Set up negative values
+                local_relevant_reduced.clear();
+                ghosts_values.clear();
+                for (const auto &[index, value] : new_values[b])
+                  if (value.second < 0)
+                    {
+                      local_relevant_reduced.add_index(index);
+                      ghosts_values.push_back(value.second);
+                    }
+
+                update_ghosts(vector.block(b),
+                              VectorOperation::min,
+                              *partitioner_reduced,
+                              ghosts_values,
+                              local_relevant_reduced,
+                              partitioner_full->ghost_indices());
+
+                // 4. Set up positive values
+                local_relevant_reduced.clear();
+                ghosts_values.clear();
+                for (const auto &[index, value] : new_values[b])
+                  if (value.second > 0)
+                    {
+                      local_relevant_reduced.add_index(index);
+                      ghosts_values.push_back(value.second);
+                    }
+
+                update_ghosts(vector.block(b),
+                              VectorOperation::max,
                               *partitioner_reduced,
                               ghosts_values,
                               local_relevant_reduced,
