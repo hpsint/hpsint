@@ -212,6 +212,7 @@ namespace Sintering
     unsigned int          n_mca_subdivisions     = 1;
     bool                  porosity               = false;
     bool                  porosity_contours      = false;
+    bool                  porosity_smooth        = true;
     bool                  porosity_stats         = false;
     double                porosity_max_value     = 0.8;
     bool                  shrinkage              = false;
@@ -799,6 +800,9 @@ namespace Sintering
       prm.add_parameter("PorosityContours",
                         output_data.porosity_contours,
                         "Output porosity contours to VTK.");
+      prm.add_parameter("PorositySmooth",
+                        output_data.porosity_smooth,
+                        "Whether to output smooth porosity to VTK.");
       prm.add_parameter("PorosityStats",
                         output_data.porosity_stats,
                         "Determine porosity and output its stats.");
