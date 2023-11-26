@@ -3047,7 +3047,8 @@ namespace Sintering
             output,
             params.output_data.n_coarsening_steps,
             box_filter,
-            params.output_data.n_mca_subdivisions);
+            params.output_data.n_mca_subdivisions,
+            params.output_data.porosity_smooth);
         }
 
       if (params.output_data.shrinkage)
