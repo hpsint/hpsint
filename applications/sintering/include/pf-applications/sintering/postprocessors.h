@@ -1856,11 +1856,14 @@ namespace Sintering
             cell->set_dof_values(values, pores_data.block(0));
         }
 
-      // This required for the MPI case
-      pores_data.compress(VectorOperation::add);
+      // This required for the MPI case for the non-smooth version
+      if (!smooth)
+        {
+          pores_data.compress(VectorOperation::add);
 
-      for (auto &v : pores_data.block(0))
-        v = std::min(v, 1.0);
+          for (auto &v : pores_data.block(0))
+            v = std::min(v, 1.0);
+        }
 
       output_concentration_contour_vtu(mapping,
                                        dof_handler,
