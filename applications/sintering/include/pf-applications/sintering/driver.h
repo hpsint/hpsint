@@ -2780,7 +2780,8 @@ namespace Sintering
 
       // Bounding box can be used for scalar table output and for the surface
       // and gb contours
-      BoundingBox<dim> control_box;
+      BoundingBox<dim>                              control_box;
+      std::shared_ptr<const BoundingBoxFilter<dim>> box_filter = nullptr;
       if (params.output_data.use_control_box)
         {
           Point<dim> bottom_left;
@@ -2805,6 +2806,7 @@ namespace Sintering
             }
 
           control_box = BoundingBox(std::make_pair(bottom_left, top_right));
+          box_filter  = std::make_shared<BoundingBoxFilter<dim>>(control_box);
         }
 
       if (params.output_data.table)
@@ -2832,41 +2834,14 @@ namespace Sintering
 
           std::function<VectorizedArrayType(
             const Point<dim, VectorizedArrayType> &)>
-                                                  predicate_integrals;
-          std::function<bool(const Point<dim> &)> predicate_iso;
+            predicate_integrals;
 
           if (params.output_data.use_control_box)
             {
               predicate_integrals =
-                [&control_box](const Point<dim, VectorizedArrayType> &p) {
-                  const auto zeros = VectorizedArrayType(0.0);
-                  const auto ones  = VectorizedArrayType(1.0);
-
-                  VectorizedArrayType filter = ones;
-
-                  for (unsigned int d = 0; d < dim; ++d)
-                    {
-                      filter =
-                        compare_and_apply_mask<SIMDComparison::greater_than>(
-                          p[d],
-                          VectorizedArrayType(control_box.lower_bound(d)),
-                          filter,
-                          zeros);
-
-                      filter =
-                        compare_and_apply_mask<SIMDComparison::less_than>(
-                          p[d],
-                          VectorizedArrayType(control_box.upper_bound(d)),
-                          filter,
-                          zeros);
-                    }
-
-                  return filter;
+                [&box_filter](const Point<dim, VectorizedArrayType> &p) {
+                  return box_filter->filter(p);
                 };
-
-              predicate_iso = [&control_box](const Point<dim> &p) {
-                return control_box.point_inside(p);
-              };
 
               table.add_value("cntrl_box", control_box.volume());
             }
@@ -2912,7 +2887,7 @@ namespace Sintering
                 dof_handler,
                 solution,
                 iso_value,
-                predicate_iso,
+                box_filter,
                 params.output_data.n_mca_subdivisions);
 
               table.add_value("iso_surf_area", surface_area);
@@ -2928,45 +2903,11 @@ namespace Sintering
                   iso_value,
                   sintering_operator.n_grains(),
                   params.output_data.gb_threshold,
-                  predicate_iso,
+                  box_filter,
                   params.output_data.n_mca_subdivisions);
 
               table.add_value("iso_gb_area", gb_area);
             }
-        }
-
-      std::function<int(const Point<dim> &)> box_filter;
-      if (params.output_data.use_control_box &&
-          (params.output_data.contours || params.output_data.grain_boundaries ||
-           params.output_data.concentration_contour ||
-           params.output_data.porosity || params.output_data.porosity_stats ||
-           params.output_data.porosity_contours))
-        {
-          box_filter = [&control_box](const Point<dim> &p) {
-            /* Point locations:
-             * -1 - outside, 0 - at the boundary, 1 - inside
-             */
-            int point_location = -1;
-
-            if (control_box.point_inside(p))
-              {
-                point_location = 1;
-
-                for (unsigned int d = 0; d < dim; ++d)
-                  {
-                    if (std::abs(control_box.lower_bound(d) - p[d]) <
-                          std::numeric_limits<Number>::epsilon() ||
-                        std::abs(control_box.upper_bound(d) - p[d]) <
-                          std::numeric_limits<Number>::epsilon())
-                      {
-                        point_location = 0;
-                        break;
-                      }
-                  }
-              }
-
-            return point_location;
-          };
         }
 
       if (params.output_data.contours)

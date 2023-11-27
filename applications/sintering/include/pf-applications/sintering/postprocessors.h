@@ -31,6 +31,7 @@
 
 #include <pf-applications/grain_tracker/distributed_stitching.h>
 #include <pf-applications/grain_tracker/tracker.h>
+#include <pf-applications/grid/bounding_box_filter.h>
 
 namespace dealii
 {
@@ -189,15 +190,51 @@ namespace Sintering
         return true;
       }
 
+      template <typename Number, typename VectorType>
+      void
+      update_selected_ghosts(VectorType &                  vector,
+                             const VectorOperation::values operation,
+                             Utilities::MPI::Partitioner & partitioner,
+                             std::vector<Number> &         ghosts_values,
+                             const IndexSet &              ghost_indices,
+                             const IndexSet &larger_ghost_index_set)
+      {
+        partitioner.set_ghost_indices(ghost_indices, larger_ghost_index_set);
+
+        std::vector<MPI_Request> requests;
+
+        // From test 7
+        std::vector<Number> temp_array(partitioner.n_import_indices());
+
+        partitioner.import_from_ghosted_array_start(operation,
+                                                    3,
+                                                    make_array_view(
+                                                      ghosts_values),
+                                                    make_array_view(temp_array),
+                                                    requests);
+
+        partitioner.import_from_ghosted_array_finish(
+          operation,
+          ArrayView<const Number>(temp_array.data(), temp_array.size()),
+          ArrayView<Number>(vector.get_values(),
+                            partitioner.locally_owned_size()),
+          make_array_view(ghosts_values),
+          requests);
+
+        vector.update_ghost_values();
+      }
+
+      /* Filter out those cells which do not fit the bounding box. Currently it
+       * is assumed that the mapping is linear. For practical cases, there is
+       * not need to go beyond this case, at least at the moment. */
       template <int dim, typename VectorType>
       void
       filter_mesh_withing_bounding_box(
-        const Mapping<dim> &                   mapping,
-        const DoFHandler<dim> &                background_dof_handler,
-        VectorType &                           vector,
-        const double                           iso_level,
-        std::function<int(const Point<dim> &)> box_filter,
-        const double                           null_value = 0.)
+        const DoFHandler<dim> &                       background_dof_handler,
+        VectorType &                                  vector,
+        const double                                  iso_level,
+        std::shared_ptr<const BoundingBoxFilter<dim>> box_filter,
+        const double                                  null_value = 0.)
       {
         AssertThrow(std::abs(iso_level - null_value) >
                       std::numeric_limits<double>::epsilon(),
@@ -206,14 +243,40 @@ namespace Sintering
                       " and null_value = " + std::to_string(null_value) +
                       " have to be different"));
 
-        const auto &  fe = background_dof_handler.get_fe();
-        FEValues<dim> fe_values(mapping,
-                                fe,
-                                fe.get_unit_support_points(),
-                                update_quadrature_points);
+        const auto &fe = background_dof_handler.get_fe();
 
         std::vector<types::global_dof_index> dof_indices(fe.n_dofs_per_cell());
 
+        const bool has_ghost_elements = vector.has_ghost_elements();
+
+        if (has_ghost_elements == false)
+          vector.update_ghost_values();
+
+        const auto partitioner_full =
+          std::make_shared<Utilities::MPI::Partitioner>(
+            background_dof_handler.locally_owned_dofs(),
+            DoFTools::extract_locally_relevant_dofs(background_dof_handler),
+            background_dof_handler.get_communicator());
+
+        auto partitioner_reduced =
+          std::make_shared<Utilities::MPI::Partitioner>(
+            background_dof_handler.locally_owned_dofs(),
+            background_dof_handler.get_communicator());
+
+        using Number = typename VectorType::value_type;
+
+        // Make local constraints
+        AffineConstraints<Number> constraints;
+        const auto                relevant_dofs =
+          DoFTools::extract_locally_relevant_dofs(background_dof_handler);
+
+        constraints.clear();
+        constraints.reinit(relevant_dofs);
+        DoFTools::make_hanging_node_constraints(background_dof_handler,
+                                                constraints);
+        constraints.close();
+
+        // With the first loop we eliminate all cells outside of the scope
         for (const auto &cell : background_dof_handler.active_cell_iterators())
           {
             if (!cell->is_locally_owned())
@@ -221,40 +284,290 @@ namespace Sintering
 
             cell->get_dof_indices(dof_indices);
 
-            fe_values.reinit(cell);
+            for (unsigned int b = 0; b < vector.n_blocks(); ++b)
+              for (unsigned int i = 0; i < cell->n_vertices(); ++i)
+                {
+                  const auto &point    = cell->vertex(i);
+                  const auto  position = box_filter->position(point);
 
+                  auto &global_dof_value = vector.block(b)[dof_indices[i]];
+                  if (position == BoundingBoxFilter<dim>::Position::Boundary)
+                    global_dof_value = std::min(global_dof_value, iso_level);
+                  else if (position ==
+                           BoundingBoxFilter<dim>::Position::Outside)
+                    global_dof_value = null_value;
+                }
+          }
+
+        // Additional smoothening
+        const unsigned int n_levels =
+          background_dof_handler.get_triangulation().n_global_levels();
+        for (unsigned int ilevel = 0; ilevel < n_levels; ++ilevel)
+          {
+            std::vector<std::map<unsigned int, std::pair<Number, Number>>>
+              new_values(vector.n_blocks());
+
+            for (const auto &cell :
+                 background_dof_handler.active_cell_iterators_on_level(ilevel))
+              {
+                // Skip cell if not locally owned or not intersected
+                if (!cell->is_locally_owned() || !box_filter->intersects(*cell))
+                  continue;
+
+                cell->get_dof_indices(dof_indices);
+
+                for (unsigned int b = 0; b < vector.n_blocks(); ++b)
+                  {
+                    // Check if there is any point value larger than iso_level
+                    unsigned int n_larger_than_iso = 0;
+                    for (unsigned int i = 0; i < fe.n_dofs_per_cell(); ++i)
+                      if (vector.block(b)[dof_indices[i]] > iso_level)
+                        ++n_larger_than_iso;
+
+                    if (n_larger_than_iso == 0)
+                      continue;
+
+                    // Iterate over each line of the cell
+                    for (unsigned int il = 0; il < cell->n_lines(); il++)
+                      {
+                        // DOFs correspnding to the vertices
+                        const auto index0 =
+                          cell->line(il)->vertex_dof_index(0, 0);
+                        const auto index1 =
+                          cell->line(il)->vertex_dof_index(1, 0);
+
+                        // The field values associated with those DOFs
+                        const auto val0 = vector.block(b)[index0];
+                        const auto val1 = vector.block(b)[index1];
+
+                        // If both points are outside of the bounding box or
+                        // their values are below the iso level, then skip them
+                        const bool point_outside0 =
+                          box_filter->point_outside_or_boundary(
+                            cell->line(il)->vertex(0));
+                        const bool point_outside1 =
+                          box_filter->point_outside_or_boundary(
+                            cell->line(il)->vertex(1));
+
+                        const bool filter_out0 =
+                          (point_outside0 || val0 < iso_level);
+                        const bool filter_out1 =
+                          (point_outside1 || val1 < iso_level);
+
+                        if (filter_out0 && filter_out1)
+                          continue;
+
+                        const double length = cell->line(il)->diameter();
+
+                        // Check if there are intersections with box planes
+                        for (const auto &plane : box_filter->get_planes())
+                          {
+                            const auto [has_itersection, fac, p] =
+                              intersect_line_plane(cell->line(il)->vertex(0),
+                                                   cell->line(il)->vertex(1),
+                                                   plane.origin,
+                                                   plane.normal);
+
+                            if (has_itersection && std::abs(fac) < 1.)
+                              {
+                                const auto d0 = p - cell->line(il)->vertex(0);
+                                const auto d1 = p - cell->line(il)->vertex(1);
+
+                                // If the intersection point is indeed within
+                                // the line range
+                                if (d0 * d1 < 0)
+                                  {
+                                    double       val_max;
+                                    unsigned int index_min;
+                                    double       fac_ratio;
+                                    if (val0 > val1)
+                                      {
+                                        val_max   = val0;
+                                        index_min = index1;
+                                        fac_ratio = std::abs(fac);
+                                      }
+                                    else
+                                      {
+                                        val_max   = val1;
+                                        index_min = index0;
+                                        fac_ratio = 1. - std::abs(fac);
+                                      }
+
+                                    const double ref_val = val_max - iso_level;
+                                    const double iso_pos = fac_ratio * length;
+                                    const double k       = -ref_val / iso_pos;
+                                    const double val_min = k * length + val_max;
+
+                                    if (std::abs(vector.block(b)[index_min] -
+                                                 val_min) > 1e-6)
+                                      {
+                                        // If not an owner modifies the entry,
+                                        // then we store an old and a new values
+                                        // and then sync them later below
+                                        if (partitioner_full->is_ghost_entry(
+                                              index_min))
+                                          {
+                                            if (new_values[b].find(index_min) ==
+                                                new_values[b].end())
+                                              new_values[b].try_emplace(
+                                                index_min,
+                                                std::make_pair(vector.block(
+                                                                 b)[index_min],
+                                                               val_min));
+                                            else
+                                              new_values[b]
+                                                .at(index_min)
+                                                .second = val_min;
+                                          }
+
+                                        vector.block(b)[index_min] = val_min;
+                                      }
+                                  }
+                              }
+                          }
+                      }
+                  }
+              }
+
+            const double eps_tol = 1e-6;
+
+            // Update modified ghosts
             for (unsigned int b = 0; b < vector.n_blocks(); ++b)
               {
-                const auto &points = fe_values.get_quadrature_points();
+                // This will overrite ghost values if any of them was modified
+                // not by the owner, this is what we exactly want
+                vector.block(b).update_ghost_values();
 
-                for (unsigned int i = 0; i < fe.n_dofs_per_cell(); ++i)
+                IndexSet            local_relevant_reduced;
+                std::vector<Number> ghosts_values;
+
+                /* 1. Attempt to nullify the owner value.
+                 *
+                 * If a dof value was modified as a ghost not by an owner, we
+                 * then need to transfer this new value to the owner. But that
+                 * should be done in a complex way, since multiple ranks could
+                 * have contributed to this new value. None of the default
+                 * VectorOperation's fit our needs and this justifies the need
+                 * for the algo below.
+                 */
+                std::vector<unsigned int> indices_to_remove;
+                for (const auto &[index, value] : new_values[b])
+                  if (std::abs(vector.block(b)[index] - value.first) < eps_tol)
+                    {
+                      local_relevant_reduced.add_index(index);
+                      ghosts_values.push_back(-value.first);
+                    }
+                  else
+                    {
+                      // We get here if a dof value was modified by the owner,
+                      // then we neglect the modifications made by other ranks
+                      indices_to_remove.push_back(index);
+                    }
+
+                for (const auto &index : indices_to_remove)
+                  new_values[b].erase(index);
+
+                update_selected_ghosts(vector.block(b),
+                                       VectorOperation::add,
+                                       *partitioner_reduced,
+                                       ghosts_values,
+                                       local_relevant_reduced,
+                                       partitioner_full->ghost_indices());
+
+                /* 2. Nullify any negative owner value if needed
+                 *
+                 * If a dof, that had initial value val0, was modified by not a
+                 * single but K ranks, than after the first step it won't get
+                 * nullified, but rather will be equal to -(K-1)*val0. We then
+                 * nullify it using operation max(0, -(K-1)*val0).
+                 */
+                local_relevant_reduced.clear();
+                ghosts_values.clear();
+                for (const auto &[index, value] : new_values[b])
+                  if (vector.block(b)[index] < -eps_tol)
+                    {
+                      local_relevant_reduced.add_index(index);
+                      ghosts_values.push_back(0.);
+                    }
+
+                update_selected_ghosts(vector.block(b),
+                                       VectorOperation::max,
+                                       *partitioner_reduced,
+                                       ghosts_values,
+                                       local_relevant_reduced,
+                                       partitioner_full->ghost_indices());
+
+                /* 3. Set up negative values
+                 *
+                 * After the first two steps the dof value, that was modified on
+                 * any non-owner and not touched on the owner, is guaranteed to
+                 * be 0 on the owner. We then apply min operation to set up
+                 * those new values which are negative.
+                 */
+                local_relevant_reduced.clear();
+                ghosts_values.clear();
+                for (const auto &[index, value] : new_values[b])
+                  if (value.second < 0)
+                    {
+                      local_relevant_reduced.add_index(index);
+                      ghosts_values.push_back(value.second);
+                    }
+
+                update_selected_ghosts(vector.block(b),
+                                       VectorOperation::min,
+                                       *partitioner_reduced,
+                                       ghosts_values,
+                                       local_relevant_reduced,
+                                       partitioner_full->ghost_indices());
+
+                /* 4. Set up positive values
+                 *
+                 * This step does the same as step 3 but for those new values
+                 * which are positive.
+                 */
+                local_relevant_reduced.clear();
+                ghosts_values.clear();
+                for (const auto &[index, value] : new_values[b])
+                  if (value.second > 0)
+                    {
+                      local_relevant_reduced.add_index(index);
+                      ghosts_values.push_back(value.second);
+                    }
+
+                update_selected_ghosts(vector.block(b),
+                                       VectorOperation::max,
+                                       *partitioner_reduced,
+                                       ghosts_values,
+                                       local_relevant_reduced,
+                                       partitioner_full->ghost_indices());
+
+                if (ilevel < n_levels - 1)
                   {
-                    const int pred_status = box_filter(points[i]);
-
-                    auto &global_dof_value = vector.block(b)[dof_indices[i]];
-                    if (pred_status == 0)
-                      global_dof_value = std::min(global_dof_value, iso_level);
-                    else if (pred_status == -1)
-                      global_dof_value = null_value;
+                    vector.block(b).zero_out_ghost_values();
+                    constraints.distribute(vector.block(b));
+                    vector.block(b).update_ghost_values();
                   }
               }
           }
+
+        if (has_ghost_elements == false)
+          vector.zero_out_ghost_values();
       }
 
       template <int dim, typename VectorType>
       bool
       build_grain_boundaries_mesh(
-        Triangulation<dim - 1, dim> &          tria,
-        const Mapping<dim> &                   mapping,
-        const DoFHandler<dim> &                background_dof_handler,
-        const VectorType &                     vector,
-        const double                           iso_level,
-        const unsigned int                     n_grains,
-        const double                           gb_lim             = 0.14,
-        const unsigned int                     n_coarsening_steps = 0,
-        std::function<int(const Point<dim> &)> box_filter         = nullptr,
-        const unsigned int                     n_subdivisions     = 1,
-        const double                           tolerance          = 1e-10)
+        Triangulation<dim - 1, dim> &                 tria,
+        const Mapping<dim> &                          mapping,
+        const DoFHandler<dim> &                       background_dof_handler,
+        const VectorType &                            vector,
+        const double                                  iso_level,
+        const unsigned int                            n_grains,
+        const double                                  gb_lim             = 0.14,
+        const unsigned int                            n_coarsening_steps = 0,
+        std::shared_ptr<const BoundingBoxFilter<dim>> box_filter     = nullptr,
+        const unsigned int                            n_subdivisions = 1,
+        const double                                  tolerance      = 1e-10)
       {
         using Number = typename VectorType::value_type;
 
@@ -300,7 +613,6 @@ namespace Sintering
               vector_coarsened.create_view(2, 2 + n_grains);
 
             internal::filter_mesh_withing_bounding_box(
-              mapping,
               *background_dof_handler_to_be_used,
               *only_order_params,
               iso_level,
@@ -584,17 +896,17 @@ namespace Sintering
     template <int dim, typename VectorType, typename Number>
     void
     output_grain_contours_vtu(
-      const Mapping<dim> &                      mapping,
-      const DoFHandler<dim> &                   background_dof_handler,
-      const VectorType &                        vector,
-      const double                              iso_level,
-      const std::string                         filename,
-      const unsigned int                        n_grains,
-      const GrainTracker::Tracker<dim, Number> &grain_tracker_in,
-      const unsigned int                        n_coarsening_steps = 0,
-      std::function<int(const Point<dim> &)>    box_filter         = nullptr,
-      const unsigned int                        n_subdivisions     = 1,
-      const double                              tolerance          = 1e-10)
+      const Mapping<dim> &                          mapping,
+      const DoFHandler<dim> &                       background_dof_handler,
+      const VectorType &                            vector,
+      const double                                  iso_level,
+      const std::string                             filename,
+      const unsigned int                            n_grains,
+      const GrainTracker::Tracker<dim, Number> &    grain_tracker_in,
+      const unsigned int                            n_coarsening_steps = 0,
+      std::shared_ptr<const BoundingBoxFilter<dim>> box_filter     = nullptr,
+      const unsigned int                            n_subdivisions = 1,
+      const double                                  tolerance      = 1e-10)
     {
       std::shared_ptr<GrainTracker::Tracker<dim, Number>> grain_tracker;
       if (n_coarsening_steps == 0)
@@ -650,7 +962,6 @@ namespace Sintering
           auto only_order_params = solution_dealii.create_view(2, 2 + n_grains);
 
           internal::filter_mesh_withing_bounding_box(
-            mapping,
             *background_dof_handler_to_be_used,
             *only_order_params,
             iso_level,
@@ -687,13 +998,17 @@ namespace Sintering
                 for (unsigned int i = old_size; i < cells.size(); ++i)
                   {
                     if (grain_tracker)
-                      cells[i].material_id =
-                        grain_tracker
-                          ->get_grain_and_segment(
-                            b,
-                            grain_tracker->get_particle_index(
-                              b, cell->global_active_cell_index()))
-                          .first;
+                      {
+                        const auto particle_id_for_op =
+                          grain_tracker->get_particle_index(
+                            b, cell->global_active_cell_index());
+
+                        if (particle_id_for_op != numbers::invalid_unsigned_int)
+                          cells[i].material_id =
+                            grain_tracker
+                              ->get_grain_and_segment(b, particle_id_for_op)
+                              .first;
+                      }
 
                     cells[i].manifold_id = b;
                   }
@@ -747,17 +1062,17 @@ namespace Sintering
     template <int dim, typename VectorType>
     void
     output_grain_boundaries_vtu(
-      const Mapping<dim> &                   mapping,
-      const DoFHandler<dim> &                background_dof_handler,
-      const VectorType &                     vector,
-      const double                           iso_level,
-      const std::string                      filename,
-      const unsigned int                     n_grains,
-      const double                           gb_lim             = 0.14,
-      const unsigned int                     n_coarsening_steps = 0,
-      std::function<int(const Point<dim> &)> box_filter         = nullptr,
-      const unsigned int                     n_subdivisions     = 1,
-      const double                           tolerance          = 1e-10)
+      const Mapping<dim> &                          mapping,
+      const DoFHandler<dim> &                       background_dof_handler,
+      const VectorType &                            vector,
+      const double                                  iso_level,
+      const std::string                             filename,
+      const unsigned int                            n_grains,
+      const double                                  gb_lim             = 0.14,
+      const unsigned int                            n_coarsening_steps = 0,
+      std::shared_ptr<const BoundingBoxFilter<dim>> box_filter     = nullptr,
+      const unsigned int                            n_subdivisions = 1,
+      const double                                  tolerance      = 1e-10)
     {
       Triangulation<dim - 1, dim> tria;
 
@@ -789,15 +1104,15 @@ namespace Sintering
     template <int dim, typename VectorType>
     void
     output_concentration_contour_vtu(
-      const Mapping<dim> &                   mapping,
-      const DoFHandler<dim> &                background_dof_handler,
-      const VectorType &                     vector,
-      const double                           iso_level,
-      const std::string                      filename,
-      const unsigned int                     n_coarsening_steps = 0,
-      std::function<int(const Point<dim> &)> box_filter         = nullptr,
-      const unsigned int                     n_subdivisions     = 1,
-      const double                           tolerance          = 1e-10)
+      const Mapping<dim> &                          mapping,
+      const DoFHandler<dim> &                       background_dof_handler,
+      const VectorType &                            vector,
+      const double                                  iso_level,
+      const std::string                             filename,
+      const unsigned int                            n_coarsening_steps = 0,
+      std::shared_ptr<const BoundingBoxFilter<dim>> box_filter     = nullptr,
+      const unsigned int                            n_subdivisions = 1,
+      const double                                  tolerance      = 1e-10)
     {
       const bool has_ghost_elements = vector.has_ghost_elements();
 
@@ -836,7 +1151,6 @@ namespace Sintering
             }
 
           internal::filter_mesh_withing_bounding_box(
-            mapping,
             *background_dof_handler_to_be_used,
             solution_dealii,
             iso_level,
@@ -889,13 +1203,13 @@ namespace Sintering
     template <int dim, typename VectorType>
     typename VectorType::value_type
     compute_surface_area(
-      const Mapping<dim> &                    mapping,
-      const DoFHandler<dim> &                 background_dof_handler,
-      const VectorType &                      vector,
-      const double                            iso_level,
-      std::function<bool(const Point<dim> &)> predicate      = nullptr,
-      const unsigned int                      n_subdivisions = 1,
-      const double                            tolerance      = 1e-10)
+      const Mapping<dim> &                          mapping,
+      const DoFHandler<dim> &                       background_dof_handler,
+      const VectorType &                            vector,
+      const double                                  iso_level,
+      std::shared_ptr<const BoundingBoxFilter<dim>> box_filter     = nullptr,
+      const unsigned int                            n_subdivisions = 1,
+      const double                                  tolerance      = 1e-10)
     {
       const auto &concentration = vector.block(0);
 
@@ -924,7 +1238,8 @@ namespace Sintering
 
           for (const auto &cell : tria.active_cell_iterators())
             if (cell->is_locally_owned() &&
-                (!predicate || predicate(cell->center())))
+                (!box_filter ||
+                 box_filter->point_inside_or_boundary(cell->center())))
               surf_area += cell->measure();
         }
       surf_area =
@@ -940,20 +1255,20 @@ namespace Sintering
     template <int dim, typename VectorType>
     typename VectorType::value_type
     compute_grain_boundaries_area(
-      const Mapping<dim> &                    mapping,
-      const DoFHandler<dim> &                 background_dof_handler,
-      const VectorType &                      vector,
-      const double                            iso_level,
-      const unsigned int                      n_grains,
-      const double                            gb_lim         = 0.14,
-      std::function<bool(const Point<dim> &)> predicate      = nullptr,
-      const unsigned int                      n_subdivisions = 1,
-      const double                            tolerance      = 1e-10)
+      const Mapping<dim> &                          mapping,
+      const DoFHandler<dim> &                       background_dof_handler,
+      const VectorType &                            vector,
+      const double                                  iso_level,
+      const unsigned int                            n_grains,
+      const double                                  gb_lim         = 0.14,
+      std::shared_ptr<const BoundingBoxFilter<dim>> box_filter     = nullptr,
+      const unsigned int                            n_subdivisions = 1,
+      const double                                  tolerance      = 1e-10)
     {
       Triangulation<dim - 1, dim> tria;
 
-      const unsigned int                     n_coarsening_steps = 0;
-      std::function<int(const Point<dim> &)> box_filter         = nullptr;
+      const unsigned int                            n_coarsening_steps = 0;
+      std::shared_ptr<const BoundingBoxFilter<dim>> box_filter_mesh = nullptr;
 
       const bool tria_not_empty =
         internal::build_grain_boundaries_mesh(tria,
@@ -964,7 +1279,7 @@ namespace Sintering
                                               n_grains,
                                               gb_lim,
                                               n_coarsening_steps,
-                                              box_filter,
+                                              box_filter_mesh,
                                               n_subdivisions,
                                               tolerance);
 
@@ -972,7 +1287,8 @@ namespace Sintering
       if (tria_not_empty)
         for (const auto &cell : tria.active_cell_iterators())
           if (cell->is_locally_owned() &&
-              (!predicate || predicate(cell->center())))
+              (!box_filter ||
+               box_filter->point_inside_or_boundary(cell->center())))
             gb_area += cell->measure();
 
       gb_area =
@@ -1174,13 +1490,14 @@ namespace Sintering
     {
       template <int dim, typename BlockVectorType, typename Number>
       unsigned int
-      run_flooding(const typename DoFHandler<dim>::cell_iterator &cell,
-                   const BlockVectorType &                        solution,
-                   LinearAlgebra::distributed::Vector<Number> &   particle_ids,
-                   const unsigned int                             id,
-                   const double threshold_upper                      = 0.8,
-                   const double invalid_particle_id                  = -1.0,
-                   std::function<int(const Point<dim> &)> box_filter = nullptr)
+      run_flooding(
+        const typename DoFHandler<dim>::cell_iterator &cell,
+        const BlockVectorType &                        solution,
+        LinearAlgebra::distributed::Vector<Number> &   particle_ids,
+        const unsigned int                             id,
+        const double                                   threshold_upper = 0.8,
+        const double invalid_particle_id                               = -1.0,
+        std::shared_ptr<const BoundingBoxFilter<dim>> box_filter = nullptr)
       {
         if (cell->has_children())
           {
@@ -1199,7 +1516,7 @@ namespace Sintering
           }
 
         if (cell->is_locally_owned() == false ||
-            (box_filter && box_filter(cell->barycenter()) < 0))
+            (box_filter && box_filter->point_outside(cell->barycenter())))
           return 0;
 
         const auto particle_id = particle_ids[cell->global_active_cell_index()];
@@ -1248,11 +1565,12 @@ namespace Sintering
       std::tuple<LinearAlgebra::distributed::Vector<double>,
                  std::vector<unsigned int>,
                  unsigned int>
-      detect_pores(const DoFHandler<dim> &dof_handler,
-                   const VectorType &     solution,
-                   const double           invalid_particle_id        = -1.0,
-                   const double           threshold_upper            = 0.8,
-                   std::function<int(const Point<dim> &)> box_filter = nullptr)
+      detect_pores(
+        const DoFHandler<dim> &dof_handler,
+        const VectorType &     solution,
+        const double           invalid_particle_id               = -1.0,
+        const double           threshold_upper                   = 0.8,
+        std::shared_ptr<const BoundingBoxFilter<dim>> box_filter = nullptr)
       {
         const auto comm = dof_handler.get_communicator();
 
@@ -1317,12 +1635,13 @@ namespace Sintering
 
     template <int dim, typename VectorType>
     void
-    output_porosity(const Mapping<dim> &   mapping,
-                    const DoFHandler<dim> &dof_handler,
-                    const VectorType &     solution,
-                    const std::string      output,
-                    const double           threshold_upper            = 0.8,
-                    std::function<int(const Point<dim> &)> box_filter = nullptr)
+    output_porosity(
+      const Mapping<dim> &                          mapping,
+      const DoFHandler<dim> &                       dof_handler,
+      const VectorType &                            solution,
+      const std::string                             output,
+      const double                                  threshold_upper = 0.8,
+      std::shared_ptr<const BoundingBoxFilter<dim>> box_filter      = nullptr)
     {
       const double invalid_particle_id = -1.0; // TODO
 
@@ -1402,15 +1721,15 @@ namespace Sintering
     template <int dim, typename VectorType>
     void
     output_porosity_contours_vtu(
-      const Mapping<dim> &                   mapping,
-      const DoFHandler<dim> &                dof_handler,
-      const VectorType &                     solution,
-      const double                           iso_level,
-      const std::string                      output,
-      const unsigned int                     n_coarsening_steps = 0,
-      std::function<int(const Point<dim> &)> box_filter         = nullptr,
-      const unsigned int                     n_subdivisions     = 1,
-      const double                           tolerance          = 1e-10)
+      const Mapping<dim> &                          mapping,
+      const DoFHandler<dim> &                       dof_handler,
+      const VectorType &                            solution,
+      const double                                  iso_level,
+      const std::string                             output,
+      const unsigned int                            n_coarsening_steps = 0,
+      std::shared_ptr<const BoundingBoxFilter<dim>> box_filter     = nullptr,
+      const unsigned int                            n_subdivisions = 1,
+      const double                                  tolerance      = 1e-10)
     {
       const auto comm = dof_handler.get_communicator();
 
@@ -1532,11 +1851,11 @@ namespace Sintering
     template <int dim, typename VectorType>
     void
     output_porosity_stats(
-      const DoFHandler<dim> &                dof_handler,
-      const VectorType &                     solution,
-      const std::string                      output,
-      const double                           threshold_upper = 0.8,
-      std::function<int(const Point<dim> &)> box_filter      = nullptr)
+      const DoFHandler<dim> &                       dof_handler,
+      const VectorType &                            solution,
+      const std::string                             output,
+      const double                                  threshold_upper = 0.8,
+      std::shared_ptr<const BoundingBoxFilter<dim>> box_filter      = nullptr)
     {
       const double invalid_particle_id = -1.0; // TODO
 
