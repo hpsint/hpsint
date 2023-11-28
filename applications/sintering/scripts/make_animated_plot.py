@@ -11,19 +11,19 @@ from scipy.stats import norm
 from matplotlib.patches import Polygon
 
 def format_plot(ax):
-    ax.spines['bottom'].set_color(color_axes)
-    ax.spines['top'].set_color(color_axes) 
-    ax.spines['right'].set_color(color_axes)
-    ax.spines['left'].set_color(color_axes)
-    ax.xaxis.label.set_color(color_axes)
-    ax.yaxis.label.set_color(color_axes)
-    ax.tick_params(axis='x', colors=color_axes, labelsize=label_size)
-    ax.tick_params(axis='y', colors=color_axes, labelsize=label_size)
-    ax.set_facecolor(color_background)
+    ax.spines['bottom'].set_color(args.format_color_axes)
+    ax.spines['top'].set_color(args.format_color_axes) 
+    ax.spines['right'].set_color(args.format_color_axes)
+    ax.spines['left'].set_color(args.format_color_axes)
+    ax.xaxis.label.set_color(args.format_color_axes)
+    ax.yaxis.label.set_color(args.format_color_axes)
+    ax.tick_params(axis='x', colors=args.format_color_axes, labelsize=args.format_label_size)
+    ax.tick_params(axis='y', colors=args.format_color_axes, labelsize=args.format_label_size)
+    ax.set_facecolor(args.format_color_background)
 
 def plot_step(cdata, x_min, x_max, y_min, y_max, step = None, show = True):
 
-    fig, ax = plt.subplots(1, 1, dpi=100, facecolor=color_background)
+    fig, ax = plt.subplots(1, 1, dpi=100, facecolor=args.format_color_background)
     fig.set_figheight(args.ysize)
     fig.set_figwidth(args.xsize)
 
@@ -31,7 +31,7 @@ def plot_step(cdata, x_min, x_max, y_min, y_max, step = None, show = True):
         local_limit = step + 1
         pngName = "step_{:04d}.png".format(step)
     else:
-        local_limit = data_limit
+        local_limit = 999999
         pngName = "step_none.png"
 
     # data
@@ -39,7 +39,7 @@ def plot_step(cdata, x_min, x_max, y_min, y_max, step = None, show = True):
     y = cdata[args.yaxis][0:local_limit]
 
     # Plot
-    gradient_fill(x, y, fill_color=color_fill, ax=ax, ymin_custom=y_min, ymax_custom=y_max, color=color_line, linewidth=line_width)
+    gradient_fill(x, y, fill_color=args.format_color_fill, ax=ax, ymin_custom=y_min, ymax_custom=y_max, color=args.format_color_line, linewidth=args.format_line_width)
     format_plot(ax)
     ax.set_ylim(y_min, y_max)
     ax.set_xlim(x_min, x_max)
@@ -47,8 +47,8 @@ def plot_step(cdata, x_min, x_max, y_min, y_max, step = None, show = True):
     xlabel = args.xaxis if not args.xlabel else args.xlabel
     ylabel = args.yaxis if not args.ylabel else args.ylabel
 
-    ax.set_xlabel(xlabel, fontsize=font_size)
-    ax.set_ylabel(ylabel, fontsize=font_size)
+    ax.set_xlabel(xlabel, fontsize=args.format_font_size)
+    ax.set_ylabel(ylabel, fontsize=args.format_font_size)
 
     fig.tight_layout(pad=1.5)
 
@@ -129,14 +129,13 @@ parser.add_argument("-o", "--output", type=str, help="Destination folder to save
 parser.add_argument("-r", "--delimiter", dest='delimiter', required=False, help="Input file delimiter", default=None)
 
 # Plot settings
-data_limit = 9999
-color_axes = '#bbbbbb'
-color_background = '#52576e'
-color_line = 'white'
-color_fill = '#1f77b4'
-font_size = 16
-label_size = 14
-line_width = 2.0
+parser.add_argument("--format-color-axes", dest="format_color_axes", required=False, help="Format color axes", default='#bbbbbb', type=str)
+parser.add_argument("--format-color-background", dest="format_color_background", required=False, help="Format color background", default='#52576e', type=str)
+parser.add_argument("--format-color-line", dest="format_color_line", required=False, help="Format color line", default='white', type=str)
+parser.add_argument("--format-color-fill", dest="format_color_fill", required=False, help="Format color fill", default='#1f77b4', type=str)
+parser.add_argument("--format-font-size", dest="format_font_size", required=False, help="Format font size", default=20, type=int)
+parser.add_argument("--format-label-size", dest="format_label_size", required=False, help="Format label size", default=14, type=int)
+parser.add_argument("--format-line-width", dest="format_line_width", required=False, help="Format line width", default=2.0, type=float)
 
 args = parser.parse_args()
 
