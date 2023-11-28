@@ -135,8 +135,6 @@ for idx, log_file in enumerate(files_list):
 
         continue
 
-    save_file = os.path.join(output_folder, "{}_distribution_histogram_t_{}.csv".format(qty_name, t)) if args.save else None
-
     if args.common_bins or args.common_range:
         bins_range = (min(bins_range[0], data_to_plot.min()), max(bins_range[1], data_to_plot.max()))
 
@@ -158,8 +156,10 @@ for idx, log_file in enumerate(files_list):
 # Plot histograms if we have the data for them
 bins_effective = bins_range if args.common_bins else None
 if hist_init:
+    save_file = os.path.join(output_folder, "{}_distribution_histogram_t_{}.csv".format(qty_name, hist_init['time'])) if args.save else None
     plot_histogram(hist_init['data'], ax_init, hist_init['time'], args.bins, bins_effective, save_file)
 if hist_final:
+    save_file = os.path.join(output_folder, "{}_distribution_histogram_t_{}.csv".format(qty_name, hist_final['time'])) if args.save else None
     plot_histogram(hist_final['data'], ax_final, hist_final['time'], args.bins, bins_effective, save_file)
 
 if args.common_range:
