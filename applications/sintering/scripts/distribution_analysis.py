@@ -91,7 +91,8 @@ curves.append({
     'means': [],
     'stds': [],
     'total': [],
-    'time': []
+    'time': [],
+    'data': []
 })
 
 if args.save:
@@ -138,7 +139,8 @@ for idx, log_file in enumerate(files_list):
                 'means': [],
                 'stds': [],
                 'total': [],
-                'time': []
+                'time': [],
+                'data': []
             })
 
         continue
@@ -157,6 +159,9 @@ for idx, log_file in enumerate(files_list):
     curves[-1]['stds'].append(std)
     curves[-1]['total'].append(qdata.size)
     curves[-1]['time'].append(fdata["time"][idx])
+
+    if args.save:
+        curves[-1]['data'].append(data_to_plot)
 
     if hist_final:
         break
@@ -180,6 +185,8 @@ csv_format = ["%g"] * (len(csv_header))
 csv_format = " ".join(csv_format)
 csv_header = " ".join(csv_header)
 
+data_csv_bins = []
+
 for idx, curves_set in enumerate(curves):
     means = np.array(curves_set['means'])
     stds = np.array(curves_set['stds'])
@@ -198,6 +205,31 @@ for idx, curves_set in enumerate(curves):
         csv_suffix = "" if len(curves) == 1 else "_{}".format(idx)
         file_path = os.path.join(output_folder, "{}_distribution_history{}.csv".format(qty_name, csv_suffix))
         np.savetxt(file_path, csv_data, delimiter=' ', header=csv_header, fmt=csv_format, comments='')
+
+        data_set = curves_set['data']
+        for t, data in zip(time, data_set):
+            counts, bins = np.histogram(data, args.bins, range=bins_effective)
+            counts = counts/sum(counts)
+
+            data_csv_bins.append({
+                't': t,
+                'bins': bins,
+                'counts': counts,
+            })
+
+if args.save:
+    file_path = os.path.join(output_folder, "{}_distribution_data.csv".format(qty_name))
+
+    def format(value):
+        return "%.5f" % value
+
+    with open(file_path, 'w') as f:
+        for entry in data_csv_bins:
+            f.write(f"{entry['t']}\n")
+            [f.write(f"{format(val)} ") for val in entry['bins']]
+            f.write(f"\n")
+            [f.write(f"{format(val)} ") for val in entry['counts']]
+            f.write(f"\n")
 
 library.format_distribution_plot(ax_mu_std, ax_total, qty_name)
 
