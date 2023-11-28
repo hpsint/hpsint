@@ -127,6 +127,8 @@ parser.add_argument("--ysize", dest="ysize", required=False, help="y size of the
 parser.add_argument("-s", "--span", dest="span", required=False, help="y-axis span", default=0.05)
 parser.add_argument("-o", "--output", type=str, help="Destination folder to save data", default=None, required=False)
 parser.add_argument("-r", "--delimiter", dest='delimiter', required=False, help="Input file delimiter", default=None)
+parser.add_argument("-t", "--start", dest="start", type=int, help="Step to start with", default=None)
+parser.add_argument("-e", "--end", dest="end", type=int, help="Step to end with", default=None)
 
 # Plot settings
 parser.add_argument("--format-color-axes", dest="format_color_axes", required=False, help="Format color axes", default='#bbbbbb', type=str)
@@ -161,6 +163,14 @@ else:
 
 
 cdata = np.genfromtxt(args.file, delimiter=args.delimiter, dtype=None, names=True)
+
+xdata = cdata[args.xaxis]
+ydata = cdata[args.yaxis]
+
+if args.start is not None:
+    xfilter = np.where((xdata >= args.start) & (xdata <= args.end))
+    xdata = xdata[xfilter]
+    ydata = ydata[xfilter]
 
 x_min = np.min(cdata[args.xaxis])
 x_max = np.max(cdata[args.xaxis])
