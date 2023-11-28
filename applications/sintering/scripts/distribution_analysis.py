@@ -6,6 +6,7 @@ import re
 import os
 import numpy.ma as ma
 from scipy.stats import norm
+from matplotlib.ticker import PercentFormatter
 import library
 
 parser = argparse.ArgumentParser(description='Process shrinkage data')
@@ -17,6 +18,7 @@ parser.add_argument("-t", "--start", type=int, help="Step to start with", defaul
 parser.add_argument("-e", "--end", type=int, help="Step to end with", default=0)
 parser.add_argument("-d", "--delete", action='store_true', help="Delete the largest entity", required=False, default=False)
 parser.add_argument("-o", "--output", type=str, help="Destination folder to save data", default=None, required=False)
+parser.add_argument("-y", "--density", action='store_true', help="Plot probability density", required=False, default=False)
 parser.add_argument("-g", "--common-range", action='store_true', help="Use common range for bins", required=False, default=False)
 parser.add_argument("-n", "--common-bins", action='store_true', help="Use common bins", required=False, default=False)
 
@@ -37,15 +39,21 @@ def plot_histogram(quantity, ax, time, n_bins = 10, val_range = None, save_file 
     q_max = max(quantity)
 
     counts, bins = np.histogram(quantity, bins=n_bins, range=val_range)
-    ax.hist(bins[:-1], bins, weights=counts, density=True, alpha=0.6, color='g', edgecolor='black', linewidth=1.2)
+    counts_plt = counts/sum(counts) if not args.density else counts
+    ax.hist(bins[:-1], bins, weights=counts_plt, density=args.density, alpha=0.6, color='g', edgecolor='black', linewidth=1.2)
 
-    q_arr = np.linspace(q_min, q_max, 100)
-    p_arr = norm.pdf(q_arr, mu, std)
-    ax.plot(q_arr, p_arr, 'k', linewidth=2)
+    if args.density:
+        q_arr = np.linspace(q_min, q_max, 100)
+        p_arr = norm.pdf(q_arr, mu, std)
+        ax.plot(q_arr, p_arr, 'k', linewidth=2)
+
     ax.set_title("Time t = {}".format(time))
     ax.set_xlabel(qty_name)
     ax.set_ylabel("content ratio")
     ax.grid(True)
+
+    if not args.density:
+        ax.yaxis.set_major_formatter(PercentFormatter(1))
 
     if save_file:
         n_particles = len(quantity)
