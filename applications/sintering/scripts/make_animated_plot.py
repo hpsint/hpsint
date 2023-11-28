@@ -159,7 +159,7 @@ if args.output:
     pathlib.Path(args.output).mkdir(parents=True, exist_ok=True)
     output_folder = args.output
 else:
-    output_folder = os.path.dirname(file_solution)
+    output_folder = os.path.dirname(args.file)
 
 
 cdata = np.genfromtxt(args.file, delimiter=args.delimiter, dtype=None, names=True)

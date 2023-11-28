@@ -218,7 +218,7 @@ for idx, curves_set in enumerate(curves):
             })
 
 if args.save:
-    file_path = os.path.join(output_folder, "{}_distribution_data.csv".format(qty_name))
+    file_path = os.path.join(output_folder, "{}_distribution_data.dat".format(qty_name))
 
     def format(value):
         return "%.5f" % value
