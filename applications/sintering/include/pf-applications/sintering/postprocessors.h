@@ -1729,6 +1729,7 @@ namespace Sintering
       const unsigned int                            n_coarsening_steps = 0,
       std::shared_ptr<const BoundingBoxFilter<dim>> box_filter     = nullptr,
       const unsigned int                            n_subdivisions = 1,
+      const bool                                    smooth         = true,
       const double                                  tolerance      = 1e-10)
     {
       const auto comm = dof_handler.get_communicator();
@@ -1803,7 +1804,9 @@ namespace Sintering
       // domain boundary. An alternative solution would be to process quantity
       // (1-c) but that generates sometimes not desirable output when the outer
       // void has to be eliminated. So this choice generates slightly less
-      // smooth but more physically representative surface contours.
+      // smooth but more physically representative surface contours. However,
+      // the option with smoother pores is also left as available since it
+      // provides better pictures if a bounding box filter was used.
       VectorType pores_data(1);
       const auto partitioner = std::make_shared<Utilities::MPI::Partitioner>(
         dof_handler.locally_owned_dofs(),
@@ -1811,13 +1814,26 @@ namespace Sintering
         dof_handler.get_communicator());
 
       pores_data.block(0).reinit(partitioner);
-      pores_data.block(0) = 0;
+
+      if (smooth)
+        {
+          // Use quantity (1-c)
+          pores_data.block(0).copy_locally_owned_data_from(solution.block(0));
+          pores_data.block(0) *= -1.0;
+          for (auto &v : pores_data.block(0))
+            v += 1.0;
+        }
+      else
+        {
+          // Use data from the pores info
+          pores_data.block(0) = 0;
+        }
 
       pores_data.update_ghost_values();
 
       Vector<typename VectorType::value_type> values(
         dof_handler.get_fe().n_dofs_per_cell());
-      values = 1.0;
+      values = (smooth ? 0.0 : 1.0);
 
       for (const auto &cell : dof_handler.active_cell_iterators())
         {
@@ -1833,8 +1849,20 @@ namespace Sintering
             local_to_global_pore_ids[static_cast<unsigned int>(pore_id) -
                                      offset];
 
-          if (boundary_pores.find(global_pore_id) == boundary_pores.end())
+          if ((boundary_pores.find(global_pore_id) != boundary_pores.end() &&
+               smooth) ||
+              (boundary_pores.find(global_pore_id) == boundary_pores.end() &&
+               !smooth))
             cell->set_dof_values(values, pores_data.block(0));
+        }
+
+      // This required for the MPI case for the non-smooth version
+      if (!smooth)
+        {
+          pores_data.compress(VectorOperation::add);
+
+          for (auto &v : pores_data.block(0))
+            v = std::min(v, 1.0);
         }
 
       output_concentration_contour_vtu(mapping,
