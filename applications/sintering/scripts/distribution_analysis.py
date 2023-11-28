@@ -49,7 +49,7 @@ def plot_histogram(quantity, ax, time, n_bins = 10, val_range = None, save_file 
 
     ax.set_title("Time t = {}".format(time))
     ax.set_xlabel(qty_name)
-    ax.set_ylabel("content ratio")
+    ax.set_ylabel("fraction")
     ax.grid(True)
 
     if not args.density:
