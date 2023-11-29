@@ -141,13 +141,15 @@ def animation_init_plot(background_color, x_size, y_size):
 
     return fig, ax
 
-def animation_format_plot(ax, main_color, background_color, label_size):
+def animation_format_plot(ax, main_color, background_color, ticks_size, axes_label_size):
     ax.spines['bottom'].set_color(main_color)
     ax.spines['top'].set_color(main_color)
     ax.spines['right'].set_color(main_color)
     ax.spines['left'].set_color(main_color)
     ax.xaxis.label.set_color(main_color)
     ax.yaxis.label.set_color(main_color)
-    ax.tick_params(axis='x', colors=main_color, labelsize=label_size)
-    ax.tick_params(axis='y', colors=main_color, labelsize=label_size)
+    ax.tick_params(axis='x', colors=main_color, labelsize=ticks_size)
+    ax.tick_params(axis='y', colors=main_color, labelsize=ticks_size)
     ax.set_facecolor(background_color)
+    ax.xaxis.label.set_size(axes_label_size)
+    ax.yaxis.label.set_size(axes_label_size)
