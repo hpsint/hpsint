@@ -25,8 +25,8 @@ def plot_step(bins, counts, y_max, t = 0, step = None, show = False):
     ax.hist(bins[:-1], bins, weights=counts, alpha=0.6, color=args.format_color_fill, edgecolor=args.format_color_line, linewidth=args.format_line_width)
     ax.set_ylim(0, y_max)
     ax.set_xlim(bins[0], bins[-1])
-    ax.set_xlabel(args.label)
-    ax.set_ylabel("percentage of particles")
+    ax.set_xlabel(args.xlabel)
+    ax.set_ylabel(args.ylabel)
 
     library.animation_format_plot(ax, args.format_color_axes, args.format_color_background, args.format_label_size, args.format_font_size)
 
@@ -45,7 +45,8 @@ def plot_step(bins, counts, y_max, t = 0, step = None, show = False):
 
 parser = argparse.ArgumentParser(description='Process shrinkage data')
 parser.add_argument("-f", "--file", type=str, help="Solution file", required=True)
-parser.add_argument("-l", "--label", type=str, required=False, help="Quantity name", default="radius")
+parser.add_argument("--xlabel", dest="xlabel", required=False, help="x-axis label", default="radius")
+parser.add_argument("--ylabel", dest="ylabel", required=False, help="y-axis label", default="percentage of particles")
 parser.add_argument("--xsize", dest="xsize", required=False, help="x size of the figure", default=19.2, type=float)
 parser.add_argument("--ysize", dest="ysize", required=False, help="y size of the figure", default=10.8, type=float)
 parser.add_argument("-s", "--span", dest="span", required=False, help="y-axis span", default=0.05)
@@ -80,7 +81,7 @@ if n_lines % 3 != 0:
     raise Exception('The input file contains inconsistent data')
 
 y_max = None
-step_counter = 0
+step_counter = -1
 n_steps = int(n_lines / 3)
 
 for i in range(n_steps):
