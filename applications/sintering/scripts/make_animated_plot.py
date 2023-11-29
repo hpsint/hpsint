@@ -7,25 +7,13 @@ import re
 import os
 import numpy.ma as ma
 import pathlib
+import library
 from scipy.stats import norm
 from matplotlib.patches import Polygon
 
-def format_plot(ax):
-    ax.spines['bottom'].set_color(args.format_color_axes)
-    ax.spines['top'].set_color(args.format_color_axes) 
-    ax.spines['right'].set_color(args.format_color_axes)
-    ax.spines['left'].set_color(args.format_color_axes)
-    ax.xaxis.label.set_color(args.format_color_axes)
-    ax.yaxis.label.set_color(args.format_color_axes)
-    ax.tick_params(axis='x', colors=args.format_color_axes, labelsize=args.format_label_size)
-    ax.tick_params(axis='y', colors=args.format_color_axes, labelsize=args.format_label_size)
-    ax.set_facecolor(args.format_color_background)
-
 def plot_step(cdata, x_min, x_max, y_min, y_max, step = None, show = True):
 
-    fig, ax = plt.subplots(1, 1, dpi=100, facecolor=args.format_color_background)
-    fig.set_figheight(args.ysize)
-    fig.set_figwidth(args.xsize)
+    fig, ax = library.animation_init_plot(args.format_color_background, args.xsize, args.ysize)
 
     if step is not(None):
         local_limit = step + 1
@@ -40,15 +28,16 @@ def plot_step(cdata, x_min, x_max, y_min, y_max, step = None, show = True):
 
     # Plot
     gradient_fill(x, y, fill_color=args.format_color_fill, ax=ax, ymin_custom=y_min, ymax_custom=y_max, color=args.format_color_line, linewidth=args.format_line_width)
-    format_plot(ax)
+
     ax.set_ylim(y_min, y_max)
     ax.set_xlim(x_min, x_max)
 
     xlabel = args.xaxis if not args.xlabel else args.xlabel
     ylabel = args.yaxis if not args.ylabel else args.ylabel
+    ax.set_xlabel(xlabel)
+    ax.set_ylabel(ylabel)
 
-    ax.set_xlabel(xlabel, fontsize=args.format_font_size)
-    ax.set_ylabel(ylabel, fontsize=args.format_font_size)
+    library.animation_format_plot(ax, args.format_color_axes, args.format_color_background, args.format_label_size, args.format_font_size)
 
     fig.tight_layout(pad=1.5)
 
