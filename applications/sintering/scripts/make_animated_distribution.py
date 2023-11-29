@@ -26,7 +26,7 @@ def plot_step(bins, counts, y_max, t = 0, step = None, show = False):
     ax.set_ylim(0, y_max)
     ax.set_xlim(bins[0], bins[-1])
     ax.set_xlabel(args.label)
-    ax.set_ylabel("content")
+    ax.set_ylabel("percentage of particles")
 
     library.animation_format_plot(ax, args.format_color_axes, args.format_color_background, args.format_label_size, args.format_font_size)
 
