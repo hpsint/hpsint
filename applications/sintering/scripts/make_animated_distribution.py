@@ -30,7 +30,7 @@ def plot_step(bins, counts, y_max, t = 0, step = None, show = False):
 
     library.animation_format_plot(ax, args.format_color_axes, args.format_color_background, args.format_label_size, args.format_font_size)
 
-    ax.yaxis.set_major_formatter(PercentFormatter(1))
+    ax.yaxis.set_major_formatter(PercentFormatter(1, decimals=args.decimals))
 
     fig.tight_layout(pad=1.5)
 
@@ -52,6 +52,7 @@ parser.add_argument("-s", "--span", dest="span", required=False, help="y-axis sp
 parser.add_argument("-o", "--output", type=str, help="Destination folder to save data", default=None, required=False)
 parser.add_argument("-t", "--start", dest="start", type=int, help="Step to start with", default=None)
 parser.add_argument("-e", "--end", dest="end", type=int, help="Step to end with", default=None)
+parser.add_argument("-c", "--decimals", dest="decimals", type=int, help="Number of decimals in percents", default=None)
 
 # Plot settings
 parser.add_argument("--format-color-axes", dest="format_color_axes", required=False, help="Format color axes", default='#bbbbbb', type=str)

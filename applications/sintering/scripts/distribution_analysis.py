@@ -21,6 +21,7 @@ parser.add_argument("-o", "--output", type=str, help="Destination folder to save
 parser.add_argument("-y", "--density", action='store_true', help="Plot probability density", required=False, default=False)
 parser.add_argument("-g", "--common-range", action='store_true', help="Use common range for bins", required=False, default=False)
 parser.add_argument("-n", "--common-bins", action='store_true', help="Use common bins", required=False, default=False)
+parser.add_argument("-c", "--decimals", dest="decimals", type=int, help="Number of decimals in percents", default=None)
 
 group = parser.add_mutually_exclusive_group()
 group.add_argument("-r", "--radius", action='store_true', default=True)
@@ -53,7 +54,7 @@ def plot_histogram(quantity, ax, time, n_bins = 10, val_range = None, save_file 
     ax.grid(True)
 
     if not args.density:
-        ax.yaxis.set_major_formatter(PercentFormatter(1))
+        ax.yaxis.set_major_formatter(PercentFormatter(1, decimals=args.decimals))
 
     if save_file:
         n_particles = len(quantity)
