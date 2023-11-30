@@ -1010,7 +1010,7 @@ namespace GrainTracker
     get_grain_and_segment(const unsigned int order_parameter,
                           const unsigned int particle_id) const
     {
-      AssertThrow(particle_id != invalid_particle_id,
+      AssertThrow(particle_id != static_cast<unsigned int>(invalid_particle_id),
                   ExcMessage("Invalid particle_id provided"));
 
       return particle_ids_to_grain_ids[order_parameter][particle_id];
