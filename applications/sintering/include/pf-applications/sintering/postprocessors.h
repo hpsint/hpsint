@@ -438,7 +438,7 @@ namespace Sintering
                 // not by the owner, this is what we exactly want
                 vector.block(b).update_ghost_values();
 
-                IndexSet            local_relevant_reduced;
+                IndexSet local_relevant_reduced(partitioner_full->size());
                 std::vector<Number> ghosts_values;
 
                 /* 1. Attempt to nullify the owner value.
