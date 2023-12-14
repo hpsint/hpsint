@@ -98,7 +98,7 @@ fig, ax = create_axes(n_fields)
 if args.collapse:
     labels = library.generate_short_labels(files_list)
 else:
-    labels = files_list
+    labels = files_list.copy()
 
 # If we have custom labels
 if args.labels:
