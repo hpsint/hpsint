@@ -127,10 +127,20 @@ for i in range(n_fields):
         x = cdata[args.xaxis][mask]
 
         # Maybe it is a formula - we will try to interpret it, its safety is implied
+        y_label = field
         if not field in available_fields:
             formula = field
             for possible_field in available_fields:
                 formula = formula.replace(possible_field, "cdata['{}'][mask]".format(possible_field))
+
+            # Try to split expression for custom y label
+            expressions = formula.split('=')
+            if len(expressions) > 2:
+                raise Exception("Invalid expression provided, contains too many '=' signs")
+            elif len(expressions) == 2:
+                y_label = expressions[0].strip()
+                formula = expressions[1].strip()
+
             y = eval(formula)
         else:
             y = cdata[field][mask]
@@ -142,7 +152,7 @@ for i in range(n_fields):
 
     a.grid(True)
     a.set_xlabel(args.xaxis)
-    a.set_ylabel(field)
+    a.set_ylabel(y_label)
     a.set_title(field)
     a.set_xlim(x_lims)
 
