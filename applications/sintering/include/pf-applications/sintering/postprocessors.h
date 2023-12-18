@@ -1033,6 +1033,7 @@ namespace Sintering
               vector_order_parameter_id[cell->active_cell_index()] =
                 cell->manifold_id();
             }
+          tria.reset_all_manifolds();
         }
       else
         {
