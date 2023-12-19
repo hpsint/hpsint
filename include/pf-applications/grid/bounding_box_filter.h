@@ -165,6 +165,12 @@ namespace dealii
       return n_inside < cell.n_vertices() && n_outside < cell.n_vertices();
     }
 
+    const BoundingBox<dim, Number> &
+    get_bounding_box() const
+    {
+      return bounding_box;
+    }
+
   private:
     const BoundingBox<dim, Number> bounding_box;
     std::array<Plane, 2 * dim>     planes;
