@@ -66,20 +66,21 @@ n_files = len(files_list)
 
 colors = library.get_hex_colors(n_files)
 
+# Always get available fields since we can use formulas
+available_fields = None
+for f in files_list:
+    cdata = np.genfromtxt(f, dtype=None, names=True, delimiter=args.delimiter)
+    if available_fields is None:
+        available_fields = set(cdata.dtype.names)
+    else:
+        available_fields = available_fields.intersection(set(cdata.dtype.names))
+
+available_fields = list(sorted(list(available_fields)))
+
 if not args.yaxes:
     print("You did not specify any y-axes field to plot. These are the fields shared between all the provided files:")
-
-    available_fields = None
-    for f in files_list:
-        cdata = np.genfromtxt(f, dtype=None, names=True, delimiter=args.delimiter)
-        if available_fields is None:
-            available_fields = set(cdata.dtype.names)
-        else:
-            available_fields = available_fields.intersection(set(cdata.dtype.names))
-
-    sorted_available_fields = sorted(list(available_fields))
         
-    for name in list(sorted_available_fields):
+    for name in list(available_fields):
         print(" -- {}".format(name))
     
     print("Rerun the script specifying at least one of them")
@@ -97,7 +98,7 @@ fig, ax = create_axes(n_fields)
 if args.collapse:
     labels = library.generate_short_labels(files_list)
 else:
-    labels = files_list
+    labels = files_list.copy()
 
 # If we have custom labels
 if args.labels:
@@ -124,7 +125,25 @@ for i in range(n_fields):
             mask[0] = False
         
         x = cdata[args.xaxis][mask]
-        y = cdata[field][mask]
+
+        # Maybe it is a formula - we will try to interpret it, its safety is implied
+        y_label = field
+        if not field in available_fields:
+            formula = field
+            for possible_field in available_fields:
+                formula = formula.replace(possible_field, "cdata['{}'][mask]".format(possible_field))
+
+            # Try to split expression for custom y label
+            expressions = formula.split('=')
+            if len(expressions) > 2:
+                raise Exception("Invalid expression provided, contains too many '=' signs")
+            elif len(expressions) == 2:
+                y_label = expressions[0].strip()
+                formula = expressions[1].strip()
+
+            y = eval(formula)
+        else:
+            y = cdata[field][mask]
 
         x_lims[0] = min(x_lims[0], x[0])
         x_lims[1] = max(x_lims[1], x[-1])
@@ -133,7 +152,7 @@ for i in range(n_fields):
 
     a.grid(True)
     a.set_xlabel(args.xaxis)
-    a.set_ylabel(field)
+    a.set_ylabel(y_label)
     a.set_title(field)
     a.set_xlim(x_lims)
 
