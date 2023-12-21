@@ -82,16 +82,9 @@
         "Regular": "false",
         "Shrinkage": "true",
         "Table": "true",
-        "UseControlBox": "true",
+        "OnlyControlBoxes": "true",
         "VtkPath": ".",
-        "ControlBox": {
-            "Xmin": "5",
-            "Xmax": "195",
-            "Ymin": "5",
-            "Ymax": "295",
-            "Zmin": "2.5",
-            "Zmax": "25"
-        }
+        "ControlBoxes": "5,5,5 ; 195,295,25"
     },
     "Preconditioners": {
         "OuterPreconditioner": "BlockPreconditioner2",

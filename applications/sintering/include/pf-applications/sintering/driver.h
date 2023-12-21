@@ -615,7 +615,7 @@ namespace Sintering
           if (params.advection_data.enable ||
               (params.output_data.table &&
                !params.output_data.domain_integrals.empty() &&
-               params.output_data.use_control_box))
+               !params.output_data.control_boxes.empty()))
             additional_data.mapping_update_flags |= update_quadrature_points;
 
           additional_data.allow_ghosted_vectors_in_loops    = false;
@@ -2778,36 +2778,47 @@ namespace Sintering
           data_out.write_vtu_in_parallel(output, MPI_COMM_WORLD);
         }
 
-      // Bounding box can be used for scalar table output and for the surface
+      // Bounding boxes can be used for scalar table output and for the surface
       // and gb contours
-      BoundingBox<dim>                              control_box;
-      std::shared_ptr<const BoundingBoxFilter<dim>> box_filter = nullptr;
-      if (params.output_data.use_control_box)
+      std::vector<std::shared_ptr<const BoundingBoxFilter<dim>>> box_filters;
+
+      // Empty dummy box if we output data also for the whole domain
+      if (params.output_data.control_boxes.empty() ||
+          (!params.output_data.control_boxes.empty() &&
+           !params.output_data.only_control_boxes))
+        box_filters.push_back(nullptr);
+
+      // Add also each individual bounding box
+      for (const auto &pp : params.output_data.control_boxes)
         {
+          // We can not directly use pp since it always contains objects of type
+          // Point<3> and not Point<dim> as one may think. This is done in order
+          // to use the same input file for both 2D and 3D cases.
           Point<dim> bottom_left;
           Point<dim> top_right;
 
-          if (dim >= 1)
+          for (unsigned int d = 0; d < dim; ++d)
             {
-              bottom_left[0] = params.output_data.control_box_data.x_min;
-              top_right[0]   = params.output_data.control_box_data.x_max;
+              bottom_left[d] = pp.first[d];
+              top_right[d]   = pp.second[d];
             }
 
-          if (dim >= 2)
-            {
-              bottom_left[1] = params.output_data.control_box_data.y_min;
-              top_right[1]   = params.output_data.control_box_data.y_max;
-            }
-
-          if (dim >= 3)
-            {
-              bottom_left[2] = params.output_data.control_box_data.z_min;
-              top_right[2]   = params.output_data.control_box_data.z_max;
-            }
-
-          control_box = BoundingBox(std::make_pair(bottom_left, top_right));
-          box_filter  = std::make_shared<BoundingBoxFilter<dim>>(control_box);
+          const BoundingBox<dim> control_box(
+            std::make_pair(bottom_left, top_right));
+          box_filters.push_back(
+            std::make_shared<const BoundingBoxFilter<dim>>(control_box));
         }
+
+      const auto generate_name = [&](const std::string &name,
+                                     const unsigned int index) {
+        if (params.output_data.control_boxes.empty())
+          return name;
+        else if (params.output_data.only_control_boxes)
+          return name + "_box" + std::to_string(index);
+        else
+          return (index == 0) ? name :
+                                (name + "_box" + std::to_string(index - 1));
+      };
 
       if (params.output_data.table)
         {
@@ -2832,20 +2843,6 @@ namespace Sintering
           table.add_value("n_linear_iter", statistics.n_linear_iterations());
           table.add_value("n_resid_eval", statistics.n_residual_evaluations());
 
-          std::function<VectorizedArrayType(
-            const Point<dim, VectorizedArrayType> &)>
-            predicate_integrals;
-
-          if (params.output_data.use_control_box)
-            {
-              predicate_integrals =
-                [&box_filter](const Point<dim, VectorizedArrayType> &p) {
-                  return box_filter->filter(p);
-                };
-
-              table.add_value("cntrl_box", control_box.volume());
-            }
-
           if (!params.output_data.domain_integrals.empty())
             {
               std::vector<std::string> quantities;
@@ -2861,119 +2858,212 @@ namespace Sintering
               EvaluationFlags::EvaluationFlags eval_flags =
                 EvaluationFlags::values | EvaluationFlags::gradients;
 
-              std::vector<Number> q_values;
-
-              if (params.output_data.use_control_box)
+              for (unsigned int i = 0; i < box_filters.size(); ++i)
                 {
-                  q_values = sintering_operator.calc_domain_quantities(
-                    q_evaluators, solution, predicate_integrals, eval_flags);
-                }
-              else
-                {
-                  q_values =
-                    sintering_operator.calc_domain_quantities(q_evaluators,
-                                                              solution,
-                                                              eval_flags);
-                }
+                  std::vector<Number> q_values;
 
-              for (unsigned int i = 0; i < q_evaluators.size(); ++i)
-                table.add_value(q_labels[i], q_values[i]);
+                  if (box_filters[i])
+                    {
+                      const auto &box_filter = box_filters[i];
+
+                      std::function<VectorizedArrayType(
+                        const Point<dim, VectorizedArrayType> &)>
+                        predicate_integrals =
+                          [&box_filter](
+                            const Point<dim, VectorizedArrayType> &p) {
+                            return box_filter->filter(p);
+                          };
+
+                      q_values = sintering_operator.calc_domain_quantities(
+                        q_evaluators,
+                        solution,
+                        predicate_integrals,
+                        eval_flags);
+                    }
+                  else
+                    {
+                      q_values =
+                        sintering_operator.calc_domain_quantities(q_evaluators,
+                                                                  solution,
+                                                                  eval_flags);
+                    }
+
+
+                  for (unsigned int j = 0; j < q_evaluators.size(); ++j)
+                    table.add_value(generate_name(q_labels[j], i), q_values[j]);
+                }
             }
 
-          if (params.output_data.iso_surf_area)
+          for (unsigned int i = 0; i < box_filters.size(); ++i)
             {
-              const auto surface_area = Postprocessors::compute_surface_area(
+              if (box_filters[i])
+                {
+                  const auto box_volume =
+                    box_filters[i]->get_bounding_box().volume();
+
+                  table.add_value(generate_name("cntrl_box", i), box_volume);
+                }
+
+              if (params.output_data.iso_surf_area)
+                {
+                  const auto surface_area =
+                    Postprocessors::compute_surface_area(
+                      mapping,
+                      dof_handler,
+                      solution,
+                      iso_value,
+                      box_filters[i],
+                      params.output_data.n_mca_subdivisions);
+
+                  table.add_value(generate_name("iso_surf_area", i),
+                                  surface_area);
+                }
+
+              if (params.output_data.iso_gb_area)
+                {
+                  const auto gb_area =
+                    Postprocessors::compute_grain_boundaries_area(
+                      mapping,
+                      dof_handler,
+                      solution,
+                      iso_value,
+                      sintering_operator.n_grains(),
+                      params.output_data.gb_threshold,
+                      box_filters[i],
+                      params.output_data.n_mca_subdivisions);
+
+                  table.add_value(generate_name("iso_gb_area", i), gb_area);
+                }
+            }
+        }
+
+      for (unsigned int i = 0; i < box_filters.size(); ++i)
+        {
+          const std::string label_box = generate_name(label, i);
+
+          if (params.output_data.contours)
+            {
+              const std::string output =
+                params.output_data.vtk_path + "/contour_" + label_box + "." +
+                std::to_string(counters[label]) + ".vtu";
+
+              pcout << "Outputing data at t = " << t << " (" << output << ")"
+                    << std::endl;
+
+              Postprocessors::output_grain_contours_vtu(
                 mapping,
                 dof_handler,
                 solution,
                 iso_value,
-                box_filter,
+                output,
+                sintering_operator.n_grains(),
+                grain_tracker,
+                params.output_data.n_coarsening_steps,
+                box_filters[i],
                 params.output_data.n_mca_subdivisions);
-
-              table.add_value("iso_surf_area", surface_area);
             }
 
-          if (params.output_data.iso_gb_area)
+          if (params.output_data.concentration_contour)
             {
-              const auto gb_area =
-                Postprocessors::compute_grain_boundaries_area(
-                  mapping,
-                  dof_handler,
-                  solution,
-                  iso_value,
-                  sintering_operator.n_grains(),
-                  params.output_data.gb_threshold,
-                  box_filter,
-                  params.output_data.n_mca_subdivisions);
+              const std::string output =
+                params.output_data.vtk_path + "/surface_" + label_box + "." +
+                std::to_string(counters[label]) + ".vtu";
 
-              table.add_value("iso_gb_area", gb_area);
+              pcout << "Outputing data at t = " << t << " (" << output << ")"
+                    << std::endl;
+
+              const auto only_concentration = solution.create_view(0, 1);
+
+              Postprocessors::output_concentration_contour_vtu(
+                mapping,
+                dof_handler,
+                *only_concentration,
+                iso_value,
+                output,
+                params.output_data.n_coarsening_steps,
+                box_filters[i],
+                params.output_data.n_mca_subdivisions);
             }
-        }
 
-      if (params.output_data.contours)
-        {
-          const std::string output = params.output_data.vtk_path + "/contour_" +
-                                     label + "." +
-                                     std::to_string(counters[label]) + ".vtu";
+          if (params.output_data.grain_boundaries)
+            {
+              const std::string output =
+                params.output_data.vtk_path + "/gb_" + label_box + "." +
+                std::to_string(counters[label]) + ".vtu";
 
-          pcout << "Outputing data at t = " << t << " (" << output << ")"
-                << std::endl;
+              pcout << "Outputing data at t = " << t << " (" << output << ")"
+                    << std::endl;
 
-          Postprocessors::output_grain_contours_vtu(
-            mapping,
-            dof_handler,
-            solution,
-            iso_value,
-            output,
-            sintering_operator.n_grains(),
-            grain_tracker,
-            params.output_data.n_coarsening_steps,
-            box_filter,
-            params.output_data.n_mca_subdivisions);
-        }
+              Postprocessors::output_grain_boundaries_vtu(
+                mapping,
+                dof_handler,
+                solution,
+                iso_value,
+                output,
+                sintering_operator.n_grains(),
+                params.output_data.gb_threshold,
+                params.output_data.n_coarsening_steps,
+                box_filters[i],
+                params.output_data.n_mca_subdivisions);
+            }
 
-      if (params.output_data.concentration_contour)
-        {
-          const std::string output = params.output_data.vtk_path + "/surface_" +
-                                     label + "." +
-                                     std::to_string(counters[label]) + ".vtu";
+          if (params.output_data.porosity)
+            {
+              const std::string output =
+                params.output_data.vtk_path + "/porosity_" + label_box + "." +
+                std::to_string(counters[label]) + ".vtu";
 
-          pcout << "Outputing data at t = " << t << " (" << output << ")"
-                << std::endl;
+              pcout << "Outputing data at t = " << t << " (" << output << ")"
+                    << std::endl;
 
-          const auto only_concentration = solution.create_view(0, 1);
+              Postprocessors::output_porosity(
+                mapping,
+                dof_handler,
+                solution,
+                output,
+                params.output_data.porosity_max_value,
+                box_filters[i]);
+            }
 
-          Postprocessors::output_concentration_contour_vtu(
-            mapping,
-            dof_handler,
-            *only_concentration,
-            iso_value,
-            output,
-            params.output_data.n_coarsening_steps,
-            box_filter,
-            params.output_data.n_mca_subdivisions);
-        }
+          if (params.output_data.porosity_stats)
+            {
+              const std::string output =
+                params.output_data.vtk_path + "/porosity_stats_" + label_box +
+                "." + std::to_string(counters[label]) + ".log";
 
-      if (params.output_data.grain_boundaries)
-        {
-          const std::string output = params.output_data.vtk_path + "/gb_" +
-                                     label + "." +
-                                     std::to_string(counters[label]) + ".vtu";
+              pcout << "Outputing data at t = " << t << " (" << output << ")"
+                    << std::endl;
 
-          pcout << "Outputing data at t = " << t << " (" << output << ")"
-                << std::endl;
+              Postprocessors::output_porosity_stats(
+                dof_handler,
+                solution,
+                output,
+                params.output_data.porosity_max_value,
+                box_filters[i]);
+            }
 
-          Postprocessors::output_grain_boundaries_vtu(
-            mapping,
-            dof_handler,
-            solution,
-            iso_value,
-            output,
-            sintering_operator.n_grains(),
-            params.output_data.gb_threshold,
-            params.output_data.n_coarsening_steps,
-            box_filter,
-            params.output_data.n_mca_subdivisions);
+          if (params.output_data.porosity_contours)
+            {
+              const std::string output =
+                params.output_data.vtk_path + "/porosity_contours_" +
+                label_box + "." + std::to_string(counters[label]) + ".vtu";
+
+              pcout << "Outputing data at t = " << t << " (" << output << ")"
+                    << std::endl;
+
+              const auto only_concentration = solution.create_view(0, 1);
+
+              Postprocessors::output_porosity_contours_vtu(
+                mapping,
+                dof_handler,
+                *only_concentration,
+                iso_value,
+                output,
+                params.output_data.n_coarsening_steps,
+                box_filters[i],
+                params.output_data.n_mca_subdivisions,
+                params.output_data.porosity_smooth);
+            }
         }
 
       if (params.output_data.contours_tex)
@@ -2992,63 +3082,6 @@ namespace Sintering
                                                 output,
                                                 sintering_operator.n_grains(),
                                                 grain_tracker);
-        }
-
-      if (params.output_data.porosity)
-        {
-          const std::string output = params.output_data.vtk_path +
-                                     "/porosity_" + label + "." +
-                                     std::to_string(counters[label]) + ".vtu";
-
-          pcout << "Outputing data at t = " << t << " (" << output << ")"
-                << std::endl;
-
-          Postprocessors::output_porosity(mapping,
-                                          dof_handler,
-                                          solution,
-                                          output,
-                                          params.output_data.porosity_max_value,
-                                          box_filter);
-        }
-
-      if (params.output_data.porosity_stats)
-        {
-          const std::string output = params.output_data.vtk_path +
-                                     "/porosity_stats_" + label + "." +
-                                     std::to_string(counters[label]) + ".log";
-
-          pcout << "Outputing data at t = " << t << " (" << output << ")"
-                << std::endl;
-
-          Postprocessors::output_porosity_stats(
-            dof_handler,
-            solution,
-            output,
-            params.output_data.porosity_max_value,
-            box_filter);
-        }
-
-      if (params.output_data.porosity_contours)
-        {
-          const std::string output = params.output_data.vtk_path +
-                                     "/porosity_contours_" + label + "." +
-                                     std::to_string(counters[label]) + ".vtu";
-
-          pcout << "Outputing data at t = " << t << " (" << output << ")"
-                << std::endl;
-
-          const auto only_concentration = solution.create_view(0, 1);
-
-          Postprocessors::output_porosity_contours_vtu(
-            mapping,
-            dof_handler,
-            *only_concentration,
-            iso_value,
-            output,
-            params.output_data.n_coarsening_steps,
-            box_filter,
-            params.output_data.n_mca_subdivisions,
-            params.output_data.porosity_smooth);
         }
 
       if (params.output_data.shrinkage)

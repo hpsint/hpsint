@@ -240,8 +240,8 @@ namespace Sintering
                                     "energy",
                                     "subdomain"};
     bool                  mesh_overhead_estimate = false;
-    bool                  use_control_box        = false;
-    BoundingBoxData       control_box_data;
+    bool                  only_control_boxes     = false;
+
     std::set<std::string> domain_integrals = {"gb_area",
                                               "solid_vol",
                                               "surf_area",
@@ -251,6 +251,8 @@ namespace Sintering
     bool                  iso_gb_area      = false;
     bool                  quality_min      = false;
     double                gb_threshold     = 0.14;
+
+    std::vector<std::pair<Point<3>, Point<3>>> control_boxes;
   };
 
   struct RestartData
@@ -848,9 +850,9 @@ namespace Sintering
       prm.add_parameter("MeshOverheadEstimate",
                         output_data.mesh_overhead_estimate,
                         "Print mesh overhead estimate.");
-      prm.add_parameter("UseControlBox",
-                        output_data.use_control_box,
-                        "Use control box for domain integrals.");
+      prm.add_parameter("OnlyControlBoxes",
+                        output_data.only_control_boxes,
+                        "Output only for control boxes.");
       const std::string domain_integrals_options =
         "gb_area|solid_vol|surf_area|avg_grain_size|surf_area_nrm|free_energy|bulk_energy|interface_energy|order_params";
       prm.add_parameter("DomainIntegrals",
@@ -859,14 +861,19 @@ namespace Sintering
                         Patterns::List(Patterns::MultipleSelection(
                           domain_integrals_options)));
 
-      prm.enter_subsection("ControlBox");
-      prm.add_parameter("Xmin", output_data.control_box_data.x_min, "x min.");
-      prm.add_parameter("Xmax", output_data.control_box_data.x_max, "x max.");
-      prm.add_parameter("Ymin", output_data.control_box_data.y_min, "y min.");
-      prm.add_parameter("Ymax", output_data.control_box_data.y_max, "y max.");
-      prm.add_parameter("Zmin", output_data.control_box_data.z_min, "z min.");
-      prm.add_parameter("Zmax", output_data.control_box_data.z_max, "z max.");
-      prm.leave_subsection();
+      std::vector<std::unique_ptr<Patterns::PatternBase>> ps;
+      ps.template emplace_back(
+        Patterns::Tools::Convert<Point<3>>::to_pattern());
+      ps.template emplace_back(
+        Patterns::Tools::Convert<Point<3>>::to_pattern());
+
+      prm.add_parameter("ControlBoxes",
+                        output_data.control_boxes,
+                        "Control boxes to use for output.",
+                        Patterns::List(Patterns::Tuple(ps, ";"),
+                                       0,
+                                       Patterns::List::max_int_value,
+                                       "|"));
 
       prm.add_parameter("GrainBoundaries",
                         output_data.grain_boundaries,
