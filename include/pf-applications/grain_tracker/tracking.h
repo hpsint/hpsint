@@ -25,6 +25,8 @@ namespace GrainTracker
 {
   using namespace dealii;
 
+  DeclExceptionMsg(ExcGrainsInconsistency, "Grains inconsistency detected!");
+
   template <int dim>
   std::vector<std::vector<unsigned int>>
   extract_grain_indices_per_op(const std::map<unsigned int, Grain<dim>> &grains,

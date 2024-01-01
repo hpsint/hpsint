@@ -53,8 +53,6 @@ namespace GrainTracker
 {
   using namespace dealii;
 
-  DeclExceptionMsg(ExcGrainsInconsistency, "Grains inconsistency detected!");
-
   /* The grain tracker algo itself. */
   template <int dim, typename Number>
   class Tracker : public Subscriptor
