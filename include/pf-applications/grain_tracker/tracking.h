@@ -20,6 +20,7 @@
 #include <pf-applications/base/geometry.h>
 
 #include "grain.h"
+#include "output.h"
 
 namespace GrainTracker
 {
@@ -59,6 +60,7 @@ namespace GrainTracker
 
     // This can be refactored such that vector is used
     std::map<unsigned int, unsigned int> new_grains_to_old;
+    std::map<unsigned int, unsigned int> old_grains_to_new;
 
     for (unsigned int op = 0; op < n_order_params; ++op)
       {
@@ -103,7 +105,37 @@ namespace GrainTracker
                 {
                   const unsigned int old_grain_id =
                     old_segments_to_grains[result[0]];
+
+                  const auto it_old_to_new =
+                    old_grains_to_new.find(old_grain_id);
+
+                  if (it_old_to_new != old_grains_to_new.end())
+                    {
+                      std::ostringstream ss;
+                      ss << "Mapping conflict has been detected." << std::endl;
+                      ss << "An old grain is mapped at least to 2 new grains:"
+                         << std::endl;
+                      ss << std::endl;
+
+                      ss << "old grain:" << std::endl;
+                      print_grain(old_grains.at(old_grain_id), ss);
+                      ss << std::endl;
+
+                      ss << "new grain 1:" << std::endl;
+                      print_grain(new_grains.at(it_old_to_new->second), ss);
+                      ss << std::endl;
+
+                      ss << "new grain 2:" << std::endl;
+                      print_grain(new_grains.at(grain_id), ss);
+
+                      // Thrown an exception
+                      AssertThrow(it_old_to_new == old_grains_to_new.end(),
+                                  ExcGrainsInconsistency(ss.str()));
+                    }
+
                   new_grains_to_old.at(grain_id) = old_grain_id;
+                  old_grains_to_new.try_emplace(old_grain_id, grain_id);
+
                   break;
                 }
             }
