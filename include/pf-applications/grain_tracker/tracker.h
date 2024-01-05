@@ -53,8 +53,6 @@ namespace GrainTracker
 {
   using namespace dealii;
 
-  DeclExceptionMsg(ExcGrainsInconsistency, "Grains inconsistency detected!");
-
   /* The grain tracker algo itself. */
   template <int dim, typename Number>
   class Tracker : public Subscriptor
@@ -264,6 +262,17 @@ namespace GrainTracker
           // Thrown an exception
           AssertThrow(invalid_grains.empty(), ExcGrainsInconsistency(ss.str()));
         }
+
+      // Check if all the new grains were mapped or identified as new
+      AssertThrow(
+        new_grains.size() == grains.size(),
+        ExcGrainsInconsistency(
+          std::string("Not all initially detected grains have been mapped") +
+          std::string(" to the old ones or properly added as new:\r\n") +
+          std::string("\r\n    # of detected grains = ") +
+          std::to_string(new_grains.size()) +
+          std::string("\r\n    # of mapped grains   = ") +
+          std::to_string(grains.size())));
 
       // Variables to return the result
       bool         grains_reassigned = false;
