@@ -109,11 +109,18 @@ if args.labels:
 markers = ["s", "D", "o", "x", "P", "*", "v"]
 markers = list(islice(cycle(markers), n_files))
 
+# We will start from the longest field
+available_fields.sort(key=len, reverse=True)
+
 for i in range(n_fields):
     field = args.yaxes[i]
     a = ax[i]
 
     x_lims = [sys.float_info.max, -sys.float_info.max]
+
+    tokens = {}
+    token_prefix = '%token_{}'
+    token_numberer = 0
 
     for f, lbl, clr, mrk in zip(files_list, labels, colors, markers):
         cdata = np.genfromtxt(f, dtype=None, names=True, delimiter=args.delimiter)
@@ -131,7 +138,14 @@ for i in range(n_fields):
         if not field in available_fields:
             formula = field
             for possible_field in available_fields:
-                formula = formula.replace(possible_field, "cdata['{}'][mask]".format(possible_field))
+                if possible_field in formula: 
+                    token = token_prefix.format(token_numberer)
+                    formula = formula.replace(possible_field, token)
+                    tokens[token] = "cdata['{}'][mask]".format(possible_field)
+                    token_numberer += 1
+
+            for key, value in tokens.items():
+                formula = formula.replace(key, value)
 
             # Try to split expression for custom y label
             expressions = formula.split('=')

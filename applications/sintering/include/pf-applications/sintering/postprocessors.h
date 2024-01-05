@@ -2544,6 +2544,8 @@ namespace Sintering
           table.add_value("id", grain_id);
           table.add_value("measure", grain.get_measure());
           table.add_value("radius", grain.get_max_radius());
+          table.add_value("max_value", grain.get_max_value());
+          table.add_value("order_parameter_id", grain.get_order_parameter_id());
 
           for (unsigned int d = 0; d < dim; ++d)
             table.add_value(labels_coords[d],
