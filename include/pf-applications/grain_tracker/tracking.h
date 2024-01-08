@@ -169,8 +169,6 @@ namespace GrainTracker
                       new_grains_to_old.at(grain_id)     = old_grain_id;
                       old_grains_to_new.at(old_grain_id) = grain_id;
                     }
-
-                  break;
                 }
             }
       }
