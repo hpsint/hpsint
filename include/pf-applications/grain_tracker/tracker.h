@@ -162,7 +162,9 @@ namespace GrainTracker
       const auto new_grains_to_old =
         transfer_grain_ids(new_grains, old_grains, n_order_params);
 
-      // Create segments and transfer grain_id's for them
+      // Create segments and transfer grain_ids for them. We also keep track of
+      // the omitted grains to check at the end if we have forgotten anything.
+      unsigned int n_skipped_grains = 0;
       for (const auto &[current_grain_id, new_grain] : new_grains)
         {
           unsigned int new_grain_id = new_grains_to_old.at(current_grain_id);
@@ -171,23 +173,29 @@ namespace GrainTracker
           typename Grain<dim>::Dynamics new_dynamics = Grain<dim>::None;
 
           // Check the grain number
-          if (new_grain_id == std::numeric_limits<unsigned int>::max() &&
-              new_grain.get_max_value() > threshold_new_grains)
+          if (new_grain_id == std::numeric_limits<unsigned int>::max())
             {
-              if (allow_new_grains)
+              if (new_grain.get_max_value() > threshold_new_grains)
                 {
-                  // If new grains are allowed, then simply assign the next
-                  // available index
-                  new_grain_id = grain_numberer++;
+                  if (allow_new_grains)
+                    {
+                      // If new grains are allowed, then simply assign the next
+                      // available index
+                      new_grain_id = grain_numberer++;
+                    }
+                  else
+                    {
+                      // Otherwise add to the map of invalid grains
+                      invalid_grains.emplace(
+                        std::make_pair(numerator_invalid++, new_grain));
+                    }
                 }
               else
                 {
-                  // Otherwise add to the map of invalid grains
-                  invalid_grains.emplace(
-                    std::make_pair(numerator_invalid++, new_grain));
+                  ++n_skipped_grains;
                 }
             }
-          else if (new_grain_id != std::numeric_limits<unsigned int>::max())
+          else
             {
               // clang-format off
               AssertThrow(old_grains.at(new_grain_id).get_order_parameter_id() 
@@ -265,7 +273,7 @@ namespace GrainTracker
 
       // Check if all the new grains were mapped or identified as new
       AssertThrow(
-        new_grains.size() == grains.size(),
+        new_grains.size() == (grains.size() + n_skipped_grains),
         ExcGrainsInconsistency(
           std::string("Not all initially detected grains have been mapped") +
           std::string(" to the old ones or properly added as new:\r\n") +
