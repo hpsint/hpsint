@@ -23,7 +23,7 @@ using namespace GrainTracker;
 int
 main()
 {
-  // Map 2 old grains to 2 new grains: multisegments
+  // Map 2 old grains to 1 new grain: a nearly conflict case
 
   constexpr unsigned int dim = 2;
 
