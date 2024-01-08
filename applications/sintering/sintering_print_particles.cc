@@ -88,8 +88,8 @@ main(int argc, char **argv)
         data_out.attach_triangulation(tria);
         data_out.build_patches();
 
-        const auto fname = "my_grid_" + stem_name + ".vtu";
-        data_out.write_vtu_in_parallel(parent_path / fname, MPI_COMM_WORLD);
+        const auto fname = "my_grid_" + std::to_string(i - 1) + ".vtu";
+        data_out.write_vtu_in_parallel(fname, MPI_COMM_WORLD);
       }
 
       {
@@ -100,8 +100,8 @@ main(int argc, char **argv)
           std::vector<DataComponentInterpretation::DataComponentInterpretation>(
             3, DataComponentInterpretation::component_is_scalar));
 
-        const auto fname = "my_particles_" + stem_name + ".vtu";
-        data_out.write_vtu_in_parallel(parent_path / fname, MPI_COMM_WORLD);
+        const auto fname = "my_particles_" + std::to_string(i - 1) + ".vtu";
+        data_out.write_vtu_in_parallel(fname, MPI_COMM_WORLD);
       }
     }
 }
