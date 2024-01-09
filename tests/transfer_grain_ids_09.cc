@@ -23,7 +23,7 @@ using namespace GrainTracker;
 int
 main()
 {
-  // Map 2 old grains to 2 new grains: multisegments
+  // Map 7 old grains to 7 new grains
 
   constexpr unsigned int dim = 3;
 

@@ -148,34 +148,27 @@ namespace GrainTracker
                   const auto it_old_to_new =
                     old_grains_to_new.find(old_grain_id);
 
-                  if (it_old_to_new != old_grains_to_new.end())
+                  // Create "new -> old" and "old -> new" mappings. The latter
+                  // is always checked to ensure that the mapping "new -> old"
+                  // is unambiguous, i.e. an old grain can be mapped only to one
+                  // new grain.
+                  if (it_old_to_new == old_grains_to_new.end())
                     {
-                      std::ostringstream ss;
-                      ss << "Mapping conflict has been detected." << std::endl;
-                      ss << "An old grain is mapped at least to 2 new grains:"
-                         << std::endl;
-                      ss << std::endl;
-
-                      ss << "old grain:" << std::endl;
-                      print_grain(old_grains.at(old_grain_id), ss);
-                      ss << std::endl;
-
-                      ss << "new grain 1:" << std::endl;
-                      print_grain(new_grains.at(it_old_to_new->second), ss);
-                      ss << std::endl;
-
-                      ss << "new grain 2:" << std::endl;
-                      print_grain(new_grains.at(grain_id), ss);
-
-                      // Thrown an exception
-                      AssertThrow(it_old_to_new == old_grains_to_new.end(),
-                                  ExcGrainsInconsistency(ss.str()));
+                      // Add new mapping if it does not exist yet
+                      new_grains_to_old.at(grain_id) = old_grain_id;
+                      old_grains_to_new.try_emplace(old_grain_id, grain_id);
                     }
-
-                  new_grains_to_old.at(grain_id) = old_grain_id;
-                  old_grains_to_new.try_emplace(old_grain_id, grain_id);
-
-                  break;
+                  else if (new_grains.at(grain_id).get_max_value() >
+                           new_grains.at(it_old_to_new->second).get_max_value())
+                    {
+                      // Overwrite the existing mapping if a newly detected
+                      // candidate grain has a larger max_value than the one
+                      // mapped previously
+                      new_grains_to_old.at(it_old_to_new->second) =
+                        numbers::invalid_unsigned_int;
+                      new_grains_to_old.at(grain_id)     = old_grain_id;
+                      old_grains_to_new.at(old_grain_id) = grain_id;
+                    }
                 }
             }
       }
