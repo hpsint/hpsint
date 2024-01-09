@@ -257,15 +257,8 @@ namespace GrainTracker
         {
           std::ostringstream ss;
           ss << "Unable to match some new grains with old ones "
-             << "from the previous configuration!" << std::endl;
-          ss << std::endl;
-
-          ss << "Problematic grains:" << std::endl;
+             << "from the previous configuration:" << std::endl;
           print_grains(invalid_grains, ss);
-          ss << std::endl;
-
-          ss << "Grains which were successfully assigned:" << std::endl;
-          print_grains(grains, ss);
 
           // Thrown an exception
           AssertThrow(invalid_grains.empty(), ExcGrainsInconsistency(ss.str()));

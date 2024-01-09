@@ -2166,10 +2166,13 @@ namespace Sintering
                         pcout << "\033[31m"
                               << "The errors appeared while matching the grains"
                               << "\033[0m" << std::endl;
-                        pcout
-                          << "The list of grains from the previous successful GT run:"
-                          << std::endl;
+                        pcout << "Grains from the previous successful GT run:"
+                              << std::endl;
                         grain_tracker.print_old_grains(pcout);
+
+                        pcout << "Grains which were successfully assigned:"
+                              << std::endl;
+                        grain_tracker.print_current_grains(pcout);
 
                         AssertThrow(false, ExcMessage(ex.what()));
                       }
