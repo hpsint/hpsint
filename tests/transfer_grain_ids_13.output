@@ -1,0 +1,19 @@
+Mapping conflict "old -> new" has been detected
+  existing mapping: 14 -> 4
+ candidate mapping: 14 -> 5
+old grain:
+op_index_current = 0 | op_index_old = 0 | segments = 1 | grain_index = 14
+    segment: center = 0 0 | radius = 2 | max_value = 1
+new grain already mapped:
+op_index_current = 0 | op_index_old = 0 | segments = 1 | grain_index = 4
+    segment: center = 1 1 | radius = 1.7 | max_value = 1
+new grain candidate for mapping:
+op_index_current = 0 | op_index_old = 0 | segments = 1 | grain_index = 5
+    segment: center = 1.9 1.9 | radius = 0.12 | max_value = 0.015
+The existing mapping was kept and the candidate was omitted.
+# of old grains = 2
+# of new grains = 3
+Grains mapping (new_id -> old_id):
+2 -> 12
+4 -> 14
+5 -> 4294967295
