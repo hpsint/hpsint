@@ -73,6 +73,7 @@ namespace GrainTracker
             const double       buffer_distance_fixed                     = 0.0,
             const unsigned int order_parameters_offset                   = 2,
             const bool         do_timing                                 = true,
+            const bool         do_logging    = false,
             const bool         use_old_remap = false)
       : dof_handler(dof_handler)
       , tria(tria)
@@ -85,6 +86,7 @@ namespace GrainTracker
       , buffer_distance_ratio(buffer_distance_ratio)
       , buffer_distance_fixed(buffer_distance_fixed)
       , order_parameters_offset(order_parameters_offset)
+      , do_logging(do_logging)
       , use_old_remap(use_old_remap)
       , pcout(std::cout, Utilities::MPI::this_mpi_process(MPI_COMM_WORLD) == 0)
       , timer(do_timing)
@@ -107,7 +109,9 @@ namespace GrainTracker
                                                buffer_distance_ratio,
                                                buffer_distance_fixed,
                                                order_parameters_offset,
-                                               timer.is_enabled());
+                                               timer.is_enabled(),
+                                               do_logging,
+                                               use_old_remap);
 
       new_tracker->op_particle_ids           = this->op_particle_ids;
       new_tracker->particle_ids_to_grain_ids = this->particle_ids_to_grain_ids;
@@ -159,8 +163,21 @@ namespace GrainTracker
       std::map<unsigned int, Grain<dim>> invalid_grains;
       unsigned int                       numerator_invalid = 0;
 
-      const auto new_grains_to_old =
-        transfer_grain_ids(new_grains, old_grains, n_order_params);
+      // We may output additional info for debug purposes
+      std::map<unsigned int, unsigned int> new_grains_to_old;
+      if (do_logging)
+        {
+          std::stringstream ss;
+          new_grains_to_old =
+            transfer_grain_ids(new_grains, old_grains, n_order_params, ss);
+
+          pcout << ss.str();
+        }
+      else
+        {
+          new_grains_to_old =
+            transfer_grain_ids(new_grains, old_grains, n_order_params);
+        }
 
       // Create segments and transfer grain_ids for them. We also keep track of
       // the omitted grains to check at the end if we have forgotten anything.
@@ -674,10 +691,13 @@ namespace GrainTracker
           const unsigned int op_id =
             gr.get_order_parameter_id() + order_parameters_offset;
 
-          std::ostringstream ss;
-          ss << "Grain " << gr.get_grain_id() << " having order parameter "
-             << op_id << " has disappered" << std::endl;
-          log.emplace_back(ss.str());
+          if (do_logging)
+            {
+              std::ostringstream ss;
+              ss << "Grain " << gr.get_grain_id() << " having order parameter "
+                 << op_id << " has disappered" << std::endl;
+              log.emplace_back(ss.str());
+            }
 
           alter_dof_values_for_grain(
             gr,
@@ -778,11 +798,14 @@ namespace GrainTracker
            * at the moment we do not handle them due to complexity.
            */
 
-          std::ostringstream ss;
-          ss << "Remapping dependencies have been detected and resolved."
-             << std::endl;
-          graph.print(ss);
-          log.emplace_back(ss.str());
+          if (do_logging)
+            {
+              std::ostringstream ss;
+              ss << "Remapping dependencies have been detected and resolved."
+                 << std::endl;
+              graph.print(ss);
+              log.emplace_back(ss.str());
+            }
 
           AssertThrowDistributedDimension(remappings.size());
 
@@ -837,10 +860,13 @@ namespace GrainTracker
           const auto &re    = it->first;
           const auto &grain = grains.at(re.grain_id);
 
-          std::ostringstream ss;
-          ss << "Remap order parameter for grain id = " << re.grain_id
-             << ": from " << re.from << " to temp" << std::endl;
-          log.emplace_back(ss.str());
+          if (do_logging)
+            {
+              std::ostringstream ss;
+              ss << "Remap order parameter for grain id = " << re.grain_id
+                 << ": from " << re.from << " to temp" << std::endl;
+              log.emplace_back(ss.str());
+            }
 
           const unsigned int op_id_src = re.from + order_parameters_offset;
           const unsigned int op_id_dst = it - remappings_via_temp.begin();
@@ -882,10 +908,13 @@ namespace GrainTracker
           const unsigned int op_id_src = re.from + order_parameters_offset;
           const unsigned int op_id_dst = re.to + order_parameters_offset;
 
-          std::ostringstream ss;
-          ss << "Remap order parameter for grain id = " << re.grain_id
-             << ": from " << re.from << " to " << re.to << std::endl;
-          log.emplace_back(ss.str());
+          if (do_logging)
+            {
+              std::ostringstream ss;
+              ss << "Remap order parameter for grain id = " << re.grain_id
+                 << ": from " << re.from << " to " << re.to << std::endl;
+              log.emplace_back(ss.str());
+            }
 
           /* At first we transfer the values from the dofs related to the
            * old order parameters to the dofs of the new order parameter.
@@ -919,10 +948,13 @@ namespace GrainTracker
           const auto &re    = it->second;
           const auto &grain = grains.at(re.grain_id);
 
-          std::ostringstream ss;
-          ss << "Remap order parameter for grain id = " << re.grain_id
-             << ": from temp to " << re.to << std::endl;
-          log.emplace_back(ss.str());
+          if (do_logging)
+            {
+              std::ostringstream ss;
+              ss << "Remap order parameter for grain id = " << re.grain_id
+                 << ": from temp to " << re.to << std::endl;
+              log.emplace_back(ss.str());
+            }
 
           const unsigned int op_id_src = it - remappings_via_temp.begin();
           const unsigned int op_id_dst = re.to + order_parameters_offset;
@@ -945,7 +977,8 @@ namespace GrainTracker
            */
         }
 
-      print_log(log);
+      if (do_logging)
+        print_log(log);
 
       return n_grains_remapped;
     }
@@ -1442,17 +1475,21 @@ namespace GrainTracker
                       if (gr_other.get_order_parameter_id() ==
                           gr_base.get_order_parameter_id())
                         {
-                          std::ostringstream ss;
-                          ss << "Found an overlap between grain "
-                             << gr_base.get_grain_id() << " and grain "
-                             << gr_other.get_grain_id()
-                             << " with order parameter "
-                             << gr_base.get_order_parameter_id() << std::endl;
-
-                          log.emplace_back(ss.str());
-
                           remap_candidates.insert(
                             grains_to_sparsity.at(g_other_id));
+
+                          if (do_logging)
+                            {
+                              std::ostringstream ss;
+                              ss << "Found an overlap between grain "
+                                 << gr_base.get_grain_id() << " and grain "
+                                 << gr_other.get_grain_id()
+                                 << " with order parameter "
+                                 << gr_base.get_order_parameter_id()
+                                 << std::endl;
+
+                              log.emplace_back(ss.str());
+                            }
                         }
                     }
                 }
@@ -1528,13 +1565,16 @@ namespace GrainTracker
                         {
                           perform_coloring = true;
 
-                          std::ostringstream ss;
-                          ss
-                            << "The simplified reassignment strategy exceeded "
-                            << "the maximum number of order parameters allowed. "
-                            << "Switching to the complete graph coloring."
-                            << std::endl;
-                          log.emplace_back(ss.str());
+                          if (do_logging)
+                            {
+                              std::ostringstream ss;
+                              ss
+                                << "The simplified reassignment strategy exceeded "
+                                << "the maximum number of order parameters allowed. "
+                                << "Switching to the complete graph coloring."
+                                << std::endl;
+                              log.emplace_back(ss.str());
+                            }
 
                           break;
                         }
@@ -1653,7 +1693,8 @@ namespace GrainTracker
           active_order_parameters = extract_active_order_parameter_ids(grains);
         }
 
-      print_log(log);
+      if (do_logging)
+        print_log(log);
 
       return std::make_tuple(n_collisions, grains_reassigned);
     }
@@ -1840,6 +1881,9 @@ namespace GrainTracker
 
     // Total number of segments
     unsigned int n_total_segments;
+
+    // Use detailed logging
+    const bool do_logging;
 
     // Use old remapping algo
     const bool use_old_remap;
