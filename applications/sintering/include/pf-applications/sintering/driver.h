@@ -1726,7 +1726,9 @@ namespace Sintering
         ScopedName sc("run_grain_tracker");
         MyScope    scope(timer, sc);
 
-        pcout << "Execute grain tracker:" << std::endl;
+        pcout << "Execute grain tracker("
+              << (do_initialize ? "initial_setup" : "track")
+              << "):" << std::endl;
 
         system_has_changed = true;
 
