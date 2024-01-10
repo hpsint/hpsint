@@ -914,6 +914,7 @@ namespace Sintering
       const bool         allow_new_grains        = false;
       const unsigned int order_parameters_offset = 2;
       const bool         do_timing               = true;
+      const bool         do_logging = params.grain_tracker_data.verbosity >= 1;
 
       GrainTracker::Tracker<dim, Number> grain_tracker(
         dof_handler,
@@ -928,6 +929,7 @@ namespace Sintering
         params.grain_tracker_data.buffer_distance_fixed,
         order_parameters_offset,
         do_timing,
+        do_logging,
         params.grain_tracker_data.use_old_remap);
 
       // Advection physics for shrinkage
@@ -1789,7 +1791,19 @@ namespace Sintering
               << Utilities::MPI::max(time_total_double, MPI_COMM_WORLD)
               << " sec" << std::endl;
 
-        grain_tracker.print_current_grains(pcout);
+        // By default the output is limited
+        if (params.grain_tracker_data.verbosity >= 2)
+          {
+            grain_tracker.print_current_grains(pcout);
+          }
+        else
+          {
+            pcout << "Number of order parameters: "
+                  << grain_tracker.get_active_order_parameters().size()
+                  << std::endl;
+            pcout << "Number of grains: " << grain_tracker.get_grains().size()
+                  << std::endl;
+          }
 
         // Rebuild data structures if grains have been reassigned
         if (has_reassigned_grains || has_op_number_changed)
@@ -2538,7 +2552,8 @@ namespace Sintering
                   }
 
                 // Print grain forces
-                if (params.advection_data.enable)
+                if (params.advection_data.enable &&
+                    params.grain_tracker_data.verbosity >= 2)
                   advection_mechanism.print_forces(pcout, grain_tracker);
               }
             catch (const NonLinearSolvers::ExcNewtonDidNotConverge &e)
