@@ -1961,7 +1961,7 @@ namespace Sintering
                        const unsigned int     n_intervals = 10)
     {
       const double threshold = 0.5 - 1e-2;
-      const double abs_tol   = 1e-15;
+      const double rel_tol   = 1e-3;
 
       FEValues<dim> fe_values(mapping,
                               dof_handler.get_fe(),
@@ -2016,29 +2016,26 @@ namespace Sintering
                             return val < threshold;
                           }))
             {
-              const double c_norm = values.linfty_norm();
+              const double c_norm  = values.linfty_norm();
+              const double abs_tol = rel_tol * cell->diameter();
 
               for (unsigned int d = 0; d < dim; ++d)
                 {
                   if (min_cells[d].first.state() == IteratorState::invalid ||
-                      (std::abs(cell->barycenter()[d] -
-                                min_cells[d].first->barycenter()[d]) <
-                         abs_tol &&
+                      (std::abs(cell->center()[d] -
+                                min_cells[d].first->center()[d]) < abs_tol &&
                        c_norm > min_cells[d].second) ||
-                      cell->barycenter()[d] <
-                        min_cells[d].first->barycenter()[d])
+                      cell->center()[d] < min_cells[d].first->center()[d])
                     {
                       min_cells[d].first  = cell;
                       min_cells[d].second = c_norm;
                     }
 
                   if (max_cells[d].first.state() == IteratorState::invalid ||
-                      (std::abs(cell->barycenter()[d] -
-                                max_cells[d].first->barycenter()[d]) <
-                         abs_tol &&
+                      (std::abs(cell->center()[d] -
+                                max_cells[d].first->center()[d]) < abs_tol &&
                        c_norm > max_cells[d].second) ||
-                      cell->barycenter()[d] >
-                        max_cells[d].first->barycenter()[d])
+                      cell->center()[d] > max_cells[d].first->center()[d])
                     {
                       max_cells[d].first  = cell;
                       max_cells[d].second = c_norm;
