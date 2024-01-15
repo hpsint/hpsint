@@ -19,6 +19,9 @@
 
 #include <pf-applications/base/geometry.h>
 
+#include <functional>
+#include <optional>
+
 #include "grain.h"
 #include "output.h"
 
@@ -44,9 +47,11 @@ namespace GrainTracker
   // Advanced ids assignment algo based on rtrees
   template <int dim>
   std::map<unsigned int, unsigned int>
-  transfer_grain_ids(const std::map<unsigned int, Grain<dim>> &new_grains,
-                     const std::map<unsigned int, Grain<dim>> &old_grains,
-                     const unsigned int                        n_order_params)
+  transfer_grain_ids(
+    const std::map<unsigned int, Grain<dim>> &          new_grains,
+    const std::map<unsigned int, Grain<dim>> &          old_grains,
+    const unsigned int                                  n_order_params,
+    std::optional<std::reference_wrapper<std::ostream>> logger = {})
   {
     // This algorithm works now only for grains with a single segment
     namespace bgi = boost::geometry::index;
@@ -147,6 +152,40 @@ namespace GrainTracker
                   // Check if mapping already exists
                   const auto it_old_to_new =
                     old_grains_to_new.find(old_grain_id);
+
+                  // Log the mapping conflicts resolution
+                  if (logger && it_old_to_new != old_grains_to_new.end())
+                    {
+                      auto &ss = logger->get();
+
+                      ss << "Mapping conflict \"old -> new\" has been detected"
+                         << std::endl;
+                      ss << "  existing mapping: " << old_grain_id << " -> "
+                         << it_old_to_new->second << std::endl;
+                      ss << " candidate mapping: " << old_grain_id << " -> "
+                         << grain_id << std::endl;
+                      ss << "old grain:" << std::endl;
+                      print_grain(old_grains.at(old_grain_id), ss);
+
+                      ss << "new grain already mapped:" << std::endl;
+                      print_grain(new_grains.at(it_old_to_new->second), ss);
+
+                      ss << "new grain candidate for mapping:" << std::endl;
+                      print_grain(new_grains.at(grain_id), ss);
+
+                      // This check appears below too, it was decided to
+                      // separate loggin logic to the independent block for the
+                      // code clarity
+                      if (new_grains.at(grain_id).get_max_value() >
+                          new_grains.at(it_old_to_new->second).get_max_value())
+                        ss
+                          << "The existing mapping was overwritten with the candidate."
+                          << std::endl;
+                      else
+                        ss
+                          << "The existing mapping was kept and the candidate was omitted."
+                          << std::endl;
+                    }
 
                   // Create "new -> old" and "old -> new" mappings. The latter
                   // is always checked to ensure that the mapping "new -> old"

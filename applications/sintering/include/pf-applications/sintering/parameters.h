@@ -91,6 +91,7 @@ namespace Sintering
     double       buffer_distance_ratio   = 0.05;
     double       buffer_distance_fixed   = 0.0;
     unsigned int grain_tracker_frequency = 10; // 0 - no grain tracker
+    unsigned int verbosity               = 0;
 
     bool fast_reassignment  = false;
     bool track_with_quality = false;
@@ -586,6 +587,9 @@ namespace Sintering
       prm.add_parameter("GrainTrackerFrequency",
                         grain_tracker_data.grain_tracker_frequency,
                         "Grain tracker frequency (0 = no grain tracking).");
+      prm.add_parameter("Verbosity",
+                        grain_tracker_data.verbosity,
+                        "Grain tracker verbosity level.");
       prm.add_parameter("FastReassignment",
                         grain_tracker_data.fast_reassignment,
                         "Use fast grain reassignment strategy.");
