@@ -1483,6 +1483,13 @@ namespace Sintering
           dir_parameters.set("Method",
                              params.nonlinear_data.nox_data.direction_method);
 
+          /* Disable the recovery feature of NOX such that it behaves similarly
+           * to our damped solver in the case of linear solver failure. It has
+           * been observed that recovery steps are not efficient for our
+           * problem, so no need to waste time on them. */
+          dir_parameters.sublist("Newton").set("Rescue Bad Newton Solve",
+                                               false);
+
           auto &search_parameters =
             non_linear_parameters->sublist("Line Search");
           search_parameters.set(
