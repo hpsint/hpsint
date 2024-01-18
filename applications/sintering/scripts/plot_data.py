@@ -49,6 +49,7 @@ parser.add_argument("-y", "--yaxes", dest="yaxes", nargs='+', required=False, he
 parser.add_argument("-l", "--limits", dest='limits', required=False, nargs=2, help="Limits for x-axis", type=float, default=None)
 parser.add_argument("-m", "--markers", dest='markers', required=False, help="Number of markers", type=int, default=30)
 parser.add_argument("-c", "--collapse", dest='collapse', required=False, help="Shorten labels", action="store_true", default=False)
+parser.add_argument("-e", "--extend-to", dest='extend_to', required=False, help="Extend labels when shortening to", type=str, default=None)
 parser.add_argument("-s", "--skip-first", dest='skip_first', required=False, help="Skip first entry", action="store_true", default=True)
 parser.add_argument("-g", "--single-legend", dest='single_legend', required=False, help="Use single legend", action="store_true", default=False)
 parser.add_argument("-b", "--labels", dest='labels', required=False, nargs='+', help="Customized labels", default=None)
@@ -96,7 +97,7 @@ fig, ax = create_axes(n_fields)
 
 # Generate labels
 if args.collapse:
-    labels = library.generate_short_labels(files_list)
+    labels = library.generate_short_labels(files_list, args.extend_to)
 else:
     labels = files_list.copy()
 

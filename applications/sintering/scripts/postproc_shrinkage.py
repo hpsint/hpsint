@@ -14,6 +14,7 @@ parser.add_argument("-d", "--directions", dest="directions", nargs='+',
 parser.add_argument("-l", "--limits", dest='limits', nargs=2, required=False, help="Limits for x-axis", type=float, default=[-sys.float_info.max, sys.float_info.max])
 parser.add_argument("-m", "--markers", dest='markers', required=False, help="Number of markers", type=int, default=30)
 parser.add_argument("-c", "--collapse", dest='collapse', required=False, help="Shorten labels", action="store_true", default=False)
+parser.add_argument("-e", "--extend-to", dest='extend_to', required=False, help="Extend labels when shortening to", type=str, default=None)
 parser.add_argument("-s", "--save", dest='save', required=False, help="Save shrinkage data", action="store_true", default=False)
 parser.add_argument("-o", "--output", dest='output', required=False, help="Destination path to output csv files", type=str, default=None)
 parser.add_argument("-b", "--labels", dest='labels', required=False, nargs='+', help="Customized labels", default=None)
@@ -46,7 +47,7 @@ fig.suptitle('Shrinkage and densification')
 
 # Generate labels
 if args.collapse:
-    labels = library.generate_short_labels(files_list)
+    labels = library.generate_short_labels(files_list, args.extend_to)
 else:
     labels = files_list.copy()
 
@@ -58,7 +59,7 @@ if args.labels:
 # CSV names
 if args.save:
     if args.output is not None:
-        file_names = library.generate_short_labels(files_list) if not args.collapse else labels
+        file_names = library.generate_short_labels(files_list, args.extend_to) if not args.collapse else labels
         csv_names = [os.path.join(args.output, n.replace(os.sep, "_") + "_shrinkage.csv")  for n in file_names]
     else:
         csv_names = [os.path.splitext(f)[0] + "_shrinkage.csv" for f in files_list]

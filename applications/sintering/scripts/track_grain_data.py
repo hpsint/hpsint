@@ -16,6 +16,7 @@ parser.add_argument("-g", "--grains", type=int, help="Grain indices", nargs='+',
 parser.add_argument("-q", "--quantities", type=str, help="Grain indices", nargs='+', required=False)
 parser.add_argument("-o", "--output", type=str, required=False, help="Destination csv file", default=None)
 parser.add_argument("-n", "--replace-nans", action='store_true', help="Replace nans", required=False, default=False)
+parser.add_argument("-e", "--extend-to", dest='extend_to', required=False, help="Extend labels when shortening to", type=str, default=None)
 
 # Parse arguments
 args = parser.parse_args()
@@ -126,7 +127,7 @@ csv_format = " ".join(csv_format)
 
 # Save csv names
 if args.output is not None:
-    file_names = library.generate_short_labels(list_solution_files)
+    file_names = library.generate_short_labels(list_solution_files, args.extend_to)
     csv_names = [os.path.join(args.output, n.replace(os.sep, "_") + "_grains_quantities.csv")  for n in file_names]
 else:
     csv_names = [os.path.splitext(f)[0] + "_grains_quantities.csv" for f in list_solution_files]
