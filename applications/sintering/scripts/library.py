@@ -33,7 +33,7 @@ def get_solutions(files, do_print = True):
 
     return files_list
 
-def generate_short_labels(files_list):
+def generate_short_labels(files_list, extend_to = None):
     if len(files_list) == 0:
         return []
 
@@ -71,6 +71,20 @@ def generate_short_labels(files_list):
             break
 
     labels = [f[s_start:-s_end] for f in files_list]
+
+    if extend_to:
+        labels = []
+
+        for f in files_list:
+            local_start = s_start
+            while f[local_start-1] not in [extend_to, os.sep] and local_start > 0:
+                local_start -= 1
+
+            local_end = s_end
+            while f[-local_end] not in [extend_to, os.sep] and local_end > 0:
+                local_end -= 1
+
+            labels.append(f[local_start:-local_end])
 
     # If there is a single empty label then append everything that is before and/or after os.sep
     if '' in labels:
