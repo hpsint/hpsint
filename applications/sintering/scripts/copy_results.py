@@ -29,15 +29,16 @@ for folder in folders_list:
 
     if not os.path.isdir(folder):
         raise Exception('The provided path mask should capture folders only')
-    
-    folder_this = pathlib.PurePath(folder).name
-    folder_parent = pathlib.PurePath(folder).parent.name
-    
-    # %0 - immediate parent dir
-    # %1 - parent of the parent dir
+
+    list_of_folders = folder.split(os.sep)
+    list_of_folders.reverse()
+
     output_path = args.destination
-    output_path = output_path.replace("%0", folder_this)
-    output_path = output_path.replace("%1", folder_parent)
+
+    # %0 - immediate parent dir
+    # %1 - parent of the parent dir and so on
+    for idx, folder_item in enumerate(list_of_folders):
+        output_path = output_path.replace("%{}".format(idx), folder_item)
 
     folder_dst = os.path.dirname(output_path + "dummy.txt")
 
