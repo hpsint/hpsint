@@ -148,7 +148,8 @@ namespace GrainTracker
         detect_grains(solution, n_order_params, assign_indices);
 
       // Numberer for new grains
-      unsigned int grain_numberer = old_grains.rbegin()->first + 1;
+      unsigned int grain_numberer =
+        (!old_grains.empty()) ? (old_grains.rbegin()->first + 1) : 0;
 
       // Create map with the grains whose ids have been changed
       std::vector<std::vector<bool>> grains_ids_changed(
