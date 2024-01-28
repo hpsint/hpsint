@@ -2022,17 +2022,16 @@ namespace Sintering
               for (unsigned int d = 0; d < dim; ++d)
                 {
                   const auto cell_coord = cell->center()[d];
-                  const auto min_coord  = min_cells[d].first->center()[d];
-                  const auto max_coord  = max_cells[d].first->center()[d];
 
                   const auto dist_min =
                     (min_cells[d].first.state() != IteratorState::invalid) ?
-                      std::abs(cell_coord - min_coord) :
+                      std::abs(cell_coord - min_cells[d].first->center()[d]) :
                       0.;
 
                   if (min_cells[d].first.state() == IteratorState::invalid ||
                       (dist_min < abs_tol && c_norm > min_cells[d].second) ||
-                      (dist_min > abs_tol && cell_coord < min_coord))
+                      (dist_min > abs_tol &&
+                       cell_coord < min_cells[d].first->center()[d]))
                     {
                       min_cells[d].first  = cell;
                       min_cells[d].second = c_norm;
@@ -2040,12 +2039,13 @@ namespace Sintering
 
                   const auto dist_max =
                     (max_cells[d].first.state() != IteratorState::invalid) ?
-                      std::abs(cell_coord - max_coord) :
+                      std::abs(cell_coord - max_cells[d].first->center()[d]) :
                       0.;
 
                   if (max_cells[d].first.state() == IteratorState::invalid ||
                       (dist_max < abs_tol && c_norm > max_cells[d].second) ||
-                      (dist_max > abs_tol && cell_coord > max_coord))
+                      (dist_max > abs_tol &&
+                       cell_coord > max_cells[d].first->center()[d]))
                     {
                       max_cells[d].first  = cell;
                       max_cells[d].second = c_norm;
