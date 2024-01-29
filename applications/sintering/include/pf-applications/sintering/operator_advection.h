@@ -144,10 +144,14 @@ namespace Sintering
                     "advection_op::check_courant",
                     this->do_timing);
 
-      AssertThrow(cell_diameters.size() == this->matrix_free.n_cell_batches(),
-                  ExcMessage(
-                    "The number of precomputed cell diameters is inconsistent"
-                    " with the number of current cell batches"));
+      AssertThrow(
+        cell_diameters.size() == this->matrix_free.n_cell_batches(),
+        ExcMessage(
+          std::string(
+            "The number of precomputed cell diameters is inconsistent") +
+          std::string(" with the number of current cell batches: ") +
+          std::to_string(cell_diameters.size()) + std::string(" and ") +
+          std::to_string(this->matrix_free.n_cell_batches())));
 
       FECellIntegrator<dim, 1, Number, VectorizedArrayType> phi(
         this->matrix_free, this->dof_index);
