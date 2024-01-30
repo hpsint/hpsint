@@ -86,7 +86,7 @@ namespace Sintering
                                                                     rc_i,
                                                                     fdata);
 
-      torque[cell_id] = fdata[dim];
+      torque[cell_id] = fdata[dim + 1];
     }
 
     void
@@ -126,7 +126,7 @@ namespace Sintering
 
       for (unsigned int d = 0; d < dim; ++d)
         {
-          torque[d][cell_id] = fdata[dim + d];
+          torque[d][cell_id] = fdata[dim + 1 + d];
         }
     }
 
