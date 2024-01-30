@@ -2051,6 +2051,9 @@ namespace Sintering
                                                 bottom_fraction_of_cells);
               initialize_solution(solution_ptr, timer);
             }
+
+          if (n_init_refinements == 0)
+            advection_operator.precompute_cell_diameters();
         }
       else if (params.advection_data.enable &&
                params.advection_data.check_courant)
