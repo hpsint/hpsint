@@ -227,8 +227,6 @@ namespace Sintering
     get_velocity(const unsigned int                     order_parameter_id,
                  const Point<dim, VectorizedArrayType> &r) const
     {
-      const auto &op_cell_data = current_cell_data.at(order_parameter_id);
-
       // Translational velocity
       const auto vt = get_translation_velocity(order_parameter_id);
 
