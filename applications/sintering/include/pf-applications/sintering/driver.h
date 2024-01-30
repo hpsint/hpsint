@@ -83,6 +83,7 @@
 #include <deal.II/trilinos/nox.h>
 #include <pf-applications/grain_tracker/tracker.h>
 #include <pf-applications/grid/constraint_helper.h>
+#include <pf-applications/matrix_free/output.h>
 
 // Available sintering operators
 #define OPERATOR_GENERIC 1
@@ -2793,6 +2794,10 @@ namespace Sintering
                 }
               data_out.add_data_vector(subdomain, "subdomain");
             }
+
+          // Output matrix_free indices - might be needed for debug purposes
+          if (params.output_data.fields.count("mf_indices"))
+            MyMatrixFreeTools::add_mf_indices_vector(matrix_free, data_out);
 
           data_out.build_patches(mapping, this->fe->tensor_degree());
 
