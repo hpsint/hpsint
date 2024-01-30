@@ -215,6 +215,9 @@ namespace Sintering
     bool
     has_velocity(const unsigned int order_parameter_id) const
     {
+      if (has_velocity_vector.empty())
+        return false;
+
       AssertIndexRange(order_parameter_id, has_velocity_vector.size());
 
       return has_velocity_vector[order_parameter_id];
