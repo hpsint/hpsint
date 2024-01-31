@@ -21,6 +21,7 @@
 #include <deal.II/grid/grid_tools.h>
 
 #include <deal.II/matrix_free/fe_point_evaluation.h>
+#include <deal.II/matrix_free/matrix_free.h>
 
 #include <deal.II/numerics/data_out.h>
 
@@ -2606,6 +2607,57 @@ namespace Sintering
       std::ofstream out_file(output);
       out_file << ss.rdbuf();
       out_file.close();
+    }
+
+    // Output translation velocity in cell-wise manner
+    template <int dim, typename Number, typename VectorizedArrayType>
+    void
+    add_translation_velocities_vectors(
+      const MatrixFree<dim, Number, VectorizedArrayType> &matrix_free,
+      const AdvectionMechanism<dim, Number, VectorizedArrayType>
+        &                advection_mechanism,
+      const unsigned int n_order_parameters,
+      DataOut<dim> &     data_out,
+      const std::string  prefix = "vel_trans")
+    {
+      std::vector<Vector<double>> velocities;
+
+      for (unsigned int ig = 0; ig < n_order_parameters; ++ig)
+        for (unsigned int d = 0; d < dim; ++d)
+          velocities.emplace_back(
+            matrix_free.get_dof_handler().get_triangulation().n_active_cells());
+
+      for (unsigned int cell = 0; cell < matrix_free.n_cell_batches(); ++cell)
+        {
+          advection_mechanism.reinit(cell);
+
+          for (unsigned int ig = 0; ig < n_order_parameters; ++ig)
+            {
+              if (advection_mechanism.has_velocity(ig))
+                {
+                  const auto vt =
+                    advection_mechanism.get_translation_velocity(ig);
+
+                  for (unsigned int ilane = 0;
+                       ilane <
+                       matrix_free.n_active_entries_per_cell_batch(cell);
+                       ++ilane)
+                    {
+                      const auto icell =
+                        matrix_free.get_cell_iterator(cell, ilane);
+
+                      for (unsigned int d = 0; d < dim; ++d)
+                        velocities[dim * ig + d][icell->active_cell_index()] =
+                          vt[d][ilane];
+                    }
+                }
+            }
+        }
+
+      for (unsigned int ig = 0; ig < n_order_parameters; ++ig)
+        for (unsigned int d = 0; d < dim; ++d)
+          data_out.add_data_vector(velocities[dim * ig + d],
+                                   prefix + std::to_string(ig));
     }
 
   } // namespace Postprocessors
