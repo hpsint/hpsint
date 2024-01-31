@@ -671,6 +671,117 @@ namespace Sintering
                                                               vec,
                                                               fields_list);
 
+      // Possible output options - at the moment only velocity
+      enum OutputFields
+      {
+        FieldVelocity
+      };
+
+      constexpr unsigned int n_data_variants = 1;
+
+      const std::array<std::tuple<std::string, OutputFields, unsigned int>,
+                       n_data_variants>
+        possible_entries = {{{"vel", FieldVelocity, n_grains * dim}}};
+
+      // A better design is possible, but at the moment this is sufficient
+      std::array<bool, n_data_variants> entries_mask;
+      entries_mask.fill(false);
+
+      unsigned int n_entries = 0;
+
+      for (unsigned int i = 0; i < possible_entries.size(); i++)
+        {
+          const auto &entry = possible_entries[i];
+          if (fields_list.count(std::get<0>(entry)))
+            {
+              entries_mask[std::get<1>(entry)] = true;
+              n_entries += std::get<2>(entry);
+            }
+        }
+
+      if (n_entries == 0)
+        return;
+
+      std::vector<VectorType> data_vectors(n_entries);
+
+      for (auto &data_vector : data_vectors)
+        this->matrix_free.initialize_dof_vector(data_vector, this->dof_index);
+
+      FECellIntegrator<dim, 1, Number, VectorizedArrayType> fe_eval(
+        this->matrix_free, this->dof_index);
+
+      MatrixFreeOperators::
+        CellwiseInverseMassMatrix<dim, -1, 1, Number, VectorizedArrayType>
+          inverse_mass_matrix(fe_eval);
+
+      AlignedVector<VectorizedArrayType> buffer(fe_eval.n_q_points * n_entries);
+
+      std::vector<VectorizedArrayType> temp(n_entries, VectorizedArrayType(0.));
+
+      for (unsigned int cell = 0; cell < this->matrix_free.n_cell_batches();
+           ++cell)
+        {
+          fe_eval.reinit(cell);
+
+          if (this->advection.enabled())
+            this->advection.reinit(cell);
+
+          for (unsigned int q = 0; q < fe_eval.n_q_points; ++q)
+            {
+              for (auto &val : temp)
+                val = 0;
+
+              if (entries_mask[FieldVelocity] && this->advection.enabled())
+                {
+                  // add advection contributations
+                  for (unsigned int ig = 0; ig < n_grains; ++ig)
+                    if (this->advection.has_velocity(ig))
+                      {
+                        const auto &velocity_ig = this->advection.get_velocity(
+                          ig, fe_eval.quadrature_point(q));
+
+                        for (unsigned int d = 0; d < dim; ++d)
+                          {
+                            temp[ig * dim + d] = velocity_ig[d];
+                          }
+                      }
+                }
+
+              for (unsigned int c = 0; c < n_entries; ++c)
+                buffer[c * fe_eval.n_q_points + q] = temp[c];
+            }
+
+          for (unsigned int c = 0; c < n_entries; ++c)
+            {
+              inverse_mass_matrix.transform_from_q_points_to_basis(
+                1,
+                buffer.data() + c * fe_eval.n_q_points,
+                fe_eval.begin_dof_values());
+
+              fe_eval.set_dof_values_plain(data_vectors[c]);
+            }
+        }
+
+      // TODO: remove once FEEvaluation::set_dof_values_plain()
+      // sets the values of constrainging DoFs in the case of PBC
+      for (unsigned int c = 0; c < n_entries; ++c)
+        this->constraints.distribute(data_vectors[c]);
+
+      // Write names of fields
+      std::vector<std::string> names;
+      if (entries_mask[FieldVelocity])
+        {
+          for (unsigned int ig = 0; ig < n_grains; ++ig)
+            {
+              std::string vel_name = "vel" + std::to_string(ig);
+              for (unsigned int d = 0; d < dim; ++d)
+                names.push_back(vel_name);
+            }
+        }
+
+      // Add data to output
+      for (unsigned int c = 0; c < n_entries; ++c)
+        data_out.add_data_vector(data_vectors[c], names[c]);
     }
 
   private:
