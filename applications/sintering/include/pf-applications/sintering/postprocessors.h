@@ -2541,10 +2541,15 @@ namespace Sintering
         (moment_s<dim, VectorizedArrayType> == 1) ?
           std::vector({"t"}) :
           std::vector({"tx", "ty", "tz"});
+      const std::vector labels_velocities{"vx", "vy", "vz"};
 
       const auto dummy =
         create_array<1 + dim + moment_s<dim, VectorizedArrayType>>(
           std::numeric_limits<double>::quiet_NaN());
+
+      Tensor<1, dim, Number> dummy_velocities;
+      for (unsigned int d = 0; d < dim; ++d)
+        dummy_velocities[d] = std::numeric_limits<double>::quiet_NaN();
 
       for (const auto &[grain_id, grain] : grain_tracker->get_grains())
         {
@@ -2580,6 +2585,17 @@ namespace Sintering
               for (unsigned int d = 0; d < moment_s<dim, VectorizedArrayType>;
                    ++d)
                 table.add_value(labels_torques[d], *data++);
+
+              // Output translation velocities
+              const Tensor<1, dim, Number> vt =
+                (!advection_mechanism.get_grains_data().empty() &&
+                 grain.n_segments() == 1) ?
+                  advection_mechanism.get_translation_velocity_for_grain(
+                    grain_tracker->get_grain_segment_index(grain_id, 0)) :
+                  dummy_velocities;
+
+              for (unsigned int d = 0; d < dim; ++d)
+                table.add_value(labels_velocities[d], vt[d]);
             }
         }
 
