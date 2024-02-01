@@ -2802,6 +2802,13 @@ namespace Sintering
           if (params.output_data.fields.count("mf_indices"))
             MyMatrixFreeTools::add_mf_indices_vector(matrix_free, data_out);
 
+          if (params.output_data.fields.count("trans"))
+            Postprocessors::add_translation_velocities_vectors(
+              matrix_free,
+              advection_mechanism,
+              sintering_operator.get_data().n_grains(),
+              data_out);
+
           data_out.build_patches(mapping, this->fe->tensor_degree());
 
           const std::string output = params.output_data.vtk_path + "/" + label +
