@@ -240,7 +240,9 @@ namespace Sintering
                                     "flux",
                                     "energy",
                                     "subdomain",
-                                    "mf_indices"};
+                                    "mf_indices",
+                                    "vel",
+                                    "trans"};
     bool                  mesh_overhead_estimate = false;
     bool                  only_control_boxes     = false;
 
@@ -846,7 +848,7 @@ namespace Sintering
                         output_data.vtk_path,
                         "Path to write VTK files.");
       const std::string output_fields_options =
-        "CH|AC|displ|bnds|gb|d2f|M|dM|kappa|L|energy|flux|subdomain|mf_indices";
+        "CH|AC|displ|bnds|gb|d2f|M|dM|kappa|L|energy|flux|subdomain|mf_indices|vel|trans";
       prm.add_parameter("Fields",
                         output_data.fields,
                         "Fields to output.",
