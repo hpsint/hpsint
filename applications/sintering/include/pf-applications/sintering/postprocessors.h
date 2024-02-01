@@ -2618,7 +2618,7 @@ namespace Sintering
         &                advection_mechanism,
       const unsigned int n_order_parameters,
       DataOut<dim> &     data_out,
-      const std::string  prefix = "vel_trans")
+      const std::string  prefix = "trans")
     {
       std::vector<Vector<double>> velocities;
 
