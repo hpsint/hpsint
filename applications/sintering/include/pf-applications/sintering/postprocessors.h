@@ -2627,6 +2627,8 @@ namespace Sintering
           velocities.emplace_back(
             matrix_free.get_dof_handler().get_triangulation().n_active_cells());
 
+      Point<dim, VectorizedArrayType> dummy(0.0);
+
       for (unsigned int cell = 0; cell < matrix_free.n_cell_batches(); ++cell)
         {
           advection_mechanism.reinit(cell);
@@ -2635,8 +2637,7 @@ namespace Sintering
             {
               if (advection_mechanism.has_velocity(ig))
                 {
-                  const auto vt =
-                    advection_mechanism.get_translation_velocity(ig);
+                  const auto vt = advection_mechanism.get_velocity(ig, dummy);
 
                   for (unsigned int ilane = 0;
                        ilane <
