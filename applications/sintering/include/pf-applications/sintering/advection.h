@@ -86,7 +86,7 @@ namespace Sintering
                                                                     rc_i,
                                                                     fdata);
 
-      torque[cell_id] = fdata[dim];
+      torque[cell_id] = fdata[dim + 1];
     }
 
     void
@@ -126,7 +126,7 @@ namespace Sintering
 
       for (unsigned int d = 0; d < dim; ++d)
         {
-          torque[d][cell_id] = fdata[dim + d];
+          torque[d][cell_id] = fdata[dim + 1 + d];
         }
     }
 
@@ -215,6 +215,9 @@ namespace Sintering
     bool
     has_velocity(const unsigned int order_parameter_id) const
     {
+      if (has_velocity_vector.empty())
+        return false;
+
       AssertIndexRange(order_parameter_id, has_velocity_vector.size());
 
       return has_velocity_vector[order_parameter_id];
@@ -224,10 +227,34 @@ namespace Sintering
     get_velocity(const unsigned int                     order_parameter_id,
                  const Point<dim, VectorizedArrayType> &r) const
     {
+      // Translational velocity
+      const auto vt = get_translation_velocity(order_parameter_id);
+
+      // Rotational velocity
+      const auto vr = get_rotation_velocity(order_parameter_id, r);
+
+      // Total advection velocity
+      const auto v_adv = vt + vr;
+
+      return v_adv;
+    }
+
+    DEAL_II_ALWAYS_INLINE inline Tensor<1, dim, VectorizedArrayType>
+    get_translation_velocity(const unsigned int order_parameter_id) const
+    {
       const auto &op_cell_data = current_cell_data.at(order_parameter_id);
 
       // Translational velocity
       const auto vt = mt * op_cell_data.volume_inv * op_cell_data.force;
+
+      return vt;
+    }
+
+    DEAL_II_ALWAYS_INLINE inline Tensor<1, dim, VectorizedArrayType>
+    get_rotation_velocity(const unsigned int order_parameter_id,
+                          const Point<dim, VectorizedArrayType> &r) const
+    {
+      const auto &op_cell_data = current_cell_data.at(order_parameter_id);
 
       // Get vector from the particle center to the current point
       const auto r_rc = r - op_cell_data.rc;
@@ -235,10 +262,7 @@ namespace Sintering
       // Rotational velocity
       const auto vr = mr * op_cell_data.volume_inv * op_cell_data.cross(r_rc);
 
-      // Total advection velocity
-      const auto v_adv = vt + vr;
-
-      return v_adv;
+      return vr;
     }
 
     std::vector<unsigned int> &
