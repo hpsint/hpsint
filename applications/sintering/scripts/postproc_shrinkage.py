@@ -144,7 +144,7 @@ for f, lbl, clr in zip(files_list, labels, colors):
             if header[i] in fdata.dtype.names and active[i]:
                 n_active += 1
 
-        csv_data = np.empty((len(fdata["time"][mask]), 2 * n_active + 1), float)
+        csv_data = np.zeros((len(fdata["time"][mask]), 2 * n_active + 1))
         csv_data[:,0] = fdata["time"][mask]
 
         csv_format = ["%g"] * (2*n_active + 1)
@@ -170,9 +170,13 @@ for f, lbl, clr in zip(files_list, labels, colors):
             # In case the first entry is zero, then pick the next non-zero
             i_ref = 0
             ref0 = fdata[qty_name][i_ref]
-            while ref0 == 0:
+            while ref0 == 0 and i_ref < len(fdata[qty_name]) - 1:
                 i_ref += 1
                 ref0 = fdata[qty_name][i_ref]
+
+            # Skip field if nothing to plot
+            if ref0 == 0:
+                continue
 
             ref_qty = (ref0 - fdata[qty_name]) / ref0
 
