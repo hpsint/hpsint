@@ -129,10 +129,10 @@ for f, lbl, clr in zip(files_list, labels, colors):
 
                 fdata = rfn.append_fields(fdata, "dim_" + direction, length)
 
-                if direction == 'x':
-                    fdata = rfn.append_fields(fdata, "volume", length)
-                else:
+                if "volume" in fdata.dtype.names:
                     fdata["volume"] *= length
+                else:
+                    fdata = rfn.append_fields(fdata, "volume", length)
 
     mask = (args.limits[0] <= fdata["time"]) & (fdata["time"] <= args.limits[1])
 
