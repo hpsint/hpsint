@@ -115,14 +115,15 @@ if has_missing_arguments:
 n_qtys = len(args.grains) * len(args.quantities)
 
 # Build a CSV header
-csv_header = ["time"]
+csv_header = ["time", "dt"]
+qty_offset = len(csv_header)
 for gid in args.grains:
     for qty in args.quantities:
         csv_header.append("{}_{}".format(qty, gid))
 csv_header = " ".join(csv_header)
 
 # Build CSV format
-csv_format = ["%g"] * (n_qtys + 1)
+csv_format = ["%g"] * (n_qtys + qty_offset)
 csv_format = " ".join(csv_format)
 
 # Save csv names
@@ -148,7 +149,7 @@ for file_solution, files_list in zip(list_solution_files, list_distributions):
     fill_nans_up_to = [None] * n_qtys
 
     # Init CSV data
-    csv_data = np.empty((len(fdata["time"]), n_qtys + 1), float)
+    csv_data = np.empty((len(fdata["time"]), n_qtys + qty_offset), float)
 
     for idx, log_file in enumerate(files_list):
 
@@ -158,6 +159,7 @@ for file_solution, files_list in zip(list_solution_files, list_distributions):
             continue
 
         csv_data[idx, 0] = fdata["time"][idx]
+        csv_data[idx, 1] = fdata["dt"][idx]
 
         qdata = np.genfromtxt(log_file, dtype=None, names=True)
 
@@ -175,18 +177,18 @@ for file_solution, files_list in zip(list_solution_files, list_distributions):
 
                 qty_name = "{}_{}".format(qty, gid)
                 
-                csv_data[idx, qty_counter+1] = qdata[qty][itemindex] if itemindex and qty in qdata.dtype.names else math.nan
+                csv_data[idx, qty_counter + qty_offset] = qdata[qty][itemindex] if itemindex and qty in qdata.dtype.names else math.nan
 
                 if args.replace_nans:
-                    if math.isnan(csv_data[idx, qty_counter+1]):
-                        if idx == 0 or math.isnan(csv_data[idx-1, qty_counter+1]):
+                    if math.isnan(csv_data[idx, qty_counter + qty_offset]):
+                        if idx == 0 or math.isnan(csv_data[idx-1, qty_counter + qty_offset]):
                             fill_nans_up_to[qty_counter] = idx
                         else:
-                            csv_data[idx, qty_counter+1] = csv_data[idx-1, qty_counter+1]
+                            csv_data[idx, qty_counter + qty_offset] = csv_data[idx-1, qty_counter + qty_offset]
 
                     elif fill_nans_up_to[qty_counter] is not None:
                         while fill_nans_up_to[qty_counter] >= 0:
-                            csv_data[fill_nans_up_to[qty_counter], qty_counter+1] = csv_data[idx, qty_counter+1]
+                            csv_data[fill_nans_up_to[qty_counter], qty_counter + qty_offset] = csv_data[idx, qty_counter + qty_offset]
                             fill_nans_up_to[qty_counter] -= 1
                 
                 qty_counter += 1

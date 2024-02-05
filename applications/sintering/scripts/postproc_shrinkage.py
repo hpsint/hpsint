@@ -6,6 +6,7 @@ import sys
 import pathlib
 import collections.abc
 import library
+import numpy.lib.recfunctions as rfn
 
 parser = argparse.ArgumentParser(description='Process shrinkage data')
 parser.add_argument("-f", "--files", dest="files", nargs='+', required=True, help="Source filenames, can be defined as masks")
@@ -64,11 +65,74 @@ if args.save:
     else:
         csv_names = [os.path.splitext(f)[0] + "_shrinkage.csv" for f in files_list]
 
+# Pairs for getting graint tracker ouput results
+dirs_from_velocities = {"x": "vx", "y": "vy", "z": "vz"}
+
 for f, lbl, clr in zip(files_list, labels, colors):
 
     fdata = np.genfromtxt(f, dtype=None, names=True, delimiter=args.delimiter)
 
     alpha = 1
+
+    # Try get info from particles - if we estimate shrinkage from the GT data
+    particles_list = {"x": [], "y": [], "z": []}
+    for key, value in dirs_from_velocities.items():
+        has_key = [i for i in fdata.dtype.names if i.startswith(key)]
+        has_value = [i for i in fdata.dtype.names if i.startswith(value)]
+
+        for p in has_key:
+            ids = p.split("_")
+            q = "v" + p
+            if q in has_value:
+                particles_list[ids[0]].append((p, q))
+
+    if particles_list:
+        indices = {"x": 0, "y": 1, "z": 2}
+
+        for direction, items in particles_list.items():
+            i = indices[direction]
+
+            if active[i] and items:
+                qty_name = header[i]
+
+                # Find the reference particles
+                ref_particles = {"min": None, "max": None}
+
+                pos_min0 = np.inf
+                pos_max0 = -np.inf
+                for p in items:
+                    if fdata[p[0]][0] < pos_min0:
+                        pos_min0 = fdata[p[0]][0]
+                        ref_particles["min"] = p
+                    if fdata[p[0]][0] > pos_max0:
+                        pos_max0 = fdata[p[0]][0]
+                        ref_particles["max"] = p
+
+                ref0 = pos_max0 - pos_min0
+
+                displ_min = np.nan_to_num(fdata["dt"]) * np.nan_to_num(fdata[ref_particles["min"][1]])
+                displ_max = np.nan_to_num(fdata["dt"]) * np.nan_to_num(fdata[ref_particles["max"][1]])
+
+                pos_min = np.full_like(displ_min, 0)
+                pos_min[0] = pos_min0
+
+                pos_max = np.full_like(displ_max, 0)
+                pos_max[0] = pos_max0
+
+                for idx, val in np.ndenumerate(pos_min):
+                    i = idx[0]
+                    if i > 0:
+                        pos_min[i] = pos_min[i-1] + displ_min[i]
+                        pos_max[i] = pos_max[i-1] + displ_max[i]
+
+                length = pos_max - pos_min
+
+                fdata = rfn.append_fields(fdata, "dim_" + direction, length)
+
+                if "volume" in fdata.dtype.names:
+                    fdata["volume"] *= length
+                else:
+                    fdata = rfn.append_fields(fdata, "volume", length)
 
     mask = (args.limits[0] <= fdata["time"]) & (fdata["time"] <= args.limits[1])
 
@@ -80,7 +144,7 @@ for f, lbl, clr in zip(files_list, labels, colors):
             if header[i] in fdata.dtype.names and active[i]:
                 n_active += 1
 
-        csv_data = np.empty((len(fdata["time"][mask]), 2 * n_active + 1), float)
+        csv_data = np.zeros((len(fdata["time"][mask]), 2 * n_active + 1))
         csv_data[:,0] = fdata["time"][mask]
 
         csv_format = ["%g"] * (2*n_active + 1)
@@ -106,9 +170,13 @@ for f, lbl, clr in zip(files_list, labels, colors):
             # In case the first entry is zero, then pick the next non-zero
             i_ref = 0
             ref0 = fdata[qty_name][i_ref]
-            while ref0 == 0:
+            while ref0 == 0 and i_ref < len(fdata[qty_name]) - 1:
                 i_ref += 1
                 ref0 = fdata[qty_name][i_ref]
+
+            # Skip field if nothing to plot
+            if ref0 == 0:
+                continue
 
             ref_qty = (ref0 - fdata[qty_name]) / ref0
 
