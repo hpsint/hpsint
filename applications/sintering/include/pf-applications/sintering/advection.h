@@ -265,6 +265,20 @@ namespace Sintering
       return vr;
     }
 
+    Tensor<1, dim, Number>
+    get_translation_velocity_for_grain(const unsigned int index) const
+    {
+      const Number *data = grain_data(index);
+
+      const Number                 volume(*data++);
+      const Tensor<1, dim, Number> force(make_array_view(data, data + dim));
+
+      // Translational velocity
+      const auto vt = mt * force / volume;
+
+      return vt;
+    }
+
     std::vector<unsigned int> &
     get_index_ptr()
     {
