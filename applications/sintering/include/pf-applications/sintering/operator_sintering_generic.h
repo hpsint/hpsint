@@ -683,21 +683,9 @@ namespace Sintering
                        n_data_variants>
         possible_entries = {{{"vel", FieldVelocity, n_grains * dim}}};
 
-      // A better design is possible, but at the moment this is sufficient
-      std::array<bool, n_data_variants> entries_mask;
-      entries_mask.fill(false);
-
-      unsigned int n_entries = 0;
-
-      for (unsigned int i = 0; i < possible_entries.size(); i++)
-        {
-          const auto &entry = possible_entries[i];
-          if (fields_list.count(std::get<0>(entry)))
-            {
-              entries_mask[std::get<1>(entry)] = true;
-              n_entries += std::get<2>(entry);
-            }
-        }
+      // Get active entries to output
+      const auto [entries_mask, n_entries] =
+        this->get_vector_output_entries_mask(possible_entries, fields_list);
 
       if (n_entries == 0)
         return;

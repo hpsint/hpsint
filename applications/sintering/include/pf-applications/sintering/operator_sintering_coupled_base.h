@@ -188,6 +188,68 @@ namespace Sintering
       return displ_constraints_indices;
     }
 
+    template <int n_comp, int n_grains>
+    void
+    do_add_data_vectors_kernel(DataOut<dim> &               data_out,
+                               const BlockVectorType &      vec,
+                               const std::set<std::string> &fields_list) const
+    {
+      // Output from the parent
+      SinteringOperatorBase<dim, Number, VectorizedArrayType, T>::
+        template do_add_data_vectors_kernel<n_comp, n_grains>(data_out,
+                                                              vec,
+                                                              fields_list);
+
+      // Possible output options - at the moment only velocity
+      enum OutputFields
+      {
+        FieldVelocity
+      };
+
+      constexpr unsigned int n_data_variants = 1;
+
+      const std::array<std::tuple<std::string, OutputFields, unsigned int>,
+                       n_data_variants>
+        possible_entries = {{{"vel", FieldVelocity, dim}}};
+
+      // Get active entries to output
+      const auto [entries_mask, n_entries] =
+        this->get_vector_output_entries_mask(possible_entries, fields_list);
+
+      if (n_entries == 0)
+        return;
+
+      std::vector<VectorType> data_vectors(n_entries);
+
+      for (auto &data_vector : data_vectors)
+        this->matrix_free.initialize_dof_vector(data_vector, this->dof_index);
+
+      if (entries_mask[FieldVelocity])
+        for (unsigned int d = 0; d < dim; ++d)
+          {
+            const auto b =
+              this->data.n_components() + n_additional_components() + d;
+
+            data_vectors[d] = vec.block(b);
+            data_vectors[d] *= (this->data.time_data.get_current_dt() ?
+                                  1. / this->data.time_data.get_current_dt() :
+                                  0.);
+          }
+
+      // Write names of fields
+      std::vector<std::string> names;
+      if (entries_mask[FieldVelocity])
+        {
+          const std::string vel_name = "vel";
+          for (unsigned int d = 0; d < dim; ++d)
+            names.push_back(vel_name);
+        }
+
+      // Add data to output
+      for (unsigned int c = 0; c < n_entries; ++c)
+        data_out.add_data_vector(data_vectors[c], names[c]);
+    }
+
   protected:
     void
     pre_vmult(VectorType &dst, const VectorType &src_in) const override
