@@ -48,6 +48,7 @@ namespace Sintering
       const double                                           k,
       const double                                           cgb,
       const double                                           ceq,
+      const double                                           smoothening,
       const MatrixFree<dim, Number, VectorizedArrayType> &   matrix_free,
       const AffineConstraints<Number> &                      constraints,
       const SinteringOperatorData<dim, VectorizedArrayType> &data,
@@ -65,6 +66,7 @@ namespace Sintering
       , k(k)
       , cgb(cgb)
       , ceq(ceq)
+      , smoothening(smoothening)
       , data(data)
       , grain_tracker(grain_tracker)
       , advection_mechanism(advection_mechanism)
@@ -391,13 +393,25 @@ namespace Sintering
                           // Filter to detect grain boundary
                           auto etai_etaj = eta_i * eta_j;
 
-                          // Disable this normalization
+                          // Normalize or not
                           if (cgb >= 0)
-                            etai_etaj = compare_and_apply_mask<
-                              SIMDComparison::greater_than>(etai_etaj,
-                                                            cgb_lim,
-                                                            ones,
-                                                            zeros);
+                            {
+                              if (smoothening > 0)
+                                etai_etaj =
+                                  ones /
+                                  (ones + std::exp(-smoothening *
+                                                   (etai_etaj - cgb_lim)));
+                              else
+                                etai_etaj = compare_and_apply_mask<
+                                  SIMDComparison::greater_than>(etai_etaj,
+                                                                cgb_lim,
+                                                                ones,
+                                                                zeros);
+                            }
+                          else
+                            {
+                              etai_etaj *= 4.;
+                            }
 
                           // Compute force component per cell
                           dF *= k * (c - ceq) * etai_etaj;
@@ -470,6 +484,7 @@ namespace Sintering
     const double k;
     const double cgb;
     const double ceq;
+    const double smoothening;
 
     const SinteringOperatorData<dim, VectorizedArrayType> &data;
     const GrainTracker::Tracker<dim, Number> &             grain_tracker;
