@@ -944,6 +944,7 @@ namespace Sintering
         params.advection_data.k,
         params.advection_data.cgb,
         params.advection_data.ceq,
+        params.advection_data.smoothening,
         matrix_free,
         constraints,
         sintering_data,
