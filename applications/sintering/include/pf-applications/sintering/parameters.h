@@ -172,11 +172,12 @@ namespace Sintering
   {
     bool enable = false;
 
-    double k   = 100.;
-    double mt  = 1.;
-    double mr  = 1.;
-    double cgb = -1;
-    double ceq = 1.;
+    double k           = 100.;
+    double mt          = 1.;
+    double mr          = 1.;
+    double cgb         = -1;
+    double ceq         = 1.;
+    double smoothening = 0.;
 
     bool check_courant = true;
   };
@@ -730,6 +731,10 @@ namespace Sintering
       prm.add_parameter("Ceq",
                         advection_data.ceq,
                         "Grain boundary equilibrium concentration.");
+      prm.add_parameter(
+        "Smoothening",
+        advection_data.smoothening,
+        "Heaviside smoothening, recommended range 50...5000, 0 = disabled (default).");
       prm.add_parameter("CheckCourant",
                         advection_data.check_courant,
                         "Check Courant condition at the end of the timestep");
