@@ -184,7 +184,7 @@ namespace Test
       sintering_data.time_data.set_all_dt(dts);
 
       const double k           = 25;
-      const double cgb         = -1;
+      const double cgb         = 0;
       const double ceq         = 1.0;
       const double smoothening = 0;
 
