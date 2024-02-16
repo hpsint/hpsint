@@ -394,7 +394,7 @@ namespace Sintering
                           auto etai_etaj = eta_i * eta_j;
 
                           // Normalize or not
-                          if (cgb >= 0)
+                          if (cgb > 0)
                             {
                               if (smoothening > 0)
                                 etai_etaj =
