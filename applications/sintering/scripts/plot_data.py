@@ -119,12 +119,13 @@ for i in range(n_fields):
 
     x_lims = [sys.float_info.max, -sys.float_info.max]
 
-    tokens = {}
     token_prefix = '%token_{}'
-    token_numberer = 0
 
     for f, lbl, clr, mrk in zip(files_list, labels, colors, markers):
         cdata = np.genfromtxt(f, dtype=None, names=True, delimiter=args.delimiter)
+
+        tokens = []
+        token_numberer = 0
         
         mask = [True] * len(cdata[args.xaxis])
         if args.limits:
@@ -142,11 +143,11 @@ for i in range(n_fields):
                 if possible_field in formula: 
                     token = token_prefix.format(token_numberer)
                     formula = formula.replace(possible_field, token)
-                    tokens[token] = "cdata['{}'][mask]".format(possible_field)
+                    tokens.append((token, "cdata['{}'][mask]".format(possible_field)))
                     token_numberer += 1
 
-            for key, value in tokens.items():
-                formula = formula.replace(key, value)
+            for token_data in reversed(tokens):
+                formula = formula.replace(token_data[0], token_data[1])
 
             # Try to split expression for custom y label
             expressions = formula.split('=')
