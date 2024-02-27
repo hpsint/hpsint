@@ -1,9 +1,10 @@
-from vtk import vtkXMLUnstructuredGridReader
-from functools import reduce
-import glob
-import re
-import numpy as np
 import argparse
+import library
+import glob
+import numpy as np
+import pathlib
+import os
+import re
 
 from paraview.simple import *
 
@@ -61,63 +62,119 @@ def measure_over_line(pline, quantity, threshold, length):
 
 # Script arguments
 parser = argparse.ArgumentParser(description='Process shrinkage data')
-parser.add_argument("-m", "--mask", type=str, help="File mask", required=True)
-parser.add_argument("-o", "--output", type=str, help="Output csv file", required=False, default="")
+parser.add_argument("-m", "--mask", type=str, help="File mask", required=False, default="solution.*.vtu")
+parser.add_argument("-f", "--file", type=str, help="Solution file", required=False, default="solution.log")
+parser.add_argument("-p", "--path", type=str, help="Common path, can be defined as mask too", required=False, default=None)
+parser.add_argument("-o", "--output", type=str, help="Output csv file", required=False, default=None)
 parser.add_argument("-r", "--resolution", type=int, help="Number of points for the line filters", required=False, default=10000)
 parser.add_argument("-t", "--threshold", type=float, help="Minimum value for the quantity", required=False, default=0.5)
 parser.add_argument("-q", "--quantity", type=str, help="Quantity data name to analyze", required=False, default="c")
 parser.add_argument("-a", "--alignment", type=str, help="Axis along which the assembly is aligned", required=False, default="x")
 parser.add_argument("-d", "--direction", type=str, help="Axis along which the neck is measured", required=False, default="y")
+parser.add_argument("-e", "--extend-to", dest='extend_to', required=False, help="Extend labels when shortening to", type=str, default=None)
 
 args = parser.parse_args()
 
-# Get vtk files according to the mask and sort it by number
-vtk_files_list = glob.glob(args.mask)
-vtk_files_list.sort(key=lambda f: int(re.sub('\D', '', f)))
+# Deal with path names
+if args.path is not None:
+    list_solution_files = library.get_solutions([os.path.join(args.path, args.file)])
+    list_vtk_folders = [os.path.dirname(s) for s in list_solution_files]
+    print("")
 
-# Build reader
-#reader = vtkXMLUnstructuredGridReader()
+    if not list_solution_files:
+        raise Exception("No files detected that would fit the provided masks")
+
+else:
+    list_solution_files = [args.file]
+    list_vtk_folders = [os.path.dirname(args.file)]
+
+    if not os.path.isfile(args.file):
+        raise Exception("The provided solution file does not exist")
+
+# Read vtk data
+list_vtks = []
+for f in list_vtk_folders:
+    files_list = glob.glob(os.path.join(f, args.mask))
+    files_list.sort(key=lambda f: int(re.sub('\D', '', f)))
+    list_vtks.append(files_list)
 
 # CSV data
-csv_header = ["t", "neck_diameter", "neck_growth", "length", "shrinkage"]
-n_rows = len(vtk_files_list)
+csv_header = ["time", "dt", "neck_diameter", "neck_growth", "length", "shrinkage"]
 n_cols = len(csv_header)
-csv_data = np.zeros(shape=(n_rows, n_cols))
+csv_header = " ".join(csv_header)
 
-# Get initial assembly length and particle diameter
-reader = XMLUnstructuredGridReader(FileName=vtk_files_list[0])
-reader.UpdatePipeline()
+# Build CSV format
+csv_format = ["%g"] * (n_cols)
+csv_format = " ".join(csv_format)
 
-[line_length, domain_length] = build_line(reader, args.alignment)
-length0 = measure_over_line(line_length, args.quantity, args.threshold, domain_length)
+# Save csv names
+if args.output is not None:
+    file_names = library.generate_short_labels(list_solution_files, args.extend_to)
+    csv_names = [os.path.join(args.output, n.replace(os.sep, "_") + "_vtk_postproc.csv")  for n in file_names]
+else:
+    csv_names = [os.path.splitext(f)[0] + "_vtk_postproc.csv" for f in list_solution_files]
 
-diameter0 = length0 / 2
+f_counter = 0
+n_folders = len(list_solution_files)
+for file_solution, files_list in zip(list_solution_files, list_vtks):
 
-for idx, vtk_file in enumerate(vtk_files_list):
+    print("Parsing folder {} ({}/{})".format(os.path.dirname(file_solution), f_counter + 1, n_folders))
 
-    print("Parsing file {} ({}/{})".format(vtk_file, idx + 1, n_rows))
+    if not len(files_list):
+        print("The folder does not contain any suitable data to parse, skipping")
+        print("")
+        continue
 
-    reader = XMLUnstructuredGridReader(FileName=vtk_file)
+    # Read solution file
+    fdata = np.genfromtxt(file_solution, dtype=None, names=True)
+
+    # Total number of vtk files
+    n_rows = len(files_list)
+
+    csv_data = np.zeros(shape=(n_rows, n_cols))
+
+    # Get initial assembly length and particle diameter
+    reader = XMLUnstructuredGridReader(FileName=files_list[0])
     reader.UpdatePipeline()
 
-    # Measurement lines
     [line_length, domain_length] = build_line(reader, args.alignment)
-    [line_neck, domain_width] = build_line(reader, args.direction)
+    length0 = measure_over_line(line_length, args.quantity, args.threshold, domain_length)
 
-    neck_diameter = measure_over_line(line_neck, args.quantity, args.threshold, domain_width)
-    neck_growth = neck_diameter / diameter0
+    diameter0 = length0 / 2
 
-    length = measure_over_line(line_length, args.quantity, args.threshold, domain_length)
-    shrinkage = (length0 - length) / length0
+    for idx, vtk_file in enumerate(files_list):
 
-    csv_data[idx, 0] = 0
-    csv_data[idx, 1] = neck_diameter
-    csv_data[idx, 2] = neck_growth
-    csv_data[idx, 3] = length
-    csv_data[idx, 4] = shrinkage
+        prefix = "├" if idx + 1 < n_rows else "└"
 
-# Save to csv
-if len(args.output) > 0:
-    np.savetxt(args.output, csv_data, header=','.join(csv_header), comments='', delimiter=',')
+        if idx >= fdata.shape[0]:
+            print("{}─ Skipping file {} ({}/{}) due to data inconsistency".format(prefix, vtk_file, idx + 1, n_rows))
+            continue
+        else:
+            print("{}─ Parsing file {} ({}/{})".format(prefix, vtk_file, idx + 1, n_rows))
 
-print(csv_data)
+        reader = XMLUnstructuredGridReader(FileName=vtk_file)
+        reader.UpdatePipeline()
+
+        # Measurement lines
+        [line_length, domain_length] = build_line(reader, args.alignment)
+        [line_neck, domain_width] = build_line(reader, args.direction)
+
+        neck_diameter = measure_over_line(line_neck, args.quantity, args.threshold, domain_width)
+        neck_growth = neck_diameter / diameter0
+
+        length = measure_over_line(line_length, args.quantity, args.threshold, domain_length)
+        shrinkage = (length0 - length) / length0
+
+        csv_data[idx, 0] = fdata["time"][idx]
+        csv_data[idx, 1] = fdata["dt"][idx]
+        csv_data[idx, 2] = neck_diameter
+        csv_data[idx, 3] = neck_growth
+        csv_data[idx, 4] = length
+        csv_data[idx, 5] = shrinkage
+        
+
+    file_path = csv_names.pop(0)
+    pathlib.Path(os.path.dirname(file_path)).mkdir(parents=True, exist_ok=True)
+    np.savetxt(file_path, csv_data, delimiter=' ', header=csv_header, fmt=csv_format, comments='')
+    print("   Saving result to {}".format(file_path))
+    print("")
