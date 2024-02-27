@@ -54,6 +54,8 @@ parser.add_argument("-s", "--skip-first", dest='skip_first', required=False, hel
 parser.add_argument("-g", "--single-legend", dest='single_legend', required=False, help="Use single legend", action="store_true", default=False)
 parser.add_argument("-b", "--labels", dest='labels', required=False, nargs='+', help="Customized labels", default=None)
 parser.add_argument("-r", "--delimiter", dest='delimiter', required=False, help="Input file delimiter", default=None)
+parser.add_argument("--normalize-xaxis", dest='normalize_xaxis', required=False, help="Normalize x-axis", action="store_true", default=False)
+parser.add_argument("--normalize-yaxis", dest='normalize_yaxis', required=False, help="Normalize y-axis", action="store_true", default=False)
 
 args = parser.parse_args()
 
@@ -134,6 +136,8 @@ for i in range(n_fields):
             mask[0] = False
         
         x = cdata[args.xaxis][mask]
+        if args.normalize_xaxis and max(x):
+            x /= max(x)
 
         # Maybe it is a formula - we will try to interpret it, its safety is implied
         y_label = field
@@ -163,6 +167,9 @@ for i in range(n_fields):
 
         x_lims[0] = min(x_lims[0], x[0])
         x_lims[1] = max(x_lims[1], x[-1])
+
+        if args.normalize_yaxis and max(y):
+            y /= max(y)
 
         a.plot(x, y, color=clr, linestyle='-', linewidth=2, label=lbl, marker=mrk, markevery=n_files)
 
