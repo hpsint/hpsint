@@ -1,4 +1,3 @@
-import os
 import sys
 import numpy as np
 import matplotlib.pyplot as plt
@@ -115,6 +114,9 @@ markers = list(islice(cycle(markers), n_files))
 # We will start from the longest field
 available_fields.sort(key=len, reverse=True)
 
+# Flag if legend is there already
+legend_added = False
+
 for i in range(n_fields):
     field = args.yaxes[i]
     a = ax[i]
@@ -123,17 +125,26 @@ for i in range(n_fields):
 
     token_prefix = '%token_{}'
 
+    y_label = None
+
     for f, lbl, clr, mrk in zip(files_list, labels, colors, markers):
         cdata = np.genfromtxt(f, dtype=None, names=True, delimiter=args.delimiter)
 
         tokens = []
         token_numberer = 0
+
+        if len(cdata.shape) == 0:
+            cdata = np.array([cdata])
         
         mask = [True] * len(cdata[args.xaxis])
         if args.limits:
             mask = (args.limits[0] <= cdata[args.xaxis]) & (cdata[args.xaxis] <= args.limits[1])    
         elif args.skip_first:
             mask[0] = False
+
+        if not any((mask)):
+            print("The specified x-axis limits ruled out all values for file {} - the file is skipped for plotting".format(f))
+            continue
         
         x = cdata[args.xaxis][mask]
         if args.normalize_xaxis and max(x):
@@ -165,24 +176,29 @@ for i in range(n_fields):
         else:
             y = cdata[field][mask]
 
-        x_lims[0] = min(x_lims[0], x[0])
-        x_lims[1] = max(x_lims[1], x[-1])
+        if len(x) and len(y):
+            x_lims[0] = min(x_lims[0], x[0])
+            x_lims[1] = max(x_lims[1], x[-1])
 
-        if args.normalize_yaxis and max(y):
-            y /= max(y)
+            if args.normalize_yaxis and max(y):
+                y /= max(y)
 
-        a.plot(x, y, color=clr, linestyle='-', linewidth=2, label=lbl, marker=mrk, markevery=n_files)
+            a.plot(x, y, color=clr, linestyle='-', linewidth=2, label=lbl, marker=mrk, markevery=n_files)
 
-    a.grid(True)
-    a.set_xlabel(args.xaxis)
-    a.set_ylabel(y_label)
-    a.set_title(field)
-    a.set_xlim(x_lims)
+    if y_label:
+        a.grid(True)
+        a.set_xlabel(args.xaxis)
+        a.set_ylabel("y_label")
+        a.set_title(field)
+        a.set_xlim(x_lims)
 
-    if not args.single_legend:
-        a.legend()
-    elif i == n_fields - 1:
-        a_handles, a_labels = a.get_legend_handles_labels()
-        fig.legend(a_handles, a_labels, loc='upper center')
+        if not args.single_legend:
+            a.legend()
+        elif not legend_added:
+            a_handles, a_labels = a.get_legend_handles_labels()
+            fig.legend(a_handles, a_labels, loc='upper center')
+            legend_added = True
+    else:
+        print("The plot for curve \"{}\" is empty".format(field))
 
 plt.show()
