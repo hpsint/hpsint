@@ -2693,6 +2693,50 @@ namespace Sintering
 
                     fosb << *this;
                   }
+
+                // If the desirable mesh quality was not reached in case we use
+                // it. We can do this check only after the first time has
+                // converged since the diffuse interfaces have to be adjusted in
+                // accordance with the energy properties.
+                if (n_timestep == 1 && params.adaptivity_data.quality_control)
+                  {
+                    const auto only_order_parameters =
+                      solution.create_view(2, sintering_data.n_components());
+
+                    auto quality = Postprocessors::estimate_mesh_quality_min(
+                      dof_handler, *only_order_parameters);
+
+                    pcout << std::endl;
+                    pcout << "Adjusting mesh to the quality requirements"
+                          << std::endl;
+                    pcout << "mesh quality = " << quality << ", quality_min = "
+                          << params.adaptivity_data.quality_min << std::endl;
+
+                    while (quality < params.adaptivity_data.quality_min)
+                      {
+                        // If that did not help, we need to allow for finer
+                        // cells
+                        pcout << "\033[33mIncreasing max_refinement_depth from "
+                              << this->current_max_refinement_depth << " to "
+                              << (++this->current_max_refinement_depth)
+                              << "\033[0m" << std::endl;
+
+                        execute_coarsening_and_refinement(
+                          t,
+                          params.adaptivity_data.top_fraction_of_cells,
+                          params.adaptivity_data.bottom_fraction_of_cells);
+
+                        quality = Postprocessors::estimate_mesh_quality_min(
+                          dof_handler, *only_order_parameters);
+
+                        pcout
+                          << "mesh quality = " << quality << ", quality_min = "
+                          << params.adaptivity_data.quality_min << std::endl;
+
+                        n_timestep_last_amr = n_timestep;
+                      }
+                    pcout << std::endl;
+                  }
               }
 
             TimerCollection::print_all_wall_time_statistics();
