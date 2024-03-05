@@ -2017,6 +2017,7 @@ namespace Sintering
 
       // initial local refinement
       if (t == 0.0 && (params.adaptivity_data.refinement_frequency > 0 ||
+                       params.adaptivity_data.quality_control ||
                        params.geometry_data.global_refinement != "Full"))
         {
           // Initialize only the current solution
