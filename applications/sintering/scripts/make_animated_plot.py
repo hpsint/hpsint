@@ -11,20 +11,20 @@ import library
 from scipy.stats import norm
 from matplotlib.patches import Polygon
 
-def plot_step(cdata, x_min, x_max, y_min, y_max, step = None, show = True):
+def plot_step(xdata, ydata, x_min, x_max, y_min, y_max, step = None, show = True):
 
     fig, ax = library.animation_init_plot(args.format_color_background, args.xsize, args.ysize)
 
     if step is not(None):
         local_limit = step + 1
-        pngName = "step_{:04d}.png".format(step)
+        png_name = "step_{:04d}.png".format(step)
     else:
         local_limit = 999999
-        pngName = "step_none.png"
+        png_name = "step_none.png"
 
     # data
-    x = cdata[args.xaxis][0:local_limit]
-    y = cdata[args.yaxis][0:local_limit]
+    x = xdata[0:local_limit]
+    y = ydata[0:local_limit]
 
     # Plot
     gradient_fill(x, y, fill_color=args.format_color_fill, ax=ax, ymin_custom=y_min, ymax_custom=y_max, color=args.format_color_line, linewidth=args.format_line_width)
@@ -41,7 +41,7 @@ def plot_step(cdata, x_min, x_max, y_min, y_max, step = None, show = True):
 
     fig.tight_layout(pad=1.5)
 
-    plt.savefig(os.path.join(output_folder, pngName))
+    plt.savefig(os.path.join(output_folder, png_name))
     
     if show:
         plt.show()
@@ -161,18 +161,21 @@ if args.start is not None:
     xdata = xdata[xfilter]
     ydata = ydata[xfilter]
 
-x_min = np.min(cdata[args.xaxis])
-x_max = np.max(cdata[args.xaxis])
-y_min = np.min(cdata[args.yaxis])
-y_max = np.max(cdata[args.yaxis])
+x_min = np.min(xdata)
+x_max = np.max(xdata)
+y_min = np.min(ydata)
+y_max = np.max(ydata)
 
 if args.span:
     y_range = y_max - y_min
     y_max += args.span * y_range
     y_min -= args.span * y_range
 
-step_start = 0
+n = len(xdata)
 
-for istep in range(step_start, cdata.size):
-    print("Rendering step {}/{}".format(istep+1, cdata.size))
-    plot_step(cdata, x_min, x_max, y_min, y_max, istep, False)
+if n <= 1:
+    raise Exception("There is too few data (len(xdata) = {}) to plot - nothing to animate".format(n))
+
+for istep in range(n):
+    print("Rendering step {}/{}".format(istep+1, n))
+    plot_step(xdata, ydata, x_min, x_max, y_min, y_max, istep, False)

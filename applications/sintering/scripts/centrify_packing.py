@@ -16,12 +16,12 @@ ylim = [smax, -smax]
 zlim = [smax, -smax]
 
 for p in fdata:
-    xlim[0] = min(p["x"] - p["r"], xlim[0])
-    xlim[1] = max(p["x"] + p["r"], xlim[1])
-    ylim[0] = min(p["y"] - p["r"], ylim[0])
-    ylim[1] = max(p["y"] + p["r"], ylim[1])
-    zlim[0] = min(p["z"] - p["r"], zlim[0])
-    zlim[1] = max(p["z"] + p["r"], zlim[1])
+    xlim[0] = min(p["x"] - p["r"], xlim[0])
+    xlim[1] = max(p["x"] + p["r"], xlim[1])
+    ylim[0] = min(p["y"] - p["r"], ylim[0])
+    ylim[1] = max(p["y"] + p["r"], ylim[1])
+    zlim[0] = min(p["z"] - p["r"], zlim[0])
+    zlim[1] = max(p["z"] + p["r"], zlim[1])
 
 print("Packing dimensions:")
 print("  x = {}".format(xlim))
@@ -35,9 +35,9 @@ zc = (zlim[1] - zlim[0]) / 2.
 print("Packing center = {}".format([xc, yc, zc]))
 
 for p in fdata:
-    p["x"] -= xc
-    p["y"] -= yc
-    p["z"] -= zc
+    p["x"] -= xc
+    p["y"] -= yc
+    p["z"] -= zc
 
 fname, fext = os.path.splitext(args.file)
 
