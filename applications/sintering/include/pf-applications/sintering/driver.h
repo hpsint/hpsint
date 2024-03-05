@@ -2475,8 +2475,10 @@ namespace Sintering
                             dt = params.time_integration_data.time_step_max;
                           }
 
-                        // Coarsen mesh if we solve everything nicely
+                        // Coarsen mesh if we have solved everything nicely, we
+                        // can do it only if quality control is disabled
                         if (params.adaptivity_data.extra_coarsening &&
+                            !params.adaptivity_data.quality_control &&
                             this->current_max_refinement_depth ==
                               params.adaptivity_data.max_refinement_depth)
                           {
