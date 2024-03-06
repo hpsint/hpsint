@@ -2718,8 +2718,10 @@ namespace Sintering
                         // cells
                         pcout << "\033[33mIncreasing max_refinement_depth from "
                               << this->current_max_refinement_depth << " to "
-                              << (++this->current_max_refinement_depth)
+                              << (this->current_max_refinement_depth + 1)
                               << "\033[0m" << std::endl;
+
+                        ++this->current_max_refinement_depth;
 
                         execute_coarsening_and_refinement(
                           t,
