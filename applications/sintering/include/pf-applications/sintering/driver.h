@@ -2017,6 +2017,7 @@ namespace Sintering
 
       // initial local refinement
       if (t == 0.0 && (params.adaptivity_data.refinement_frequency > 0 ||
+                       params.adaptivity_data.quality_control ||
                        params.geometry_data.global_refinement != "Full"))
         {
           // Initialize only the current solution
@@ -2475,8 +2476,10 @@ namespace Sintering
                             dt = params.time_integration_data.time_step_max;
                           }
 
-                        // Coarsen mesh if we solve everything nicely
+                        // Coarsen mesh if we have solved everything nicely, we
+                        // can do it only if quality control is disabled
                         if (params.adaptivity_data.extra_coarsening &&
+                            !params.adaptivity_data.quality_control &&
                             this->current_max_refinement_depth ==
                               params.adaptivity_data.max_refinement_depth)
                           {
@@ -2586,105 +2589,156 @@ namespace Sintering
               }
 
             if (has_converged)
-              solution_history.commit_old_solutions();
-
-            const bool is_last_time_step =
-              has_converged &&
-              (std::abs(t - params.time_integration_data.time_end) < 1e-8);
-
-            if ((params.output_data.output_time_interval > 0.0) &&
-                has_converged &&
-                (t >
-                   params.output_data.output_time_interval + time_last_output ||
-                 is_last_time_step))
               {
-                time_last_output = t;
-                output_result(solution,
-                              nonlinear_operator,
-                              grain_tracker,
-                              advection_mechanism,
-                              statistics,
-                              time_last_output,
-                              timer,
-                              "solution",
-                              additional_output);
-              }
+                // Commit solutions across time history
+                solution_history.commit_old_solutions();
 
-            if (has_converged &&
-                (is_last_time_step || restart_predicate.now(t)))
-              {
-                ScopedName sc("restart");
-                MyScope    scope(timer, sc);
+                // If this was the last step
+                const bool is_last_time_step =
+                  (std::abs(t - params.time_integration_data.time_end) < 1e-8);
 
-                unsigned int current_restart_count = restart_counter++;
-
-                if (params.restart_data.max_output != 0)
-                  current_restart_count =
-                    current_restart_count % params.restart_data.max_output;
-
-                const std::string prefix =
-                  params.restart_data.prefix + "_" +
-                  std::to_string(current_restart_count);
-
-                std::vector<const typename VectorType::BlockType *>
-                  solution_ptr;
-
-                if (params.restart_data.full_history)
+                // Output results
+                if ((params.output_data.output_time_interval > 0.0) &&
+                    (t > params.output_data.output_time_interval +
+                           time_last_output ||
+                     is_last_time_step))
                   {
-                    auto all_except_old =
-                      solution_history.filter(true, false, true);
-
-                    const auto history_all_blocks =
-                      all_except_old.get_all_blocks_raw();
-                    solution_ptr.assign(history_all_blocks.begin(),
-                                        history_all_blocks.end());
-                  }
-                else
-                  {
-                    solution_ptr.resize(solution.n_blocks());
-                    for (unsigned int b = 0; b < solution.n_blocks(); ++b)
-                      solution_ptr[b] = &solution.block(b);
+                    time_last_output = t;
+                    output_result(solution,
+                                  nonlinear_operator,
+                                  grain_tracker,
+                                  advection_mechanism,
+                                  statistics,
+                                  time_last_output,
+                                  timer,
+                                  "solution",
+                                  additional_output);
                   }
 
-                if (params.restart_data.flexible_output)
+                // Save restart point
+                if (is_last_time_step || restart_predicate.now(t))
                   {
-                    if (!solution.has_ghost_elements())
-                      solution.update_ghost_values();
+                    ScopedName sc("restart");
+                    MyScope    scope(timer, sc);
 
-                    parallel::distributed::
-                      SolutionTransfer<dim, typename VectorType::BlockType>
-                        solution_transfer(dof_handler);
+                    unsigned int current_restart_count = restart_counter++;
 
-                    solution_transfer.prepare_for_serialization(solution_ptr);
-                    tria.save(prefix + "_tria");
+                    if (params.restart_data.max_output != 0)
+                      current_restart_count =
+                        current_restart_count % params.restart_data.max_output;
 
-                    solution.zero_out_ghost_values();
+                    const std::string prefix =
+                      params.restart_data.prefix + "_" +
+                      std::to_string(current_restart_count);
+
+                    std::vector<const typename VectorType::BlockType *>
+                      solution_ptr;
+
+                    if (params.restart_data.full_history)
+                      {
+                        auto all_except_old =
+                          solution_history.filter(true, false, true);
+
+                        const auto history_all_blocks =
+                          all_except_old.get_all_blocks_raw();
+                        solution_ptr.assign(history_all_blocks.begin(),
+                                            history_all_blocks.end());
+                      }
+                    else
+                      {
+                        solution_ptr.resize(solution.n_blocks());
+                        for (unsigned int b = 0; b < solution.n_blocks(); ++b)
+                          solution_ptr[b] = &solution.block(b);
+                      }
+
+                    if (params.restart_data.flexible_output)
+                      {
+                        if (!solution.has_ghost_elements())
+                          solution.update_ghost_values();
+
+                        parallel::distributed::
+                          SolutionTransfer<dim, typename VectorType::BlockType>
+                            solution_transfer(dof_handler);
+
+                        solution_transfer.prepare_for_serialization(
+                          solution_ptr);
+                        tria.save(prefix + "_tria");
+
+                        solution.zero_out_ghost_values();
+                      }
+                    else
+                      {
+                        parallel::distributed::SolutionSerialization<
+                          dim,
+                          typename VectorType::BlockType>
+                          solution_serialization(dof_handler);
+
+                        solution_serialization.add_vectors(solution_ptr);
+
+                        solution_serialization.save(prefix + "_vectors");
+                        tria.save(prefix + "_tria");
+                      }
+
+                    std::ofstream out_stream(prefix + "_driver");
+                    boost::archive::binary_oarchive fosb(out_stream);
+                    fosb << params.restart_data.flexible_output;
+                    fosb << params.restart_data.full_history;
+                    fosb << Utilities::MPI::n_mpi_processes(MPI_COMM_WORLD);
+                    fosb << sintering_data.n_components();
+                    fosb << solution.n_blocks();
+                    fosb << static_cast<unsigned int>(solution_ptr.size());
+
+                    if (params.restart_data.full_history)
+                      fosb << static_cast<unsigned int>(dts.size());
+
+                    fosb << *this;
                   }
-                else
+
+                // If the desirable mesh quality was not reached in case we use
+                // it. We can do this check only after the first time has
+                // converged since the diffuse interfaces have to be adjusted in
+                // accordance with the energy properties.
+                if (n_timestep == 1 && params.adaptivity_data.quality_control)
                   {
-                    parallel::distributed::
-                      SolutionSerialization<dim, typename VectorType::BlockType>
-                        solution_serialization(dof_handler);
+                    const auto only_order_parameters =
+                      solution.create_view(2, sintering_data.n_components());
 
-                    solution_serialization.add_vectors(solution_ptr);
+                    auto quality = Postprocessors::estimate_mesh_quality_min(
+                      dof_handler, *only_order_parameters);
 
-                    solution_serialization.save(prefix + "_vectors");
-                    tria.save(prefix + "_tria");
+                    pcout << std::endl;
+                    pcout << "Adjusting mesh to the quality requirements"
+                          << std::endl;
+                    pcout << "mesh quality = " << quality << ", quality_min = "
+                          << params.adaptivity_data.quality_min << std::endl;
+
+                    while (quality < params.adaptivity_data.quality_min)
+                      {
+                        // If that did not help, we need to allow for finer
+                        // cells
+                        pcout << "\033[33mIncreasing max_refinement_depth from "
+                              << this->current_max_refinement_depth << " to "
+                              << (this->current_max_refinement_depth + 1)
+                              << "\033[0m" << std::endl;
+
+                        ++this->current_max_refinement_depth;
+
+                        execute_coarsening_and_refinement(
+                          t,
+                          params.adaptivity_data.top_fraction_of_cells,
+                          params.adaptivity_data.bottom_fraction_of_cells);
+
+                        quality = Postprocessors::estimate_mesh_quality_min(
+                          dof_handler, *only_order_parameters);
+
+                        pcout
+                          << "mesh quality = " << quality << ", quality_min = "
+                          << params.adaptivity_data.quality_min << std::endl;
+
+                        n_timestep_last_amr = n_timestep;
+                      }
+                    pcout << std::endl;
                   }
-
-                std::ofstream                   out_stream(prefix + "_driver");
-                boost::archive::binary_oarchive fosb(out_stream);
-                fosb << params.restart_data.flexible_output;
-                fosb << params.restart_data.full_history;
-                fosb << Utilities::MPI::n_mpi_processes(MPI_COMM_WORLD);
-                fosb << sintering_data.n_components();
-                fosb << solution.n_blocks();
-                fosb << static_cast<unsigned int>(solution_ptr.size());
-
-                if (params.restart_data.full_history)
-                  fosb << static_cast<unsigned int>(dts.size());
-
-                fosb << *this;
               }
 
             TimerCollection::print_all_wall_time_statistics();
