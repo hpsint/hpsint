@@ -2492,6 +2492,7 @@ namespace Sintering
               [](const VectorizedArrayType *                value,
                  const Tensor<1, dim, VectorizedArrayType> *gradient,
                  const unsigned int                         n_grains) {
+                (void)value;
                 (void)gradient;
                 (void)n_grains;
 
