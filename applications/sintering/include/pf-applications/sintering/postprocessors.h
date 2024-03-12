@@ -2487,6 +2487,16 @@ namespace Sintering
                     return i < n_grains ? value[2 + i] : 0.;
                   });
               }
+          else if (qty == "control_vol")
+            q_evaluators.emplace_back(
+              [](const VectorizedArrayType *                value,
+                 const Tensor<1, dim, VectorizedArrayType> *gradient,
+                 const unsigned int                         n_grains) {
+                (void)gradient;
+                (void)n_grains;
+
+                return VectorizedArrayType(1.);
+              });
           else
             AssertThrow(false,
                         ExcMessage("Invalid domain integral provided: " + qty));
