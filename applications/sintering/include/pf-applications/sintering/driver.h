@@ -2912,10 +2912,9 @@ namespace Sintering
         if (params.output_data.control_boxes.empty())
           return name;
         else if (params.output_data.only_control_boxes)
-          return name + "_box" + std::to_string(index);
+          return name + "_" + std::to_string(index);
         else
-          return (index == 0) ? name :
-                                (name + "_box" + std::to_string(index - 1));
+          return (index == 0) ? name : (name + "_" + std::to_string(index - 1));
       };
 
       if (params.output_data.table)
@@ -2999,7 +2998,7 @@ namespace Sintering
                   const auto box_volume =
                     box_filters[i]->get_bounding_box().volume();
 
-                  table.add_value(generate_name("cntrl_box", i), box_volume);
+                  table.add_value(generate_name("control_box", i), box_volume);
                 }
 
               if (params.output_data.iso_surf_area)
