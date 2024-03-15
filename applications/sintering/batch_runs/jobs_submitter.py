@@ -10,6 +10,12 @@ def get_current_jobs_num(partition):
     proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, shell=True)
     (out, err) = proc.communicate()
 
+    # Python 3 returns utf-8 output
+    try:
+        out = out.decode('utf-8')
+    except:
+        pass
+
     result = re.findall("(\d+) ([A-Z]+) (\w+)", out)
     num_jobs = 0
     for tpl in result:
@@ -28,6 +34,13 @@ args = parser.parse_args()
 
 proc_jobs = subprocess.Popen(args.cmd, stdout=subprocess.PIPE, shell=True)
 (out_jobs, err) = proc_jobs.communicate()
+
+# Python 3 returns utf-8 output
+try:
+    out_jobs = out_jobs.decode('utf-8')
+except:
+    pass
+
 jobs = re.findall("sbatch.*", out_jobs)
 
 n_jobs = len(jobs)
