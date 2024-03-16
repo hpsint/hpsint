@@ -87,7 +87,7 @@ namespace dealii
           return blocks[local_index.first](local_index.second);
         }
 
-        value_type
+        value_type &
         operator()(const size_type i)
         {
           const std::pair<unsigned int, size_type> local_index =
@@ -101,7 +101,7 @@ namespace dealii
           return operator()(i);
         }
 
-        value_type
+        value_type &
         operator[](const size_type i)
         {
           return operator()(i);
