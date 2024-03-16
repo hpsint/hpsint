@@ -418,6 +418,27 @@ namespace dealii
           std::swap(this->blocks, V.blocks);
           std::swap(this->block_indices, V.block_indices);
         }
+
+        bool
+        all_zero() const
+        {
+          return (linfty_norm() == 0) ? true : false;
+        }
+
+        IndexSet
+        locally_owned_elements() const
+        {
+          IndexSet is(size());
+
+          for (unsigned int b = 0; b < n_blocks(); ++b)
+            {
+              IndexSet x = block(b).locally_owned_elements();
+              is.add_indices(x, block_indices.block_start(b));
+            }
+
+          is.compress();
+
+          return is;
         }
 
         static constexpr unsigned int communication_block_size = 0;
