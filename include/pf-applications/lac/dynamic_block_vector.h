@@ -84,7 +84,7 @@ namespace dealii
         {
           const std::pair<unsigned int, size_type> local_index =
             block_indices.global_to_local(i);
-          return blocks[local_index.first](local_index.second);
+          return (*blocks[local_index.first])(local_index.second);
         }
 
         value_type &
@@ -92,7 +92,7 @@ namespace dealii
         {
           const std::pair<unsigned int, size_type> local_index =
             block_indices.global_to_local(i);
-          return blocks[local_index.first](local_index.second);
+          return (*blocks[local_index.first])(local_index.second);
         }
 
         value_type
