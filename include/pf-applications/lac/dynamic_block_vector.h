@@ -79,6 +79,34 @@ namespace dealii
           return *this;
         }
 
+        value_type
+        operator()(const size_type i) const
+        {
+          const std::pair<unsigned int, size_type> local_index =
+            block_indices.global_to_local(i);
+          return blocks[local_index.first](local_index.second);
+        }
+
+        value_type
+        operator()(const size_type i)
+        {
+          const std::pair<unsigned int, size_type> local_index =
+            block_indices.global_to_local(i);
+          return blocks[local_index.first](local_index.second);
+        }
+
+        value_type
+        operator[](const size_type i) const
+        {
+          return operator()(i);
+        }
+
+        value_type
+        operator[](const size_type i)
+        {
+          return operator()(i);
+        }
+
         void
         reinit(const unsigned int n, const bool omit_zeroing_entries = false)
         {
