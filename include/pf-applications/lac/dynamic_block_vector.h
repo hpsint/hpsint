@@ -363,6 +363,18 @@ namespace dealii
             block(b) *= factor;
         }
 
+        void
+        operator/=(const T factor)
+        {
+          AssertIsFinite(factor);
+          Assert(factor != 0., ExcDivideByZero());
+
+          const value_type inverse_factor = value_type(1.) / factor;
+
+          for (unsigned int b = 0; b < n_blocks(); ++b)
+            block(b) *= inverse_factor;
+        }
+
         T
         add_and_dot(const T                      a,
                     const DynamicBlockVector<T> &V,
