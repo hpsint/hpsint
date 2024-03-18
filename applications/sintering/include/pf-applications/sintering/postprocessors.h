@@ -2512,13 +2512,15 @@ namespace Sintering
     }
 
     template <int dim,
+              typename NonLinearOperator,
               typename VectorType,
               typename VectorizedArrayType,
               typename Number>
     void
     output_grains_stats(
+      const Mapping<dim> &                      mapping,
       const DoFHandler<dim> &                   dof_handler,
-      const unsigned int                        n_op,
+      const NonLinearOperator &                 sintering_operator,
       const GrainTracker::Tracker<dim, Number> &grain_tracker_in,
       const AdvectionMechanism<dim, Number, VectorizedArrayType>
         &               advection_mechanism,
@@ -2535,12 +2537,95 @@ namespace Sintering
       auto grain_tracker = grain_tracker_in.clone();
 
       if (grain_tracker->get_grains().empty())
-        grain_tracker->initial_setup(solution, n_op);
+        grain_tracker->initial_setup(solution, sintering_operator.n_grains());
       else
-        grain_tracker->track(solution, n_op, true);
+        grain_tracker->track(solution, sintering_operator.n_grains(), true);
 
       if (has_ghost_elements == false)
         solution.zero_out_ghost_values();
+
+      // We assume that a grain contains a single segment
+      constexpr unsigned int segment_id = 0;
+
+      Tensor<1, dim, Number> dummy_velocities;
+      for (unsigned int d = 0; d < dim; ++d)
+        dummy_velocities[d] = std::numeric_limits<double>::quiet_NaN();
+
+      // Two different ways to compute velocities
+      std::function<Tensor<1, dim, Number>(const unsigned int)> get_velocity;
+      if constexpr (std::is_base_of_v<
+                      SinteringOperatorCoupledBase<dim,
+                                                   Number,
+                                                   VectorizedArrayType,
+                                                   NonLinearOperator>,
+                      NonLinearOperator>)
+        {
+          std::vector<Point<dim>> evaluation_points;
+
+          std::array<std::vector<Number>, dim> displacements;
+
+          std::map<unsigned int, unsigned int> grain_id_to_eval_id;
+          unsigned int                         counter = 0;
+
+          for (const auto &[grain_id, grain] : grain_tracker->get_grains())
+            {
+              grain_id_to_eval_id[grain_id] = counter++;
+              evaluation_points.push_back(
+                grain.get_segments()[segment_id].get_center());
+            }
+
+          // set up cache manually
+          Utilities::MPI::RemotePointEvaluation<dim, dim> rpe;
+          rpe.reinit(evaluation_points,
+                     dof_handler.get_triangulation(),
+                     mapping);
+
+          // use the cache
+          for (unsigned int b = solution.n_blocks() - dim, d = 0;
+               b < solution.n_blocks();
+               ++b, ++d)
+            {
+              displacements[d] =
+                VectorTools::point_values<1>(rpe,
+                                             dof_handler,
+                                             solution.block(b));
+            }
+
+          get_velocity =
+            [displacements       = std::move(displacements),
+             grain_id_to_eval_id = std::move(grain_id_to_eval_id),
+             dummy_velocities    = std::move(dummy_velocities),
+             dt = sintering_operator.get_data().time_data.get_current_dt(),
+             &grain_tracker](const unsigned int grain_id) {
+              Tensor<1, dim, Number> vt = dummy_velocities;
+
+              if (grain_tracker->get_grains().at(grain_id).n_segments() == 1 &&
+                  dt != 0)
+                for (unsigned int d = 0; d < dim; ++d)
+                  vt[d] =
+                    displacements[d][grain_id_to_eval_id.at(grain_id)] / dt;
+
+              return vt;
+            };
+        }
+      else
+        {
+          (void)mapping;
+
+          get_velocity = [dummy_velocities = std::move(dummy_velocities),
+                          &advection_mechanism,
+                          &grain_tracker](const unsigned int grain_id) {
+            const Tensor<1, dim, Number> vt =
+              (!advection_mechanism.get_grains_data().empty() &&
+               grain_tracker->get_grains().at(grain_id).n_segments() == 1) ?
+                advection_mechanism.get_translation_velocity_for_grain(
+                  grain_tracker->get_grain_segment_index(grain_id,
+                                                         segment_id)) :
+                dummy_velocities;
+
+            return vt;
+          };
+        }
 
       if (Utilities::MPI::this_mpi_process(comm) != 0)
         return;
@@ -2558,10 +2643,6 @@ namespace Sintering
       const auto dummy =
         create_array<1 + dim + moment_s<dim, VectorizedArrayType>>(
           std::numeric_limits<double>::quiet_NaN());
-
-      Tensor<1, dim, Number> dummy_velocities;
-      for (unsigned int d = 0; d < dim; ++d)
-        dummy_velocities[d] = std::numeric_limits<double>::quiet_NaN();
 
       for (const auto &[grain_id, grain] : grain_tracker->get_grains())
         {
@@ -2599,12 +2680,7 @@ namespace Sintering
                 table.add_value(labels_torques[d], *data++);
 
               // Output translation velocities
-              const Tensor<1, dim, Number> vt =
-                (!advection_mechanism.get_grains_data().empty() &&
-                 grain.n_segments() == 1) ?
-                  advection_mechanism.get_translation_velocity_for_grain(
-                    grain_tracker->get_grain_segment_index(grain_id, 0)) :
-                  dummy_velocities;
+              const auto vt = get_velocity(grain_id);
 
               for (unsigned int d = 0; d < dim; ++d)
                 table.add_value(labels_velocities[d], vt[d]);
