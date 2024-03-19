@@ -3257,8 +3257,9 @@ namespace Sintering
           pcout << "Outputing data at t = " << t << " (" << output << ")"
                 << std::endl;
 
-          Postprocessors::output_grains_stats(dof_handler,
-                                              sintering_operator.n_grains(),
+          Postprocessors::output_grains_stats(mapping,
+                                              dof_handler,
+                                              sintering_operator,
                                               grain_tracker,
                                               advection_mechanism,
                                               solution,
