@@ -57,7 +57,7 @@ concatenate_strings(const int argc, char **argv)
 {
   std::string result = std::string(argv[0]);
 
-  for (int i = 0; i < argc; ++i)
+  for (int i = 1; i < argc; ++i)
     result = result + " " + std::string(argv[i]);
 
   return result;

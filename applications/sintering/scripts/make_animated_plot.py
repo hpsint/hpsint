@@ -156,10 +156,14 @@ cdata = np.genfromtxt(args.file, delimiter=args.delimiter, dtype=None, names=Tru
 xdata = cdata[args.xaxis]
 ydata = cdata[args.yaxis]
 
+xfilter = np.arange(len(xdata))
 if args.start is not None:
-    xfilter = np.where((xdata >= args.start) & (xdata <= args.end))
-    xdata = xdata[xfilter]
-    ydata = ydata[xfilter]
+    xfilter = xfilter[np.in1d(xfilter, np.where((xdata >= args.start)))]
+if args.end is not None:
+    xfilter = xfilter[np.in1d(xfilter, np.where((xdata <= args.end)))]
+
+xdata = xdata[xfilter]
+ydata = ydata[xfilter]
 
 x_min = np.min(xdata)
 x_max = np.max(xdata)

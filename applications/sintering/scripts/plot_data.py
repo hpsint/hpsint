@@ -188,7 +188,7 @@ for i in range(n_fields):
     if y_label:
         a.grid(True)
         a.set_xlabel(args.xaxis)
-        a.set_ylabel("y_label")
+        a.set_ylabel(y_label)
         a.set_title(field)
         a.set_xlim(x_lims)
 
