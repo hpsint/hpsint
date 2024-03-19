@@ -15,6 +15,7 @@
 
 #pragma once
 
+#include <deal.II/lac/block_indices.h>
 #include <deal.II/lac/block_vector_base.h>
 #include <deal.II/lac/la_parallel_block_vector.h>
 #include <deal.II/lac/la_parallel_vector.h>
@@ -40,13 +41,11 @@ namespace dealii
          * Initialization.
          */
         explicit DynamicBlockVector(const unsigned int n = 0)
-          : size_(0)
         {
           reinit(n);
         }
 
         explicit DynamicBlockVector(const DynamicBlockVector<T> &V)
-          : size_(0)
         {
           *this = V;
         }
@@ -56,9 +55,7 @@ namespace dealii
         {
           blocks.assign(begin, end);
 
-          size_ = 0;
-          for (unsigned int b = 0; b < n_blocks(); ++b)
-            size_ += block(b).size();
+          collect_sizes();
         }
 
         DynamicBlockVector<T> &
@@ -77,11 +74,37 @@ namespace dealii
                 block(b).update_ghost_values();
             }
 
-          size_ = 0;
-          for (unsigned int b = 0; b < n_blocks(); ++b)
-            size_ += block(b).size();
+          collect_sizes();
 
           return *this;
+        }
+
+        value_type
+        operator()(const size_type i) const
+        {
+          const std::pair<unsigned int, size_type> local_index =
+            block_indices.global_to_local(i);
+          return (*blocks[local_index.first])(local_index.second);
+        }
+
+        value_type &
+        operator()(const size_type i)
+        {
+          const std::pair<unsigned int, size_type> local_index =
+            block_indices.global_to_local(i);
+          return (*blocks[local_index.first])(local_index.second);
+        }
+
+        value_type
+        operator[](const size_type i) const
+        {
+          return operator()(i);
+        }
+
+        value_type &
+        operator[](const size_type i)
+        {
+          return operator()(i);
         }
 
         void
@@ -104,9 +127,7 @@ namespace dealii
                 }
             }
 
-          size_ = 0;
-          for (unsigned int b = 0; b < n_blocks(); ++b)
-            size_ += block(b).size();
+          collect_sizes();
         }
 
         void
@@ -124,15 +145,13 @@ namespace dealii
                 block(b).update_ghost_values();
             }
 
-          size_ = 0;
-          for (unsigned int b = 0; b < n_blocks(); ++b)
-            size_ += block(b).size();
+          collect_sizes();
         }
 
         types::global_dof_index
         size() const
         {
-          return size_;
+          return block_indices.total_size();
         }
 
 
@@ -363,6 +382,18 @@ namespace dealii
             block(b) *= factor;
         }
 
+        void
+        operator/=(const T factor)
+        {
+          AssertIsFinite(factor);
+          Assert(factor != 0., ExcDivideByZero());
+
+          const value_type inverse_factor = value_type(1.) / factor;
+
+          for (unsigned int b = 0; b < n_blocks(); ++b)
+            block(b) *= inverse_factor;
+        }
+
         T
         add_and_dot(const T                      a,
                     const DynamicBlockVector<T> &V,
@@ -413,15 +444,48 @@ namespace dealii
         swap(DynamicBlockVector &V)
         {
           std::swap(this->blocks, V.blocks);
-          std::swap(this->size_, V.size_);
+          std::swap(this->block_indices, V.block_indices);
+        }
+
+        bool
+        all_zero() const
+        {
+          return (linfty_norm() == 0) ? true : false;
+        }
+
+        IndexSet
+        locally_owned_elements() const
+        {
+          IndexSet is(size());
+
+          for (unsigned int b = 0; b < n_blocks(); ++b)
+            {
+              IndexSet x = block(b).locally_owned_elements();
+              is.add_indices(x, block_indices.block_start(b));
+            }
+
+          is.compress();
+
+          return is;
         }
 
         static constexpr unsigned int communication_block_size = 0;
 
       private:
+        void
+        collect_sizes()
+        {
+          std::vector<size_type> sizes(n_blocks());
+
+          for (size_type i = 0; i < n_blocks(); ++i)
+            sizes[i] = block(i).size();
+
+          block_indices.reinit(sizes);
+        }
+
         std::vector<std::shared_ptr<BlockType>> blocks;
 
-        types::global_dof_index size_;
+        BlockIndices block_indices;
       };
     } // namespace distributed
   }   // namespace LinearAlgebra
