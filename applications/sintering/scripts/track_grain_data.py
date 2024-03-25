@@ -68,7 +68,8 @@ has_missing_arguments = False
 
 # If no grain id provided to track then show available indices
 if not args.grains:
-    print("You did not specify any grain index to track. These are the grain indices available at the start and end of the simulations:")
+    print("You did not specify any grain index to track.")
+    print("These are the grain indices available for all files at the start and end of the simulations, but you can choose any others too:")
 
     available_ids_start = None
     available_ids_end = None
@@ -85,7 +86,7 @@ if not args.grains:
     print(" -- end:")
     print(sorted_available_ids_end)
 
-    print("Rerun the script specifying at least one of them")
+    print("Rerun the script specifying at least one grain index")
     print("")
     
     has_missing_arguments = True
@@ -111,21 +112,6 @@ if not args.quantities:
 if has_missing_arguments:
     exit()
 
-# Total number of quantities
-n_qtys = len(args.grains) * len(args.quantities)
-
-# Build a CSV header
-csv_header = ["time", "dt"]
-qty_offset = len(csv_header)
-for gid in args.grains:
-    for qty in args.quantities:
-        csv_header.append("{}_{}".format(qty, gid))
-csv_header = " ".join(csv_header)
-
-# Build CSV format
-csv_format = ["%g"] * (n_qtys + qty_offset)
-csv_format = " ".join(csv_format)
-
 # Save csv names
 if args.output is not None:
     file_names = library.generate_short_labels(list_solution_files, args.extend_to)
@@ -144,6 +130,39 @@ for file_solution, files_list in zip(list_solution_files, list_distributions):
 
     # Total number of stats files
     n_rows = len(files_list)
+
+    if n_rows == 0:
+        continue
+
+    # Check the grains and quantities available for this file
+    this_grains = []
+    this_quantities = []
+
+    qdata = np.genfromtxt(files_list[0], dtype=None, names=True)
+
+    for gid in args.grains:
+        itemindex = np.where(qdata["id"] == gid)
+        if len(itemindex[0]):
+            this_grains.append(gid)
+
+    for qty in args.quantities:
+        if qty in qdata.dtype.names:
+            this_quantities.append(qty)
+
+    # Total number of quantities
+    n_qtys = len(this_grains) * len(this_quantities)
+
+    # Build a CSV header
+    csv_header = ["time", "dt"]
+    qty_offset = len(csv_header)
+    for gid in this_grains:
+        for qty in this_quantities:
+            csv_header.append("{}_{}".format(qty, gid))
+    csv_header = " ".join(csv_header)
+
+    # Build CSV format
+    csv_format = ["%g"] * (n_qtys + qty_offset)
+    csv_format = " ".join(csv_format)
 
     # Flag indentifying that we had nans at the beginning
     fill_nans_up_to = [None] * n_qtys
@@ -164,13 +183,13 @@ for file_solution, files_list in zip(list_solution_files, list_distributions):
         qdata = np.genfromtxt(log_file, dtype=None, names=True)
 
         qty_counter = 0
-        for gid in args.grains:
+        for gid in this_grains:
 
             itemindex = np.where(qdata["id"] == gid)
             if not len(itemindex[0]):
                 raise Exception("It seems you provided the wrong grain id = {}, check the list of those available for analysis".format(gid))
 
-            for qty in args.quantities:
+            for qty in this_quantities:
 
                 if qty not in qdata.dtype.names:
                     raise Exception("It seems you provided the wrong quantity name \"{}\", check the list of those available for analysis".format(qty))
