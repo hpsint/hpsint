@@ -2541,9 +2541,6 @@ namespace Sintering
       else
         grain_tracker->track(solution, sintering_operator.n_grains(), true);
 
-      if (has_ghost_elements == false)
-        solution.zero_out_ghost_values();
-
       // We assume that a grain contains a single segment
       constexpr unsigned int segment_id = 0;
 
@@ -2626,6 +2623,9 @@ namespace Sintering
             return vt;
           };
         }
+
+      if (has_ghost_elements == false)
+        solution.zero_out_ghost_values();
 
       if (Utilities::MPI::this_mpi_process(comm) != 0)
         return;
