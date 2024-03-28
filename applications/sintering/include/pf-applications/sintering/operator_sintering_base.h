@@ -512,10 +512,8 @@ namespace Sintering
 
               for (unsigned int i = 0; i < quantities.size(); ++i)
                 {
-                  VectorizedArrayType value_result;
-
                   const auto &q_eval = quantities[i];
-                  value_result =
+                  const auto  value_result =
                     q_eval(&val[0], &grad[0], data.n_grains()) * filter;
 
                   fe_eval[i].submit_value(value_result, q);
