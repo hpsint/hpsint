@@ -37,6 +37,7 @@ def touch(path):
 parser = argparse.ArgumentParser(description="Run multiple tests")
 parser.add_argument("-f", "--file", type=str, help="Batch file to process", required=True)
 parser.add_argument("-d", "--debug", action='store_true', help="Debug and print jobs only without submission", required=False, default=False)
+parser.add_argument("-c", "--clear", action='store_true', help="Clean folders even we perform only debug prints", required=False, default=False)
 parser.add_argument("-a", "--account", type=str, help="User account", required=False)
 parser.add_argument("-e", "--email", type=str, help="Email for notification", required=False)
 parser.add_argument("-x", "--extra", type=str, help="Extra settings passed to the solver", required=False)
@@ -301,12 +302,13 @@ with open(args.file) as json_data:
                     
                     print(cmd)
 
+                    # Clean folders if needed
+                    do_clear = "CleanOutputFolder" in data["Settings"].keys() and data["Settings"]["CleanOutputFolder"] == "true"
+                    if do_clear and (not(args.debug) or args.clear):
+                        clean_folder(job_dir)
+
                     # Run real job after all options are set
                     if not(args.debug):
-                        # Clean output folder or not
-                        if "CleanOutputFolder" in data["Settings"].keys() and data["Settings"]["CleanOutputFolder"] == "true":
-                            clean_folder(job_dir)
-
                         os.system(cmd)
 
                         # Wait for 3 seconds
