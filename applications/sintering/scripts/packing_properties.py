@@ -136,6 +136,7 @@ parser = ArgumentParser()
 parser.add_argument("-f", "--file", dest="filename", required=True, help="Filename with extension")
 parser.add_argument("-d", "--divisions", dest="divisions", required=False,  help="Number of divisions", default=10, type=int)
 parser.add_argument("-s", "--save", dest="save", required=False,  help="Save plots", action='store_true', default=False)
+parser.add_argument("-k", "--skip-plot", action='store_true', help="Skip plots", required=False, default=False)
 
 args = parser.parse_args()
 
@@ -332,4 +333,5 @@ ax2.legend(title='Relative density:')
 ax2.set_xlabel('segment')
 ax2.set_ylabel('density')
 
-plt.show()
+if not args.skip_plot:
+    plt.show()
