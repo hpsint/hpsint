@@ -152,8 +152,6 @@ with open(args.file) as json_data:
     common_options["settings_extra"] = ""
     if "Extra" in data["Settings"].keys():
         common_options["settings_extra"] = data["Settings"]["Extra"]
-    if args.extra:
-        common_options["settings_extra"] += " " + args.extra
 
     # Casewise options
     counter = 0
@@ -254,6 +252,10 @@ with open(args.file) as json_data:
                     # Disable 3D VTK output 
                     if "DisableRegularOutputFor3D" in data["Settings"].keys() and data["Settings"]["DisableRegularOutputFor3D"] == "true" and dim == '3d':
                         case_options["settings_extra"] += " --Output.Regular=false"
+
+                    # Append options defined via cmd extra params, they have the highest priority
+                    if args.extra:
+                        case_options["settings_extra"] += " " + args.extra
 
                     # Output directory
                     job_dir = os.path.join(default_job_root, dim + "_" + phys + suffix)
