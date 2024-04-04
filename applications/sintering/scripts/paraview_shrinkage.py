@@ -7,7 +7,7 @@ import argparse
 
 # Script arguments
 parser = argparse.ArgumentParser(description='Process shrinkage data')
-parser.add_argument("-p", "--plot", help="Plot results", action="store_true", default=True)
+parser.add_argument("-k", "--skip-plot", action='store_true', help="Skip plots", required=False, default=False)
 parser.add_argument("-m", "--mask", type=str, help="File mask", required=True)
 parser.add_argument("-o", "--output", type=str, help="Output csv file", required=False, default="")
 
@@ -66,7 +66,7 @@ if len(args.output) > 0:
     np.savetxt(args.output, csv_data, header=','.join(csv_header), comments='', delimiter=',')
 
 # Plot graphs
-if args.plot:
+if not args.skip_plot:
     import matplotlib.pyplot as plt
 
     fig, axes = plt.subplots(nrows=1, ncols=2)

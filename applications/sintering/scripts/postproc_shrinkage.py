@@ -20,6 +20,7 @@ parser.add_argument("-s", "--save", dest='save', required=False, help="Save shri
 parser.add_argument("-o", "--output", dest='output', required=False, help="Destination path to output csv files", type=str, default=None)
 parser.add_argument("-b", "--labels", dest='labels', required=False, nargs='+', help="Customized labels", default=None)
 parser.add_argument("-r", "--delimiter", dest='delimiter', required=False, help="Input file delimiter", default=None)
+parser.add_argument("-k", "--skip-plot", action='store_true', help="Skip plots", required=False, default=False)
 
 args = parser.parse_args()
 
@@ -203,8 +204,9 @@ for f, lbl, clr in zip(files_list, labels, colors):
         pathlib.Path(os.path.dirname(file_path)).mkdir(parents=True, exist_ok=True)
         np.savetxt(file_path, csv_data, delimiter=' ', header=csv_header, fmt=csv_format, comments='')
 
-for i in range(2):
-    axes[i].grid(True)
-    axes[i].legend()
+if not args.skip_plot:
+    for i in range(2):
+        axes[i].grid(True)
+        axes[i].legend()
 
-plt.show()
+    plt.show()

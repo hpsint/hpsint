@@ -22,6 +22,7 @@ parser.add_argument("-y", "--density", action='store_true', help="Plot probabili
 parser.add_argument("-g", "--common-range", action='store_true', help="Use common range for bins", required=False, default=False)
 parser.add_argument("-n", "--common-bins", action='store_true', help="Use common bins", required=False, default=False)
 parser.add_argument("-c", "--decimals", dest="decimals", type=int, help="Number of decimals in percents", default=None)
+parser.add_argument("-k", "--skip-plot", action='store_true', help="Skip plots", required=False, default=False)
 
 group = parser.add_mutually_exclusive_group()
 group.add_argument("-r", "--radius", action='store_true', default=True)
@@ -232,10 +233,9 @@ if args.save:
             [f.write(f"{format(val)} ") for val in entry['counts']]
             f.write(f"\n")
 
-library.format_distribution_plot(ax_mu_std, ax_total, qty_name)
+if not args.skip_plot:
+    library.format_distribution_plot(ax_mu_std, ax_total, qty_name)
 
-plt.tight_layout()
-
-plt.suptitle("Solution: {}  |  data: {}".format(file_solution, file_distribution))
-
-plt.show()
+    plt.tight_layout()
+    plt.suptitle("Solution: {}  |  data: {}".format(file_solution, file_distribution))
+    plt.show()
