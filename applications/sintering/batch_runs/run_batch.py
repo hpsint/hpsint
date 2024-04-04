@@ -37,6 +37,7 @@ def touch(path):
 parser = argparse.ArgumentParser(description="Run multiple tests")
 parser.add_argument("-f", "--file", type=str, help="Batch file to process", required=True)
 parser.add_argument("-d", "--debug", action='store_true', help="Debug and print jobs only without submission", required=False, default=False)
+parser.add_argument("-c", "--clear", action='store_true', help="Clean folders even we perform only debug prints", required=False, default=False)
 parser.add_argument("-a", "--account", type=str, help="User account", required=False)
 parser.add_argument("-e", "--email", type=str, help="Email for notification", required=False)
 parser.add_argument("-x", "--extra", type=str, help="Extra settings passed to the solver", required=False)
@@ -151,8 +152,6 @@ with open(args.file) as json_data:
     common_options["settings_extra"] = ""
     if "Extra" in data["Settings"].keys():
         common_options["settings_extra"] = data["Settings"]["Extra"]
-    if args.extra:
-        common_options["settings_extra"] += " " + args.extra
 
     # Casewise options
     counter = 0
@@ -254,6 +253,10 @@ with open(args.file) as json_data:
                     if "DisableRegularOutputFor3D" in data["Settings"].keys() and data["Settings"]["DisableRegularOutputFor3D"] == "true" and dim == '3d':
                         case_options["settings_extra"] += " --Output.Regular=false"
 
+                    # Append options defined via cmd extra params, they have the highest priority
+                    if args.extra:
+                        case_options["settings_extra"] += " " + args.extra
+
                     # Output directory
                     job_dir = os.path.join(default_job_root, dim + "_" + phys + suffix)
                     if not os.path.isdir(job_dir):
@@ -301,12 +304,13 @@ with open(args.file) as json_data:
                     
                     print(cmd)
 
+                    # Clean folders if needed
+                    do_clear = "CleanOutputFolder" in data["Settings"].keys() and data["Settings"]["CleanOutputFolder"] == "true"
+                    if do_clear and (not(args.debug) or args.clear):
+                        clean_folder(job_dir)
+
                     # Run real job after all options are set
                     if not(args.debug):
-                        # Clean output folder or not
-                        if "CleanOutputFolder" in data["Settings"].keys() and data["Settings"]["CleanOutputFolder"] == "true":
-                            clean_folder(job_dir)
-
                         os.system(cmd)
 
                         # Wait for 3 seconds

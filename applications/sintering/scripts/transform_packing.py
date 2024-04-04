@@ -32,7 +32,7 @@ for p in fdata:
 print("Packing dimensions:")
 print("  x = {}".format(xlim))
 print("  y = {}".format(ylim))
-print("  x = {}".format(zlim))
+print("  z = {}".format(zlim))
 
 # Operation 1 - centrify
 if args.centrify:
