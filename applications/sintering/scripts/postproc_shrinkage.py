@@ -21,6 +21,7 @@ parser.add_argument("-o", "--output", dest='output', required=False, help="Desti
 parser.add_argument("-b", "--labels", dest='labels', required=False, nargs='+', help="Customized labels", default=None)
 parser.add_argument("-r", "--delimiter", dest='delimiter', required=False, help="Input file delimiter", default=None)
 parser.add_argument("-k", "--skip-plot", action='store_true', help="Skip plots", required=False, default=False)
+parser.add_argument("-u", "--suffix", dest='suffix', required=False, help="Suffix to append to the save file", type=str, default="_shrinkage")
 
 args = parser.parse_args()
 
@@ -62,9 +63,9 @@ if args.labels:
 if args.save:
     if args.output is not None:
         file_names = library.generate_short_labels(files_list, args.extend_to) if not args.collapse else labels
-        csv_names = [os.path.join(args.output, n.replace(os.sep, "_") + "_shrinkage.csv")  for n in file_names]
+        csv_names = [os.path.join(args.output, n.replace(os.sep, "_") + args.suffix +".csv")  for n in file_names]
     else:
-        csv_names = [os.path.splitext(f)[0] + "_shrinkage.csv" for f in files_list]
+        csv_names = [os.path.splitext(f)[0] + args.suffix + ".csv" for f in files_list]
 
 # Pairs for getting graint tracker ouput results
 dirs_from_velocities = {"x": "vx", "y": "vy", "z": "vz"}

@@ -164,8 +164,10 @@ nz = np.array([0, 0, 1])
 
 coordination_number = [0.]*n_particles
 
-# Read contacts
+# Extract filename only
 fname_without_ext = os.path.splitext(args.filename)[0]
+
+# Read contacts
 cfname = fname_without_ext + ".contacts"
 contacts = []
 
@@ -283,7 +285,7 @@ bins = to_dia_mkm(bins)
 if args.save:
     counts_save = np.append(counts, 0)
     counts_save = counts_save/n_particles*100
-    np.savetxt("size_distribution_hist.csv", np.column_stack((bins, counts_save)))
+    np.savetxt(fname_without_ext + "_size_distribution_hist.csv", np.column_stack((bins, counts_save)))
 
 #ax1.hist(radii, bins=n_bins, weights=counts, density=True, alpha=0.6, color='g')
 ax1.hist(bins[:-1], bins, weights=counts, density=True, alpha=0.6, color='g')
@@ -295,7 +297,7 @@ ax1.plot(r_arr, p_arr, 'k', linewidth=2)
 
 #p_arr = p_arr/n_particles*100
 if args.save:
-    np.savetxt("size_distribution_curve.csv", np.column_stack((r_arr, p_arr)))
+    np.savetxt(fname_without_ext + "_size_distribution_curve.csv", np.column_stack((r_arr, p_arr)))
 
 #ax1.gca().yaxis.set_major_formatter(PercentFormatter(1))
 
@@ -326,7 +328,7 @@ for i in range(3):
     ax2.plot(rels[i], dens[i], linewidth=2, label=lables[i])
 
     if args.save:
-        np.savetxt(lables[i] + ".csv", np.column_stack((rels[i], dens[i])))
+        np.savetxt(fname_without_ext + "_" + lables[i] + ".csv", np.column_stack((rels[i], dens[i])))
 
 ax2.grid()
 ax2.legend(title='Relative density:')

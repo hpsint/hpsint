@@ -72,6 +72,7 @@ parser.add_argument("-q", "--quantity", type=str, help="Quantity data name to an
 parser.add_argument("-a", "--alignment", type=str, help="Axis along which the assembly is aligned", required=False, default="x")
 parser.add_argument("-d", "--direction", type=str, help="Axis along which the neck is measured", required=False, default="y")
 parser.add_argument("-e", "--extend-to", dest='extend_to', required=False, help="Extend labels when shortening to", type=str, default=None)
+parser.add_argument("-u", "--suffix", dest='suffix', required=False, help="Suffix to append to the save file", type=str, default="_vtk_postproc")
 
 args = parser.parse_args()
 
@@ -110,9 +111,9 @@ csv_format = " ".join(csv_format)
 # Save csv names
 if args.output is not None:
     file_names = library.generate_short_labels(list_solution_files, args.extend_to)
-    csv_names = [os.path.join(args.output, n.replace(os.sep, "_") + "_vtk_postproc.csv")  for n in file_names]
+    csv_names = [os.path.join(args.output, n.replace(os.sep, "_") + args.suffix + ".csv")  for n in file_names]
 else:
-    csv_names = [os.path.splitext(f)[0] + "_vtk_postproc.csv" for f in list_solution_files]
+    csv_names = [os.path.splitext(f)[0] + args.suffix + ".csv" for f in list_solution_files]
 
 f_counter = 0
 n_folders = len(list_solution_files)
