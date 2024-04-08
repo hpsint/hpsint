@@ -2,7 +2,7 @@ import os
 import numpy as np
 from argparse import ArgumentParser
 
-def extract(filename, scale=1., limits_x=None, limits_y=None, limits_z=None, save_path=None, postfix="particles.cloud"):
+def extract(filename, scale=1., limits_x=None, limits_y=None, limits_z=None, save_path=None, suffix="particles.cloud"):
     cdata = np.genfromtxt(filename, delimiter=',', dtype=None, names=True)
 
     X = np.empty((0,4), float)
@@ -27,7 +27,7 @@ def extract(filename, scale=1., limits_x=None, limits_y=None, limits_z=None, sav
             X = np.append(X, np.array([[scale * new_x, scale * new_y, scale * new_z, scale * new_r]]), axis=0)
             count_particles += 1
 
-    fname_particles = str(count_particles) + postfix
+    fname_particles = str(count_particles) + suffix
     if save_path:
         fname_particles = os.path.join(save_path, fname_particles)
 
@@ -49,10 +49,12 @@ if __name__ == '__main__':
     parser = ArgumentParser()
     parser.add_argument("-f", "--file", dest="filename", required=True, help="Filename")
     parser.add_argument("-s", "--scale", dest='scale', required=False, help="Scale dimensions", default=1.0, type=float)
-    parser.add_argument("-x", "--limits_x", dest='limits_x', nargs=2, required=False, help="Limits in x-direction", type=float)
-    parser.add_argument("-y", "--limits_y", dest='limits_y', nargs=2, required=False, help="Limits in y-direction", type=float)
-    parser.add_argument("-z", "--limits_z", dest='limits_z', nargs=2, required=False, help="Limits in z-direction", type=float)
+    parser.add_argument("-x", "--limits-x", dest='limits_x', nargs=2, required=False, help="Limits in x-direction", type=float)
+    parser.add_argument("-y", "--limits-y", dest='limits_y', nargs=2, required=False, help="Limits in y-direction", type=float)
+    parser.add_argument("-z", "--limits-z", dest='limits_z', nargs=2, required=False, help="Limits in z-direction", type=float)
+    parser.add_argument("-u", "--suffix", dest='suffix', required=False, help="Suffix to append to the save file", default="particles.cloud", type=str)
+    parser.add_argument("-p", "--path", dest='suffix', required=False, help="Save path", default=None, type=str)
 
     args = parser.parse_args()
 
-    extract(args.filename, args.scale, args.limits_x, args.limits_y, args.limits_z)
+    extract(args.filename, args.scale, args.limits_x, args.limits_y, args.limits_z, args.path, args.suffix)

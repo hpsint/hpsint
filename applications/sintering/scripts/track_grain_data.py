@@ -17,6 +17,7 @@ parser.add_argument("-q", "--quantities", type=str, help="Grain indices", nargs=
 parser.add_argument("-o", "--output", type=str, required=False, help="Destination csv file", default=None)
 parser.add_argument("-n", "--replace-nans", action='store_true', help="Replace nans", required=False, default=False)
 parser.add_argument("-e", "--extend-to", dest='extend_to', required=False, help="Extend labels when shortening to", type=str, default=None)
+parser.add_argument("-u", "--suffix", dest='suffix', required=False, help="Suffix to append to the save file", type=str, default="_grains_quantities")
 
 # Parse arguments
 args = parser.parse_args()
@@ -115,9 +116,9 @@ if has_missing_arguments:
 # Save csv names
 if args.output is not None:
     file_names = library.generate_short_labels(list_solution_files, args.extend_to)
-    csv_names = [os.path.join(args.output, n.replace(os.sep, "_") + "_grains_quantities.csv")  for n in file_names]
+    csv_names = [os.path.join(args.output, n.replace(os.sep, "_") + args.suffix + ".csv")  for n in file_names]
 else:
-    csv_names = [os.path.splitext(f)[0] + "_grains_quantities.csv" for f in list_solution_files]
+    csv_names = [os.path.splitext(f)[0] + args.suffix + ".csv" for f in list_solution_files]
 
 f_counter = 0
 n_folders = len(list_solution_files)
