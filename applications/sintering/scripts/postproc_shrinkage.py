@@ -22,6 +22,8 @@ parser.add_argument("-b", "--labels", dest='labels', required=False, nargs='+', 
 parser.add_argument("-r", "--delimiter", dest='delimiter', required=False, help="Input file delimiter", default=None)
 parser.add_argument("-k", "--skip-plot", action='store_true', help="Skip plots", required=False, default=False)
 parser.add_argument("-u", "--suffix", dest='suffix', required=False, help="Suffix to append to the save file", type=str, default="_shrinkage")
+parser.add_argument("-n", "--ref-particle-min", dest='ref_particle_min', required=False, help="Minimum reference particle", default=None)
+parser.add_argument("-x", "--ref-particle-max", dest='ref_particle_max', required=False, help="Maximum reference particle", default=None)
 
 args = parser.parse_args()
 
@@ -100,15 +102,29 @@ for f, lbl, clr in zip(files_list, labels, colors):
                 # Find the reference particles
                 ref_particles = {"min": None, "max": None}
 
-                pos_min0 = np.inf
-                pos_max0 = -np.inf
-                for p in items:
-                    if fdata[p[0]][0] < pos_min0:
-                        pos_min0 = fdata[p[0]][0]
-                        ref_particles["min"] = p
-                    if fdata[p[0]][0] > pos_max0:
-                        pos_max0 = fdata[p[0]][0]
-                        ref_particles["max"] = p
+                if args.ref_particle_min:
+                    ref_particles["min"] = (direction + '_' + str(args.ref_particle_min), 'v' + direction + '_' + str(args.ref_particle_min))
+
+                if args.ref_particle_max:
+                    ref_particles["max"] = (direction + '_' + str(args.ref_particle_max), 'v' + direction + '_' + str(args.ref_particle_max))
+
+                if ref_particles["min"] is None:
+                    pos_min0 = np.inf
+                    for p in items:
+                        if fdata[p[0]][0] < pos_min0:
+                            pos_min0 = fdata[p[0]][0]
+                            ref_particles["min"] = p
+                else:
+                    pos_min0 = fdata[ref_particles["min"][0]][0]
+
+                if ref_particles["max"] is None:
+                    pos_max0 = -np.inf
+                    for p in items:
+                        if fdata[p[0]][0] > pos_max0:
+                            pos_max0 = fdata[p[0]][0]
+                            ref_particles["max"] = p
+                else:
+                    pos_max0 = fdata[ref_particles["max"][0]][0]
 
                 ref0 = pos_max0 - pos_min0
 
