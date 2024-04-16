@@ -9,6 +9,30 @@ namespace Structural
   template <int dim>
   constexpr unsigned int voigt_size = dim *((dim + 1) / 2.);
 
+  namespace internal
+  {
+    template <int dim>
+    struct VoigtIndices
+    {};
+
+    template <>
+    struct VoigtIndices<2>
+    {
+      static constexpr std::array<const char *, voigt_size<2>> indices = {
+        {"eps_xx", "eps_yy", "tau_xy"}};
+    };
+
+    template <>
+    struct VoigtIndices<3>
+    {
+      static constexpr std::array<const char *, voigt_size<3>> indices = {
+        {"eps_xx", "eps_yy", "eps_zz", "tau_xy", "tau_yz", "tau_xz"}};
+    };
+  } // namespace internal
+
+  template <int dim>
+  inline constexpr auto voigt_indices = internal::VoigtIndices<dim>::indices;
+
   template <int dim, typename Number>
   Tensor<1, voigt_size<dim>, Number>
   apply_l(Tensor<2, dim, Number> gradient_in)

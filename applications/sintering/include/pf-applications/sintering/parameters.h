@@ -866,7 +866,7 @@ namespace Sintering
                         output_data.only_control_boxes,
                         "Output only for control boxes.");
       const std::string domain_integrals_options =
-        "gb_area|solid_vol|surf_area|avg_grain_size|surf_area_nrm|free_energy|bulk_energy|interface_energy|order_params|control_vol";
+        "gb_area|solid_vol|surf_area|avg_grain_size|surf_area_nrm|free_energy|bulk_energy|interface_energy|order_params|control_vol|strain_lin";
       prm.add_parameter("DomainIntegrals",
                         output_data.domain_integrals,
                         "Domain integral quantities.",

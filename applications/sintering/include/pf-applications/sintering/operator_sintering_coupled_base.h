@@ -203,14 +203,17 @@ namespace Sintering
       // Possible output options - at the moment only velocity
       enum OutputFields
       {
-        FieldVelocity
+        FieldVelocity,
+        FieldStrain
       };
 
-      constexpr unsigned int n_data_variants = 1;
+      constexpr unsigned int n_data_variants = 2;
 
       const std::array<std::tuple<std::string, OutputFields, unsigned int>,
                        n_data_variants>
-        possible_entries = {{{"vel", FieldVelocity, dim}}};
+        possible_entries = {
+          {{"vel", FieldVelocity, dim},
+           {"strain_lin", FieldStrain, Structural::voigt_size<dim>}}};
 
       // Get active entries to output
       const auto [entries_mask, n_entries] =
@@ -236,6 +239,88 @@ namespace Sintering
                                   0.);
           }
 
+      unsigned int n_qp_entries = n_entries;
+      unsigned int n_nd_entires = 0;
+
+      // Special case - velocities extracted from the nodal values directly
+      if (entries_mask[FieldVelocity])
+        {
+          n_qp_entries -= dim;
+          n_nd_entires += dim;
+        }
+
+      if (n_qp_entries)
+        {
+          // Quantities evaluated via qpoints
+          FECellIntegrator<dim, n_comp, Number, VectorizedArrayType>
+            fe_eval_all(this->matrix_free, this->dof_index);
+          FECellIntegrator<dim, 1, Number, VectorizedArrayType> fe_eval(
+            this->matrix_free, this->dof_index);
+
+          MatrixFreeOperators::
+            CellwiseInverseMassMatrix<dim, -1, 1, Number, VectorizedArrayType>
+              inverse_mass_matrix(fe_eval);
+
+          AlignedVector<VectorizedArrayType> buffer(fe_eval.n_q_points *
+                                                    n_qp_entries);
+
+          vec.update_ghost_values();
+
+          std::vector<VectorizedArrayType> temp(n_qp_entries);
+
+          for (unsigned int cell = 0; cell < this->matrix_free.n_cell_batches();
+               ++cell)
+            {
+              fe_eval_all.reinit(cell);
+              fe_eval.reinit(cell);
+
+              fe_eval_all.reinit(cell);
+              fe_eval_all.read_dof_values_plain(vec);
+              fe_eval_all.evaluate(EvaluationFlags::values |
+                                   EvaluationFlags::gradients);
+
+              for (unsigned int q = 0; q < fe_eval.n_q_points; ++q)
+                {
+                  // const auto val  = fe_eval_all.get_value(q);
+                  const auto grad = fe_eval_all.get_gradient(q);
+
+                  unsigned int counter = 0;
+
+                  if (entries_mask[FieldStrain])
+                    {
+                      Tensor<2, dim, VectorizedArrayType> H;
+                      for (unsigned int d = 0; d < dim; d++)
+                        H[d] = grad[this->data.n_components() +
+                                    n_additional_components() + d];
+
+                      const auto strain = Structural::apply_l(H);
+
+                      for (unsigned int i = 0; i < Structural::voigt_size<dim>;
+                           ++i)
+                        temp[counter++] = strain[i];
+                    }
+
+                  for (unsigned int c = 0; c < n_qp_entries; ++c)
+                    buffer[c * fe_eval.n_q_points + q] = temp[c];
+                }
+
+              for (unsigned int c = 0; c < n_qp_entries; ++c)
+                {
+                  inverse_mass_matrix.transform_from_q_points_to_basis(
+                    1,
+                    buffer.data() + c * fe_eval.n_q_points,
+                    fe_eval.begin_dof_values());
+
+                  fe_eval.set_dof_values_plain(data_vectors[n_nd_entires + c]);
+                }
+            }
+
+          for (unsigned int c = 0; c < n_qp_entries; ++c)
+            this->constraints.distribute(data_vectors[n_nd_entires + c]);
+
+          vec.zero_out_ghost_values();
+        }
+
       // Write names of fields
       std::vector<std::string> names;
       if (entries_mask[FieldVelocity])
@@ -243,6 +328,13 @@ namespace Sintering
           const std::string vel_name = "vel";
           for (unsigned int d = 0; d < dim; ++d)
             names.push_back(vel_name);
+        }
+
+      if (entries_mask[FieldStrain])
+        {
+          const std::string strain_name{"lin_"};
+          for (unsigned int d = 0; d < Structural::voigt_size<dim>; ++d)
+            names.emplace_back(strain_name + Structural::voigt_indices<dim>[d]);
         }
 
       // Add data to output
