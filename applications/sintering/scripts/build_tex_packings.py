@@ -174,9 +174,9 @@ with open(ofname, 'w') as f:
                         if show_labels:
                             f.write("\\node[anchor=center] at (%f,%f) {%s\color{%s} %d};\n" % (c[0] + xs, c[1] + ys, args.font_size, color, lbl))
                         else:
-                            f.write("\\fill [color=%s] (%f, %f) circle (%f);\n" % (color, c[0] + args.shift, c[1], center_tick_radius_normalized))
+                            f.write("\\fill [color=%s] (%f, %f) circle (%f);\n" % (color, c[0] + xs, c[1] + ys, center_tick_radius_normalized))
                     elif not show_labels:
-                        f.write("\\fill [color=%s] (%f, %f) circle (%f);\n" % (args.color_text, c[0] + args.shift, c[1], center_tick_radius_normalized))
+                        f.write("\\fill [color=%s] (%f, %f) circle (%f);\n" % (args.color_text, c[0] + xs, c[1] + ys, center_tick_radius_normalized))
 
                 f.write("\n")
 
