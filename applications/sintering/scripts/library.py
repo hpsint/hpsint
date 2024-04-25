@@ -17,7 +17,7 @@ def hex_to_rgb(chex):
     h = chex.lstrip('#')
     return tuple(int(h[i:i+2], 16) for i in (0, 2, 4))
 
-def get_solutions(files, do_print = True):
+def get_solutions(files, do_print = True, do_sort = True):
 
     if type(files) is not list:
         raise Exception("Variable files={} is not list".format(files))
@@ -25,10 +25,12 @@ def get_solutions(files, do_print = True):
     files_list = []
     for fm in files:
         current_files_list = glob.glob(fm, recursive=True)
-        current_files_list.sort()
+        if do_sort:
+            current_files_list.sort()
         files_list += current_files_list
 
-    files_list = sorted(list(set(files_list)))
+    if do_sort:
+        files_list = sorted(list(set(files_list)))
 
     if do_print:
         print("The complete list of files to process:")
