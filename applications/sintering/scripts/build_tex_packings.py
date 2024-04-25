@@ -8,7 +8,6 @@ parser = argparse.ArgumentParser()
 parser.add_argument("-f", "--files", dest="files", required=True, nargs='+', help="Files to process, can be mask")
 parser.add_argument("-e", "--headers", dest='headers', required=False, nargs='+', help="Headers")
 parser.add_argument("-o", "--output", dest='output', required=False, help="Destination path to output tex file", type=str, default=None)
-parser.add_argument("-d", "--dim", dest='dim', required=False, help="Dimension", type=int, default=2)
 parser.add_argument("-x", "--x-shift", dest='xshift', required=False, help="x-axis shift", type=float, default=0.0)
 parser.add_argument("-y", "--y-shift", dest='yshift', required=False, help="y-axis shift", type=float, default=0.0)
 parser.add_argument("-u", "--x-interval", dest='xinterval', required=False, help="x-axis interval", type=float, default=0.05)
@@ -35,8 +34,8 @@ args = parser.parse_args()
 
 show_labels = args.label_grain_ids or args.label_order_params
 
-def build_grain(pts):
-    if args.dim == 2:
+def build_grain(pts, dim):
+    if dim == 2:
         center = pts.mean(0)
         angle = np.arctan2(*(pts - center).T[::-1])
         index = np.argsort(angle)
@@ -47,7 +46,7 @@ def build_grain(pts):
     return index[0::args.coarsening]
 
 # Get all files to process
-files_list = library.get_solutions(args.files)
+files_list = library.get_solutions(args.files, do_sort = False)
 
 if args.output:
     ofname = args.output
@@ -66,6 +65,8 @@ if len(files_list) == 1:
 else:
     headers = library.generate_short_labels(files_list)
 
+headers = [library.tex_escape(h) for h in headers]
+
 if args.headers:
     for i in range(min(len(headers), len(args.headers))):
         headers[i] = args.headers[min(i, len(args.headers) - 1)]
@@ -74,7 +75,8 @@ if args.headers:
 n_op = 0
 for file in files_list:
     src_file = open(file, 'rb')
-    src_file.readline() # skip first line
+    src_file.readline() # skip first line - dim
+    src_file.readline() # skip second line - number of grains
     data = src_file.readline()
     n_op = max(n_op, int(data))
 
@@ -87,24 +89,26 @@ with open(ofname, 'w') as f:
         f.write("\\definecolor{clr%d}{RGB}{%d,%d,%d}\n" % (ic, rgb[0], rgb[1], rgb[2]))
 
     for j, file in enumerate(files_list):
-    
+
         src_file = open(file, 'rb')
         data = src_file.readlines()
         data = [d.decode('ascii') for d in data]
         data = [d.replace(" \n", "").replace("\n", "") for d in data]
 
-        n_grains    = int(data[0])
-        n_op        = int(data[1])
-        grain_to_op = [int(i) for i in data[2].split()]
-        point0      = [float(i) for i in data[3].split()]
-        point1      = [float(i) for i in data[4].split()]
+        dim         = int(data[0])
+        n_grains    = int(data[1])
+        n_op        = int(data[2])
+        grain_ids   = [int(i) for i in data[3].split()]
+        grain_to_op = [int(i) for i in data[4].split()]
+        point0      = [float(i) for i in data[5].split()]
+        point1      = [float(i) for i in data[6].split()]
 
-        properties = [float(i) for i in data[5].split()]
-        centers = [[float(i) for i in properties[(g*(args.dim + 1)) : (g*(args.dim + 1) + args.dim)]] for g in range(0, n_grains)]
-        radii = [properties[g*(args.dim + 1) + args.dim] for g in range(0, n_grains)]
+        properties = [float(i) for i in data[7].split()]
+        centers = [[float(i) for i in properties[(g*(dim + 1)) : (g*(dim + 1) + dim)]] for g in range(0, n_grains)]
+        radii = [properties[g*(dim + 1) + dim] for g in range(0, n_grains)]
 
-        points = [[float(i) for i in data[6 + g].split()] for g in range(0, n_grains)]
-        points = [np.array([[p[g*args.dim + d] for d in range(0, args.dim)] for g in range(0, int(len(p)/args.dim))]) for p in points]
+        points = [[float(i) for i in data[8 + g].split()] for g in range(0, n_grains)]
+        points = [np.array([[p[g*dim + d] for d in range(0, dim)] for g in range(0, int(len(p)/dim))]) for p in points]
 
         width = point1[0] - point0[0]
         height = point1[1] - point0[1]
@@ -122,9 +126,9 @@ with open(ofname, 'w') as f:
             f.write("\n")
 
         def normalize_point(p):
-            point = [0] * args.dim
+            point = [0] * dim
 
-            for d in range(0, args.dim):
+            for d in range(0, dim):
                 point[d] = (p[d] - point0[0]) / width
             
             return point
@@ -139,17 +143,17 @@ with open(ofname, 'w') as f:
         f.write("\\draw [] (%f,%f) rectangle (%f,%f);\n" % (xs, ys, xs + normalized_width, ys + normalized_height))
         f.write("\n")
 
-        f.write("\\node[] at (%f,%f) {%s %s};\n" % (0.5 + xs, normalized_height + 0.05 + ys, args.font_size, library.tex_escape(headers[j])))
+        f.write("\\node[] at (%f,%f) {%s %s};\n" % (0.5 + xs, normalized_height + 0.05 + ys, args.font_size, headers[j]))
 
         for g in range(0, n_grains):
             if len(points[g]) > 0 and (args.order_params is None or grain_to_op[g] in args.order_params):
-                indices = build_grain(points[g])
+                indices = build_grain(points[g], dim)
 
                 color = "clr{}".format(grain_to_op[g])
 
                 lbl = None
                 if args.label_grain_ids:
-                    lbl = g
+                    lbl = grain_ids[g]
                 if args.label_order_params:
                     lbl = grain_to_op[g]
 
