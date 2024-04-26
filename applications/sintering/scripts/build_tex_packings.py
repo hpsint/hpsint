@@ -22,9 +22,12 @@ parser.add_argument("-c", "--center-tick-ratio", dest='center_tick_ratio', requi
 parser.add_argument("-i", "--circle-opacity", dest='circle_opacity', required=False, help="Circle fill opacity for 0D", type=float, default=0.6)
 parser.add_argument("-r", "--color-text", dest='color_text', required=False, help="Color text", type=str, default='white')
 parser.add_argument("-n", "--font-size", dest='font_size', required=False, help="Font size", type=str, default='\\scriptsize')
+parser.add_argument("-l", "--ncolors", dest='ncolors', required=False, help="Number of colors", type=int, default=None)
+parser.add_argument("-q", "--color-suffix", dest='color_suffix', required=False, help="Suffix for color names", type=str, default='')
 
 parser.add_argument("-g", "--show-topology", dest='show_topology', required=False, help="Show grain topology", action="store_true", default=False)
 parser.add_argument("-m", "--show-simplified", dest='show_simplified', required=False, help="Show simplified representation", action="store_true", default=False)
+parser.add_argument("-d", "--hide-headers", dest='hide_headers', required=False, help="Hide headers", action="store_true", default=False)
 
 group = parser.add_mutually_exclusive_group(required=False)
 group.add_argument("--label-grain-ids", dest='label_grain_ids', required=False, help="Show grain ids as labels", action="store_true", default=False)
@@ -58,35 +61,41 @@ if not files_list:
     raise Exception("The files list is empty, nothing to process")
 
 # Deal with block headers
-#if type(files) is not list:
-if len(files_list) == 1:
-    fname_without_ext = os.path.splitext(os.path.basename(files_list[0]))[0]
-    headers = [fname_without_ext]
-else:
-    headers = library.generate_short_labels(files_list)
+headers = None
+if not args.hide_headers:
+    if len(files_list) == 1:
+        fname_without_ext = os.path.splitext(os.path.basename(files_list[0]))[0]
+        headers = [fname_without_ext]
+    else:
+        headers = library.generate_short_labels(files_list)
 
-headers = [library.tex_escape(h) for h in headers]
+    headers = [library.tex_escape(h) for h in headers]
 
-if args.headers:
-    for i in range(min(len(headers), len(args.headers))):
-        headers[i] = args.headers[min(i, len(args.headers) - 1)]
+    if args.headers:
+        for i in range(min(len(headers), len(args.headers))):
+            headers[i] = args.headers[min(i, len(args.headers) - 1)]
 
 # Get color scheme based on the order params number
-n_op = 0
-for file in files_list:
-    src_file = open(file, 'rb')
-    src_file.readline() # skip first line - dim
-    src_file.readline() # skip second line - number of grains
-    data = src_file.readline()
-    n_op = max(n_op, int(data))
+if args.ncolors is None:
+    n_op = 0
+    for file in files_list:
+        src_file = open(file, 'rb')
+        src_file.readline() # skip first line - dim
+        src_file.readline() # skip second line - number of grains
+        data = src_file.readline()
+        n_op = max(n_op, int(data))
 
-colors = library.get_hex_colors(n_op)
+    ncolors = n_op
+else:
+    ncolors = args.ncolors
+
+colors = library.get_hex_colors(ncolors)
 
 with open(ofname, 'w') as f:
 
     for ic, clr in enumerate(colors):
         rgb = library.hex_to_rgb(colors[ic])
-        f.write("\\definecolor{clr%d}{RGB}{%d,%d,%d}\n" % (ic, rgb[0], rgb[1], rgb[2]))
+        f.write("\\definecolor{clr%d%s}{RGB}{%d,%d,%d}\n" % (ic, args.color_suffix, rgb[0], rgb[1], rgb[2]))
     
     f.write("\n")
 
@@ -145,13 +154,14 @@ with open(ofname, 'w') as f:
         f.write("\\draw [] (%f,%f) rectangle (%f,%f);\n" % (xs, ys, xs + normalized_width, ys + normalized_height))
         f.write("\n")
 
-        f.write("\\node[] at (%f,%f) {%s %s};\n" % (0.5 + xs, normalized_height + 0.05 + ys, args.font_size, headers[j]))
+        if not args.hide_headers:
+            f.write("\\node[] at (%f,%f) {%s %s};\n" % (0.5 + xs, normalized_height + 0.05 + ys, args.font_size, headers[j]))
 
         for g in range(0, n_grains):
             if len(points[g]) > 0 and (args.order_params is None or grain_to_op[g] in args.order_params):
                 indices = build_grain(points[g], dim)
 
-                color = "clr{}".format(grain_to_op[g])
+                color = "clr{}{}".format(grain_to_op[g], args.color_suffix)
 
                 lbl = None
                 if args.label_grain_ids:
