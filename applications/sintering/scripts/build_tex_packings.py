@@ -87,6 +87,10 @@ with open(ofname, 'w') as f:
     for ic, clr in enumerate(colors):
         rgb = library.hex_to_rgb(colors[ic])
         f.write("\\definecolor{clr%d}{RGB}{%d,%d,%d}\n" % (ic, rgb[0], rgb[1], rgb[2]))
+    
+    f.write("\n")
+
+    f.write("\\begin{tikzpicture}[scale=%f]\n" % args.scale)
 
     for j, file in enumerate(files_list):
 
@@ -137,8 +141,6 @@ with open(ofname, 'w') as f:
             return r / width
 
         center_tick_radius_normalized = args.center_tick_ratio * normalize_radius(min(radii))
-        
-        f.write("\\begin{tikzpicture}[scale=%f]\n" % args.scale)
 
         f.write("\\draw [] (%f,%f) rectangle (%f,%f);\n" % (xs, ys, xs + normalized_width, ys + normalized_height))
         f.write("\n")
@@ -184,4 +186,4 @@ with open(ofname, 'w') as f:
 
                 f.write("\n")
 
-        f.write("\\end{tikzpicture}\n")
+    f.write("\\end{tikzpicture}\n")
