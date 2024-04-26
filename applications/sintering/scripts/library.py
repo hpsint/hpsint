@@ -13,7 +13,11 @@ def get_hex_colors(N):
         hex_out.append('#%02x%02x%02x' % tuple(rgb))
     return hex_out
 
-def get_solutions(files, do_print = True):
+def hex_to_rgb(chex):
+    h = chex.lstrip('#')
+    return tuple(int(h[i:i+2], 16) for i in (0, 2, 4))
+
+def get_solutions(files, do_print = True, do_sort = True):
 
     if type(files) is not list:
         raise Exception("Variable files={} is not list".format(files))
@@ -21,10 +25,12 @@ def get_solutions(files, do_print = True):
     files_list = []
     for fm in files:
         current_files_list = glob.glob(fm, recursive=True)
-        current_files_list.sort()
+        if do_sort:
+            current_files_list.sort()
         files_list += current_files_list
 
-    files_list = sorted(list(set(files_list)))
+    if do_sort:
+        files_list = sorted(list(set(files_list)))
 
     if do_print:
         print("The complete list of files to process:")
@@ -178,3 +184,25 @@ def clean_folder(folder):
                 shutil.rmtree(file_path)
         except Exception as e:
             print('Failed to delete %s. Reason: %s' % (file_path, e))
+
+def tex_escape(text):
+    """
+        :param text: a plain text message
+        :return: the message escaped to appear correctly in LaTeX
+    """
+    conv = {
+        '&': r'\&',
+        '%': r'\%',
+        '$': r'\$',
+        '#': r'\#',
+        '_': r'\_',
+        '{': r'\{',
+        '}': r'\}',
+        '~': r'\textasciitilde{}',
+        '^': r'\^{}',
+        '\\': r'\textbackslash{}',
+        '<': r'\textless{}',
+        '>': r'\textgreater{}',
+    }
+    regex = re.compile('|'.join(re.escape(str(key)) for key in sorted(conv.keys(), key = lambda item: - len(item))))
+    return regex.sub(lambda match: conv[match.group()], text)
