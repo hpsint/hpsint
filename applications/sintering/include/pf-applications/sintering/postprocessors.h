@@ -787,11 +787,7 @@ namespace Sintering
 
       const auto &grains = grain_tracker->get_grains();
 
-      unsigned int n_grains = 0;
-
-      for (const auto &entry : grains)
-        n_grains = std::max(entry.first, n_grains);
-      n_grains++;
+      const auto n_grains = grains.size();
 
       const auto bb = GridTools::compute_bounding_box(
         background_dof_handler.get_triangulation());
@@ -799,6 +795,8 @@ namespace Sintering
       std::vector<Number> parameters((dim + 1) * n_grains, 0);
 
       // Get grain properties from the grain tracker, assume 1 segment per grain
+      unsigned int                         g_counter = 0;
+      std::map<unsigned int, unsigned int> grain_id_to_index;
       for (const auto &[g, grain] : grains)
         {
           Assert(grain.get_segments().size() == 1, ExcNotImplemented());
@@ -806,9 +804,12 @@ namespace Sintering
           const auto &segment = grain.get_segments()[0];
 
           for (unsigned int d = 0; d < dim; ++d)
-            parameters[g * (dim + 1) + d] = segment.get_center()[d];
+            parameters[g_counter * (dim + 1) + d] = segment.get_center()[d];
 
-          parameters[g * (dim + 1) + dim] = segment.get_radius();
+          parameters[g_counter * (dim + 1) + dim] = segment.get_radius();
+
+          grain_id_to_index.emplace(g, g_counter);
+          ++g_counter;
         }
 
       std::vector<std::vector<Point<dim>>> points_local(n_grains);
@@ -842,7 +843,7 @@ namespace Sintering
                 mc.process_cell(cell,
                                 vector.block(b + 2),
                                 iso_level,
-                                points_local[grain_id]);
+                                points_local[grain_id_to_index.at(grain_id)]);
               }
         }
 
@@ -860,12 +861,29 @@ namespace Sintering
             return result;
           });
 
+      /* File format:
+      problem dimensionality         - dim
+      number of grains               - N
+      number of order_parameters     - M
+      grain indices                  - array[N]
+      grain order parameters         - array[N]
+      BB bottom left point           - array[dim]
+      BB top right point             - array[dim]
+      properties (center and radius) - array[(dim+1)*N]
+      points[N]                      - array[...]
+      */
       if (Utilities::MPI::this_mpi_process(comm) == 0)
         {
           std::ofstream outfile(filename);
 
+          outfile << dim << std::endl;
           outfile << n_grains << std::endl;
           outfile << n_op << std::endl;
+
+          for (const auto &entry : grains)
+            outfile << entry.second.get_grain_id() << " ";
+          outfile << std::endl;
+
           for (const auto &entry : grains)
             outfile << entry.second.get_order_parameter_id() << " ";
           outfile << std::endl;
