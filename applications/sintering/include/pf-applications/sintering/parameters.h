@@ -186,6 +186,9 @@ namespace Sintering
   {
     std::string  type      = "Domain";
     unsigned int direction = 0;
+
+    bool prefer_growing = false;
+    bool use_barycenter = false;
   };
 
   struct TimeIntegrationData
@@ -750,6 +753,12 @@ namespace Sintering
       prm.add_parameter("Direction",
                         boundary_conditions.direction,
                         "Primary direction for restraining displacements.");
+      prm.add_parameter("PreferGrowing",
+                        boundary_conditions.prefer_growing,
+                        "Prefer growing grains for BC imposition.");
+      prm.add_parameter("UseBarycenter",
+                        boundary_conditions.use_barycenter,
+                        "Use cloud barycenter for the reference grain search.");
       prm.leave_subsection();
 
 
