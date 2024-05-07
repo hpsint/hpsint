@@ -238,7 +238,7 @@ namespace GrainTracker
   calc_cloud_barycenter(const std::map<unsigned int, Grain<dim>> &grains)
   {
     Point<dim> static_moment;
-    double volume;
+    double     volume;
 
     for (const auto &[gid, grain] : grains)
       {
