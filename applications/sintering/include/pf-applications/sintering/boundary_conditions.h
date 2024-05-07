@@ -310,11 +310,16 @@ namespace Sintering
   Point<dim>
   find_center_origin(const Triangulation<dim> &                triangulation,
                      const GrainTracker::Tracker<dim, Number> &grain_tracker,
-                     const bool prefer_growing = false)
+                     const bool prefer_growing = false,
+                     const bool use_barycenter = false)
   {
     // Add central constraints
     const auto bb_tria = GridTools::compute_bounding_box(triangulation);
-    const auto center  = bb_tria.center();
+
+    const auto center =
+      use_barycenter ?
+        GrainTracker::calc_cloud_barycenter(grain_tracker.get_grains()) :
+        bb_tria.center();
 
     Point<dim> origin;
 

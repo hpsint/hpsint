@@ -1988,7 +1988,9 @@ namespace Sintering
 
                 Point<dim> origin = find_center_origin(
                   matrix_free.get_dof_handler().get_triangulation(),
-                  grain_tracker);
+                  grain_tracker,
+                  params.boundary_conditions.prefer_growing,
+                  params.boundary_conditions.use_barycenter);
                 pcout << "  - origin for clamping the section: " << origin
                       << std::endl;
 

@@ -232,4 +232,26 @@ namespace GrainTracker
     return active_op_ids;
   }
 
+  // Get barycenter of a particle cloud
+  template <int dim>
+  Point<dim>
+  calc_cloud_barycenter(const std::map<unsigned int, Grain<dim>> &grains)
+  {
+    Point<dim> static_moment;
+    double     volume;
+
+    for (const auto &[gid, grain] : grains)
+      {
+        (void)gid;
+
+        for (const auto &segment : grain.get_segments())
+          {
+            static_moment += segment.get_measure() * segment.get_center();
+            volume += segment.get_measure();
+          }
+      }
+
+    return static_moment / volume;
+  }
+
 } // namespace GrainTracker
