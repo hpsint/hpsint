@@ -120,7 +120,11 @@ with open(ofname, 'w') as f:
         centers = [[float(i) for i in properties[(g*(dim + 1)) : (g*(dim + 1) + dim)]] for g in range(0, n_grains)]
         radii = [properties[g*(dim + 1) + dim] for g in range(0, n_grains)]
 
-        points = [[float(i) for i in data[8 + g].split()] for g in range(0, n_grains)]
+        points = [[] for i in range(n_grains)]
+        for g in range(8, len(data), 2):
+            grain_num = int(data[g])
+            points[grain_num] += [float(i) for i in data[g + 1].split()]
+
         points = [np.array([[p[g*dim + d] for d in range(0, dim)] for g in range(0, int(len(p)/dim))]) for p in points]
 
         width = point1[0] - point0[0]
