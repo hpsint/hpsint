@@ -16,6 +16,7 @@
 #pragma once
 
 #include <deal.II/base/geometry_info.h>
+#include <deal.II/base/mpi_large_count.h>
 #include <deal.II/base/table_handler.h>
 
 #include <deal.II/grid/grid_tools.h>
@@ -847,21 +848,7 @@ namespace Sintering
               }
         }
 
-
-      const auto points_global =
-        Utilities::MPI::reduce<std::vector<std::vector<Point<dim>>>>(
-          points_local, comm, [](const auto &a, const auto &b) {
-            std::vector<std::vector<Point<dim>>> result = a;
-
-            for (unsigned int i = 0; i < a.size(); ++i)
-              {
-                result[i].insert(result[i].end(), b[i].begin(), b[i].end());
-              }
-
-            return result;
-          });
-
-      /* File format:
+      /* File format (data and length):
       problem dimensionality         - dim
       number of grains               - N
       number of order_parameters     - M
@@ -870,43 +857,100 @@ namespace Sintering
       BB bottom left point           - array[dim]
       BB top right point             - array[dim]
       properties (center and radius) - array[(dim+1)*N]
-      points[N]                      - array[...]
+      particle_0                     - 1
+      points_0                       - array[...]
+      ...
+      particle_N                     - 1
+      points_N                       - array[...]
       */
+
+      MPI_Info info;
+      int      ierr = MPI_Info_create(&info);
+
+      AssertThrowMPI(ierr);
+
+      MPI_File fh;
+      ierr = MPI_File_open(
+        comm, filename.c_str(), MPI_MODE_CREATE | MPI_MODE_WRONLY, info, &fh);
+      AssertThrow(ierr == MPI_SUCCESS, ExcFileNotOpen(filename));
+
+      ierr = MPI_File_set_size(fh, 0); // delete the file contents
+      AssertThrowMPI(ierr);
+      ierr = MPI_Barrier(comm);
+      AssertThrowMPI(ierr);
+      ierr = MPI_Info_free(&info);
+      AssertThrowMPI(ierr);
+
+      // Define header size so we can broadcast later
+      unsigned int header_size = 0;
+
       if (Utilities::MPI::this_mpi_process(comm) == 0)
         {
-          std::ofstream outfile(filename);
+          std::stringstream ss;
 
-          outfile << dim << std::endl;
-          outfile << n_grains << std::endl;
-          outfile << n_op << std::endl;
-
-          for (const auto &entry : grains)
-            outfile << entry.second.get_grain_id() << " ";
-          outfile << std::endl;
+          ss << dim << std::endl;
+          ss << n_grains << std::endl;
+          ss << n_op << std::endl;
 
           for (const auto &entry : grains)
-            outfile << entry.second.get_order_parameter_id() << " ";
-          outfile << std::endl;
+            ss << entry.second.get_grain_id() << " ";
+          ss << std::endl;
+
+          for (const auto &entry : grains)
+            ss << entry.second.get_order_parameter_id() << " ";
+          ss << std::endl;
 
           for (unsigned int d = 0; d < dim; ++d)
-            outfile << bb.get_boundary_points().first[d] << " ";
-          outfile << std::endl;
+            ss << bb.get_boundary_points().first[d] << " ";
+          ss << std::endl;
 
           for (unsigned int d = 0; d < dim; ++d)
-            outfile << bb.get_boundary_points().second[d] << " ";
-          outfile << std::endl;
+            ss << bb.get_boundary_points().second[d] << " ";
+          ss << std::endl;
 
           for (const auto &i : parameters)
-            outfile << i << " ";
-          outfile << std::endl;
+            ss << i << " ";
+          ss << std::endl;
 
-          for (const auto &points : points_global)
-            {
-              for (const auto &point : points)
-                outfile << point << " ";
-              outfile << std::endl;
-            }
+          header_size = ss.str().size();
+
+          ierr = Utilities::MPI::LargeCount::File_write_at_c(
+            fh, 0, ss.str().c_str(), header_size, MPI_CHAR, MPI_STATUS_IGNORE);
+          AssertThrowMPI(ierr);
         }
+
+      ierr = MPI_Bcast(&header_size, 1, MPI_UNSIGNED, 0, comm);
+      AssertThrowMPI(ierr);
+
+      // Write points per rank to independent streams
+      std::stringstream ss;
+      for (unsigned int i = 0; i < n_grains; ++i)
+        if (!points_local[i].empty())
+          {
+            ss << i << std::endl;
+            for (const auto &point : points_local[i])
+              ss << point << " ";
+            ss << std::endl;
+          }
+
+      // Use prefix sum to find specific offset to write at
+      const std::uint64_t size_on_proc = ss.str().size();
+      std::uint64_t       prefix_sum   = 0;
+      ierr =
+        MPI_Exscan(&size_on_proc, &prefix_sum, 1, MPI_UINT64_T, MPI_SUM, comm);
+      AssertThrowMPI(ierr);
+
+      // Locate specific offset for each processor
+      const MPI_Offset offset =
+        static_cast<MPI_Offset>(header_size) + prefix_sum;
+
+      ierr = Utilities::MPI::LargeCount::File_write_at_all_c(fh,
+                                                             offset,
+                                                             ss.str().c_str(),
+                                                             ss.str().size(),
+                                                             MPI_CHAR,
+                                                             MPI_STATUS_IGNORE);
+      AssertThrowMPI(ierr);
 
       if (has_ghost_elements == false)
         vector.zero_out_ghost_values();
