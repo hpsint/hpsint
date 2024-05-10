@@ -252,6 +252,7 @@ with open(args.file) as json_data:
                     # Disable 3D VTK output 
                     if "DisableRegularOutputFor3D" in data["Settings"].keys() and data["Settings"]["DisableRegularOutputFor3D"] == "true" and dim == '3d':
                         case_options["settings_extra"] += " --Output.Regular=false"
+                        case_options["settings_extra"] += " --Output.Porosity=false"
 
                     # Append options defined via cmd extra params, they have the highest priority
                     if args.extra:

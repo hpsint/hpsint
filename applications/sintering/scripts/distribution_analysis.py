@@ -23,15 +23,12 @@ parser.add_argument("-g", "--common-range", action='store_true', help="Use commo
 parser.add_argument("-n", "--common-bins", action='store_true', help="Use common bins", required=False, default=False)
 parser.add_argument("-c", "--decimals", dest="decimals", type=int, help="Number of decimals in percents", default=None)
 parser.add_argument("-k", "--skip-plot", action='store_true', help="Skip plots", required=False, default=False)
-
-group = parser.add_mutually_exclusive_group()
-group.add_argument("-r", "--radius", action='store_true', default=True)
-group.add_argument("-u", "--measure", action='store_true')
-group.add_argument("-s", "--save", action='store_true')
+parser.add_argument("-s", "--save", action='store_true', help="Save plots", required=False, default=False)
+parser.add_argument("-q", "--quantity", type=str, help="Quantity name to analyze", required=False, default="radius")
 
 args = parser.parse_args()
 
-qty_name = "measure" if args.measure else "radius"
+qty_name = args.quantity
 
 def plot_histogram(quantity, ax, time, n_bins = 10, val_range = None, save_file = None):
     # Fit a normal distribution to the data:
