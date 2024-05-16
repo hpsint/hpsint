@@ -73,7 +73,7 @@ namespace Sintering
             n_q_points_1D,
             n_q_points_1D,
             Tensor<1, n_comp, VectorizedArrayType>,
-            VectorizedArrayType>
+            Number>
             phi;
 
           // gradient x-direction
