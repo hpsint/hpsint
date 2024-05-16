@@ -67,34 +67,36 @@ namespace Sintering
           const auto &shape_values =
             phi.get_shape_info().data[0].shape_gradients_collocation;
 
+          using EvaluatorTypeData = Tensor<1, n_comp, VectorizedArrayType>;
+          using EvaluatorTypeCoefficients =
+            typename std::remove_reference_t<decltype(
+              shape_values)>::value_type;
+
           dealii::internal::EvaluatorTensorProduct<
             dealii::internal::EvaluatorVariant::evaluate_general,
             dim,
             n_q_points_1D,
             n_q_points_1D,
-            Tensor<1, n_comp, VectorizedArrayType>,
-            Number>
+            EvaluatorTypeData,
+            EvaluatorTypeCoefficients>
             phi;
 
           // gradient x-direction
           phi.template apply<0, true, false>(
             shape_values.data(),
-            reinterpret_cast<const Tensor<1, n_comp, VectorizedArrayType> *>(
-              lin_value),
+            reinterpret_cast<const EvaluatorTypeData *>(lin_value),
             gradient_buffer + 0 * FECellIntegratorType::static_n_q_points);
 
           if (dim >= 2) // gradient y-direction
             phi.template apply<1, true, false>(
               shape_values.data(),
-              reinterpret_cast<const Tensor<1, n_comp, VectorizedArrayType> *>(
-                lin_value),
+              reinterpret_cast<const EvaluatorTypeData *>(lin_value),
               gradient_buffer + 1 * FECellIntegratorType::static_n_q_points);
 
           if (dim >= 3) // gradient z-direction
             phi.template apply<2, true, false>(
               shape_values.data(),
-              reinterpret_cast<const Tensor<1, n_comp, VectorizedArrayType> *>(
-                lin_value),
+              reinterpret_cast<const EvaluatorTypeData *>(lin_value),
               gradient_buffer + 2 * FECellIntegratorType::static_n_q_points);
         }
     }
