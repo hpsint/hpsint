@@ -13,6 +13,8 @@
 //
 // ---------------------------------------------------------------------
 
+#pragma once
+
 #include <deal.II/base/bounding_box.h>
 
 #include <deal.II/grid/tria_accessor.h>
