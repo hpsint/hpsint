@@ -19,6 +19,8 @@
 #include <deal.II/base/mpi_large_count.h>
 #include <deal.II/base/table_handler.h>
 
+#include <deal.II/fe/fe_dgq.h>
+
 #include <deal.II/grid/grid_tools.h>
 
 #include <deal.II/matrix_free/fe_point_evaluation.h>
@@ -801,6 +803,209 @@ namespace Sintering
       SurfaceDataOut<dim - 1, dim> data_out;
       data_out.attach_triangulation(tria);
       data_out.add_data_vector(vector_rank, "subdomain");
+
+      data_out.build_patches();
+      data_out.write_vtu_in_parallel(filename,
+                                     background_dof_handler.get_communicator());
+
+      if (has_ghost_elements == false)
+        vector.zero_out_ghost_values();
+    }
+
+    template <typename VectorType, int dim = 3>
+    void
+    build_projection(const Mapping<dim> &   mapping,
+                     const DoFHandler<dim> &background_dof_handler,
+                     const VectorType &     vector,
+                     const std::string      filename,
+                     const unsigned int     n_coarsening_steps = 0)
+    {
+      const bool has_ghost_elements = vector.has_ghost_elements();
+
+      if (has_ghost_elements == false)
+        vector.update_ghost_values();
+
+      // step 0) coarsen background mesh 1 or 2 times to reduce memory
+      // consumption
+
+      auto vector_to_be_used                 = &vector;
+      auto background_dof_handler_to_be_used = &background_dof_handler;
+
+      parallel::distributed::Triangulation<dim> tria_copy(
+        background_dof_handler.get_communicator());
+      DoFHandler<dim> dof_handler_copy;
+      VectorType      solution_dealii;
+
+      if (n_coarsening_steps != 0)
+        {
+          internal::coarsen_triangulation(tria_copy,
+                                          background_dof_handler,
+                                          dof_handler_copy,
+                                          vector,
+                                          solution_dealii,
+                                          n_coarsening_steps);
+
+          vector_to_be_used                 = &solution_dealii;
+          background_dof_handler_to_be_used = &dof_handler_copy;
+        }
+
+      // step 1) create surface mesh
+      std::vector<Point<dim - 1>>    vertices;
+      std::vector<CellData<dim - 1>> cells;
+      SubCellData                    subcelldata;
+
+      // temp data to define cross-section
+      const unsigned int direction = 2;
+      const double       location  = 0;
+      Point<dim>         origin;
+      origin[direction] = location;
+      Point<dim> normal;
+      normal[direction]                           = 1;
+      std::array<unsigned int, dim - 1> projector = {{0, 1}};
+
+      std::vector<Vector<double>> solution_proj(vector_to_be_used->n_blocks());
+
+      for (const auto &cell :
+           background_dof_handler_to_be_used->active_cell_iterators())
+        if (cell->is_locally_owned())
+          {
+            auto ref_point       = cell->center();
+            ref_point[direction] = location;
+
+            if (cell->bounding_box().point_inside(ref_point))
+              {
+                CellData<dim - 1> cell_data;
+                unsigned int      vertex_counter   = 0;
+                unsigned int      vertex_numerator = solution_proj[0].size();
+
+                for (unsigned int b = 0; b < vector_to_be_used->n_blocks(); ++b)
+                  {
+                    solution_proj[b].grow_or_shrink(solution_proj[b].size() +
+                                                    cell_data.vertices.size());
+                  }
+
+                // Iterate over each line of the cell
+                for (unsigned int il = 0; il < cell->n_lines(); il++)
+                  {
+                    // Check if there are intersections with box planes
+                    const auto [has_itersection, fac, p] =
+                      intersect_line_plane(cell->line(il)->vertex(0),
+                                           cell->line(il)->vertex(1),
+                                           origin,
+                                           normal);
+
+                    if (has_itersection && std::abs(fac) < 1.)
+                      {
+                        cell_data.vertices[vertex_counter] = vertex_numerator;
+
+                        Point<dim - 1> p_proj;
+                        for (unsigned int j = 0; j < projector.size(); ++j)
+                          {
+                            p_proj[j] = p[projector[j]];
+                          }
+                        vertices.push_back(p_proj);
+
+                        std::cout << "Intersection" << std::endl;
+
+                        // Now interpolate values
+                        // DOFs correspnding to the vertices
+                        const auto index0 =
+                          cell->line(il)->vertex_dof_index(0, 0);
+                        const auto index1 =
+                          cell->line(il)->vertex_dof_index(1, 0);
+
+                        for (unsigned int b = 0;
+                             b < vector_to_be_used->n_blocks();
+                             ++b)
+                          {
+                            // The field values associated with those DOFs
+                            const auto val0 = vector.block(b)[index0];
+                            const auto val1 = vector.block(b)[index1];
+
+                            const auto val_proj = val0 + fac * (val0 - val1);
+
+
+                            solution_proj[b][vertex_numerator] = val_proj;
+                          }
+
+                        ++vertex_counter;
+                        ++vertex_numerator;
+                      }
+                  }
+
+                cells.push_back(cell_data);
+
+                std::cout << "cell vertices: " << std::endl;
+                for (unsigned int iv = 0; iv < cell->n_vertices(); iv++)
+                  {
+                    std::cout << cell->vertex(iv) << std::endl;
+                  }
+
+                std::cout << "local_vertices: " << std::endl;
+                for (auto &&p : vertices)
+                  {
+                    std::cout << p << std::endl;
+                  }
+
+                std::cout << "local_cells: " << std::endl;
+                for (const auto &vertex_id : cell_data.vertices)
+                  std::cout << vertex_id << " ";
+                std::cout << std::endl;
+
+
+
+                // AssertThrow(false, ExcMessage("STOP"));
+              }
+          }
+
+      Triangulation<dim - 1, dim - 1> tria;
+
+      if (vertices.size() > 0)
+        tria.create_triangulation(vertices, cells, subcelldata);
+      else
+        GridGenerator::hyper_cube(tria, -1e-6, 1e-6);
+
+      FE_DGQ<dim - 1>     fe_dg{1};
+      DoFHandler<dim - 1> dof_handler_proj(tria);
+      dof_handler_proj.distribute_dofs(fe_dg);
+
+      /*
+            Vector<float> vector_grain_id(tria.n_active_cells());
+            Vector<float> vector_order_parameter_id(tria.n_active_cells());
+
+            if (vertices.size() > 0)
+              {
+                for (const auto &cell : tria.active_cell_iterators())
+                  {
+                    vector_grain_id[cell->active_cell_index()] =
+         cell->material_id();
+                    vector_order_parameter_id[cell->active_cell_index()] =
+                      cell->manifold_id();
+                  }
+                tria.reset_all_manifolds();
+              }
+            else
+              {
+                vector_grain_id           = -1.0; // initialized with dummy
+         value vector_order_parameter_id = -1.0;
+              }
+      */
+      Vector<float> vector_rank(tria.n_active_cells());
+      vector_rank = Utilities::MPI::this_mpi_process(
+        background_dof_handler.get_communicator());
+
+      // step 2) output mesh
+      DataOut<dim - 1, dim - 1> data_out;
+      data_out.attach_triangulation(tria);
+      data_out.attach_dof_handler(dof_handler_proj);
+      // data_out.add_data_vector(vector_grain_id, "grain_id");
+      // data_out.add_data_vector(vector_order_parameter_id,
+      // "order_parameter_id");
+      data_out.add_data_vector(vector_rank, "subdomain");
+
+      for (unsigned int b = 0; b < vector_to_be_used->n_blocks(); ++b)
+        data_out.add_data_vector(solution_proj[b],
+                                 "block_" + std::to_string(b));
 
       data_out.build_patches();
       data_out.write_vtu_in_parallel(filename,
