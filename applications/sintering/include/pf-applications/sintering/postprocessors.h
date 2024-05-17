@@ -818,7 +818,8 @@ namespace Sintering
                      const DoFHandler<dim> &background_dof_handler,
                      const VectorType &     vector,
                      const std::string      filename,
-                     const unsigned int     n_coarsening_steps = 0)
+                     const unsigned int     n_coarsening_steps = 0,
+                     const typename VectorType::value_type tolerance = 1e-10)
     {
       const bool has_ghost_elements = vector.has_ghost_elements();
 
@@ -894,7 +895,7 @@ namespace Sintering
                                            origin,
                                            normal);
 
-                    if (has_itersection && std::abs(fac) < 1.)
+                    if (has_itersection && std::abs(fac) < 1. + tolerance)
                       {
                         cell_data.vertices[vertex_counter] = vertex_numerator;
 
