@@ -66,10 +66,10 @@ namespace Sintering
 
     template <typename VectorType, int dim = 3>
     std::unique_ptr<StateData<dim - 1, typename VectorType::value_type>>
-    build_projection(const Mapping<dim> &   mapping,
-                     const DoFHandler<dim> &background_dof_handler,
+    build_projection(const DoFHandler<dim> &background_dof_handler,
                      const VectorType &     vector,
-                     const std::string      filename,
+                     const unsigned int     direction                = 2,
+                     const double           location                 = 0,
                      const unsigned int     n_coarsening_steps       = 0,
                      const typename VectorType::value_type tolerance = 1e-10)
     {
@@ -104,22 +104,25 @@ namespace Sintering
           background_dof_handler_to_be_used = &dof_handler_copy;
         }
 
-      // step 1) create surface mesh
       std::vector<Point<dim - 1>>    vertices;
       std::vector<CellData<dim - 1>> cells;
       SubCellData                    subcelldata;
 
-      // temp data to define cross-section
-      const unsigned int direction = 2;
-      const double       location  = 0;
-      Point<dim>         origin;
+      // Data to define cross-section
+      Point<dim> origin;
       origin[direction] = location;
-      Point<dim> normal;
-      normal[direction]                           = 1;
-      std::array<unsigned int, dim - 1> projector = {{0, 1}};
 
-      auto projection = std::make_unique<StateData<dim - 1, typename VectorType::value_type>>(
-        vector_to_be_used->n_blocks());
+      Point<dim> normal;
+      normal[direction] = 1;
+
+      std::vector<unsigned int> projector;
+      for (unsigned int d = 0; d < dim; ++d)
+        if (d != direction)
+          projector.push_back(d);
+
+      auto projection =
+        std::make_unique<StateData<dim - 1, typename VectorType::value_type>>(
+          vector_to_be_used->n_blocks());
 
       for (const auto &cell :
            background_dof_handler_to_be_used->active_cell_iterators())
@@ -181,7 +184,8 @@ namespace Sintering
 
                             const auto val_proj = val0 + fac * (val0 - val1);
 
-                            projection->solution[b][vertex_numerator] = val_proj;
+                            projection->solution[b][vertex_numerator] =
+                              val_proj;
                           }
 
                         ++vertex_counter;
@@ -221,50 +225,6 @@ namespace Sintering
         vector.zero_out_ghost_values();
 
       return projection;
-
-      /*
-            Vector<float> vector_grain_id(tria.n_active_cells());
-            Vector<float> vector_order_parameter_id(tria.n_active_cells());
-
-            if (vertices.size() > 0)
-              {
-                for (const auto &cell : tria.active_cell_iterators())
-                  {
-                    vector_grain_id[cell->active_cell_index()] =
-         cell->material_id();
-                    vector_order_parameter_id[cell->active_cell_index()] =
-                      cell->manifold_id();
-                  }
-                tria.reset_all_manifolds();
-              }
-            else
-              {
-                vector_grain_id           = -1.0; // initialized with dummy
-         value vector_order_parameter_id = -1.0;
-              }
-      */
-      /*
-      Vector<float> vector_rank(projection.tria.n_active_cells());
-      vector_rank = Utilities::MPI::this_mpi_process(
-        background_dof_handler.get_communicator());
-
-      // step 2) output mesh
-      DataOut<dim - 1, dim - 1> data_out;
-      data_out.attach_triangulation(projection.tria);
-      data_out.attach_dof_handler(projection.dof_handler);
-      // data_out.add_data_vector(vector_grain_id, "grain_id");
-      // data_out.add_data_vector(vector_order_parameter_id,
-      // "order_parameter_id");
-      data_out.add_data_vector(vector_rank, "subdomain");
-
-      for (unsigned int b = 0; b < vector_to_be_used->n_blocks(); ++b)
-        data_out.add_data_vector(projection.solution[b],
-                                 "block_" + std::to_string(b));
-
-      data_out.build_patches();
-      data_out.write_vtu_in_parallel(filename,
-                                     background_dof_handler.get_communicator());
-      */
     }
   } // namespace Postprocessors
 } // namespace Sintering
