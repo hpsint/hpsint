@@ -40,10 +40,32 @@
 
 namespace Sintering
 {
-  namespace Projection
+  namespace Postprocessors
   {
+    template <int dim, typename Number>
+    struct StateData
+    {
+      using BlockVector = std::vector<Vector<Number>>;
+
+      Triangulation<dim> tria;
+      DoFHandler<dim>    dof_handler;
+      BlockVector        solution;
+      FE_DGQ<dim>        fe_dg{1};
+
+      StateData()
+        : dof_handler(tria)
+      {}
+
+      StateData(unsigned int n)
+        : dof_handler(tria)
+        , solution(n)
+      {}
+
+      StateData(const StateData<dim, Number> &state) = delete;
+    };
+
     template <typename VectorType, int dim = 3>
-    void
+    std::unique_ptr<StateData<dim - 1, typename VectorType::value_type>>
     build_projection(const Mapping<dim> &   mapping,
                      const DoFHandler<dim> &background_dof_handler,
                      const VectorType &     vector,
@@ -51,6 +73,8 @@ namespace Sintering
                      const unsigned int     n_coarsening_steps       = 0,
                      const typename VectorType::value_type tolerance = 1e-10)
     {
+      static_assert(dim == 3);
+
       const bool has_ghost_elements = vector.has_ghost_elements();
 
       if (has_ghost_elements == false)
@@ -94,7 +118,8 @@ namespace Sintering
       normal[direction]                           = 1;
       std::array<unsigned int, dim - 1> projector = {{0, 1}};
 
-      std::vector<Vector<double>> solution_proj(vector_to_be_used->n_blocks());
+      auto projection = std::make_unique<StateData<dim - 1, typename VectorType::value_type>>(
+        vector_to_be_used->n_blocks());
 
       for (const auto &cell :
            background_dof_handler_to_be_used->active_cell_iterators())
@@ -106,13 +131,14 @@ namespace Sintering
             if (cell->bounding_box().point_inside(ref_point))
               {
                 CellData<dim - 1> cell_data;
-                unsigned int      vertex_counter   = 0;
-                unsigned int      vertex_numerator = solution_proj[0].size();
+                unsigned int      vertex_counter = 0;
+                unsigned int vertex_numerator = projection->solution[0].size();
 
                 for (unsigned int b = 0; b < vector_to_be_used->n_blocks(); ++b)
                   {
-                    solution_proj[b].grow_or_shrink(solution_proj[b].size() +
-                                                    cell_data.vertices.size());
+                    projection->solution[b].grow_or_shrink(
+                      projection->solution[b].size() +
+                      cell_data.vertices.size());
                   }
 
                 // Iterate over each line of the cell
@@ -155,8 +181,7 @@ namespace Sintering
 
                             const auto val_proj = val0 + fac * (val0 - val1);
 
-
-                            solution_proj[b][vertex_numerator] = val_proj;
+                            projection->solution[b][vertex_numerator] = val_proj;
                           }
 
                         ++vertex_counter;
@@ -182,23 +207,20 @@ namespace Sintering
                 for (const auto &vertex_id : cell_data.vertices)
                   std::cout << vertex_id << " ";
                 std::cout << std::endl;
-
-
-
-                // AssertThrow(false, ExcMessage("STOP"));
               }
           }
 
-      Triangulation<dim - 1, dim - 1> tria;
-
       if (vertices.size() > 0)
-        tria.create_triangulation(vertices, cells, subcelldata);
+        projection->tria.create_triangulation(vertices, cells, subcelldata);
       else
-        GridGenerator::hyper_cube(tria, -1e-6, 1e-6);
+        GridGenerator::hyper_cube(projection->tria, -1e-6, 1e-6);
 
-      FE_DGQ<dim - 1>     fe_dg{1};
-      DoFHandler<dim - 1> dof_handler_proj(tria);
-      dof_handler_proj.distribute_dofs(fe_dg);
+      projection->dof_handler.distribute_dofs(projection->fe_dg);
+
+      if (has_ghost_elements == false)
+        vector.zero_out_ghost_values();
+
+      return projection;
 
       /*
             Vector<float> vector_grain_id(tria.n_active_cells());
@@ -221,29 +243,28 @@ namespace Sintering
          value vector_order_parameter_id = -1.0;
               }
       */
-      Vector<float> vector_rank(tria.n_active_cells());
+      /*
+      Vector<float> vector_rank(projection.tria.n_active_cells());
       vector_rank = Utilities::MPI::this_mpi_process(
         background_dof_handler.get_communicator());
 
       // step 2) output mesh
       DataOut<dim - 1, dim - 1> data_out;
-      data_out.attach_triangulation(tria);
-      data_out.attach_dof_handler(dof_handler_proj);
+      data_out.attach_triangulation(projection.tria);
+      data_out.attach_dof_handler(projection.dof_handler);
       // data_out.add_data_vector(vector_grain_id, "grain_id");
       // data_out.add_data_vector(vector_order_parameter_id,
       // "order_parameter_id");
       data_out.add_data_vector(vector_rank, "subdomain");
 
       for (unsigned int b = 0; b < vector_to_be_used->n_blocks(); ++b)
-        data_out.add_data_vector(solution_proj[b],
+        data_out.add_data_vector(projection.solution[b],
                                  "block_" + std::to_string(b));
 
       data_out.build_patches();
       data_out.write_vtu_in_parallel(filename,
                                      background_dof_handler.get_communicator());
-
-      if (has_ghost_elements == false)
-        vector.zero_out_ghost_values();
+      */
     }
-  } // namespace Projection
+  } // namespace Postprocessors
 } // namespace Sintering
