@@ -2898,11 +2898,13 @@ namespace Sintering
 
               proj_data_out.build_patches();
 
-              const std::string output =
-                params.output_data.vtk_path + "/section_" +
-                params.output_data.sections[i].first + "=" +
-                std::to_string(params.output_data.sections[i].second) + "_" +
-                label + "." + std::to_string(counters[label]) + ".vtu";
+              std::stringstream ss;
+              ss << params.output_data.vtk_path << "/section_"
+                 << params.output_data.sections[i].first << "="
+                 << params.output_data.sections[i].second << "_" << label << "."
+                 << counters[label] << ".vtu";
+
+              const std::string output = ss.str();
 
               pcout << "Outputing data at t = " << t << " (" << output << ")"
                     << std::endl;

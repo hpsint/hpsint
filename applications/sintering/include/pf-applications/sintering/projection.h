@@ -80,8 +80,7 @@ namespace Sintering
       if (has_ghost_elements == false)
         vector.update_ghost_values();
 
-      // step 0) coarsen background mesh 1 or 2 times to reduce memory
-      // consumption
+      // Coarsen background mesh 1 or 2 times to reduce memory consumption
 
       auto vector_to_be_used                 = &vector;
       auto background_dof_handler_to_be_used = &background_dof_handler;
