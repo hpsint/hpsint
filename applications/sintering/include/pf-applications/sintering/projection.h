@@ -165,8 +165,6 @@ namespace Sintering
                           }
                         vertices.push_back(p_proj);
 
-                        std::cout << "Intersection" << std::endl;
-
                         // Now interpolate values
                         // DOFs correspnding to the vertices
                         const auto index0 =
@@ -194,23 +192,6 @@ namespace Sintering
                   }
 
                 cells.push_back(cell_data);
-
-                std::cout << "cell vertices: " << std::endl;
-                for (unsigned int iv = 0; iv < cell->n_vertices(); iv++)
-                  {
-                    std::cout << cell->vertex(iv) << std::endl;
-                  }
-
-                std::cout << "local_vertices: " << std::endl;
-                for (auto &&p : vertices)
-                  {
-                    std::cout << p << std::endl;
-                  }
-
-                std::cout << "local_cells: " << std::endl;
-                for (const auto &vertex_id : cell_data.vertices)
-                  std::cout << vertex_id << " ";
-                std::cout << std::endl;
               }
           }
 
