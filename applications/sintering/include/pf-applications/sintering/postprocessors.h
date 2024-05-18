@@ -17,6 +17,7 @@
 
 #include <deal.II/base/geometry_info.h>
 #include <deal.II/base/mpi_large_count.h>
+#include <deal.II/base/mpi_remote_point_evaluation.h>
 #include <deal.II/base/table_handler.h>
 
 #include <deal.II/fe/fe_dgq.h>
@@ -31,6 +32,7 @@
 #include <pf-applications/base/data.h>
 
 #include <pf-applications/sintering/advection.h>
+#include <pf-applications/sintering/operator_sintering_coupled_base.h>
 #include <pf-applications/sintering/operator_sintering_data.h>
 
 #include <pf-applications/grain_tracker/distributed_stitching.h>
