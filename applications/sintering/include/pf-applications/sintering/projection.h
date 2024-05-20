@@ -75,6 +75,13 @@ namespace Sintering
     {
       static_assert(dim == 3);
 
+      const auto &fe = background_dof_handler.get_fe();
+
+      AssertThrow(
+        fe.reference_cell().is_hyper_cube() && fe.tensor_degree() == 1,
+        ExcMessage(
+          "This algorithm is implemented for linear quad elements only"));
+
       const bool has_ghost_elements = vector.has_ghost_elements();
 
       if (has_ghost_elements == false)
