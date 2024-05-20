@@ -64,6 +64,7 @@
 #include <pf-applications/lac/solvers_nonlinear.h>
 
 #include <pf-applications/numerics/data_out.h>
+#include <pf-applications/numerics/output.h>
 #include <pf-applications/numerics/vector_tools.h>
 
 #include <pf-applications/sintering/advection.h>
@@ -77,6 +78,7 @@
 #include <pf-applications/sintering/parameters.h>
 #include <pf-applications/sintering/postprocessors.h>
 #include <pf-applications/sintering/preconditioners.h>
+#include <pf-applications/sintering/projection.h>
 #include <pf-applications/sintering/residual_wrapper.h>
 #include <pf-applications/sintering/tools.h>
 
@@ -2799,41 +2801,60 @@ namespace Sintering
       // Create table handler
       TableHandler table;
 
+      // Initialize all sections - relevant for 3D case only
+      std::vector<std::unique_ptr<Postprocessors::StateData<dim - 1, Number>>>
+        sections;
+
+      // A separate if to exclude this part for 2D for the code
+      if constexpr (dim == 3)
+        if (params.output_data.regular || params.output_data.contours ||
+            params.output_data.contours_tex)
+          {
+            const std::unordered_map<std::string, int> directions = {{"x", 0},
+                                                                     {"y", 1},
+                                                                     {"z", 2}};
+
+            for (auto &[direction_code, location] : params.output_data.sections)
+              sections.push_back(Postprocessors::build_projection(
+                dof_handler,
+                solution,
+                directions.at(direction_code),
+                location,
+                params.output_data.n_coarsening_steps));
+          }
+
       if (params.output_data.regular || label != "solution")
         {
-          DataOutBase::VtkFlags flags;
-          flags.write_higher_order_cells =
-            params.output_data.higher_order_cells;
-
-          DataOutWithRanges<dim> data_out;
-          data_out.attach_dof_handler(dof_handler);
-          data_out.set_flags(flags);
+          std::vector<std::string> names(solution.n_blocks());
 
           if (params.output_data.fields.count("CH"))
             {
-              data_out.add_data_vector(solution.block(0), "c");
-              data_out.add_data_vector(solution.block(1), "mu");
+              names[0] = "c";
+              names[1] = "mu";
             }
 
           if (params.output_data.fields.count("AC"))
-            {
-              for (unsigned int ig = 2;
-                   ig < sintering_operator.get_data().n_components();
-                   ++ig)
-                data_out.add_data_vector(solution.block(ig),
-                                         "eta" + std::to_string(ig - 2));
-            }
+            for (unsigned int ig = 2;
+                 ig < sintering_operator.get_data().n_components();
+                 ++ig)
+              names[ig] = "eta" + std::to_string(ig - 2);
 
           if (params.output_data.fields.count("displ") &&
               sintering_operator.n_components() >
                 sintering_operator.get_data().n_components())
-            {
-              for (unsigned int b = solution.n_blocks() - dim;
-                   b < solution.n_blocks();
-                   ++b)
-                data_out.add_data_vector(solution.block(b), "u");
-            }
+            for (unsigned int b = solution.n_blocks() - dim;
+                 b < solution.n_blocks();
+                 ++b)
+              names[b] = "u";
 
+          auto data_out = Postprocessors::build_default_output(
+            dof_handler,
+            solution,
+            names,
+            params.output_data.fields.count("subdomain"),
+            params.output_data.higher_order_cells);
+
+          // Add data provided by the sintering operator
           sintering_operator.add_data_vectors(data_out,
                                               solution,
                                               params.output_data.fields);
@@ -2841,19 +2862,6 @@ namespace Sintering
           // Output additional data
           if (additional_output)
             additional_output(data_out);
-
-          // Output subdomain structure
-          if (params.output_data.fields.count("subdomain"))
-            {
-              Vector<float> subdomain(
-                dof_handler.get_triangulation().n_active_cells());
-              for (unsigned int i = 0; i < subdomain.size(); ++i)
-                {
-                  subdomain[i] =
-                    dof_handler.get_triangulation().locally_owned_subdomain();
-                }
-              data_out.add_data_vector(subdomain, "subdomain");
-            }
 
           // Output matrix_free indices - might be needed for debug purposes
           if (params.output_data.fields.count("mf_indices"))
@@ -2876,6 +2884,33 @@ namespace Sintering
                 << std::endl;
 
           data_out.write_vtu_in_parallel(output, MPI_COMM_WORLD);
+
+          // Output sections for 3D case
+          for (unsigned int i = 0; i < sections.size(); ++i)
+            {
+              auto proj_data_out = Postprocessors::build_default_output(
+                sections[i]->dof_handler,
+                Postprocessors::BlockVectorWrapper<std::vector<Vector<Number>>>(
+                  sections[i]->solution),
+                names,
+                params.output_data.fields.count("subdomain"),
+                params.output_data.higher_order_cells);
+
+              proj_data_out.build_patches();
+
+              std::stringstream ss;
+              ss << params.output_data.vtk_path << "/section_"
+                 << params.output_data.sections[i].first << "="
+                 << params.output_data.sections[i].second << "_" << label << "."
+                 << counters[label] << ".vtu";
+
+              const std::string output = ss.str();
+
+              pcout << "Outputing data at t = " << t << " (" << output << ")"
+                    << std::endl;
+
+              proj_data_out.write_vtu_in_parallel(output, MPI_COMM_WORLD);
+            }
         }
 
       // Bounding boxes can be used for scalar table output and for the surface

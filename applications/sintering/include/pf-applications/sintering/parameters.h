@@ -261,6 +261,8 @@ namespace Sintering
     double                gb_threshold     = 0.14;
 
     std::vector<std::pair<Point<3>, Point<3>>> control_boxes;
+
+    std::vector<std::pair<std::string, double>> sections;
   };
 
   struct RestartData
@@ -892,6 +894,18 @@ namespace Sintering
                         output_data.control_boxes,
                         "Control boxes to use for output.",
                         Patterns::List(Patterns::Tuple(ps, ";"),
+                                       0,
+                                       Patterns::List::max_int_value,
+                                       "|"));
+
+      std::vector<std::unique_ptr<Patterns::PatternBase>> psec;
+      psec.push_back(std::make_unique<Patterns::Anything>());
+      psec.push_back(std::make_unique<Patterns::Double>());
+
+      prm.add_parameter("Sections",
+                        output_data.sections,
+                        "Cross sections for projection output.",
+                        Patterns::List(Patterns::Tuple(psec, "="),
                                        0,
                                        Patterns::List::max_int_value,
                                        "|"));

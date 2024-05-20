@@ -15,6 +15,7 @@
 
 #pragma once
 
+#include <deal.II/base/geometry_info.h>
 #include <deal.II/base/mpi.h>
 #include <deal.II/base/mpi_consensus_algorithms.h>
 
@@ -396,8 +397,9 @@ namespace GrainTracker
               if (ghost_cell->neighbor(face)->has_children())
                 {
                   for (unsigned int subface = 0;
-                       subface < GeometryInfo<dim>::n_subfaces(
-                                   internal::SubfaceCase<dim>::case_isotropic);
+                       subface <
+                       GeometryInfo<dim>::n_subfaces(
+                         dealii::internal::SubfaceCase<dim>::case_isotropic);
                        ++subface)
                     add(ghost_cell,
                         ghost_cell->neighbor_child_on_subface(face, subface));

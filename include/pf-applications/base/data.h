@@ -49,5 +49,5 @@ create_array(const T &value)
   /* Here std::make_index_sequence<N>() creates an sequence of std::size_t -
    * namely std::integer_sequence<std::size_t, 0, 1, ..., N> - via the variadic
    * templates mechanism and this is then send to another function. */
-  return internal::create_array(value, std::make_index_sequence<N>());
+  return ::internal::create_array(value, std::make_index_sequence<N>());
 }
