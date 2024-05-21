@@ -192,6 +192,11 @@ namespace Sintering
                               val_proj;
                           }
 
+                        // Transfer graint tracker data to the projected grid
+                        if (n_coarsening_steps == 0)
+                          cell_data.material_id =
+                            cell->global_active_cell_index();
+
                         ++vertex_counter;
                         ++vertex_numerator;
                       }
