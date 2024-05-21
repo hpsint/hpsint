@@ -304,6 +304,129 @@ namespace Sintering
 
         return vertices.size() > 0 && cells.size() > 0;
       }
+
+      template <int dim, typename Number>
+      void
+      write_grain_contours_tex(
+        const unsigned int                                        n_grains,
+        const unsigned int                                        n_op,
+        const std::vector<std::pair<unsigned int, unsigned int>> &grains_data,
+        const BoundingBox<dim> &                                  bb,
+        const std::vector<Number> &                               parameters,
+        const std::vector<std::vector<Point<dim>>> &              points_local,
+        const std::string                                         filename,
+        MPI_Comm comm = MPI_COMM_WORLD)
+      {
+        /* File format (data and length):
+        problem dimensionality         - dim
+        number of grains               - N
+        number of order_parameters     - M
+        grain indices                  - array[N]
+        grain order parameters         - array[N]
+        BB bottom left point           - array[dim]
+        BB top right point             - array[dim]
+        properties (center and radius) - array[(dim+1)*N]
+        particle_0                     - 1
+        points_0                       - array[...]
+        ...
+        particle_N                     - 1
+        points_N                       - array[...]
+        */
+
+        MPI_Info info;
+        int      ierr = MPI_Info_create(&info);
+
+        AssertThrowMPI(ierr);
+
+        MPI_File fh;
+        ierr = MPI_File_open(
+          comm, filename.c_str(), MPI_MODE_CREATE | MPI_MODE_WRONLY, info, &fh);
+        AssertThrow(ierr == MPI_SUCCESS, ExcFileNotOpen(filename));
+
+        ierr = MPI_File_set_size(fh, 0); // delete the file contents
+        AssertThrowMPI(ierr);
+        ierr = MPI_Barrier(comm);
+        AssertThrowMPI(ierr);
+        ierr = MPI_Info_free(&info);
+        AssertThrowMPI(ierr);
+
+        // Define header size so we can broadcast later
+        unsigned int header_size = 0;
+
+        if (Utilities::MPI::this_mpi_process(comm) == 0)
+          {
+            std::stringstream ss;
+
+            ss << dim << std::endl;
+            ss << n_grains << std::endl;
+            ss << n_op << std::endl;
+
+            for (const auto &entry : grains_data)
+              ss << entry.first << " ";
+            ss << std::endl;
+
+            for (const auto &entry : grains_data)
+              ss << entry.second << " ";
+            ss << std::endl;
+
+            for (unsigned int d = 0; d < dim; ++d)
+              ss << bb.get_boundary_points().first[d] << " ";
+            ss << std::endl;
+
+            for (unsigned int d = 0; d < dim; ++d)
+              ss << bb.get_boundary_points().second[d] << " ";
+            ss << std::endl;
+
+            for (const auto &i : parameters)
+              ss << i << " ";
+            ss << std::endl;
+
+            header_size = ss.str().size();
+
+            ierr =
+              Utilities::MPI::LargeCount::File_write_at_c(fh,
+                                                          0,
+                                                          ss.str().c_str(),
+                                                          header_size,
+                                                          MPI_CHAR,
+                                                          MPI_STATUS_IGNORE);
+            AssertThrowMPI(ierr);
+          }
+
+        ierr = MPI_Bcast(&header_size, 1, MPI_UNSIGNED, 0, comm);
+        AssertThrowMPI(ierr);
+
+        // Write points per rank to independent streams
+        std::stringstream ss;
+        for (unsigned int i = 0; i < n_grains; ++i)
+          if (!points_local[i].empty())
+            {
+              ss << i << std::endl;
+              for (const auto &point : points_local[i])
+                ss << point << " ";
+              ss << std::endl;
+            }
+
+        // Use prefix sum to find specific offset to write at
+        const std::uint64_t size_on_proc = ss.str().size();
+        std::uint64_t       prefix_sum   = 0;
+        ierr                             = MPI_Exscan(
+          &size_on_proc, &prefix_sum, 1, MPI_UINT64_T, MPI_SUM, comm);
+        AssertThrowMPI(ierr);
+
+        // Locate specific offset for each processor
+        const MPI_Offset offset =
+          static_cast<MPI_Offset>(header_size) + prefix_sum;
+
+        ierr =
+          Utilities::MPI::LargeCount::File_write_at_all_c(fh,
+                                                          offset,
+                                                          ss.str().c_str(),
+                                                          ss.str().size(),
+                                                          MPI_CHAR,
+                                                          MPI_STATUS_IGNORE);
+        AssertThrowMPI(ierr);
+      }
     } // namespace internal
 
     template <int dim, typename VectorType, typename Number>
@@ -335,8 +458,6 @@ namespace Sintering
         grain_tracker->initial_setup(vector, n_op);
       else
         grain_tracker->track(vector, n_op, true);
-
-      std::ofstream outfile(filename);
 
       const auto &grains = grain_tracker->get_grains();
 
@@ -377,18 +498,14 @@ namespace Sintering
                background_dof_handler.active_cell_iterators())
             if (cell->is_locally_owned())
               {
-                if (grain_tracker->get_particle_index(
-                      b, cell->global_active_cell_index()) ==
-                    numbers::invalid_unsigned_int)
+                auto particle_id = grain_tracker->get_particle_index(
+                  b, cell->global_active_cell_index());
+
+                if (particle_id == numbers::invalid_unsigned_int)
                   continue;
 
                 const auto grain_id =
-                  grain_tracker
-                    ->get_grain_and_segment(b,
-                                            grain_tracker->get_particle_index(
-                                              b,
-                                              cell->global_active_cell_index()))
-                    .first;
+                  grain_tracker->get_grain_and_segment(b, particle_id).first;
 
                 if (grain_id == numbers::invalid_unsigned_int)
                   continue;
@@ -400,112 +517,23 @@ namespace Sintering
               }
         }
 
-      /* File format (data and length):
-      problem dimensionality         - dim
-      number of grains               - N
-      number of order_parameters     - M
-      grain indices                  - array[N]
-      grain order parameters         - array[N]
-      BB bottom left point           - array[dim]
-      BB top right point             - array[dim]
-      properties (center and radius) - array[(dim+1)*N]
-      particle_0                     - 1
-      points_0                       - array[...]
-      ...
-      particle_N                     - 1
-      points_N                       - array[...]
-      */
-
-      MPI_Info info;
-      int      ierr = MPI_Info_create(&info);
-
-      AssertThrowMPI(ierr);
-
-      MPI_File fh;
-      ierr = MPI_File_open(
-        comm, filename.c_str(), MPI_MODE_CREATE | MPI_MODE_WRONLY, info, &fh);
-      AssertThrow(ierr == MPI_SUCCESS, ExcFileNotOpen(filename));
-
-      ierr = MPI_File_set_size(fh, 0); // delete the file contents
-      AssertThrowMPI(ierr);
-      ierr = MPI_Barrier(comm);
-      AssertThrowMPI(ierr);
-      ierr = MPI_Info_free(&info);
-      AssertThrowMPI(ierr);
-
-      // Define header size so we can broadcast later
-      unsigned int header_size = 0;
-
-      if (Utilities::MPI::this_mpi_process(comm) == 0)
-        {
-          std::stringstream ss;
-
-          ss << dim << std::endl;
-          ss << n_grains << std::endl;
-          ss << n_op << std::endl;
-
-          for (const auto &entry : grains)
-            ss << entry.second.get_grain_id() << " ";
-          ss << std::endl;
-
-          for (const auto &entry : grains)
-            ss << entry.second.get_order_parameter_id() << " ";
-          ss << std::endl;
-
-          for (unsigned int d = 0; d < dim; ++d)
-            ss << bb.get_boundary_points().first[d] << " ";
-          ss << std::endl;
-
-          for (unsigned int d = 0; d < dim; ++d)
-            ss << bb.get_boundary_points().second[d] << " ";
-          ss << std::endl;
-
-          for (const auto &i : parameters)
-            ss << i << " ";
-          ss << std::endl;
-
-          header_size = ss.str().size();
-
-          ierr = Utilities::MPI::LargeCount::File_write_at_c(
-            fh, 0, ss.str().c_str(), header_size, MPI_CHAR, MPI_STATUS_IGNORE);
-          AssertThrowMPI(ierr);
-        }
-
-      ierr = MPI_Bcast(&header_size, 1, MPI_UNSIGNED, 0, comm);
-      AssertThrowMPI(ierr);
-
-      // Write points per rank to independent streams
-      std::stringstream ss;
-      for (unsigned int i = 0; i < n_grains; ++i)
-        if (!points_local[i].empty())
-          {
-            ss << i << std::endl;
-            for (const auto &point : points_local[i])
-              ss << point << " ";
-            ss << std::endl;
-          }
-
-      // Use prefix sum to find specific offset to write at
-      const std::uint64_t size_on_proc = ss.str().size();
-      std::uint64_t       prefix_sum   = 0;
-      ierr =
-        MPI_Exscan(&size_on_proc, &prefix_sum, 1, MPI_UINT64_T, MPI_SUM, comm);
-      AssertThrowMPI(ierr);
-
-      // Locate specific offset for each processor
-      const MPI_Offset offset =
-        static_cast<MPI_Offset>(header_size) + prefix_sum;
-
-      ierr = Utilities::MPI::LargeCount::File_write_at_all_c(fh,
-                                                             offset,
-                                                             ss.str().c_str(),
-                                                             ss.str().size(),
-                                                             MPI_CHAR,
-                                                             MPI_STATUS_IGNORE);
-      AssertThrowMPI(ierr);
-
       if (has_ghost_elements == false)
         vector.zero_out_ghost_values();
+
+      std::vector<std::pair<unsigned int, unsigned int>> grains_data;
+
+      for (const auto &entry : grains)
+        grains_data.emplace_back(entry.second.get_grain_id(),
+                                 entry.second.get_order_parameter_id());
+
+      internal::write_grain_contours_tex(n_grains,
+                                         n_op,
+                                         grains_data,
+                                         bb,
+                                         parameters,
+                                         points_local,
+                                         filename,
+                                         comm);
     }
 
     template <int dim, typename VectorType, typename Number>
