@@ -218,5 +218,110 @@ namespace Sintering
 
       return projection;
     }
+
+    template <int dim, typename VectorType, typename Number>
+    void
+    output_grain_contours_projected(
+      const Mapping<dim> &                          mapping,
+      const DoFHandler<dim> &                       background_dof_handler,
+      const VectorType &                            vector,
+      const double                                  iso_level,
+      const std::string                             filename,
+      const unsigned int                            n_op,
+      const GrainTracker::Tracker<dim + 1, Number> &grain_tracker,
+      const Point<dim + 1> &                        plane_origin,
+      const Point<dim + 1> &                        plane_normal,
+      const unsigned int                            n_subdivisions = 1,
+      const double                                  tolerance      = 1e-10)
+    {
+      static_assert(dim == 2);
+
+      const auto comm = background_dof_handler.get_communicator();
+
+      const auto &grains = grain_tracker.get_grains();
+
+      const auto n_grains = grains.size();
+
+      const auto bb = GridTools::compute_bounding_box(
+        background_dof_handler.get_triangulation());
+
+      // Here effectively
+      std::vector<Number> parameters((dim + 1) * n_grains, 0);
+
+      // Get grain properties from the grain tracker, assume 1 segment per grain
+      unsigned int                         g_counter = 0;
+      std::map<unsigned int, unsigned int> grain_id_to_index;
+      for (const auto &[g, grain] : grains)
+        {
+          Assert(grain.get_segments().size() == 1, ExcNotImplemented());
+
+          const auto &segment = grain.get_segments()[0];
+
+          const auto dist =
+            (segment.get_center() - plane_origin) * plane_normal;
+          const auto circle_center = segment.get_center() + dist * plane_normal;
+
+          for (unsigned int d = 0; d < dim; ++d)
+            parameters[g_counter * (dim + 1) + d] = circle_center[d];
+
+          const auto circle_radius =
+            (dist <= segment.get_radius()) ?
+              std::sqrt(std::pow(segment.get_radius(), 2) - std::pow(dist, 2)) :
+              0;
+
+          parameters[g_counter * (dim + 1) + dim] = circle_radius;
+
+          grain_id_to_index.emplace(g, g_counter);
+          ++g_counter;
+        }
+
+      std::vector<std::vector<Point<dim>>> points_local(n_grains);
+
+      const GridTools::MarchingCubeAlgorithm<dim,
+                                             typename VectorType::BlockType>
+        mc(mapping, background_dof_handler.get_fe(), n_subdivisions, tolerance);
+
+      for (unsigned int b = 0; b < n_op; ++b)
+        {
+          for (const auto &cell :
+               background_dof_handler.active_cell_iterators())
+            if (cell->is_locally_owned())
+              {
+                auto particle_id =
+                  grain_tracker.get_particle_index(b, cell->material_id());
+
+                if (particle_id == numbers::invalid_unsigned_int)
+                  continue;
+
+                const auto grain_id =
+                  grain_tracker.get_grain_and_segment(b, particle_id).first;
+
+                if (grain_id == numbers::invalid_unsigned_int)
+                  continue;
+
+                mc.process_cell(cell,
+                                vector.block(b + 2),
+                                iso_level,
+                                points_local[grain_id_to_index.at(grain_id)]);
+              }
+        }
+
+      std::vector<std::pair<unsigned int, unsigned int>> grains_data;
+
+      for (const auto &entry : grains)
+        grains_data.emplace_back(entry.second.get_grain_id(),
+                                 entry.second.get_order_parameter_id());
+
+      internal::write_grain_contours_tex(n_grains,
+                                         n_op,
+                                         grains_data,
+                                         bb,
+                                         parameters,
+                                         points_local,
+                                         filename,
+                                         comm);
+    }
+
+    template <int dim, typename VectorType, typename Number>
   } // namespace Postprocessors
 } // namespace Sintering
