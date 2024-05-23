@@ -51,6 +51,7 @@ namespace Sintering
       DoFHandler<dim>    dof_handler;
       BlockVector        solution;
       FE_DGQ<dim>        fe_dg{1};
+      MappingQ<dim>      mapping{1};
 
       StateData()
         : dof_handler(tria)
