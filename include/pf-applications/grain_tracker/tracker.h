@@ -43,6 +43,7 @@
 
 #include "distributed_stitching.h"
 #include "grain.h"
+#include "mapper.h"
 #include "output.h"
 #include "periodicity_graph.h"
 #include "remap_graph.h"
@@ -56,7 +57,7 @@ namespace GrainTracker
 
   /* The grain tracker algo itself. */
   template <int dim, typename Number>
-  class Tracker : public Subscriptor
+  class Tracker : public Mapper
   {
   public:
     using BlockVectorType =
@@ -1030,7 +1031,7 @@ namespace GrainTracker
 
     unsigned int
     get_particle_index(const unsigned int order_parameter,
-                       const unsigned int cell_index) const
+                       const unsigned int cell_index) const override
     {
       AssertThrow(order_parameter < op_particle_ids.n_blocks(),
                   ExcMessage("Invalid order_parameter id = " +
@@ -1053,7 +1054,7 @@ namespace GrainTracker
 
     std::pair<unsigned int, unsigned int>
     get_grain_and_segment(const unsigned int order_parameter,
-                          const unsigned int particle_id) const
+                          const unsigned int particle_id) const override
     {
       AssertThrow(particle_id != static_cast<unsigned int>(invalid_particle_id),
                   ExcMessage("Invalid particle_id provided"));
@@ -1074,7 +1075,7 @@ namespace GrainTracker
 
     unsigned int
     get_grain_segment_index(const unsigned int grain_id,
-                            const unsigned int segment_id) const
+                            const unsigned int segment_id) const override
     {
       Assert(grain_segment_ids_numbering.find(grain_id) !=
                grain_segment_ids_numbering.cend(),
@@ -1093,7 +1094,7 @@ namespace GrainTracker
     }
 
     unsigned int
-    n_segments() const
+    n_segments() const override
     {
       return n_total_segments;
     }
