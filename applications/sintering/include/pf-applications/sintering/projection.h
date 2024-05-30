@@ -51,6 +51,7 @@ namespace Sintering
       DoFHandler<dim>    dof_handler;
       BlockVector        solution;
       FE_DGQ<dim>        fe_dg{1};
+      MappingQ<dim>      mapping{1};
 
       StateData()
         : dof_handler(tria)
@@ -192,6 +193,11 @@ namespace Sintering
                               val_proj;
                           }
 
+                        // Transfer graint tracker data to the projected grid
+                        if (n_coarsening_steps == 0)
+                          cell_data.material_id =
+                            cell->global_active_cell_index();
+
                         ++vertex_counter;
                         ++vertex_numerator;
                       }
@@ -212,6 +218,200 @@ namespace Sintering
         vector.zero_out_ghost_values();
 
       return projection;
+    }
+
+    template <int dim, typename VectorType, typename Number>
+    void
+    output_grain_contours_projected(
+      const Mapping<dim> &                          mapping,
+      const DoFHandler<dim> &                       background_dof_handler,
+      const VectorType &                            vector,
+      const double                                  iso_level,
+      const std::string                             filename,
+      const unsigned int                            n_op,
+      const GrainTracker::Tracker<dim + 1, Number> &grain_tracker,
+      const Point<dim + 1> &                        plane_origin,
+      const Point<dim + 1> &                        plane_normal,
+      const unsigned int                            n_subdivisions = 1,
+      const double                                  tolerance      = 1e-10)
+    {
+      static_assert(dim == 2);
+
+      const auto comm = background_dof_handler.get_communicator();
+
+      const auto &grains = grain_tracker.get_grains();
+
+      const auto n_grains = grains.size();
+
+      const auto bb = GridTools::compute_bounding_box(
+        background_dof_handler.get_triangulation());
+
+      // Here effectively
+      std::vector<Number> parameters((dim + 1) * n_grains, 0);
+
+      // Get grain properties from the grain tracker, assume 1 segment per grain
+      unsigned int                         g_counter = 0;
+      std::map<unsigned int, unsigned int> grain_id_to_index;
+      for (const auto &[g, grain] : grains)
+        {
+          Assert(grain.get_segments().size() == 1, ExcNotImplemented());
+
+          const auto &segment = grain.get_segments()[0];
+
+          const auto dist =
+            (segment.get_center() - plane_origin) * plane_normal;
+          const auto circle_center = segment.get_center() + dist * plane_normal;
+
+          for (unsigned int d = 0; d < dim; ++d)
+            parameters[g_counter * (dim + 1) + d] = circle_center[d];
+
+          const auto circle_radius =
+            (dist <= segment.get_radius()) ?
+              std::sqrt(std::pow(segment.get_radius(), 2) - std::pow(dist, 2)) :
+              0;
+
+          parameters[g_counter * (dim + 1) + dim] = circle_radius;
+
+          grain_id_to_index.emplace(g, g_counter);
+          ++g_counter;
+        }
+
+      std::vector<std::vector<Point<dim>>> points_local(n_grains);
+
+      const GridTools::MarchingCubeAlgorithm<dim,
+                                             typename VectorType::BlockType>
+        mc(mapping, background_dof_handler.get_fe(), n_subdivisions, tolerance);
+
+      for (unsigned int b = 0; b < n_op; ++b)
+        {
+          for (const auto &cell :
+               background_dof_handler.active_cell_iterators())
+            if (cell->is_locally_owned())
+              {
+                auto particle_id =
+                  grain_tracker.get_particle_index(b, cell->material_id());
+
+                if (particle_id == numbers::invalid_unsigned_int)
+                  continue;
+
+                const auto grain_id =
+                  grain_tracker.get_grain_and_segment(b, particle_id).first;
+
+                if (grain_id == numbers::invalid_unsigned_int)
+                  continue;
+
+                mc.process_cell(cell,
+                                vector.block(b + 2),
+                                iso_level,
+                                points_local[grain_id_to_index.at(grain_id)]);
+              }
+        }
+
+      std::vector<std::pair<unsigned int, unsigned int>> grains_data;
+
+      for (const auto &entry : grains)
+        grains_data.emplace_back(entry.second.get_grain_id(),
+                                 entry.second.get_order_parameter_id());
+
+      internal::write_grain_contours_tex(n_grains,
+                                         n_op,
+                                         grains_data,
+                                         bb,
+                                         parameters,
+                                         points_local,
+                                         filename,
+                                         comm);
+    }
+
+    template <int dim, typename VectorType, typename Number>
+    void
+    output_grain_contours_projected_vtu(
+      const Mapping<dim> &                          mapping,
+      const DoFHandler<dim> &                       background_dof_handler,
+      const VectorType &                            vector,
+      const double                                  iso_level,
+      const std::string                             filename,
+      const unsigned int                            n_op,
+      const GrainTracker::Tracker<dim + 1, Number> &grain_tracker,
+      const unsigned int                            n_subdivisions = 1,
+      const double                                  tolerance      = 1e-10)
+    {
+      static_assert(dim == 2);
+
+      std::vector<Point<dim>>        vertices;
+      std::vector<CellData<dim - 1>> cells;
+      SubCellData                    subcelldata;
+
+      const GridTools::MarchingCubeAlgorithm<dim,
+                                             typename VectorType::BlockType>
+        mc(mapping, background_dof_handler.get_fe(), n_subdivisions, tolerance);
+
+      for (unsigned int b = 0; b < n_op; ++b)
+        {
+          for (const auto &cell :
+               background_dof_handler.active_cell_iterators())
+            if (cell->is_locally_owned())
+              {
+                const unsigned int old_size = cells.size();
+
+                mc.process_cell(
+                  cell, vector.block(b + 2), iso_level, vertices, cells);
+
+                for (unsigned int i = old_size; i < cells.size(); ++i)
+                  {
+                    const auto particle_id_for_op =
+                      grain_tracker.get_particle_index(b, cell->material_id());
+
+                    if (particle_id_for_op != numbers::invalid_unsigned_int)
+                      cells[i].material_id =
+                        grain_tracker
+                          .get_grain_and_segment(b, particle_id_for_op)
+                          .first;
+
+                    cells[i].manifold_id = b;
+                  }
+              }
+        }
+
+      Triangulation<dim - 1, dim> tria;
+
+      if (vertices.size() > 0)
+        tria.create_triangulation(vertices, cells, subcelldata);
+      else
+        GridGenerator::hyper_cube(tria, -1e-6, 1e-6);
+
+      Vector<float> vector_grain_id(tria.n_active_cells());
+      Vector<float> vector_order_parameter_id(tria.n_active_cells());
+
+      if (vertices.size() > 0)
+        {
+          for (const auto &cell : tria.active_cell_iterators())
+            {
+              vector_grain_id[cell->active_cell_index()] = cell->material_id();
+              vector_order_parameter_id[cell->active_cell_index()] =
+                cell->manifold_id();
+            }
+          tria.reset_all_manifolds();
+        }
+      else
+        {
+          vector_grain_id           = -1.0; // initialized with dummy value
+          vector_order_parameter_id = -1.0;
+        }
+
+      Vector<float> vector_rank(tria.n_active_cells());
+      vector_rank = Utilities::MPI::this_mpi_process(
+        background_dof_handler.get_communicator());
+
+      SurfaceDataOut<dim - 1, dim> data_out;
+      data_out.attach_triangulation(tria);
+      data_out.add_data_vector(vector_grain_id, "grain_id");
+      data_out.add_data_vector(vector_order_parameter_id, "order_parameter_id");
+      data_out.add_data_vector(vector_rank, "subdomain");
+
+      data_out.build_patches();
+      data_out.write_vtu_in_parallel(filename,
+                                     background_dof_handler.get_communicator());
     }
   } // namespace Postprocessors
 } // namespace Sintering

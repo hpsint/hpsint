@@ -2805,22 +2805,35 @@ namespace Sintering
       std::vector<std::unique_ptr<Postprocessors::StateData<dim - 1, Number>>>
         sections;
 
+      const std::unordered_map<std::string, int> directions = {{"x", 0},
+                                                               {"y", 1},
+                                                               {"z", 2}};
+
+      std::vector<std::pair<Point<dim>, Point<dim>>> section_planes;
+
       // A separate if to exclude this part for 2D for the code
       if constexpr (dim == 3)
         if (params.output_data.regular || params.output_data.contours ||
             params.output_data.contours_tex)
           {
-            const std::unordered_map<std::string, int> directions = {{"x", 0},
-                                                                     {"y", 1},
-                                                                     {"z", 2}};
-
             for (auto &[direction_code, location] : params.output_data.sections)
-              sections.push_back(Postprocessors::build_projection(
-                dof_handler,
-                solution,
-                directions.at(direction_code),
-                location,
-                params.output_data.n_coarsening_steps));
+              {
+                // Data to define cross-sections
+                Point<dim> origin;
+                origin[directions.at(direction_code)] = location;
+
+                Point<dim> normal;
+                normal[directions.at(direction_code)] = 1;
+
+                section_planes.emplace_back(origin, normal);
+
+                sections.push_back(Postprocessors::build_projection(
+                  dof_handler,
+                  solution,
+                  directions.at(direction_code),
+                  location,
+                  params.output_data.n_coarsening_steps));
+              }
           }
 
       if (params.output_data.regular || label != "solution")
@@ -3095,6 +3108,32 @@ namespace Sintering
                 params.output_data.n_coarsening_steps,
                 box_filters[i],
                 params.output_data.n_mca_subdivisions);
+
+              if constexpr (dim == 3)
+                for (unsigned int i = 0; i < sections.size(); ++i)
+                  {
+                    std::stringstream ss;
+                    ss << params.output_data.vtk_path << "/contour_section_"
+                       << params.output_data.sections[i].first << "="
+                       << params.output_data.sections[i].second << "_" << label
+                       << "." << counters[label] << ".vtu";
+
+                    const std::string output = ss.str();
+
+                    pcout << "Outputing data at t = " << t << " (" << output
+                          << ")" << std::endl;
+
+                    Postprocessors::output_grain_contours_projected_vtu(
+                      sections[i]->mapping,
+                      sections[i]->dof_handler,
+                      Postprocessors::BlockVectorWrapper<
+                        std::vector<Vector<Number>>>(sections[i]->solution),
+                      iso_value,
+                      output,
+                      sintering_operator.n_grains(),
+                      grain_tracker,
+                      params.output_data.n_mca_subdivisions);
+                  }
             }
 
           if (params.output_data.concentration_contour)
@@ -3216,6 +3255,34 @@ namespace Sintering
                                                 output,
                                                 sintering_operator.n_grains(),
                                                 grain_tracker);
+
+          // Output sections for 3D case
+          if constexpr (dim == 3)
+            for (unsigned int i = 0; i < sections.size(); ++i)
+              {
+                std::stringstream ss;
+                ss << params.output_data.vtk_path << "/contour_section_"
+                   << params.output_data.sections[i].first << "="
+                   << params.output_data.sections[i].second << "_" << label
+                   << "." << counters[label] << ".txt";
+
+                const std::string output = ss.str();
+
+                pcout << "Outputing data at t = " << t << " (" << output << ")"
+                      << std::endl;
+
+                Postprocessors::output_grain_contours_projected(
+                  sections[i]->mapping,
+                  sections[i]->dof_handler,
+                  Postprocessors::BlockVectorWrapper<
+                    std::vector<Vector<Number>>>(sections[i]->solution),
+                  iso_value,
+                  output,
+                  sintering_operator.n_grains(),
+                  grain_tracker,
+                  section_planes[i].first,
+                  section_planes[i].second);
+              }
         }
 
       if (params.output_data.shrinkage)

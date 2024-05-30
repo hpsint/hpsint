@@ -50,6 +50,8 @@ namespace Sintering
       }
 
       const std::vector<T> &data;
+
+      using BlockType = T;
     };
 
     template <int dim, typename VectorType>
