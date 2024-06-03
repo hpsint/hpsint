@@ -76,6 +76,9 @@ for f, lbl, clr in zip(files_list, labels, colors):
 
     fdata = np.genfromtxt(f, dtype=None, names=True, delimiter=args.delimiter)
 
+    if not fdata.size or not fdata.ndim:
+        continue
+
     alpha = 1
 
     # Try get info from particles - if we estimate shrinkage from the GT data
