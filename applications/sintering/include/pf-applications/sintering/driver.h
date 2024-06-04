@@ -188,32 +188,35 @@ namespace Sintering
       fe = create_fe(params.approximation_data.fe_degree,
                      params.approximation_data.n_subdivisions);
 
-      geometry_domain_boundaries    = initial_solution->get_domain_boundaries();
-      geometry_r_max                = initial_solution->get_r_max();
-      geometry_interface_width      = initial_solution->get_interface_width();
-      this->time_last_output        = 0;
-      this->n_timestep              = 0;
-      this->n_timestep_last_amr     = 0;
-      this->n_timestep_last_gt      = 0;
-      this->n_linear_iterations     = 0;
-      this->n_non_linear_iterations = 0;
-      this->n_residual_evaluations  = 0;
-      this->n_failed_tries          = 0;
-      this->n_failed_linear_iterations     = 0;
-      this->n_failed_non_linear_iterations = 0;
-      this->n_failed_residual_evaluations  = 0;
-      this->max_reached_dt                 = 0.0;
-      this->restart_counter                = 0;
-      this->t                              = 0;
-      this->counters                       = {};
+      geometry_domain_boundaries   = initial_solution->get_domain_boundaries();
+      geometry_r_max               = initial_solution->get_r_max();
+      geometry_interface_width     = initial_solution->get_interface_width();
+      n_global_levels_0            = 0;
+      current_max_refinement_depth = 0;
+      current_min_mesh_quality     = 0;
+      time_last_output             = 0;
+      n_timestep                   = 0;
+      n_timestep_last_amr          = 0;
+      n_timestep_last_gt           = 0;
+      n_linear_iterations          = 0;
+      n_non_linear_iterations      = 0;
+      n_residual_evaluations       = 0;
+      n_failed_tries               = 0;
+      n_failed_linear_iterations   = 0;
+      n_failed_non_linear_iterations = 0;
+      n_failed_residual_evaluations  = 0;
+      max_reached_dt                 = 0.0;
+      restart_counter                = 0;
+      t                              = 0;
+      counters                       = {};
 
       // Initialize timestepping
       const unsigned int time_integration_order =
         TimeIntegration::get_scheme_order(
           params.time_integration_data.interation_scheme);
 
-      this->dts.assign(time_integration_order, 0);
-      this->dts[0] = params.time_integration_data.time_step_init;
+      dts.assign(time_integration_order, 0);
+      dts[0] = params.time_integration_data.time_step_init;
 
       // Parse initial refinement options
       InitialRefine global_refine;
@@ -239,8 +242,7 @@ namespace Sintering
 
       const unsigned int n_refinements_remaining =
         create_grid(initial_mesh, global_refine);
-      this->n_global_levels_0 =
-        tria.n_global_levels() + n_refinements_remaining;
+      n_global_levels_0 = tria.n_global_levels() + n_refinements_remaining;
 
       initialize();
 
@@ -446,6 +448,8 @@ namespace Sintering
 
       // counters
       ar &n_global_levels_0;
+      ar &current_max_refinement_depth;
+      ar &current_min_mesh_quality;
       ar &time_last_output;
       ar &n_timestep;
       ar &n_timestep_last_amr;
