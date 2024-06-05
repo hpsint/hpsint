@@ -149,6 +149,7 @@ namespace Sintering
 
     unsigned int n_global_levels_0;
     unsigned int current_max_refinement_depth;
+    double       current_min_mesh_quality;
     double       time_last_output;
     unsigned int n_timestep;
     unsigned int n_timestep_last_amr;
@@ -187,32 +188,35 @@ namespace Sintering
       fe = create_fe(params.approximation_data.fe_degree,
                      params.approximation_data.n_subdivisions);
 
-      geometry_domain_boundaries    = initial_solution->get_domain_boundaries();
-      geometry_r_max                = initial_solution->get_r_max();
-      geometry_interface_width      = initial_solution->get_interface_width();
-      this->time_last_output        = 0;
-      this->n_timestep              = 0;
-      this->n_timestep_last_amr     = 0;
-      this->n_timestep_last_gt      = 0;
-      this->n_linear_iterations     = 0;
-      this->n_non_linear_iterations = 0;
-      this->n_residual_evaluations  = 0;
-      this->n_failed_tries          = 0;
-      this->n_failed_linear_iterations     = 0;
-      this->n_failed_non_linear_iterations = 0;
-      this->n_failed_residual_evaluations  = 0;
-      this->max_reached_dt                 = 0.0;
-      this->restart_counter                = 0;
-      this->t                              = 0;
-      this->counters                       = {};
+      geometry_domain_boundaries   = initial_solution->get_domain_boundaries();
+      geometry_r_max               = initial_solution->get_r_max();
+      geometry_interface_width     = initial_solution->get_interface_width();
+      n_global_levels_0            = 0;
+      current_max_refinement_depth = 0;
+      current_min_mesh_quality     = 0;
+      time_last_output             = 0;
+      n_timestep                   = 0;
+      n_timestep_last_amr          = 0;
+      n_timestep_last_gt           = 0;
+      n_linear_iterations          = 0;
+      n_non_linear_iterations      = 0;
+      n_residual_evaluations       = 0;
+      n_failed_tries               = 0;
+      n_failed_linear_iterations   = 0;
+      n_failed_non_linear_iterations = 0;
+      n_failed_residual_evaluations  = 0;
+      max_reached_dt                 = 0.0;
+      restart_counter                = 0;
+      t                              = 0;
+      counters                       = {};
 
       // Initialize timestepping
       const unsigned int time_integration_order =
         TimeIntegration::get_scheme_order(
           params.time_integration_data.interation_scheme);
 
-      this->dts.assign(time_integration_order, 0);
-      this->dts[0] = params.time_integration_data.time_step_init;
+      dts.assign(time_integration_order, 0);
+      dts[0] = params.time_integration_data.time_step_init;
 
       // Parse initial refinement options
       InitialRefine global_refine;
@@ -238,8 +242,7 @@ namespace Sintering
 
       const unsigned int n_refinements_remaining =
         create_grid(initial_mesh, global_refine);
-      this->n_global_levels_0 =
-        tria.n_global_levels() + n_refinements_remaining;
+      n_global_levels_0 = tria.n_global_levels() + n_refinements_remaining;
 
       initialize();
 
@@ -445,6 +448,8 @@ namespace Sintering
 
       // counters
       ar &n_global_levels_0;
+      ar &current_max_refinement_depth;
+      ar &current_min_mesh_quality;
       ar &time_last_output;
       ar &n_timestep;
       ar &n_timestep_last_amr;
@@ -1638,6 +1643,9 @@ namespace Sintering
       this->current_max_refinement_depth =
         params.adaptivity_data.max_refinement_depth;
 
+      // Set the minimum mesh quality
+      current_min_mesh_quality = params.adaptivity_data.quality_min;
+
       const auto execute_coarsening_and_refinement =
         [&](const double t,
             const double top_fraction_of_cells,
@@ -2139,7 +2147,7 @@ namespace Sintering
                                 dof_handler, *only_order_parameters);
 
                             do_mesh_refinement =
-                              quality < params.adaptivity_data.quality_min;
+                              quality < current_min_mesh_quality;
                           }
                         else
                           {
@@ -2698,10 +2706,14 @@ namespace Sintering
                     fosb << *this;
                   }
 
-                // If the desirable mesh quality was not reached in case we use
-                // it. We can do this check only after the first time has
-                // converged since the diffuse interfaces have to be adjusted in
-                // accordance with the energy properties.
+                /* If the mesh quality control is enabled we then perform one of
+                 * the 2 actions. Depending on the user preferences, we either
+                 * increase refine the mesh if the initial quality was below the
+                 * predefined minimum threshold, or we use the initial quality
+                 * as the reference value for the simulation. We can do this
+                 * check only after the first time has converged since the
+                 * diffuse interfaces have to be adjusted in accordance with the
+                 * energy properties. */
                 if (n_timestep == 1 && params.adaptivity_data.quality_control)
                   {
                     const auto only_order_parameters =
@@ -2711,35 +2723,53 @@ namespace Sintering
                       dof_handler, *only_order_parameters);
 
                     pcout << std::endl;
-                    pcout << "Adjusting mesh to the quality requirements"
-                          << std::endl;
+                    pcout
+                      << "Setting up mesh quality settings after the first step:"
+                      << std::endl;
                     pcout << "mesh quality = " << quality << ", quality_min = "
                           << params.adaptivity_data.quality_min << std::endl;
 
-                    while (quality < params.adaptivity_data.quality_min)
+                    if (params.adaptivity_data.auto_quality_min)
                       {
-                        // If that did not help, we need to allow for finer
-                        // cells
-                        pcout << "\033[33mIncreasing max_refinement_depth from "
-                              << this->current_max_refinement_depth << " to "
-                              << (this->current_max_refinement_depth + 1)
-                              << "\033[0m" << std::endl;
-
-                        ++this->current_max_refinement_depth;
-
-                        execute_coarsening_and_refinement(
-                          t,
-                          params.adaptivity_data.top_fraction_of_cells,
-                          params.adaptivity_data.bottom_fraction_of_cells);
-
-                        quality = Postprocessors::estimate_mesh_quality_min(
-                          dof_handler, *only_order_parameters);
-
+                        current_min_mesh_quality = 0.9 * quality;
                         pcout
-                          << "mesh quality = " << quality << ", quality_min = "
-                          << params.adaptivity_data.quality_min << std::endl;
+                          << "Using the initial quality to set up quality_min = "
+                          << current_min_mesh_quality << std::endl;
+                      }
+                    else
+                      {
+                        current_min_mesh_quality =
+                          params.adaptivity_data.quality_min;
+                        pcout
+                          << "Adjusting mesh to meet the quality requirements"
+                          << std::endl;
+                        while (quality < current_min_mesh_quality)
+                          {
+                            // If that did not help, we need to allow for finer
+                            // cells
+                            pcout
+                              << "\033[33mIncreasing max_refinement_depth from "
+                              << current_max_refinement_depth << " to "
+                              << (current_max_refinement_depth + 1) << "\033[0m"
+                              << std::endl;
 
-                        n_timestep_last_amr = n_timestep;
+                            ++current_max_refinement_depth;
+
+                            execute_coarsening_and_refinement(
+                              t,
+                              params.adaptivity_data.top_fraction_of_cells,
+                              params.adaptivity_data.bottom_fraction_of_cells);
+
+                            quality = Postprocessors::estimate_mesh_quality_min(
+                              dof_handler, *only_order_parameters);
+
+                            pcout
+                              << "mesh quality = " << quality
+                              << ", quality_min = " << current_min_mesh_quality
+                              << std::endl;
+
+                            n_timestep_last_amr = n_timestep;
+                          }
                       }
                     pcout << std::endl;
                   }

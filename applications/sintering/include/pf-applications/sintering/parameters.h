@@ -80,8 +80,9 @@ namespace Sintering
     double       interface_val_min        = 0.05;
     double       interface_val_max        = 0.95;
 
-    bool   quality_control = false;
-    double quality_min     = 0.5;
+    bool   quality_control  = false;
+    bool   auto_quality_min = true;
+    double quality_min      = 0.5;
   };
 
   struct GrainTrackerData
@@ -565,6 +566,9 @@ namespace Sintering
       prm.add_parameter("QualityControl",
                         adaptivity_data.quality_control,
                         "Control automatically mesh quality.");
+      prm.add_parameter("AutoQualityMin",
+                        adaptivity_data.auto_quality_min,
+                        "Automatically set up minimun quality.");
       prm.add_parameter("QualityMin",
                         adaptivity_data.quality_min,
                         "Minimum value for cell quality (0 - low, 1 - high).");
