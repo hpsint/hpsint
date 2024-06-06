@@ -129,13 +129,6 @@ fullData = servermanager.Fetch(slice)
 grain_ids = fullData.GetPointData().GetScalars('grain_id')
 order_params = fullData.GetPointData().GetScalars('order_parameter_id')
 
-# Define bounding box
-bbox = {'min': None, 'max': None}
-if not args.bottom_left:
-    bbox['min'] = np.array([sys.float_info.max, sys.float_info.max])
-if not args.top_right:
-    bbox['max'] = np.array([sys.float_info.min, sys.float_info.min])
-
 # Extract data from the VTK file
 grains_data = {}
 used_order_params = set()
@@ -158,21 +151,7 @@ for i in range(fullData.GetNumberOfPoints()):
     p_global = np.array(fullData.GetPoint(i))
     p_local = R.dot(p_global)
 
-    if bbox['min'] is not None:
-        bbox['min'][0] = min(bbox['min'][0], p_local[0])
-        bbox['min'][1] = min(bbox['min'][1], p_local[1])
-
-    if bbox['max'] is not None:
-        bbox['max'][0] = max(bbox['max'][0], p_local[0])
-        bbox['max'][1] = max(bbox['max'][1], p_local[1])
-
     grains_data[grain_id]['points'].append(np.array([p_local[0], p_local[1]]))
-
-# Set the bounding box if predefined by the user
-if args.bottom_left:
-    bbox['min'] = np.array(args.bottom_left)
-if args.top_right:
-    bbox['max'] = np.array(args.top_right)
 
 # Find center and particle radius
 for gid, grain in grains_data.items():
@@ -184,6 +163,29 @@ for gid, grain in grains_data.items():
     grain['radius'] = 0
     for p in grain['points']:
         grain['radius'] = max(grain['radius'], np.linalg.norm(grain['center'] - p))
+
+# Define bounding box
+bbox = {'min': None, 'max': None}
+if not args.bottom_left:
+    bbox['min'] = np.array([sys.float_info.max, sys.float_info.max])
+if not args.top_right:
+    bbox['max'] = np.array([sys.float_info.min, sys.float_info.min])
+
+# Calculate bounding boxes if not predefined bu the user
+for gid, grain in grains_data.items():
+    if bbox['min'] is not None:
+        bbox['min'][0] = min(bbox['min'][0], grain['center'][0] - grain['radius'])
+        bbox['min'][1] = min(bbox['min'][1], grain['center'][1] - grain['radius'])
+
+    if bbox['max'] is not None:
+        bbox['max'][0] = max(bbox['max'][0], grain['center'][0] + grain['radius'])
+        bbox['max'][1] = max(bbox['max'][1], grain['center'][1] + grain['radius'])
+
+# Set the bounding box if predefined by the user
+if args.bottom_left:
+    bbox['min'] = np.array(args.bottom_left)
+if args.top_right:
+    bbox['max'] = np.array(args.top_right)
 
 # File format (data and length):
 # problem dimensionality         - dim
@@ -205,7 +207,7 @@ if args.output:
     save_fname = args.output
 else:
     fname_without_ext = os.path.splitext(args.file)[0]
-    save_fname = fname_without_ext + "_origin=" + ",".join([str(v) for v in args.origin]) + "_normal=" + ",".join([str(v) for v in ez.tolist()]) + ".tex"
+    save_fname = fname_without_ext + "_origin=" + ",".join([str(v) for v in args.origin]) + "_normal=" + ",".join([str(v) for v in ez.tolist()]) + ".txt"
 
 print("Saving result to {}".format(save_fname))
 
