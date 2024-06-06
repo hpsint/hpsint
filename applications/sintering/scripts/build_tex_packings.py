@@ -146,7 +146,7 @@ with open(ofname, 'w') as f:
             point = [0] * dim
 
             for d in range(0, dim):
-                point[d] = (p[d] - point0[0]) / width
+                point[d] = (p[d] - point0[d]) / width
             
             return point
 
@@ -162,8 +162,8 @@ with open(ofname, 'w') as f:
             f.write("\\node[] at (%f,%f) {%s %s};\n" % (0.5 + xs, normalized_height + 0.05 + ys, args.font_size, headers[j]))
 
         for g in range(0, n_grains):
-            if len(points[g]) > 0 and (args.order_params is None or grain_to_op[g] in args.order_params):
-                indices = build_grain(points[g], dim)
+            if len(points[grain_ids[g]]) > 0 and (args.order_params is None or grain_to_op[g] in args.order_params):
+                indices = build_grain(points[grain_ids[g]], dim)
 
                 color = "clr{}{}".format(grain_to_op[g], args.color_suffix)
 
@@ -175,7 +175,7 @@ with open(ofname, 'w') as f:
 
                 if args.show_topology:
                     f.write("\\draw [fill=%s]\n" % color)
-                    for p in points[g][indices]:
+                    for p in points[grain_ids[g]][indices]:
                         pp = normalize_point(p)
 
                         f.write("(%f, %f) --\n" % (pp[0] + xs, pp[1] + ys))
