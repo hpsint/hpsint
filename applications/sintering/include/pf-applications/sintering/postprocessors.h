@@ -733,6 +733,9 @@ namespace Sintering
         grain_mapper,
         n_subdivisions,
         tolerance);
+
+      if (has_ghost_elements == false)
+        vector.zero_out_ghost_values();
     }
 
     template <int dim, typename VectorType>
@@ -1882,7 +1885,10 @@ namespace Sintering
                            const DoFCellAccessor<dim, dim, false> &)>
           store_result)
       {
-        solution.update_ghost_values();
+        const bool has_ghost_elements = solution.has_ghost_elements();
+
+        if (has_ghost_elements == false)
+          solution.update_ghost_values();
 
         Vector<typename BlockVectorType::value_type> values(
           dof_handler.get_fe().n_dofs_per_cell());
@@ -1911,7 +1917,8 @@ namespace Sintering
             store_result(1. - delta_cell, *cell);
           }
 
-        solution.zero_out_ghost_values();
+        if (has_ghost_elements == false)
+          solution.zero_out_ghost_values();
       }
 
       template <int dim, typename BlockVectorType>
