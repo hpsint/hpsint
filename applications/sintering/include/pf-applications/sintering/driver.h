@@ -374,6 +374,9 @@ namespace Sintering
       else
         AssertThrow(false, ExcNotImplemented());
 
+      pcout << "Loading restart data at t = " << t << " (" << restart_path
+            << ")" << std::endl;
+
       // 1) create coarse mesh
       create_grid(initial_mesh, InitialRefine::None);
 
@@ -2639,6 +2642,9 @@ namespace Sintering
                     const std::string prefix =
                       params.restart_data.prefix + "_" +
                       std::to_string(current_restart_count);
+
+                    pcout << "Saving restart data at t = " << t << " ("
+                          << prefix << ")" << std::endl;
 
                     std::vector<const typename VectorType::BlockType *>
                       solution_ptr;
