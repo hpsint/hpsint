@@ -105,7 +105,7 @@ def gradient_fill(x, y, fill_color=None, ax=None, ymin_custom=None, ymax_custom=
     #ax.autoscale(True)
     return line, im
 
-parser = argparse.ArgumentParser(description='Process shrinkage data')
+parser = argparse.ArgumentParser(description='Make animated plot')
 parser.add_argument("-f", "--file", type=str, help="Solution file", required=True)
 parser.add_argument("-x", "--xaxis", dest="xaxis", required=False, help="x-axis variable", default="time")
 parser.add_argument("-y", "--yaxis", dest="yaxis", required=False, help="y-axis variable")

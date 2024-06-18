@@ -46,7 +46,7 @@ def extract(filename, scale=1., limits_x=None, limits_y=None, limits_z=None, sav
 
 if __name__ == '__main__':
 
-    parser = ArgumentParser()
+    parser = ArgumentParser(description='Extract a part of a large packing bounded by a box')
     parser.add_argument("-f", "--file", dest="filename", required=True, help="Filename")
     parser.add_argument("-s", "--scale", dest='scale', required=False, help="Scale dimensions", default=1.0, type=float)
     parser.add_argument("-x", "--limits-x", dest='limits_x', nargs=2, required=False, help="Limits in x-direction", type=float)

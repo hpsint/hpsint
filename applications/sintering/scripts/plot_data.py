@@ -41,7 +41,7 @@ def create_axes(n):
 
     return fig, ax
 
-parser = argparse.ArgumentParser()
+parser = argparse.ArgumentParser(description='Plot data from file')
 parser.add_argument("-f", "--files", dest="files", nargs='+', required=True, help="Source filenames, can be defined as masks")
 parser.add_argument("-x", "--xaxis", dest="xaxis", required=False, help="x-axis variable", default="time")
 parser.add_argument("-y", "--yaxes", dest="yaxes", nargs='+', required=False, help="y-axis variables")

@@ -36,7 +36,7 @@ def build_local_axes(origin, ez, candidates):
 
 
 # Script arguments
-parser = argparse.ArgumentParser(description='Process shrinkage data')
+parser = argparse.ArgumentParser(description='Extract grain controus projections in TEX format')
 parser.add_argument("-f", "--file", type=str, help="Solution file", required=True)
 parser.add_argument("-o", "--output", type=str, help="Output file", required=False, default=None)
 parser.add_argument("-n", "--normal", type=float, nargs=3, help="Z-axis normal (not used if --zaxis is defined)", required=False, default=[0., 0., 1.])

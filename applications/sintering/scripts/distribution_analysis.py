@@ -9,7 +9,7 @@ from scipy.stats import norm
 from matplotlib.ticker import PercentFormatter
 import library
 
-parser = argparse.ArgumentParser(description='Process shrinkage data')
+parser = argparse.ArgumentParser(description='Analyze packing particle and pore size distributions')
 parser.add_argument("-m", "--mask", type=str, help="File mask", required=True)
 parser.add_argument("-f", "--file", type=str, help="Solution file", required=False, default="solution.log")
 parser.add_argument("-p", "--path", type=str, help="Common path", required=False, default=None)

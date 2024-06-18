@@ -6,7 +6,7 @@ import numpy as np
 import argparse
 
 # Script arguments
-parser = argparse.ArgumentParser(description='Process shrinkage data')
+parser = argparse.ArgumentParser(description='Compute shrinkage from Paraview data')
 parser.add_argument("-k", "--skip-plot", action='store_true', help="Skip plots", required=False, default=False)
 parser.add_argument("-m", "--mask", type=str, help="File mask", required=True)
 parser.add_argument("-o", "--output", type=str, help="Output csv file", required=False, default="")

@@ -4,7 +4,7 @@ import argparse
 import library
 from scipy.spatial import ConvexHull
 
-parser = argparse.ArgumentParser()
+parser = argparse.ArgumentParser(description='Build tex packing from special hpsint output')
 parser.add_argument("-f", "--files", dest="files", required=True, nargs='+', help="Files to process, can be mask")
 parser.add_argument("-e", "--headers", dest='headers', required=False, nargs='+', help="Headers")
 parser.add_argument("-o", "--output", dest='output', required=False, help="Destination path to output tex file", type=str, default=None)
