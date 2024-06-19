@@ -45,6 +45,7 @@ parser.add_argument("-s", "--suffix", type=str, help="Suffix for output folder",
 parser.add_argument("-p", "--partition", type=str, help="HPC partition", required=False)
 parser.add_argument("-n", "--nodes", type=str, help="HPC number of nodes", required=False)
 parser.add_argument("-t", "--time", type=str, help="HPC max time", required=False)
+parser.add_argument("-r", "--restart", type=str, help="Perform case restart", required=False)
 
 # Options for overriding runs
 parser.add_argument("-i", "--dimensions", type=str, nargs='+', help="Runs dimensions", required=False, default=[])
@@ -157,17 +158,20 @@ with open(args.file) as json_data:
     counter = 0
     for case in data["Runs"]["Cases"]:
 
+        # Copy common options
+        case_common_options = copy.deepcopy(common_options)
+
         # Check if it is a string or dict with more data
         if isinstance(case, abc.Mapping):
             simulation_mode_params = case["Name"]
 
             if "Cluster" in case.keys():
                 if "Partition" in case["Cluster"].keys():
-                    common_options["--partition"] = case["Cluster"]["Partition"]
+                    case_common_options["--partition"] = case["Cluster"]["Partition"]
                 if "Nodes" in case["Cluster"].keys():
-                    common_options["--nodes"] = case["Cluster"]["Nodes"]
+                    case_common_options["--nodes"] = case["Cluster"]["Nodes"]
                 if "Time" in case["Cluster"].keys():
-                    common_options["--time"] = case["Cluster"]["Time"]
+                    case_common_options["--time"] = case["Cluster"]["Time"]
         else:
             simulation_mode_params = case
 
@@ -175,7 +179,7 @@ with open(args.file) as json_data:
         if data["Simulation"]["Mode"] == "--cloud" and not(simulation_mode_params[0] == "/" or simulation_mode_params[0] == "~"):
             simulation_mode_params = os.path.join(study_clouds, simulation_mode_params)
 
-        common_options["simulation_case"] = data["Simulation"]["Mode"] + " " + simulation_mode_params
+        case_common_options["simulation_case"] = data["Simulation"]["Mode"] + " " + simulation_mode_params
 
         # Generate output directory name
         default_job_folder = data["Simulation"]["Mode"].split('--', 1)[1] + "_"
@@ -191,7 +195,7 @@ with open(args.file) as json_data:
                 for mobility in runs["mobility"]:
 
                     # Copy common options
-                    case_options = copy.deepcopy(common_options)
+                    case_options = copy.deepcopy(case_common_options)
 
                     # Determine physics
                     physics = dim.upper() + "-"
@@ -228,7 +232,7 @@ with open(args.file) as json_data:
                     job_name += "_" + mobility[0]
                     case_options["--job-name"] = job_name
 
-                    case_options["executable"] = os.path.join(common_options["executable"], "sintering-{}-{}".format(physics, mobility))
+                    case_options["executable"] = os.path.join(case_options["executable"], "sintering-{}-{}".format(physics, mobility))
 
                     # Other options
                     special_names.append(special_names[0] + dim.upper())
@@ -266,6 +270,13 @@ with open(args.file) as json_data:
                         except OSError:
                             pass
                     case_options["--chdir"] = job_dir
+
+                    # Override simulation case info if we request restart
+                    if args.restart:
+                        restart_file = args.restart
+                        if not(os.path.isabs(restart_file)):
+                            restart_file = os.path.join(job_dir, args.restart)
+                        case_options["simulation_case"] = "--restart " + restart_file
 
                     # Print options
                     print("\nRunning case #{}:".format(counter))
@@ -307,7 +318,7 @@ with open(args.file) as json_data:
 
                     # Clean folders if needed
                     do_clear = "CleanOutputFolder" in data["Settings"].keys() and data["Settings"]["CleanOutputFolder"] == "true"
-                    if do_clear and (not(args.debug) or args.clear):
+                    if do_clear and not(args.restart) and (not(args.debug) or args.clear):
                         clean_folder(job_dir)
 
                     # Run real job after all options are set
