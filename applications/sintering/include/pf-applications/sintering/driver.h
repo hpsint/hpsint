@@ -2734,7 +2734,9 @@ namespace Sintering
 
                     if (params.adaptivity_data.auto_quality_min)
                       {
-                        current_min_mesh_quality = 0.9 * quality;
+                        current_min_mesh_quality =
+                          params.adaptivity_data.auto_quality_initial_factor *
+                          quality;
                         pcout
                           << "Using the initial quality to set up quality_min = "
                           << current_min_mesh_quality << std::endl;
