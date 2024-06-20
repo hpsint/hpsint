@@ -204,8 +204,10 @@ namespace Sintering
       n_failed_residual_evaluations  = 0;
       max_reached_dt                 = 0.0;
       restart_counter                = 0;
-      t                              = 0;
       counters                       = {};
+
+      // Current time
+      t = params.time_integration_data.time_start;
 
       // Initialize timestepping
       const unsigned int time_integration_order =
@@ -2054,9 +2056,10 @@ namespace Sintering
         solution_history.filter(true, false, true).get_all_blocks_raw(), timer);
 
       // initial local refinement
-      if (t == 0.0 && (params.adaptivity_data.refinement_frequency > 0 ||
-                       params.adaptivity_data.quality_control ||
-                       params.geometry_data.global_refinement != "Full"))
+      if (t == params.time_integration_data.time_start &&
+          (params.adaptivity_data.refinement_frequency > 0 ||
+           params.adaptivity_data.quality_control ||
+           params.geometry_data.global_refinement != "Full"))
         {
           // Initialize only the current solution
           const auto solution_ptr =
@@ -2128,7 +2131,8 @@ namespace Sintering
             postproc_operator.add_data_vectors(data_out, postproc_lhs, {});
           };
 
-      if (t == 0.0 && params.output_data.output_time_interval > 0.0)
+      if (t == params.time_integration_data.time_start &&
+          params.output_data.output_time_interval > 0.0)
         output_result(solution,
                       nonlinear_operator,
                       grain_tracker,
