@@ -6,7 +6,7 @@ import glob
 import library
 from pathlib import Path
 
-parser = argparse.ArgumentParser(description='Process shrinkage data')
+parser = argparse.ArgumentParser(description='Plot evolution of the average particle or pore size')
 parser.add_argument("-p", "--path", type=str, help="Common path", required=False, default=None)
 parser.add_argument("-q", "--quantity", type=str, help="Quantity name", required=False, default=None)
 parser.add_argument("-t", "--start", type=str, help="File start", required=False, default=None)

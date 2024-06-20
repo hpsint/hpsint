@@ -8,7 +8,7 @@ import math
 import pathlib
 import library
 
-parser = argparse.ArgumentParser(description='Process shrinkage data')
+parser = argparse.ArgumentParser(description='Track evolution of quantities for an individual grain')
 parser.add_argument("-m", "--mask", type=str, help="File mask", required=True)
 parser.add_argument("-f", "--file", type=str, help="Solution file", required=False, default="solution.log")
 parser.add_argument("-p", "--path", type=str, help="Common path, can be defined as mask too", required=False, default=None)

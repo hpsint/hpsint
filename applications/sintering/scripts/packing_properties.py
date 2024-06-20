@@ -132,7 +132,7 @@ def distribute_in_segments(particles, lims, divs, direction):
 
     return densities
 
-parser = ArgumentParser()
+parser = ArgumentParser(description='Evaluate packing properties')
 parser.add_argument("-f", "--file", dest="filename", required=True, help="Filename with extension")
 parser.add_argument("-d", "--divisions", dest="divisions", required=False,  help="Number of divisions", default=10, type=int)
 parser.add_argument("-s", "--save", dest="save", required=False,  help="Save plots", action='store_true', default=False)

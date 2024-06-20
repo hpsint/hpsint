@@ -43,7 +43,7 @@ def plot_step(bins, counts, y_max, t = 0, step = None, show = False):
     plt.clf()
     plt.close()
 
-parser = argparse.ArgumentParser(description='Process shrinkage data')
+parser = argparse.ArgumentParser(description='Make animated distributions')
 parser.add_argument("-f", "--file", type=str, help="Solution file", required=True)
 parser.add_argument("--xlabel", dest="xlabel", required=False, help="x-axis label", default="radius")
 parser.add_argument("--ylabel", dest="ylabel", required=False, help="y-axis label", default="percentage of particles")

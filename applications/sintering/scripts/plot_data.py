@@ -41,7 +41,7 @@ def create_axes(n):
 
     return fig, ax
 
-parser = argparse.ArgumentParser()
+parser = argparse.ArgumentParser(description='Plot data from file')
 parser.add_argument("-f", "--files", dest="files", nargs='+', required=True, help="Source filenames, can be defined as masks")
 parser.add_argument("-x", "--xaxis", dest="xaxis", required=False, help="x-axis variable", default="time")
 parser.add_argument("-y", "--yaxes", dest="yaxes", nargs='+', required=False, help="y-axis variables")
@@ -172,7 +172,17 @@ for i in range(n_fields):
                 y_label = expressions[0].strip()
                 formula = expressions[1].strip()
 
-            y = eval(formula)
+            try:
+                y = eval(formula)
+            except Exception as e:
+                print("Syntax error occured during the formula evaluation:")
+                print(e)
+                print("Most probably, the field does not exist all of the data files or the formula is too complex")
+                print("These fields are available in all of the provided input files:")
+
+                for name in list(available_fields):
+                    print(" -- {}".format(name))
+                exit()
         else:
             y = cdata[field][mask]
 

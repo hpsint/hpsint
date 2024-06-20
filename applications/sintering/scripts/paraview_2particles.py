@@ -61,7 +61,7 @@ def measure_over_line(pline, quantity, threshold, length):
     return magnitude
 
 # Script arguments
-parser = argparse.ArgumentParser(description='Process shrinkage data')
+parser = argparse.ArgumentParser(description='Extract neck and packing size for the 2 particle case from Paraview')
 parser.add_argument("-m", "--mask", type=str, help="File mask", required=False, default="solution.*.vtu")
 parser.add_argument("-f", "--file", type=str, help="Solution file", required=False, default="solution.log")
 parser.add_argument("-p", "--path", type=str, help="Common path, can be defined as mask too", required=False, default=None)
