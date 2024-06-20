@@ -39,7 +39,9 @@
 #include <pf-applications/lac/dynamic_block_vector.h>
 
 #include <functional>
+#include <iterator>
 #include <stack>
+#include <type_traits>
 
 #include "distributed_stitching.h"
 #include "grain.h"
@@ -991,6 +993,25 @@ namespace GrainTracker
     get_grains() const
     {
       return grains;
+    }
+
+    template <typename InputIt,
+              typename = std::enable_if_t<std::is_same_v<
+                typename std::iterator_traits<InputIt>::value_type,
+                Grain<dim>>>>
+    void
+    load_grains(InputIt first, InputIt last)
+    {
+      for (; first != last; ++first)
+        grains.emplace(first->get_grain_id(), *first);
+    }
+
+    template <typename OutputIt>
+    void
+    save_grains(OutputIt output) const
+    {
+      for (const auto &[gid, grain] : grains)
+        *output++ = grain;
     }
 
     // Get active order parameters ids
