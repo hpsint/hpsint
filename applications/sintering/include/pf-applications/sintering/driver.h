@@ -277,7 +277,16 @@ namespace Sintering
             }
         };
 
-      run(initial_solution->n_components(), initialize_solution);
+      const auto initialize_grain_tracker =
+        [](GrainTracker::Tracker<dim, Number> &grain_tracker,
+           std::function<void(bool)>           run_gt_callback) {
+          (void)grain_tracker;
+          run_gt_callback(true);
+        };
+
+      run(initial_solution->n_components(),
+          initialize_solution,
+          initialize_grain_tracker);
     }
 
     Problem(const Parameters &params, const std::string &restart_path)
@@ -343,6 +352,12 @@ namespace Sintering
 
       // Read the rest
       fisb >> *this;
+
+      // Load grains
+      std::ifstream                   in_stream_gt(restart_path + "_grains");
+      boost::archive::binary_iarchive figt(in_stream_gt);
+      std::vector<GrainTracker::Grain<dim>> grains;
+      figt >> grains;
 
       // Check if the data structures are consistent
       if (full_history)
@@ -440,8 +455,17 @@ namespace Sintering
             }
         };
 
-      // 5) run time loop
-      run(n_initial_components, initialize_solution);
+      // 5) load grains to grain tracker
+      const auto initialize_grain_tracker =
+        [grains =
+           std::move(grains)](GrainTracker::Tracker<dim, Number> &grain_tracker,
+                              std::function<void(bool)> run_gt_callback) {
+          grain_tracker.load_grains(grains.cbegin(), grains.cend());
+          run_gt_callback(false);
+        };
+
+      // 6) run time loop
+      run(n_initial_components, initialize_solution, initialize_grain_tracker);
     }
 
     template <class Archive>
@@ -811,10 +835,12 @@ namespace Sintering
     }
 
     void
-    run(const unsigned int n_initial_components,
-        const std::function<
-          void(std::vector<typename VectorType::BlockType *> solution_ptr,
-               MyTimerOutput &)> &initialize_solution)
+    run(const unsigned int                          n_initial_components,
+        const std::function<void(std::vector<typename VectorType::BlockType *>,
+                                 MyTimerOutput &)> &initialize_solution,
+        const std::function<void(GrainTracker::Tracker<dim, Number> &,
+                                 std::function<void(bool)>)>
+          &initialize_grain_tracker)
     {
       TimerPredicate restart_predicate(params.restart_data.type,
                                        params.restart_data.type == "n_calls" ?
@@ -2081,7 +2107,14 @@ namespace Sintering
       if (params.grain_tracker_data.grain_tracker_frequency > 0 ||
           params.grain_tracker_data.track_with_quality ||
           params.advection_data.enable)
-        run_grain_tracker(t, /*do_initialize = */ true);
+        {
+          initialize_grain_tracker(grain_tracker,
+                                   [&run_grain_tracker,
+                                    current_time = t](bool do_initial_setup) {
+                                     run_grain_tracker(current_time,
+                                                       do_initial_setup);
+                                   });
+        }
 
       // Impose boundary conditions
       impose_boundary_conditions(t);
@@ -2707,6 +2740,12 @@ namespace Sintering
                       fosb << static_cast<unsigned int>(dts.size());
 
                     fosb << *this;
+
+                    std::ofstream out_stream_gt(prefix + "_grains");
+                    boost::archive::binary_oarchive       fogt(out_stream_gt);
+                    std::vector<GrainTracker::Grain<dim>> grains;
+                    grain_tracker.save_grains(std::back_inserter(grains));
+                    fogt << grains;
                   }
 
                 /* If the mesh quality control is enabled we then perform one of
