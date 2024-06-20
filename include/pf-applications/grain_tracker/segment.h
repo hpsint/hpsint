@@ -29,6 +29,8 @@ namespace GrainTracker
   class Segment
   {
   public:
+    Segment() = default;
+
     Segment(const Point<dim> &center_in,
             const double      radius_in,
             const double      measure_in,
@@ -73,6 +75,16 @@ namespace GrainTracker
       const double current_distance = distance_centers - sum_radii;
 
       return current_distance;
+    }
+
+    template <class Archive>
+    void
+    serialize(Archive &ar, const unsigned int /*version*/)
+    {
+      ar &center;
+      ar &radius;
+      ar &measure;
+      ar &max_value;
     }
 
   protected:
