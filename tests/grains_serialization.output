@@ -1,0 +1,13 @@
+Original grains:
+op_index_current = 7 | op_index_old = 14 | segments = 1 | grain_index = 4
+    segment: center = 0 0 | radius = 2 | max_value = 1
+op_index_current = 3 | op_index_old = 12 | segments = 2 | grain_index = 2
+    segment: center = 2 -9 | radius = 1 | max_value = 1
+    segment: center = 8 0 | radius = 3 | max_value = 1
+
+Loaded grains:
+op_index_current = 7 | op_index_old = 14 | segments = 1 | grain_index = 4
+    segment: center = 0 0 | radius = 2 | max_value = 1
+op_index_current = 3 | op_index_old = 12 | segments = 2 | grain_index = 2
+    segment: center = 2 -9 | radius = 1 | max_value = 1
+    segment: center = 8 0 | radius = 3 | max_value = 1

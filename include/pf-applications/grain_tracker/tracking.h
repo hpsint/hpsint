@@ -21,6 +21,7 @@
 
 #include <functional>
 #include <optional>
+#include <set>
 
 #include "grain.h"
 #include "output.h"

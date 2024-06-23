@@ -45,6 +45,8 @@ namespace GrainTracker
       Growing   = 1
     };
 
+    Grain() = default;
+
     Grain(const unsigned int grain_id, const unsigned int order_parameter_id)
       : grain_id(grain_id)
       , order_parameter_id(order_parameter_id)
@@ -222,6 +224,22 @@ namespace GrainTracker
     set_dynamics(const Dynamics new_dynamics)
     {
       dynamics = new_dynamics;
+    }
+
+    /* Grain serialization */
+    template <class Archive>
+    void
+    serialize(Archive &ar, const unsigned int /*version*/)
+    {
+      ar &grain_id;
+      ar &order_parameter_id;
+      ar &old_order_parameter_id;
+      ar &segments;
+      ar &max_radius;
+      ar &distance_to_nearest_neighbor;
+      ar &dynamics;
+      ar &max_value;
+      ar &sum_measure;
     }
 
   private:
