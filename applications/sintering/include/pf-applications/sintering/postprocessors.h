@@ -468,7 +468,7 @@ namespace Sintering
 
                   for (unsigned int i = old_size; i < cells.size(); ++i)
                     {
-                      if (grain_mapper)
+                      if (grain_mapper && !grain_mapper->get().empty())
                         {
                           const auto particle_id_for_op =
                             grain_mapper->get().get_particle_index(
