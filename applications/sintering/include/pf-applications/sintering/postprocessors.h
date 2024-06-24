@@ -540,7 +540,7 @@ namespace Sintering
       const double                              iso_level,
       const std::string                         filename,
       const unsigned int                        n_op,
-      const GrainTracker::Tracker<dim, Number> &grain_tracker_in,
+      const GrainTracker::Tracker<dim, Number> &grain_tracker,
       const unsigned int                        n_subdivisions = 1,
       const double                              tolerance      = 1e-10)
     {
@@ -554,14 +554,7 @@ namespace Sintering
       if (has_ghost_elements == false)
         vector.update_ghost_values();
 
-      auto grain_tracker = grain_tracker_in.clone();
-
-      if (grain_tracker->get_grains().empty())
-        grain_tracker->initial_setup(vector, n_op);
-      else
-        grain_tracker->track(vector, n_op, true);
-
-      const auto &grains = grain_tracker->get_grains();
+      const auto &grains = grain_tracker.get_grains();
 
       const auto n_grains = grains.size();
 
@@ -600,14 +593,14 @@ namespace Sintering
                background_dof_handler.active_cell_iterators())
             if (cell->is_locally_owned())
               {
-                auto particle_id = grain_tracker->get_particle_index(
+                auto particle_id = grain_tracker.get_particle_index(
                   b, cell->global_active_cell_index());
 
                 if (particle_id == numbers::invalid_unsigned_int)
                   continue;
 
                 const auto grain_id =
-                  grain_tracker->get_grain_and_segment(b, particle_id).first;
+                  grain_tracker.get_grain_and_segment(b, particle_id).first;
 
                 if (grain_id == numbers::invalid_unsigned_int)
                   continue;
@@ -638,7 +631,7 @@ namespace Sintering
                                          comm);
     }
 
-    template <int dim, typename VectorType, typename Number>
+    template <int dim, typename VectorType>
     void
     output_grain_contours_vtu(
       const Mapping<dim> &                          mapping,
@@ -647,16 +640,12 @@ namespace Sintering
       const double                                  iso_level,
       const std::string                             filename,
       const unsigned int                            n_grains,
-      const GrainTracker::Tracker<dim, Number> &    grain_tracker_in,
+      const GrainTracker::Mapper &                  grain_mapper,
       const unsigned int                            n_coarsening_steps = 0,
       std::shared_ptr<const BoundingBoxFilter<dim>> box_filter     = nullptr,
       const unsigned int                            n_subdivisions = 1,
       const double                                  tolerance      = 1e-10)
     {
-      std::shared_ptr<GrainTracker::Tracker<dim, Number>> grain_tracker;
-      if (n_coarsening_steps == 0)
-        grain_tracker = grain_tracker_in.clone();
-
       const bool has_ghost_elements = vector.has_ghost_elements();
 
       if (has_ghost_elements == false)
@@ -686,14 +675,6 @@ namespace Sintering
           background_dof_handler_to_be_used = &dof_handler_copy;
         }
 
-      if (grain_tracker)
-        {
-          if (grain_tracker->get_grains().empty())
-            grain_tracker->initial_setup(vector, n_grains);
-          else
-            grain_tracker->track(vector, n_grains, true);
-        }
-
       if (box_filter)
         {
           // Copy vector if not done before
@@ -718,9 +699,9 @@ namespace Sintering
         };
 
       std::optional<std::reference_wrapper<const GrainTracker::Mapper>>
-        grain_mapper;
-      if (grain_tracker)
-        grain_mapper = *grain_tracker;
+        opt_grain_mapper;
+      if (n_coarsening_steps == 0)
+        opt_grain_mapper = grain_mapper;
 
       internal::build_write_grain_contours_vtu(
         mapping,
@@ -730,7 +711,7 @@ namespace Sintering
         filename,
         n_grains,
         cell_data_extractor,
-        grain_mapper,
+        opt_grain_mapper,
         n_subdivisions,
         tolerance);
 
@@ -2201,7 +2182,7 @@ namespace Sintering
       const Mapping<dim> &                      mapping,
       const DoFHandler<dim> &                   dof_handler,
       const NonLinearOperator &                 sintering_operator,
-      const GrainTracker::Tracker<dim, Number> &grain_tracker_in,
+      const GrainTracker::Tracker<dim, Number> &grain_tracker,
       const AdvectionMechanism<dim, Number, VectorizedArrayType>
         &               advection_mechanism,
       const VectorType &solution,
@@ -2213,13 +2194,6 @@ namespace Sintering
 
       if (has_ghost_elements == false)
         solution.update_ghost_values();
-
-      auto grain_tracker = grain_tracker_in.clone();
-
-      if (grain_tracker->get_grains().empty())
-        grain_tracker->initial_setup(solution, sintering_operator.n_grains());
-      else
-        grain_tracker->track(solution, sintering_operator.n_grains(), true);
 
       // We assume that a grain contains a single segment
       constexpr unsigned int segment_id = 0;
@@ -2244,7 +2218,7 @@ namespace Sintering
           std::map<unsigned int, unsigned int> grain_id_to_eval_id;
           unsigned int                         counter = 0;
 
-          for (const auto &[grain_id, grain] : grain_tracker->get_grains())
+          for (const auto &[grain_id, grain] : grain_tracker.get_grains())
             {
               grain_id_to_eval_id[grain_id] = counter++;
               evaluation_points.push_back(
@@ -2276,7 +2250,7 @@ namespace Sintering
              &grain_tracker](const unsigned int grain_id) {
               Tensor<1, dim, Number> vt = dummy_velocities;
 
-              if (grain_tracker->get_grains().at(grain_id).n_segments() == 1 &&
+              if (grain_tracker.get_grains().at(grain_id).n_segments() == 1 &&
                   dt != 0)
                 for (unsigned int d = 0; d < dim; ++d)
                   vt[d] =
@@ -2294,10 +2268,9 @@ namespace Sintering
                           &grain_tracker](const unsigned int grain_id) {
             const Tensor<1, dim, Number> vt =
               (!advection_mechanism.get_grains_data().empty() &&
-               grain_tracker->get_grains().at(grain_id).n_segments() == 1) ?
+               grain_tracker.get_grains().at(grain_id).n_segments() == 1) ?
                 advection_mechanism.get_translation_velocity_for_grain(
-                  grain_tracker->get_grain_segment_index(grain_id,
-                                                         segment_id)) :
+                  grain_tracker.get_grain_segment_index(grain_id, segment_id)) :
                 dummy_velocities;
 
             return vt;
@@ -2324,7 +2297,7 @@ namespace Sintering
         create_array<1 + dim + moment_s<dim, VectorizedArrayType>>(
           std::numeric_limits<double>::quiet_NaN());
 
-      for (const auto &[grain_id, grain] : grain_tracker->get_grains())
+      for (const auto &[grain_id, grain] : grain_tracker.get_grains())
         {
           table.add_value("id", grain_id);
           table.add_value("measure", grain.get_measure());
@@ -2344,7 +2317,7 @@ namespace Sintering
                 (!advection_mechanism.get_grains_data().empty() &&
                  grain.n_segments() == 1) ?
                   advection_mechanism.grain_data(
-                    grain_tracker->get_grain_segment_index(grain_id, 0)) :
+                    grain_tracker.get_grain_segment_index(grain_id, 0)) :
                   dummy.data();
 
               // Output volume should be less than measure
