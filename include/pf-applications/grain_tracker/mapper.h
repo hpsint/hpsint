@@ -38,5 +38,8 @@ namespace GrainTracker
 
     virtual unsigned int
     n_segments() const = 0;
+
+    virtual bool
+    empty() const = 0;
   };
 } // namespace GrainTracker

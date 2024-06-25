@@ -1120,6 +1120,12 @@ namespace GrainTracker
       return n_total_segments;
     }
 
+    bool
+    empty() const override
+    {
+      return grains.empty();
+    }
+
     void
     custom_reassignment(
       std::function<void(std::map<unsigned int, Grain<dim>> &)> callback)

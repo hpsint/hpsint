@@ -2853,9 +2853,9 @@ namespace Sintering
   private:
     void
     output_result(
-      const VectorType &                        solution,
-      const NonLinearOperator &                 sintering_operator,
-      const GrainTracker::Tracker<dim, Number> &grain_tracker,
+      const VectorType &                  solution,
+      const NonLinearOperator &           sintering_operator,
+      GrainTracker::Tracker<dim, Number> &grain_tracker,
       const AdvectionMechanism<dim, Number, VectorizedArrayType>
         &                                                advection_mechanism,
       const NonLinearSolvers::NewtonSolverSolverControl &statistics,
@@ -3033,6 +3033,24 @@ namespace Sintering
             std::make_pair(bottom_left, top_right));
           box_filters.push_back(
             std::make_shared<const BoundingBoxFilter<dim>>(control_box));
+        }
+
+      // We need to update the grain tracker data without remapping for these 2
+      // kinds of output. Note, we do that only if advection is disabled, then
+      // there is a possbility that grain tracker runs not every timestep. If
+      // advection is enabled, then we do not need to execute track(). Moreover,
+      // calling track() without a subsequent re-evaluation of the grain forces,
+      // may result in inconsistency of the data structures which store forces
+      // data. This is a design issue, it needs to be fixed, but so far we just
+      // keep it in mind.
+      if ((params.output_data.contours_tex ||
+           params.output_data.grains_stats) &&
+          !grain_tracker.empty() && !advection_mechanism.enabled())
+        {
+          const bool skip_reassignment = true;
+          grain_tracker.track(solution,
+                              sintering_operator.n_grains(),
+                              skip_reassignment);
         }
 
       const auto generate_name = [&](const std::string &name,
@@ -3317,7 +3335,7 @@ namespace Sintering
             }
         }
 
-      if (params.output_data.contours_tex)
+      if (params.output_data.contours_tex && !grain_tracker.empty())
         {
           const std::string output = params.output_data.vtk_path + "/contour_" +
                                      label + "." +
@@ -3430,7 +3448,7 @@ namespace Sintering
           table.add_value("mesh_quality", quality);
         }
 
-      if (params.output_data.grains_stats)
+      if (params.output_data.grains_stats && !grain_tracker.empty())
         {
           const std::string output = params.output_data.vtk_path +
                                      "/grains_stats_" + label + "." +
