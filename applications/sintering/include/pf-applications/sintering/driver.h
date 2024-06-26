@@ -3035,7 +3035,7 @@ namespace Sintering
             std::make_shared<const BoundingBoxFilter<dim>>(control_box));
         }
 
-      // We need to update the grain tracker data without remapping for these 2
+      // We need to update the grain tracker data without remapping for these 3
       // kinds of output. Note, we do that only if advection is disabled, then
       // there is a possbility that grain tracker runs not every timestep. If
       // advection is enabled, then we do not need to execute track(). Moreover,
@@ -3043,8 +3043,8 @@ namespace Sintering
       // may result in inconsistency of the data structures which store forces
       // data. This is a design issue, it needs to be fixed, but so far we just
       // keep it in mind.
-      if ((params.output_data.contours_tex ||
-           params.output_data.grains_stats) &&
+      if ((params.output_data.contours_tex || params.output_data.grains_stats ||
+           params.output_data.coordination_number) &&
           !grain_tracker.empty() && !advection_mechanism.enabled())
         {
           const bool skip_reassignment = true;
@@ -3177,6 +3177,15 @@ namespace Sintering
 
                   table.add_value(generate_name("iso_gb_area", i), gb_area);
                 }
+            }
+
+          if (params.output_data.coordination_number)
+            {
+              const auto avg_coord_num =
+                Postprocessors::compute_average_coordination_number(
+                  dof_handler, sintering_operator.n_grains(), grain_tracker);
+
+              table.add_value("avg_coord_num", avg_coord_num);
             }
         }
 
