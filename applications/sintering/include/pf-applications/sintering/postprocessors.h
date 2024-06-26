@@ -2400,5 +2400,92 @@ namespace Sintering
                                    prefix + std::to_string(ig));
     }
 
+    // Compute average coordination number of the packing
+    template <int dim, typename Number>
+    double
+    compute_average_coordination_number(
+      const DoFHandler<dim> &                   dof_handler,
+      const unsigned int                        n_op,
+      const GrainTracker::Tracker<dim, Number> &grain_tracker)
+    {
+      const unsigned int n_grains = grain_tracker.get_grains().size();
+      std::map<unsigned int, std::set<unsigned int>> neighbors;
+
+      for (auto &cell : dof_handler.active_cell_iterators())
+        {
+          if (!cell->is_locally_owned())
+            continue;
+
+          const auto cell_index = cell->global_active_cell_index();
+
+          std::vector<unsigned int> grains_at_cell;
+
+          for (unsigned int op = 0; op < n_op; ++op)
+            {
+              const auto particle_id_for_op =
+                grain_tracker.get_particle_index(op, cell_index);
+
+              if (particle_id_for_op != numbers::invalid_unsigned_int)
+                {
+                  const auto grain_id =
+                    grain_tracker.get_grain_and_segment(op, particle_id_for_op)
+                      .first;
+
+                  grains_at_cell.push_back(grain_id);
+                }
+            }
+
+          for (unsigned int i = 0; i < grains_at_cell.size(); ++i)
+            for (unsigned int j = i + 1; j < grains_at_cell.size(); ++j)
+              {
+                neighbors[grains_at_cell[i]].insert(grains_at_cell[j]);
+                neighbors[grains_at_cell[j]].insert(grains_at_cell[i]);
+              }
+        }
+
+      // Perform global communication, we need to repack data since std::set can
+      // not be serialized with boost
+      std::vector<unsigned int> neighbors_flatten;
+      for (const auto &[grain_id, grain_neighbors] : neighbors)
+        {
+          neighbors_flatten.push_back(grain_id);
+          neighbors_flatten.push_back(grain_neighbors.size());
+          std::copy(grain_neighbors.begin(),
+                    grain_neighbors.end(),
+                    std::back_inserter(neighbors_flatten));
+        }
+
+      auto all_neighbors =
+        Utilities::MPI::all_gather(dof_handler.get_communicator(),
+                                   neighbors_flatten);
+
+      for (const auto &local_neighbors : all_neighbors)
+        for (auto it = local_neighbors.begin(); it != local_neighbors.end();)
+          {
+            const auto grain_id    = *it++;
+            const auto n_neighbors = *it++;
+
+            neighbors[grain_id];
+
+            auto it_begin = it;
+            std::advance(it, n_neighbors);
+            std::copy(it_begin,
+                      it,
+                      std::inserter(neighbors.at(grain_id),
+                                    neighbors.at(grain_id).end()));
+          }
+
+      const auto avg_coord_num =
+        std::accumulate(neighbors.begin(),
+                        neighbors.end(),
+                        0.,
+                        [](const auto &a, const auto &b) {
+                          return a + b.second.size();
+                        }) /
+        n_grains;
+
+      return avg_coord_num;
+    }
+
   } // namespace Postprocessors
 } // namespace Sintering
