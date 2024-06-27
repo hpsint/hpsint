@@ -2135,7 +2135,9 @@ namespace Sintering
       if (t == params.time_integration_data.time_start &&
           params.output_data.output_time_interval > 0.0)
         {
-          advection_operator.evaluate_forces(solution);
+          if (params.advection_data.enable)
+            advection_operator.evaluate_forces(solution);
+
           output_result(solution,
                         nonlinear_operator,
                         grain_tracker,
