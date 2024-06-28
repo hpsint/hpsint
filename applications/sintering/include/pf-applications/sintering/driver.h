@@ -2131,17 +2131,23 @@ namespace Sintering
             postproc_operator.add_data_vectors(data_out, postproc_lhs, {});
           };
 
+      // Initial configuration output
       if (t == params.time_integration_data.time_start &&
           params.output_data.output_time_interval > 0.0)
-        output_result(solution,
-                      nonlinear_operator,
-                      grain_tracker,
-                      advection_mechanism,
-                      statistics,
-                      time_last_output,
-                      timer,
-                      "solution",
-                      additional_output);
+        {
+          if (params.advection_data.enable)
+            advection_operator.evaluate_forces(solution);
+
+          output_result(solution,
+                        nonlinear_operator,
+                        grain_tracker,
+                        advection_mechanism,
+                        statistics,
+                        time_last_output,
+                        timer,
+                        "solution",
+                        additional_output);
+        }
 
       bool has_converged    = true;
       bool force_refinement = false;
