@@ -942,9 +942,10 @@ namespace Sintering
       prm.add_parameter("AutoControlBox",
                         output_data.auto_control_box,
                         "Add automatic control box.");
-      prm.add_parameter("BoxRelativePadding",
-                        output_data.box_rel_padding,
-                        "Auto control box padding relative to the packing size.");
+      prm.add_parameter(
+        "BoxRelativePadding",
+        output_data.box_rel_padding,
+        "Auto control box padding relative to the packing size.");
 
       prm.leave_subsection();
 
