@@ -656,7 +656,8 @@ namespace Sintering
           if (params.advection_data.enable ||
               (params.output_data.table &&
                !params.output_data.domain_integrals.empty() &&
-               !params.output_data.control_boxes.empty()))
+               (!params.output_data.control_boxes.empty() ||
+                params.output_data.auto_control_box)))
             additional_data.mapping_update_flags |= update_quadrature_points;
 
           additional_data.allow_ghosted_vectors_in_loops    = false;
@@ -3014,11 +3015,34 @@ namespace Sintering
       // and gb contours
       std::vector<std::shared_ptr<const BoundingBoxFilter<dim>>> box_filters;
 
+      // Flag if we have any real control boxes
+      const bool has_control_boxes =
+        !params.output_data.control_boxes.empty() ||
+        params.output_data.auto_control_box;
+
       // Empty dummy box if we output data also for the whole domain
-      if (params.output_data.control_boxes.empty() ||
-          (!params.output_data.control_boxes.empty() &&
-           !params.output_data.only_control_boxes))
+      if (!has_control_boxes ||
+          (has_control_boxes && !params.output_data.only_control_boxes))
         box_filters.push_back(nullptr);
+
+      // If we need to add the automatic box
+      if (params.output_data.auto_control_box)
+        {
+          auto       boundaries   = geometry_domain_boundaries;
+          const auto packing_size = boundaries.second - boundaries.first;
+          const auto internal_padding =
+            params.output_data.box_rel_padding * packing_size;
+          for (unsigned int d = 0; d < dim; ++d)
+            {
+              boundaries.first[d] += geometry_r_max + internal_padding[d];
+              boundaries.second[d] -= geometry_r_max + internal_padding[d];
+            }
+
+          const BoundingBox<dim> control_box(
+            std::make_pair(boundaries.first, boundaries.second));
+          box_filters.push_back(
+            std::make_shared<const BoundingBoxFilter<dim>>(control_box));
+        }
 
       // Add also each individual bounding box
       for (const auto &pp : params.output_data.control_boxes)
@@ -3061,7 +3085,7 @@ namespace Sintering
 
       const auto generate_name = [&](const std::string &name,
                                      const unsigned int index) {
-        if (params.output_data.control_boxes.empty())
+        if (!has_control_boxes)
           return name;
         else if (params.output_data.only_control_boxes)
           return name + "_" + std::to_string(index);
