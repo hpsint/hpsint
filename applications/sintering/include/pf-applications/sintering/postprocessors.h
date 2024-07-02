@@ -2404,11 +2404,13 @@ namespace Sintering
     template <int dim, typename Number>
     double
     compute_average_coordination_number(
-      const DoFHandler<dim> &                   dof_handler,
-      const unsigned int                        n_op,
-      const GrainTracker::Tracker<dim, Number> &grain_tracker)
+      const DoFHandler<dim> &                       dof_handler,
+      const unsigned int                            n_op,
+      const GrainTracker::Tracker<dim, Number> &    grain_tracker,
+      std::shared_ptr<const BoundingBoxFilter<dim>> box_filter = nullptr)
     {
-      const unsigned int n_grains = grain_tracker.get_grains().size();
+      const auto &grains = grain_tracker.get_grains();
+
       std::map<unsigned int, std::set<unsigned int>> neighbors;
 
       for (auto &cell : dof_handler.active_cell_iterators())
@@ -2436,11 +2438,41 @@ namespace Sintering
             }
 
           for (unsigned int i = 0; i < grains_at_cell.size(); ++i)
-            for (unsigned int j = i + 1; j < grains_at_cell.size(); ++j)
-              {
-                neighbors[grains_at_cell[i]].insert(grains_at_cell[j]);
-                neighbors[grains_at_cell[j]].insert(grains_at_cell[i]);
-              }
+            {
+              // Check if the grain segments are fully inside the box
+              if (box_filter)
+                {
+                  const auto &grain = grains.at(grains_at_cell[i]);
+
+                  bool grain_inside = true;
+
+                  for (const auto &segment : grain.get_segments())
+                    {
+                      auto bottom_left = segment.get_center();
+                      auto top_right   = segment.get_center();
+                      for (unsigned int d = 0; d < dim; ++d)
+                        {
+                          bottom_left[d] -= segment.get_radius();
+                          top_right[d] += segment.get_radius();
+                        }
+
+                      // Skip the grain if either point is outside
+                      if (box_filter->point_outside(bottom_left) ||
+                          box_filter->point_outside(top_right))
+                        {
+                          grain_inside = false;
+                          break;
+                        }
+                    }
+
+                  if (!grain_inside)
+                    continue;
+                }
+
+              for (unsigned int j = 0; j < grains_at_cell.size(); ++j)
+                if (i != j)
+                  neighbors[grains_at_cell[i]].insert(grains_at_cell[j]);
+            }
         }
 
       // Perform global communication, we need to repack data since std::set can
@@ -2475,14 +2507,15 @@ namespace Sintering
                                     neighbors.at(grain_id).end()));
           }
 
-      const auto avg_coord_num =
-        std::accumulate(neighbors.begin(),
-                        neighbors.end(),
-                        0.,
-                        [](const auto &a, const auto &b) {
-                          return a + b.second.size();
-                        }) /
-        n_grains;
+      double avg_coord_num = 0;
+      if (neighbors.size())
+        avg_coord_num = std::accumulate(neighbors.begin(),
+                                        neighbors.end(),
+                                        0.,
+                                        [](const auto &a, const auto &b) {
+                                          return a + b.second.size();
+                                        }) /
+                        neighbors.size();
 
       return avg_coord_num;
     }
