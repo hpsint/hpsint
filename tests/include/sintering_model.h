@@ -49,7 +49,7 @@ namespace Test
           time_integration_order)
       , advection_mechanism(enable_rbm,
                             /*mt=*/1.0,
-                            /*mr=*/1.0)
+                            /*mr=*/0.0)
     {
       Point<dim> bottom_left;
       Point<dim> top_right;

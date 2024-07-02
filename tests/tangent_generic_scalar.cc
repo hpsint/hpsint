@@ -47,8 +47,10 @@ main(int argc, char **argv)
 
   // Tolerances for the native RBM are less tight since we are aware the tangent
   // matrix is not exact here
-  const double tol_abs_rbm = 1e2;
-  const double tol_rel_rbm = 1e-3;
+  //const double tol_abs_rbm = 1e2;
+  //const double tol_rel_rbm = 1e-3;
+  const double tol_abs_rbm = 1e-3;
+  const double tol_rel_rbm = 1e-6;
 
   Test::check_tangent<dim, Number, VectorizedArrayType, NonLinearOperator>(
     true, "WITH RBM", tol_abs_rbm, tol_rel_rbm);
