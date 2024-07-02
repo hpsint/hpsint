@@ -262,6 +262,8 @@ namespace Sintering
     bool                  iso_gb_area      = false;
     bool                  quality_min      = false;
     double                gb_threshold     = 0.14;
+    bool                  auto_control_box = false;
+    double                box_rel_padding  = 0.05;
 
     std::vector<std::pair<Point<3>, Point<3>>> control_boxes;
 
@@ -937,6 +939,13 @@ namespace Sintering
       prm.add_parameter("GrainBoundariesThreshold",
                         output_data.gb_threshold,
                         "Grain boundary detection threshold.");
+      prm.add_parameter("AutoControlBox",
+                        output_data.auto_control_box,
+                        "Add automatic control box.");
+      prm.add_parameter(
+        "BoxRelativePadding",
+        output_data.box_rel_padding,
+        "Auto control box padding relative to the packing size.");
 
       prm.leave_subsection();
 
