@@ -367,6 +367,11 @@ namespace GrainTracker
           op_number_changed =
             (active_order_parameters.size() != n_order_params);
         }
+      else
+        {
+          // Build active order parameters
+          active_order_parameters = extract_active_order_parameter_ids(grains);
+        }
 
       // Build inverse mapping after grains are detected
       build_inverse_mapping();
@@ -1733,6 +1738,8 @@ namespace GrainTracker
     void
     build_inverse_mapping()
     {
+      grain_segment_ids_numbering.clear();
+
       n_total_segments = 0;
       for (const auto &op_particle_ids : particle_ids_to_grain_ids)
         for (const auto &grain_and_segment : op_particle_ids)
