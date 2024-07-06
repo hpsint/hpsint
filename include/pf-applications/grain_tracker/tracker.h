@@ -367,6 +367,11 @@ namespace GrainTracker
           op_number_changed =
             (active_order_parameters.size() != n_order_params);
         }
+      else
+        {
+          // Build active order parameters
+          active_order_parameters = extract_active_order_parameter_ids(grains);
+        }
 
       // Build inverse mapping after grains are detected
       build_inverse_mapping();
@@ -1050,6 +1055,9 @@ namespace GrainTracker
       output_grains(grains, prefix);
     }
 
+    /* If there is any particle located at a given cell within a given order
+     * parameter, then index is returned, otherwise -
+     * numbers::invalid_unsigned_int. */
     unsigned int
     get_particle_index(const unsigned int order_parameter,
                        const unsigned int cell_index) const override
@@ -1073,6 +1081,18 @@ namespace GrainTracker
                static_cast<unsigned int>(particle_id);
     }
 
+    /* If there is a grain attached to particle_id, then the pair of grain_id
+     * and segment_id is returned, otherwise - numbers::invalid_unsigned_int.
+     * Note, that despite a cell may contain valid particle_id, the
+     * corresponding grain_id still may be equal to
+     * numbers::invalid_unsigned_int. This can happen if an isolated area, whose
+     * maximum value is larger than threshold_lower, has been detected but that
+     * value is smaller than threshold_new_grains. This means that the emerging
+     * isolated area is not yet large enough to be promoted to a independent
+     * grain, it may turn out to be a spurious area. If such an area is
+     * detected, it obtains a valid particle_id when track() is called, but then
+     * later it gets filtered out when detect_grains() is invoked and its
+     * grain_id is set to numbers::invalid_unsigned_int. */
     std::pair<unsigned int, unsigned int>
     get_grain_and_segment(const unsigned int order_parameter,
                           const unsigned int particle_id) const override
@@ -1733,6 +1753,8 @@ namespace GrainTracker
     void
     build_inverse_mapping()
     {
+      grain_segment_ids_numbering.clear();
+
       n_total_segments = 0;
       for (const auto &op_particle_ids : particle_ids_to_grain_ids)
         for (const auto &grain_and_segment : op_particle_ids)

@@ -2433,7 +2433,8 @@ namespace Sintering
                     grain_tracker.get_grain_and_segment(op, particle_id_for_op)
                       .first;
 
-                  grains_at_cell.push_back(grain_id);
+                  if (grain_id != numbers::invalid_unsigned_int)
+                    grains_at_cell.push_back(grain_id);
                 }
             }
 
