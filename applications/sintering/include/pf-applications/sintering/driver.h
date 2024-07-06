@@ -3207,15 +3207,19 @@ namespace Sintering
 
                   table.add_value(generate_name("iso_gb_area", i), gb_area);
                 }
-            }
 
-          if (params.output_data.coordination_number)
-            {
-              const auto avg_coord_num =
-                Postprocessors::compute_average_coordination_number(
-                  dof_handler, sintering_operator.n_grains(), grain_tracker);
+              if (params.output_data.coordination_number)
+                {
+                  const auto avg_coord_num =
+                    Postprocessors::compute_average_coordination_number(
+                      dof_handler,
+                      sintering_operator.n_grains(),
+                      grain_tracker,
+                      box_filters[i]);
 
-              table.add_value("avg_coord_num", avg_coord_num);
+                  table.add_value(generate_name("avg_coord_num", i),
+                                  avg_coord_num);
+                }
             }
         }
 
