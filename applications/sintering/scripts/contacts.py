@@ -7,7 +7,7 @@ from joblib import Parallel, delayed
 
 def flatten_neighbours(arr):
     sizes = np.fromiter(map(len, arr), count=len(arr), dtype=np.int64)
-    values = np.concatenate(arr, dtype=np.int64)
+    values = np.concatenate(arr)
     return sizes, values
 
 @delayed
