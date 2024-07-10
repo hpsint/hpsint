@@ -10,6 +10,7 @@ import library
 from scipy.spatial import ConvexHull
 from scipy.spatial import Delaunay
 from sklearn.neighbors import BallTree
+from contacts import ends_gap
 
 parser = argparse.ArgumentParser(description='Compute densification using the packing convex hull from the grain tracker data')
 parser.add_argument("-m", "--mask", type=str, help="File mask", required=True)
@@ -18,7 +19,7 @@ parser.add_argument("-p", "--path", type=str, help="Common path", required=False
 parser.add_argument("-o", "--output", type=str, required=False, help="Destination csv file", default=None)
 parser.add_argument("-c", "--collapse", dest='collapse', required=False, help="Shorten labels", action="store_true", default=False)
 parser.add_argument("-e", "--extend-to", dest='extend_to', required=False, help="Extend labels when shortening to", type=str, default=None)
-parser.add_argument("-u", "--suffix", dest='suffix', required=False, help="Suffix to append to the save file", type=str, default="_chull_density")
+parser.add_argument("-u", "--suffix", dest='suffix', required=False, help="Suffix to append to the save file", type=str, default="_densification")
 parser.add_argument("-s", "--save", dest='save', required=False, help="Save shrinkage data", action="store_true", default=False)
 parser.add_argument("-k", "--skip-plot", action='store_true', help="Skip plots", required=False, default=False)
 parser.add_argument("-g", "--grid", dest='grid', required=False, help="Number of mesh points along the smallest dimension", type=int, default=50)
@@ -64,7 +65,7 @@ else:
     labels = list_solution_files.copy()
 
 # Axes for plottign results
-fig, axes = plt.subplots(nrows=1, ncols=3)
+fig, axes = plt.subplots(nrows=2, ncols=3)
 fig.suptitle('Shrinkage and densification')
 
 f_counter = 0
@@ -86,7 +87,7 @@ for file_solution, files_list, lbl, clr in zip(list_solution_files, list_distrib
         continue
 
     # Build a CSV header
-    csv_header = ["time", "dt", "n_grains", "solid_vol", "hull_vol", "rel_dens_hull", "rel_dens_mc"]
+    csv_header = ["time", "dt", "n_grains", "solid_vol", "hull_vol", "rel_dens_hull", "rel_dens_mc", "coordination_med", "coordination_max"]
     n_qtys = len(csv_header)
     csv_header = " ".join(csv_header)
 
@@ -100,7 +101,7 @@ for file_solution, files_list, lbl, clr in zip(list_solution_files, list_distrib
 
     for idx, log_file in enumerate(files_list):
 
-        if idx >= fdata.shape[0]:
+        if idx >= fdata.size:
             prefix = "├" if idx + 1 < n_rows else "└"
             print("{}─ Skipping file {} ({}/{}) due to data inconsistency".format(prefix, log_file, idx + 1, n_rows))
             continue
@@ -120,9 +121,10 @@ for file_solution, files_list, lbl, clr in zip(list_solution_files, list_distrib
         
         dim = 3 if is3D else 2
 
-        n_grains = int(fdata["n_grains"][idx])
+        n_grains = int(fdata["n_grains"][idx] if fdata.size > 1 else fdata["n_grains"])
         grain_coordinates = np.zeros((n_grains, dim))
         grain_radii = np.zeros((n_grains))
+        grain_radii_max = np.zeros((n_grains))
         
         for gid, row in enumerate(qdata):
             measure = float(row['volume'])
@@ -133,6 +135,7 @@ for file_solution, files_list, lbl, clr in zip(list_solution_files, list_distrib
                 radius = 0
 
             grain_radii[gid] = radius
+            grain_radii_max[gid] = float(row['radius'])
 
             grain_coordinates[gid, 0] = float(row['x'])
             grain_coordinates[gid, 1] = float(row['y'])
@@ -171,7 +174,7 @@ for file_solution, files_list, lbl, clr in zip(list_solution_files, list_distrib
             raise Exception("Invalid dimensionality")
         
         # Eliminate the points outside of the convex hull
-        chull = ConvexHull(grain_coordinates)
+        convex_hull = ConvexHull(grain_coordinates)
         triangulation = Delaunay(grain_coordinates)
 
         n_mc_points = len(mc_points)
@@ -183,9 +186,9 @@ for file_solution, files_list, lbl, clr in zip(list_solution_files, list_distrib
         mc_points = mc_points[filter]
         n_mc_points = len(mc_points)
 
-        # Build ball tree
-        ball_tree = BallTree(mc_points, leaf_size=16, metric='euclidean')
-        coverage = ball_tree.query_radius(grain_coordinates, r=grain_radii)
+        # Build ball tree for integration points
+        ball_tree_mc = BallTree(mc_points, leaf_size=16, metric='euclidean')
+        coverage = ball_tree_mc.query_radius(grain_coordinates, r=grain_radii)
 
         # Mark sample points which are covered by at least one grain
         mc_covered = [0]*n_mc_points
@@ -195,21 +198,33 @@ for file_solution, files_list, lbl, clr in zip(list_solution_files, list_distrib
 
         ratio_covered = sum(mc_covered) / n_mc_points
 
-        csv_data[idx, 0] = fdata["time"][idx]
-        csv_data[idx, 1] = fdata["dt"][idx]
-        csv_data[idx, 2] = fdata["n_grains"][idx]
-        csv_data[idx, 3] = fdata["solid_vol"][idx]
-        csv_data[idx, 4] = chull.volume
+        # Calculate coordination number
+        _, contacts, _, _ = ends_gap(grain_coordinates, grain_radii)
+        coordination_num_med = 2 * len(contacts) / n_grains
+
+        _, contacts, _, _ = ends_gap(grain_coordinates, grain_radii_max)
+        coordination_num_max = 2 * len(contacts) / n_grains
+
+        csv_data[idx, 0] = fdata["time"][idx] if fdata.size > 1 else fdata["time"]
+        csv_data[idx, 1] = fdata["dt"][idx] if fdata.size > 1 else fdata["dt"]
+        csv_data[idx, 2] = n_grains
+        csv_data[idx, 3] = fdata["solid_vol"][idx] if fdata.size > 1 else fdata["solid_vol"]
+        csv_data[idx, 4] = convex_hull.volume
         csv_data[idx, 5] = csv_data[idx, 3] / csv_data[idx, 4]
         csv_data[idx, 6] = ratio_covered
+        csv_data[idx, 7] = coordination_num_med
+        csv_data[idx, 8] = coordination_num_max
 
         prefix = "├" if idx + 1 < n_rows else "└"
         print("{}─ Parsing file {} ({}/{})".format(prefix, log_file, idx + 1, n_rows))
 
     if not args.skip_plot:
-        axes[0].plot(csv_data[:,0], csv_data[:,4], label=lbl, color=clr)
-        axes[1].plot(csv_data[:,0], csv_data[:,5], label=lbl, color=clr)
-        axes[2].plot(csv_data[:,0], csv_data[:,6], label=lbl, color=clr)
+        axes[0][0].plot(csv_data[:,0], csv_data[:,4], label=lbl, color=clr)
+        axes[0][1].plot(csv_data[:,0], csv_data[:,5], label=lbl, color=clr)
+        axes[0][2].plot(csv_data[:,0], csv_data[:,6], label=lbl, color=clr)
+        axes[1][0].plot(csv_data[:,0], csv_data[:,2], label=lbl, color=clr)
+        axes[1][1].plot(csv_data[:,0], csv_data[:,7], label=lbl, color=clr)
+        axes[1][2].plot(csv_data[:,0], csv_data[:,8], label=lbl, color=clr)
 
     if args.save:
         file_path = csv_names.pop(0)
@@ -222,14 +237,15 @@ for file_solution, files_list, lbl, clr in zip(list_solution_files, list_distrib
 
 if not args.skip_plot:
 
-    titles = ['convex hull volume', 'density from hull', 'density from MC']
-    labels = ['volume', 'rel_density', 'rel_density']
+    titles = [['convex hull volume', 'density from hull', 'density from MC'], ['# of grains', 'coordination number median', 'coordination number max']]
+    labels = [['volume', 'rel_density', 'rel_density'], ['n_grains', 'coord_num_med', 'coord_num_max']]
 
-    for i in range(3):
-        axes[i].grid(True)
-        axes[i].legend()
-        axes[i].set_title(titles[i])
-        axes[i].set_xlabel("time")
-        axes[i].set_ylabel(labels[i])
+    for i in range(2):
+        for j in range(3):
+            axes[i][j].grid(True)
+            axes[i][j].legend()
+            axes[i][j].set_title(titles[i][j])
+            axes[i][j].set_xlabel("time")
+            axes[i][j].set_ylabel(labels[i][j])
 
     plt.show()
