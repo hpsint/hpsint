@@ -1,10 +1,15 @@
+# Customizable settings
 # Define max sintring grains
-set(MAX_SINTERING_GRAINS 10)
+set(MAX_SINTERING_GRAINS 10 CACHE STRING "Maximum number of grains")
 
 # Possible options variants
-set(VARIANTS_DIM      "2D;3D")
-set(VARIANTS_MOBILITY "scalar;tensorial")
-set(VARIANTS_OPERATOR "generic")
+set(VARIANTS_DIM "2D;3D" CACHE STRING "Problem dimensions")
+set(VARIANTS_MOBILITY "scalar;tensorial" CACHE STRING "Mobility types")
+set(VARIANTS_OPERATOR "generic" CACHE STRING "Operator types")
+
+option(BENCHMARK_THROUGHPUT "Build throughput benchmarks" ON)
+option(BENCHMARK_GT "Build grain tracker benchmarks" ON)
+option(PRINT_PARTICLES "Build print particles executable" ON)
 
 # Mapping
 set(OPTION_DIM_2D "SINTERING_DIM=2")
@@ -46,52 +51,61 @@ foreach(VAR_DIM ${VARIANTS_DIM})
   endforeach()
 endforeach()
 
-FIND_LIBRARY(LIKWID likwid HINTS $ENV{LIKWID_LIB})
-
 ### Throughput application
-foreach(VAR_MOB ${VARIANTS_MOBILITY})
+IF(BENCHMARK_THROUGHPUT)
+  message(STATUS "Configured throughputs:")
+  foreach(VAR_MOB ${VARIANTS_MOBILITY})
 
-  string(TOUPPER ${VAR_MOB} VAR_MOB_UP)
+    string(TOUPPER ${VAR_MOB} VAR_MOB_UP)
 
-  set(executable_name "sintering-throughput-${VAR_MOB}")
-  ADD_EXECUTABLE(${executable_name} "sintering_throughput.cc")
-  DEAL_II_SETUP_TARGET(${executable_name})
+    set(executable_name "sintering-throughput-${VAR_MOB}")
+    ADD_EXECUTABLE(${executable_name} "sintering_throughput.cc")
+    DEAL_II_SETUP_TARGET(${executable_name})
 
-  TARGET_COMPILE_DEFINITIONS(${executable_name} PUBLIC
-      -D SINTERING_DIM=3
-      -D MAX_SINTERING_GRAINS=${MAX_SINTERING_GRAINS}
-      -D${OPTION_MOB_${VAR_MOB_UP}}
-  )
+    message(STATUS "  ${executable_name}")
 
-  TARGET_LINK_LIBRARIES(${executable_name} "pf-applications")
-  target_include_directories(${executable_name} PUBLIC "include/" "../structural/include/")
-    
-  IF(LIKWID)
-    TARGET_COMPILE_DEFINITIONS(${executable_name} PUBLIC LIKWID_PERFMON)
-    TARGET_INCLUDE_DIRECTORIES(${executable_name} PUBLIC $ENV{LIKWID_INCLUDE})
-    TARGET_LINK_LIBRARIES(${executable_name} ${LIKWID})
-  ENDIF()
-endforeach()
+    TARGET_COMPILE_DEFINITIONS(${executable_name} PUBLIC
+        -D SINTERING_DIM=3
+        -D MAX_SINTERING_GRAINS=${MAX_SINTERING_GRAINS}
+        -D${OPTION_MOB_${VAR_MOB_UP}}
+    )
 
+    TARGET_LINK_LIBRARIES(${executable_name} "pf-applications")
+    target_include_directories(${executable_name} PUBLIC "include/" "../structural/include/")
+      
+    IF(LIKWID)
+      TARGET_COMPILE_DEFINITIONS(${executable_name} PUBLIC LIKWID_PERFMON)
+      TARGET_INCLUDE_DIRECTORIES(${executable_name} PUBLIC $ENV{LIKWID_INCLUDE} $ENV{LIKWID_BASE}/include ${LIKWID_INC})
+      TARGET_LINK_LIBRARIES(${executable_name} ${LIKWID})
+    ENDIF()
+  endforeach()
+ENDIF()
 
 ### Print particles application
-set(exe "sintering-print-particles")
-ADD_EXECUTABLE(${exe} "sintering_print_particles.cc")
-DEAL_II_SETUP_TARGET(${exe})
-TARGET_LINK_LIBRARIES(${exe} "pf-applications")
-target_include_directories(${exe} PUBLIC "include/" "../structural/include/")
-
+IF(PRINT_PARTICLES)
+  set(print_exe "sintering-print-particles")
+  message(STATUS "Configured print particles executable:")
+  message(STATUS "  ${print_exe}")
+  ADD_EXECUTABLE(${print_exe} "sintering_print_particles.cc")
+  DEAL_II_SETUP_TARGET(${print_exe})
+  TARGET_LINK_LIBRARIES(${print_exe} "pf-applications")
+  target_include_directories(${print_exe} PUBLIC "include/" "../structural/include/")
+ENDIF()
 
 ### Grain tracker benchmark
-foreach(VAR_DIM ${VARIANTS_DIM})
-  set(gt_executable_name "grain-tracker-throughput-${VAR_DIM}")
-  ADD_EXECUTABLE(${gt_executable_name} "grain_tracker_throughput.cc")
-  DEAL_II_SETUP_TARGET(${gt_executable_name})
+IF(BENCHMARK_GT)
+  message(STATUS "Configured grain tracker benchmarks:")
+  foreach(VAR_DIM ${VARIANTS_DIM})
+    set(gt_executable_name "grain-tracker-throughput-${VAR_DIM}")
+    ADD_EXECUTABLE(${gt_executable_name} "grain_tracker_throughput.cc")
+    DEAL_II_SETUP_TARGET(${gt_executable_name})
+    message(STATUS "  ${gt_executable_name}")
 
-  TARGET_COMPILE_DEFINITIONS(${gt_executable_name} PUBLIC
-    -D${OPTION_DIM_${VAR_DIM}}
-  )
+    TARGET_COMPILE_DEFINITIONS(${gt_executable_name} PUBLIC
+      -D${OPTION_DIM_${VAR_DIM}}
+    )
 
-  TARGET_LINK_LIBRARIES(${gt_executable_name} "pf-applications")
-  target_include_directories(${gt_executable_name} PUBLIC "include/")
-endforeach()
+    TARGET_LINK_LIBRARIES(${gt_executable_name} "pf-applications")
+    target_include_directories(${gt_executable_name} PUBLIC "include/")
+  endforeach()
+ENDIF()
