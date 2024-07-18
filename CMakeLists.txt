@@ -62,15 +62,54 @@ ENDIF()
 
 FILE(GLOB SOURCE_FILES "*.cc")
 
-ADD_SUBDIRECTORY(applications/allen_cahn)
-ADD_SUBDIRECTORY(applications/cahn_hilliard)
-ADD_SUBDIRECTORY(applications/sintering)
-ADD_SUBDIRECTORY(applications/structural)
-ADD_SUBDIRECTORY(benchmarks)
+# Customizable settings
+# Hints for likwid
+set(LIKWID_LIB CACHE STRING "Path to likwid library")
+set(LIKWID_INC CACHE STRING "Path to likwid includes")
 
-if(EXISTS ${CMAKE_SOURCE_DIR}/tests/CMakeLists.txt)
+option(TARGET_AC "Build Allen-Cahn executables" ON)
+option(TARGET_CH "Build Cahn-Hilliard executables" ON)
+option(TARGET_SINTERING "Build sintering executables" ON)
+option(TARGET_STRUCTURAL "Build structural executables" ON)
+option(TARGET_BENCHMARKS "Build benchmarks" ON)
+option(TARGET_TESTS "Build tests" ON)
+
+FIND_LIBRARY(LIKWID likwid HINTS $ENV{LIKWID_LIB} ${LIKWID_LIB})
+
+IF(LIKWID)
+  message(STATUS "Likwid library detected in path: " ${LIKWID})
+ENDIF()
+
+if(TARGET_AC)
+  message(STATUS "Building allen_cahn targets")
+  ADD_SUBDIRECTORY(applications/allen_cahn)
+ENDIF()
+
+if(TARGET_CH)
+  message(STATUS "Building cahn_hilliard targets")
+  ADD_SUBDIRECTORY(applications/cahn_hilliard)
+ENDIF()
+
+if(TARGET_SINTERING)
+  message(STATUS "Building sintering targets")
+  ADD_SUBDIRECTORY(applications/sintering)
+ENDIF()
+
+if(TARGET_STRUCTURAL)
+  message(STATUS "Building structural targets")
+  ADD_SUBDIRECTORY(applications/structural)
+ENDIF()
+
+if(TARGET_BENCHMARKS)
+  message(STATUS "Building benchmarks targets")
+  ADD_SUBDIRECTORY(benchmarks)
+ENDIF()
+
+if(TARGET_TESTS AND EXISTS ${CMAKE_SOURCE_DIR}/tests/CMakeLists.txt)
+  message(STATUS "Building tests targets")
   set(DEAL_II_HAVE_TESTS_DIRECTORY TRUE)
+
+  enable_testing()
+  ADD_SUBDIRECTORY(tests)
 endif()
 
-enable_testing()
-ADD_SUBDIRECTORY(tests)
