@@ -117,87 +117,91 @@ available_fields.sort(key=len, reverse=True)
 # Flag if legend is there already
 legend_added = False
 
+def get_axis_data(field, do_normalize):
+
+    token_prefix = '%token_{}'
+    tokens = []
+    token_numberer = 0
+
+    # Maybe it is a formula - we will try to interpret it, its safety is implied
+    axis_label = field
+    if not field in available_fields:
+        formula = field
+        for possible_field in available_fields:
+            if possible_field in formula: 
+                token = token_prefix.format(token_numberer)
+                formula = formula.replace(possible_field, token)
+                tokens.append((token, "cdata['{}']".format(possible_field)))
+                token_numberer += 1
+
+        for token_data in reversed(tokens):
+            formula = formula.replace(token_data[0], token_data[1])
+
+        # Try to split expression for custom y label
+        expressions = formula.split('=')
+        if len(expressions) > 2:
+            raise Exception("Invalid expression provided, contains too many '=' signs")
+        elif len(expressions) == 2:
+            axis_label = expressions[0].strip()
+            formula = expressions[1].strip()
+
+        try:
+            axis_data = eval(formula)
+        except Exception as e:
+            print("Syntax error occured during the formula evaluation:")
+            print(e)
+            print("Most probably, the field does not exist all of the data files or the formula is too complex")
+            print("This is the list of available fields:")
+
+            for name in list(available_fields):
+                print(" -- {}".format(name))
+            exit()
+
+    else:
+        axis_data = cdata[field]
+
+    if do_normalize and max(axis_data):
+        axis_data /= max(axis_data)
+
+    return axis_data, axis_label
+
 for i in range(n_fields):
     field = args.yaxes[i]
     a = ax[i]
 
     x_lims = [sys.float_info.max, -sys.float_info.max]
 
-    token_prefix = '%token_{}'
-
-    y_label = None
-
     for f, lbl, clr, mrk in zip(files_list, labels, colors, markers):
         cdata = np.genfromtxt(f, dtype=None, names=True, delimiter=args.delimiter)
 
-        tokens = []
-        token_numberer = 0
-
         if len(cdata.shape) == 0:
             cdata = np.array([cdata])
-        
-        mask = [True] * len(cdata[args.xaxis])
+
+        x, x_label = get_axis_data(args.xaxis, args.normalize_xaxis)
+        y, y_label = get_axis_data(field, args.normalize_yaxis)
+
+        mask = [True] * len(x)
         if args.limits:
-            mask = (args.limits[0] <= cdata[args.xaxis]) & (cdata[args.xaxis] <= args.limits[1])    
+            mask = (args.limits[0] <= x) & (x <= args.limits[1])    
         elif args.skip_first:
             mask[0] = False
 
         if not any((mask)):
             print("The specified x-axis limits ruled out all values for file {} - the file is skipped for plotting".format(f))
             continue
-        
-        x = cdata[args.xaxis][mask]
-        if args.normalize_xaxis and max(x):
-            x /= max(x)
 
-        # Maybe it is a formula - we will try to interpret it, its safety is implied
-        y_label = field
-        if not field in available_fields:
-            formula = field
-            for possible_field in available_fields:
-                if possible_field in formula: 
-                    token = token_prefix.format(token_numberer)
-                    formula = formula.replace(possible_field, token)
-                    tokens.append((token, "cdata['{}'][mask]".format(possible_field)))
-                    token_numberer += 1
-
-            for token_data in reversed(tokens):
-                formula = formula.replace(token_data[0], token_data[1])
-
-            # Try to split expression for custom y label
-            expressions = formula.split('=')
-            if len(expressions) > 2:
-                raise Exception("Invalid expression provided, contains too many '=' signs")
-            elif len(expressions) == 2:
-                y_label = expressions[0].strip()
-                formula = expressions[1].strip()
-
-            try:
-                y = eval(formula)
-            except Exception as e:
-                print("Syntax error occured during the formula evaluation:")
-                print(e)
-                print("Most probably, the field does not exist all of the data files or the formula is too complex")
-                print("These fields are available in all of the provided input files:")
-
-                for name in list(available_fields):
-                    print(" -- {}".format(name))
-                exit()
-        else:
-            y = cdata[field][mask]
+        x = x[mask]
+        y = y[mask]
 
         if len(x) and len(y):
             x_lims[0] = min(x_lims[0], x[0])
             x_lims[1] = max(x_lims[1], x[-1])
 
-            if args.normalize_yaxis and max(y):
-                y /= max(y)
-
             a.plot(x, y, color=clr, linestyle='-', linewidth=2, label=lbl, marker=mrk, markevery=n_files)
 
     if y_label:
         a.grid(True)
-        a.set_xlabel(args.xaxis)
+        a.set_xlabel(x_label)
         a.set_ylabel(y_label)
         a.set_title(field)
         a.set_xlim(x_lims)
