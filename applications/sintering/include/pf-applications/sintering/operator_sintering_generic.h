@@ -60,7 +60,21 @@ namespace Sintering
     {
       // Reinit advection data for the current cells batch
       if (this->advection.enabled())
-        this->advection.reinit(cell);
+        {
+          this->advection.reinit(cell);
+
+          FECellIntegrator<
+            dim,
+            AdvectionMechanism<dim, Number, VectorizedArrayType>::
+              n_comp_force_torque,
+            Number,
+            VectorizedArrayType>
+            phi_df_dt_dc(phi.get_matrix_free(), 0);
+
+          phi_df_dt_dc.reinit(cell);
+
+          this->advection.reinit_der(cell, phi_df_dt_dc);
+        }
 
       if (gradient_buffer != nullptr)
         {
@@ -173,8 +187,6 @@ namespace Sintering
       free_energy.apply_d2f_detaidetaj(
         L, lin_etas_value, n_grains, &value[0] + 2, &value_result[0] + 2);
 
-
-
       // 4) add advection contributations -> influences c AND etas
       if (this->advection.enabled())
         for (unsigned int ig = 0; ig < n_grains; ++ig)
@@ -185,6 +197,18 @@ namespace Sintering
 
               gradient_result[0] -= velocity_ig * value[0];
               gradient_result[2 + ig] -= velocity_ig * value[2 + ig];
+
+              const auto &df_dt_dc = this->advection.get_df_dc(ig, q);
+
+              Tensor<1, dim, VectorizedArrayType> dv_dc;
+
+              // Force acting on grain i
+              for (unsigned int d = 0; d < dim; ++d)
+                dv_dc[d] = df_dt_dc[d];
+
+              dv_dc *= this->advection.get_velocity_der_df_prefac(ig);
+
+              gradient_result[0] -= dv_dc * lin_c_value * value[0];
             }
 
 
