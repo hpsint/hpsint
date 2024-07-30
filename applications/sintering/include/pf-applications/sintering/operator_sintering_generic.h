@@ -379,6 +379,28 @@ namespace Sintering
     ~SinteringOperatorGeneric()
     {}
 
+    template <typename... Arg>
+    static T
+    create(
+      const MatrixFree<dim, Number, VectorizedArrayType> &     matrix_free,
+      const AffineConstraints<Number> &                        constraints,
+      const SinteringOperatorData<dim, VectorizedArrayType> &  sintering_data,
+      const TimeIntegration::SolutionHistory<BlockVectorType> &solution_history,
+      const AdvectionMechanism<dim, Number, VectorizedArrayType>
+        &        advection_mechanism,
+      const bool matrix_based,
+      const bool use_tensorial_mobility_gradient_on_the_fly = false,
+      Arg &&...)
+    {
+      return T(matrix_free,
+               constraints,
+               sintering_data,
+               solution_history,
+               advection_mechanism,
+               matrix_based,
+               use_tensorial_mobility_gradient_on_the_fly);
+    }
+
     template <unsigned int with_time_derivative = 2>
     void
     evaluate_nonlinear_residual(
