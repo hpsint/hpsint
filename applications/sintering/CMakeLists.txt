@@ -71,3 +71,6 @@ IF(BENCHMARK_GT)
     target_include_directories(${gt_executable_name} PUBLIC "include/")
   endforeach()
 ENDIF()
+
+# Install cmake macros
+install(DIRECTORY cmake DESTINATION share COMPONENT scripts FILES_MATCHING PATTERN "*.cmake")
