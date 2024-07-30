@@ -673,4 +673,15 @@ namespace Sintering
     return params;
   }
 
+  std::string
+  concatenate_strings(const int argc, char **argv)
+  {
+    std::string result = std::string(argv[0]);
+
+    for (int i = 1; i < argc; ++i)
+      result = result + " " + std::string(argv[i]);
+
+    return result;
+  }
+
 } // namespace Sintering

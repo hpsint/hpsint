@@ -69,12 +69,10 @@
 
 #include <pf-applications/sintering/advection.h>
 #include <pf-applications/sintering/boundary_conditions.h>
-#include <pf-applications/sintering/creator.h>
 #include <pf-applications/sintering/initial_values.h>
 #include <pf-applications/sintering/operator_advection.h>
 #include <pf-applications/sintering/operator_postproc.h>
 #include <pf-applications/sintering/operator_sintering_coupled_base.h>
-#include <pf-applications/sintering/operator_sintering_generic.h>
 #include <pf-applications/sintering/parameters.h>
 #include <pf-applications/sintering/postprocessors.h>
 #include <pf-applications/sintering/preconditioners.h>
@@ -87,17 +85,13 @@
 #include <pf-applications/grid/constraint_helper.h>
 #include <pf-applications/matrix_free/output.h>
 
-// Available sintering operators
-#define OPERATOR_GENERIC 1
-#define OPERATOR_COUPLED_WANG 2
-#define OPERATOR_COUPLED_DIFFUSION 3
-
 namespace Sintering
 {
   using namespace dealii;
 
-
   template <int dim,
+            template <int, typename, typename>
+            typename NonLinearOperatorTpl,
             typename Number              = double,
             typename VectorizedArrayType = VectorizedArray<Number>>
   class Problem
@@ -105,13 +99,9 @@ namespace Sintering
   public:
     using VectorType = LinearAlgebra::distributed::DynamicBlockVector<Number>;
 
-    // Choose sintering operator
+    // Build up sintering operator
     using NonLinearOperator =
-#if OPERATOR == OPERATOR_GENERIC
-      SinteringOperatorGeneric<dim, Number, VectorizedArrayType>;
-#else
-#  error "Option OPERATOR has to be specified"
-#endif
+      NonLinearOperatorTpl<dim, Number, VectorizedArrayType>;
 
     const Parameters                          params;
     ConditionalOStream                        pcout;
@@ -1005,11 +995,7 @@ namespace Sintering
       else
         AssertThrow(false, ExcNotImplemented());
 
-      auto nonlinear_operator = create_sintering_operator<dim,
-                                                          Number,
-                                                          VectorizedArrayType,
-                                                          VectorType,
-                                                          NonLinearOperator>(
+      auto nonlinear_operator = NonLinearOperator::create(
         matrix_free,
         constraints,
         sintering_data,
