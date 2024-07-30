@@ -1,3 +1,9 @@
+# Dummy sintering library
+SET(TARGET_SRC dummy.cc)
+ADD_LIBRARY(sintering ${TARGET_SRC})
+DEAL_II_SETUP_TARGET(sintering)
+target_include_directories(sintering PUBLIC "include/" "../structural/include/")
+install(TARGETS sintering LIBRARY DESTINATION lib)
 
 include(cmake/sintering.cmake)
 
