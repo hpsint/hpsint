@@ -70,7 +70,7 @@ namespace Test
     AffineConstraints<Number> constraints;
 
     // Open cloud file
-    const std::filesystem::path source_path = XSTRING(SOURCE_ROOT);
+    const std::filesystem::path source_path = XSTRING(SOURCE_CODE_ROOT);
     const std::filesystem::path file_cloud =
       source_path /
       "applications/sintering/sintering_cloud_examples/packings_10k" / cloud;
