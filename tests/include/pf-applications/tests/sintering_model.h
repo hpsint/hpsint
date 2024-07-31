@@ -8,13 +8,13 @@
 #include <deal.II/numerics/vector_tools.h>
 
 #include <pf-applications/sintering/advection.h>
-#include <pf-applications/sintering/creator.h>
 #include <pf-applications/sintering/initial_values_debug.h>
 #include <pf-applications/sintering/operator_advection.h>
 #include <pf-applications/sintering/tools.h>
 
 #include <pf-applications/grain_tracker/tracker.h>
 #include <pf-applications/matrix_free/tools.h>
+#include <pf-applications/structural/material.h>
 
 #include <iostream>
 
@@ -130,35 +130,40 @@ namespace Test
 
         return value_result;
       };
-      (void)body_force;
 
       const bool matrix_based                               = true;
       const bool use_tensorial_mobility_gradient_on_the_fly = false;
 
       // Elastic material properties - not used at the moment
-      const double                        E  = 1;
-      const double                        nu = 0.25;
+      const double                        E     = 1;
+      const double                        nu    = 0.25;
+      const double                        c_min = 0.1;
       const Structural::MaterialPlaneType plane_type =
         Structural::MaterialPlaneType::plane_strain;
-      (void)E;
-      (void)nu;
-      (void)plane_type;
 
-      if constexpr (
-        std::is_same_v<
-          NonLinearOperator,
-          SinteringOperatorGeneric<dim, Number, VectorizedArrayType>>)
-        nonlinear_operator = std::make_unique<NonLinearOperator>(
-          matrix_free,
-          constraints,
-          sintering_data,
-          solution_history,
-          advection_mechanism,
-          matrix_based,
-          use_tensorial_mobility_gradient_on_the_fly);
+      // Create nonlinear_operator inplace since we already have sufficient
+      // memory for it. Note that "delete" is not required to be explicitly
+      // called, the dtor of SinteringModel deletes nonlinear_operator. This
+      // code also extensively relies on RVO, since NonLinearOperator is neither
+      // copiable nor movable due to const members. Luckily, RVO was made
+      // mandatory in C++17 for the way how create() is implemented (e.g., NRVO
+      // will not work here).
+      new (&nonlinear_operator) NonLinearOperator(
+        NonLinearOperator::create(matrix_free,
+                                  constraints,
+                                  sintering_data,
+                                  solution_history,
+                                  advection_mechanism,
+                                  matrix_based,
+                                  use_tensorial_mobility_gradient_on_the_fly,
+                                  E,
+                                  nu,
+                                  plane_type,
+                                  c_min,
+                                  body_force));
 
       std::function<void(VectorType &)> f_init = [this](VectorType &v) {
-        nonlinear_operator->initialize_dof_vector(v);
+        nonlinear_operator.initialize_dof_vector(v);
       };
 
       solution_history.apply(f_init);
@@ -209,10 +214,13 @@ namespace Test
                                                   save_all_blocks);
     }
 
+    ~SinteringModel()
+    {}
+
     auto &
     get_nonlinear_operator()
     {
-      return *nonlinear_operator;
+      return nonlinear_operator;
     }
 
     auto &
@@ -261,9 +269,14 @@ namespace Test
     AdvectionMechanism<dim, Number, VectorizedArrayType> advection_mechanism;
 
     std::unique_ptr<GrainTracker::Tracker<dim, Number>> grain_tracker;
-    std::unique_ptr<NonLinearOperator>                  nonlinear_operator;
     std::unique_ptr<AdvectionOperator<dim, Number, VectorizedArrayType>>
       advection_operator;
+
+    // This is to avoid default initialization
+    union
+    {
+      NonLinearOperator nonlinear_operator;
+    };
   };
 
 } // namespace Test
