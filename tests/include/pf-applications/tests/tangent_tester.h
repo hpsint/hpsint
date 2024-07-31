@@ -2,7 +2,7 @@
 
 #include <iostream>
 
-#include "sintering_model.h"
+#include <pf-applications/tests/sintering_model.h>
 
 namespace Test
 {
