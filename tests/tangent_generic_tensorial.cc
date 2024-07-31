@@ -22,7 +22,7 @@
 
 #include <pf-applications/sintering/operator_sintering_generic.h>
 
-#include "include/tangent_tester.h"
+#include <pf-applications/tests/tangent_tester.h>
 
 using namespace dealii;
 using namespace Sintering;
