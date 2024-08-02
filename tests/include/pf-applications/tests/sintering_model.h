@@ -145,7 +145,7 @@ namespace Test
       // memory for it. Note that "delete" is not required to be explicitly
       // called, the dtor of SinteringModel deletes nonlinear_operator. This
       // code also extensively relies on RVO, since NonLinearOperator is neither
-      // copiable nor movable due to const members. Luckily, RVO was made
+      // copy nor move assignable due to const members. Luckily, RVO was made
       // mandatory in C++17 for the way how create() is implemented (e.g., NRVO
       // will not work here).
       new (&nonlinear_operator) NonLinearOperator(
