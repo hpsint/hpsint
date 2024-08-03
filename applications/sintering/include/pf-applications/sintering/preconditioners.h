@@ -1005,13 +1005,7 @@ namespace Sintering
       const MatrixFree<dim, Number, VectorizedArrayType> &   matrix_free,
       const AffineConstraints<Number> &                      constraints,
       const BlockPreconditioner2Data &                       data,
-      const AdvectionMechanism<dim, Number, VectorizedArrayType> &advection,
-      const std::array<std::vector<unsigned int>, dim>
-        &                                 zero_constraints_indices,
-      const double                        E  = 1.0,
-      const double                        nu = 0.25,
-      const Structural::MaterialPlaneType plane_type =
-        Structural::MaterialPlaneType::none)
+      const AdvectionMechanism<dim, Number, VectorizedArrayType> &advection)
       : data(data)
     {
       // create operators
@@ -1030,21 +1024,6 @@ namespace Sintering
         sintering_data,
         advection,
         data.block_1_approximation);
-
-#if OPERATOR == 1
-      if (false)
-#else
-      if (true)
-#endif
-        operator_2 =
-          std::make_unique<OperatorSolid<dim, Number, VectorizedArrayType>>(
-            matrix_free,
-            constraints,
-            sintering_data,
-            zero_constraints_indices,
-            E,
-            nu,
-            plane_type);
 
       // create preconditioners
       preconditioner_0 =
@@ -1067,30 +1046,51 @@ namespace Sintering
         {
           AssertThrow(false, ExcNotImplemented());
         }
+    }
 
-#if OPERATOR == 1
-      if (false)
-#else
-      if (true)
-#endif
+    BlockPreconditioner2(
+      const SinteringOperatorData<dim, VectorizedArrayType> &sintering_data,
+      const MatrixFree<dim, Number, VectorizedArrayType> &   matrix_free,
+      const AffineConstraints<Number> &                      constraints,
+      const BlockPreconditioner2Data &                       data,
+      const AdvectionMechanism<dim, Number, VectorizedArrayType> &advection,
+      const std::array<std::vector<unsigned int>, dim>
+        &                                 zero_constraints_indices,
+      const double                        E  = 1.0,
+      const double                        nu = 0.25,
+      const Structural::MaterialPlaneType plane_type =
+        Structural::MaterialPlaneType::none)
+      : BlockPreconditioner2(sintering_data,
+                             matrix_free,
+                             constraints,
+                             data,
+                             advection)
+    {
+      operator_2 =
+        std::make_unique<OperatorSolid<dim, Number, VectorizedArrayType>>(
+          matrix_free,
+          constraints,
+          sintering_data,
+          zero_constraints_indices,
+          E,
+          nu,
+          plane_type);
+
+      if (data.block_2_preconditioner == "AMG")
         {
-          if (data.block_2_preconditioner == "AMG")
-            {
-              TrilinosWrappers::PreconditionAMG::AdditionalData additional_data;
-              additional_data.smoother_sweeps =
-                data.block_2_amg_data.smoother_sweeps;
-              additional_data.n_cycles = data.block_2_amg_data.n_cycles;
-              preconditioner_2 =
-                Preconditioners::create(*operator_2,
-                                        data.block_2_preconditioner,
-                                        additional_data);
-            }
-          else
-            {
-              preconditioner_2 =
-                Preconditioners::create(*operator_2,
-                                        data.block_2_preconditioner);
-            }
+          TrilinosWrappers::PreconditionAMG::AdditionalData additional_data;
+          additional_data.smoother_sweeps =
+            data.block_2_amg_data.smoother_sweeps;
+          additional_data.n_cycles = data.block_2_amg_data.n_cycles;
+          preconditioner_2 =
+            Preconditioners::create(*operator_2,
+                                    data.block_2_preconditioner,
+                                    additional_data);
+        }
+      else
+        {
+          preconditioner_2 =
+            Preconditioners::create(*operator_2, data.block_2_preconditioner);
         }
     }
 

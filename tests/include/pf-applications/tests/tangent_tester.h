@@ -1,8 +1,8 @@
 #include <deal.II/base/conditional_ostream.h>
 
-#include <iostream>
+#include <pf-applications/tests/sintering_model.h>
 
-#include "sintering_model.h"
+#include <iostream>
 
 namespace Test
 {

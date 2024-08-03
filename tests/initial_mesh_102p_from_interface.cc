@@ -17,7 +17,7 @@
 
 #include <pf-applications/sintering/tools.h>
 
-#include "include/mesh_tester.h"
+#include <pf-applications/tests/mesh_tester.h>
 
 using namespace dealii;
 using namespace Sintering;

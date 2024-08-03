@@ -6,7 +6,7 @@
 
 #include <pf-applications/sintering/operator_sintering_generic.h>
 
-#include "include/residual_tester.h"
+#include <pf-applications/tests/residual_tester.h>
 
 using namespace dealii;
 using namespace Sintering;

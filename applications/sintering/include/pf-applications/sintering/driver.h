@@ -69,12 +69,10 @@
 
 #include <pf-applications/sintering/advection.h>
 #include <pf-applications/sintering/boundary_conditions.h>
-#include <pf-applications/sintering/creator.h>
 #include <pf-applications/sintering/initial_values.h>
 #include <pf-applications/sintering/operator_advection.h>
 #include <pf-applications/sintering/operator_postproc.h>
 #include <pf-applications/sintering/operator_sintering_coupled_base.h>
-#include <pf-applications/sintering/operator_sintering_generic.h>
 #include <pf-applications/sintering/parameters.h>
 #include <pf-applications/sintering/postprocessors.h>
 #include <pf-applications/sintering/preconditioners.h>
@@ -87,17 +85,13 @@
 #include <pf-applications/grid/constraint_helper.h>
 #include <pf-applications/matrix_free/output.h>
 
-// Available sintering operators
-#define OPERATOR_GENERIC 1
-#define OPERATOR_COUPLED_WANG 2
-#define OPERATOR_COUPLED_DIFFUSION 3
-
 namespace Sintering
 {
   using namespace dealii;
 
-
   template <int dim,
+            template <int, typename, typename>
+            typename NonLinearOperatorTpl,
             typename Number              = double,
             typename VectorizedArrayType = VectorizedArray<Number>>
   class Problem
@@ -105,13 +99,9 @@ namespace Sintering
   public:
     using VectorType = LinearAlgebra::distributed::DynamicBlockVector<Number>;
 
-    // Choose sintering operator
+    // Build up sintering operator
     using NonLinearOperator =
-#if OPERATOR == OPERATOR_GENERIC
-      SinteringOperatorGeneric<dim, Number, VectorizedArrayType>;
-#else
-#  error "Option OPERATOR has to be specified"
-#endif
+      NonLinearOperatorTpl<dim, Number, VectorizedArrayType>;
 
     const Parameters                          params;
     ConditionalOStream                        pcout;
@@ -1005,11 +995,7 @@ namespace Sintering
       else
         AssertThrow(false, ExcNotImplemented());
 
-      auto nonlinear_operator = create_sintering_operator<dim,
-                                                          Number,
-                                                          VectorizedArrayType,
-                                                          VectorType,
-                                                          NonLinearOperator>(
+      auto nonlinear_operator = NonLinearOperator::create(
         matrix_free,
         constraints,
         sintering_data,
@@ -1073,31 +1059,31 @@ namespace Sintering
       else if (params.preconditioners_data.outer_preconditioner ==
                "BlockPreconditioner2")
         {
-          // TODO: find a safer solution
-          std::array<std::vector<unsigned int>, dim> displ_constraints_indices;
-          auto displ_constraints_indices_ptr = &displ_constraints_indices;
-
-
           if constexpr (std::is_base_of_v<
                           SinteringOperatorCoupledBase<dim,
                                                        Number,
                                                        VectorizedArrayType,
                                                        NonLinearOperator>,
                           NonLinearOperator>)
-            displ_constraints_indices_ptr =
-              &nonlinear_operator.get_zero_constraints_indices();
-
-          preconditioner = std::make_unique<
-            BlockPreconditioner2<dim, Number, VectorizedArrayType>>(
-            sintering_data,
-            matrix_free,
-            constraints,
-            params.preconditioners_data.block_preconditioner_2_data,
-            advection_mechanism,
-            *displ_constraints_indices_ptr,
-            params.material_data.mechanics_data.E,
-            params.material_data.mechanics_data.nu,
-            plane_type);
+            preconditioner = std::make_unique<
+              BlockPreconditioner2<dim, Number, VectorizedArrayType>>(
+              sintering_data,
+              matrix_free,
+              constraints,
+              params.preconditioners_data.block_preconditioner_2_data,
+              advection_mechanism,
+              nonlinear_operator.get_zero_constraints_indices(),
+              params.material_data.mechanics_data.E,
+              params.material_data.mechanics_data.nu,
+              plane_type);
+          else
+            preconditioner = std::make_unique<
+              BlockPreconditioner2<dim, Number, VectorizedArrayType>>(
+              sintering_data,
+              matrix_free,
+              constraints,
+              params.preconditioners_data.block_preconditioner_2_data,
+              advection_mechanism);
         }
       else
         preconditioner = Preconditioners::create(

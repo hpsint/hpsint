@@ -25,16 +25,15 @@ DEAL_II_INITIALIZE_CACHED_VARIABLES()
 
 DEAL_II_QUERY_GIT_INFORMATION(PF_APPLICATIONS)
 
-CONFIGURE_FILE(
-  ${CMAKE_CURRENT_SOURCE_DIR}/include/pf-applications/base/revision.h.in
-  ${CMAKE_CURRENT_BINARY_DIR}/include/pf-applications/base/revision.h
-  )
-
 SET(TARGET_SRC inst.cc)
 
 PROJECT(pf-applications)
 
 ADD_LIBRARY(pf-applications  ${TARGET_SRC})
+
+install(TARGETS pf-applications LIBRARY DESTINATION lib)
+
+ADD_SUBDIRECTORY(include)
 
 # Define custom targets to easily switch the build type:
 ADD_CUSTOM_TARGET(debug
@@ -93,6 +92,8 @@ ENDIF()
 if(TARGET_SINTERING)
   message(STATUS "Building sintering targets")
   ADD_SUBDIRECTORY(applications/sintering)
+  ADD_SUBDIRECTORY(applications/sintering/include)
+  ADD_SUBDIRECTORY(applications/structural/include)
 ENDIF()
 
 if(TARGET_STRUCTURAL)
@@ -112,4 +113,3 @@ if(TARGET_TESTS AND EXISTS ${CMAKE_SOURCE_DIR}/tests/CMakeLists.txt)
   enable_testing()
   ADD_SUBDIRECTORY(tests)
 endif()
-
