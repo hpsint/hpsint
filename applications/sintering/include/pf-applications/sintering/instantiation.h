@@ -39,14 +39,15 @@ constexpr bool has_n_grains_method =
   dealii::internal::is_supported_operation<n_grains_t, T>
     &&dealii::internal::is_supported_operation<n_grains_to_n_components_t, T>;
 
-DeclException3(
+DeclException4(
   ExcInvalidNumberOfComponents,
   unsigned int,
   unsigned int,
   unsigned int,
-  << "This operation is precompiled for the number of components in range ["
+  std::string,
+  << "This operation is precompiled for the number of " << arg4 << " in range ["
   << arg1 << ", " << arg2 << "] "
-  << "but you provided n_grains = " << arg3);
+  << "but you provided n_" << arg4 << " = " << arg3);
 
 // clang-format off
 /**
@@ -85,7 +86,7 @@ DeclException3(
         {                                                                                                             \
           BOOST_PP_REPEAT_FROM_TO(1, BOOST_PP_INC(MAX_SINTERING_GRAINS), EXPAND_CONST, OPERATION);                    \
           default:                                                                                                    \
-            AssertThrow(false, ExcInvalidNumberOfComponents(0, MAX_SINTERING_GRAINS, n_grains));                      \
+            AssertThrow(false, ExcInvalidNumberOfComponents(1, MAX_SINTERING_GRAINS, n_grains, "grains"));            \
         }                                                                                                             \
     }                                                                                                                 \
   else                                                                                                                \
@@ -96,7 +97,7 @@ DeclException3(
         {                                                                                                             \
           BOOST_PP_REPEAT_FROM_TO(1, BOOST_PP_INC(EXPAND_MAX_SINTERING_COMPONENTS), EXPAND_NONCONST, OPERATION);      \
           default:                                                                                                    \
-            AssertThrow(false, ExcInvalidNumberOfComponents(1, max_components, this->n_components()));                \
+            AssertThrow(false, ExcInvalidNumberOfComponents(1, max_components, this->n_components(), "components"));  \
         }                                                                                                             \
   }
 
