@@ -39,15 +39,14 @@ constexpr bool has_n_grains_method =
   dealii::internal::is_supported_operation<n_grains_t, T>
     &&dealii::internal::is_supported_operation<n_grains_to_n_components_t, T>;
 
-DeclException4(
-  ExcInvalidNumberOfComponents,
-  unsigned int,
-  unsigned int,
-  unsigned int,
-  std::string,
-  << "This operation is precompiled for the number of " << arg4 << " in range ["
-  << arg1 << ", " << arg2 << "] "
-  << "but you provided n_" << arg4 << " = " << arg3);
+DeclException4(ExcInvalidNumberOfComponents,
+               unsigned int,
+               unsigned int,
+               unsigned int,
+               std::string,
+               << "This operation is precompiled for the number of " << arg4
+               << " in range [" << arg1 << ", " << arg2 << "] "
+               << "but you provided n_" << arg4 << " = " << arg3);
 
 // clang-format off
 /**
