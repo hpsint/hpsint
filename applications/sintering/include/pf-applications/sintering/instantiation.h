@@ -15,8 +15,6 @@
 
 #pragma once
 
-#include <utility>
-
 #include <deal.II/base/exceptions.h>
 #include <deal.II/base/template_constraints.h>
 
@@ -25,6 +23,8 @@
 #include <boost/preprocessor/arithmetic/inc.hpp>
 #include <boost/preprocessor/repetition/repeat.hpp>
 #include <boost/preprocessor/repetition/repeat_from_to.hpp>
+
+#include <utility>
 
 template <typename T>
 using n_grains_t = decltype(std::declval<T const>().n_grains());
