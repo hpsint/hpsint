@@ -35,7 +35,7 @@ struct OperatorDummyLite
   void
   dump() const
   {
-#define OPERATION(c, d) (std::cout << c << " " << d << std::endl);
+#define OPERATION(c, d) dump_imp<c, d>();
     EXPAND_OPERATIONS(OPERATION);
 #undef OPERATION
   }
