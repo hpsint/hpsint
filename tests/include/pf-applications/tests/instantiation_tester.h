@@ -17,7 +17,6 @@
 
 #include <pf-applications/sintering/instantiation.h>
 
-#include <array>
 #include <iostream>
 #include <utility>
 #include <vector>

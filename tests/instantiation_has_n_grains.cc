@@ -17,13 +17,11 @@
 
 #include <pf-applications/sintering/instantiation.h>
 
-#include <array>
 #include <iostream>
 
 template <typename U>
 struct OperatorDummyLite
-{
-};
+{};
 
 template <typename U>
 struct OperatorDummyExtended
