@@ -15,6 +15,11 @@
 
 #pragma once
 
+#include <utility>
+
+#include <deal.II/base/exceptions.h>
+#include <deal.II/base/template_constraints.h>
+
 #include <boost/preprocessor.hpp>
 #include <boost/preprocessor/arithmetic/add.hpp>
 #include <boost/preprocessor/arithmetic/inc.hpp>
@@ -78,7 +83,7 @@ DeclException3(
       AssertIndexRange(n_grains, max_grains + 1);                                                                     \
       switch (n_grains)                                                                                               \
         {                                                                                                             \
-          BOOST_PP_REPEAT(BOOST_PP_INC(MAX_SINTERING_GRAINS), EXPAND_CONST, OPERATION);                               \
+          BOOST_PP_REPEAT_FROM_TO(1, BOOST_PP_INC(MAX_SINTERING_GRAINS), EXPAND_CONST, OPERATION);                    \
           default:                                                                                                    \
             AssertThrow(false, ExcInvalidNumberOfComponents(0, MAX_SINTERING_GRAINS, n_grains));                      \
         }                                                                                                             \
