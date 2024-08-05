@@ -98,22 +98,14 @@ DeclException4(ExcInvalidNumberOfComponents,
           default:                                                                                                    \
             AssertThrow(false, ExcInvalidNumberOfComponents(1, max_components, this->n_components(), "components"));  \
         }                                                                                                             \
-  }
+    }
 
 #define EXPAND_OPERATIONS_N_COMP_NT(OPERATION)                                                               \
   constexpr int max_components = MAX_SINTERING_GRAINS + 2;                                                   \
-  AssertThrow(n_comp_nt >= 2,                                                                                \
-              ExcMessage("Number of components " +                                                           \
-                         std::to_string(n_comp_nt) +                                                         \
-                         " is not precompiled!"));                                                           \
-  AssertThrow(n_comp_nt <= max_components +2,                                                                \
-              ExcMessage("Number of components " +                                                           \
-                         std::to_string(n_comp_nt) +                                                         \
-                         " is not precompiled!"));                                                           \
   switch (n_comp_nt)                                                                                         \
     {                                                                                                        \
       BOOST_PP_REPEAT_FROM_TO(2, BOOST_PP_INC(EXPAND_MAX_SINTERING_COMPONENTS), EXPAND_NONCONST, OPERATION); \
       default:                                                                                               \
-        AssertThrow(false, ExcInvalidNumberOfComponents(2, max_components, n_comp_nt));                      \
+        AssertThrow(false, ExcInvalidNumberOfComponents(2, max_components, n_comp_nt, "components"));        \
     }
 // clang-format on

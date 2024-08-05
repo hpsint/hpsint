@@ -18,16 +18,14 @@
 int
 main()
 {
-  constexpr bool op_has_n_grains = false;
-
   Test::Variants variants_ch_ac = {{1, false},
                                    {0, false},
                                    {MAX_SINTERING_GRAINS + 1, true}};
-  Test::run_instantiation<op_has_n_grains, 2>(variants_ch_ac);
+  Test::run_instantiation<Test::Expansion::NonConst, 2>(variants_ch_ac);
 
   Test::Variants variants_ac = {{1, false},
                                 {0, true},
                                 {MAX_SINTERING_GRAINS + 1, false},
                                 {MAX_SINTERING_GRAINS + 3, true}};
-  Test::run_instantiation<op_has_n_grains, 0>(variants_ac);
+  Test::run_instantiation<Test::Expansion::NonConst, 0>(variants_ac);
 }

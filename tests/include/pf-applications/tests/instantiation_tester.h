@@ -25,6 +25,13 @@ namespace Test
 {
   using Variants = std::vector<std::pair<unsigned int, bool>>;
 
+  template <int c>
+  void
+  dump_imp()
+  {
+    std::cout << "n_components = " << c << std::endl;
+  }
+
   template <int c, int g>
   void
   dump_imp()
@@ -32,7 +39,14 @@ namespace Test
     std::cout << "n_components = " << c << " | n_grains = " << g << std::endl;
   }
 
-  template <bool extended, int n_ch>
+  enum class Expansion
+  {
+    NonConst,
+    Const,
+    NT
+  };
+
+  template <Expansion expn, int n_ch>
   struct OperatorDummy
   {
     using T = OperatorDummy;
@@ -45,9 +59,20 @@ namespace Test
     dump() const
     {
       std::cout << "set_n_grains = " << n_ac << " -> ";
+
+      if constexpr (expn != Expansion::NT)
+        {
 #define OPERATION(c, g) dump_imp<c, g>();
-      EXPAND_OPERATIONS(OPERATION);
+          EXPAND_OPERATIONS(OPERATION);
 #undef OPERATION
+        }
+      else
+        {
+          const unsigned int n_comp_nt = n_ac + n_ch;
+#define OPERATION(c, dummy) dump_imp<c>();
+          EXPAND_OPERATIONS_N_COMP_NT(OPERATION);
+#undef OPERATION
+        }
     }
 
     unsigned int
@@ -63,16 +88,16 @@ namespace Test
     }
 
     // Dummy template to enable deduction context
-    template <bool extended_ = extended>
-    std::enable_if_t<extended_, unsigned int>
+    template <bool extended = (expn == Expansion::Const)>
+    std::enable_if_t<extended, unsigned int>
     n_grains() const
     {
       return n_ac;
     }
 
     // Dummy template to enable deduction context
-    template <bool extended_ = extended>
-    static constexpr std::enable_if_t<extended_, unsigned int>
+    template <bool extended = (expn == Expansion::Const)>
+    static constexpr std::enable_if_t<extended, unsigned int>
     n_grains_to_n_components(const unsigned int n_grains)
     {
       return n_grains + n_ch;
@@ -82,12 +107,12 @@ namespace Test
     unsigned int n_ac;
   };
 
-  template <bool extended, int n_ch>
+  template <Expansion expn, int n_ch>
   void
   run_instantiation(const Variants &variants)
   {
-    constexpr unsigned int        n_ac_init = 4;
-    OperatorDummy<extended, n_ch> op(n_ac_init);
+    constexpr unsigned int    n_ac_init = 4;
+    OperatorDummy<expn, n_ch> op(n_ac_init);
 
     auto test_variant = [&op](unsigned int n_ac, bool do_throw) {
       op.set_n_grains(n_ac);
@@ -106,7 +131,7 @@ namespace Test
     };
 
     std::cout << "Test operator with n_ch = " << n_ch
-              << " and  n_ac = " << n_ac_init << std::endl;
+              << " and n_ac = " << n_ac_init << std::endl;
     op.dump();
 
     for (const auto &variant : variants)
