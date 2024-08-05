@@ -20,52 +20,14 @@
 #include <array>
 #include <iostream>
 
-template <int c, int d>
-void
-dump_imp()
-{
-  std::cout << c << " " << d << std::endl;
-}
-
 template <typename U>
 struct OperatorDummyLite
 {
-  using T = OperatorDummyLite;
-
-  void
-  dump() const
-  {
-#define OPERATION(c, d) dump_imp<c, d>();
-    EXPAND_OPERATIONS(OPERATION);
-#undef OPERATION
-  }
-
-  unsigned int
-  n_components() const
-  {
-    return 5;
-  }
 };
 
 template <typename U>
 struct OperatorDummyExtended
 {
-  using T = OperatorDummyExtended;
-
-  void
-  dump() const
-  {
-#define OPERATION(c, d) dump_imp<c, d>();
-    EXPAND_OPERATIONS(OPERATION);
-#undef OPERATION
-  }
-
-  unsigned int
-  n_components() const
-  {
-    return 5;
-  }
-
   unsigned int
   n_grains() const
   {
@@ -88,10 +50,4 @@ main()
   std::cout << "has_n_grains_method<OperatorDummyExtended> = "
             << has_n_grains_method<OperatorDummyExtended<double>> << std::endl;
   std::cout << std::noboolalpha;
-
-  OperatorDummyLite<double> opl;
-  opl.dump();
-
-  OperatorDummyExtended<double> ope;
-  ope.dump();
 }

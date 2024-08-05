@@ -1,4 +1,2 @@
 has_n_grains_method<OperatorDummyLite>     = false
 has_n_grains_method<OperatorDummyExtended> = true
-5 -1
-5 3
