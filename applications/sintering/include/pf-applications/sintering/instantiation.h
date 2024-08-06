@@ -80,7 +80,6 @@ DeclException4(ExcInvalidNumberOfComponents,
     {                                                                                                                 \
       constexpr int max_grains = MAX_SINTERING_GRAINS;                                                                \
       const unsigned int n_grains = static_cast<const T&>(*this).n_grains();                                          \
-      AssertIndexRange(n_grains, max_grains + 1);                                                                     \
       switch (n_grains)                                                                                               \
         {                                                                                                             \
           BOOST_PP_REPEAT_FROM_TO(1, BOOST_PP_INC(MAX_SINTERING_GRAINS), EXPAND_CONST, OPERATION);                    \
@@ -91,7 +90,6 @@ DeclException4(ExcInvalidNumberOfComponents,
   else                                                                                                                \
     {                                                                                                                 \
       constexpr int max_components = MAX_SINTERING_GRAINS + 2;                                                        \
-      AssertIndexRange(this->n_components(), max_components + 1);                                                     \
       switch (this->n_components())                                                                                   \
         {                                                                                                             \
           BOOST_PP_REPEAT_FROM_TO(1, BOOST_PP_INC(EXPAND_MAX_SINTERING_COMPONENTS), EXPAND_NONCONST, OPERATION);      \

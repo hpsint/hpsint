@@ -133,6 +133,7 @@ main(int argc, char **argv)
 
   // setup constraints
   constraint.clear();
+  constraint.reinit(DoFTools::extract_locally_relevant_dofs(dof_handler));
   DoFTools::make_hanging_node_constraints(dof_handler, constraint);
 
   // add periodic

@@ -184,7 +184,8 @@ namespace Test
       solution.zero_out_ghost_values();
     };
     initialize_dofs();
-    pcout << "Initial n_dofs = " << dof_handler.n_dofs() << std::endl;
+    const unsigned int initial_n_dofs = dof_handler.n_dofs();
+    pcout << "Initial n_dofs = " << initial_n_dofs << std::endl;
 
     const auto initialize_solution = [&]() {
       for (unsigned int c = 0; c < initial_solution->n_components(); ++c)
@@ -201,10 +202,20 @@ namespace Test
     };
     initialize_solution();
 
-    const unsigned int n_init_refinements =
+    unsigned int n_init_refinements =
       std::max(std::min(tria.n_global_levels() - 1, min_refinement_depth),
                n_global_levels_0 - tria.n_global_levels() +
                  max_refinement_depth);
+
+#ifndef NDEBUG
+    // Limit the number of refines in debug to make the tests faster
+    if (initial_n_dofs < 100)
+      n_init_refinements = 3;
+    else if (initial_n_dofs < 1000)
+      n_init_refinements = 2;
+    else
+      n_init_refinements = 1;
+#endif
 
     const auto execute_coarsening_and_refinement = [&]() {
       // and limit the number of levels
