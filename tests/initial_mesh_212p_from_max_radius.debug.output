@@ -1,0 +1,14 @@
+Create subdivided hyperrectangle [438.119400 x 438.318000 x 438.817100] = [-19.655400...418.464000 x -19.993500...418.324500 x -22.259000...416.558100] 
+with 4 refinements (global = 0, delayed = 4) and 3x3x3 subdivisions
+
+n_refinements_remaining = 4
+tria.n_global_levels()  = 1
+tria.n_cells(0)         = 27
+
+Initial n_dofs = 64
+Number of local refinements to be performed: 3
+refine | n_dofs | n_active_cells
+--------------------------------
+     1 |    343 |            216
+     2 |   2176 |           1707
+     3 |  13821 |          11927
