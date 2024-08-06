@@ -1,0 +1,11 @@
+Test operator with n_ch = 2 and n_ac = 4
+set_n_grains = 4 -> n_components = 6
+set_n_grains = 1 -> n_components = 3
+set_n_grains = 0 -> n_components = 2
+set_n_grains = 6 ->     This operation is precompiled for the number of components in range [2, 7] but you provided n_components = 8
+Test operator with n_ch = 0 and n_ac = 4
+set_n_grains = 4 -> n_components = 4
+set_n_grains = 1 ->     This operation is precompiled for the number of components in range [2, 7] but you provided n_components = 1
+set_n_grains = 0 ->     This operation is precompiled for the number of components in range [2, 7] but you provided n_components = 0
+set_n_grains = 6 -> n_components = 6
+set_n_grains = 8 ->     This operation is precompiled for the number of components in range [2, 7] but you provided n_components = 8

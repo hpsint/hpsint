@@ -15,11 +15,16 @@
 
 #pragma once
 
+#include <deal.II/base/exceptions.h>
+#include <deal.II/base/template_constraints.h>
+
 #include <boost/preprocessor.hpp>
 #include <boost/preprocessor/arithmetic/add.hpp>
 #include <boost/preprocessor/arithmetic/inc.hpp>
 #include <boost/preprocessor/repetition/repeat.hpp>
 #include <boost/preprocessor/repetition/repeat_from_to.hpp>
+
+#include <utility>
 
 template <typename T>
 using n_grains_t = decltype(std::declval<T const>().n_grains());
@@ -34,14 +39,14 @@ constexpr bool has_n_grains_method =
   dealii::internal::is_supported_operation<n_grains_t, T>
     &&dealii::internal::is_supported_operation<n_grains_to_n_components_t, T>;
 
-DeclException3(
-  ExcInvalidNumberOfComponents,
-  unsigned int,
-  unsigned int,
-  unsigned int,
-  << "This operation is precompiled for the number of components in range ["
-  << arg1 << ", " << arg2 << "] "
-  << "but you provided n_grains = " << arg3);
+DeclException4(ExcInvalidNumberOfComponents,
+               unsigned int,
+               unsigned int,
+               unsigned int,
+               std::string,
+               << "This operation is precompiled for the number of " << arg4
+               << " in range [" << arg1 << ", " << arg2 << "] "
+               << "but you provided n_" << arg4 << " = " << arg3);
 
 // clang-format off
 /**
@@ -78,9 +83,9 @@ DeclException3(
       AssertIndexRange(n_grains, max_grains + 1);                                                                     \
       switch (n_grains)                                                                                               \
         {                                                                                                             \
-          BOOST_PP_REPEAT(BOOST_PP_INC(MAX_SINTERING_GRAINS), EXPAND_CONST, OPERATION);                               \
+          BOOST_PP_REPEAT_FROM_TO(1, BOOST_PP_INC(MAX_SINTERING_GRAINS), EXPAND_CONST, OPERATION);                    \
           default:                                                                                                    \
-            AssertThrow(false, ExcInvalidNumberOfComponents(0, MAX_SINTERING_GRAINS, n_grains));                      \
+            AssertThrow(false, ExcInvalidNumberOfComponents(1, MAX_SINTERING_GRAINS, n_grains, "grains"));            \
         }                                                                                                             \
     }                                                                                                                 \
   else                                                                                                                \
@@ -91,24 +96,16 @@ DeclException3(
         {                                                                                                             \
           BOOST_PP_REPEAT_FROM_TO(1, BOOST_PP_INC(EXPAND_MAX_SINTERING_COMPONENTS), EXPAND_NONCONST, OPERATION);      \
           default:                                                                                                    \
-            AssertThrow(false, ExcInvalidNumberOfComponents(1, max_components, this->n_components()));                \
+            AssertThrow(false, ExcInvalidNumberOfComponents(1, max_components, this->n_components(), "components"));  \
         }                                                                                                             \
-  }
+    }
 
 #define EXPAND_OPERATIONS_N_COMP_NT(OPERATION)                                                               \
   constexpr int max_components = MAX_SINTERING_GRAINS + 2;                                                   \
-  AssertThrow(n_comp_nt >= 2,                                                                                \
-              ExcMessage("Number of components " +                                                           \
-                         std::to_string(n_comp_nt) +                                                         \
-                         " is not precompiled!"));                                                           \
-  AssertThrow(n_comp_nt <= max_components +2,                                                                \
-              ExcMessage("Number of components " +                                                           \
-                         std::to_string(n_comp_nt) +                                                         \
-                         " is not precompiled!"));                                                           \
   switch (n_comp_nt)                                                                                         \
     {                                                                                                        \
       BOOST_PP_REPEAT_FROM_TO(2, BOOST_PP_INC(EXPAND_MAX_SINTERING_COMPONENTS), EXPAND_NONCONST, OPERATION); \
       default:                                                                                               \
-        AssertThrow(false, ExcInvalidNumberOfComponents(2, max_components, n_comp_nt));                      \
+        AssertThrow(false, ExcInvalidNumberOfComponents(2, max_components, n_comp_nt, "components"));        \
     }
 // clang-format on

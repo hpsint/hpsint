@@ -1,0 +1,11 @@
+Test operator with n_ch = 2 and n_ac = 4
+set_n_grains = 4 -> n_components = 6 | n_grains = 4
+set_n_grains = 1 -> n_components = 3 | n_grains = 1
+set_n_grains = 0 ->     This operation is precompiled for the number of grains in range [1, 5] but you provided n_grains = 0
+set_n_grains = 6 ->     This operation is precompiled for the number of grains in range [1, 5] but you provided n_grains = 6
+Test operator with n_ch = 0 and n_ac = 4
+set_n_grains = 4 -> n_components = 4 | n_grains = 4
+set_n_grains = 1 -> n_components = 1 | n_grains = 1
+set_n_grains = 0 ->     This operation is precompiled for the number of grains in range [1, 5] but you provided n_grains = 0
+set_n_grains = 6 ->     This operation is precompiled for the number of grains in range [1, 5] but you provided n_grains = 6
+set_n_grains = 8 ->     This operation is precompiled for the number of grains in range [1, 5] but you provided n_grains = 8

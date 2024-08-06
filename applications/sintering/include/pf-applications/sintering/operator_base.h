@@ -649,6 +649,8 @@ namespace Sintering
       const VectorType &                                  src,
       const std::pair<unsigned int, unsigned int> &       range) const
     {
+      static_assert(n_comp > 0);
+
       FECellIntegrator<dim, n_comp, Number, VectorizedArrayType> phi(
         matrix_free, dof_index);
 
@@ -676,6 +678,8 @@ namespace Sintering
       const BlockVectorType &                             src,
       const std::pair<unsigned int, unsigned int> &       range) const
     {
+      static_assert(n_comp > 0);
+
       FECellIntegrator<dim, n_comp, Number, VectorizedArrayType> phi(
         matrix_free, dof_index);
 
@@ -703,6 +707,8 @@ namespace Sintering
       const LinearAlgebra::distributed::BlockVector<Number> &src,
       const std::pair<unsigned int, unsigned int> &          range) const
     {
+      static_assert(n_comp > 0);
+
       FECellIntegrator<dim, n_comp, Number, VectorizedArrayType> phi(
         matrix_free, dof_index);
 
