@@ -19,6 +19,8 @@
 
 #include <deal.II/grid/grid_tools.h>
 
+#include <pf-applications/base/geometry.h>
+
 #include <pf-applications/sintering/operator_sintering_data.h>
 
 #include <pf-applications/grain_tracker/tracker.h>
@@ -27,26 +29,145 @@ namespace Sintering
 {
   using namespace dealii;
 
-  template <int dim,
-            typename Number,
-            typename VectorType,
-            typename VectorizedArrayType>
+  namespace internal
+  {
+    template <int dim, typename Number, typename VectorizedArrayType>
+    std::tuple<typename Triangulation<dim>::active_cell_iterator,
+               Point<dim>,
+               unsigned int,
+               unsigned int>
+    find_containing_cell_and_dof_index(
+      const MatrixFree<dim, Number, VectorizedArrayType> &matrix_free,
+      const Mapping<dim> &                                mapping,
+      const Point<dim> &                                  origin_in)
+    {
+      const auto   comm = matrix_free.get_dof_handler().get_communicator();
+      const double tol  = 1e-10;
+
+      // Find closest vertex, the corresponding vertex index and containing cell
+      const auto first_pair = GridTools::find_active_cell_around_point(
+        mapping,
+        matrix_free.get_dof_handler().get_triangulation(),
+        origin_in,
+        {},
+        tol);
+
+      auto containing_cell = first_pair.first;
+
+      // Check if any rank found a locally_owned_cell
+      const bool is_locally_owned =
+        containing_cell !=
+          matrix_free.get_dof_handler().get_triangulation().end() &&
+        containing_cell->is_locally_owned();
+
+      // What rank actualy owns this vertex
+      unsigned int rank_having_locally_owned =
+        is_locally_owned ? Utilities::MPI::this_mpi_process(comm) :
+                           numbers::invalid_unsigned_int;
+      rank_having_locally_owned =
+        Utilities::MPI::min(rank_having_locally_owned, comm);
+
+      // If all ranks have identified ghost cells only
+      if (rank_having_locally_owned == numbers::invalid_unsigned_int)
+        {
+          if (containing_cell !=
+              matrix_free.get_dof_handler().get_triangulation().end())
+            {
+              auto all_cells = GridTools::find_all_active_cells_around_point(
+                mapping,
+                matrix_free.get_dof_handler().get_triangulation(),
+                origin_in,
+                tol,
+                first_pair);
+
+              // Iterate through all the found cells until a locally owned one
+              // is found
+              auto it_locally_owned_pair = all_cells.cbegin();
+              for (; it_locally_owned_pair != all_cells.cend() &&
+                     !it_locally_owned_pair->first->is_locally_owned();
+                   ++it_locally_owned_pair)
+                ;
+
+              // If a locally owned cell was found
+              if (it_locally_owned_pair != all_cells.cend())
+                {
+                  containing_cell = it_locally_owned_pair->first;
+                  rank_having_locally_owned =
+                    Utilities::MPI::this_mpi_process(comm);
+                }
+            }
+
+          rank_having_locally_owned =
+            Utilities::MPI::min(rank_having_locally_owned, comm);
+        }
+
+      AssertThrow(
+        rank_having_locally_owned != numbers::invalid_unsigned_int,
+        ExcMessage(
+          "Failed to identify a locally owned cell for the origin point"));
+
+      types::global_dof_index global_scalar_dof_index =
+        numbers::invalid_unsigned_int;
+      Point<dim> origin;
+
+      // If the current rank is assigned to do the job
+      if (rank_having_locally_owned == Utilities::MPI::this_mpi_process(comm))
+        {
+          auto dist_min = std::numeric_limits<double>::max();
+
+          for (unsigned int v = 0; v < containing_cell->n_vertices(); ++v)
+            {
+              const auto dist = origin_in.distance(containing_cell->vertex(v));
+              if (dist < dist_min)
+                {
+                  origin   = containing_cell->vertex(v);
+                  dist_min = dist;
+
+                  const auto dof_cell = typename DoFHandler<dim>::cell_iterator(
+                    *containing_cell, &matrix_free.get_dof_handler());
+                  global_scalar_dof_index = dof_cell->vertex_dof_index(v, 0);
+                }
+            }
+        }
+
+      // Broadcast the origin point to all ranks
+      origin =
+        Utilities::MPI::broadcast(comm, origin, rank_having_locally_owned);
+
+      return std::make_tuple(containing_cell,
+                             origin,
+                             global_scalar_dof_index,
+                             rank_having_locally_owned);
+    }
+  } // namespace internal
+
+  template <int dim, typename Number, typename VectorizedArrayType>
   void
   clamp_section(
     std::array<std::vector<unsigned int>, dim> &displ_constraints_indices,
     const MatrixFree<dim, Number, VectorizedArrayType> &matrix_free,
-    const VectorType &                                  concentration,
-    const Point<dim> &                                  origin,
-    const unsigned int                                  direction = 0)
+    const Mapping<dim> &                                mapping,
+    const Point<dim> &                                  origin_in,
+    const std::array<bool, dim> &                       directions_mask)
   {
-    concentration.update_ghost_values();
+    std::vector<unsigned int> directions;
+    for (unsigned int d = 0; d < dim; ++d)
+      if (directions_mask[d])
+        directions.push_back(d);
+
+    const auto comm = matrix_free.get_dof_handler().get_communicator();
+
+    const auto [containing_cell,
+                origin_global,
+                global_scalar_dof_index,
+                rank_having_vertex] =
+      internal::find_containing_cell_and_dof_index(matrix_free,
+                                                   mapping,
+                                                   origin_in);
 
     std::vector<types::global_dof_index> local_face_dof_indices(
       matrix_free.get_dofs_per_face());
-    std::set<types::global_dof_index> indices_to_add;
-
-    double       c_max_on_face    = 0.;
-    unsigned int id_c_max_on_face = numbers::invalid_unsigned_int;
+    std::array<std::set<types::global_dof_index>, dim> indices_to_add;
 
     // Apply constraints for displacement along the direction axis
     const auto &partitioner = matrix_free.get_vector_partitioner();
@@ -55,64 +176,54 @@ namespace Sintering
          matrix_free.get_dof_handler().active_cell_iterators())
       if (cell->is_locally_owned())
         for (const auto &face : cell->face_iterators())
-          if (std::abs(face->center()(direction) - origin[direction]) < 1e-9)
-            {
-              face->get_dof_indices(local_face_dof_indices);
+          {
+            face->get_dof_indices(local_face_dof_indices);
 
-              for (const auto i : local_face_dof_indices)
+            // Iterate over all directions
+            for (const auto &d : directions)
+              if (std::abs(face->center()(d) - origin_global[d]) < 1e-9)
                 {
-                  const auto local_index = partitioner->global_to_local(i);
-                  indices_to_add.insert(local_index);
-
-                  if (concentration.local_element(local_index) > c_max_on_face)
+                  for (const auto i : local_face_dof_indices)
                     {
-                      c_max_on_face = concentration.local_element(local_index);
-                      id_c_max_on_face = local_index;
+                      const auto local_index = partitioner->global_to_local(i);
+                      indices_to_add[d].insert(local_index);
                     }
                 }
-            }
-
-    const auto comm = matrix_free.get_dof_handler().get_communicator();
-
-    const double global_c_max_on_face =
-      Utilities::MPI::max(c_max_on_face, comm);
-
-    unsigned int rank_having_c_max =
-      std::abs(global_c_max_on_face - c_max_on_face) < 1e-16 ?
-        Utilities::MPI::this_mpi_process(comm) :
-        numbers::invalid_unsigned_int;
-    rank_having_c_max = Utilities::MPI::min(rank_having_c_max, comm);
+          }
 
     // Remove previous costraionts
     for (unsigned int d = 0; d < dim; ++d)
-      displ_constraints_indices[d].clear();
+      {
+        displ_constraints_indices[d].clear();
 
-    // Add cross-section constraints
-    std::copy(indices_to_add.begin(),
-              indices_to_add.end(),
-              std::back_inserter(displ_constraints_indices[direction]));
+        // Add cross-section constraints
+        std::copy(indices_to_add[d].begin(),
+                  indices_to_add[d].end(),
+                  std::back_inserter(displ_constraints_indices[d]));
+      }
 
     // Add pointwise constraints
     bool add_pointwise =
-      rank_having_c_max == Utilities::MPI::this_mpi_process(comm);
+      rank_having_vertex == Utilities::MPI::this_mpi_process(comm) &&
+      directions.size() < (dim - 1);
     if (add_pointwise)
-      for (unsigned int d = 0; d < dim; ++d)
-        if (d != direction)
-          displ_constraints_indices[d].push_back(id_c_max_on_face);
+      {
+        const auto local_dof_index =
+          partitioner->global_to_local(global_scalar_dof_index);
 
-    concentration.zero_out_ghost_values();
+        for (unsigned int d = 0; d < dim; ++d)
+          if (!directions_mask[d])
+            displ_constraints_indices[d].push_back(local_dof_index);
+      }
   }
 
-  template <int dim,
-            typename Number,
-            typename VectorType,
-            typename VectorizedArrayType>
+  template <int dim, typename Number, typename VectorizedArrayType>
   void
   clamp_central_section(
     std::array<std::vector<unsigned int>, dim> &displ_constraints_indices,
     const MatrixFree<dim, Number, VectorizedArrayType> &matrix_free,
-    const VectorType &                                  concentration,
-    const unsigned int                                  direction = 0)
+    const Mapping<dim> &                                mapping,
+    const std::array<bool, dim> &                       directions_mask)
   {
     // Add central constraints
     const auto bb_tria = GridTools::compute_bounding_box(
@@ -123,7 +234,7 @@ namespace Sintering
     center /= 2.;
 
     clamp_section<dim>(
-      displ_constraints_indices, matrix_free, concentration, center, direction);
+      displ_constraints_indices, matrix_free, mapping, center, directions_mask);
   }
 
   template <int dim,
@@ -134,59 +245,44 @@ namespace Sintering
   clamp_section_within_particle(
     std::array<std::vector<unsigned int>, dim> &displ_constraints_indices,
     const MatrixFree<dim, Number, VectorizedArrayType> &   matrix_free,
+    const Mapping<dim> &                                   mapping,
     const SinteringOperatorData<dim, VectorizedArrayType> &data,
     const GrainTracker::Tracker<dim, Number> &             grain_tracker,
     const BlockVectorType &                                solution,
     const Point<dim> &                                     origin_in,
-    const unsigned int                                     direction = 0,
-    const Number order_parameter_threshold                           = 0.1)
+    const std::array<bool, dim> &                          directions_mask,
+    const Number order_parameter_threshold = 0.1)
   {
     for (unsigned int b = 2; b < data.n_components(); ++b)
       solution.block(b).update_ghost_values();
+
+    std::vector<unsigned int> directions;
+    for (unsigned int d = 0; d < dim; ++d)
+      if (directions_mask[d])
+        directions.push_back(d);
 
     const auto &partitioner = matrix_free.get_vector_partitioner();
 
     const auto comm = matrix_free.get_dof_handler().get_communicator();
 
-    // Find closest vertex, the corresponding vertex index and containing cell
-    const auto containing_cell = GridTools::find_active_cell_around_point(
-      matrix_free.get_dof_handler().get_triangulation(), origin_in);
-
-    types::global_dof_index global_vertex_index = numbers::invalid_unsigned_int;
-    Point<dim>              origin;
-
-    if (containing_cell->is_locally_owned())
-      {
-        Number dist_min = std::numeric_limits<Number>::max();
-
-        for (unsigned int v = 0; v < containing_cell->n_vertices(); ++v)
-          {
-            const auto dist = origin_in.distance(containing_cell->vertex(v));
-            if (dist < dist_min)
-              {
-                global_vertex_index = containing_cell->vertex_index(v);
-                origin              = containing_cell->vertex(v);
-                dist_min            = dist;
-              }
-          }
-      }
-
-    // What rank actualy owns this vertex
-    unsigned int rank_having_vertex =
-      global_vertex_index != numbers::invalid_unsigned_int ?
-        Utilities::MPI::this_mpi_process(comm) :
-        numbers::invalid_unsigned_int;
-    rank_having_vertex = Utilities::MPI::min(rank_having_vertex, comm);
-
-    // Broadcast origin point to all ranks
-    origin = Utilities::MPI::broadcast(comm, origin, rank_having_vertex);
+    const auto [containing_cell,
+                origin_global,
+                global_scalar_dof_index,
+                rank_having_vertex] =
+      internal::find_containing_cell_and_dof_index(matrix_free,
+                                                   mapping,
+                                                   origin_in);
 
     // The owner of the origin finds the corresponding order parameter and
-    // particle ids
+    // particle ids. It may turn out that a particular particle, though being at
+    // the center of the domain, but is shrinking fast at the moment. Using it
+    // as the reference one is not a reliable option. In such cases multiple
+    // particle are detected at the origin point and the largest one is picked.
     unsigned int primary_order_parameter_id = numbers::invalid_unsigned_int;
     unsigned int primary_particle_id        = numbers::invalid_unsigned_int;
+    double       primary_grain_measure      = 0;
 
-    if (global_vertex_index != numbers::invalid_unsigned_int)
+    if (global_scalar_dof_index != numbers::invalid_unsigned_int)
       {
         const auto cell_index = containing_cell->global_active_cell_index();
         for (unsigned int ig = 0; ig < data.n_grains(); ++ig)
@@ -196,19 +292,18 @@ namespace Sintering
 
             if (particle_id_for_op != numbers::invalid_unsigned_int)
               {
-                if (primary_order_parameter_id == numbers::invalid_unsigned_int)
+                const auto grain_id =
+                  grain_tracker.get_grain_and_segment(ig, particle_id_for_op)
+                    .first;
+
+                const auto grain_measure =
+                  grain_tracker.get_grains().at(grain_id).get_measure();
+
+                if (grain_measure > primary_grain_measure)
                   {
                     primary_order_parameter_id = ig;
                     primary_particle_id        = particle_id_for_op;
-                  }
-                else
-                  {
-                    AssertThrow(
-                      false,
-                      ExcMessage(
-                        "Multiple particles located at the origin point, "
-                        "the clamping constraints can be imposed only at "
-                        "points which are not shared"));
+                    primary_grain_measure      = grain_measure;
                   }
               }
           }
@@ -230,13 +325,10 @@ namespace Sintering
     // Prepare structures for collecting indices
     std::vector<types::global_dof_index> local_face_dof_indices(
       matrix_free.get_dofs_per_face());
-    std::set<types::global_dof_index> indices_to_add;
+    std::array<std::set<types::global_dof_index>, dim> indices_to_add;
 
     // Apply constraints for displacement along the direction axis
     const auto &concentration = solution.block(primary_order_parameter_id + 2);
-
-    double       c_max_on_face    = 0.;
-    unsigned int id_c_max_on_face = numbers::invalid_unsigned_int;
 
     for (const auto &cell :
          matrix_free.get_dof_handler().active_cell_iterators())
@@ -250,57 +342,54 @@ namespace Sintering
 
           if (particle_id == primary_particle_id)
             for (const auto &face : cell->face_iterators())
-              if (std::abs(face->center()(direction) - origin[direction]) <
-                  1e-9)
-                {
-                  face->get_dof_indices(local_face_dof_indices);
+              {
+                face->get_dof_indices(local_face_dof_indices);
 
-                  for (const auto i : local_face_dof_indices)
+                // Iterate over all directions
+                for (const auto &d : directions)
+                  if (std::abs(face->center()(d) - origin_global[d]) < 1e-9)
                     {
-                      const auto local_index = partitioner->global_to_local(i);
-                      const auto concentration_local =
-                        concentration.local_element(local_index);
-
-                      // Restrain only points inside a particle
-                      if (concentration_local > order_parameter_threshold)
+                      for (const auto i : local_face_dof_indices)
                         {
-                          indices_to_add.insert(local_index);
+                          const auto local_index =
+                            partitioner->global_to_local(i);
+                          const auto concentration_local =
+                            concentration.local_element(local_index);
 
-                          if (concentration_local > c_max_on_face)
+                          // Restrain only points inside a particle
+                          if (concentration_local > order_parameter_threshold)
                             {
-                              c_max_on_face    = concentration_local;
-                              id_c_max_on_face = local_index;
+                              indices_to_add[d].insert(local_index);
                             }
                         }
                     }
-                }
+              }
         }
-
-    const double global_c_max_on_face =
-      Utilities::MPI::max(c_max_on_face, comm);
-
-    unsigned int rank_having_c_max =
-      std::abs(global_c_max_on_face - c_max_on_face) < 1e-16 ?
-        Utilities::MPI::this_mpi_process(comm) :
-        numbers::invalid_unsigned_int;
-    rank_having_c_max = Utilities::MPI::min(rank_having_c_max, comm);
 
     // Remove previous costraionts
     for (unsigned int d = 0; d < dim; ++d)
-      displ_constraints_indices[d].clear();
+      {
+        displ_constraints_indices[d].clear();
 
-    // Add cross-section constraints
-    std::copy(indices_to_add.begin(),
-              indices_to_add.end(),
-              std::back_inserter(displ_constraints_indices[direction]));
+        // Add cross-section constraints
+        std::copy(indices_to_add[d].begin(),
+                  indices_to_add[d].end(),
+                  std::back_inserter(displ_constraints_indices[d]));
+      }
 
     // Add pointwise constraints
     bool add_pointwise =
-      rank_having_c_max == Utilities::MPI::this_mpi_process(comm);
+      rank_having_vertex == Utilities::MPI::this_mpi_process(comm) &&
+      directions.size() < dim;
     if (add_pointwise)
-      for (unsigned int d = 0; d < dim; ++d)
-        if (d != direction)
-          displ_constraints_indices[d].push_back(id_c_max_on_face);
+      {
+        const auto local_dof_index =
+          partitioner->global_to_local(global_scalar_dof_index);
+
+        for (unsigned int d = 0; d < dim; ++d)
+          if (!directions_mask[d])
+            displ_constraints_indices[d].push_back(local_dof_index);
+      }
 
     for (unsigned int b = 2; b < data.n_components(); ++b)
       solution.block(b).zero_out_ghost_values();

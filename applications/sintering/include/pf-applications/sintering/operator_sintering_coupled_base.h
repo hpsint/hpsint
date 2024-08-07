@@ -44,13 +44,15 @@ namespace Sintering
       const double                                             E  = 1.0,
       const double                                             nu = 0.25,
       const Structural::MaterialPlaneType                      type =
-        Structural::MaterialPlaneType::none)
+        Structural::MaterialPlaneType::none,
+      const double c_min = 0.1)
       : SinteringOperatorBase<dim, Number, VectorizedArrayType, T>(matrix_free,
                                                                    constraints,
                                                                    data,
                                                                    history,
                                                                    matrix_based)
       , material(E, nu, type)
+      , c_min(c_min)
     {}
 
     ~SinteringOperatorCoupledBase()
@@ -62,7 +64,7 @@ namespace Sintering
     void
     update_state(const BlockVectorType &solution) override
     {
-      const double c_min = 0.1;
+      const double c_zero = 0.1;
 
       zero_c_constraints_indices.clear();
 
@@ -70,7 +72,7 @@ namespace Sintering
       for (const auto i : partitioner->locally_owned_range())
         {
           const auto local_index = partitioner->global_to_local(i);
-          if (solution.block(0).local_element(local_index) < c_min)
+          if (solution.block(0).local_element(local_index) < c_zero)
             zero_c_constraints_indices.emplace_back(local_index);
         }
     }
@@ -410,8 +412,6 @@ namespace Sintering
     get_stress(const Tensor<2, dim, VectorizedArrayType> &H,
                const VectorizedArrayType &                c) const
     {
-      const double c_min = 0.1;
-
       const auto cl = compare_and_apply_mask<SIMDComparison::less_than>(
         c, VectorizedArrayType(c_min), VectorizedArrayType(c_min), c);
 
@@ -421,6 +421,8 @@ namespace Sintering
   protected:
     const Structural::StVenantKirchhoff<dim, Number, VectorizedArrayType>
       material;
+
+    const double c_min;
 
     std::vector<unsigned int>                   zero_c_constraints_indices;
     mutable std::vector<Tensor<1, dim, Number>> zero_c_constraints_values;

@@ -146,10 +146,16 @@ namespace Sintering
           if (use_coupled_model && this->advection.enabled())
             {
               Tensor<1, dim, VectorizedArrayType> lin_v_adv;
+              VectorizedArrayType                 lin_v_adv_div(0.);
               for (unsigned int d = 0; d < dim; ++d)
-                lin_v_adv[d] = val[n_grains + 2 + d] * inv_dt;
+                {
+                  lin_v_adv[d] = val[n_grains + 2 + d] * inv_dt;
+                  lin_v_adv_div += grad[n_grains + 2 + d][d];
+                }
+              lin_v_adv_div *= inv_dt;
 
-              gradient_result[0] -= lin_v_adv * phi.get_value(q)[0];
+              value_result[0] += lin_v_adv * phi.get_gradient(q)[0] +
+                                 lin_v_adv_div * phi.get_value(q)[0];
             }
           else if (this->advection.enabled())
             {
@@ -193,7 +199,8 @@ namespace Sintering
       const double                        E  = 1.0,
       const double                        nu = 0.25,
       const Structural::MaterialPlaneType plane_type =
-        Structural::MaterialPlaneType::none)
+        Structural::MaterialPlaneType::none,
+      const double c_min = 0.1)
       : OperatorBase<dim,
                      Number,
                      VectorizedArrayType,
@@ -205,6 +212,7 @@ namespace Sintering
       , data(data)
       , displ_constraints_indices(displ_constraints_indices)
       , material(E, nu, plane_type)
+      , c_min(c_min)
     {}
 
     unsigned int
@@ -267,8 +275,6 @@ namespace Sintering
     get_stress(const Tensor<2, dim, VectorizedArrayType> &H,
                const VectorizedArrayType &                c) const
     {
-      const double c_min = 0.1;
-
       const auto cl = compare_and_apply_mask<SIMDComparison::less_than>(
         c, VectorizedArrayType(c_min), VectorizedArrayType(c_min), c);
 
@@ -281,6 +287,8 @@ namespace Sintering
 
     const Structural::StVenantKirchhoff<dim, Number, VectorizedArrayType>
       material;
+
+    const double c_min;
   };
 
 
@@ -342,7 +350,8 @@ namespace Sintering
           const auto &L           = data.get_mobility().Lgb();
           const auto &kappa_p     = data.kappa_p;
           const auto  weight      = this->data.time_data.get_primary_weight();
-          const auto &nonlinear_values = data.get_nonlinear_values();
+          const auto &nonlinear_values    = data.get_nonlinear_values();
+          const auto &nonlinear_gradients = data.get_nonlinear_gradients();
           const auto  inv_dt = 1. / this->data.time_data.get_current_dt();
 
           const bool use_coupled_model =
@@ -356,7 +365,8 @@ namespace Sintering
 
           for (unsigned int q = 0; q < phi.n_q_points; ++q)
             {
-              const auto &val = nonlinear_values[cell][q];
+              const auto &val  = nonlinear_values[cell][q];
+              const auto &grad = nonlinear_gradients[cell][q];
 
               const auto &c = val[0];
 
@@ -390,11 +400,17 @@ namespace Sintering
               if (use_coupled_model && this->advection.enabled())
                 {
                   Tensor<1, dim, VectorizedArrayType> lin_v_adv;
+                  VectorizedArrayType                 lin_v_adv_div(0.);
                   for (unsigned int d = 0; d < dim; ++d)
-                    lin_v_adv[d] = val[n_grains + 2 + d] * inv_dt;
+                    {
+                      lin_v_adv[d] = val[n_grains + 2 + d] * inv_dt;
+                      lin_v_adv_div += grad[n_grains + 2 + d][d];
+                    }
+                  lin_v_adv_div *= inv_dt;
 
                   for (unsigned int ig = 0; ig < n_grains; ++ig)
-                    gradient_result[ig] -= lin_v_adv * phi.get_value(q)[ig];
+                    value_result[ig] += lin_v_adv * phi.get_gradient(q)[ig] +
+                                        lin_v_adv_div * phi.get_value(q)[ig];
                 }
               else if (this->advection.enabled())
                 {
@@ -511,11 +527,12 @@ namespace Sintering
         {
           const unsigned int cell = phi.get_current_cell_index();
 
-          const auto &free_energy      = data.free_energy;
-          const auto &L                = data.get_mobility().Lgb();
-          const auto &kappa_p          = data.kappa_p;
-          const auto  weight           = data.time_data.get_primary_weight();
-          const auto &nonlinear_values = data.get_nonlinear_values();
+          const auto &free_energy         = data.free_energy;
+          const auto &L                   = data.get_mobility().Lgb();
+          const auto &kappa_p             = data.kappa_p;
+          const auto  weight              = data.time_data.get_primary_weight();
+          const auto &nonlinear_values    = data.get_nonlinear_values();
+          const auto &nonlinear_gradients = data.get_nonlinear_gradients();
           const auto  inv_dt = 1. / this->data.time_data.get_current_dt();
 
           const bool use_coupled_model =
@@ -529,7 +546,8 @@ namespace Sintering
 
           for (unsigned int q = 0; q < phi.n_q_points; ++q)
             {
-              const auto &val = nonlinear_values[cell][q];
+              const auto &val  = nonlinear_values[cell][q];
+              const auto &grad = nonlinear_gradients[cell][q];
 
               const auto &c = val[0];
 
@@ -553,11 +571,17 @@ namespace Sintering
               if (use_coupled_model && this->advection.enabled())
                 {
                   Tensor<1, dim, VectorizedArrayType> lin_v_adv;
+                  VectorizedArrayType                 lin_v_adv_div(0.);
                   for (unsigned int d = 0; d < dim; ++d)
-                    lin_v_adv[d] = val[n_grains + 2 + d] * inv_dt;
+                    {
+                      lin_v_adv[d] = val[n_grains + 2 + d] * inv_dt;
+                      lin_v_adv_div += grad[n_grains + 2 + d][d];
+                    }
+                  lin_v_adv_div *= inv_dt;
 
                   for (unsigned int ig = 0; ig < n_grains; ++ig)
-                    gradient_result[ig] -= lin_v_adv * phi.get_value(q)[ig];
+                    value_result[ig] += lin_v_adv * phi.get_gradient(q)[ig] +
+                                        lin_v_adv_div * phi.get_value(q)[ig];
                 }
               else if (this->advection.enabled())
                 {
@@ -681,11 +705,12 @@ namespace Sintering
                             integrator.get_active_quadrature_index())
             .lexicographic_numbering;
 
-        const auto &free_energy      = data.free_energy;
-        const auto &L                = data.get_mobility().Lgb();
-        const auto &kappa_p          = data.kappa_p;
-        const auto  weight           = data.time_data.get_primary_weight();
-        const auto &nonlinear_values = data.get_nonlinear_values();
+        const auto &free_energy         = data.free_energy;
+        const auto &L                   = data.get_mobility().Lgb();
+        const auto &kappa_p             = data.kappa_p;
+        const auto  weight              = data.time_data.get_primary_weight();
+        const auto &nonlinear_values    = data.get_nonlinear_values();
+        const auto &nonlinear_gradients = data.get_nonlinear_gradients();
         const auto  inv_dt = 1. / this->data.time_data.get_current_dt();
 
         const bool use_coupled_model = data.has_additional_variables_attached();
@@ -798,7 +823,8 @@ namespace Sintering
 
                     for (unsigned int q = 0; q < integrator.n_q_points; ++q)
                       {
-                        const auto &val = nonlinear_values[cell][q];
+                        const auto &val  = nonlinear_values[cell][q];
+                        const auto &grad = nonlinear_gradients[cell][q];
 
                         auto value    = integrator.get_value(q);
                         auto gradient = integrator.get_gradient(q);
@@ -821,11 +847,18 @@ namespace Sintering
                             if (use_coupled_model)
                               {
                                 Tensor<1, dim, VectorizedArrayType> lin_v_adv;
+                                VectorizedArrayType lin_v_adv_div(0.);
                                 for (unsigned int d = 0; d < dim; ++d)
-                                  lin_v_adv[d] =
-                                    val[this->n_grains() + 2 + d] * inv_dt;
+                                  {
+                                    lin_v_adv[d] =
+                                      val[this->n_grains() + 2 + d] * inv_dt;
+                                    lin_v_adv_div +=
+                                      grad[this->n_grains() + 2 + d][d];
+                                  }
+                                lin_v_adv_div *= inv_dt;
 
-                                gradient_result -= lin_v_adv * value;
+                                value_result +=
+                                  lin_v_adv * gradient + lin_v_adv_div * value;
                               }
                             else if (grain_to_relevant_grain[b] !=
                                        static_cast<unsigned char>(255) &&
