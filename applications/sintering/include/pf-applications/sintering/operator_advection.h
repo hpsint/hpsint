@@ -164,6 +164,9 @@ namespace Sintering
       std::pair<unsigned int, unsigned int> range{
         0, this->matrix_free.n_cell_batches()};
 
+      AdvectionVelocityData<dim, Number, VectorizedArrayType> advection_data(
+        advection_mechanism, data);
+
       bool status = true;
 
       for (auto cell = range.first; cell < range.second; ++cell)
@@ -174,19 +177,17 @@ namespace Sintering
           phi.reinit(cell);
 
           // Reinit advection data for the current cells batch
-          advection_mechanism.reinit(cell);
+          advection_data.reinit(cell);
 
           const auto grain_to_relevant_grain =
             this->data.get_grain_to_relevant_grain(cell);
 
           for (unsigned int ig = 0; ig < n_grains() && status; ++ig)
-            if (grain_to_relevant_grain[ig] !=
-                  static_cast<unsigned char>(255) &&
-                advection_mechanism.has_velocity(grain_to_relevant_grain[ig]))
+            if (advection_data.has_velocity(ig))
               for (unsigned int q = 0; q < phi.n_q_points; ++q)
                 {
-                  const auto &velocity_ig = advection_mechanism.get_velocity(
-                    grain_to_relevant_grain[ig], phi.quadrature_point(q));
+                  const auto &velocity_ig =
+                    advection_data.get_velocity(ig, phi.quadrature_point(q));
 
                   // Check Courant condition
                   const auto cdt = velocity_ig.norm() * dt;
