@@ -264,7 +264,7 @@ main(int argc, char **argv)
 
       if constexpr (test_sintering_generic)
         {
-          if (n_components >= 2) // test sintering operator
+          if (n_components >= 3) // test sintering operator
             {
               const std::shared_ptr<MobilityProvider> mobility_provider =
                 std::make_shared<ProviderAbstract>(Mvol, Mvap, Msurf, Mgb, L);
@@ -316,7 +316,7 @@ main(int argc, char **argv)
 
       if constexpr (test_sintering_wang)
         {
-          if (n_components >= 2) // test wang operator
+          if (n_components >= 3) // test wang operator
             {
               const std::shared_ptr<MobilityProvider> mobility_provider =
                 std::make_shared<ProviderAbstract>(Mvol, Mvap, Msurf, Mgb, L);
