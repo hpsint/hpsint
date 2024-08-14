@@ -29,7 +29,7 @@ main(int argc, char **argv)
 
   constexpr unsigned int dim = 2;
   using Number               = double;
-  using VectorizedArrayType  = VectorizedArray<Number>;
+  using VectorizedArrayType  = VectorizedArray<Number, 2>;
 
   const unsigned int n_global_refinements = 2;
   const unsigned int fe_degree            = 1;
