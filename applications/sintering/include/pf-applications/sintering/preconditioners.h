@@ -763,8 +763,6 @@ namespace Sintering
 
                     for (unsigned int q = 0; q < integrator.n_q_points; ++q)
                       {
-                        const auto &val = nonlinear_data.values[q];
-
                         auto value    = integrator.get_value(q);
                         auto gradient = integrator.get_gradient(q);
 
