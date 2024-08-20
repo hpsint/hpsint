@@ -938,7 +938,11 @@ namespace Sintering
 
 
 
-  template <int dim, typename Number, typename VectorizedArrayType>
+  template <int dim,
+            typename Number,
+            typename VectorizedArrayType,
+            template <int dim_, typename Number_, typename VectorizedArrayType_>
+            typename NonLinearOperator>
   class BlockPreconditioner2
     : public Preconditioners::PreconditionerBase<Number>
   {
@@ -960,21 +964,24 @@ namespace Sintering
       : data(data)
     {
       // create operators
-      operator_0 = std::make_unique<
-        OperatorCahnHilliard<dim, Number, VectorizedArrayType>>(matrix_free,
-                                                                constraints,
-                                                                sintering_data,
-                                                                advection);
-      operator_1 =
-        std::make_unique<OperatorAllenCahn<dim, Number, VectorizedArrayType>>(
-          matrix_free, constraints, sintering_data, advection);
-      operator_1_blocked = std::make_unique<
-        OperatorAllenCahnBlocked<dim, Number, VectorizedArrayType>>(
-        matrix_free,
-        constraints,
-        sintering_data,
-        advection,
-        data.block_1_approximation);
+      operator_0 = std::make_unique<OperatorCahnHilliard<dim,
+                                                         Number,
+                                                         VectorizedArrayType,
+                                                         NonLinearOperator>>(
+        matrix_free, constraints, sintering_data, advection);
+      operator_1 = std::make_unique<
+        OperatorAllenCahn<dim, Number, VectorizedArrayType, NonLinearOperator>>(
+        matrix_free, constraints, sintering_data, advection);
+      operator_1_blocked =
+        std::make_unique<OperatorAllenCahnBlocked<dim,
+                                                  Number,
+                                                  VectorizedArrayType,
+                                                  NonLinearOperator>>(
+          matrix_free,
+          constraints,
+          sintering_data,
+          advection,
+          data.block_1_approximation);
 
       // create preconditioners
       preconditioner_0 =
@@ -1072,22 +1079,25 @@ namespace Sintering
       AssertDimension(max_level, mg_constraints.max_level());
 
       // create operators
-      operator_0 = std::make_unique<
-        OperatorCahnHilliard<dim, Number, VectorizedArrayType>>(matrix_free,
-                                                                constraints,
-                                                                sintering_data,
-                                                                advection);
+      operator_0 = std::make_unique<OperatorCahnHilliard<dim,
+                                                         Number,
+                                                         VectorizedArrayType,
+                                                         NonLinearOperator>>(
+        matrix_free, constraints, sintering_data, advection);
 
       if (data.block_1_preconditioner == "GMG")
         {
           mg_operator_1.resize(min_level, max_level);
           for (unsigned int l = min_level; l <= max_level; ++l)
-            mg_operator_1[l] = std::make_shared<
-              OperatorAllenCahn<dim, Number, VectorizedArrayType>>(
-              mg_matrix_free[l],
-              mg_constraints[l],
-              mg_sintering_data[l],
-              advection);
+            mg_operator_1[l] =
+              std::make_shared<OperatorAllenCahn<dim,
+                                                 Number,
+                                                 VectorizedArrayType,
+                                                 NonLinearOperator>>(
+                mg_matrix_free[l],
+                mg_constraints[l],
+                mg_sintering_data[l],
+                advection);
           for (unsigned int l = min_level; l <= max_level; ++l)
             mg_operator_1[l]->set_timing(false);
         }
@@ -1095,13 +1105,16 @@ namespace Sintering
         {
           mg_operator_blocked_1.resize(min_level, max_level);
           for (unsigned int l = min_level; l <= max_level; ++l)
-            mg_operator_blocked_1[l] = std::make_shared<
-              OperatorAllenCahnBlocked<dim, Number, VectorizedArrayType>>(
-              mg_matrix_free[l],
-              mg_constraints[l],
-              mg_sintering_data[l],
-              advection,
-              data.block_1_approximation);
+            mg_operator_blocked_1[l] =
+              std::make_shared<OperatorAllenCahnBlocked<dim,
+                                                        Number,
+                                                        VectorizedArrayType,
+                                                        NonLinearOperator>>(
+                mg_matrix_free[l],
+                mg_constraints[l],
+                mg_sintering_data[l],
+                advection,
+                data.block_1_approximation);
           for (unsigned int l = min_level; l <= max_level; ++l)
             mg_operator_blocked_1[l]->set_timing(false);
         }
@@ -1234,23 +1247,30 @@ namespace Sintering
 
   private:
     // operator CH
-    std::unique_ptr<OperatorCahnHilliard<dim, Number, VectorizedArrayType>>
+    std::unique_ptr<
+      OperatorCahnHilliard<dim, Number, VectorizedArrayType, NonLinearOperator>>
       operator_0;
 
     // operator AC
-    std::unique_ptr<OperatorAllenCahn<dim, Number, VectorizedArrayType>>
+    std::unique_ptr<
+      OperatorAllenCahn<dim, Number, VectorizedArrayType, NonLinearOperator>>
       operator_1;
-    std::unique_ptr<OperatorAllenCahnBlocked<dim, Number, VectorizedArrayType>>
+    std::unique_ptr<OperatorAllenCahnBlocked<dim,
+                                             Number,
+                                             VectorizedArrayType,
+                                             NonLinearOperator>>
       operator_1_blocked;
 
     // operator solid
     std::unique_ptr<OperatorSolid<dim, Number, VectorizedArrayType>> operator_2;
 
-    MGLevelObject<
-      std::shared_ptr<OperatorAllenCahn<dim, Number, VectorizedArrayType>>>
-      mg_operator_1;
     MGLevelObject<std::shared_ptr<
-      OperatorAllenCahnBlocked<dim, Number, VectorizedArrayType>>>
+      OperatorAllenCahn<dim, Number, VectorizedArrayType, NonLinearOperator>>>
+      mg_operator_1;
+    MGLevelObject<std::shared_ptr<OperatorAllenCahnBlocked<dim,
+                                                           Number,
+                                                           VectorizedArrayType,
+                                                           NonLinearOperator>>>
       mg_operator_blocked_1;
 
     // preconditioners
