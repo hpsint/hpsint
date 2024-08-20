@@ -25,14 +25,19 @@
 namespace Sintering
 {
   using namespace dealii;
-
-  template <int dim, typename Number, typename VectorizedArrayType>
+  template <int dim,
+            typename Number,
+            typename VectorizedArrayType,
+            template <int dim_, typename Number_, typename VectorizedArrayType_>
+            typename NonLinearOperator>
   class OperatorCahnHilliard
-    : public OperatorBase<
-        dim,
-        Number,
-        VectorizedArrayType,
-        OperatorCahnHilliard<dim, Number, VectorizedArrayType>>
+    : public OperatorBase<dim,
+                          Number,
+                          VectorizedArrayType,
+                          OperatorCahnHilliard<dim,
+                                               Number,
+                                               VectorizedArrayType,
+                                               NonLinearOperator>>
   {
   public:
     OperatorCahnHilliard(
@@ -43,7 +48,10 @@ namespace Sintering
       : OperatorBase<dim,
                      Number,
                      VectorizedArrayType,
-                     OperatorCahnHilliard<dim, Number, VectorizedArrayType>>(
+                     OperatorCahnHilliard<dim,
+                                          Number,
+                                          VectorizedArrayType,
+                                          NonLinearOperator>>(
           matrix_free,
           constraints,
           0,
@@ -77,15 +85,10 @@ namespace Sintering
       static_assert(n_grains != -1);
       const unsigned int cell = phi.get_current_cell_index();
 
-      const auto &free_energy      = data.free_energy;
-      const auto &mobility         = data.get_mobility();
-      const auto &kappa_c          = data.kappa_c;
-      const auto  weight           = this->data.time_data.get_primary_weight();
-      const auto &nonlinear_values = data.get_nonlinear_values();
-      const auto &nonlinear_gradients = data.get_nonlinear_gradients();
-      const auto  inv_dt = 1. / this->data.time_data.get_current_dt();
-
-      const bool use_coupled_model = data.has_additional_variables_attached();
+      const auto &free_energy = data.free_energy;
+      const auto &mobility    = data.get_mobility();
+      const auto &kappa_c     = data.kappa_c;
+      const auto  weight      = this->data.time_data.get_primary_weight();
 
       // TODO: 1) allow std::array again and 2) allocate less often in the
       // case of std::vector
@@ -95,10 +98,14 @@ namespace Sintering
       const AdvectionVelocityData<dim, Number, VectorizedArrayType>
         advection_data(cell, this->advection, this->data);
 
+      const SinteringNonLinearData<dim, VectorizedArrayType> nonlinear_data{
+        data.get_nonlinear_values()[cell],
+        data.get_nonlinear_gradients()[cell]};
+
       for (unsigned int q = 0; q < phi.n_q_points; ++q)
         {
-          const auto &val  = nonlinear_values[cell][q];
-          const auto &grad = nonlinear_gradients[cell][q];
+          const auto &val  = nonlinear_data.values[q];
+          const auto &grad = nonlinear_data.gradients[q];
 
           const auto &c       = val[0];
           const auto &c_grad  = grad[0];
@@ -139,25 +146,15 @@ namespace Sintering
           gradient_result[1] = kappa_c * phi.get_gradient(q)[0];
 #endif
 
-          if (use_coupled_model && this->advection.enabled())
-            {
-              Tensor<1, dim, VectorizedArrayType> lin_v_adv;
-              for (unsigned int d = 0; d < dim; ++d)
-                lin_v_adv[d] = val[n_grains + 2 + d] * inv_dt;
-
-              gradient_result[0] -= lin_v_adv * phi.get_value(q)[0];
-            }
-          else if (this->advection.enabled())
-            {
-              for (unsigned int ig = 0; ig < n_grains; ++ig)
-                if (advection_data.has_velocity(ig))
-                  {
-                    const auto &velocity_ig =
-                      advection_data.get_velocity(ig, phi.quadrature_point(q));
-
-                    gradient_result[0] -= velocity_ig * phi.get_value(q)[0];
-                  }
-            }
+          if (this->advection.enabled())
+            NonLinearOperator<dim, Number, VectorizedArrayType>::
+              precondition_advection_ch(q,
+                                        advection_data,
+                                        this->data,
+                                        nonlinear_data,
+                                        phi,
+                                        value_result,
+                                        gradient_result);
 
           phi.submit_value(value_result, q);
           phi.submit_gradient(gradient_result, q);
