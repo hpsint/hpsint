@@ -408,13 +408,19 @@ namespace Sintering
 
 
 
-  template <int dim, typename Number, typename VectorizedArrayType>
+  template <int dim,
+            typename Number,
+            typename VectorizedArrayType,
+            template <int dim_, typename Number_, typename VectorizedArrayType_>
+            typename NonLinearOperator>
   class OperatorAllenCahnBlocked
-    : public OperatorBase<
-        dim,
-        Number,
-        VectorizedArrayType,
-        OperatorAllenCahnBlocked<dim, Number, VectorizedArrayType>>
+    : public OperatorBase<dim,
+                          Number,
+                          VectorizedArrayType,
+                          OperatorAllenCahnBlocked<dim,
+                                                   Number,
+                                                   VectorizedArrayType,
+                                                   NonLinearOperator>>
   {
   public:
     OperatorAllenCahnBlocked(
@@ -423,15 +429,17 @@ namespace Sintering
       const SinteringOperatorData<dim, VectorizedArrayType> &     data,
       const AdvectionMechanism<dim, Number, VectorizedArrayType> &advection,
       const std::string free_energy_approximation_string = "all")
-      : OperatorBase<
-          dim,
-          Number,
-          VectorizedArrayType,
-          OperatorAllenCahnBlocked<dim, Number, VectorizedArrayType>>(
+      : OperatorBase<dim,
+                     Number,
+                     VectorizedArrayType,
+                     OperatorAllenCahnBlocked<dim,
+                                              Number,
+                                              VectorizedArrayType,
+                                              NonLinearOperator>>(
           matrix_free,
           constraints,
           0,
-          "allen_cahn_op")
+          "allen_cahn_op_blocked")
       , data(data)
       , advection(advection)
       , free_energy_approximation(to_value(free_energy_approximation_string))
@@ -489,22 +497,21 @@ namespace Sintering
         {
           const unsigned int cell = phi.get_current_cell_index();
 
-          const auto &free_energy      = data.free_energy;
-          const auto &L                = data.get_mobility().Lgb();
-          const auto &kappa_p          = data.kappa_p;
-          const auto  weight           = data.time_data.get_primary_weight();
-          const auto &nonlinear_values = data.get_nonlinear_values();
-          const auto  inv_dt = 1. / this->data.time_data.get_current_dt();
-
-          const bool use_coupled_model =
-            data.has_additional_variables_attached();
+          const auto &free_energy = data.free_energy;
+          const auto &L           = data.get_mobility().Lgb();
+          const auto &kappa_p     = data.kappa_p;
+          const auto  weight      = data.time_data.get_primary_weight();
 
           const AdvectionVelocityData<dim, Number, VectorizedArrayType>
             advection_data(cell, this->advection, this->data);
 
+          const SinteringNonLinearData<dim, VectorizedArrayType> nonlinear_data{
+            data.get_nonlinear_values()[cell],
+            data.get_nonlinear_gradients()[cell]};
+
           for (unsigned int q = 0; q < phi.n_q_points; ++q)
             {
-              const auto &val = nonlinear_values[cell][q];
+              const auto &val = nonlinear_data.values[q];
 
               const auto &c = val[0];
 
@@ -525,28 +532,15 @@ namespace Sintering
                   gradient_result[ig] = L * kappa_p * phi.get_gradient(q)[ig];
                 }
 
-              if (use_coupled_model && this->advection.enabled())
-                {
-                  Tensor<1, dim, VectorizedArrayType> lin_v_adv;
-                  for (unsigned int d = 0; d < dim; ++d)
-                    lin_v_adv[d] = val[n_grains + 2 + d] * inv_dt;
-
-                  for (unsigned int ig = 0; ig < n_grains; ++ig)
-                    gradient_result[ig] -= lin_v_adv * phi.get_value(q)[ig];
-                }
-              else if (this->advection.enabled())
-                {
-                  for (unsigned int ig = 0; ig < n_grains; ++ig)
-                    if (advection_data.has_velocity(ig))
-                      {
-                        const auto &velocity_ig =
-                          advection_data.get_velocity(ig,
-                                                      phi.quadrature_point(q));
-
-                        gradient_result[ig] -=
-                          velocity_ig * phi.get_value(q)[ig];
-                      }
-                }
+              if (this->advection.enabled())
+                NonLinearOperator<dim, Number, VectorizedArrayType>::
+                  precondition_advection_ac(q,
+                                            advection_data,
+                                            this->data,
+                                            nonlinear_data,
+                                            phi,
+                                            value_result,
+                                            gradient_result);
 
               phi.submit_value(value_result, q);
               phi.submit_gradient(gradient_result, q);
@@ -654,14 +648,10 @@ namespace Sintering
                             integrator.get_active_quadrature_index())
             .lexicographic_numbering;
 
-        const auto &free_energy      = data.free_energy;
-        const auto &L                = data.get_mobility().Lgb();
-        const auto &kappa_p          = data.kappa_p;
-        const auto  weight           = data.time_data.get_primary_weight();
-        const auto &nonlinear_values = data.get_nonlinear_values();
-        const auto  inv_dt = 1. / this->data.time_data.get_current_dt();
-
-        const bool use_coupled_model = data.has_additional_variables_attached();
+        const auto &free_energy = data.free_energy;
+        const auto &L           = data.get_mobility().Lgb();
+        const auto &kappa_p     = data.kappa_p;
+        const auto  weight      = data.time_data.get_primary_weight();
 
         const auto &component_table = this->data.get_component_table();
 
@@ -674,6 +664,10 @@ namespace Sintering
              ++cell)
           {
             integrator.reinit(cell);
+
+            const SinteringNonLinearData<dim, VectorizedArrayType>
+              nonlinear_data{data.get_nonlinear_values()[cell],
+                             data.get_nonlinear_gradients()[cell]};
 
             const unsigned int n_filled_lanes =
               this->matrix_free.n_active_entries_per_cell_batch(cell);
@@ -701,7 +695,7 @@ namespace Sintering
 
             for (unsigned int q = 0; q < integrator.n_q_points; ++q)
               {
-                const auto &val = nonlinear_values[cell][q];
+                const auto &val = nonlinear_data.values[q];
                 const auto &c   = val[0];
 
                 for (unsigned int ig = 0; ig < this->n_grains(); ++ig)
@@ -748,7 +742,7 @@ namespace Sintering
                   {
                     for (unsigned int q = 0; q < integrator.n_q_points; ++q)
                       {
-                        const auto &val = nonlinear_values[cell][q];
+                        const auto &val = nonlinear_data.values[q];
                         const auto &c   = val[0];
 
                         for (unsigned int ig = 0; ig < this->n_grains(); ++ig)
@@ -769,7 +763,7 @@ namespace Sintering
 
                     for (unsigned int q = 0; q < integrator.n_q_points; ++q)
                       {
-                        const auto &val = nonlinear_values[cell][q];
+                        const auto &val = nonlinear_data.values[q];
 
                         auto value    = integrator.get_value(q);
                         auto gradient = integrator.get_gradient(q);
@@ -788,25 +782,15 @@ namespace Sintering
 
                         if (free_energy_approximation == 0 &&
                             this->advection.enabled())
-                          {
-                            if (use_coupled_model)
-                              {
-                                Tensor<1, dim, VectorizedArrayType> lin_v_adv;
-                                for (unsigned int d = 0; d < dim; ++d)
-                                  lin_v_adv[d] =
-                                    val[this->n_grains() + 2 + d] * inv_dt;
-
-                                gradient_result -= lin_v_adv * value;
-                              }
-                            else if (advection_data.has_velocity(b))
-                              {
-                                const auto &velocity_ig =
-                                  advection_data.get_velocity(
-                                    b, integrator.quadrature_point(q));
-
-                                gradient_result -= velocity_ig * value;
-                              }
-                          }
+                          NonLinearOperator<dim, Number, VectorizedArrayType>::
+                            precondition_advection_ac(q,
+                                                      b,
+                                                      advection_data,
+                                                      this->data,
+                                                      nonlinear_data,
+                                                      integrator,
+                                                      value_result,
+                                                      gradient_result);
 
 
                         if (free_energy_approximation == 0 &&
