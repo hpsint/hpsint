@@ -55,13 +55,9 @@ namespace Sintering
       , kappa_p(data.kappa_p)
       , weight(data.time_data.get_primary_weight())
       , L(mobility.Lgb())
-      , advection(advection)
+      , advection_data(cell, advection, data)
       , gradient_buffer(gradient_buffer)
     {
-      // Reinit advection data for the current cells batch
-      if (this->advection.enabled())
-        this->advection.reinit(cell);
-
       if (gradient_buffer != nullptr)
         {
           const auto &shape_values =
@@ -176,12 +172,12 @@ namespace Sintering
 
 
       // 4) add advection contributations -> influences c AND etas
-      if (this->advection.enabled())
+      if (!advection_data.empty())
         for (unsigned int ig = 0; ig < n_grains; ++ig)
-          if (this->advection.has_velocity(ig))
+          if (advection_data.has_velocity(ig))
             {
               const auto &velocity_ig =
-                this->advection.get_velocity(ig, phi.quadrature_point(q));
+                advection_data.get_velocity(ig, phi.quadrature_point(q));
 
               gradient_result[0] -= velocity_ig * value[0];
               gradient_result[2 + ig] -= velocity_ig * value[2 + ig];
@@ -207,12 +203,13 @@ namespace Sintering
     const dealii::Tensor<1, dim, VectorizedArrayType> mutable *lin_gradient;
     const FreeEnergy<VectorizedArrayType> &                    free_energy;
     const typename SinteringOperatorData<dim, VectorizedArrayType>::MobilityType
-      &                                                         mobility;
-    const Number                                                kappa_c;
-    const Number                                                kappa_p;
-    const Number                                                weight;
-    const Number                                                L;
-    const AdvectionMechanism<dim, Number, VectorizedArrayType> &advection;
+      &          mobility;
+    const Number kappa_c;
+    const Number kappa_p;
+    const Number weight;
+    const Number L;
+    const AdvectionVelocityData<dim, Number, VectorizedArrayType>
+      advection_data;
 
     Tensor<1, n_comp, VectorizedArrayType> *gradient_buffer;
 
@@ -730,13 +727,15 @@ namespace Sintering
 
       std::vector<VectorizedArrayType> temp(n_entries, VectorizedArrayType(0.));
 
+      AdvectionVelocityData<dim, Number, VectorizedArrayType> advection_data(
+        this->advection, this->data);
+
       for (unsigned int cell = 0; cell < this->matrix_free.n_cell_batches();
            ++cell)
         {
           fe_eval.reinit(cell);
 
-          if (this->advection.enabled())
-            this->advection.reinit(cell);
+          advection_data.reinit(cell);
 
           for (unsigned int q = 0; q < fe_eval.n_q_points; ++q)
             {
@@ -747,9 +746,9 @@ namespace Sintering
                 {
                   // add advection contributations
                   for (unsigned int ig = 0; ig < n_grains; ++ig)
-                    if (this->advection.has_velocity(ig))
+                    if (advection_data.has_velocity(ig))
                       {
-                        const auto &velocity_ig = this->advection.get_velocity(
+                        const auto &velocity_ig = advection_data.get_velocity(
                           ig, fe_eval.quadrature_point(q));
 
                         for (unsigned int d = 0; d < dim; ++d)
@@ -817,8 +816,8 @@ namespace Sintering
                    EvaluationFlags::EvaluationFlags::gradients);
 
       // Reinit advection data for the current cells batch
-      if (this->advection.enabled())
-        this->advection.reinit(cell);
+      const AdvectionVelocityData<dim, Number, VectorizedArrayType>
+        advection_data(cell, this->advection, this->data);
 
       for (unsigned int q = 0; q < phi.n_q_points; ++q)
         {
@@ -830,10 +829,10 @@ namespace Sintering
           // 4) add advection contributations -> influences c AND etas
           if (this->advection.enabled())
             for (unsigned int ig = 0; ig < n_grains; ++ig)
-              if (this->advection.has_velocity(ig))
+              if (advection_data.has_velocity(ig))
                 {
                   const auto &velocity_ig =
-                    this->advection.get_velocity(ig, phi.quadrature_point(q));
+                    advection_data.get_velocity(ig, phi.quadrature_point(q));
 
                   gradient_result[0] -= velocity_ig * value[0];
                   gradient_result[2 + ig] -= velocity_ig * value[2 + ig];

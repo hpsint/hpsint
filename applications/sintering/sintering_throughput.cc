@@ -264,7 +264,7 @@ main(int argc, char **argv)
 
       if constexpr (test_sintering_generic)
         {
-          if (n_components >= 2) // test sintering operator
+          if (n_components >= 3) // test sintering operator
             {
               const std::shared_ptr<MobilityProvider> mobility_provider =
                 std::make_shared<ProviderAbstract>(Mvol, Mvap, Msurf, Mgb, L);
@@ -316,7 +316,7 @@ main(int argc, char **argv)
 
       if constexpr (test_sintering_wang)
         {
-          if (n_components >= 2) // test wang operator
+          if (n_components >= 3) // test wang operator
             {
               const std::shared_ptr<MobilityProvider> mobility_provider =
                 std::make_shared<ProviderAbstract>(Mvol, Mvap, Msurf, Mgb, L);
@@ -336,18 +336,32 @@ main(int argc, char **argv)
               sintering_data.time_data.set_all_dt(dts);
               sintering_data.set_time(t);
 
-              std::vector<AdvectionCellData<dim, Number, VectorizedArrayType>>
-                current_cell_data(n_components - 2);
+              const unsigned int n_grains = n_components - 2;
 
-              for (auto &entry : current_cell_data)
-                {
-                  entry.volume_inv = 1.0; // dummy values
-                  entry.force[0]   = 1.0; //
-                  entry.torque[0]  = 1.0; //
-                }
-
+              // Dummy advection data
               AdvectionMechanism<dim, Number, VectorizedArrayType>
-                advection_mechanism(mt, mr, current_cell_data);
+                advection_mechanism(true, mt, mr);
+
+              // Dummy data - set a single segment for all cells
+              const auto n_segments = 1;
+              advection_mechanism.nullify_data(n_segments);
+
+              auto gdata     = advection_mechanism.grain_data(0);
+              gdata[0]       = 1.0; // volume
+              gdata[1]       = 1.0; // force
+              gdata[dim + 1] = 1.0; // torque
+
+              // Set up indices
+              const auto index_increment =
+                n_grains * VectorizedArrayType::size();
+              const auto n_index_values = n_grains *
+                                          VectorizedArrayType::size() *
+                                          matrix_free.n_cell_batches();
+
+              for (unsigned int i = 0; i < matrix_free.n_cell_batches(); ++i)
+                advection_mechanism.get_index_ptr().push_back(
+                  advection_mechanism.get_index_ptr().back() + index_increment);
+              advection_mechanism.get_index_values().assign(n_index_values, 0);
 
               const SinteringOperatorGeneric<dim, Number, VectorizedArrayType>
                 sintering_operator(matrix_free,

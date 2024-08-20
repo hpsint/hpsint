@@ -2355,12 +2355,17 @@ namespace Sintering
     add_translation_velocities_vectors(
       const MatrixFree<dim, Number, VectorizedArrayType> &matrix_free,
       const AdvectionMechanism<dim, Number, VectorizedArrayType>
-        &                advection_mechanism,
-      const unsigned int n_order_parameters,
-      DataOut<dim> &     data_out,
-      const std::string  prefix = "trans")
+        &advection_mechanism,
+      const SinteringOperatorData<dim, VectorizedArrayType> &sintering_data,
+      DataOut<dim> &                                         data_out,
+      const std::string                                      prefix = "trans")
     {
       std::vector<Vector<double>> velocities;
+
+      AdvectionVelocityData<dim, Number, VectorizedArrayType> advection_data(
+        advection_mechanism, sintering_data);
+
+      const unsigned int n_order_parameters = sintering_data.n_grains();
 
       for (unsigned int ig = 0; ig < n_order_parameters; ++ig)
         for (unsigned int d = 0; d < dim; ++d)
@@ -2369,14 +2374,13 @@ namespace Sintering
 
       for (unsigned int cell = 0; cell < matrix_free.n_cell_batches(); ++cell)
         {
-          advection_mechanism.reinit(cell);
+          advection_data.reinit(cell);
 
           for (unsigned int ig = 0; ig < n_order_parameters; ++ig)
             {
-              if (advection_mechanism.has_velocity(ig))
+              if (advection_data.has_velocity(ig))
                 {
-                  const auto vt =
-                    advection_mechanism.get_translation_velocity(ig);
+                  const auto vt = advection_data.get_translation_velocity(ig);
 
                   for (unsigned int ilane = 0;
                        ilane <

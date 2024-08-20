@@ -2955,7 +2955,7 @@ namespace Sintering
             Postprocessors::add_translation_velocities_vectors(
               matrix_free,
               advection_mechanism,
-              sintering_operator.get_data().n_grains(),
+              sintering_operator.get_data(),
               data_out);
 
           data_out.build_patches(mapping, this->fe->tensor_degree());

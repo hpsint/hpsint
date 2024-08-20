@@ -19,6 +19,7 @@
 
 #include <deal.II/distributed/tria.h>
 
+#include <pf-applications/sintering/operator_sintering_data.h>
 #include <pf-applications/sintering/tools.h>
 
 #include <pf-applications/grain_tracker/tracker.h>
@@ -148,6 +149,161 @@ namespace Sintering
     }
   };
 
+  // Forward declaration
+  template <int dim, typename Number, typename VectorizedArrayType>
+  class AdvectionMechanism;
+
+  template <int dim, typename Number, typename VectorizedArrayType>
+  class AdvectionVelocityData
+  {
+  public:
+    AdvectionVelocityData()
+    {}
+
+    AdvectionVelocityData(
+      const AdvectionMechanism<dim, Number, VectorizedArrayType> &advection,
+      const SinteringOperatorData<dim, VectorizedArrayType> &sintering_data)
+      : advection(advection)
+      , sintering_data(sintering_data)
+    {}
+
+    AdvectionVelocityData(
+      const unsigned int                                          cell,
+      const AdvectionMechanism<dim, Number, VectorizedArrayType> &advection,
+      const SinteringOperatorData<dim, VectorizedArrayType> &sintering_data)
+      : advection(advection)
+      , sintering_data(sintering_data)
+    {
+      reinit(cell);
+    }
+
+    void
+    reinit(const unsigned int cell)
+    {
+      grain_to_relevant_grain.clear();
+
+      if (advection.enabled() && advection.get_index_ptr().size() > 0)
+        {
+          const unsigned int n_lanes = VectorizedArrayType::size();
+
+          const auto n_indices =
+            advection.cell_index_ptr(cell + 1) - advection.cell_index_ptr(cell);
+          const auto n_op = n_indices / n_lanes;
+
+          AssertDimension(n_indices % n_lanes, 0);
+
+          current_cell_data.resize(n_op);
+
+          for (unsigned int i = 0; i < n_indices; ++i)
+            {
+              const auto index =
+                advection.cell_index_values(advection.cell_index_ptr(cell) + i);
+
+              if (index != numbers::invalid_unsigned_int)
+                current_cell_data[i / n_lanes].fill(
+                  i % n_lanes,
+                  advection.grain_center(index),
+                  advection.grain_data(index));
+              else
+                current_cell_data[i / n_lanes].nullify(i % n_lanes);
+            }
+
+
+          has_velocity_vector.resize(current_cell_data.size());
+          for (unsigned int op = 0; op < current_cell_data.size(); ++op)
+            has_velocity_vector[op] = current_cell_data[op].has_non_zero();
+        }
+
+      if (sintering_data.cut_off_enabled())
+        grain_to_relevant_grain =
+          sintering_data.get_grain_to_relevant_grain(cell);
+    }
+
+    DEAL_II_ALWAYS_INLINE inline bool
+    empty() const
+    {
+      return current_cell_data.empty() && has_velocity_vector.empty();
+    }
+
+    DEAL_II_ALWAYS_INLINE inline bool
+    has_velocity(const unsigned int order_parameter_id) const
+    {
+      if (has_velocity_vector.empty())
+        return false;
+
+      const auto relevant_id = get_relevant_id(order_parameter_id);
+
+      if (relevant_id == static_cast<unsigned char>(255))
+        return false;
+
+      AssertIndexRange(relevant_id, has_velocity_vector.size());
+
+      return has_velocity_vector[relevant_id];
+    }
+
+    DEAL_II_ALWAYS_INLINE inline Tensor<1, dim, VectorizedArrayType>
+    get_velocity(const unsigned int                     order_parameter_id,
+                 const Point<dim, VectorizedArrayType> &r) const
+    {
+      const auto relevant_id = get_relevant_id(order_parameter_id);
+
+      // Translational velocity
+      const auto vt = get_translation_velocity(relevant_id);
+
+      // Rotational velocity
+      const auto vr = get_rotation_velocity(relevant_id, r);
+
+      // Total advection velocity
+      const auto v_adv = vt + vr;
+
+      return v_adv;
+    }
+
+    DEAL_II_ALWAYS_INLINE inline Tensor<1, dim, VectorizedArrayType>
+    get_translation_velocity(const unsigned int order_parameter_id) const
+    {
+      const auto relevant_id = get_relevant_id(order_parameter_id);
+
+      const auto &op_cell_data = current_cell_data.at(relevant_id);
+
+      return advection.calc_translation_velocity(op_cell_data);
+    }
+
+    DEAL_II_ALWAYS_INLINE inline Tensor<1, dim, VectorizedArrayType>
+    get_rotation_velocity(const unsigned int order_parameter_id,
+                          const Point<dim, VectorizedArrayType> &r) const
+    {
+      const auto relevant_id = get_relevant_id(order_parameter_id);
+
+      const auto &op_cell_data = current_cell_data.at(relevant_id);
+
+      return advection.calc_rotation_velocity(op_cell_data, r);
+    }
+
+  private:
+    DEAL_II_ALWAYS_INLINE inline unsigned char
+    get_relevant_id(const unsigned int order_parameter_id) const
+    {
+      if (grain_to_relevant_grain.empty())
+        return static_cast<unsigned char>(order_parameter_id);
+
+      AssertIndexRange(order_parameter_id, grain_to_relevant_grain.size());
+
+      return grain_to_relevant_grain[order_parameter_id];
+    }
+
+    const AdvectionMechanism<dim, Number, VectorizedArrayType> &advection;
+
+    const SinteringOperatorData<dim, VectorizedArrayType> &sintering_data;
+
+    std::vector<AdvectionCellData<dim, Number, VectorizedArrayType>>
+      current_cell_data;
+
+    std::vector<bool> has_velocity_vector;
+
+    std::vector<unsigned char> grain_to_relevant_grain;
+  };
+
   template <int dim, typename Number, typename VectorizedArrayType>
   class AdvectionMechanism
   {
@@ -162,88 +318,17 @@ namespace Sintering
       , mr(0.0)
     {}
 
-    AdvectionMechanism(
-      const double mt,
-      const double mr,
-      const std::vector<AdvectionCellData<dim, Number, VectorizedArrayType>>
-        &current_cell_data)
-      : is_active(true)
-      , mt(mt)
-      , mr(mr)
-    {
-      this->current_cell_data = current_cell_data;
-    }
-
     AdvectionMechanism(const bool enable, const double mt, const double mr)
       : is_active(enable)
       , mt(mt)
       , mr(mr)
     {}
 
-    void
-    reinit(const unsigned int cell) const
-    {
-      if (index_ptr.size() > 0)
-        {
-          const unsigned int n_lanes = VectorizedArrayType::size();
-
-          const auto n_indices = index_ptr[cell + 1] - index_ptr[cell];
-          const auto n_op      = n_indices / n_lanes;
-
-          AssertDimension(n_indices % n_lanes, 0);
-
-          current_cell_data.resize(n_op);
-
-          for (unsigned int i = 0; i < n_indices; ++i)
-            {
-              const auto index = index_values[index_ptr[cell] + i];
-
-              if (index != numbers::invalid_unsigned_int)
-                current_cell_data[i / n_lanes].fill(i % n_lanes,
-                                                    grain_center(index),
-                                                    grain_data(index));
-              else
-                current_cell_data[i / n_lanes].nullify(i % n_lanes);
-            }
-        }
-
-      has_velocity_vector.resize(current_cell_data.size());
-      for (unsigned int op = 0; op < current_cell_data.size(); ++op)
-        has_velocity_vector[op] = current_cell_data[op].has_non_zero();
-    }
-
-    bool
-    has_velocity(const unsigned int order_parameter_id) const
-    {
-      if (has_velocity_vector.empty())
-        return false;
-
-      AssertIndexRange(order_parameter_id, has_velocity_vector.size());
-
-      return has_velocity_vector[order_parameter_id];
-    }
-
     DEAL_II_ALWAYS_INLINE inline Tensor<1, dim, VectorizedArrayType>
-    get_velocity(const unsigned int                     order_parameter_id,
-                 const Point<dim, VectorizedArrayType> &r) const
+    calc_translation_velocity(
+      const AdvectionCellData<dim, Number, VectorizedArrayType> &op_cell_data)
+      const
     {
-      // Translational velocity
-      const auto vt = get_translation_velocity(order_parameter_id);
-
-      // Rotational velocity
-      const auto vr = get_rotation_velocity(order_parameter_id, r);
-
-      // Total advection velocity
-      const auto v_adv = vt + vr;
-
-      return v_adv;
-    }
-
-    DEAL_II_ALWAYS_INLINE inline Tensor<1, dim, VectorizedArrayType>
-    get_translation_velocity(const unsigned int order_parameter_id) const
-    {
-      const auto &op_cell_data = current_cell_data.at(order_parameter_id);
-
       // Translational velocity
       const auto vt = mt * op_cell_data.volume_inv * op_cell_data.force;
 
@@ -251,11 +336,10 @@ namespace Sintering
     }
 
     DEAL_II_ALWAYS_INLINE inline Tensor<1, dim, VectorizedArrayType>
-    get_rotation_velocity(const unsigned int order_parameter_id,
-                          const Point<dim, VectorizedArrayType> &r) const
+    calc_rotation_velocity(
+      const AdvectionCellData<dim, Number, VectorizedArrayType> &op_cell_data,
+      const Point<dim, VectorizedArrayType> &                    r) const
     {
-      const auto &op_cell_data = current_cell_data.at(order_parameter_id);
-
       // Get vector from the particle center to the current point
       const auto r_rc = r - op_cell_data.rc;
 
@@ -301,6 +385,18 @@ namespace Sintering
     get_index_values() const
     {
       return index_values;
+    }
+
+    unsigned int
+    cell_index_ptr(unsigned int index) const
+    {
+      return index_ptr[index];
+    }
+
+    unsigned int
+    cell_index_values(unsigned int index) const
+    {
+      return index_values[index];
     }
 
     void
@@ -394,11 +490,6 @@ namespace Sintering
     const bool   is_active;
     const double mt;
     const double mr;
-
-    mutable std::vector<AdvectionCellData<dim, Number, VectorizedArrayType>>
-      current_cell_data;
-
-    mutable std::vector<bool> has_velocity_vector;
 
     std::vector<unsigned int> index_ptr;
     std::vector<unsigned int> index_values;

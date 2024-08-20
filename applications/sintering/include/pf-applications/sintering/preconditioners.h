@@ -92,12 +92,8 @@ namespace Sintering
       std::array<VectorizedArrayType, n_grains>                 etas;
       std::array<Tensor<1, dim, VectorizedArrayType>, n_grains> etas_grad;
 
-      if (this->advection.enabled())
-        this->advection.reinit(cell);
-
-      const auto grain_to_relevant_grain =
-        this->data.get_grain_to_relevant_grain(cell); // TODO: make optional
-
+      const AdvectionVelocityData<dim, Number, VectorizedArrayType>
+        advection_data(cell, this->advection, this->data);
 
       for (unsigned int q = 0; q < phi.n_q_points; ++q)
         {
@@ -154,13 +150,10 @@ namespace Sintering
           else if (this->advection.enabled())
             {
               for (unsigned int ig = 0; ig < n_grains; ++ig)
-                if (grain_to_relevant_grain[ig] !=
-                      static_cast<unsigned char>(255) &&
-                    this->advection.has_velocity(grain_to_relevant_grain[ig]))
+                if (advection_data.has_velocity(ig))
                   {
                     const auto &velocity_ig =
-                      this->advection.get_velocity(grain_to_relevant_grain[ig],
-                                                   phi.quadrature_point(q));
+                      advection_data.get_velocity(ig, phi.quadrature_point(q));
 
                     gradient_result[0] -= velocity_ig * phi.get_value(q)[0];
                   }
@@ -348,11 +341,8 @@ namespace Sintering
           const bool use_coupled_model =
             data.has_additional_variables_attached();
 
-          if (this->advection.enabled())
-            this->advection.reinit(cell);
-
-          const auto grain_to_relevant_grain =
-            this->data.get_grain_to_relevant_grain(cell); // TODO: make optional
+          const AdvectionVelocityData<dim, Number, VectorizedArrayType>
+            advection_data(cell, this->advection, this->data);
 
           for (unsigned int q = 0; q < phi.n_q_points; ++q)
             {
@@ -399,13 +389,11 @@ namespace Sintering
               else if (this->advection.enabled())
                 {
                   for (unsigned int ig = 0; ig < n_grains; ++ig)
-                    if (grain_to_relevant_grain[ig] !=
-                          static_cast<unsigned char>(255) &&
-                        this->advection.has_velocity(
-                          grain_to_relevant_grain[ig]))
+                    if (advection_data.has_velocity(ig))
                       {
-                        const auto &velocity_ig = this->advection.get_velocity(
-                          grain_to_relevant_grain[ig], phi.quadrature_point(q));
+                        const auto &velocity_ig =
+                          advection_data.get_velocity(ig,
+                                                      phi.quadrature_point(q));
 
                         gradient_result[ig] -=
                           velocity_ig * phi.get_value(q)[ig];
@@ -521,11 +509,8 @@ namespace Sintering
           const bool use_coupled_model =
             data.has_additional_variables_attached();
 
-          if (this->advection.enabled())
-            this->advection.reinit(cell);
-
-          const auto grain_to_relevant_grain =
-            this->data.get_grain_to_relevant_grain(cell); // TODO: make optional
+          const AdvectionVelocityData<dim, Number, VectorizedArrayType>
+            advection_data(cell, this->advection, this->data);
 
           for (unsigned int q = 0; q < phi.n_q_points; ++q)
             {
@@ -562,13 +547,11 @@ namespace Sintering
               else if (this->advection.enabled())
                 {
                   for (unsigned int ig = 0; ig < n_grains; ++ig)
-                    if (grain_to_relevant_grain[ig] !=
-                          static_cast<unsigned char>(255) &&
-                        this->advection.has_velocity(
-                          grain_to_relevant_grain[ig]))
+                    if (advection_data.has_velocity(ig))
                       {
-                        const auto &velocity_ig = this->advection.get_velocity(
-                          grain_to_relevant_grain[ig], phi.quadrature_point(q));
+                        const auto &velocity_ig =
+                          advection_data.get_velocity(ig,
+                                                      phi.quadrature_point(q));
 
                         gradient_result[ig] -=
                           velocity_ig * phi.get_value(q)[ig];
@@ -694,6 +677,9 @@ namespace Sintering
 
         std::vector<VectorizedArrayType> etas(this->n_grains());
 
+        AdvectionVelocityData<dim, Number, VectorizedArrayType> advection_data(
+          this->advection, this->data);
+
         for (unsigned int cell = 0; cell < this->matrix_free.n_cell_batches();
              ++cell)
           {
@@ -702,12 +688,7 @@ namespace Sintering
             const unsigned int n_filled_lanes =
               this->matrix_free.n_active_entries_per_cell_batch(cell);
 
-            if (this->advection.enabled())
-              this->advection.reinit(cell);
-
-            const auto grain_to_relevant_grain =
-              this->data.get_grain_to_relevant_grain(
-                cell); // TODO: make optional
+            advection_data.reinit(cell);
 
             // 1) get indices
             for (unsigned int v = 0; v < n_filled_lanes; ++v)
@@ -827,15 +808,11 @@ namespace Sintering
 
                                 gradient_result -= lin_v_adv * value;
                               }
-                            else if (grain_to_relevant_grain[b] !=
-                                       static_cast<unsigned char>(255) &&
-                                     this->advection.has_velocity(
-                                       grain_to_relevant_grain[b]))
+                            else if (advection_data.has_velocity(b))
                               {
                                 const auto &velocity_ig =
-                                  this->advection.get_velocity(
-                                    grain_to_relevant_grain[b],
-                                    integrator.quadrature_point(q));
+                                  advection_data.get_velocity(
+                                    b, integrator.quadrature_point(q));
 
                                 gradient_result -= velocity_ig * value;
                               }
