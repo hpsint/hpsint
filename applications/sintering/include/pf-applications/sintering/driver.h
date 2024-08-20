@@ -1046,16 +1046,19 @@ namespace Sintering
         mg_matrixfrees;
 
       if (transfer)
-        preconditioner = std::make_unique<
-          BlockPreconditioner2<dim, Number, VectorizedArrayType>>(
-          sintering_data,
-          matrix_free,
-          constraints,
-          mg_sintering_data,
-          mg_matrix_free,
-          mg_constraints,
-          transfer,
-          params.preconditioners_data.block_preconditioner_2_data);
+        preconditioner =
+          std::make_unique<BlockPreconditioner2<dim,
+                                                Number,
+                                                VectorizedArrayType,
+                                                NonLinearOperatorTpl>>(
+            sintering_data,
+            matrix_free,
+            constraints,
+            mg_sintering_data,
+            mg_matrix_free,
+            mg_constraints,
+            transfer,
+            params.preconditioners_data.block_preconditioner_2_data);
       else if (params.preconditioners_data.outer_preconditioner ==
                "BlockPreconditioner2")
         {
@@ -1065,25 +1068,31 @@ namespace Sintering
                                                        VectorizedArrayType,
                                                        NonLinearOperator>,
                           NonLinearOperator>)
-            preconditioner = std::make_unique<
-              BlockPreconditioner2<dim, Number, VectorizedArrayType>>(
-              sintering_data,
-              matrix_free,
-              constraints,
-              params.preconditioners_data.block_preconditioner_2_data,
-              advection_mechanism,
-              nonlinear_operator.get_zero_constraints_indices(),
-              params.material_data.mechanics_data.E,
-              params.material_data.mechanics_data.nu,
-              plane_type);
+            preconditioner =
+              std::make_unique<BlockPreconditioner2<dim,
+                                                    Number,
+                                                    VectorizedArrayType,
+                                                    NonLinearOperatorTpl>>(
+                sintering_data,
+                matrix_free,
+                constraints,
+                params.preconditioners_data.block_preconditioner_2_data,
+                advection_mechanism,
+                nonlinear_operator.get_zero_constraints_indices(),
+                params.material_data.mechanics_data.E,
+                params.material_data.mechanics_data.nu,
+                plane_type);
           else
-            preconditioner = std::make_unique<
-              BlockPreconditioner2<dim, Number, VectorizedArrayType>>(
-              sintering_data,
-              matrix_free,
-              constraints,
-              params.preconditioners_data.block_preconditioner_2_data,
-              advection_mechanism);
+            preconditioner =
+              std::make_unique<BlockPreconditioner2<dim,
+                                                    Number,
+                                                    VectorizedArrayType,
+                                                    NonLinearOperatorTpl>>(
+                sintering_data,
+                matrix_free,
+                constraints,
+                params.preconditioners_data.block_preconditioner_2_data,
+                advection_mechanism);
         }
       else
         preconditioner = Preconditioners::create(
