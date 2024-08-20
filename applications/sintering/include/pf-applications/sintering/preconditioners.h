@@ -1304,7 +1304,7 @@ namespace Sintering
           matrix_free,
           constraints,
           0,
-          "")
+          "helmholtz_op")
       , n_components_(n_components_)
     {}
 
