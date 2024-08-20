@@ -472,4 +472,14 @@ namespace Sintering
 
     double t;
   };
+
+  template <int dim, typename VectorizedArrayType>
+  struct SinteringNonLinearData
+  {
+    decltype(std::declval<const Table<3, VectorizedArrayType>>().operator[](0))
+      const &values;
+    decltype(
+      std::declval<const Table<3, Tensor<1, dim, VectorizedArrayType>>>().
+      operator[](0)) const &gradients;
+  };
 } // namespace Sintering
