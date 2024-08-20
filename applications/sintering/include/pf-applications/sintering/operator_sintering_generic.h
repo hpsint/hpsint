@@ -820,6 +820,31 @@ namespace Sintering
           }
     }
 
+    template <typename FECellIntegratorType>
+    static void
+    precondition_advection_ac(
+      const unsigned int q,
+      const AdvectionVelocityData<dim, Number, VectorizedArrayType>
+        &                                                     advection_data,
+      const SinteringOperatorData<dim, VectorizedArrayType> & sintering_data,
+      const SinteringNonLinearData<dim, VectorizedArrayType> &nonlinear_data,
+      const FECellIntegratorType &                            phi,
+      typename FECellIntegratorType::value_type &             value_result,
+      typename FECellIntegratorType::gradient_type &          gradient_result)
+    {
+      (void)nonlinear_data;
+      (void)value_result;
+
+      for (unsigned int ig = 0; ig < sintering_data.n_grains(); ++ig)
+        if (advection_data.has_velocity(ig))
+          {
+            const auto &velocity_ig =
+              advection_data.get_velocity(ig, phi.quadrature_point(q));
+
+            gradient_result[ig] -= velocity_ig * phi.get_value(q)[0];
+          }
+    }
+
   private:
     template <int n_comp,
               int n_grains,
