@@ -60,4 +60,18 @@ namespace debug
       }
     return ss.str();
   }
+
+  template <typename Iterator>
+  std::string
+  to_string(Iterator begin, Iterator end)
+  {
+    std::stringstream ss;
+    for (Iterator current = begin; current != end;)
+      {
+        ss << *current;
+        if (++current != end)
+          ss << ",";
+      }
+    return ss.str();
+  }
 } // namespace debug

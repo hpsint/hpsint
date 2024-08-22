@@ -55,6 +55,7 @@
 
 #include <deal.II/numerics/vector_tools.h>
 
+#include <pf-applications/base/debug.h>
 #include <pf-applications/base/fe_integrator.h>
 #include <pf-applications/base/scoped_name.h>
 #include <pf-applications/base/solution_serialization.h>
@@ -1005,7 +1006,8 @@ namespace Sintering
         params.use_tensorial_mobility_gradient_on_the_fly,
         params.material_data.mechanics_data.E,
         params.material_data.mechanics_data.nu,
-        plane_type);
+        plane_type,
+        params.material_data.mechanics_data.c_min);
 
       // Create residual wrapper depending on whether we have advection or not
       std::unique_ptr<ResidualWrapper<Number>> residual_wrapper;
@@ -1997,22 +1999,29 @@ namespace Sintering
             ScopedName sc("impose_boundary_conditions");
             MyScope    scope(timer, sc);
 
+            std::array<bool, dim> directions_mask;
+            for (const auto &d : params.boundary_conditions.direction)
+              if (d < dim)
+                directions_mask[d] = true;
+
             pcout << "Impose boundary conditions:" << std::endl;
             pcout << "  - type: " << params.boundary_conditions.type
                   << std::endl;
-            pcout << "  - direction: " << params.boundary_conditions.direction
-                  << std::endl;
+            pcout
+              << "  - direction: "
+              << debug::to_string(params.boundary_conditions.direction.begin(),
+                                  params.boundary_conditions.direction.end())
+              << std::endl;
 
             auto &displ_constraints_indices =
               nonlinear_operator.get_zero_constraints_indices();
 
             if (params.boundary_conditions.type == "CentralSection")
               {
-                clamp_central_section<dim>(
-                  displ_constraints_indices,
-                  matrix_free,
-                  solution.block(0),
-                  params.boundary_conditions.direction);
+                clamp_central_section<dim>(displ_constraints_indices,
+                                           matrix_free,
+                                           mapping,
+                                           directions_mask);
               }
             else if (params.boundary_conditions.type == "CentralParticle")
               {
@@ -2028,14 +2037,33 @@ namespace Sintering
                 pcout << "  - origin for clamping the section: " << origin
                       << std::endl;
 
-                clamp_section_within_particle<dim>(
-                  displ_constraints_indices,
-                  matrix_free,
-                  sintering_data,
-                  grain_tracker,
-                  solution,
-                  origin,
-                  params.boundary_conditions.direction);
+                clamp_section_within_particle<dim>(displ_constraints_indices,
+                                                   matrix_free,
+                                                   mapping,
+                                                   sintering_data,
+                                                   grain_tracker,
+                                                   solution,
+                                                   origin,
+                                                   directions_mask);
+              }
+            else if (params.boundary_conditions.type ==
+                     "CentralParticleSection")
+              {
+                AssertThrow(params.grain_tracker_data.grain_tracker_frequency >
+                              0,
+                            ExcMessage("Grain tracker has to be enabled"));
+
+                Point<dim> origin = find_center_origin(
+                  matrix_free.get_dof_handler().get_triangulation(),
+                  grain_tracker);
+                pcout << "  - origin for clamping the sections: " << origin
+                      << std::endl;
+
+                clamp_section<dim>(displ_constraints_indices,
+                                   matrix_free,
+                                   mapping,
+                                   origin,
+                                   directions_mask);
               }
             else if (params.boundary_conditions.type == "Domain")
               {

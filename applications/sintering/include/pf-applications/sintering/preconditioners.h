@@ -183,7 +183,8 @@ namespace Sintering
       const double                        E  = 1.0,
       const double                        nu = 0.25,
       const Structural::MaterialPlaneType plane_type =
-        Structural::MaterialPlaneType::none)
+        Structural::MaterialPlaneType::none,
+      const double c_min = 0.1)
       : OperatorBase<dim,
                      Number,
                      VectorizedArrayType,
@@ -195,6 +196,7 @@ namespace Sintering
       , data(data)
       , displ_constraints_indices(displ_constraints_indices)
       , material(E, nu, plane_type)
+      , c_min(c_min)
     {}
 
     unsigned int
@@ -257,8 +259,6 @@ namespace Sintering
     get_stress(const Tensor<2, dim, VectorizedArrayType> &H,
                const VectorizedArrayType &                c) const
     {
-      const double c_min = 0.1;
-
       const auto cl = compare_and_apply_mask<SIMDComparison::less_than>(
         c, VectorizedArrayType(c_min), VectorizedArrayType(c_min), c);
 
@@ -271,6 +271,8 @@ namespace Sintering
 
     const Structural::StVenantKirchhoff<dim, Number, VectorizedArrayType>
       material;
+
+    const double c_min;
   };
 
 
