@@ -149,6 +149,8 @@ namespace Sintering
     double nu = 0.25;
 
     std::string plane_type = "None";
+
+    double c_min = 0.1;
   };
 
   struct MaterialData
@@ -186,8 +188,8 @@ namespace Sintering
 
   struct BoundaryConditionsData
   {
-    std::string  type      = "Domain";
-    unsigned int direction = 0;
+    std::string            type      = "Domain";
+    std::set<unsigned int> direction = {0};
 
     bool prefer_growing = false;
     bool use_barycenter = false;
@@ -731,6 +733,9 @@ namespace Sintering
                         material_data.mechanics_data.plane_type,
                         "Type of material for 2D case",
                         Patterns::Selection("None|PlaneStrain|PlaneStress"));
+      prm.add_parameter("Cmin",
+                        material_data.mechanics_data.c_min,
+                        "Minimum value of concentration.");
       prm.leave_subsection();
 
       prm.leave_subsection();
@@ -758,14 +763,18 @@ namespace Sintering
 
 
       prm.enter_subsection("BoundaryConditions");
-      prm.add_parameter("Type",
-                        boundary_conditions.type,
-                        "Type of boundary conditions for the coupled model",
-                        Patterns::Selection(
-                          "None|CentralSection|CentralParticle|Domain"));
+      prm.add_parameter(
+        "Type",
+        boundary_conditions.type,
+        "Type of boundary conditions for the coupled model",
+        Patterns::Selection(
+          "None|CentralSection|CentralParticle|CentralParticleSection|Domain"));
+      const std::string bc_direction_options = "0|1|2";
       prm.add_parameter("Direction",
                         boundary_conditions.direction,
-                        "Primary direction for restraining displacements.");
+                        "Primary direction for restraining displacements.",
+                        Patterns::List(
+                          Patterns::MultipleSelection(bc_direction_options)));
       prm.add_parameter("PreferGrowing",
                         boundary_conditions.prefer_growing,
                         "Prefer growing grains for BC imposition.");
