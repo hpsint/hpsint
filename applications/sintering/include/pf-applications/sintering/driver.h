@@ -1766,6 +1766,17 @@ namespace Sintering
             Postprocessors::estimate_overhead(mapping, dof_handler, solution);
         };
 
+      // Check consistency of the grain tracker settings
+      const bool grain_tracker_required_for_ebc =
+        params.boundary_conditions.type == "CentralParticle" ||
+        params.boundary_conditions.type == "CentralParticleSection";
+
+      const bool grain_tracker_enabled =
+        params.grain_tracker_data.grain_tracker_frequency > 0 ||
+        (params.adaptivity_data.quality_control &&
+         params.grain_tracker_data.track_with_quality) ||
+        params.advection_data.enable || grain_tracker_required_for_ebc;
+
       const auto run_grain_tracker = [&](const double t,
                                          const bool   do_initialize = false) {
         ScopedName sc("run_grain_tracker");
@@ -1956,7 +1967,7 @@ namespace Sintering
 
             // We need to call track again if advection mechanism is used
             // in order to keep op_particle_ids in sync
-            if (params.advection_data.enable)
+            if (params.advection_data.enable || grain_tracker_required_for_ebc)
               {
                 ScopedName sc("track_fast");
                 MyScope    scope(timer, sc);
@@ -2025,9 +2036,10 @@ namespace Sintering
               }
             else if (params.boundary_conditions.type == "CentralParticle")
               {
-                AssertThrow(params.grain_tracker_data.grain_tracker_frequency >
-                              0,
-                            ExcMessage("Grain tracker has to be enabled"));
+                AssertThrow(
+                  grain_tracker_enabled,
+                  ExcMessage(
+                    "Grain tracker has to be enabled to use CentralParticle"));
 
                 Point<dim> origin = find_center_origin(
                   matrix_free.get_dof_handler().get_triangulation(),
@@ -2049,9 +2061,10 @@ namespace Sintering
             else if (params.boundary_conditions.type ==
                      "CentralParticleSection")
               {
-                AssertThrow(params.grain_tracker_data.grain_tracker_frequency >
-                              0,
-                            ExcMessage("Grain tracker has to be enabled"));
+                AssertThrow(
+                  grain_tracker_enabled,
+                  ExcMessage(
+                    "Grain tracker has to be enabled to use CentralParticleSection"));
 
                 Point<dim> origin = find_center_origin(
                   matrix_free.get_dof_handler().get_triangulation(),
@@ -2131,9 +2144,7 @@ namespace Sintering
         }
 
       // Grain tracker - first run after we have initial configuration defined
-      if (params.grain_tracker_data.grain_tracker_frequency > 0 ||
-          params.grain_tracker_data.track_with_quality ||
-          params.advection_data.enable)
+      if (grain_tracker_enabled)
         {
           initialize_grain_tracker(grain_tracker,
                                    [&run_grain_tracker,
@@ -2226,8 +2237,10 @@ namespace Sintering
                           }
                       }
 
-                    // If advection is enabled, then execute grain tracker
-                    if (params.advection_data.enable)
+                    // If advection is enabled or certain boundary conditions
+                    // are imposed, then execute grain tracker
+                    if (params.advection_data.enable ||
+                        grain_tracker_required_for_ebc)
                       do_grain_tracker = true;
                     // If mesh quality control is enabled and grain tracker is
                     // asked to run at the same time, then execute it
@@ -3231,7 +3244,8 @@ namespace Sintering
                   table.add_value(generate_name("iso_gb_area", i), gb_area);
                 }
 
-              if (params.output_data.coordination_number)
+              if (params.output_data.coordination_number &&
+                  !grain_tracker.empty())
                 {
                   const auto avg_coord_num =
                     Postprocessors::compute_average_coordination_number(
