@@ -1967,7 +1967,7 @@ namespace Sintering
 
             // We need to call track again if advection mechanism is used
             // in order to keep op_particle_ids in sync
-            if (params.advection_data.enable)
+            if (params.advection_data.enable || grain_tracker_required_for_ebc)
               {
                 ScopedName sc("track_fast");
                 MyScope    scope(timer, sc);
