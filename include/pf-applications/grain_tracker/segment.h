@@ -17,6 +17,12 @@
 
 #include <deal.II/base/point.h>
 
+#include <pf-applications/base/output.h>
+
+#include <pf-applications/grain_tracker/representation.h>
+
+#include <memory>
+
 namespace GrainTracker
 {
   using namespace dealii;
@@ -29,16 +35,29 @@ namespace GrainTracker
   class Segment
   {
   public:
-    Segment() = default;
+    Segment()
+      : representation(nullptr)
+    {}
 
-    Segment(const Point<dim> &center_in,
-            const double      radius_in,
-            const double      measure_in,
-            const double      max_value_in = 0.0)
+    Segment(const Point<dim> &                center_in,
+            const double                      radius_in,
+            const double                      measure_in,
+            const double                      max_value_in,
+            std::unique_ptr<Representation> &&representation_in)
       : center(center_in)
       , radius(radius_in)
       , measure(measure_in)
       , max_value(max_value_in)
+      , representation(std::move(representation_in))
+    {}
+
+    Segment(const Segment<dim> &other)
+      : center(other.center)
+      , radius(other.radius)
+      , measure(other.measure)
+      , max_value(other.max_value)
+      , representation(other.representation ? other.representation->clone() :
+                                              nullptr)
     {}
 
     const Point<dim> &
@@ -69,12 +88,20 @@ namespace GrainTracker
     double
     distance(const Segment<dim> &other) const
     {
-      const double distance_centers = get_center().distance(other.get_center());
-      const double sum_radii        = get_radius() + other.get_radius();
+      AssertThrow(
+        representation,
+        ExcMessage(
+          "Representation should be initialized to compute the distance to a neighbor"))
 
-      const double current_distance = distance_centers - sum_radii;
+        return representation->distance(*other.representation);
+    }
 
-      return current_distance;
+    template <typename Stream>
+    void
+    print(Stream &stream) const
+    {
+      hpsint::print(*representation, stream);
+      stream << " | measure = " << measure << " | max_value = " << max_value;
     }
 
     template <class Archive>
@@ -93,5 +120,7 @@ namespace GrainTracker
     double radius;
     double measure;
     double max_value;
+
+    std::unique_ptr<Representation> representation;
   };
 } // namespace GrainTracker
