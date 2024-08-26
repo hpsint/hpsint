@@ -159,27 +159,15 @@ namespace GrainTracker
     }
 
     /* Add a new segment to the grain. */
+    template <typename S>
     void
-    add_segment(const Segment<dim> &segment)
+    add_segment(S &&segment)
     {
-      segments.push_back(segment);
+      segments.emplace_back(std::forward<S>(segment));
 
       max_radius = std::max(max_radius, segment.get_radius());
       max_value  = std::max(max_value, segment.get_max_value());
       sum_measure += segment.get_measure();
-    }
-
-    void
-    add_segment(const Point<dim> &center,
-                const double      radius,
-                const double      measure,
-                const double      op_value)
-    {
-      segments.emplace_back(center, radius, measure, op_value);
-
-      max_radius = std::max(max_radius, radius);
-      max_value  = std::max(max_value, op_value);
-      sum_measure += measure;
     }
 
     /* Add a grain's neighbor. Neighbors are grains having the same order
