@@ -201,6 +201,33 @@ namespace GrainTracker
         std::min(distance_to_nearest_neighbor, distance(neighbor));
     }
 
+    /* Check if the grain overlaps with the other. */
+    bool
+    overlaps(const Grain<dim> &gr_other,
+             const double      buffer_distance_ratio = 0.1,
+             const double      buffer_distance_fixed = 0) const
+    {
+      // Minimum distance between the two grains
+      const double min_distance = distance(gr_other);
+
+      /* Buffer safety zone around the two grains. If an overlap
+       * is detected, then the old order parameter values of all
+       * the cells inside the buffer zone are transfered to a
+       * new one.
+       */
+      const double buffer_distance_base =
+        buffer_distance_ratio * get_max_radius();
+      const double buffer_distance_other =
+        buffer_distance_ratio * gr_other.get_max_radius();
+
+      /* If two grains sharing the same order parameter are
+       * too close to each other, then try to change the
+       * order parameter of the secondary grain.
+       */
+      return (min_distance < buffer_distance_base + buffer_distance_other +
+                               buffer_distance_fixed);
+    }
+
     /* Get transfer buffer. A zone around the grain which will be moved to
      * another order parameter if remapping is invoked for this grain.
      */
