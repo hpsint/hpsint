@@ -93,9 +93,9 @@ namespace GrainTracker
       AssertThrow(
         representation,
         ExcMessage(
-          "Representation should be initialized to compute the distance to a neighbor"))
+          "Representation should be initialized to compute the distance to a neighbor"));
 
-        return representation->distance(*other.representation);
+      return representation->distance(*other.representation);
     }
 
     template <typename Stream>

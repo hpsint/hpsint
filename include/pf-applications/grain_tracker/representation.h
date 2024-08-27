@@ -17,6 +17,8 @@
 
 #include <deal.II/base/point.h>
 
+#include <pf-applications/base/debug.h>
+
 #include <boost/serialization/export.hpp>
 #include <boost/serialization/serialization.hpp>
 
@@ -107,7 +109,3 @@ namespace GrainTracker
   };
 
 } // namespace GrainTracker
-
-// Explicitly export intantiations to make polymorphic serialization work
-BOOST_CLASS_EXPORT(GrainTracker::RepresentationSpherical<2>);
-BOOST_CLASS_EXPORT(GrainTracker::RepresentationSpherical<3>);

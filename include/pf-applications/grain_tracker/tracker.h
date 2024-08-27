@@ -1372,33 +1372,31 @@ namespace GrainTracker
             n_particles);
 
           // Lambda to create grains and segments
-          auto append_segment =
-            [&, elliptical_grains = elliptical_grains](unsigned int index,
-                                                       unsigned int grain_id) {
-              new_grains.try_emplace(grain_id,
-                                     assign_indices ?
-                                       grain_id :
-                                       numbers::invalid_unsigned_int,
-                                     current_order_parameter_id);
+          auto append_segment = [&](unsigned int index, unsigned int grain_id) {
+            new_grains.try_emplace(grain_id,
+                                   assign_indices ?
+                                     grain_id :
+                                     numbers::invalid_unsigned_int,
+                                   current_order_parameter_id);
 
-              std::unique_ptr<Representation> representation;
+            std::unique_ptr<Representation> representation;
 
-              representation = std::make_unique<RepresentationSpherical<dim>>(
-                particle_centers[index], particle_radii[index]);
+            representation = std::make_unique<RepresentationSpherical<dim>>(
+              particle_centers[index], particle_radii[index]);
 
-              new_grains.at(grain_id).add_segment(
-                Segment<dim>(particle_centers[index],
-                             particle_radii[index],
-                             particle_measures[index],
-                             particle_max_values[index],
-                             std::move(representation)));
+            new_grains.at(grain_id).add_segment(
+              Segment<dim>(particle_centers[index],
+                           particle_radii[index],
+                           particle_measures[index],
+                           particle_max_values[index],
+                           std::move(representation)));
 
-              const unsigned int last_segment_id =
-                new_grains.at(grain_id).n_segments() - 1;
+            const unsigned int last_segment_id =
+              new_grains.at(grain_id).n_segments() - 1;
 
-              particle_ids_to_grain_ids[current_order_parameter_id][index] =
-                std::make_pair(grain_id, last_segment_id);
-            };
+            particle_ids_to_grain_ids[current_order_parameter_id][index] =
+              std::make_pair(grain_id, last_segment_id);
+          };
 
           // Parse groups at first to create grains
           for (unsigned int i = 0; i < n_particles; ++i)
