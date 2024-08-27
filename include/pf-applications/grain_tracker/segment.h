@@ -103,7 +103,7 @@ namespace GrainTracker
     print(Stream &stream) const
     {
       hpsint::print(*representation, stream);
-      stream << " | measure = " << measure << " | max_value = " << max_value;
+      stream << " | max_value = " << max_value;
     }
 
     template <class Archive>
