@@ -25,6 +25,9 @@
 using namespace dealii;
 using namespace GrainTracker;
 
+BOOST_CLASS_EXPORT(GrainTracker::RepresentationSpherical<2>)
+BOOST_CLASS_EXPORT(GrainTracker::RepresentationSpherical<3>)
+
 int
 main()
 {
