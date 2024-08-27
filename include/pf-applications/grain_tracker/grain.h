@@ -170,6 +170,25 @@ namespace GrainTracker
       sum_measure += segment.get_measure();
     }
 
+    /* By default use spherical grain representation */
+    void
+    add_segment(const Point<dim> &center,
+                const double      radius,
+                const double      measure,
+                const double      op_value)
+    {
+      segments.emplace_back(
+        center,
+        radius,
+        measure,
+        op_value,
+        std::make_unique<RepresentationSpherical<dim>>(center, radius));
+
+      max_radius = std::max(max_radius, radius);
+      max_value  = std::max(max_value, op_value);
+      sum_measure += measure;
+    }
+
     /* Add a grain's neighbor. Neighbors are grains having the same order
      * parameter id. We do need to store the complete list of neighbors,
      * we only need to know the distance to the nearest one.
