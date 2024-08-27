@@ -87,7 +87,7 @@ namespace GrainTracker
       stream << "center = " << center << " | radius = " << radius;
     }
 
-    virtual std::unique_ptr<Representation>
+    std::unique_ptr<Representation>
     clone() const override
     {
       return std::make_unique<RepresentationSpherical>(center, radius);
