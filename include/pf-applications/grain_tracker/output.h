@@ -34,9 +34,9 @@ namespace GrainTracker
 
     for (const auto &segment : grain.get_segments())
       {
-        out << "    segment: center = " << segment.get_center()
-            << " | radius = " << segment.get_radius()
-            << " | max_value = " << segment.get_max_value() << std::endl;
+        out << "    segment: ";
+        segment.print(out);
+        out << std::endl;
       }
   }
 
@@ -140,9 +140,9 @@ namespace GrainTracker
             const auto &segment =
               grains.at(grain_id).get_segments()[segment_id];
 
-            out << "    segment: center = " << segment.get_center()
-                << " | radius = " << segment.get_radius()
-                << " | max_value = " << segment.get_max_value() << std::endl;
+            out << "    segment: ";
+            segment.print(out);
+            out << std::endl;
           }
       }
   }
