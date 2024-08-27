@@ -19,6 +19,8 @@
 
 #include <pf-applications/base/output.h>
 
+#include <boost/serialization/unique_ptr.hpp>
+
 #include <pf-applications/grain_tracker/representation.h>
 
 #include <memory>
@@ -112,6 +114,7 @@ namespace GrainTracker
       ar &radius;
       ar &measure;
       ar &max_value;
+      ar &representation;
     }
 
   protected:

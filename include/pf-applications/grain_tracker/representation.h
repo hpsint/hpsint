@@ -17,6 +17,9 @@
 
 #include <deal.II/base/point.h>
 
+#include <boost/serialization/export.hpp>
+#include <boost/serialization/serialization.hpp>
+
 namespace GrainTracker
 {
   using namespace dealii;
@@ -35,6 +38,13 @@ namespace GrainTracker
 
     virtual ~Representation()
     {}
+
+    template <class Archive>
+    void
+    serialize(Archive &ar, const unsigned int /*version*/)
+    {
+      (void)ar;
+    }
   };
 
   // The CRTP base that handles static polymorphism
@@ -83,8 +93,21 @@ namespace GrainTracker
       return std::make_unique<RepresentationSpherical>(center, radius);
     }
 
+    template <class Archive>
+    void
+    serialize(Archive &ar, const unsigned int /*version*/)
+    {
+      ar &BOOST_SERIALIZATION_BASE_OBJECT_NVP(Representation);
+      ar &center;
+      ar &radius;
+    }
+
     Point<dim> center;
     double     radius;
   };
 
 } // namespace GrainTracker
+
+// Explicitly export intantiations to make polymorphic serialization work
+BOOST_CLASS_EXPORT(GrainTracker::RepresentationSpherical<2>);
+BOOST_CLASS_EXPORT(GrainTracker::RepresentationSpherical<3>);
