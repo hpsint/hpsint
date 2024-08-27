@@ -237,9 +237,8 @@ namespace GrainTracker
               // clang-format on
 
               // Check if the detected grain is growing or not
-              const bool is_growing =
-                new_grain.get_max_radius() >
-                old_grains.at(new_grain_id).get_max_radius();
+              const bool is_growing = new_grain.get_measure() >
+                                      old_grains.at(new_grain_id).get_measure();
               new_dynamics =
                 is_growing ? Grain<dim>::Growing : Grain<dim>::Shrinking;
             }
@@ -1372,6 +1371,33 @@ namespace GrainTracker
           particle_ids_to_grain_ids[current_order_parameter_id].resize(
             n_particles);
 
+          // Lambda to create grains and segments
+          auto append_segment = [&](unsigned int index, unsigned int grain_id) {
+            new_grains.try_emplace(grain_id,
+                                   assign_indices ?
+                                     grain_id :
+                                     numbers::invalid_unsigned_int,
+                                   current_order_parameter_id);
+
+            std::unique_ptr<Representation> representation;
+
+            representation = std::make_unique<RepresentationSpherical<dim>>(
+              particle_centers[index], particle_radii[index]);
+
+            new_grains.at(grain_id).add_segment(
+              Segment<dim>(particle_centers[index],
+                           particle_radii[index],
+                           particle_measures[index],
+                           particle_max_values[index],
+                           std::move(representation)));
+
+            const unsigned int last_segment_id =
+              new_grains.at(grain_id).n_segments() - 1;
+
+            particle_ids_to_grain_ids[current_order_parameter_id][index] =
+              std::make_pair(grain_id, last_segment_id);
+          };
+
           // Parse groups at first to create grains
           for (unsigned int i = 0; i < n_particles; ++i)
             {
@@ -1379,24 +1405,9 @@ namespace GrainTracker
                 {
                   unsigned int grain_id = particle_groups[i] + grains_numerator;
 
-                  new_grains.try_emplace(grain_id,
-                                         assign_indices ?
-                                           grain_id :
-                                           numbers::invalid_unsigned_int,
-                                         current_order_parameter_id);
-
-                  new_grains.at(grain_id).add_segment(particle_centers[i],
-                                                      particle_radii[i],
-                                                      particle_measures[i],
-                                                      particle_max_values[i]);
+                  append_segment(i, grain_id);
 
                   free_particles.erase(i);
-
-                  const unsigned int last_segment_id =
-                    new_grains.at(grain_id).n_segments() - 1;
-
-                  particle_ids_to_grain_ids[current_order_parameter_id][i] =
-                    std::make_pair(grain_id, last_segment_id);
                 }
             }
 
@@ -1407,22 +1418,7 @@ namespace GrainTracker
             {
               unsigned int grain_id = grains_numerator;
 
-              new_grains.try_emplace(grain_id,
-                                     assign_indices ?
-                                       grain_id :
-                                       numbers::invalid_unsigned_int,
-                                     current_order_parameter_id);
-
-              new_grains.at(grain_id).add_segment(particle_centers[i],
-                                                  particle_radii[i],
-                                                  particle_measures[i],
-                                                  particle_max_values[i]);
-
-              const unsigned int last_segment_id =
-                new_grains.at(grain_id).n_segments() - 1;
-
-              particle_ids_to_grain_ids[current_order_parameter_id][i] =
-                std::make_pair(grain_id, last_segment_id);
+              append_segment(i, grain_id);
 
               ++grains_numerator;
             }
@@ -1494,26 +1490,9 @@ namespace GrainTracker
             {
               if (g_other_id > g_base_id)
                 {
-                  // Minimum distance between the two grains
-                  double min_distance = gr_base.distance(gr_other);
-
-                  /* Buffer safety zone around the two grains. If an overlap
-                   * is detected, then the old order parameter values of all
-                   * the cells inside the buffer zone are transfered to a
-                   * new one.
-                   */
-                  const double buffer_distance_base =
-                    buffer_distance_ratio * gr_base.get_max_radius();
-                  const double buffer_distance_other =
-                    buffer_distance_ratio * gr_other.get_max_radius();
-
-                  /* If two grains sharing the same order parameter are
-                   * too close to each other, then try to change the
-                   * order parameter of the secondary grain
-                   */
-                  if (min_distance < buffer_distance_base +
-                                       buffer_distance_other +
-                                       buffer_distance_fixed)
+                  if (gr_base.overlaps(gr_other,
+                                       buffer_distance_ratio,
+                                       buffer_distance_fixed))
                     {
                       dsp.add(grains_to_sparsity.at(g_base_id),
                               grains_to_sparsity.at(g_other_id));

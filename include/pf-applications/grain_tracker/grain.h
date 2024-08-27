@@ -159,23 +159,30 @@ namespace GrainTracker
     }
 
     /* Add a new segment to the grain. */
+    template <typename S>
     void
-    add_segment(const Segment<dim> &segment)
+    add_segment(S &&segment)
     {
-      segments.push_back(segment);
+      segments.emplace_back(std::forward<S>(segment));
 
       max_radius = std::max(max_radius, segment.get_radius());
       max_value  = std::max(max_value, segment.get_max_value());
       sum_measure += segment.get_measure();
     }
 
+    /* By default use spherical grain representation */
     void
     add_segment(const Point<dim> &center,
                 const double      radius,
                 const double      measure,
                 const double      op_value)
     {
-      segments.emplace_back(center, radius, measure, op_value);
+      segments.emplace_back(
+        center,
+        radius,
+        measure,
+        op_value,
+        std::make_unique<RepresentationSpherical<dim>>(center, radius));
 
       max_radius = std::max(max_radius, radius);
       max_value  = std::max(max_value, op_value);
@@ -199,6 +206,33 @@ namespace GrainTracker
 
       distance_to_nearest_neighbor =
         std::min(distance_to_nearest_neighbor, distance(neighbor));
+    }
+
+    /* Check if the grain overlaps with the other. */
+    bool
+    overlaps(const Grain<dim> &gr_other,
+             const double      buffer_distance_ratio = 0.1,
+             const double      buffer_distance_fixed = 0) const
+    {
+      // Minimum distance between the two grains
+      const double min_distance = distance(gr_other);
+
+      /* Buffer safety zone around the two grains. If an overlap
+       * is detected, then the old order parameter values of all
+       * the cells inside the buffer zone are transfered to a
+       * new one.
+       */
+      const double buffer_distance_base =
+        buffer_distance_ratio * get_max_radius();
+      const double buffer_distance_other =
+        buffer_distance_ratio * gr_other.get_max_radius();
+
+      /* If two grains sharing the same order parameter are
+       * too close to each other, then try to change the
+       * order parameter of the secondary grain.
+       */
+      return (min_distance < buffer_distance_base + buffer_distance_other +
+                               buffer_distance_fixed);
     }
 
     /* Get transfer buffer. A zone around the grain which will be moved to
