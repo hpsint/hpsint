@@ -27,6 +27,8 @@
 namespace Sintering
 {
   using namespace dealii;
+  using namespace hpsint;
+
   template <int dim, typename Number, typename VectorizedArrayType>
   class InelasticStrains
   {

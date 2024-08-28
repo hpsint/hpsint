@@ -24,6 +24,7 @@
 namespace Sintering
 {
   using namespace dealii;
+  using namespace hpsint;
 
   struct MobilityCoefficients
   {
