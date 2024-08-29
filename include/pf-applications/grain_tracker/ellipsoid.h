@@ -120,8 +120,8 @@ namespace GrainTracker
       FullMatrix<Number> mtrA_inv(dim, dim);
       Vector<Number>     vecB(dim);
 
-      mtrA.fill(A.begin_raw());
-      std::copy_n(b.begin_raw(), dim, vecB.data());
+      mtrA.copy_from(A);
+      b.unroll(vecB.data(), vecB.data() + dim);
 
       SymmetricTensor<2, dim, Number> Am(A);
       Am *= 1. / (2 * alpha_in);

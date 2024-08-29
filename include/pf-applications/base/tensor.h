@@ -188,7 +188,8 @@ namespace hpsint
   {
     std::array<Point<dim, Number>, dim> arr;
 
-    std::copy_n(tens.begin_raw(), dim * dim, arr.begin()->begin_raw());
+    for (unsigned int d = 0; d < dim; ++d)
+      tens[d].unroll(arr[d].begin_raw(), arr[d].end_raw());
 
     return arr;
   }
@@ -197,12 +198,8 @@ namespace hpsint
   DEAL_II_ALWAYS_INLINE inline std::array<Point<dim, Number>, dim>
   tensor_to_point_array(Tensor<2, dim, Number> &&tens)
   {
-    std::array<Point<dim, Number>, dim> arr;
-
-    std::copy_n(std::make_move_iterator(tens.begin_raw()),
-                dim * dim,
-                arr.begin());
-
-    return arr;
+    // Here we use the notion that the data inside a tensor is actually an
+    // array of lower rank tensors
+    return *reinterpret_cast<std::array<Point<dim, Number>, dim> *>(&tens);
   }
 } // namespace hpsint
