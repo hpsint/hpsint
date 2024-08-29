@@ -27,12 +27,12 @@ main()
   using namespace dealii;
   using namespace GrainTracker;
 
-  // Ellipse center = (2, 3);  radii = (2, 3)
-  const Number                          data_a1[] = {18, 8, 0};
+  // Ellipse center = (2, 3); tilted, 2x^2 + y^2 = 2(x + y + xy -1)
+  const Number                          data_a1[] = {4, 2, -2};
   const SymmetricTensor<2, dim, Number> A1(data_a1);
-  const Number                          data_b1[dim] = {-36, -24};
+  const Number                          data_b1[dim] = {-2, -2};
   const Tensor<1, dim, Number>          b1(data_b1);
-  const Number                          alpha1 = 36;
+  const Number                          alpha1 = 1;
   const Ellipsoid<dim, Number>          e1(A1, b1, alpha1);
 
   // Ellipse center = (-3, -2);  radii = (3, 2)
@@ -43,21 +43,15 @@ main()
   const Number                          alpha2 = 36;
   const Ellipsoid<dim, Number>          e2(A2, b2, alpha2);
 
-  // Ellipse center = (2, 3); tilted, equation: 2x^2 + y^2 = 2(x + y + xy -1)
-  const Number                          data_a3[] = {4, 2, -2};
-  const SymmetricTensor<2, dim, Number> A3(data_a3);
-  const Number                          data_b3[dim] = {-2, -2};
-  const Tensor<1, dim, Number>          b3(data_b3);
-  const Number                          alpha3 = 1;
-  const Ellipsoid<dim, Number>          e3(A3, b3, alpha3);
+  // Tighten tolerance to see difference in the number of iterations
+  const auto [dist_tf, iter_tf, status_tf] =
+    distance(e1, e2, true, false, 1e-14);
+  const auto [dist_ft, iter_ft, status_ft] =
+    distance(e1, e2, false, true, 1e-14);
 
-  const auto res12 = distance(e1, e2);
-
-  std::cout << "dist_e1_e2   = " << res12.first << std::endl;
-  std::cout << "n_iter_e1_e2 = " << res12.second << std::endl;
-
-  const auto res32 = distance(e3, e2);
-
-  std::cout << "dist_e3_e2   = " << res32.first << std::endl;
-  std::cout << "n_iter_e3_e2 = " << res32.second << std::endl;
+  std::cout << std::setprecision(15);
+  std::cout << "dist_tf   = " << dist_tf << std::endl;
+  std::cout << "n_iter_tf = " << iter_tf << std::endl;
+  std::cout << "dist_ft   = " << dist_ft << std::endl;
+  std::cout << "n_iter_ft = " << iter_ft << std::endl;
 }
