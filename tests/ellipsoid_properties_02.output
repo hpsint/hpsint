@@ -1,0 +1,12 @@
+Input data:
+center  = 2 3 1
+radii = 6 7 8
+
+Ellipsoid data:
+A       = 0.0277778 0 0 0 0.0204082 0 0 0 0.015625
+b       = -0.0555556 -0.0612245 -0.015625
+alpha   = -0.344795
+radii   = 6 7 8
+norm    = 0.0378449
+gamma   = 36
+center  = 2 3 1
