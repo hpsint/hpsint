@@ -232,12 +232,18 @@ namespace GrainTracker
   } // namespace internal
 
   template <int dim, typename Number>
-  std::pair<Number, unsigned int>
+  std::tuple<Number, unsigned int, bool>
   distance(const Ellipsoid<dim, Number> &E1,
            const Ellipsoid<dim, Number> &E2,
-           const Number                  tol      = 1e-10,
-           unsigned int                  max_iter = 100)
+           const bool                    test_relative  = true,
+           const bool                    test_curvature = false,
+           const Number                  tol            = 1e-6,
+           unsigned int                  max_iter       = 100)
   {
+    AssertThrow(test_relative || test_curvature,
+                ExcMessage(
+                  "At least one convergence criteria should be chosen"));
+
     Tensor<1, dim, Number> c1 = E1.center;
     Tensor<1, dim, Number> c2 = E2.center;
 
@@ -247,41 +253,54 @@ namespace GrainTracker
     AssertThrow(c2c1_init.norm() > tol,
                 ExcMessage("Ellipses centers coincide"));
 
-    Number       dist = std::numeric_limits<Number>::max();
-    unsigned int iter = 0;
+    Number       dist          = c2c1_init.norm();
+    unsigned int iter          = 0;
+    bool         has_converged = false;
 
-    for (; iter < max_iter; ++iter)
+    for (; !has_converged && iter < max_iter; ++iter)
       {
-        const auto c2c1 = c2 - c1;
-        const auto t1   = internal::find_new_t(E1, c1, c2);
-        const auto t2   = internal::find_new_t(E2, c1, c2);
+        const Number dist_prev = dist;
+
+        const auto t1 = internal::find_new_t(E1, c1, c2);
+        const auto t2 = internal::find_new_t(E2, c1, c2);
 
         if (t2 < t1)
           {
-            dist = 0;
+            dist          = 0;
+            has_converged = true;
             break;
           }
+
+        const auto c2c1 = c2 - c1;
 
         const Point<dim, Number> x1_bar(c1 + t1 * c2c1);
         const Point<dim, Number> x2_bar(c1 + t2 * c2c1);
 
-        const auto crit1 =
-          internal::crit(x2_bar - x1_bar, E1.A * x1_bar + E1.b, eps_d);
-        const auto crit2 =
-          internal::crit(x1_bar - x2_bar, E2.A * x2_bar + E2.b, eps_d);
-
         dist = x1_bar.distance(x2_bar);
 
-        if (crit1 && crit2)
+        bool ok_relative = true;
+        if (test_relative)
           {
-            dist = x1_bar.distance(x2_bar);
-            break;
+            const auto rel_err = std::abs(dist - dist_prev) / dist_prev;
+            ok_relative        = rel_err < tol;
           }
+
+        bool ok_curvature = true;
+        if (test_curvature)
+          {
+            const auto crit1 =
+              internal::crit(x2_bar - x1_bar, E1.A * x1_bar + E1.b, eps_d);
+            const auto crit2 =
+              internal::crit(x1_bar - x2_bar, E2.A * x2_bar + E2.b, eps_d);
+            ok_curvature = crit1 && crit2;
+          }
+
+        has_converged = ok_relative && ok_curvature;
 
         c1 = x1_bar - 1. / E1.norm * (E1.A * x1_bar + E1.b);
         c2 = x2_bar - 1. / E2.norm * (E2.A * x2_bar + E2.b);
       }
 
-    return {dist, iter};
+    return {dist, iter, has_converged};
   }
 } // namespace GrainTracker
