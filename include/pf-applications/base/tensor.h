@@ -205,4 +205,4 @@ namespace hpsint
 
     return arr;
   }
-} // namespace Sintering
+} // namespace hpsint

@@ -189,11 +189,6 @@ namespace GrainTracker
                const Tensor<1, dim, Number> &c1,
                const Tensor<1, dim, Number> &c2)
     {
-      const auto c2c1 = c2 - c1;
-      // const auto a3 = 0.5 * (E.A * c2c1) * c2c1;
-      // const auto b3 = (E.As * c2c1) * c1 + E.b * c2c1;
-      // const auto c3 = 0.5 * (E.A * c1) * c1 + E.b * c1 + E.alpha;
-
       const auto Ac1 = E.A * c1;
       const auto Ac2 = E.A * c2;
 
@@ -201,45 +196,15 @@ namespace GrainTracker
       const auto b = Ac2 * c1 - Ac1 * c1 + E.b * c2 - E.b * c1;
       const auto c = 0.5 * Ac1 * c1 + E.b * c1 + E.alpha;
 
-      Number a0, b0, c0;
-      if constexpr (dim == 2)
-        {
-          a0 = 0.5 *
-               (E.A[0][0] * c2c1[0] * c2c1[0] + E.A[1][1] * c2c1[1] * c2c1[1] +
-                2 * E.A[0][1] * c2c1[0] * c2c1[1]);
-          b0 = (E.A[0][0] * c2c1[0]) * c1[0] + (E.A[1][1] * c2c1[1]) * c1[1] +
-               E.A[0][1] * (c1[0] * c2c1[1] - c1[1] * c2c1[0]) + E.b * c2c1;
-          c0 = 0.5 * (E.A[0][0] * c1[0] * c1[0] + E.A[1][1] * c1[1] * c1[1]) +
-               E.A[0][1] * c1[0] * c1[1] + E.b * c1 + E.alpha;
-        }
-      else
-        {
-          a0 =
-            0.5 *
-            (E.A[0][0] * c2c1[0] * c2c1[0] + E.A[1][1] * c2c1[1] * c2c1[1] +
-             E.A[2][2] * c2c1[2] * c2c1[2] + 2 * E.A[0][1] * c2c1[0] * c2c1[1] +
-             2 * E.A[0][2] * c2c1[0] * c2c1[2] +
-             2 * E.A[1][2] * c2c1[1] * c2c1[2]);
-          b0 = (E.A[0][0] * c2c1[0]) * c1[0] + (E.A[1][1] * c2c1[1]) * c1[1] +
-               (E.A[2][2] * c2c1[2]) * c1[2] +
-               E.A[0][1] * (c1[0] * c2c1[1] - c1[1] * c2c1[0]) +
-               E.A[0][2] * (c1[0] * c2c1[2] - c1[2] * c2c1[0]) +
-               E.A[1][2] * (c1[1] * c2c1[2] - c1[2] * c2c1[1]) + E.b * c2c1;
-          c0 = 0.5 * (E.A[0][0] * c1[0] * c1[0] + E.A[1][1] * c1[1] * c1[1] +
-                      E.A[2][2] * c1[2] * c1[2]) +
-               E.A[0][1] * c1[0] * c1[1] + E.A[0][2] * c1[0] * c1[2] +
-               E.A[1][2] * c1[1] * c1[2] + E.b * c1 + E.alpha;
-        }
-
       const auto sol = solve_quadratic(a, b, c);
 
       auto in_range = [](Number v) { return v >= 0. && v <= 1.; };
 
-      AssertThrow(!(in_range(sol.first) && in_range(sol.second)),
+      AssertThrow(!in_range(sol.first) || !in_range(sol.second),
                   ExcMessage("Both solutions " + std::to_string(sol.first) +
                              " and " + std::to_string(sol.second) +
                              " are in the admissible range"));
-      AssertThrow(!(!in_range(sol.first) && !in_range(sol.second)),
+      AssertThrow(in_range(sol.first) || in_range(sol.second),
                   ExcMessage("None of the solutions " +
                              std::to_string(sol.first) + " and " +
                              std::to_string(sol.second) +
