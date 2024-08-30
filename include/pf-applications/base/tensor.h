@@ -16,8 +16,9 @@
 #pragma once
 
 #include <deal.II/base/tensor.h>
+#include <deal.II/base/vectorization.h>
 
-namespace Sintering
+namespace hpsint
 {
   using namespace dealii;
 
@@ -181,4 +182,24 @@ namespace Sintering
     return tensor;
   }
 
-} // namespace Sintering
+  template <int dim, typename Number>
+  DEAL_II_ALWAYS_INLINE inline std::array<Point<dim, Number>, dim>
+  tensor_to_point_array(const Tensor<2, dim, Number> &tens)
+  {
+    std::array<Point<dim, Number>, dim> arr;
+
+    for (unsigned int d = 0; d < dim; ++d)
+      tens[d].unroll(arr[d].begin_raw(), arr[d].end_raw());
+
+    return arr;
+  }
+
+  template <int dim, typename Number>
+  DEAL_II_ALWAYS_INLINE inline std::array<Point<dim, Number>, dim>
+  tensor_to_point_array(Tensor<2, dim, Number> &&tens)
+  {
+    // Here we use the notion that the data inside a tensor is actually an
+    // array of lower rank tensors
+    return *reinterpret_cast<std::array<Point<dim, Number>, dim> *>(&tens);
+  }
+} // namespace hpsint
