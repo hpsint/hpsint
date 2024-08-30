@@ -30,6 +30,15 @@ namespace GrainTracker
 {
   using namespace dealii;
 
+  /* This function gets the radii a, b, and c of an ellipsoid in 3D for the
+   * given values values of the principal moments of inertia which are given by
+   * I0 = 1/4 * M * b^2
+   * I1 = 1/4 * M * a^2
+   * where
+   * M = density * pi * a * b
+   * see
+   * https://phys.libretexts.org/Bookshelves/Classical_Mechanics/Classical_Mechanics_(Tatum)/02%3A_Moments_of_Inertia/2.20%3A_Ellipses_and_Ellipsoids
+   */
   template <typename Number>
   std::array<Number, 2>
   get_radii_from_inertia(const std::array<Number, 2> &principal_moments,
@@ -44,7 +53,15 @@ namespace GrainTracker
 
     return radii;
   }
-
+  /* This function gets the radii a, b, and c of an ellipsoid in 3D for the
+   * given values values of the principal moments of inertia which are given by
+   * I0 = 1/5 * M * (b^2 + c^2)
+   * I1 = 1/5 * M * (a^2 + c^2)
+   * I2 = 1/5 * M * (a^2 + b^2)
+   * where
+   * M = 4/3 * density * pi * a * b * c
+   * see https://scienceworld.wolfram.com/physics/MomentofInertiaEllipsoid.html
+   */
   template <typename Number>
   std::array<Number, 3>
   get_radii_from_inertia(const std::array<Number, 3> &principal_moments,
@@ -62,20 +79,32 @@ namespace GrainTracker
     return radii;
   }
 
+  /* A class that handles the ellipsoid geometry.
+   * An ellipsoid is written in a quadratic form as:
+   * f(x) = 1/2 * x^T A x + b^T x + alpha = 0
+   * where x is the the point vector in dim space.
+   */
   template <int dim, typename Number = double>
   struct Ellipsoid
   {
+    // Components of the quadratic form
     Tensor<2, dim, Number> A;
     Tensor<1, dim, Number> b;
     Number                 alpha;
 
-    // Sorted in the ascending order
+    // Radii sorted in the ascending order
     std::array<Number, dim> radii;
 
-    Number             norm;
-    Number             gamma;
+    // Norm of matrix A
+    Number norm;
+
+    // Spectral radius (evaluated from the smallest radius)
+    Number gamma;
+
+    // Center of the ellipsoid
     Point<dim, Number> center;
 
+    // Build an ellipsoid from its center, radii and principal axes
     Ellipsoid(const Point<dim, Number> &                 center,
               const std::array<Number, dim> &            radii,
               const std::array<Point<dim, Number>, dim> &axes)
@@ -87,8 +116,10 @@ namespace GrainTracker
       for (unsigned int d = 0; d < dim; ++d)
         S[d][d] = 1. / std::pow(radii[d], 2);
 
+      // Build a rotation tensor from a global cartesian system to the local one
       const auto Q = rotation_tensor_from_axes<dim, Number>(axes);
 
+      // Build the quadratic form
       A = Physics::Transformations::basis_transformation(S, Q);
       b = A * center;
       b *= -1;
@@ -99,6 +130,10 @@ namespace GrainTracker
       gamma = std::pow(min_radius(), 2);
     }
 
+    /* Build an ellipsoid from its center, principal moments, principal axes and
+     * measure (i.e. volume). Effectively, we evaluated radii from the principal
+     * moments and then delegate to the constructor above.
+     */
     Ellipsoid(const Point<dim, Number> &                 principal_center,
               const std::array<Number, dim> &            principal_moments,
               const std::array<Point<dim, Number>, dim> &principal_axes,
@@ -108,6 +143,7 @@ namespace GrainTracker
                   principal_axes)
     {}
 
+    // Build an ellipsoid from its quadratic form
     Ellipsoid(const SymmetricTensor<2, dim, Number> &A_in,
               const Tensor<1, dim, Number> &         b_in,
               const Number                           alpha_in)
@@ -123,6 +159,7 @@ namespace GrainTracker
       mtrA.copy_from(A);
       b.unroll(vecB.data(), vecB.data() + dim);
 
+      // Compute eigenvalues of A to get the radii
       SymmetricTensor<2, dim, Number> Am(A);
       Am *= 1. / (2 * alpha_in);
       const auto evals = eigenvalues(Am);
@@ -133,6 +170,7 @@ namespace GrainTracker
 
       gamma = std::pow(min_radius(), 2);
 
+      // Invert A to compute the ellipsoid center
       mtrA_inv.invert(mtrA);
 
       Vector<Number> vecC(dim);
@@ -174,6 +212,7 @@ namespace GrainTracker
 
   namespace internal
   {
+    // Solve a quadratic equation
     template <typename Number>
     std::pair<Number, Number>
     solve_quadratic(Number a, Number b, Number c)
@@ -183,6 +222,14 @@ namespace GrainTracker
       return {(-b - std::sqrt(D)) / (2 * a), (-b + std::sqrt(D)) / (2 * a)};
     }
 
+    /* This function searches for an intersection of an ellipsoid E with a line
+     * connecting points c1 and c2 and defined parametrically using variable t
+     * as x(t) = c1 + t*(c2 - c1). Note that either c1 or c2 is located inside
+     * the ellipsoid E. To solve this problem, one needs to substitute this
+     * parametric definition into the ellipsoid quadratic form f(x) = 0. The
+     * quadratic equation with unknown t is then obtained, and only one of its
+     * solutions is in the admissible range [0, 1].
+     */
     template <int dim, typename Number>
     Number
     find_new_t(const Ellipsoid<dim, Number> &E,
@@ -213,6 +260,9 @@ namespace GrainTracker
       return (in_range(sol.first)) ? sol.first : sol.second;
     }
 
+    /* One of the metric that can be ised for convergence, not used at the
+     * moment since it has acos.
+     */
     template <int dim, typename Number>
     Number
     theta(const Tensor<1, dim, Number> &v, const Tensor<1, dim, Number> &w)
@@ -220,6 +270,9 @@ namespace GrainTracker
       return std::acos(v * w / (v.norm() + w.norm()));
     }
 
+    /* This is one of the convergence metrics and it is estimates whether the 2
+     * vectors v and w are collinear or not.
+     */
     template <int dim, typename Number>
     bool
     crit(const Tensor<1, dim, Number> &v,
@@ -231,22 +284,43 @@ namespace GrainTracker
     }
   } // namespace internal
 
+  /* This function searches for the minimal distance between the 2 ellipsoids E1
+   * and E1. It is based on the so-called "moving balls" algorithm proposed in
+   * https://epubs.siam.org/doi/10.1137/S1052623401396510. It is sufficiently
+   * fast and is very robust as shown in https://hal.science/hal-04507684.
+   *
+   * We use 2 different convergence criteria: either of them or both at the same
+   * time can be used. The first one checks the relative magnitude of change of
+   * the distance between the ellipsoids at the current iteration with respect
+   * to the corresponding values from the previous. The second one checks the
+   * collinearity of the 2 vectors, see works above for details.
+   *
+   * We return the distance itself, the number of iterations, and the flag that
+   * says whether the iterative process has actually converged. If that flag is
+   * false, the distance actually still remains meaningfull and, most
+   * probably, is usable for our needs thanks to the robustness of this
+   * "moving balls" algorithm.
+   */
   template <int dim, typename Number>
   std::tuple<Number, unsigned int, bool>
   distance(const Ellipsoid<dim, Number> &E1,
            const Ellipsoid<dim, Number> &E2,
            const bool                    test_relative  = true,
-           const bool                    test_curvature = false,
+           const bool                    test_collinear = false,
            const Number                  tol            = 1e-6,
            unsigned int                  max_iter       = 100)
   {
-    AssertThrow(test_relative || test_curvature,
+    AssertThrow(test_relative || test_collinear,
                 ExcMessage(
                   "At least one convergence criteria should be chosen"));
 
+    /* The initial reference points are simply the ellipsoid centers. */
     Tensor<1, dim, Number> c1 = E1.center;
     Tensor<1, dim, Number> c2 = E2.center;
 
+    /* Convergence tolerance is reevaluated based on the maximum radii of the
+     * ellipsoid curvatures.
+     */
     const auto eps_d = std::sqrt(2 * tol / (E1.max_radius() + E2.max_radius()));
 
     const auto c2c1_init = c2 - c1;
@@ -261,6 +335,12 @@ namespace GrainTracker
       {
         const Number dist_prev = dist;
 
+        /* At each iteration we build a line connecting points c1 and c2
+         * currently picked as reference ones within ellipsoids E1 and E1. This
+         * line is defined in parametric way using variable t. We then search
+         * for an intersection of the line with each of the ellipsoid using this
+         * function. To this end
+         */
         const auto t1 = internal::find_new_t(E1, c1, c2);
         const auto t2 = internal::find_new_t(E2, c1, c2);
 
@@ -273,11 +353,16 @@ namespace GrainTracker
 
         const auto c2c1 = c2 - c1;
 
+        /* These are intersection of the ellipsoids with the line connecting
+         * points c1 and c2.
+         */
         const Point<dim, Number> x1_bar(c1 + t1 * c2c1);
         const Point<dim, Number> x2_bar(c1 + t2 * c2c1);
 
+        /* This is interpreted as a distance between the ellipsoids. */
         dist = x1_bar.distance(x2_bar);
 
+        /* Check the relative change of the distance between the iterations. */
         bool ok_relative = true;
         if (test_relative)
           {
@@ -285,18 +370,24 @@ namespace GrainTracker
             ok_relative        = rel_err < tol;
           }
 
-        bool ok_curvature = true;
-        if (test_curvature)
+        /* Check if the vector connecting the obtained itersection points is
+         * collinear with the vectors originating from the center of each of the
+         * ellipsoids to the corresponding intersection point: these 3 should
+         * all be collinear.
+         */
+        bool ok_collinear = true;
+        if (test_collinear)
           {
             const auto crit1 =
               internal::crit(x2_bar - x1_bar, E1.A * x1_bar + E1.b, eps_d);
             const auto crit2 =
               internal::crit(x1_bar - x2_bar, E2.A * x2_bar + E2.b, eps_d);
-            ok_curvature = crit1 && crit2;
+            ok_collinear = crit1 && crit2;
           }
 
-        has_converged = ok_relative && ok_curvature;
+        has_converged = ok_relative && ok_collinear;
 
+        /* Pick new reference points. */
         c1 = x1_bar - 1. / E1.norm * (E1.A * x1_bar + E1.b);
         c2 = x2_bar - 1. / E2.norm * (E2.A * x2_bar + E2.b);
       }

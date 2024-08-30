@@ -23,6 +23,8 @@ namespace GrainTracker
 {
   using namespace dealii;
 
+  /* Build a rotation tensor between the two given coordinate systems each given
+   * by unitary vectors e_i and e_i0 as Q = e_i e_i0^T. */
   template <int dim, typename Number>
   Tensor<2, dim, Number>
   rotation_tensor_from_axes(const std::array<Point<dim, Number>, dim> &axes,
@@ -36,6 +38,8 @@ namespace GrainTracker
     return rotation_tensor;
   }
 
+  /* Similar to the previous function but implies that one of the coordinate
+   * systems is actually the global one. */
   template <int dim, typename Number>
   Tensor<2, dim, Number>
   rotation_tensor_from_axes(const std::array<Point<dim, Number>, dim> &axes,
@@ -49,6 +53,8 @@ namespace GrainTracker
                        rotation_tensor_from_axes<dim, Number>(axes0, axes);
   }
 
+  /* Compute a rotation tensor from a given rotation axis and a scalar angle in
+   * 3D using quaternions. */
   template <typename Number>
   Tensor<2, 3, Number>
   rotation_via_quaternions(const Tensor<1, 3, Number> &axis, const Number angle)
