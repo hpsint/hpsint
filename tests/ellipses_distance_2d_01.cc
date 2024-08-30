@@ -49,7 +49,7 @@ main()
   const auto [dist_ft, iter_ft, status_ft] =
     distance(e1, e2, false, true, 1e-9);
 
-    std::cout << std::setprecision(15);
+  std::cout << std::setprecision(15);
   std::cout << "dist_tf   = " << dist_tf << std::endl;
   std::cout << "n_iter_tf = " << iter_tf << std::endl;
   std::cout << "dist_ft   = " << dist_ft << std::endl;

@@ -45,7 +45,7 @@ main()
   std::cout << "radii = ";
   std::copy(radii.begin(),
             radii.end(),
-            std::ostream_iterator<double>(std::cout, " "));
+            std::ostream_iterator<Number>(std::cout, " "));
   std::cout << std::endl;
   std::cout << std::endl;
 
@@ -56,7 +56,7 @@ main()
   std::cout << "radii   = ";
   std::copy(ellipsoid.radii.begin(),
             ellipsoid.radii.end(),
-            std::ostream_iterator<double>(std::cout, " "));
+            std::ostream_iterator<Number>(std::cout, " "));
   std::cout << std::endl;
   std::cout << "norm    = " << ellipsoid.norm << std::endl;
   std::cout << "gamma   = " << ellipsoid.gamma << std::endl;

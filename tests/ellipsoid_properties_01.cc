@@ -64,7 +64,7 @@ main()
   std::cout << "inertia = ";
   std::copy(principal_moments.begin(),
             principal_moments.end(),
-            std::ostream_iterator<double>(std::cout, " "));
+            std::ostream_iterator<Number>(std::cout, " "));
   std::cout << std::endl;
   std::cout << "axes    = " << R << std::endl;
   std::cout << "measure = " << m << std::endl;
@@ -77,7 +77,7 @@ main()
   std::cout << "radii   = ";
   std::copy(ellipsoid.radii.begin(),
             ellipsoid.radii.end(),
-            std::ostream_iterator<double>(std::cout, " "));
+            std::ostream_iterator<Number>(std::cout, " "));
   std::cout << std::endl;
   std::cout << "norm    = " << ellipsoid.norm << std::endl;
   std::cout << "gamma   = " << ellipsoid.gamma << std::endl;

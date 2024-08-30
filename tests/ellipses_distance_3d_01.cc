@@ -43,10 +43,8 @@ main()
   const Number                          alpha2 = 38;
   const Ellipsoid<dim, Number>          e2(A2, b2, alpha2);
 
-  const auto [dist_tf, iter_tf, status_tf] =
-    distance(e1, e2, true, false);
-  const auto [dist_ft, iter_ft, status_ft] =
-    distance(e1, e2, false, true);
+  const auto [dist_tf, iter_tf, status_tf] = distance(e1, e2, true, false);
+  const auto [dist_ft, iter_ft, status_ft] = distance(e1, e2, false, true);
 
   std::cout << std::setprecision(15);
   std::cout << "dist_tf   = " << dist_tf << std::endl;
