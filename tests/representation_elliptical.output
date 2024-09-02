@@ -1,0 +1,9 @@
+Input data:
+center  = 3 5 7
+radii   = 5 3 2
+inertia = 326.726 728.849 854.513
+axes    = 0.896256 0.105988 0.430687 -0.0188436 0.979251 -0.201772 -0.443136 0.172724 0.879657
+volume  = 125.664
+
+Representation data:
+center = 3 5 7 | radii = 2 3 5
