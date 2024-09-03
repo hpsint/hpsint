@@ -957,6 +957,7 @@ namespace Sintering
         !params.geometry_data.minimize_order_parameters,
         allow_new_grains,
         params.grain_tracker_data.fast_reassignment,
+        params.grain_tracker_data.elliptical_grains,
         MAX_SINTERING_GRAINS,
         params.grain_tracker_data.threshold_lower,
         params.grain_tracker_data.threshold_new_grains,
