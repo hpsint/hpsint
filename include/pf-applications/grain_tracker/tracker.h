@@ -1382,8 +1382,14 @@ namespace GrainTracker
 
             std::unique_ptr<Representation> representation;
 
-            representation = std::make_unique<RepresentationSpherical<dim>>(
-              particle_centers[index], particle_radii[index]);
+            if (true)
+              representation = std::make_unique<RepresentationElliptical<dim>>(
+                particle_centers[index],
+                particle_measures[index],
+                &(particle_inertia[index * num_inertias<dim>]));
+            else
+              representation = std::make_unique<RepresentationSpherical<dim>>(
+                particle_centers[index], particle_radii[index]);
 
             new_grains.at(grain_id).add_segment(
               Segment<dim>(particle_centers[index],
