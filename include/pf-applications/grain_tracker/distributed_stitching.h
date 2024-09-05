@@ -517,6 +517,9 @@ namespace GrainTracker
 
           const unsigned int local_id =
             static_cast<unsigned int>(particle_id) - local_offset;
+
+          AssertIndexRange(local_id, local_to_global_particle_ids.size());
+
           const unsigned int unique_id = local_to_global_particle_ids[local_id];
 
           AssertIndexRange(unique_id, n_particles);
@@ -571,6 +574,9 @@ namespace GrainTracker
 
           const unsigned int local_id =
             static_cast<unsigned int>(particle_id) - local_offset;
+
+          AssertIndexRange(local_id, local_to_global_particle_ids.size());
+
           const unsigned int unique_id = local_to_global_particle_ids[local_id];
 
           AssertIndexRange(unique_id, n_particles);
