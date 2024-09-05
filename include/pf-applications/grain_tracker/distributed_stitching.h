@@ -419,8 +419,7 @@ namespace GrainTracker
              std::vector<Point<dim>>, // particle_centers
              std::vector<double>,     // particle_radii
              std::vector<double>,     // particle_measures
-             std::vector<double>,     // particle_max_values
-             std::vector<double>>     // particle_inertia
+             std::vector<double>>     // particle_max_values
   compute_particles_info(
     const DoFHandler<dim> &          dof_handler,
     const VectorIds &                particle_ids,
@@ -537,6 +536,27 @@ namespace GrainTracker
                   MPI_MAX,
                   comm);
 
+    return std::make_tuple(n_particles,
+                           std::move(particle_centers),
+                           std::move(particle_radii),
+                           std::move(particle_measures),
+                           std::move(particle_max_values));
+  }
+
+  template <int dim, typename VectorIds>
+  std::vector<double>
+  compute_particles_inertia(
+    const DoFHandler<dim> &          dof_handler,
+    const VectorIds &                particle_ids,
+    const std::vector<unsigned int> &local_to_global_particle_ids,
+    const unsigned int               local_offset,
+    const std::vector<Point<dim>> &  particle_centers,
+    const double                     invalid_particle_id = -1.0)
+  {
+    const auto comm = dof_handler.get_communicator();
+
+    const unsigned int n_particles = particle_centers.size();
+
     // Compute particles moments of inertia
     std::vector<double> particle_inertia(n_particles * num_inertias<dim>, 0.);
     for (const auto &cell :
@@ -572,11 +592,6 @@ namespace GrainTracker
                   MPI_SUM,
                   comm);
 
-    return std::make_tuple(n_particles,
-                           std::move(particle_centers),
-                           std::move(particle_radii),
-                           std::move(particle_measures),
-                           std::move(particle_max_values),
-                           std::move(particle_inertia));
+    return particle_inertia;
   }
 } // namespace GrainTracker
