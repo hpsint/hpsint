@@ -124,7 +124,7 @@ main(int argc, char **argv)
 
   solution.update_ghost_values();
 
-  std::cout << std::boolalpha;
+  pcout << std::boolalpha;
 
   // Grain tracker settings
   const double       threshold_lower          = 1e-15;
@@ -156,12 +156,12 @@ main(int argc, char **argv)
   const auto [n_collisions_sp, grains_reassigned_sp, op_number_changed_sp] =
     grain_tracker_spherical.initial_setup(solution, 1);
 
-  std::cout << "Spherical grain representation:" << std::endl;
-  std::cout << "n_collisions      = " << n_collisions_sp << std::endl;
-  std::cout << "grains_reassigned = " << grains_reassigned_sp << std::endl;
-  std::cout << "op_number_changed = " << op_number_changed_sp << std::endl;
+  pcout << "Spherical grain representation:" << std::endl;
+  pcout << "n_collisions      = " << n_collisions_sp << std::endl;
+  pcout << "grains_reassigned = " << grains_reassigned_sp << std::endl;
+  pcout << "op_number_changed = " << op_number_changed_sp << std::endl;
   grain_tracker_spherical.print_current_grains(pcout, true);
-  std::cout << std::endl;
+  pcout << std::endl;
 
   // Grain tracker with elliptical grains representation
   GrainTracker::Tracker<dim, Number> grain_tracker_elliptical(
@@ -181,10 +181,10 @@ main(int argc, char **argv)
   const auto [n_collisions_el, grains_reassigned_el, op_number_changed_el] =
     grain_tracker_elliptical.initial_setup(solution, 1);
 
-  std::cout << "Elliptical grain representation:" << std::endl;
-  std::cout << "n_collisions      = " << n_collisions_el << std::endl;
-  std::cout << "grains_reassigned = " << grains_reassigned_el << std::endl;
-  std::cout << "op_number_changed = " << op_number_changed_el << std::endl;
+  pcout << "Elliptical grain representation:" << std::endl;
+  pcout << "n_collisions      = " << n_collisions_el << std::endl;
+  pcout << "grains_reassigned = " << grains_reassigned_el << std::endl;
+  pcout << "op_number_changed = " << op_number_changed_el << std::endl;
 
   grain_tracker_elliptical.print_current_grains(pcout, true);
 
