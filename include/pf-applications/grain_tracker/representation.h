@@ -112,7 +112,7 @@ namespace GrainTracker
 
   template <int dim>
   struct RepresentationElliptical
-    : public RepresentationWrapper<RepresentationSpherical<dim>>
+    : public RepresentationWrapper<RepresentationElliptical<dim>>
   {
     RepresentationElliptical(const Point<dim> &center,
                              const double      measure,
