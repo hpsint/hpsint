@@ -133,6 +133,12 @@ namespace GrainTracker
       initialize(center, measure, inertia);
     }
 
+    RepresentationElliptical(const Point<dim> &                 center,
+                             const std::array<double, dim> &    radii,
+                             const std::array<Point<dim>, dim> &axes)
+      : ellipsoid(center, radii, axes)
+    {}
+
     RepresentationElliptical(const Ellipsoid<dim> &ellipsoid)
       : ellipsoid(ellipsoid)
     {}
