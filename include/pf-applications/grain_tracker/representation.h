@@ -63,6 +63,9 @@ namespace GrainTracker
     double
     distance(const Representation &other) const override
     {
+      // This expensive check is used only in debug builds
+      Assert(dynamic_cast<const T *>(&other), ExcNotImplemented());
+
       return static_cast<const T *>(this)->distance_impl(
         static_cast<const T &>(other));
     }
