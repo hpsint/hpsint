@@ -55,6 +55,11 @@ namespace GrainTracker
   template <typename T>
   struct RepresentationWrapper : Representation
   {
+    /* Though this CRTP behavior does not introduce any runtime overhead, it is
+     * not absolutely safe, since other object can be of different type. For
+     * instance, one may think of measuring distance between a sphere and an
+     * ellipsoid. This is currently not permitted and will lead to incorrect
+     * static_cast behavior. */
     double
     distance(const Representation &other) const override
     {
