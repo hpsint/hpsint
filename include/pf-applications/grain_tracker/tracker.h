@@ -70,6 +70,7 @@ namespace GrainTracker
             const bool                              greedy_init,
             const bool                              allow_new_grains,
             const bool                              fast_reassignment,
+            const bool                              elliptical_grains,
             const unsigned int                      max_order_parameters_num,
             const double                            threshold_lower      = 0.01,
             const double                            threshold_new_grains = 0.02,
@@ -84,6 +85,7 @@ namespace GrainTracker
       , greedy_init(greedy_init)
       , allow_new_grains(allow_new_grains)
       , fast_reassignment(fast_reassignment)
+      , elliptical_grains(elliptical_grains)
       , max_order_parameters_num(max_order_parameters_num)
       , threshold_lower(threshold_lower)
       , threshold_new_grains(threshold_new_grains)
@@ -107,6 +109,7 @@ namespace GrainTracker
                                                greedy_init,
                                                allow_new_grains,
                                                fast_reassignment,
+                                               elliptical_grains,
                                                max_order_parameters_num,
                                                threshold_lower,
                                                threshold_new_grains,
@@ -1282,7 +1285,17 @@ namespace GrainTracker
                                    offset,
                                    invalid_particle_id,
                                    local_particle_max_values);
-          (void)particle_measures; // we do not need this data
+
+          // Compute particles inertia if needed
+          std::vector<double> particle_inertia;
+          if (elliptical_grains)
+            particle_inertia =
+              compute_particles_inertia(dof_handler,
+                                        particle_ids,
+                                        local_to_global_particle_ids,
+                                        offset,
+                                        particle_centers,
+                                        invalid_particle_id);
 
           // Set global ids to the particles
           for (auto &particle_id : particle_ids)
@@ -1372,7 +1385,8 @@ namespace GrainTracker
             n_particles);
 
           // Lambda to create grains and segments
-          auto append_segment = [&](unsigned int index, unsigned int grain_id) {
+          auto append_segment = [&, elliptical_grains = elliptical_grains](
+                                  unsigned int index, unsigned int grain_id) {
             new_grains.try_emplace(grain_id,
                                    assign_indices ?
                                      grain_id :
@@ -1381,8 +1395,14 @@ namespace GrainTracker
 
             std::unique_ptr<Representation> representation;
 
-            representation = std::make_unique<RepresentationSpherical<dim>>(
-              particle_centers[index], particle_radii[index]);
+            if (elliptical_grains)
+              representation = std::make_unique<RepresentationElliptical<dim>>(
+                particle_centers[index],
+                particle_measures[index],
+                &(particle_inertia[index * num_inertias<dim>]));
+            else
+              representation = std::make_unique<RepresentationSpherical<dim>>(
+                particle_centers[index], particle_radii[index]);
 
             new_grains.at(grain_id).add_segment(
               Segment<dim>(particle_centers[index],
@@ -1891,6 +1911,9 @@ namespace GrainTracker
 
     // Use fast grains reassignment strategy
     const bool fast_reassignment;
+
+    // Use elliptical representation
+    const bool elliptical_grains;
 
     // Maximum number of order parameters available
     const unsigned int max_order_parameters_num;

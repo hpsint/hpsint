@@ -203,6 +203,7 @@ main(int argc, char **argv)
   const double       buffer_distance_fixed    = 0.0;
   const bool         allow_new_grains         = false;
   const bool         fast_reassignment        = false;
+  const bool         elliptical_grains        = false;
   const bool         greedy_init              = !minimize_order_parameters;
   const unsigned int op_offset                = 2;
   const unsigned int max_order_parameters_num = 5;
@@ -212,6 +213,7 @@ main(int argc, char **argv)
                                                    greedy_init,
                                                    allow_new_grains,
                                                    fast_reassignment,
+                                                   elliptical_grains,
                                                    max_order_parameters_num,
                                                    threshold_lower,
                                                    threshold_new_grains,

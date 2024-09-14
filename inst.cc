@@ -20,3 +20,5 @@ internal::AffineConstraintsImplementation::set_zero_all(
 // Explicitly export instantiations to make polymorphic serialization work
 BOOST_CLASS_EXPORT(GrainTracker::RepresentationSpherical<2>)
 BOOST_CLASS_EXPORT(GrainTracker::RepresentationSpherical<3>)
+BOOST_CLASS_EXPORT(GrainTracker::RepresentationElliptical<2>)
+BOOST_CLASS_EXPORT(GrainTracker::RepresentationElliptical<3>)

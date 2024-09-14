@@ -23,6 +23,9 @@ namespace GrainTracker
 {
   using namespace dealii;
 
+  template <int dim>
+  constexpr unsigned int num_inertias = dim *((dim + 1) / 2.);
+
   /* Build a rotation tensor between the two given coordinate systems each given
    * by unitary vectors e_i and e_i0 as Q = e_i e_i0^T. */
   template <int dim, typename Number>
@@ -51,6 +54,40 @@ namespace GrainTracker
 
     return transpose ? rotation_tensor_from_axes<dim, Number>(axes, axes0) :
                        rotation_tensor_from_axes<dim, Number>(axes0, axes);
+  }
+
+  /* Evaluate inertia moments in 2D */
+  template <typename Number>
+  void
+  evaluate_inertia_properties(const Point<2, Number> &r,
+                              const Number            measure,
+                              Number *                data)
+  {
+    const auto x = r[0];
+    const auto y = r[1];
+
+    data[0] += y * y * measure;
+    data[1] += x * x * measure;
+    data[2] += -x * y * measure;
+  }
+
+  /* Evaluate inertia moments in 3D */
+  template <typename Number>
+  void
+  evaluate_inertia_properties(const Point<3, Number> &r,
+                              const Number            measure,
+                              Number *                data)
+  {
+    const auto x = r[0];
+    const auto y = r[1];
+    const auto z = r[2];
+
+    data[0] += (y * y + z * z) * measure;
+    data[1] += (x * x + z * z) * measure;
+    data[2] += (x * x + y * y) * measure;
+    data[3] += -x * y * measure;
+    data[4] += -x * z * measure;
+    data[5] += -y * z * measure;
   }
 
   /* Compute a rotation tensor from a given rotation axis and a scalar angle in

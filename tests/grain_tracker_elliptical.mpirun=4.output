@@ -1,0 +1,24 @@
+Create subdivided hyperrectangle [9.000000 x 9.000000] = [0.000000...9.000000 x 0.000000...9.000000]
+with 3 refinements (global = 3, delayed = 0) and 10x10 subdivisions
+
+Spherical grain representation:
+n_collisions      = 1
+grains_reassigned = true
+op_number_changed = true
+Number of order parameters: 2
+Number of grains: 2
+op_index_current = 1 | op_index_old = 0 | segments = 1
+    segment: center = 4.00036 6.50233 | radius = 1.65689 | max_value = 1
+op_index_current = 0 | op_index_old = 0 | segments = 1
+    segment: center = 4.00241 1.99956 | radius = 3.12908 | max_value = 1
+
+Elliptical grain representation:
+n_collisions      = 0
+grains_reassigned = false
+op_number_changed = false
+Number of order parameters: 1
+Number of grains: 2
+op_index_current = 0 | op_index_old = 0 | segments = 1
+    segment: center = 4.00036 6.50233 | radii = 1.56199 1.58114 | max_value = 1
+op_index_current = 0 | op_index_old = 0 | segments = 1
+    segment: center = 4.00241 1.99956 | radii = 1.06383 3.0979 | max_value = 1

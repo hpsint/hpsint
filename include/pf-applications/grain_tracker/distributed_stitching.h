@@ -28,6 +28,8 @@
 #include <boost/graph/adjacency_list.hpp>
 #include <boost/graph/connected_components.hpp>
 
+#include <pf-applications/grain_tracker/motion.h>
+
 namespace GrainTracker
 {
   using namespace dealii;
@@ -515,6 +517,9 @@ namespace GrainTracker
 
           const unsigned int local_id =
             static_cast<unsigned int>(particle_id) - local_offset;
+
+          AssertIndexRange(local_id, local_to_global_particle_ids.size());
+
           const unsigned int unique_id = local_to_global_particle_ids[local_id];
 
           AssertIndexRange(unique_id, n_particles);
@@ -539,5 +544,60 @@ namespace GrainTracker
                            std::move(particle_radii),
                            std::move(particle_measures),
                            std::move(particle_max_values));
+  }
+
+  template <int dim, typename VectorIds>
+  std::vector<double>
+  compute_particles_inertia(
+    const DoFHandler<dim> &          dof_handler,
+    const VectorIds &                particle_ids,
+    const std::vector<unsigned int> &local_to_global_particle_ids,
+    const unsigned int               local_offset,
+    const std::vector<Point<dim>> &  particle_centers,
+    const double                     invalid_particle_id = -1.0)
+  {
+    const auto comm = dof_handler.get_communicator();
+
+    const unsigned int n_particles = particle_centers.size();
+
+    // Compute particles moments of inertia
+    std::vector<double> particle_inertia(n_particles * num_inertias<dim>, 0.);
+    for (const auto &cell :
+         dof_handler.get_triangulation().active_cell_iterators())
+      if (cell->is_locally_owned())
+        {
+          const auto particle_id =
+            particle_ids[cell->global_active_cell_index()];
+
+          if (particle_id == invalid_particle_id)
+            continue;
+
+          const unsigned int local_id =
+            static_cast<unsigned int>(particle_id) - local_offset;
+
+          AssertIndexRange(local_id, local_to_global_particle_ids.size());
+
+          const unsigned int unique_id = local_to_global_particle_ids[local_id];
+
+          AssertIndexRange(unique_id, n_particles);
+
+          const auto &center  = particle_centers[unique_id];
+          const auto  r_local = Point<dim>(cell->center() - center);
+
+          evaluate_inertia_properties(
+            r_local,
+            cell->measure(),
+            &(particle_inertia[num_inertias<dim> * unique_id]));
+        }
+
+    // Reduce information - particles info
+    MPI_Allreduce(MPI_IN_PLACE,
+                  particle_inertia.data(),
+                  particle_inertia.size(),
+                  MPI_DOUBLE,
+                  MPI_SUM,
+                  comm);
+
+    return particle_inertia;
   }
 } // namespace GrainTracker

@@ -1564,6 +1564,7 @@ namespace Sintering
                                              local_to_global_particle_ids,
                                              offset,
                                              invalid_particle_id);
+      (void)pores_max_values;
 
       const auto comm = dof_handler.get_communicator();
 
