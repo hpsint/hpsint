@@ -85,30 +85,16 @@ namespace GrainTracker
    * where x is the the point vector in dim space.
    */
   template <int dim, typename Number = double>
-  struct Ellipsoid
+  class Ellipsoid
   {
-    // Components of the quadratic form
-    Tensor<2, dim, Number> A;
-    Tensor<1, dim, Number> b;
-    Number                 alpha;
-
-    // Radii sorted in the ascending order
-    std::array<Number, dim> radii;
-
-    // Norm of matrix A
-    Number norm;
-
-    // Spectral radius (evaluated from the smallest radius)
-    Number gamma;
-
-    // Center of the ellipsoid
-    Point<dim, Number> center;
-
+  public:
     // Build an ellipsoid from its center, radii and principal axes
     Ellipsoid(const Point<dim, Number> &                 center,
               const std::array<Number, dim> &            radii,
               const std::array<Point<dim, Number>, dim> &axes)
       : radii(radii)
+      , r_min(*std::min_element(radii.cbegin(), radii.cend()))
+      , r_max(*std::max_element(radii.cbegin(), radii.cend()))
       , center(center)
     {
       Tensor<2, dim, Number> S;
@@ -126,8 +112,6 @@ namespace GrainTracker
       alpha = 0.5 * (A * center) * center - 0.5;
 
       norm = A.norm();
-
-      gamma = std::pow(min_radius(), 2);
     }
 
     /* Build an ellipsoid from its center, principal moments, principal axes and
@@ -168,7 +152,8 @@ namespace GrainTracker
         return 1. / std::sqrt(v);
       });
 
-      gamma = std::pow(min_radius(), 2);
+      r_min = *std::min_element(radii.cbegin(), radii.cend());
+      r_max = *std::max_element(radii.cbegin(), radii.cend());
 
       // Invert A to compute the ellipsoid center
       mtrA_inv.invert(mtrA);
@@ -184,18 +169,6 @@ namespace GrainTracker
 
     Ellipsoid() = default;
 
-    Number
-    min_radius() const
-    {
-      return *std::min_element(radii.cbegin(), radii.cend());
-    }
-
-    Number
-    max_radius() const
-    {
-      return *std::max_element(radii.cbegin(), radii.cend());
-    }
-
     template <class Archive>
     void
     serialize(Archive &ar, const unsigned int /*version*/)
@@ -203,11 +176,86 @@ namespace GrainTracker
       ar &A;
       ar &b;
       ar &alpha;
-      ar &radii;
       ar &norm;
-      ar &gamma;
+      ar &radii;
+      ar &r_min;
+      ar &r_max;
       ar &center;
     }
+
+    const Tensor<2, dim, Number> &
+    get_A() const
+    {
+      return A;
+    }
+
+    const Tensor<1, dim, Number> &
+    get_b() const
+    {
+      return b;
+    }
+
+    Number
+    get_alpha() const
+    {
+      return alpha;
+    }
+
+    Number
+    get_norm() const
+    {
+      return norm;
+    }
+
+    Number
+    get_r_min() const
+    {
+      return r_min;
+    }
+
+    Number
+    get_r_max() const
+    {
+      return r_max;
+    }
+
+    const std::array<Number, dim> &
+    get_radii() const
+    {
+      return radii;
+    }
+
+    // Spectral radius (evaluated from the smallest radius)
+    Number
+    get_spectral() const
+    {
+      return std::pow(r_min, 2);
+    }
+
+    const Point<dim, Number> &
+    get_center() const
+    {
+      return center;
+    }
+
+  private:
+    // Components of the quadratic form
+    Tensor<2, dim, Number> A;
+    Tensor<1, dim, Number> b;
+    Number                 alpha;
+
+    // Norm of matrix A
+    Number norm;
+
+    // Radii
+    std::array<Number, dim> radii;
+
+    // Cached min and max radii
+    Number r_min;
+    Number r_max;
+
+    // Center of the ellipsoid
+    Point<dim, Number> center;
   };
 
   namespace internal
@@ -236,12 +284,12 @@ namespace GrainTracker
                const Tensor<1, dim, Number> &c1,
                const Tensor<1, dim, Number> &c2)
     {
-      const auto Ac1 = E.A * c1;
-      const auto Ac2 = E.A * c2;
+      const auto Ac1 = E.get_A() * c1;
+      const auto Ac2 = E.get_A() * c2;
 
       const auto a = 0.5 * (Ac1 * c1 - 2 * Ac1 * c2 + Ac2 * c2);
-      const auto b = Ac2 * c1 - Ac1 * c1 + E.b * c2 - E.b * c1;
-      const auto c = 0.5 * Ac1 * c1 + E.b * c1 + E.alpha;
+      const auto b = Ac2 * c1 - Ac1 * c1 + E.get_b() * c2 - E.get_b() * c1;
+      const auto c = 0.5 * Ac1 * c1 + E.get_b() * c1 + E.get_alpha();
 
       const auto sol = solve_quadratic(a, b, c);
 
@@ -315,13 +363,13 @@ namespace GrainTracker
                   "At least one convergence criteria should be chosen"));
 
     /* The initial reference points are simply the ellipsoid centers. */
-    Tensor<1, dim, Number> c1 = E1.center;
-    Tensor<1, dim, Number> c2 = E2.center;
+    Tensor<1, dim, Number> c1 = E1.get_center();
+    Tensor<1, dim, Number> c2 = E2.get_center();
 
     /* Convergence tolerance is reevaluated based on the maximum radii of the
      * ellipsoid curvatures.
      */
-    const auto eps_d = std::sqrt(2 * tol / (E1.max_radius() + E2.max_radius()));
+    const auto eps_d = std::sqrt(2 * tol / (E1.get_r_max() + E2.get_r_max()));
 
     const auto c2c1_init = c2 - c1;
     AssertThrow(c2c1_init.norm() > tol,
@@ -378,18 +426,20 @@ namespace GrainTracker
         bool ok_collinear = true;
         if (test_collinear)
           {
-            const auto crit1 =
-              internal::crit(x2_bar - x1_bar, E1.A * x1_bar + E1.b, eps_d);
-            const auto crit2 =
-              internal::crit(x1_bar - x2_bar, E2.A * x2_bar + E2.b, eps_d);
-            ok_collinear = crit1 && crit2;
+            const auto crit1 = internal::crit(x2_bar - x1_bar,
+                                              E1.get_A() * x1_bar + E1.get_b(),
+                                              eps_d);
+            const auto crit2 = internal::crit(x1_bar - x2_bar,
+                                              E2.get_A() * x2_bar + E2.get_b(),
+                                              eps_d);
+            ok_collinear     = crit1 && crit2;
           }
 
         has_converged = ok_relative && ok_collinear;
 
         /* Pick new reference points. */
-        c1 = x1_bar - 1. / E1.norm * (E1.A * x1_bar + E1.b);
-        c2 = x2_bar - 1. / E2.norm * (E2.A * x2_bar + E2.b);
+        c1 = x1_bar - 1. / E1.get_norm() * (E1.get_A() * x1_bar + E1.get_b());
+        c2 = x2_bar - 1. / E2.get_norm() * (E2.get_A() * x2_bar + E2.get_b());
       }
 
     return {dist, iter, has_converged};
