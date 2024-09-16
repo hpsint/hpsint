@@ -99,7 +99,7 @@ namespace Test
       const bool         allow_new_grains         = false;
       const bool         greedy_init              = false;
       const bool         fast_reassignment        = false;
-      const bool         elliptical_grains           = false;
+      const bool         elliptical_grains        = false;
       const unsigned int op_offset                = 2;
       const unsigned int max_order_parameters_num = 2;
 
