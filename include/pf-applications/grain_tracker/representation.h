@@ -164,9 +164,9 @@ namespace GrainTracker
     void
     print(std::ostream &stream) const override
     {
-      stream << "center = " << ellipsoid.center << " | radii = ";
-      stream << debug::to_string(ellipsoid.radii.begin(),
-                                 ellipsoid.radii.end(),
+      stream << "center = " << ellipsoid.get_center() << " | radii = ";
+      stream << debug::to_string(ellipsoid.get_radii().begin(),
+                                 ellipsoid.get_radii().end(),
                                  " ");
     }
 
