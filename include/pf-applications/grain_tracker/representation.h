@@ -49,6 +49,9 @@ namespace GrainTracker
     virtual double
     distance(const Representation &other) const = 0;
 
+    virtual bool
+    trivial() const = 0;
+
     virtual void
     print(std::ostream &stream) const = 0;
 
@@ -106,9 +109,10 @@ namespace GrainTracker
                                       other.radius);
     }
 
-      const double current_distance = distance_centers - sum_radii;
-
-      return current_distance;
+    bool
+    trivial() const override
+    {
+      return true;
     }
 
     void
@@ -177,6 +181,12 @@ namespace GrainTracker
       const auto res = distance(this->ellipsoid, other.ellipsoid);
 
       return std::get<0>(res);
+    }
+
+    bool
+    trivial() const override
+    {
+      return false;
     }
 
     void
