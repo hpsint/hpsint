@@ -1,0 +1,4 @@
+distance rep_el1_rep_el2           = 1.97204849368337
+distance rep_sp1_rep_sp2           = 1.07106781186548
+distance gr_el1_gr_el2             = 1.97204849368337
+distance_lower_bound gr_el1_gr_el2 = 1.07106781186548
