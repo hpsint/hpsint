@@ -62,7 +62,7 @@ namespace GrainTracker
     {}
 
     /* This function computes the minimum distance between the segments of the
-     * two grains.
+     * two grains using their representations.
      */
     double
     distance(const Grain<dim> &other) const
@@ -78,6 +78,30 @@ namespace GrainTracker
         }
 
       return min_distance;
+    }
+
+    /* This function computes the minimum distance between the segments of the
+     * two grains treating them as spheres.
+     */
+    double
+    distance_lower_bound(const Grain<dim> &other) const
+    {
+      double min_distance_lower_bound = std::numeric_limits<double>::max();
+
+      for (const auto &this_segment : segments)
+        for (const auto &other_segment : other.get_segments())
+          {
+            const auto current_lower_bound =
+              distance_between_spheres(this_segment.get_center(),
+                                       this_segment.get_radius(),
+                                       other_segment.get_center(),
+                                       other_segment.get_radius());
+
+            min_distance_lower_bound =
+              std::min(current_lower_bound, min_distance_lower_bound);
+          }
+
+      return min_distance_lower_bound;
     }
 
     /* Radius of the largest segment of the grain. Mainly used as a reference
@@ -205,7 +229,7 @@ namespace GrainTracker
           "Neighbors should have the same order parameter (current or old)."));
 
       distance_to_nearest_neighbor =
-        std::min(distance_to_nearest_neighbor, distance(neighbor));
+        std::min(distance_to_nearest_neighbor, distance_lower_bound(neighbor));
     }
 
     /* Check if the grain overlaps with the other. */
