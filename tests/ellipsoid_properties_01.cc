@@ -71,15 +71,14 @@ main()
   std::cout << std::endl;
 
   std::cout << "Ellipsoid data:" << std::endl;
-  std::cout << "A       = " << ellipsoid.A << std::endl;
-  std::cout << "b       = " << ellipsoid.b << std::endl;
-  std::cout << "alpha   = " << ellipsoid.alpha << std::endl;
+  std::cout << "A       = " << ellipsoid.get_A() << std::endl;
+  std::cout << "b       = " << ellipsoid.get_b() << std::endl;
+  std::cout << "alpha   = " << ellipsoid.get_alpha() << std::endl;
   std::cout << "radii   = ";
-  std::copy(ellipsoid.radii.begin(),
-            ellipsoid.radii.end(),
+  std::copy(ellipsoid.get_radii().begin(),
+            ellipsoid.get_radii().end(),
             std::ostream_iterator<Number>(std::cout, " "));
   std::cout << std::endl;
-  std::cout << "norm    = " << ellipsoid.norm << std::endl;
-  std::cout << "gamma   = " << ellipsoid.gamma << std::endl;
-  std::cout << "center  = " << ellipsoid.center << std::endl;
+  std::cout << "norm    = " << ellipsoid.get_norm() << std::endl;
+  std::cout << "center  = " << ellipsoid.get_center() << std::endl;
 }

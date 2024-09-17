@@ -28,11 +28,29 @@ namespace GrainTracker
 {
   using namespace dealii;
 
+  template <int dim, typename Number>
+  Number
+  distance_between_spheres(const Point<dim, Number> &center1,
+                           const Number              radius1,
+                           const Point<dim, Number> &center2,
+                           const Number              radius2)
+  {
+    const Number distance_centers = center1.distance(center2);
+    const Number sum_radii        = radius1 + radius2;
+
+    const Number current_distance = distance_centers - sum_radii;
+
+    return current_distance;
+  }
+
   // This base erases type
   struct Representation
   {
     virtual double
     distance(const Representation &other) const = 0;
+
+    virtual bool
+    trivial() const = 0;
 
     virtual void
     print(std::ostream &stream) const = 0;
@@ -85,12 +103,16 @@ namespace GrainTracker
     double
     distance_impl(const RepresentationSpherical<dim> &other) const
     {
-      const double distance_centers = center.distance(other.center);
-      const double sum_radii        = radius + other.radius;
+      return distance_between_spheres(center,
+                                      radius,
+                                      other.center,
+                                      other.radius);
+    }
 
-      const double current_distance = distance_centers - sum_radii;
-
-      return current_distance;
+    bool
+    trivial() const override
+    {
+      return true;
     }
 
     void
@@ -161,12 +183,18 @@ namespace GrainTracker
       return std::get<0>(res);
     }
 
+    bool
+    trivial() const override
+    {
+      return false;
+    }
+
     void
     print(std::ostream &stream) const override
     {
-      stream << "center = " << ellipsoid.center << " | radii = ";
-      stream << debug::to_string(ellipsoid.radii.begin(),
-                                 ellipsoid.radii.end(),
+      stream << "center = " << ellipsoid.get_center() << " | radii = ";
+      stream << debug::to_string(ellipsoid.get_radii().begin(),
+                                 ellipsoid.get_radii().end(),
                                  " ");
     }
 

@@ -62,7 +62,7 @@ namespace GrainTracker
     {}
 
     /* This function computes the minimum distance between the segments of the
-     * two grains.
+     * two grains using their representations.
      */
     double
     distance(const Grain<dim> &other) const
@@ -78,6 +78,30 @@ namespace GrainTracker
         }
 
       return min_distance;
+    }
+
+    /* This function computes the minimum distance between the segments of the
+     * two grains treating them as spheres.
+     */
+    double
+    distance_lower_bound(const Grain<dim> &other) const
+    {
+      double min_distance_lower_bound = std::numeric_limits<double>::max();
+
+      for (const auto &this_segment : segments)
+        for (const auto &other_segment : other.get_segments())
+          {
+            const auto current_lower_bound =
+              distance_between_spheres(this_segment.get_center(),
+                                       this_segment.get_radius(),
+                                       other_segment.get_center(),
+                                       other_segment.get_radius());
+
+            min_distance_lower_bound =
+              std::min(current_lower_bound, min_distance_lower_bound);
+          }
+
+      return min_distance_lower_bound;
     }
 
     /* Radius of the largest segment of the grain. Mainly used as a reference
@@ -205,18 +229,17 @@ namespace GrainTracker
           "Neighbors should have the same order parameter (current or old)."));
 
       distance_to_nearest_neighbor =
-        std::min(distance_to_nearest_neighbor, distance(neighbor));
+        std::min(distance_to_nearest_neighbor, distance_lower_bound(neighbor));
     }
 
-    /* Check if the grain overlaps with the other. */
+    /* Check if the grain overlaps with the other. If two grains sharing the
+     * same order parameter are too close to each other, then try to change the
+     * order parameter of the secondary grain. */
     bool
     overlaps(const Grain<dim> &gr_other,
              const double      buffer_distance_ratio = 0.1,
              const double      buffer_distance_fixed = 0) const
     {
-      // Minimum distance between the two grains
-      const double min_distance = distance(gr_other);
-
       /* Buffer safety zone around the two grains. If an overlap
        * is detected, then the old order parameter values of all
        * the cells inside the buffer zone are transfered to a
@@ -227,12 +250,41 @@ namespace GrainTracker
       const double buffer_distance_other =
         buffer_distance_ratio * gr_other.get_max_radius();
 
-      /* If two grains sharing the same order parameter are
-       * too close to each other, then try to change the
-       * order parameter of the secondary grain.
-       */
-      return (min_distance < buffer_distance_base + buffer_distance_other +
-                               buffer_distance_fixed);
+      /* At first we treat segments as spherical. If there is no overlap, then
+       * there is no need to perform a more accurate evaluations, which can be
+       * more expensive. */
+      const double min_distance_lower_bound = distance_lower_bound(gr_other);
+
+      // If lower bound is already large enough, then there is surely no overlap
+      if (min_distance_lower_bound >
+          buffer_distance_base + buffer_distance_other + buffer_distance_fixed)
+        {
+          return false;
+        }
+      else
+        {
+          // Check is the segments representation is non-trivial
+          auto has_non_trivial_segments = [](const auto &current_segments) {
+            return std::find_if(current_segments.cbegin(),
+                                current_segments.cend(),
+                                [](const auto &segment) {
+                                  return !segment.trivial();
+                                }) != current_segments.cend();
+          };
+
+          // If representation is non-trivial, then we use a proper distance
+          // evaluation, e.g. for the ellipsoid representation.
+          if (has_non_trivial_segments(segments) ||
+              has_non_trivial_segments(gr_other.get_segments()))
+            // Minimum distance between the two grains
+            return (distance(gr_other) < buffer_distance_base +
+                                           buffer_distance_other +
+                                           buffer_distance_fixed);
+          else
+            // If the representation is trivial, then distance() returns the
+            // same result as we obtained above and there is no need to call it.
+            return true;
+        }
     }
 
     /* Get transfer buffer. A zone around the grain which will be moved to

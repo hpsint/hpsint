@@ -87,6 +87,12 @@ namespace GrainTracker
       return max_value;
     }
 
+    bool
+    trivial() const
+    {
+      return !representation || representation->trivial();
+    }
+
     double
     distance(const Segment<dim> &other) const
     {
