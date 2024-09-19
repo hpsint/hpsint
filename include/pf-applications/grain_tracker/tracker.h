@@ -1295,7 +1295,7 @@ namespace GrainTracker
 
           // Perform global communication, the data is not large
           auto global_periodicity =
-            Utilities::MPI::all_gather(MPI_COMM_WORLD, periodicity_flatten);
+            Utilities::MPI::all_gather(comm, periodicity_flatten);
 
           // Build periodicity graph
           PeriodicityGraph pg;
