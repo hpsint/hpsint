@@ -414,6 +414,29 @@ namespace GrainTracker
     return local_connectivity;
   }
 
+  unsigned int
+  number_of_stitched_particles(
+    const std::vector<unsigned int> &local_to_global_particle_ids,
+    const MPI_Comm                   comm)
+  {
+    // Determine properties of particles (volume, radius, center)
+    unsigned int n_particles = 0;
+
+    // Determine the number of particles
+    if (Utilities::MPI::sum(local_to_global_particle_ids.size(), comm) == 0)
+      n_particles = 0;
+    else
+      {
+        n_particles = (local_to_global_particle_ids.size() == 0) ?
+                        0 :
+                        *std::max_element(local_to_global_particle_ids.begin(),
+                                          local_to_global_particle_ids.end());
+        n_particles = Utilities::MPI::max(n_particles, comm) + 1;
+      }
+
+    return n_particles;
+  }
+
   template <int dim, typename VectorIds>
   std::tuple<unsigned int,            // n_particles
              std::vector<Point<dim>>, // particle_centers
@@ -430,17 +453,8 @@ namespace GrainTracker
   {
     const auto comm = dof_handler.get_communicator();
 
-    unsigned int n_particles = 0;
-
-    // Determine the number of particles
-    if (Utilities::MPI::sum(local_to_global_particle_ids.size(), comm) > 0)
-      {
-        n_particles = (local_to_global_particle_ids.size() == 0) ?
-                        0 :
-                        *std::max_element(local_to_global_particle_ids.begin(),
-                                          local_to_global_particle_ids.end());
-        n_particles = Utilities::MPI::max(n_particles, comm) + 1;
-      }
+    const unsigned int n_particles =
+      number_of_stitched_particles(local_to_global_particle_ids, comm);
 
     const unsigned int  n_features = 1 + dim;
     std::vector<double> particle_info(n_particles * n_features);
