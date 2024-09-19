@@ -1192,88 +1192,22 @@ namespace GrainTracker
           auto &particle_ids =
             op_particle_ids.block(current_order_parameter_id);
 
-          // step 1) run flooding and determine local particles and give them
-          // local ids
-          particle_ids = invalid_particle_id;
-
-          unsigned int counter      = 0;
-          unsigned int offset       = 0;
-          double       op_max_value = std::numeric_limits<double>::lowest();
-
           const auto &solution_order_parameter = solution.block(
             current_order_parameter_id + order_parameters_offset);
 
-          std::vector<double> local_particle_max_values;
+          // Run flooding, build local particle ids and execute stitching
+          const auto [offset,
+                      local_to_global_particle_ids,
+                      local_particle_max_values] =
+            detect_local_particle_groups(particle_ids,
+                                         dof_handler,
+                                         solution_order_parameter,
+                                         use_stitching_via_graphs,
+                                         threshold_lower,
+                                         invalid_particle_id,
+                                         timer.is_enabled() ? &timer : nullptr);
 
-          {
-            ScopedName sc("run_flooding");
-            MyScope    scope(timer, sc, timer.is_enabled());
-
-
-            const bool has_ghost_elements =
-              solution_order_parameter.has_ghost_elements();
-
-            if (has_ghost_elements == false)
-              solution_order_parameter.update_ghost_values();
-
-            for (const auto &cell : dof_handler.active_cell_iterators())
-              {
-                if (run_flooding<dim>(cell,
-                                      solution_order_parameter,
-                                      particle_ids,
-                                      counter,
-                                      op_max_value,
-                                      threshold_lower,
-                                      invalid_particle_id) > 0)
-                  {
-                    counter++;
-                    local_particle_max_values.push_back(op_max_value);
-                    op_max_value = std::numeric_limits<double>::lowest();
-                  }
-              }
-
-            if (has_ghost_elements == false)
-              solution_order_parameter.zero_out_ghost_values();
-          }
-
-          // step 2) determine the global number of locally determined particles
-          // and give each one an unique id by shifting the ids
-          MPI_Exscan(&counter, &offset, 1, MPI_UNSIGNED, MPI_SUM, comm);
-
-          for (auto &particle_id : particle_ids)
-            if (particle_id != invalid_particle_id)
-              particle_id += offset;
-
-          // step 3) get particle ids on ghost cells and figure out if local
-          // particles and ghost particles might be one particle
-          particle_ids.update_ghost_values();
-
-          auto local_connectivity = build_local_connectivity(
-            dof_handler, particle_ids, counter, offset, invalid_particle_id);
-
-          // step 4) based on the local-ghost information, figure out all
-          // particles on all processes that belong togher (unification ->
-          // clique), give each clique an unique id, and return mapping from the
-          // global non-unique ids to the global ids
-          std::vector<unsigned int> local_to_global_particle_ids;
-          {
-            ScopedName sc("distributed_stitching");
-            MyScope    scope(timer, sc, timer.is_enabled());
-
-            local_to_global_particle_ids =
-              use_stitching_via_graphs ?
-                perform_distributed_stitching_via_graph(comm,
-                                                        local_connectivity,
-                                                        timer.is_enabled() ?
-                                                          &timer :
-                                                          nullptr) :
-                perform_distributed_stitching(comm,
-                                              local_connectivity,
-                                              timer.is_enabled() ? &timer :
-                                                                   nullptr);
-          }
-
-          // step 5) determine properties of particles (volume, radius, center)
+          // Determine properties of particles (volume, radius, center, etc)
           const auto [n_particles,
                       particle_centers,
                       particle_radii,
