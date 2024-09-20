@@ -702,4 +702,118 @@ namespace GrainTracker
                            std::move(local_to_global_particle_ids),
                            std::move(local_particle_max_values));
   }
+
+  namespace internal
+  {
+    template <int dim, typename VectorIds>
+    void
+    run_flooding_prep(
+      const typename DoFHandler<dim>::cell_iterator &cell,
+      const VectorIds &                              particle_ids,
+      VectorIds &                                    particle_markers,
+      std::deque<std::vector<
+        std::vector<TriaIterator<DoFCellAccessor<dim, dim, false>>>>>
+        &                agglomerations,
+      const unsigned int aid,
+      const unsigned int max_level,
+      const double       invalid_particle_id = -1.0)
+    {
+      if (cell->has_children())
+        {
+          for (const auto &child : cell->child_iterators())
+            run_flooding_prep<dim>(child,
+                                   particle_ids,
+                                   particle_markers,
+                                   agglomerations,
+                                   aid,
+                                   max_level,
+                                   invalid_particle_id);
+
+          return;
+        }
+
+      if (!cell->is_locally_owned())
+        return;
+
+      const auto particle_id = particle_ids[cell->global_active_cell_index()];
+      const auto particle_marker =
+        particle_markers[cell->global_active_cell_index()];
+
+      if (particle_id == invalid_particle_id)
+        return; // cell outside of the grain group
+
+      if (particle_marker != invalid_particle_id)
+        return; // cell has been visited
+
+      particle_markers[cell->global_active_cell_index()] = particle_id;
+
+      for (const auto face : cell->face_indices())
+        if (!cell->at_boundary(face))
+          {
+            const auto neighbor = cell->neighbor(face);
+
+            if (!neighbor->has_children())
+              {
+                const auto neighbor_particle_id =
+                  particle_ids[neighbor->global_active_cell_index()];
+
+                if (neighbor_particle_id == invalid_particle_id)
+                  agglomerations[max_level - cell->level()][aid].push_back(
+                    cell);
+                else
+                  run_flooding_prep<dim>(neighbor,
+                                         particle_ids,
+                                         particle_markers,
+                                         agglomerations,
+                                         aid,
+                                         max_level,
+                                         invalid_particle_id);
+              }
+            else
+              {
+                for (const auto &child : neighbor->child_iterators())
+                  {
+                    if (child->is_artificial())
+                      continue;
+
+                    const auto child_particle_id =
+                      particle_ids[child->global_active_cell_index()];
+                    bool do_break = false;
+
+                    if (child_particle_id == invalid_particle_id)
+                      {
+                        for (const auto &child_of_child :
+                             child->child_iterators())
+                          {
+                            if (child_of_child->is_artificial())
+                              continue;
+
+                            if (child_of_child->id() == cell->id())
+                              {
+                                agglomerations[max_level - cell->level()][aid]
+                                  .push_back(cell);
+                                do_break = true;
+                                break;
+                              }
+                          }
+                      }
+
+                    if (do_break)
+                      {
+                        break;
+                      }
+                  }
+
+                run_flooding_prep<dim>(neighbor,
+                                       particle_ids,
+                                       particle_markers,
+                                       agglomerations,
+                                       aid,
+                                       max_level,
+                                       invalid_particle_id);
+              }
+          }
+    }
+  } // namespace internal
+
 } // namespace GrainTracker
