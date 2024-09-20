@@ -414,6 +414,29 @@ namespace GrainTracker
     return local_connectivity;
   }
 
+  unsigned int
+  number_of_stitched_particles(
+    const std::vector<unsigned int> &local_to_global_particle_ids,
+    const MPI_Comm                   comm)
+  {
+    // Determine properties of particles (volume, radius, center)
+    unsigned int n_particles = 0;
+
+    // Determine the number of particles
+    if (Utilities::MPI::sum(local_to_global_particle_ids.size(), comm) == 0)
+      n_particles = 0;
+    else
+      {
+        n_particles = (local_to_global_particle_ids.size() == 0) ?
+                        0 :
+                        *std::max_element(local_to_global_particle_ids.begin(),
+                                          local_to_global_particle_ids.end());
+        n_particles = Utilities::MPI::max(n_particles, comm) + 1;
+      }
+
+    return n_particles;
+  }
+
   template <int dim, typename VectorIds>
   std::tuple<unsigned int,            // n_particles
              std::vector<Point<dim>>, // particle_centers
@@ -430,17 +453,8 @@ namespace GrainTracker
   {
     const auto comm = dof_handler.get_communicator();
 
-    unsigned int n_particles = 0;
-
-    // Determine the number of particles
-    if (Utilities::MPI::sum(local_to_global_particle_ids.size(), comm) > 0)
-      {
-        n_particles = (local_to_global_particle_ids.size() == 0) ?
-                        0 :
-                        *std::max_element(local_to_global_particle_ids.begin(),
-                                          local_to_global_particle_ids.end());
-        n_particles = Utilities::MPI::max(n_particles, comm) + 1;
-      }
+    const unsigned int n_particles =
+      number_of_stitched_particles(local_to_global_particle_ids, comm);
 
     const unsigned int  n_features = 1 + dim;
     std::vector<double> particle_info(n_particles * n_features);
@@ -599,5 +613,93 @@ namespace GrainTracker
                   comm);
 
     return particle_inertia;
+  }
+
+  template <int dim, typename VectorSolution, typename VectorIds>
+  std::tuple<unsigned int, std::vector<unsigned int>, std::vector<double>>
+  detect_local_particle_groups(VectorIds &            particle_ids,
+                               const DoFHandler<dim> &dof_handler,
+                               const VectorSolution & solution,
+                               const bool     stitching_via_graphs = true,
+                               const double   threshold_lower      = 0.01,
+                               const double   invalid_particle_id  = -1.0,
+                               MyTimerOutput *timer                = nullptr)
+  {
+    const MPI_Comm comm = dof_handler.get_communicator();
+
+    // step 1) run flooding and determine local particles and give them
+    // local ids
+    particle_ids = invalid_particle_id;
+
+    unsigned int counter      = 0;
+    unsigned int offset       = 0;
+    double       op_max_value = std::numeric_limits<double>::lowest();
+
+    std::vector<double> local_particle_max_values;
+
+    {
+      ScopedName sc("run_flooding");
+      MyScope    scope(sc, timer);
+
+      const bool has_ghost_elements = solution.has_ghost_elements();
+
+      if (has_ghost_elements == false)
+        solution.update_ghost_values();
+
+      for (const auto &cell : dof_handler.active_cell_iterators())
+        {
+          if (run_flooding<dim>(cell,
+                                solution,
+                                particle_ids,
+                                counter,
+                                op_max_value,
+                                threshold_lower,
+                                invalid_particle_id) > 0)
+            {
+              counter++;
+              local_particle_max_values.push_back(op_max_value);
+              op_max_value = std::numeric_limits<double>::lowest();
+            }
+        }
+
+      if (has_ghost_elements == false)
+        solution.zero_out_ghost_values();
+    }
+
+    // step 2) determine the global number of locally determined particles
+    // and give each one an unique id by shifting the ids
+    MPI_Exscan(&counter, &offset, 1, MPI_UNSIGNED, MPI_SUM, comm);
+
+    for (auto &particle_id : particle_ids)
+      if (particle_id != invalid_particle_id)
+        particle_id += offset;
+
+    // step 3) get particle ids on ghost cells and figure out if local
+    // particles and ghost particles might be one particle
+    particle_ids.update_ghost_values();
+
+    auto local_connectivity = build_local_connectivity(
+      dof_handler, particle_ids, counter, offset, invalid_particle_id);
+
+    // step 4) based on the local-ghost information, figure out all
+    // particles on all processes that belong togher (unification ->
+    // clique), give each clique an unique id, and return mapping from the
+    // global non-unique ids to the global ids
+    std::vector<unsigned int> local_to_global_particle_ids;
+    {
+      ScopedName sc("distributed_stitching");
+      MyScope    scope(sc, timer);
+
+      local_to_global_particle_ids =
+        stitching_via_graphs ?
+          perform_distributed_stitching_via_graph(comm,
+                                                  local_connectivity,
+                                                  timer) :
+          perform_distributed_stitching(comm, local_connectivity, timer);
+    }
+
+    return std::make_tuple(offset,
+                           std::move(local_to_global_particle_ids),
+                           std::move(local_particle_max_values));
   }
 } // namespace GrainTracker
