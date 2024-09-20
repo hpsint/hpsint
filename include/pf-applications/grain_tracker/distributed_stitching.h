@@ -773,34 +773,28 @@ namespace GrainTracker
               {
                 for (const auto &child : neighbor->child_iterators())
                   {
-                    if (child->is_artificial())
+                    if (!child->is_locally_owned())
                       continue;
 
                     const auto child_particle_id =
                       particle_ids[child->global_active_cell_index()];
-                    bool do_break = false;
 
                     if (child_particle_id == invalid_particle_id)
                       {
-                        for (const auto &child_of_child :
-                             child->child_iterators())
-                          {
-                            if (child_of_child->is_artificial())
-                              continue;
+                        for (const auto child_face : child->face_indices())
+                          if (!child->at_boundary(child_face))
+                            {
+                              const auto neighbor_of_child =
+                                child->neighbor(child_face);
 
-                            if (child_of_child->id() == cell->id())
-                              {
-                                agglomerations[max_level - cell->level()][aid]
-                                  .push_back(cell);
-                                do_break = true;
-                                break;
-                              }
-                          }
-                      }
-
-                    if (do_break)
-                      {
-                        break;
+                              if (!neighbor_of_child->is_artificial() &&
+                                  neighbor_of_child->id() == cell->id())
+                                {
+                                  agglomerations[max_level - cell->level()][aid]
+                                    .push_back(cell);
+                                  break;
+                                }
+                            }
                       }
                   }
 
@@ -823,19 +817,19 @@ namespace GrainTracker
     VectorIds &                      particle_markers,
     const VectorIds &                particle_ids,
     const std::vector<unsigned int> &local_to_global_particle_ids,
+    const unsigned int               offset,
     const DoFHandler<dim> &          dof_handler,
     const double                     invalid_particle_id = -1.0,
     MyTimerOutput *                  timer               = nullptr)
   {
     const MPI_Comm comm = dof_handler.get_communicator();
 
-    (void)local_to_global_particle_ids;
-
     const unsigned int n_global_levels =
       dof_handler.get_triangulation().n_global_levels();
     const unsigned int max_level = n_global_levels - 1;
 
-    const auto h_cell = dof_handler.begin_active(max_level)->diameter();
+    const auto h_cell =
+      dof_handler.begin_active(max_level)->diameter() / std::sqrt(dim);
 
     std::cout << "h_cell = " << h_cell << std::endl;
 
@@ -906,6 +900,62 @@ namespace GrainTracker
 
     std::cout << "n_global_levels = " << n_global_levels << std::endl;
 
+    // We store distances here
+    std::map<std::pair<unsigned int, unsigned int>, double>
+      assessment_distances;
+
+    auto handle_cells = [&max_level,
+                         &h_cell,
+                         &assessment_distances,
+                         &particle_markers,
+                         &particle_distances,
+                         &local_to_global_particle_ids,
+                         &offset,
+                         &invalid_particle_id,
+                         &agglomerations](const auto &cell,
+                                          const auto &neighbor,
+                                          const auto  agglomeration_id) {
+      const auto cell_particle_id =
+        particle_markers[cell->global_active_cell_index()];
+
+      const auto neighbor_particle_id =
+        particle_markers[neighbor->global_active_cell_index()];
+
+      if (neighbor_particle_id == invalid_particle_id)
+        {
+          agglomerations[max_level - neighbor->level()][agglomeration_id]
+            .push_back(neighbor);
+          particle_distances[neighbor->global_active_cell_index()] =
+            particle_distances[cell->global_active_cell_index()] +
+            std::pow(2, max_level - neighbor->level());
+          particle_markers[neighbor->global_active_cell_index()] =
+            cell_particle_id;
+        }
+      else if (neighbor_particle_id != cell_particle_id)
+        {
+          // It means that we meet the neighbourhood of
+          // another particle
+          const auto current_distance =
+            h_cell * (particle_distances[cell->global_active_cell_index()] +
+                      particle_distances[neighbor->global_active_cell_index()]);
+
+          const auto cell_particle_id_global = local_to_global_particle_ids
+            [static_cast<unsigned int>(cell_particle_id) - offset];
+          const auto neighbor_particle_id_global = local_to_global_particle_ids
+            [static_cast<unsigned int>(neighbor_particle_id) - offset];
+
+          const auto key = std::make_pair(
+            std::min(cell_particle_id_global, neighbor_particle_id_global),
+            std::max(cell_particle_id_global, neighbor_particle_id_global));
+
+          auto it = assessment_distances.find(key);
+          if (it == assessment_distances.end())
+            assessment_distances.try_emplace(key, current_distance);
+          else
+            it->second = std::min(it->second, current_distance);
+        }
+    };
+
     // Now perform loops
     while (std::find_if(agglomerations.cbegin(),
                         agglomerations.cend(),
@@ -931,11 +981,6 @@ namespace GrainTracker
           {
             for (const auto &cell : current_agglomeration)
               {
-                const auto cell_particle_id =
-                  particle_markers[cell->global_active_cell_index()];
-                const auto distance =
-                  particle_distances[cell->global_active_cell_index()];
-
                 for (const auto face : cell->face_indices())
                   if (!cell->at_boundary(face))
                     {
@@ -944,81 +989,52 @@ namespace GrainTracker
                       if (!neighbor->has_children())
                         {
                           if (neighbor->is_locally_owned())
-                            {
-                              const auto neighbor_particle_id = particle_markers
-                                [neighbor->global_active_cell_index()];
-
-                              if (neighbor_particle_id == invalid_particle_id)
-                                {
-                                  agglomerations[max_level - neighbor->level()]
-                                                [agg_counter]
-                                                  .push_back(neighbor);
-                                  particle_distances
-                                    [neighbor->global_active_cell_index()] =
-                                      distance +
-                                      std::pow(2,
-                                               max_level - neighbor->level());
-                                  particle_markers
-                                    [neighbor->global_active_cell_index()] =
-                                      cell_particle_id;
-                                }
-                            }
+                            handle_cells(cell, neighbor, agg_counter);
                         }
                       else
                         {
                           for (const auto &child : neighbor->child_iterators())
-                            {
-                              if (child->is_artificial())
-                                continue;
+                            if (child->is_locally_owned())
+                              for (const auto child_face :
+                                   child->face_indices())
+                                if (!child->at_boundary(child_face))
+                                  {
+                                    const auto neighbor_of_child =
+                                      child->neighbor(child_face);
 
-                              const auto child_particle_id = particle_markers
-                                [child->global_active_cell_index()];
-
-                              if (child_particle_id == invalid_particle_id)
-                                {
-                                  for (const auto &child_of_child :
-                                       child->child_iterators())
-                                    {
-                                      if (child_of_child->is_artificial())
-                                        continue;
-
-                                      if (child_of_child->id() == cell->id())
-                                        {
-                                          if (child->is_locally_owned())
-                                            {
-                                              agglomerations[max_level -
-                                                             child->level()]
-                                                            [agg_counter]
-                                                              .push_back(child);
-                                              particle_distances
-                                                [child
-                                                   ->global_active_cell_index()] =
-                                                  distance +
-                                                  std::pow(2,
-                                                           max_level -
-                                                             child->level());
-                                              particle_markers
-                                                [child
-                                                   ->global_active_cell_index()] =
-                                                  cell_particle_id;
-                                            }
-
-                                          break;
-                                        }
-                                    }
-                                }
-                            }
+                                    if (!neighbor_of_child->is_artificial() &&
+                                        neighbor_of_child->id() == cell->id())
+                                      {
+                                        handle_cells(cell, child, agg_counter);
+                                        break;
+                                      }
+                                  }
                         }
                     }
               }
 
-            // agglomerations.emplace_back(std::move(agglomeration));
             ++agg_counter;
           }
+      }
 
-        //++distance;
+    // TODO:
+    // 1) MPI call to build properly assessment_distances
+    // 2) Smarter strategy to go across ranks
+
+    for (const auto &[key, dist] : assessment_distances)
+      {
+        std::cout << "distance from " << key.first << " to " << key.second
+                  << " = " << dist << std::endl;
       }
 
 
+    // Test how agglomerations are filled up
+    /*
+    particle_distances = invalid_particle_id;
+    for (const auto &agglomeration : agglomerations)
+      for (const auto &cell : agglomeration)
+        particle_distances[cell->global_active_cell_index()] =
+          particle_ids[cell->global_active_cell_index()];
+    */
   }
 } // namespace GrainTracker
