@@ -816,4 +816,209 @@ namespace GrainTracker
     }
   } // namespace internal
 
+  template <int dim, typename VectorIds>
+  void
+  estimate_distances(
+    VectorIds &                      particle_distances,
+    VectorIds &                      particle_markers,
+    const VectorIds &                particle_ids,
+    const std::vector<unsigned int> &local_to_global_particle_ids,
+    const DoFHandler<dim> &          dof_handler,
+    const double                     invalid_particle_id = -1.0,
+    MyTimerOutput *                  timer               = nullptr)
+  {
+    const MPI_Comm comm = dof_handler.get_communicator();
+
+    (void)local_to_global_particle_ids;
+
+    const unsigned int n_global_levels =
+      dof_handler.get_triangulation().n_global_levels();
+    const unsigned int max_level = n_global_levels - 1;
+
+    const auto h_cell = dof_handler.begin_active(max_level)->diameter();
+
+    std::cout << "h_cell = " << h_cell << std::endl;
+
+    std::deque<
+      std::vector<std::vector<TriaIterator<DoFCellAccessor<dim, dim, false>>>>>
+      agglomerations(max_level);
+
+    // Set initial
+    particle_markers = invalid_particle_id;
+    std::cout << "particle_distances.size() = " << particle_distances.size()
+              << std::endl;
+    std::cout << "particle_markers.size()   = " << particle_markers.size()
+              << std::endl;
+
+
+
+    // Run preparatory modified flooding
+    unsigned int agg_counter = 0;
+    for (const auto &cell : dof_handler.active_cell_iterators())
+      {
+        if (!cell->is_locally_owned())
+          continue;
+
+        const auto particle_id = particle_ids[cell->global_active_cell_index()];
+        const auto particle_marker =
+          particle_markers[cell->global_active_cell_index()];
+
+        if (particle_id == invalid_particle_id ||
+            particle_marker != invalid_particle_id)
+          continue;
+
+        std::for_each(
+          agglomerations.begin(), agglomerations.end(), [](auto &agg_set) {
+            agg_set.push_back(
+              std::vector<TriaIterator<DoFCellAccessor<dim, dim, false>>>());
+          });
+
+        std::cout << "agglomerations.size() = " << agglomerations.size()
+                  << std::endl;
+        for (const auto &agg_set : agglomerations)
+          {
+            std::cout << "agg_set.size() = " << agg_set.size() << std::endl;
+          }
+
+        internal::run_flooding_prep(cell,
+                                    particle_ids,
+                                    particle_markers,
+                                    agglomerations,
+                                    agg_counter,
+                                    max_level,
+                                    invalid_particle_id);
+
+        ++agg_counter;
+      }
+
+    MPI_Barrier(comm);
+    std::cout << "agglomerations.size() = " << agglomerations.size()
+              << std::endl;
+
+
+    // Set zero distances
+    particle_distances = invalid_particle_id;
+    for (const auto &agglomerations_set : agglomerations)
+      for (const auto &agglomeration : agglomerations_set)
+        for (const auto &cell : agglomeration)
+          particle_distances[cell->global_active_cell_index()] =
+            std::pow(2, max_level - cell->level()) - 1;
+
+    std::cout << "n_global_levels = " << n_global_levels << std::endl;
+
+    // Now perform loops
+    while (std::find_if(agglomerations.cbegin(),
+                        agglomerations.cend(),
+                        [](const auto &agglomerations_set) {
+                          return std::find_if(agglomerations_set.cbegin(),
+                                              agglomerations_set.cend(),
+                                              [](const auto &agg) {
+                                                return !agg.empty();
+                                              }) != agglomerations_set.cend();
+                        }) != agglomerations.cend())
+      {
+        // Pick the nearest agglomeration set
+        const auto current_agglomerations = agglomerations.front();
+        agglomerations.pop_front();
+
+        // Add empty
+        std::vector<std::vector<TriaIterator<DoFCellAccessor<dim, dim, false>>>>
+          new_agglomerations_set(current_agglomerations.size());
+        agglomerations.emplace_back(std::move(new_agglomerations_set));
+
+        agg_counter = 0;
+        for (const auto &current_agglomeration : current_agglomerations)
+          {
+            for (const auto &cell : current_agglomeration)
+              {
+                const auto cell_particle_id =
+                  particle_markers[cell->global_active_cell_index()];
+                const auto distance =
+                  particle_distances[cell->global_active_cell_index()];
+
+                for (const auto face : cell->face_indices())
+                  if (!cell->at_boundary(face))
+                    {
+                      const auto neighbor = cell->neighbor(face);
+
+                      if (!neighbor->has_children())
+                        {
+                          if (neighbor->is_locally_owned())
+                            {
+                              const auto neighbor_particle_id = particle_markers
+                                [neighbor->global_active_cell_index()];
+
+                              if (neighbor_particle_id == invalid_particle_id)
+                                {
+                                  agglomerations[max_level - neighbor->level()]
+                                                [agg_counter]
+                                                  .push_back(neighbor);
+                                  particle_distances
+                                    [neighbor->global_active_cell_index()] =
+                                      distance +
+                                      std::pow(2,
+                                               max_level - neighbor->level());
+                                  particle_markers
+                                    [neighbor->global_active_cell_index()] =
+                                      cell_particle_id;
+                                }
+                            }
+                        }
+                      else
+                        {
+                          for (const auto &child : neighbor->child_iterators())
+                            {
+                              if (child->is_artificial())
+                                continue;
+
+                              const auto child_particle_id = particle_markers
+                                [child->global_active_cell_index()];
+
+                              if (child_particle_id == invalid_particle_id)
+                                {
+                                  for (const auto &child_of_child :
+                                       child->child_iterators())
+                                    {
+                                      if (child_of_child->is_artificial())
+                                        continue;
+
+                                      if (child_of_child->id() == cell->id())
+                                        {
+                                          if (child->is_locally_owned())
+                                            {
+                                              agglomerations[max_level -
+                                                             child->level()]
+                                                            [agg_counter]
+                                                              .push_back(child);
+                                              particle_distances
+                                                [child
+                                                   ->global_active_cell_index()] =
+                                                  distance +
+                                                  std::pow(2,
+                                                           max_level -
+                                                             child->level());
+                                              particle_markers
+                                                [child
+                                                   ->global_active_cell_index()] =
+                                                  cell_particle_id;
+                                            }
+
+                                          break;
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+              }
+
+            // agglomerations.emplace_back(std::move(agglomeration));
+            ++agg_counter;
+          }
+
+        //++distance;
+      }
+
+
+  }
 } // namespace GrainTracker
