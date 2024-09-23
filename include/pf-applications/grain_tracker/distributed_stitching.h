@@ -828,8 +828,13 @@ namespace GrainTracker
       dof_handler.get_triangulation().n_global_levels();
     const unsigned int max_level = n_global_levels - 1;
 
-    const auto h_cell =
-      dof_handler.begin_active(max_level)->diameter() / std::sqrt(dim);
+    // Estimate cell size
+    const unsigned int n_local_levels =
+      dof_handler.get_triangulation().n_levels();
+    const auto h_cell_local =
+      dof_handler.begin_active(n_local_levels - 1)->diameter() / std::sqrt(dim);
+
+    const auto h_cell = Utilities::MPI::min<double>(h_cell_local, comm);
 
     std::cout << "h_cell = " << h_cell << std::endl;
 
