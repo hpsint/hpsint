@@ -811,7 +811,7 @@ namespace GrainTracker
   } // namespace internal
 
   template <int dim, typename VectorIds>
-  void
+  std::map<std::pair<unsigned int, unsigned int>, double>
   estimate_distances(
     VectorIds &                      particle_distances,
     VectorIds &                      particle_markers,
@@ -1018,15 +1018,38 @@ namespace GrainTracker
       }
 
     // TODO:
-    // 1) MPI call to build properly assessment_distances
     // 2) Smarter strategy to go across ranks
 
-    for (const auto &[key, dist] : assessment_distances)
+    // Convert map to a vector
+    std::vector<double> distances_flatten;
+    for (const auto &[from_to, dist] : assessment_distances)
       {
-        std::cout << "distance from " << key.first << " to " << key.second
-                  << " = " << dist << std::endl;
+        distances_flatten.push_back(from_to.first);
+        distances_flatten.push_back(from_to.second);
+        distances_flatten.push_back(dist);
       }
 
+    // Perform global communication, the data is not large
+    const auto global_distances =
+      Utilities::MPI::all_gather(comm, distances_flatten);
+
+    assessment_distances.clear();
+    for (const auto &distances_set : global_distances)
+      for (unsigned int i = 0; i < distances_set.size(); i+=3)
+        {
+
+          const auto key = std::make_pair(
+            static_cast<unsigned int>(distances_set[i]),
+            static_cast<unsigned int>(distances_set[i+1]));
+
+          auto it = assessment_distances.find(key);
+          if (it == assessment_distances.end())
+            assessment_distances.try_emplace(key, distances_set[i+2]);
+          else
+            it->second = std::min(it->second, distances_set[i+2]);
+        }
+
+    return assessment_distances;
 
     // Test how agglomerations are filled up
     /*
