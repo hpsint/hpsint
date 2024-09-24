@@ -705,6 +705,8 @@ namespace GrainTracker
 
   namespace internal
   {
+    /* This function searches for the top layer of cells constituting each of
+     * the particle clique and add them to the agglomerations container. */
     template <int dim, typename VectorIds>
     void
     run_flooding_prep(
@@ -735,14 +737,16 @@ namespace GrainTracker
 
       const auto particle_id = particle_ids[cell->global_active_cell_index()];
 
+      // If cell does not belong to any particle - skip it
       if (particle_id == invalid_particle_id)
-        return; // cell outside of the grain group
+        return;
 
       const auto particle_marker =
         particle_markers[cell->global_active_cell_index()];
 
+      // If cell has been visited - skip it
       if (particle_marker != invalid_particle_id)
-        return; // cell has been visited
+        return;
 
       // Use global particle ids for markers
       particle_markers[cell->global_active_cell_index()] =
@@ -840,8 +844,12 @@ namespace GrainTracker
 
     const auto h_cell = Utilities::MPI::min<double>(h_cell_local, comm);
 
-    std::cout << "h_cell = " << h_cell << std::endl;
-
+    /* This container stores the groups of cells forming a kind of iso-surface
+     * at a given distance from each of the particle cliques. As a storage
+     * container, std::deque is chosen since later at each iteration we pick the
+     * first item out of it and will add a new one to the end, such that the
+     * size of this container stays the same. The size equals to the number of
+     * levels in the triangulation. */
     std::deque<std::vector<DoFCellAccessor<dim, dim, false>>> agglomerations(
       n_global_levels);
 
@@ -894,6 +902,8 @@ namespace GrainTracker
     std::map<std::pair<unsigned int, unsigned int>, double>
       assessment_distances;
 
+    /* This lambda sets distance for newly colored cells or estimates distance
+     * between the two particle cliques if collision has been detected. */
     auto handle_cells = [&max_level,
                          &h_cell,
                          &assessment_distances,
@@ -910,7 +920,10 @@ namespace GrainTracker
 
       if (neighbor_particle_id == invalid_particle_id)
         {
-          // Add to agglomeration
+          /* Add to agglomeration. The agglomerations container works as a
+           * priority queue here: the cells are distributed with respect to
+           * their level, e.g. the finest cells get added right at the beginning
+           * of the queue and so on. */
           agglomerations[max_level - neighbor.level()].push_back(neighbor);
 
           // Update distance
@@ -944,6 +957,12 @@ namespace GrainTracker
     // Cache all ghost cells
     using CellsCache = std::pair<DoFCellAccessor<dim, dim, false>,
                                  std::vector<DoFCellAccessor<dim, dim, false>>>;
+
+    /* This list contains a list of ghost cells that are adjacent to those
+     * locally owned cells which do not belong to any particle clique. One any
+     * of such ghost cells has been colored, we will then transfer this
+     * information to the adjacent locally owned cells. This mechanism is
+     * required to capture grows of cliques across different ranks. */
     std::list<CellsCache> all_ghost_cells;
 
     // Crucial - otherwise zeros are returned
@@ -980,8 +999,10 @@ namespace GrainTracker
                   {
                     for (const auto &child : neighbor->child_iterators())
                       {
-                        if (child->is_active() && !child->is_artificial() &&
-                            child->is_locally_owned() &&
+                        /* If a child has its own children, then for sure this
+                         * is not a cell that is adjacent to the current one, so
+                         * we skip it, that is why is_active() is here for. */
+                        if (child->is_active() && child->is_locally_owned() &&
                             particle_markers[child
                                                ->global_active_cell_index()] ==
                               invalid_particle_id)
@@ -1023,7 +1044,15 @@ namespace GrainTracker
         Utilities::MPI::sum<unsigned int>(!all_ghost_cells.empty(), comm) > 0);
     };
 
-    // Now perform the loop
+    /* We iterate over agglomerations moving in layerwise manner from the
+     * particles cliques towards the voids of the computational domain until two
+     * growing cliques meet or a boundary is encountered. At each iteration,
+     * when a new cell is colored, its distance in general is incremented with
+     * respect to its neighbor that was colored on one of the previous
+     * iterations. The "pace" for a cell depends on its refinement level that
+     * defines a weight of a cell contributing to the distance evaluations: the
+     * finest cells have weight equals to 1 and larger ones have bigger weights,
+     * see below the formula. */
     bool       do_process_agglomerations = check_agglomerations();
     bool       do_update_ghosts          = check_ghosts_cache();
     const bool need_to_zero_out          = do_update_ghosts;
@@ -1043,7 +1072,8 @@ namespace GrainTracker
             particle_distances.update_ghost_values();
           }
 
-        // Run over ghost elements only
+        /* Run over ghost elements only, we need to transfer infromation across
+         * ranks if somewhere a growing clique has reached any neighbor. */
         auto it_cache = all_ghost_cells.begin();
         while (it_cache != all_ghost_cells.end())
           {
@@ -1067,18 +1097,21 @@ namespace GrainTracker
                         agglomerations[max_level - local_cell.level()]
                           .push_back(local_cell);
 
+                        // Set distance for the newly colored cell
                         particle_distances[local_cell
                                              .global_active_cell_index()] =
                           particle_distances[ghost_cell
                                                .global_active_cell_index()] +
                           std::pow(2, max_level - local_cell.level());
 
+                        // Mark the cell as visited
                         particle_markers[local_cell
                                            .global_active_cell_index()] =
                           ghost_particle_id;
                       }
                   }
 
+                // Delete this neighbor data as we do not need it anymore
                 it_cache = all_ghost_cells.erase(it_cache);
               }
             else
@@ -1087,6 +1120,7 @@ namespace GrainTracker
               }
           }
 
+        // Run over the previously picked agglomerations.
         for (const auto &cell : agglomeration_at_level)
           {
             for (const auto face : cell.face_indices())
