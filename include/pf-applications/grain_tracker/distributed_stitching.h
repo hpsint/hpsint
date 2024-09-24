@@ -886,17 +886,17 @@ namespace GrainTracker
                                     invalid_particle_id);
       }
 
-    MPI_Barrier(comm);
-    std::cout << "agglomerations.size() = " << agglomerations.size()
-              << std::endl;
 
+    auto cell_weight = [&max_level](const auto &cell) {
+      return std::pow(2, max_level - cell.level());
+    };
 
     // Set zero distances
     particle_distances = invalid_particle_id;
     for (const auto &agglomeration : agglomerations)
       for (const auto &cell : agglomeration)
         particle_distances[cell.global_active_cell_index()] =
-          std::pow(2, max_level - cell.level()) - 1;
+          cell_weight(cell) - 1;
 
     // We store distances here
     std::map<std::pair<unsigned int, unsigned int>, double>
@@ -910,8 +910,8 @@ namespace GrainTracker
                          &particle_markers,
                          &particle_distances,
                          &invalid_particle_id,
-                         &agglomerations](const auto &cell,
-                                          const auto &neighbor) {
+                         &agglomerations,
+                         &cell_weight](const auto &cell, const auto &neighbor) {
       const auto cell_particle_id =
         particle_markers[cell.global_active_cell_index()];
 
@@ -929,7 +929,7 @@ namespace GrainTracker
           // Update distance
           particle_distances[neighbor.global_active_cell_index()] =
             particle_distances[cell.global_active_cell_index()] +
-            std::pow(2, max_level - neighbor.level());
+            cell_weight(neighbor);
 
           particle_markers[neighbor.global_active_cell_index()] =
             cell_particle_id;
@@ -1097,7 +1097,7 @@ namespace GrainTracker
                                              .global_active_cell_index()] =
                           particle_distances[ghost_cell
                                                .global_active_cell_index()] +
-                          std::pow(2, max_level - local_cell.level());
+                          cell_weight(local_cell);
 
                         // Mark the cell as visited
                         particle_markers[local_cell
