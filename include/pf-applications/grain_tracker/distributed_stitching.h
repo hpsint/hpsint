@@ -779,7 +779,6 @@ namespace GrainTracker
               {
                 for (const auto &child : neighbor->child_iterators())
                   {
-                    // TODO: check this later, seems like children can be nested
                     if (!child->is_active() || !child->is_locally_owned())
                       continue;
 
@@ -794,7 +793,8 @@ namespace GrainTracker
                               const auto neighbor_of_child =
                                 child->neighbor(child_face);
 
-                              if (!neighbor_of_child->is_artificial() &&
+                              if (neighbor_of_child->is_active() &&
+                                  neighbor_of_child->is_locally_owned() &&
                                   neighbor_of_child->id() == cell->id())
                                 {
                                   agglomerations[agglomerations.size() -
@@ -968,14 +968,10 @@ namespace GrainTracker
     // Crucial - otherwise zeros are returned
     particle_markers.update_ghost_values();
 
-    // TODO: There is a bug here with nested elements
     for (const auto &cell : dof_handler.active_cell_iterators())
       if (cell->is_ghost())
         {
           CellsCache cache(*cell, {});
-
-          const auto ghost_particle_id =
-            particle_markers[cell->global_active_cell_index()];
 
           for (const auto face : cell->face_indices())
             if (!cell->at_boundary(face))
@@ -984,8 +980,7 @@ namespace GrainTracker
 
                 if (!neighbor->has_children())
                   {
-                    if (!neighbor->is_artificial() &&
-                        neighbor->is_locally_owned())
+                    if (neighbor->is_locally_owned())
                       {
                         const auto neighbor_particle_id =
                           particle_markers[neighbor
@@ -1135,7 +1130,6 @@ namespace GrainTracker
                     }
                   else
                     {
-                      // TODO: check for the bug again
                       for (const auto &child : neighbor->child_iterators())
                         if (child->is_active() && child->is_locally_owned())
                           for (const auto child_face : child->face_indices())
@@ -1145,7 +1139,7 @@ namespace GrainTracker
                                   child->neighbor(child_face);
 
                                 if (neighbor_of_child->is_active() &&
-                                    !neighbor_of_child->is_artificial() &&
+                                    neighbor_of_child->is_locally_owned() &&
                                     neighbor_of_child->id() == cell.id())
                                   {
                                     handle_cells(cell, *child);
