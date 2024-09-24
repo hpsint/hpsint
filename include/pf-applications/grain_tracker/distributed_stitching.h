@@ -941,6 +941,70 @@ namespace GrainTracker
         }
     };
 
+    // Cache all ghost cells
+    using CellsCache = std::pair<DoFCellAccessor<dim, dim, false>,
+                                 std::vector<DoFCellAccessor<dim, dim, false>>>;
+    std::list<CellsCache> all_ghost_cells;
+
+    // Crucial - otherwise zeros are returned
+    particle_markers.update_ghost_values();
+
+    // TODO: There is a bug here with nested elements
+    for (const auto &cell : dof_handler.active_cell_iterators())
+      if (cell->is_ghost())
+        {
+          CellsCache cache(*cell, {});
+
+          const auto ghost_particle_id =
+            particle_markers[cell->global_active_cell_index()];
+
+          for (const auto face : cell->face_indices())
+            if (!cell->at_boundary(face))
+              {
+                const auto neighbor = cell->neighbor(face);
+
+                if (!neighbor->has_children())
+                  {
+                    if (!neighbor->is_artificial() &&
+                        neighbor->is_locally_owned())
+                      {
+                        const auto neighbor_particle_id =
+                          particle_markers[neighbor
+                                             ->global_active_cell_index()];
+
+                        if (neighbor_particle_id == invalid_particle_id)
+                          cache.second.push_back(*neighbor);
+                      }
+                  }
+                else
+                  {
+                    for (const auto &child : neighbor->child_iterators())
+                      {
+                        if (child->is_active() && !child->is_artificial() &&
+                            child->is_locally_owned() &&
+                            particle_markers[child
+                                               ->global_active_cell_index()] ==
+                              invalid_particle_id)
+                          for (const auto child_face : child->face_indices())
+                            if (!child->at_boundary(child_face))
+                              {
+                                const auto neighbor_of_child =
+                                  child->neighbor(child_face);
+
+                                if (neighbor_of_child->is_active() &&
+                                    !neighbor_of_child->is_artificial() &&
+                                    neighbor_of_child->id() == cell->id())
+                                  cache.second.push_back(*child);
+                              }
+                      }
+                  }
+              }
+
+          // Add only if we have some cell candidates in cache
+          if (!cache.second.empty())
+            all_ghost_cells.push_back(cache);
+        }
+
     // Some helpful lambdas
     auto check_agglomerations = [&agglomerations, &comm]() {
       const bool has_non_empty_agglomerations =
@@ -954,7 +1018,15 @@ namespace GrainTracker
                                                 comm) > 0);
     };
 
+    auto check_ghosts_cache = [&all_ghost_cells, &comm]() {
+      return (
+        Utilities::MPI::sum<unsigned int>(!all_ghost_cells.empty(), comm) > 0);
+    };
+
+    // Now perform the loop
     bool       do_process_agglomerations = check_agglomerations();
+    bool       do_update_ghosts          = check_ghosts_cache();
+    const bool need_to_zero_out          = do_update_ghosts;
     while (do_process_agglomerations)
       {
         // Pick the nearest agglomeration set - copy it
@@ -965,6 +1037,55 @@ namespace GrainTracker
         agglomerations.emplace_back(
           std::vector<DoFCellAccessor<dim, dim, false>>());
 
+        if (do_update_ghosts)
+          {
+            particle_markers.update_ghost_values();
+            particle_distances.update_ghost_values();
+          }
+
+        // Run over ghost elements only
+        auto it_cache = all_ghost_cells.begin();
+        while (it_cache != all_ghost_cells.end())
+          {
+            const auto &cache      = *it_cache;
+            const auto &ghost_cell = cache.first;
+
+            const auto ghost_particle_id =
+              particle_markers[ghost_cell.global_active_cell_index()];
+
+            if (ghost_particle_id != invalid_particle_id)
+              {
+                for (const auto &local_cell : cache.second)
+                  {
+                    const auto local_particle_id =
+                      particle_markers[local_cell.global_active_cell_index()];
+
+                    // Check whether this cell has already be assigned
+                    if (local_particle_id == invalid_particle_id)
+                      {
+                        // We add new local cells as independet agglomerations
+                        agglomerations[max_level - local_cell.level()]
+                          .push_back(local_cell);
+
+                        particle_distances[local_cell
+                                             .global_active_cell_index()] =
+                          particle_distances[ghost_cell
+                                               .global_active_cell_index()] +
+                          std::pow(2, max_level - local_cell.level());
+
+                        particle_markers[local_cell
+                                           .global_active_cell_index()] =
+                          ghost_particle_id;
+                      }
+                  }
+
+                it_cache = all_ghost_cells.erase(it_cache);
+              }
+            else
+              {
+                ++it_cache;
+              }
+          }
 
         for (const auto &cell : agglomeration_at_level)
           {
@@ -1002,7 +1123,13 @@ namespace GrainTracker
           }
 
         do_process_agglomerations = check_agglomerations();
-          }
+        do_update_ghosts          = check_ghosts_cache();
+      }
+
+    if (need_to_zero_out)
+      {
+        particle_markers.zero_out_ghost_values();
+        particle_distances.zero_out_ghost_values();
       }
 
     // Convert map to a vector
