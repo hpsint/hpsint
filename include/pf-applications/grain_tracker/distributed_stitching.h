@@ -1175,18 +1175,17 @@ namespace GrainTracker
 
     assessment_distances.clear();
     for (const auto &distances_set : global_distances)
-      for (unsigned int i = 0; i < distances_set.size(); i+=3)
+      for (unsigned int i = 0; i < distances_set.size(); i += 3)
         {
-
-          const auto key = std::make_pair(
-            static_cast<unsigned int>(distances_set[i]),
-            static_cast<unsigned int>(distances_set[i+1]));
+          const auto key =
+            std::make_pair(static_cast<unsigned int>(distances_set[i]),
+                           static_cast<unsigned int>(distances_set[i + 1]));
 
           auto it = assessment_distances.find(key);
           if (it == assessment_distances.end())
-            assessment_distances.try_emplace(key, distances_set[i+2]);
+            assessment_distances.try_emplace(key, distances_set[i + 2]);
           else
-            it->second = std::min(it->second, distances_set[i+2]);
+            it->second = std::min(it->second, distances_set[i + 2]);
         }
 
     // Output the distance and marker vectors for debug purposes
