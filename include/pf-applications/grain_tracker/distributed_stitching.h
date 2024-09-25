@@ -21,6 +21,8 @@
 
 #include <deal.II/dofs/dof_handler.h>
 
+#include <deal.II/numerics/data_out.h>
+
 #include <pf-applications/base/scoped_name.h>
 #include <pf-applications/base/timer.h>
 
@@ -820,16 +822,22 @@ namespace GrainTracker
 
   template <int dim, typename VectorIds>
   std::map<std::pair<unsigned int, unsigned int>, double>
-  estimate_distances(
-    VectorIds &                      particle_distances,
-    VectorIds &                      particle_markers,
+  estimate_particle_distances(
     const VectorIds &                particle_ids,
     const std::vector<unsigned int> &local_to_global_particle_ids,
     const unsigned int               offset,
     const DoFHandler<dim> &          dof_handler,
     const double                     invalid_particle_id = -1.0,
-    MyTimerOutput *                  timer               = nullptr)
+    MyTimerOutput *                  timer               = nullptr,
+    DataOut<dim> *                   data_out            = nullptr)
   {
+    ScopedName sc("estimate_particle_distances");
+    MyScope    scope(sc, timer);
+
+    // Create other 2 vectors using the same partitioning as the input one
+    VectorIds particle_distances(particle_ids);
+    VectorIds particle_markers(particle_ids);
+
     const MPI_Comm comm = dof_handler.get_communicator();
 
     const unsigned int n_global_levels =
@@ -853,17 +861,11 @@ namespace GrainTracker
     std::deque<std::vector<DoFCellAccessor<dim, dim, false>>> agglomerations(
       n_global_levels);
 
-    // Set initial
+    // Set initial value of the markers
     particle_markers = invalid_particle_id;
-    std::cout << "particle_distances.size() = " << particle_distances.size()
-              << std::endl;
-    std::cout << "particle_markers.size()   = " << particle_markers.size()
-              << std::endl;
-
-
 
     // Run preparatory modified flooding
-    unsigned int agg_counter = 0;
+    particle_ids.update_ghost_values();
     for (const auto &cell : dof_handler.active_cell_iterators())
       {
         if (!cell->is_locally_owned())
@@ -885,7 +887,7 @@ namespace GrainTracker
                                     agglomerations,
                                     invalid_particle_id);
       }
-
+    particle_ids.zero_out_ghost_values();
 
     auto cell_weight = [&max_level](const auto &cell) {
       return std::pow(2, max_level - cell.level());
@@ -1154,11 +1156,9 @@ namespace GrainTracker
         do_update_ghosts          = check_ghosts_cache();
       }
 
+    particle_markers.zero_out_ghost_values();
     if (need_to_zero_out)
-      {
-        particle_markers.zero_out_ghost_values();
-        particle_distances.zero_out_ghost_values();
-      }
+      particle_distances.zero_out_ghost_values();
 
     // Convert map to a vector
     std::vector<double> distances_flatten;
@@ -1189,15 +1189,30 @@ namespace GrainTracker
             it->second = std::min(it->second, distances_set[i+2]);
         }
 
-    return assessment_distances;
+    // Output the distance and marker vectors for debug purposes
+    if (data_out)
+      {
+        Vector<double> particle_distances_local(
+          dof_handler.get_triangulation().n_active_cells());
+        Vector<double> particle_markers_local(
+          dof_handler.get_triangulation().n_active_cells());
+        for (const auto &cell : dof_handler.active_cell_iterators())
+          if (cell->is_locally_owned())
+            {
+              particle_distances_local[cell->active_cell_index()] =
+                particle_distances[cell->global_active_cell_index()];
+              particle_markers_local[cell->active_cell_index()] =
+                particle_markers[cell->global_active_cell_index()];
+            }
 
-    // Test how agglomerations are filled up
-    /*
-    particle_distances = invalid_particle_id;
-    for (const auto &agglomeration : agglomerations)
-      for (const auto &cell : agglomeration)
-        particle_distances[cell->global_active_cell_index()] =
-          particle_ids[cell->global_active_cell_index()];
-    */
+        data_out->add_data_vector(particle_distances_local,
+                                  "particle_distances",
+                                  DataOut<dim>::DataVectorType::type_cell_data);
+        data_out->add_data_vector(particle_markers_local,
+                                  "particle_markers",
+                                  DataOut<dim>::DataVectorType::type_cell_data);
+      }
+
+    return assessment_distances;
   }
 } // namespace GrainTracker
