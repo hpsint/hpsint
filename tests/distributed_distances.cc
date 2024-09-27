@@ -13,6 +13,7 @@
 //
 // ---------------------------------------------------------------------
 
+#include <deal.II/base/function_signed_distance.h>
 #include <deal.II/base/mpi.h>
 
 #include <deal.II/distributed/shared_tria.h>
@@ -34,6 +35,7 @@
 #include <pf-applications/sintering/tools.h>
 
 #include <pf-applications/grain_tracker/distributed_stitching.h>
+#include <pf-applications/grain_tracker/ellipsoid.h>
 
 using namespace dealii;
 using namespace GrainTracker;
@@ -253,6 +255,15 @@ main(int argc, char **argv)
                                 nullptr,
                                 &data_out);
 
+  // Distance from the distance for ellipsoids algo
+  std::array<Point<dim>, dim> axes;
+  for (unsigned int d = 0; d < dim; ++d)
+    axes[d][d] = 1;
+
+  Ellipsoid<dim> el1(Point<dim>(1.0, 0.5), {{0.4, 0.4}}, axes);
+  Ellipsoid<dim> el2(Point<dim>(2.0, 0.5), {{0.4, 0.2}}, axes);
+  Ellipsoid<dim> el3(Point<dim>(3.0, 0.75), {{0.2, 0.2}}, axes);
+
   if (my_rank == 0)
     {
       for (unsigned int i = 0; i < n_particles; ++i)
@@ -272,7 +283,41 @@ main(int argc, char **argv)
       for (const auto &[key, dist] : assessment_distances)
         std::cout << "distance from " << key.first << " to " << key.second
                   << " = " << dist << std::endl;
+
+      std::cout << "Distances via ellipsoid evaluation:" << std::endl;
+      std::cout << "distance from 0 to 1 = " << std::get<0>(distance(el1, el2))
+                << std::endl;
+      std::cout << "distance from 1 to 2 = " << std::get<0>(distance(el2, el3))
+                << std::endl;
     }
+
+  // Level-set tests
+  Vector<double> ls_sphere_1(dof_handler.n_dofs());
+  Vector<double> ls_ellipse(dof_handler.n_dofs());
+  Vector<double> ls_sphere_2(dof_handler.n_dofs());
+  Vector<double> ls_union(dof_handler.n_dofs());
+
+  VectorTools::interpolate(
+    dof_handler,
+    Functions::SignedDistance::Sphere(Point<dim>(1.0, 0.5), 0.4),
+    ls_sphere_1);
+  VectorTools::interpolate(dof_handler,
+                           Functions::SignedDistance::Ellipsoid<dim>(
+                             Point<dim>(2.0, 0.5), {{0.4, 0.2}}),
+                           ls_ellipse);
+  VectorTools::interpolate(
+    dof_handler,
+    Functions::SignedDistance::Sphere(Point<dim>(3.0, 0.75), 0.2),
+    ls_sphere_2);
+
+  // create unions of two level-set functions
+  for (unsigned int i = 0; i < dof_handler.n_dofs(); ++i)
+    ls_union[i] = std::min({ls_sphere_1[i], ls_ellipse[i], ls_sphere_2[i]});
+
+  data_out.add_data_vector(dof_handler, ls_sphere_1, "ls_sphere_1");
+  data_out.add_data_vector(dof_handler, ls_ellipse, "ls_ellipse");
+  data_out.add_data_vector(dof_handler, ls_sphere_2, "ls_sphere_2");
+  data_out.add_data_vector(dof_handler, ls_union, "ls_union");
 
   // Generate output
   data_out.build_patches(mapping);
