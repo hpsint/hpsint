@@ -95,6 +95,7 @@ namespace GrainTracker
       : radii(radii)
       , r_min(*std::min_element(radii.cbegin(), radii.cend()))
       , r_max(*std::max_element(radii.cbegin(), radii.cend()))
+      , axes(axes)
       , center(center)
     {
       Tensor<2, dim, Number> S;
@@ -143,14 +144,32 @@ namespace GrainTracker
       mtrA.copy_from(A);
       b.unroll(vecB.data(), vecB.data() + dim);
 
-      // Compute eigenvalues of A to get the radii
+      // Compute the eigenvalues and eigenvectors of A to get the radii and
+      // principal axes
       SymmetricTensor<2, dim, Number> Am(A);
       Am *= 1. / (2 * alpha_in);
-      const auto evals = eigenvalues(Am);
+      auto evals_and_vectors = eigenvectors(Am);
 
-      std::transform(evals.begin(), evals.end(), radii.begin(), [](Number v) {
-        return 1. / std::sqrt(v);
-      });
+      // Ensure the eigenvalues are in the ascending order so the radii later
+      // are in the descending: this is for consistency only, the ellipsoid
+      // algorithms are not dependent on this ordering in fact
+      std::sort(evals_and_vectors.begin(),
+                evals_and_vectors.end(),
+                [](const auto &a, const auto &b) { return a.first < b.first; });
+
+      std::transform(evals_and_vectors.begin(),
+                     evals_and_vectors.end(),
+                     radii.begin(),
+                     [](const auto &pair) {
+                       return 1. / std::sqrt(pair.first);
+                     });
+
+      std::transform(evals_and_vectors.begin(),
+                     evals_and_vectors.end(),
+                     axes.begin(),
+                     [](const auto &pair) {
+                       return pair.second / pair.second.norm();
+                     });
 
       r_min = *std::min_element(radii.cbegin(), radii.cend());
       r_max = *std::max_element(radii.cbegin(), radii.cend());
@@ -238,6 +257,12 @@ namespace GrainTracker
       return center;
     }
 
+    const std::array<Point<dim, Number>, dim> &
+    get_axes() const
+    {
+      return axes;
+    }
+
   private:
     // Components of the quadratic form
     Tensor<2, dim, Number> A;
@@ -253,6 +278,9 @@ namespace GrainTracker
     // Cached min and max radii
     Number r_min;
     Number r_max;
+
+    // Axes
+    std::array<Point<dim, Number>, dim> axes;
 
     // Center of the ellipsoid
     Point<dim, Number> center;
