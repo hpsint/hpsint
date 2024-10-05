@@ -21,6 +21,8 @@
 
 #include <deal.II/dofs/dof_handler.h>
 
+#include <deal.II/numerics/data_out.h>
+
 #include <pf-applications/base/scoped_name.h>
 #include <pf-applications/base/timer.h>
 
@@ -701,5 +703,515 @@ namespace GrainTracker
     return std::make_tuple(offset,
                            std::move(local_to_global_particle_ids),
                            std::move(local_particle_max_values));
+  }
+
+  namespace internal
+  {
+    /* This function searches for the top layer of cells constituting each of
+     * the particle clique and add them to the agglomerations container. */
+    template <int dim, typename VectorIds>
+    void
+    run_flooding_prep(
+      const typename DoFHandler<dim>::cell_iterator &cell,
+      const VectorIds &                              particle_ids,
+      const std::vector<unsigned int> &local_to_global_particle_ids,
+      const unsigned int               offset,
+      VectorIds &                      particle_markers,
+      std::deque<std::vector<DoFCellAccessor<dim, dim, false>>> &agglomerations,
+      const double invalid_particle_id = -1.0)
+    {
+      if (cell->has_children())
+        {
+          for (const auto &child : cell->child_iterators())
+            run_flooding_prep<dim>(child,
+                                   particle_ids,
+                                   local_to_global_particle_ids,
+                                   offset,
+                                   particle_markers,
+                                   agglomerations,
+                                   invalid_particle_id);
+
+          return;
+        }
+
+      if (!cell->is_locally_owned())
+        return;
+
+      const auto particle_id = particle_ids[cell->global_active_cell_index()];
+
+      // If cell does not belong to any particle - skip it
+      if (particle_id == invalid_particle_id)
+        return;
+
+      const auto particle_marker =
+        particle_markers[cell->global_active_cell_index()];
+
+      // If cell has been visited - skip it
+      if (particle_marker != invalid_particle_id)
+        return;
+
+      // Use global particle ids for markers
+      particle_markers[cell->global_active_cell_index()] =
+        local_to_global_particle_ids[static_cast<unsigned int>(particle_id) -
+                                     offset];
+
+      for (const auto face : cell->face_indices())
+        if (!cell->at_boundary(face))
+          {
+            const auto neighbor = cell->neighbor(face);
+
+            if (!neighbor->has_children())
+              {
+                const auto neighbor_particle_id =
+                  particle_ids[neighbor->global_active_cell_index()];
+
+                if (neighbor_particle_id == invalid_particle_id)
+                  agglomerations[agglomerations.size() - cell->level() - 1]
+                    .push_back(*cell);
+                else
+                  run_flooding_prep<dim>(neighbor,
+                                         particle_ids,
+                                         local_to_global_particle_ids,
+                                         offset,
+                                         particle_markers,
+                                         agglomerations,
+                                         invalid_particle_id);
+              }
+            else
+              {
+                for (const auto &child : neighbor->child_iterators())
+                  {
+                    if (!child->is_active() || !child->is_locally_owned())
+                      continue;
+
+                    const auto child_particle_id =
+                      particle_ids[child->global_active_cell_index()];
+
+                    if (child_particle_id == invalid_particle_id)
+                      {
+                        for (const auto child_face : child->face_indices())
+                          if (!child->at_boundary(child_face))
+                            {
+                              const auto neighbor_of_child =
+                                child->neighbor(child_face);
+
+                              if (neighbor_of_child->is_active() &&
+                                  neighbor_of_child->is_locally_owned() &&
+                                  neighbor_of_child->id() == cell->id())
+                                {
+                                  agglomerations[agglomerations.size() -
+                                                 cell->level() - 1]
+                                    .push_back(*cell);
+                                  break;
+                                }
+                            }
+                      }
+                  }
+
+                run_flooding_prep<dim>(neighbor,
+                                       particle_ids,
+                                       local_to_global_particle_ids,
+                                       offset,
+                                       particle_markers,
+                                       agglomerations,
+                                       invalid_particle_id);
+              }
+          }
+    }
+  } // namespace internal
+
+  template <int dim, typename VectorIds>
+  std::map<std::pair<unsigned int, unsigned int>, double>
+  estimate_particle_distances(
+    const VectorIds &                particle_ids,
+    const std::vector<unsigned int> &local_to_global_particle_ids,
+    const unsigned int               offset,
+    const DoFHandler<dim> &          dof_handler,
+    const double                     invalid_particle_id = -1.0,
+    MyTimerOutput *                  timer               = nullptr,
+    DataOut<dim> *                   data_out            = nullptr)
+  {
+    ScopedName sc("estimate_particle_distances");
+    MyScope    scope(sc, timer);
+
+    // Create other 2 vectors using the same partitioning as the input one
+    VectorIds particle_distances(particle_ids);
+    VectorIds particle_markers(particle_ids);
+
+    const MPI_Comm comm = dof_handler.get_communicator();
+
+    const unsigned int n_global_levels =
+      dof_handler.get_triangulation().n_global_levels();
+    const unsigned int max_level = n_global_levels - 1;
+
+    // Estimate cell size
+    const unsigned int n_local_levels =
+      dof_handler.get_triangulation().n_levels();
+    const auto h_cell_local =
+      dof_handler.begin_active(n_local_levels - 1)->diameter() / std::sqrt(dim);
+
+    const auto h_cell = Utilities::MPI::min<double>(h_cell_local, comm);
+
+    /* This container stores the groups of cells forming a kind of iso-surface
+     * at a given distance from each of the particle cliques. As a storage
+     * container, std::deque is chosen since later at each iteration we pick the
+     * first item out of it and will add a new one to the end, such that the
+     * size of this container stays the same. The size equals to the number of
+     * levels in the triangulation. */
+    std::deque<std::vector<DoFCellAccessor<dim, dim, false>>> agglomerations(
+      n_global_levels);
+
+    // Set initial value of the markers
+    particle_markers = invalid_particle_id;
+
+    // Run preparatory modified flooding
+    particle_ids.update_ghost_values();
+    for (const auto &cell : dof_handler.active_cell_iterators())
+      {
+        if (!cell->is_locally_owned())
+          continue;
+
+        const auto particle_id = particle_ids[cell->global_active_cell_index()];
+        const auto particle_marker =
+          particle_markers[cell->global_active_cell_index()];
+
+        if (particle_id == invalid_particle_id ||
+            particle_marker != invalid_particle_id)
+          continue;
+
+        internal::run_flooding_prep(cell,
+                                    particle_ids,
+                                    local_to_global_particle_ids,
+                                    offset,
+                                    particle_markers,
+                                    agglomerations,
+                                    invalid_particle_id);
+      }
+    particle_ids.zero_out_ghost_values();
+
+    auto cell_weight = [&max_level](const auto &cell) {
+      return std::pow(2, max_level - cell.level());
+    };
+
+    // Set zero distances
+    particle_distances = invalid_particle_id;
+    for (const auto &agglomeration : agglomerations)
+      for (const auto &cell : agglomeration)
+        particle_distances[cell.global_active_cell_index()] =
+          cell_weight(cell) - 1;
+
+    // We store distances here
+    std::map<std::pair<unsigned int, unsigned int>, double>
+      assessment_distances;
+
+    /* This lambda sets distance for newly colored cells or estimates distance
+     * between the two particle cliques if collision has been detected. */
+    auto handle_cells = [&max_level,
+                         &h_cell,
+                         &assessment_distances,
+                         &particle_markers,
+                         &particle_distances,
+                         &invalid_particle_id,
+                         &agglomerations,
+                         &cell_weight](const auto &cell, const auto &neighbor) {
+      const auto cell_particle_id =
+        particle_markers[cell.global_active_cell_index()];
+
+      const auto neighbor_particle_id =
+        particle_markers[neighbor.global_active_cell_index()];
+
+      if (neighbor_particle_id == invalid_particle_id)
+        {
+          /* Add to agglomeration. The agglomerations container works as a
+           * priority queue here: the cells are distributed with respect to
+           * their level, e.g. the finest cells get added right at the beginning
+           * of the queue and so on. */
+          agglomerations[max_level - neighbor.level()].push_back(neighbor);
+
+          // Update distance
+          particle_distances[neighbor.global_active_cell_index()] =
+            particle_distances[cell.global_active_cell_index()] +
+            cell_weight(neighbor);
+
+          particle_markers[neighbor.global_active_cell_index()] =
+            cell_particle_id;
+        }
+      else if (neighbor_particle_id != cell_particle_id)
+        {
+          // It means that we meet the neighbourhood of
+          // another particle
+          const auto current_distance =
+            h_cell * (particle_distances[cell.global_active_cell_index()] +
+                      particle_distances[neighbor.global_active_cell_index()]);
+
+          const auto key =
+            std::make_pair(std::min(cell_particle_id, neighbor_particle_id),
+                           std::max(cell_particle_id, neighbor_particle_id));
+
+          auto it = assessment_distances.find(key);
+          if (it == assessment_distances.end())
+            assessment_distances.try_emplace(key, current_distance);
+          else
+            it->second = std::min(it->second, current_distance);
+        }
+    };
+
+    // Cache all ghost cells
+    using CellsCache = std::pair<DoFCellAccessor<dim, dim, false>,
+                                 std::vector<DoFCellAccessor<dim, dim, false>>>;
+
+    /* This list contains a list of ghost cells that are adjacent to those
+     * locally owned cells which do not belong to any particle clique. One any
+     * of such ghost cells has been colored, we will then transfer this
+     * information to the adjacent locally owned cells. This mechanism is
+     * required to capture grows of cliques across different ranks. */
+    std::list<CellsCache> all_ghost_cells;
+
+    // Crucial - otherwise zeros are returned
+    particle_markers.update_ghost_values();
+
+    for (const auto &cell : dof_handler.active_cell_iterators())
+      if (cell->is_ghost())
+        {
+          CellsCache cache(*cell, {});
+
+          for (const auto face : cell->face_indices())
+            if (!cell->at_boundary(face))
+              {
+                const auto neighbor = cell->neighbor(face);
+
+                if (!neighbor->has_children())
+                  {
+                    if (neighbor->is_locally_owned())
+                      {
+                        const auto neighbor_particle_id =
+                          particle_markers[neighbor
+                                             ->global_active_cell_index()];
+
+                        if (neighbor_particle_id == invalid_particle_id)
+                          cache.second.push_back(*neighbor);
+                      }
+                  }
+                else
+                  {
+                    for (const auto &child : neighbor->child_iterators())
+                      {
+                        /* If a child has its own children, then for sure this
+                         * is not a cell that is adjacent to the current one, so
+                         * we skip it, that is why is_active() is here for. */
+                        if (child->is_active() && child->is_locally_owned() &&
+                            particle_markers[child
+                                               ->global_active_cell_index()] ==
+                              invalid_particle_id)
+                          for (const auto child_face : child->face_indices())
+                            if (!child->at_boundary(child_face))
+                              {
+                                const auto neighbor_of_child =
+                                  child->neighbor(child_face);
+
+                                if (neighbor_of_child->is_active() &&
+                                    !neighbor_of_child->is_artificial() &&
+                                    neighbor_of_child->id() == cell->id())
+                                  cache.second.push_back(*child);
+                              }
+                      }
+                  }
+              }
+
+          // Add only if we have some cell candidates in cache
+          if (!cache.second.empty())
+            all_ghost_cells.push_back(cache);
+        }
+
+    // Some helpful lambdas
+    auto check_agglomerations = [&agglomerations, &comm]() {
+      const bool has_non_empty_agglomerations =
+        std::find_if(agglomerations.cbegin(),
+                     agglomerations.cend(),
+                     [](const auto &agglomeration) {
+                       return !agglomeration.empty();
+                     }) != agglomerations.end();
+
+      return (Utilities::MPI::sum<unsigned int>(has_non_empty_agglomerations,
+                                                comm) > 0);
+    };
+
+    auto check_ghosts_cache = [&all_ghost_cells, &comm]() {
+      return (
+        Utilities::MPI::sum<unsigned int>(!all_ghost_cells.empty(), comm) > 0);
+    };
+
+    /* We iterate over agglomerations moving in layerwise manner from the
+     * particles cliques towards the voids of the computational domain until two
+     * growing cliques meet or a boundary is encountered. At each iteration,
+     * when a new cell is colored, its distance in general is incremented with
+     * respect to its neighbor that was colored on one of the previous
+     * iterations. The "pace" for a cell depends on its refinement level that
+     * defines a weight of a cell contributing to the distance evaluations: the
+     * finest cells have weight equals to 1 and larger ones have bigger weights,
+     * see below the formula. */
+    bool       do_process_agglomerations = check_agglomerations();
+    bool       do_update_ghosts          = check_ghosts_cache();
+    const bool need_to_zero_out          = do_update_ghosts;
+    while (do_process_agglomerations)
+      {
+        // Pick the nearest agglomeration set - copy it
+        const auto agglomeration_at_level = agglomerations.front();
+        agglomerations.pop_front();
+
+        // Add empty
+        agglomerations.emplace_back(
+          std::vector<DoFCellAccessor<dim, dim, false>>());
+
+        if (do_update_ghosts)
+          {
+            particle_markers.update_ghost_values();
+            particle_distances.update_ghost_values();
+          }
+
+        /* Run over ghost elements only, we need to transfer infromation across
+         * ranks if somewhere a growing clique has reached any neighbor. */
+        auto it_cache = all_ghost_cells.begin();
+        while (it_cache != all_ghost_cells.end())
+          {
+            const auto &cache      = *it_cache;
+            const auto &ghost_cell = cache.first;
+
+            const auto ghost_particle_id =
+              particle_markers[ghost_cell.global_active_cell_index()];
+
+            if (ghost_particle_id != invalid_particle_id)
+              {
+                for (const auto &local_cell : cache.second)
+                  {
+                    const auto local_particle_id =
+                      particle_markers[local_cell.global_active_cell_index()];
+
+                    // Check whether this cell has already be assigned
+                    if (local_particle_id == invalid_particle_id)
+                      {
+                        // We add new local cells as independet agglomerations
+                        agglomerations[max_level - local_cell.level()]
+                          .push_back(local_cell);
+
+                        // Set distance for the newly colored cell
+                        particle_distances[local_cell
+                                             .global_active_cell_index()] =
+                          particle_distances[ghost_cell
+                                               .global_active_cell_index()] +
+                          cell_weight(local_cell);
+
+                        // Mark the cell as visited
+                        particle_markers[local_cell
+                                           .global_active_cell_index()] =
+                          ghost_particle_id;
+                      }
+                  }
+
+                // Delete this neighbor data as we do not need it anymore
+                it_cache = all_ghost_cells.erase(it_cache);
+              }
+            else
+              {
+                ++it_cache;
+              }
+          }
+
+        // Run over the previously picked agglomerations.
+        for (const auto &cell : agglomeration_at_level)
+          {
+            for (const auto face : cell.face_indices())
+              if (!cell.at_boundary(face))
+                {
+                  const auto neighbor = cell.neighbor(face);
+
+                  if (!neighbor->has_children())
+                    {
+                      if (neighbor->is_locally_owned())
+                        handle_cells(cell, *neighbor);
+                    }
+                  else
+                    {
+                      for (const auto &child : neighbor->child_iterators())
+                        if (child->is_active() && child->is_locally_owned())
+                          for (const auto child_face : child->face_indices())
+                            if (!child->at_boundary(child_face))
+                              {
+                                const auto neighbor_of_child =
+                                  child->neighbor(child_face);
+
+                                if (neighbor_of_child->is_active() &&
+                                    neighbor_of_child->is_locally_owned() &&
+                                    neighbor_of_child->id() == cell.id())
+                                  {
+                                    handle_cells(cell, *child);
+                                    break;
+                                  }
+                              }
+                    }
+                }
+          }
+
+        do_process_agglomerations = check_agglomerations();
+        do_update_ghosts          = check_ghosts_cache();
+      }
+
+    particle_markers.zero_out_ghost_values();
+    if (need_to_zero_out)
+      particle_distances.zero_out_ghost_values();
+
+    // Convert map to a vector
+    std::vector<double> distances_flatten;
+    for (const auto &[from_to, dist] : assessment_distances)
+      {
+        distances_flatten.push_back(from_to.first);
+        distances_flatten.push_back(from_to.second);
+        distances_flatten.push_back(dist);
+      }
+
+    // Perform global communication, the data is not large
+    const auto global_distances =
+      Utilities::MPI::all_gather(comm, distances_flatten);
+
+    assessment_distances.clear();
+    for (const auto &distances_set : global_distances)
+      for (unsigned int i = 0; i < distances_set.size(); i += 3)
+        {
+          const auto key =
+            std::make_pair(static_cast<unsigned int>(distances_set[i]),
+                           static_cast<unsigned int>(distances_set[i + 1]));
+
+          auto it = assessment_distances.find(key);
+          if (it == assessment_distances.end())
+            assessment_distances.try_emplace(key, distances_set[i + 2]);
+          else
+            it->second = std::min(it->second, distances_set[i + 2]);
+        }
+
+    // Output the distance and marker vectors for debug purposes
+    if (data_out)
+      {
+        Vector<double> particle_distances_local(
+          dof_handler.get_triangulation().n_active_cells());
+        Vector<double> particle_markers_local(
+          dof_handler.get_triangulation().n_active_cells());
+        for (const auto &cell : dof_handler.active_cell_iterators())
+          if (cell->is_locally_owned())
+            {
+              particle_distances_local[cell->active_cell_index()] =
+                particle_distances[cell->global_active_cell_index()];
+              particle_markers_local[cell->active_cell_index()] =
+                particle_markers[cell->global_active_cell_index()];
+            }
+
+        data_out->add_data_vector(particle_distances_local,
+                                  "particle_distances",
+                                  DataOut<dim>::DataVectorType::type_cell_data);
+        data_out->add_data_vector(particle_markers_local,
+                                  "particle_markers",
+                                  DataOut<dim>::DataVectorType::type_cell_data);
+      }
+
+    return assessment_distances;
   }
 } // namespace GrainTracker
