@@ -1212,7 +1212,8 @@ namespace GrainTracker
                       particle_centers,
                       particle_radii,
                       particle_measures,
-                      particle_max_values] =
+                      particle_max_values,
+                      particle_remotes] =
             compute_particles_info(dof_handler,
                                    particle_ids,
                                    local_to_global_particle_ids,

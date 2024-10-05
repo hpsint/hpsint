@@ -444,7 +444,8 @@ namespace GrainTracker
              std::vector<Point<dim>>, // particle_centers
              std::vector<double>,     // particle_radii
              std::vector<double>,     // particle_measures
-             std::vector<double>>     // particle_max_values
+             std::vector<double>,     // particle_max_values
+             std::vector<Point<dim>>>
   compute_particles_info(
     const DoFHandler<dim> &          dof_handler,
     const VectorIds &                particle_ids,
@@ -520,7 +521,8 @@ namespace GrainTracker
       }
 
     // Compute particles radii
-    std::vector<double> particle_radii(n_particles, 0.);
+    std::vector<double>     particle_radii(n_particles, 0.);
+    std::vector<Point<dim>> particle_remotes(n_particles);
     for (const auto &cell :
          dof_handler.get_triangulation().active_cell_iterators())
       if (cell->is_locally_owned())
@@ -542,10 +544,19 @@ namespace GrainTracker
 
           const auto &center = particle_centers[unique_id];
 
+          auto dist_vec = cell->barycenter() - center;
+          dist_vec += (dist_vec / dist_vec.norm()) * cell->diameter() / 2.;
+
           const double dist =
             center.distance(cell->barycenter()) + cell->diameter() / 2.;
+
+          if (dist > particle_radii[unique_id])
+            particle_remotes[unique_id] = dist_vec;
+
           particle_radii[unique_id] = std::max(particle_radii[unique_id], dist);
         }
+
+    std::vector<double> particle_radii_local(particle_radii);
 
     // Reduce information - particles radii
     MPI_Allreduce(MPI_IN_PLACE,
@@ -555,11 +566,27 @@ namespace GrainTracker
                   MPI_MAX,
                   comm);
 
+    // Exchange the remote points
+    for (unsigned int unique_id = 0; unique_id < particle_radii.size();
+         ++unique_id)
+      if (std::abs(particle_radii[unique_id] -
+                   particle_radii_local[unique_id]) > 1e-16)
+        particle_remotes[unique_id] = Point<dim>();
+
+    // Perform global communication
+    MPI_Allreduce(MPI_IN_PLACE,
+                  particle_remotes.begin()->begin_raw(),
+                  particle_remotes.size() * dim,
+                  MPI_DOUBLE,
+                  MPI_SUM,
+                  comm);
+
     return std::make_tuple(n_particles,
                            std::move(particle_centers),
                            std::move(particle_radii),
                            std::move(particle_measures),
-                           std::move(particle_max_values));
+                           std::move(particle_max_values),
+                           std::move(particle_remotes));
   }
 
   template <int dim, typename VectorIds>

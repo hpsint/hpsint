@@ -1558,13 +1558,15 @@ namespace Sintering
                   pores_centers,
                   pores_radii,
                   pores_measures,
-                  pores_max_values] =
+                  pores_max_values,
+                  pores_remotes] =
         GrainTracker::compute_particles_info(dof_handler,
                                              particle_ids,
                                              local_to_global_particle_ids,
                                              offset,
                                              invalid_particle_id);
       (void)pores_max_values;
+      (void)pores_remotes;
 
       const auto comm = dof_handler.get_communicator();
 
