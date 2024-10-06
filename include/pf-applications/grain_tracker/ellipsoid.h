@@ -307,7 +307,7 @@ namespace GrainTracker
      * solutions is in the admissible range [0, 1].
      */
     template <int dim, typename Number>
-    Number
+    std::pair<Number, bool>
     find_new_t(const Ellipsoid<dim, Number> &E,
                const Tensor<1, dim, Number> &c1,
                const Tensor<1, dim, Number> &c2)
@@ -323,17 +323,19 @@ namespace GrainTracker
 
       auto in_range = [](Number v) { return v >= 0. && v <= 1.; };
 
+      // Then the ellipses already overlap or one contains the other
+      if (!in_range(sol.first) && !in_range(sol.second))
+        {
+          return std::make_pair(0, true);
+        }
+
       AssertThrow(!in_range(sol.first) || !in_range(sol.second),
                   ExcMessage("Both solutions " + std::to_string(sol.first) +
                              " and " + std::to_string(sol.second) +
                              " are in the admissible range"));
-      AssertThrow(in_range(sol.first) || in_range(sol.second),
-                  ExcMessage("None of the solutions " +
-                             std::to_string(sol.first) + " and " +
-                             std::to_string(sol.second) +
-                             " is in the admissible range"));
 
-      return (in_range(sol.first)) ? sol.first : sol.second;
+      return std::make_pair((in_range(sol.first)) ? sol.first : sol.second,
+                            false);
     }
 
     /* One of the metric that can be ised for convergence, not used at the
@@ -417,10 +419,16 @@ namespace GrainTracker
          * for an intersection of the line with each of the ellipsoid using this
          * function. To this end
          */
-        const auto t1 = internal::find_new_t(E1, c1, c2);
-        const auto t2 = internal::find_new_t(E2, c1, c2);
+        const auto [t1, overlap1] = internal::find_new_t(E1, c1, c2);
+        if (overlap1)
+          {
+            dist          = 0;
+            has_converged = true;
+            break;
+          }
 
-        if (t2 < t1)
+        const auto [t2, overlap2] = internal::find_new_t(E2, c1, c2);
+        if (overlap2 || t2 < t1)
           {
             dist          = 0;
             has_converged = true;
