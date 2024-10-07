@@ -298,46 +298,6 @@ namespace GrainTracker
       return {(-b - std::sqrt(D)) / (2 * a), (-b + std::sqrt(D)) / (2 * a)};
     }
 
-    /* This function searches for an intersection of an ellipsoid E with a line
-     * connecting points c1 and c2 and defined parametrically using variable t
-     * as x(t) = c1 + t*(c2 - c1). Note that either c1 or c2 is located inside
-     * the ellipsoid E. To solve this problem, one needs to substitute this
-     * parametric definition into the ellipsoid quadratic form f(x) = 0. The
-     * quadratic equation with unknown t is then obtained, and only one of its
-     * solutions is in the admissible range [0, 1].
-     */
-    template <int dim, typename Number>
-    std::pair<Number, bool>
-    find_new_t(const Ellipsoid<dim, Number> &E,
-               const Tensor<1, dim, Number> &c1,
-               const Tensor<1, dim, Number> &c2)
-    {
-      const auto Ac1 = E.get_A() * c1;
-      const auto Ac2 = E.get_A() * c2;
-
-      const auto a = 0.5 * (Ac1 * c1 - 2 * Ac1 * c2 + Ac2 * c2);
-      const auto b = Ac2 * c1 - Ac1 * c1 + E.get_b() * c2 - E.get_b() * c1;
-      const auto c = 0.5 * Ac1 * c1 + E.get_b() * c1 + E.get_alpha();
-
-      const auto sol = solve_quadratic(a, b, c);
-
-      auto in_range = [](Number v) { return v >= 0. && v <= 1.; };
-
-      // Then the ellipses already overlap or one contains the other
-      if (!in_range(sol.first) && !in_range(sol.second))
-        {
-          return std::make_pair(0, true);
-        }
-
-      AssertThrow(!in_range(sol.first) || !in_range(sol.second),
-                  ExcMessage("Both solutions " + std::to_string(sol.first) +
-                             " and " + std::to_string(sol.second) +
-                             " are in the admissible range"));
-
-      return std::make_pair((in_range(sol.first)) ? sol.first : sol.second,
-                            false);
-    }
-
     /* One of the metric that can be ised for convergence, not used at the
      * moment since it has acos.
      */
@@ -361,6 +321,46 @@ namespace GrainTracker
                                     v.norm_square() * w.norm_square();
     }
   } // namespace internal
+
+  /* This function searches for an intersection of an ellipsoid E with a line
+   * connecting points c1 and c2 and defined parametrically using variable t
+   * as x(t) = c1 + t*(c2 - c1). Note that either c1 or c2 is located inside
+   * the ellipsoid E. To solve this problem, one needs to substitute this
+   * parametric definition into the ellipsoid quadratic form f(x) = 0. The
+   * quadratic equation with unknown t is then obtained, and only one of its
+   * solutions is in the admissible range [0, 1].
+   */
+  template <int dim, typename Number>
+  std::pair<Number, bool>
+  find_ellipsoid_intersection(const Ellipsoid<dim, Number> &E,
+                              const Tensor<1, dim, Number> &c1,
+                              const Tensor<1, dim, Number> &c2)
+  {
+    const auto Ac1 = E.get_A() * c1;
+    const auto Ac2 = E.get_A() * c2;
+
+    const auto a = 0.5 * (Ac1 * c1 - 2 * Ac1 * c2 + Ac2 * c2);
+    const auto b = Ac2 * c1 - Ac1 * c1 + E.get_b() * c2 - E.get_b() * c1;
+    const auto c = 0.5 * Ac1 * c1 + E.get_b() * c1 + E.get_alpha();
+
+    const auto sol = internal::solve_quadratic(a, b, c);
+
+    auto in_range = [](Number v) { return v >= 0. && v <= 1.; };
+
+    // Then the ellipses already overlap or one contains the other
+    if (!in_range(sol.first) && !in_range(sol.second))
+      {
+        return std::make_pair(0, true);
+      }
+
+    AssertThrow(!in_range(sol.first) || !in_range(sol.second),
+                ExcMessage("Both solutions " + std::to_string(sol.first) +
+                           " and " + std::to_string(sol.second) +
+                           " are in the admissible range"));
+
+    return std::make_pair((in_range(sol.first)) ? sol.first : sol.second,
+                          false);
+  }
 
   /* This function searches for the minimal distance between the 2 ellipsoids E1
    * and E1. It is based on the so-called "moving balls" algorithm proposed in
@@ -419,7 +419,7 @@ namespace GrainTracker
          * for an intersection of the line with each of the ellipsoid using this
          * function. To this end
          */
-        const auto [t1, overlap1] = internal::find_new_t(E1, c1, c2);
+        const auto [t1, overlap1] = find_ellipsoid_intersection(E1, c1, c2);
         if (overlap1)
           {
             dist          = 0;
@@ -427,7 +427,7 @@ namespace GrainTracker
             break;
           }
 
-        const auto [t2, overlap2] = internal::find_new_t(E2, c1, c2);
+        const auto [t2, overlap2] = find_ellipsoid_intersection(E2, c1, c2);
         if (overlap2 || t2 < t1)
           {
             dist          = 0;
