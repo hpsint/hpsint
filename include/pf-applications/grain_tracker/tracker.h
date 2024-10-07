@@ -1331,10 +1331,46 @@ namespace GrainTracker
             std::unique_ptr<Representation> representation;
 
             if (elliptical_grains)
-              representation = std::make_unique<RepresentationElliptical<dim>>(
-                particle_centers[index],
-                particle_measures[index],
-                &(particle_inertia[index * num_inertias<dim>]));
+              {
+                auto representation_el =
+                  std::make_unique<RepresentationElliptical<dim>>(
+                    particle_centers[index],
+                    particle_measures[index],
+                    &(particle_inertia[index * num_inertias<dim>]));
+
+                const auto remote_point =
+                  particle_centers[index] + particle_remotes[index];
+                const auto &E = representation_el->ellipsoid;
+                const auto [t_inter, overlap] =
+                  find_ellipsoid_intersection(E, E.get_center(), remote_point);
+
+                // This means that we need to enlarge the radii
+                if (t_inter > 0 && t_inter < 1)
+                  {
+                    const auto scale = 1. + (1 - t_inter);
+
+                    const auto &center =
+                      representation_el->ellipsoid.get_center();
+                    const auto &radii =
+                      representation_el->ellipsoid.get_radii();
+                    const auto &axes = representation_el->ellipsoid.get_axes();
+
+                    std::array<double, dim> radii_scaled;
+                    std::transform(radii.cbegin(),
+                                   radii.cend(),
+                                   radii_scaled.begin(),
+                                   [&scale](double r) { return r * scale; });
+
+                    // Recreate representation
+                    representation =
+                      std::make_unique<RepresentationElliptical<dim>>(
+                        center, radii_scaled, axes);
+                  }
+                else
+                  {
+                    representation = std::move(representation_el);
+                  }
+              }
             else
               representation = std::make_unique<RepresentationSpherical<dim>>(
                 particle_centers[index], particle_radii[index]);
