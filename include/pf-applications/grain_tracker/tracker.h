@@ -1210,16 +1210,24 @@ namespace GrainTracker
           // Determine properties of particles (volume, radius, center, etc)
           const auto [n_particles,
                       particle_centers,
-                      particle_radii,
                       particle_measures,
-                      particle_max_values,
-                      particle_remotes] =
+                      particle_max_values] =
             compute_particles_info(dof_handler,
                                    particle_ids,
                                    local_to_global_particle_ids,
                                    offset,
                                    invalid_particle_id,
                                    local_particle_max_values);
+
+          // Compute particles radii and remote points (if needed)
+          const auto [particle_radii, particle_remotes] =
+            compute_particles_radii(dof_handler,
+                                    particle_ids,
+                                    local_to_global_particle_ids,
+                                    offset,
+                                    particle_centers,
+                                    elliptical_grains,
+                                    invalid_particle_id);
 
           // Compute particles inertia if needed
           std::vector<double> particle_inertia;
