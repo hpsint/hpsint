@@ -512,22 +512,14 @@ namespace GrainTracker
   }
 
   template <int dim, typename VectorIds>
-  std::tuple<unsigned int,            // n_particles
-             std::vector<Point<dim>>, // particle_centers
-             std::vector<double>,     // particle_measures
-             std::vector<double>>     // particle_max_values
-  compute_particles_info(
-    const DoFHandler<dim> &          dof_handler,
-    const VectorIds &                particle_ids,
-    const std::vector<unsigned int> &local_to_global_particle_ids,
-    const unsigned int               local_offset,
-    const double                     invalid_particle_id       = -1.0,
-    const std::vector<double> &      local_particle_max_values = {})
+  std::tuple<std::vector<Point<dim>>, // particle_centers
+             std::vector<double>>     // particle_measures
+  compute_particles_info(const DoFHandler<dim> &dof_handler,
+                         const VectorIds &      particle_ids,
+                         const unsigned int     n_particles,
+                         const double           invalid_particle_id = -1.0)
   {
     const auto comm = dof_handler.get_communicator();
-
-    const unsigned int n_particles =
-      number_of_stitched_particles(local_to_global_particle_ids, comm);
 
     const unsigned int  n_features = 1 + dim;
     std::vector<double> particle_info(n_particles * n_features);
@@ -538,27 +530,18 @@ namespace GrainTracker
          dof_handler.get_triangulation().active_cell_iterators())
       if (cell->is_locally_owned())
         {
-          const auto particle_id =
-            particle_ids[cell->global_active_cell_index()];
+          const auto unique_id = particle_ids[cell->global_active_cell_index()];
 
-          if (particle_id == invalid_particle_id)
+          if (unique_id == invalid_particle_id)
             continue;
-
-          const unsigned int local_id =
-            static_cast<unsigned int>(particle_id) - local_offset;
-          const unsigned int unique_id = local_to_global_particle_ids[local_id];
 
           AssertIndexRange(unique_id, n_particles);
 
-          particle_info[n_features * unique_id + 0] += cell->measure();
+          particle_info[n_features * particle_id + 0] += cell->measure();
 
           for (unsigned int d = 0; d < dim; ++d)
             particle_info[n_features * unique_id + 1 + d] +=
               cell->center()[d] * cell->measure();
-
-          if (!local_particle_max_values.empty())
-            particle_max_values[unique_id] =
-              local_particle_max_values[local_id];
         }
 
     // Reduce information - particles info
@@ -567,14 +550,6 @@ namespace GrainTracker
                   particle_info.size(),
                   MPI_DOUBLE,
                   MPI_SUM,
-                  comm);
-
-    // Reduce information - particles max values
-    MPI_Allreduce(MPI_IN_PLACE,
-                  particle_max_values.data(),
-                  particle_max_values.size(),
-                  MPI_DOUBLE,
-                  MPI_MAX,
                   comm);
 
     // Compute particles centers
@@ -590,23 +565,18 @@ namespace GrainTracker
         particle_measures[i] = particle_info[i * n_features];
       }
 
-    return std::make_tuple(n_particles,
-                           std::move(particle_centers),
-                           std::move(particle_measures),
-                           std::move(particle_max_values));
+    return std::make_tuple(std::move(particle_centers),
+                           std::move(particle_measures));
   }
 
   template <int dim, typename VectorIds>
   std::tuple<std::vector<double>,     // particle_radii
              std::vector<Point<dim>>> // particle_remotes
-  compute_particles_radii(
-    const DoFHandler<dim> &          dof_handler,
-    const VectorIds &                particle_ids,
-    const std::vector<unsigned int> &local_to_global_particle_ids,
-    const unsigned int               local_offset,
-    const std::vector<Point<dim>> &  particle_centers,
-    const bool                       evaluate_remotes    = false,
-    const double                     invalid_particle_id = -1.0)
+  compute_particles_radii(const DoFHandler<dim> &        dof_handler,
+                          const VectorIds &              particle_ids,
+                          const std::vector<Point<dim>> &particle_centers,
+                          const bool   evaluate_remotes    = false,
+                          const double invalid_particle_id = -1.0)
   {
     const auto comm = dof_handler.get_communicator();
 
@@ -620,18 +590,10 @@ namespace GrainTracker
          dof_handler.get_triangulation().active_cell_iterators())
       if (cell->is_locally_owned())
         {
-          const auto particle_id =
-            particle_ids[cell->global_active_cell_index()];
+          const auto unique_id = particle_ids[cell->global_active_cell_index()];
 
-          if (particle_id == invalid_particle_id)
+          if (unique_id == invalid_particle_id)
             continue;
-
-          const unsigned int local_id =
-            static_cast<unsigned int>(particle_id) - local_offset;
-
-          AssertIndexRange(local_id, local_to_global_particle_ids.size());
-
-          const unsigned int unique_id = local_to_global_particle_ids[local_id];
 
           AssertIndexRange(unique_id, n_particles);
 
@@ -685,13 +647,10 @@ namespace GrainTracker
 
   template <int dim, typename VectorIds>
   std::vector<double>
-  compute_particles_inertia(
-    const DoFHandler<dim> &          dof_handler,
-    const VectorIds &                particle_ids,
-    const std::vector<unsigned int> &local_to_global_particle_ids,
-    const unsigned int               local_offset,
-    const std::vector<Point<dim>> &  particle_centers,
-    const double                     invalid_particle_id = -1.0)
+  compute_particles_inertia(const DoFHandler<dim> &        dof_handler,
+                            const VectorIds &              particle_ids,
+                            const std::vector<Point<dim>> &particle_centers,
+                            const double invalid_particle_id = -1.0)
   {
     const auto comm = dof_handler.get_communicator();
 
@@ -703,16 +662,10 @@ namespace GrainTracker
          dof_handler.get_triangulation().active_cell_iterators())
       if (cell->is_locally_owned())
         {
-          const auto particle_id =
-            particle_ids[cell->global_active_cell_index()];
+          const auto unique_id = particle_ids[cell->global_active_cell_index()];
 
-          if (particle_id == invalid_particle_id)
+          if (unique_id == invalid_particle_id)
             continue;
-
-          const unsigned int local_id =
-            static_cast<unsigned int>(particle_id) - local_offset;
-
-          AssertIndexRange(local_id, local_to_global_particle_ids.size());
 
           const unsigned int unique_id = local_to_global_particle_ids[local_id];
 
@@ -835,9 +788,7 @@ namespace GrainTracker
     run_flooding_prep(
       const typename DoFHandler<dim>::cell_iterator &cell,
       const VectorIds &                              particle_ids,
-      const std::vector<unsigned int> &local_to_global_particle_ids,
-      const unsigned int               offset,
-      VectorIds &                      particle_markers,
+      VectorIds &                                    particle_markers,
       std::deque<std::vector<DoFCellAccessor<dim, dim, false>>> &agglomerations,
       const double invalid_particle_id = -1.0)
     {
@@ -846,8 +797,6 @@ namespace GrainTracker
           for (const auto &child : cell->child_iterators())
             run_flooding_prep<dim>(child,
                                    particle_ids,
-                                   local_to_global_particle_ids,
-                                   offset,
                                    particle_markers,
                                    agglomerations,
                                    invalid_particle_id);
@@ -872,9 +821,7 @@ namespace GrainTracker
         return;
 
       // Use global particle ids for markers
-      particle_markers[cell->global_active_cell_index()] =
-        local_to_global_particle_ids[static_cast<unsigned int>(particle_id) -
-                                     offset];
+      particle_markers[cell->global_active_cell_index()] = particle_id;
 
       for (const auto face : cell->face_indices())
         if (!cell->at_boundary(face))
@@ -892,8 +839,6 @@ namespace GrainTracker
                 else
                   run_flooding_prep<dim>(neighbor,
                                          particle_ids,
-                                         local_to_global_particle_ids,
-                                         offset,
                                          particle_markers,
                                          agglomerations,
                                          invalid_particle_id);
@@ -931,8 +876,6 @@ namespace GrainTracker
 
                 run_flooding_prep<dim>(neighbor,
                                        particle_ids,
-                                       local_to_global_particle_ids,
-                                       offset,
                                        particle_markers,
                                        agglomerations,
                                        invalid_particle_id);
@@ -943,14 +886,11 @@ namespace GrainTracker
 
   template <int dim, typename VectorIds>
   std::map<std::pair<unsigned int, unsigned int>, double>
-  estimate_particle_distances(
-    const VectorIds &                particle_ids,
-    const std::vector<unsigned int> &local_to_global_particle_ids,
-    const unsigned int               offset,
-    const DoFHandler<dim> &          dof_handler,
-    const double                     invalid_particle_id = -1.0,
-    MyTimerOutput *                  timer               = nullptr,
-    DataOut<dim> *                   data_out            = nullptr)
+  estimate_particle_distances(const VectorIds &      particle_ids,
+                              const DoFHandler<dim> &dof_handler,
+                              const double           invalid_particle_id = -1.0,
+                              MyTimerOutput *        timer    = nullptr,
+                              DataOut<dim> *         data_out = nullptr)
   {
     ScopedName sc("estimate_particle_distances");
     MyScope    scope(sc, timer);
@@ -1002,8 +942,6 @@ namespace GrainTracker
 
         internal::run_flooding_prep(cell,
                                     particle_ids,
-                                    local_to_global_particle_ids,
-                                    offset,
                                     particle_markers,
                                     agglomerations,
                                     invalid_particle_id);
