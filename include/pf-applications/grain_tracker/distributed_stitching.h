@@ -464,6 +464,54 @@ namespace GrainTracker
   }
 
   template <int dim, typename VectorIds>
+  std::vector<double>
+  compute_particles_max_values(
+    const DoFHandler<dim> &          dof_handler,
+    const VectorIds &                particle_ids,
+    const std::vector<unsigned int> &local_to_global_particle_ids,
+    const unsigned int               local_offset,
+    const double                     invalid_particle_id       = -1.0,
+    const std::vector<double> &      local_particle_max_values = {})
+  {
+    const auto comm = dof_handler.get_communicator();
+
+    const unsigned int n_particles =
+      number_of_stitched_particles(local_to_global_particle_ids, comm);
+
+    std::vector<double> particle_max_values(n_particles);
+
+    // Compute local information
+    for (const auto &cell :
+         dof_handler.get_triangulation().active_cell_iterators())
+      if (cell->is_locally_owned())
+        {
+          const auto particle_id =
+            particle_ids[cell->global_active_cell_index()];
+
+          if (particle_id == invalid_particle_id)
+            continue;
+
+          const unsigned int local_id =
+            static_cast<unsigned int>(particle_id) - local_offset;
+          const unsigned int unique_id = local_to_global_particle_ids[local_id];
+
+          AssertIndexRange(unique_id, n_particles);
+
+          particle_max_values[unique_id] = local_particle_max_values[local_id];
+        }
+
+    // Reduce information - particles max values
+    MPI_Allreduce(MPI_IN_PLACE,
+                  particle_max_values.data(),
+                  particle_max_values.size(),
+                  MPI_DOUBLE,
+                  MPI_MAX,
+                  comm);
+
+    return particle_max_values;
+  }
+
+  template <int dim, typename VectorIds>
   std::tuple<unsigned int,            // n_particles
              std::vector<Point<dim>>, // particle_centers
              std::vector<double>,     // particle_measures
