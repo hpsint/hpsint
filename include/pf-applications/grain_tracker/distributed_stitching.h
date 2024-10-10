@@ -439,6 +439,30 @@ namespace GrainTracker
     return n_particles;
   }
 
+  template <typename VectorIds>
+  void
+  switch_to_global_indices(
+    VectorIds &                      particle_ids,
+    const std::vector<unsigned int> &local_to_global_particle_ids,
+    const unsigned int               offset,
+    const double                     invalid_particle_id = -1.0)
+  {
+    const unsigned int n_local_particles = local_to_global_particle_ids.size();
+
+    for (auto &particle_id : particle_ids)
+      if (particle_id != invalid_particle_id)
+        {
+          const unsigned int local_id =
+            static_cast<unsigned int>(particle_id) - offset;
+
+          AssertIndexRange(local_id, n_local_particles);
+
+          particle_id = local_to_global_particle_ids[local_id];
+        }
+
+    particle_ids.update_ghost_values();
+  }
+
   template <int dim, typename VectorIds>
   std::tuple<unsigned int,            // n_particles
              std::vector<Point<dim>>, // particle_centers
