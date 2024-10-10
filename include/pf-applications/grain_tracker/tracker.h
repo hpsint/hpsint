@@ -1207,24 +1207,34 @@ namespace GrainTracker
                                          invalid_particle_id,
                                          timer.is_enabled() ? &timer : nullptr);
 
-          // Determine properties of particles (volume, radius, center, etc)
-          const auto [n_particles,
-                      particle_centers,
-                      particle_measures,
-                      particle_max_values] =
-            compute_particles_info(dof_handler,
-                                   particle_ids,
+          // Get particle max values
+          const auto particle_max_values =
+            compute_particles_max_values(dof_handler,
+                                         particle_ids,
+                                         local_to_global_particle_ids,
+                                         offset,
+                                         invalid_particle_id,
+                                         local_particle_max_values);
+
+          // Set global ids to the particles
+          switch_to_global_indices(particle_ids,
                                    local_to_global_particle_ids,
                                    offset,
-                                   invalid_particle_id,
-                                   local_particle_max_values);
+                                   invalid_particle_id);
+
+          const unsigned int n_particles = particle_max_values.size();
+
+          // Determine properties of particles (volume, radius, center, etc)
+          const auto [particle_centers, particle_measures] =
+            compute_particles_info(dof_handler,
+                                   particle_ids,
+                                   n_particles,
+                                   invalid_particle_id);
 
           // Compute particles radii and remote points (if needed)
           const auto [particle_radii, particle_remotes] =
             compute_particles_radii(dof_handler,
                                     particle_ids,
-                                    local_to_global_particle_ids,
-                                    offset,
                                     particle_centers,
                                     elliptical_grains,
                                     invalid_particle_id);
@@ -1232,20 +1242,11 @@ namespace GrainTracker
           // Compute particles inertia if needed
           std::vector<double> particle_inertia;
           if (elliptical_grains)
-            particle_inertia =
-              compute_particles_inertia(dof_handler,
-                                        particle_ids,
-                                        local_to_global_particle_ids,
-                                        offset,
-                                        particle_centers,
-                                        invalid_particle_id);
+            particle_inertia = compute_particles_inertia(dof_handler,
+                                                         particle_ids,
+                                                         particle_centers,
+                                                         invalid_particle_id);
 
-          // Set global ids to the particles
-          for (auto &particle_id : particle_ids)
-            if (particle_id != invalid_particle_id)
-              particle_id = local_to_global_particle_ids
-                [static_cast<unsigned int>(particle_id) - offset];
-          particle_ids.update_ghost_values();
 
           // Build periodicity between particles
           std::set<std::tuple<unsigned int, unsigned int>> periodicity;
