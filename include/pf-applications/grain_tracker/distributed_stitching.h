@@ -442,7 +442,6 @@ namespace GrainTracker
   template <int dim, typename VectorIds>
   std::tuple<unsigned int,            // n_particles
              std::vector<Point<dim>>, // particle_centers
-             std::vector<double>,     // particle_radii
              std::vector<double>,     // particle_measures
              std::vector<double>>     // particle_max_values
   compute_particles_info(
@@ -519,8 +518,32 @@ namespace GrainTracker
         particle_measures[i] = particle_info[i * n_features];
       }
 
+    return std::make_tuple(n_particles,
+                           std::move(particle_centers),
+                           std::move(particle_measures),
+                           std::move(particle_max_values));
+  }
+
+  template <int dim, typename VectorIds>
+  std::tuple<std::vector<double>,     // particle_radii
+             std::vector<Point<dim>>> // particle_remotes
+  compute_particles_radii(
+    const DoFHandler<dim> &          dof_handler,
+    const VectorIds &                particle_ids,
+    const std::vector<unsigned int> &local_to_global_particle_ids,
+    const unsigned int               local_offset,
+    const std::vector<Point<dim>> &  particle_centers,
+    const bool                       evaluate_remotes    = false,
+    const double                     invalid_particle_id = -1.0)
+  {
+    const auto comm = dof_handler.get_communicator();
+
+    const unsigned int n_particles = particle_centers.size();
+
     // Compute particles radii
-    std::vector<double> particle_radii(n_particles, 0.);
+    std::vector<double>     particle_radii(n_particles, 0.);
+    std::vector<Point<dim>> particle_remotes(evaluate_remotes ? n_particles :
+                                                                0);
     for (const auto &cell :
          dof_handler.get_triangulation().active_cell_iterators())
       if (cell->is_locally_owned())
@@ -542,10 +565,19 @@ namespace GrainTracker
 
           const auto &center = particle_centers[unique_id];
 
+          auto dist_vec = cell->barycenter() - center;
+          dist_vec += (dist_vec / dist_vec.norm()) * cell->diameter() / 2.;
+
           const double dist =
             center.distance(cell->barycenter()) + cell->diameter() / 2.;
+
+          if (evaluate_remotes && dist > particle_radii[unique_id])
+            particle_remotes[unique_id] = dist_vec;
+
           particle_radii[unique_id] = std::max(particle_radii[unique_id], dist);
         }
+
+    std::vector<double> particle_radii_local(particle_radii);
 
     // Reduce information - particles radii
     MPI_Allreduce(MPI_IN_PLACE,
@@ -555,11 +587,28 @@ namespace GrainTracker
                   MPI_MAX,
                   comm);
 
-    return std::make_tuple(n_particles,
-                           std::move(particle_centers),
-                           std::move(particle_radii),
-                           std::move(particle_measures),
-                           std::move(particle_max_values));
+    // Exchange the remote points
+    if (evaluate_remotes)
+      {
+        // If the current rank is not the owner of the furthest point, then we
+        // nullify it since we perform a global summation later.
+        for (unsigned int unique_id = 0; unique_id < particle_radii.size();
+             ++unique_id)
+          if (std::abs(particle_radii[unique_id] -
+                       particle_radii_local[unique_id]) > 1e-16)
+            particle_remotes[unique_id] = Point<dim>();
+
+        // Perform global communication
+        MPI_Allreduce(MPI_IN_PLACE,
+                      particle_remotes.begin()->begin_raw(),
+                      particle_remotes.size() * dim,
+                      MPI_DOUBLE,
+                      MPI_SUM,
+                      comm);
+      }
+
+    return std::make_tuple(std::move(particle_radii),
+                           std::move(particle_remotes));
   }
 
   template <int dim, typename VectorIds>
