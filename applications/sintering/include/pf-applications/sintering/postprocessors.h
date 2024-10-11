@@ -1554,19 +1554,23 @@ namespace Sintering
                                threshold_upper,
                                box_filter);
 
-      const auto [n_pores, pores_centers, pores_measures, pores_max_values] =
-        GrainTracker::compute_particles_info(dof_handler,
-                                             particle_ids,
+      const unsigned int n_pores =
+        number_of_stitched_particles(local_to_global_particle_ids, comm);
+
+      GrainTracker::switch_to_global_indices(particle_ids,
                                              local_to_global_particle_ids,
                                              offset,
                                              invalid_particle_id);
-      (void)pores_max_values;
+
+      const auto [n_pores, pores_centers, pores_measures] =
+        GrainTracker::compute_particles_info(dof_handler,
+                                             particle_ids,
+                                             n_pores,
+                                             invalid_particle_id);
 
       const auto [pores_radii, pores_remotes] =
         GrainTracker::compute_particles_radii(dof_handler,
                                               particle_ids,
-                                              local_to_global_particle_ids,
-                                              offset,
                                               pores_centers,
                                               /*elliptical_grains = */ false,
                                               invalid_particle_id);
