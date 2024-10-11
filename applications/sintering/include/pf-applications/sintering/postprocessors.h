@@ -1546,8 +1546,10 @@ namespace Sintering
     {
       const double invalid_particle_id = -1.0; // TODO
 
+      const auto comm = dof_handler.get_communicator();
+
       // Detect pores and assign ids
-      const auto [particle_ids, local_to_global_particle_ids, offset] =
+      auto [particle_ids, local_to_global_particle_ids, offset] =
         internal::detect_pores(dof_handler,
                                solution,
                                invalid_particle_id,
@@ -1555,14 +1557,15 @@ namespace Sintering
                                box_filter);
 
       const unsigned int n_pores =
-        number_of_stitched_particles(local_to_global_particle_ids, comm);
+        GrainTracker::number_of_stitched_particles(local_to_global_particle_ids,
+                                                   comm);
 
       GrainTracker::switch_to_global_indices(particle_ids,
                                              local_to_global_particle_ids,
                                              offset,
                                              invalid_particle_id);
 
-      const auto [n_pores, pores_centers, pores_measures] =
+      const auto [pores_centers, pores_measures] =
         GrainTracker::compute_particles_info(dof_handler,
                                              particle_ids,
                                              n_pores,
@@ -1575,8 +1578,6 @@ namespace Sintering
                                               /*elliptical_grains = */ false,
                                               invalid_particle_id);
       (void)pores_remotes;
-
-      const auto comm = dof_handler.get_communicator();
 
       if (Utilities::MPI::this_mpi_process(comm) != 0)
         return;

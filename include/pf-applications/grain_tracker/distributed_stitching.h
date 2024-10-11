@@ -448,6 +448,7 @@ namespace GrainTracker
     const double                     invalid_particle_id = -1.0)
   {
     const unsigned int n_local_particles = local_to_global_particle_ids.size();
+    (void)n_local_particles;
 
     for (auto &particle_id : particle_ids)
       if (particle_id != invalid_particle_id)
@@ -537,7 +538,7 @@ namespace GrainTracker
 
           AssertIndexRange(unique_id, n_particles);
 
-          particle_info[n_features * particle_id + 0] += cell->measure();
+          particle_info[n_features * unique_id + 0] += cell->measure();
 
           for (unsigned int d = 0; d < dim; ++d)
             particle_info[n_features * unique_id + 1 + d] +=
@@ -666,8 +667,6 @@ namespace GrainTracker
 
           if (unique_id == invalid_particle_id)
             continue;
-
-          const unsigned int unique_id = local_to_global_particle_ids[local_id];
 
           AssertIndexRange(unique_id, n_particles);
 
