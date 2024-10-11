@@ -1572,11 +1572,8 @@ namespace Sintering
                                              invalid_particle_id);
 
       const auto [pores_radii, pores_remotes] =
-        GrainTracker::compute_particles_radii(dof_handler,
-                                              particle_ids,
-                                              pores_centers,
-                                              /*elliptical_grains = */ false,
-                                              invalid_particle_id);
+        GrainTracker::compute_particles_radii(
+          dof_handler, particle_ids, pores_centers, false, invalid_particle_id);
       (void)pores_remotes;
 
       if (Utilities::MPI::this_mpi_process(comm) != 0)
