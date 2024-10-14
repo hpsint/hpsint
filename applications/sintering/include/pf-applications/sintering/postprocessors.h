@@ -1546,33 +1546,35 @@ namespace Sintering
     {
       const double invalid_particle_id = -1.0; // TODO
 
+      const auto comm = dof_handler.get_communicator();
+
       // Detect pores and assign ids
-      const auto [particle_ids, local_to_global_particle_ids, offset] =
+      auto [particle_ids, local_to_global_particle_ids, offset] =
         internal::detect_pores(dof_handler,
                                solution,
                                invalid_particle_id,
                                threshold_upper,
                                box_filter);
 
-      const auto [n_pores, pores_centers, pores_measures, pores_max_values] =
-        GrainTracker::compute_particles_info(dof_handler,
-                                             particle_ids,
+      const unsigned int n_pores =
+        GrainTracker::number_of_stitched_particles(local_to_global_particle_ids,
+                                                   comm);
+
+      GrainTracker::switch_to_global_indices(particle_ids,
                                              local_to_global_particle_ids,
                                              offset,
                                              invalid_particle_id);
-      (void)pores_max_values;
+
+      const auto [pores_centers, pores_measures] =
+        GrainTracker::compute_particles_info(dof_handler,
+                                             particle_ids,
+                                             n_pores,
+                                             invalid_particle_id);
 
       const auto [pores_radii, pores_remotes] =
-        GrainTracker::compute_particles_radii(dof_handler,
-                                              particle_ids,
-                                              local_to_global_particle_ids,
-                                              offset,
-                                              pores_centers,
-                                              /*elliptical_grains = */ false,
-                                              invalid_particle_id);
+        GrainTracker::compute_particles_radii(
+          dof_handler, particle_ids, pores_centers, false, invalid_particle_id);
       (void)pores_remotes;
-
-      const auto comm = dof_handler.get_communicator();
 
       if (Utilities::MPI::this_mpi_process(comm) != 0)
         return;

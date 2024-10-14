@@ -195,6 +195,12 @@ main(int argc, char **argv)
   // Determine properties of particles (volume, radius, center)
   std::vector<double> particle_info(n_particles * (1 + dim));
 
+  // Set global ids to the particles
+  switch_to_global_indices(particle_ids,
+                           local_to_global_particle_ids,
+                           offset,
+                           invalid_particle_id);
+
   // Compute local information
   for (const auto &cell : tria.active_cell_iterators())
     if (cell->is_locally_owned())
@@ -204,16 +210,12 @@ main(int argc, char **argv)
         if (particle_id == invalid_particle_id)
           continue;
 
-        const unsigned int unique_id =
-          local_to_global_particle_ids[static_cast<unsigned int>(particle_id) -
-                                       offset];
+        AssertIndexRange(particle_id, n_particles);
 
-        AssertIndexRange(unique_id, n_particles);
-
-        particle_info[(dim + 1) * unique_id + 0] += cell->measure();
+        particle_info[(dim + 1) * particle_id + 0] += cell->measure();
 
         for (unsigned int d = 0; d < dim; ++d)
-          particle_info[(dim + 1) * unique_id + 1 + d] +=
+          particle_info[(dim + 1) * particle_id + 1 + d] +=
             cell->center()[d] * cell->measure();
       }
 
@@ -246,14 +248,8 @@ main(int argc, char **argv)
                            "particle_ids",
                            DataOut<dim>::DataVectorType::type_cell_data);
 
-  const auto assessment_distances =
-    estimate_particle_distances(particle_ids,
-                                local_to_global_particle_ids,
-                                offset,
-                                dof_handler,
-                                invalid_particle_id,
-                                nullptr,
-                                &data_out);
+  const auto assessment_distances = estimate_particle_distances(
+    particle_ids, dof_handler, invalid_particle_id, nullptr, &data_out);
 
   // Distance from the distance for ellipsoids algo
   std::array<Point<dim>, dim> axes;
