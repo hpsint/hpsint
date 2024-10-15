@@ -1,0 +1,5 @@
+n_grains    = 81
+n_ops       = 4
+bottom_left = 0.0494382 0.190251
+top_right   = 198.457 39.9586
+n_grains_from_gt = 81
