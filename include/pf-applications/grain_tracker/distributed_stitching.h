@@ -1272,4 +1272,96 @@ namespace GrainTracker
 
     return assessment_distances;
   }
+
+  /* Detect particle ids across multiple order parameters which interact with
+   * each other via a direct contact. The two particles interact with each other
+   * if their ids sit on the same or the first immediate neighbor cell. */
+  template <int dim, typename BlockVectorIds>
+  std::map<std::pair<unsigned int, unsigned int>,
+           std::set<std::pair<unsigned int, unsigned int>>>
+  get_direct_neighbors(const DoFHandler<dim> &dof_handler,
+                       const BlockVectorIds & particle_ids,
+                       const double           invalid_particle_id = -1.0)
+  {
+    /* Each pair here is (order_parameter_id, global_particle_id), where
+     * particle ids are evaluated per order parameter, for this reason we need
+     * to store also the order parameter index. */
+    std::map<std::pair<unsigned int, unsigned int>,
+             std::set<std::pair<unsigned int, unsigned int>>>
+      neighbors;
+
+    auto add_neighbors =
+      [&neighbors](const std::pair<unsigned int, unsigned int> &pi,
+                   const std::pair<unsigned int, unsigned int> &pj) {
+        neighbors[pi].insert(pj);
+        neighbors[pj].insert(pi);
+      };
+
+    // Compute particles moments of inertia
+    for (const auto &cell :
+         dof_handler.get_triangulation().active_cell_iterators())
+      if (cell->is_locally_owned())
+        for (unsigned int i = 0; i < particle_ids.n_blocks(); ++i)
+          {
+            const auto pid_i =
+              particle_ids.block(i)[cell->global_active_cell_index()];
+
+            const auto pi = std::make_pair(i, pid_i);
+
+            if (pid_i != invalid_particle_id)
+              for (unsigned int j = i + 1; j < particle_ids.n_blocks(); ++j)
+                {
+                  const auto pid_j =
+                    particle_ids.block(j)[cell->global_active_cell_index()];
+
+                  if (pid_j != invalid_particle_id)
+                    {
+                      const auto pj = std::make_pair(j, pid_j);
+
+                      add_neighbors(pi, pj);
+                    }
+
+                  for (const auto face : cell->face_indices())
+                    if (!cell->at_boundary(face))
+                      {
+                        const auto neighbor = cell->neighbor(face);
+
+                        if (!neighbor->has_children())
+                          {
+                            const auto neighbor_pid_j = particle_ids.block(
+                              j)[neighbor->global_active_cell_index()];
+
+                            if (neighbor_pid_j != invalid_particle_id)
+                              {
+                                const auto pj =
+                                  std::make_pair(j, neighbor_pid_j);
+
+                                add_neighbors(pi, pj);
+                              }
+                          }
+                        else
+                          {
+                            for (const auto &child :
+                                 neighbor->child_iterators())
+                              if (child->is_active() && !child->is_artificial())
+                                {
+                                  const auto child_pid_j = particle_ids.block(
+                                    j)[child->global_active_cell_index()];
+
+                                  if (child_pid_j != invalid_particle_id)
+                                    {
+                                      const auto pj =
+                                        std::make_pair(j, child_pid_j);
+
+                                      add_neighbors(pi, pj);
+                                    }
+                                }
+                          }
+                      }
+                }
+          }
+
+
+    return neighbors;
+  }
 } // namespace GrainTracker
