@@ -1193,6 +1193,9 @@ namespace GrainTracker
       particle_ids_to_grain_ids.clear();
       particle_ids_to_grain_ids.resize(n_order_params);
 
+      // Cache particle max values
+      std::vector<std::vector<double>> op_particle_max_values(n_order_params);
+
       for (unsigned int current_order_parameter_id = 0;
            current_order_parameter_id < n_order_params;
            ++current_order_parameter_id)
@@ -1216,7 +1219,7 @@ namespace GrainTracker
                                          timer.is_enabled() ? &timer : nullptr);
 
           // Get particle max values
-          const auto particle_max_values =
+          op_particle_max_values[current_order_parameter_id] =
             compute_particles_max_values(dof_handler,
                                          particle_ids,
                                          local_to_global_particle_ids,
@@ -1229,6 +1232,26 @@ namespace GrainTracker
                                    local_to_global_particle_ids,
                                    offset,
                                    invalid_particle_id);
+        }
+
+      // Get direct neighbors if the wavefront representation is used
+      std::map<std::pair<unsigned int, unsigned int>,
+               std::set<std::pair<unsigned int, unsigned int>>>
+        direct_neighbors;
+      if (grain_representation == GrainRepresentation::wavefront)
+        direct_neighbors = get_direct_neighbors(dof_handler,
+                                                op_particle_ids,
+                                                invalid_particle_id);
+
+      for (unsigned int current_order_parameter_id = 0;
+           current_order_parameter_id < n_order_params;
+           ++current_order_parameter_id)
+        {
+          const auto &particle_ids =
+            op_particle_ids.block(current_order_parameter_id);
+
+          const auto &particle_max_values =
+            op_particle_max_values[current_order_parameter_id];
 
           const unsigned int n_particles = particle_max_values.size();
 
@@ -1337,6 +1360,38 @@ namespace GrainTracker
           particle_ids_to_grain_ids[current_order_parameter_id].resize(
             n_particles);
 
+          // Build particle distances data if wavefront representation is used
+          std::vector<std::map<std::pair<unsigned int, unsigned int>, double>>
+            particle_distances(n_particles);
+          if (grain_representation == GrainRepresentation::wavefront)
+            {
+              // Estimate particle distances
+              const auto distances_estimation =
+                estimate_particle_distances(particle_ids,
+                                            dof_handler,
+                                            invalid_particle_id,
+                                            timer.is_enabled() ? &timer :
+                                                                 nullptr);
+
+              // Build particle distances data
+              particle_distances.resize(n_particles);
+
+              for (const auto &[key, dist] : distances_estimation)
+                {
+                  particle_distances[key.first].emplace(
+                    std::make_pair(current_order_parameter_id, key.second),
+                    dist);
+                  particle_distances[key.second].emplace(
+                    std::make_pair(current_order_parameter_id, key.first),
+                    dist);
+                }
+              for (const auto &[primary, secondaries] : direct_neighbors)
+                if (primary.first == current_order_parameter_id)
+                  for (const auto &secondary : secondaries)
+                    particle_distances[primary.second].emplace(
+                      std::make_pair(secondary.first, secondary.second), 0);
+            }
+
           // Lambda to create grains and segments
           auto append_segment = [&,
                                  grain_representation = grain_representation](
@@ -1349,7 +1404,12 @@ namespace GrainTracker
 
             std::unique_ptr<Representation> representation;
 
-            if (grain_representation == GrainRepresentation::elliptical)
+            if (grain_representation == GrainRepresentation::spherical)
+              {
+                representation = std::make_unique<RepresentationSpherical<dim>>(
+                  particle_centers[index], particle_radii[index]);
+              }
+            else if (grain_representation == GrainRepresentation::elliptical)
               {
                 auto representation_el =
                   std::make_unique<RepresentationElliptical<dim>>(
@@ -1390,9 +1450,16 @@ namespace GrainTracker
                     representation = std::move(representation_el);
                   }
               }
+            else if (grain_representation == GrainRepresentation::wavefront)
+              {
+                representation = std::make_unique<RepresentationWavefront<dim>>(
+                  current_order_parameter_id,
+                  index,
+                  particle_centers[index],
+                  particle_distances[index]);
+              }
             else
-              representation = std::make_unique<RepresentationSpherical<dim>>(
-                particle_centers[index], particle_radii[index]);
+              AssertThrow(false, ExcNotImplemented());
 
             new_grains.at(grain_id).add_segment(
               Segment<dim>(particle_centers[index],
