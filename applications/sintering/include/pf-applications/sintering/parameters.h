@@ -96,9 +96,10 @@ namespace Sintering
     unsigned int verbosity               = 0;
 
     bool fast_reassignment  = false;
-    bool elliptical_grains  = false;
     bool track_with_quality = false;
     bool use_old_remap      = false;
+
+    std::string grain_representation = "Spherical;"
   };
 
   struct EnergyAbstractData
@@ -616,9 +617,6 @@ namespace Sintering
       prm.add_parameter("FastReassignment",
                         grain_tracker_data.fast_reassignment,
                         "Use fast grain reassignment strategy.");
-      prm.add_parameter("EllipticalGrains",
-                        grain_tracker_data.elliptical_grains,
-                        "Use elliptical grain representation.");
       prm.add_parameter(
         "TrackWithQuality",
         grain_tracker_data.track_with_quality,
@@ -626,6 +624,10 @@ namespace Sintering
       prm.add_parameter("UseOldRemap",
                         grain_tracker_data.use_old_remap,
                         "Use old remapping algo.");
+      prm.add_parameter("GrainRepresentation",
+                        grain_tracker_data.grain_representation,
+                        "Grain representation",
+                        Patterns::Selection("Spherical|Elliptical|Wavefront"));
       prm.leave_subsection();
 
 

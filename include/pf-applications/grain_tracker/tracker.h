@@ -57,6 +57,13 @@ namespace GrainTracker
 {
   using namespace dealii;
 
+  enum class GrainRepresentation
+  {
+    spherical,
+    elliptical,
+    wavefront
+  };
+
   /* The grain tracker algo itself. */
   template <int dim, typename Number>
   class Tracker : public Mapper
@@ -70,23 +77,24 @@ namespace GrainTracker
             const bool                              greedy_init,
             const bool                              allow_new_grains,
             const bool                              fast_reassignment,
-            const bool                              elliptical_grains,
             const unsigned int                      max_order_parameters_num,
-            const double                            threshold_lower      = 0.01,
-            const double                            threshold_new_grains = 0.02,
-            const double       buffer_distance_ratio                     = 0.05,
-            const double       buffer_distance_fixed                     = 0.0,
-            const unsigned int order_parameters_offset                   = 2,
-            const bool         do_timing                                 = true,
-            const bool         do_logging    = false,
-            const bool         use_old_remap = false)
+            const GrainRepresentation               grain_representation =
+              GrainRepresentation::spherical,
+            const double       threshold_lower         = 0.01,
+            const double       threshold_new_grains    = 0.02,
+            const double       buffer_distance_ratio   = 0.05,
+            const double       buffer_distance_fixed   = 0.0,
+            const unsigned int order_parameters_offset = 2,
+            const bool         do_timing               = true,
+            const bool         do_logging              = false,
+            const bool         use_old_remap           = false)
       : dof_handler(dof_handler)
       , tria(tria)
       , greedy_init(greedy_init)
       , allow_new_grains(allow_new_grains)
       , fast_reassignment(fast_reassignment)
-      , elliptical_grains(elliptical_grains)
       , max_order_parameters_num(max_order_parameters_num)
+      , grain_representation(grain_representation)
       , threshold_lower(threshold_lower)
       , threshold_new_grains(threshold_new_grains)
       , buffer_distance_ratio(buffer_distance_ratio)
@@ -109,8 +117,8 @@ namespace GrainTracker
                                                greedy_init,
                                                allow_new_grains,
                                                fast_reassignment,
-                                               elliptical_grains,
                                                max_order_parameters_num,
+                                               grain_representation,
                                                threshold_lower,
                                                threshold_new_grains,
                                                buffer_distance_ratio,
@@ -1236,12 +1244,13 @@ namespace GrainTracker
             compute_particles_radii(dof_handler,
                                     particle_ids,
                                     particle_centers,
-                                    elliptical_grains,
+                                    grain_representation ==
+                                      GrainRepresentation::elliptical,
                                     invalid_particle_id);
 
           // Compute particles inertia if needed
           std::vector<double> particle_inertia;
-          if (elliptical_grains)
+          if (grain_representation == GrainRepresentation::elliptical)
             particle_inertia = compute_particles_inertia(dof_handler,
                                                          particle_ids,
                                                          particle_centers,
@@ -1329,7 +1338,8 @@ namespace GrainTracker
             n_particles);
 
           // Lambda to create grains and segments
-          auto append_segment = [&, elliptical_grains = elliptical_grains](
+          auto append_segment = [&,
+                                 grain_representation = grain_representation](
                                   unsigned int index, unsigned int grain_id) {
             new_grains.try_emplace(grain_id,
                                    assign_indices ?
@@ -1339,7 +1349,7 @@ namespace GrainTracker
 
             std::unique_ptr<Representation> representation;
 
-            if (elliptical_grains)
+            if (grain_representation == GrainRepresentation::elliptical)
               {
                 auto representation_el =
                   std::make_unique<RepresentationElliptical<dim>>(
@@ -1892,11 +1902,11 @@ namespace GrainTracker
     // Use fast grains reassignment strategy
     const bool fast_reassignment;
 
-    // Use elliptical representation
-    const bool elliptical_grains;
-
     // Maximum number of order parameters available
     const unsigned int max_order_parameters_num;
+
+    // Grain representation
+    const GrainRepresentation grain_representation;
 
     // Minimum value of order parameter value
     const double threshold_lower;
