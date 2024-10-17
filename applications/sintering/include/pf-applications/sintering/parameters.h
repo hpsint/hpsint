@@ -99,7 +99,7 @@ namespace Sintering
     bool track_with_quality = false;
     bool use_old_remap      = false;
 
-    std::string grain_representation = "Spherical;"
+    std::string grain_representation = "Spherical";
   };
 
   struct EnergyAbstractData
