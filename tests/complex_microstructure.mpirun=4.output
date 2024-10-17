@@ -2,4 +2,24 @@ n_grains    = 81
 n_ops       = 4
 bottom_left = 0.0494382 0.190251
 top_right   = 198.457 39.9586
-n_grains_from_gt = 81
+
+Spherical grain representation:
+n_grains_from_gt  = 81
+n_collisions      = 68
+grains_reassigned = true
+op_number_changed = true
+new_op_number     = 14
+
+Elliptical grain representation:
+n_grains_from_gt  = 81
+n_collisions      = 42
+grains_reassigned = true
+op_number_changed = true
+new_op_number     = 9
+
+Wavefront grain representation:
+n_grains_from_gt  = 81
+n_collisions      = 19
+grains_reassigned = true
+op_number_changed = true
+new_op_number     = 6
