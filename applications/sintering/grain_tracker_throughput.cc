@@ -132,6 +132,9 @@ public:
     const double       buffer_distance_fixed    = 0.0;
     const unsigned int order_parameters_offset  = 0;
 
+    GrainTracker::GrainRepresentation grain_representation =
+      GrainTracker::GrainRepresentation::spherical;
+
     grain_tracker = std::make_unique<GrainTracker::Tracker<dim, Number>>(
       dof_handler,
       tria,
@@ -139,6 +142,7 @@ public:
       allow_new_grains,
       fast_reassignment,
       max_order_parameters_num,
+      grain_representation,
       threshold_lower,
       threshold_upper,
       buffer_distance_ratio,

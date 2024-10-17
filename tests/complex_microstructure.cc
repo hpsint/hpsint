@@ -196,7 +196,6 @@ main(int argc, char **argv)
   const double       buffer_distance_fixed    = 0.0;
   const bool         allow_new_grains         = false;
   const bool         fast_reassignment        = false;
-  const bool         elliptical_grains        = false;
   const bool         greedy_init              = false;
   const unsigned int max_order_parameters_num = 80;
 
