@@ -512,19 +512,24 @@ namespace GrainTracker
               // Check for collisions in the remappings
               for (const auto &ri : remappings)
                 {
-                  const auto &grain_i = grains.at(ri.grain_id);
+                  // const auto &grain_i = grains.at(ri.grain_id);
 
                   for (const auto &rj : remappings)
                     {
-                      const auto &grain_j = grains.at(rj.grain_id);
+                      // const auto &grain_j = grains.at(rj.grain_id);
 
                       if (ri != rj)
                         {
+                          /*
                           const double buffer_i = grain_i.transfer_buffer();
                           const double buffer_j = grain_j.transfer_buffer();
 
                           const bool has_overlap =
                             grain_i.distance(grain_j) - buffer_i - buffer_j < 0;
+                          */
+
+                          // TODO: verify that the check below can be removed
+                          constexpr bool has_overlap = true;
 
                           /* If the two grains involved in remappings overlap
                            * and share the same order parameter in the current
