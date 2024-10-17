@@ -1361,6 +1361,42 @@ namespace GrainTracker
                 }
           }
 
+    // Gather data globally
+    std::vector<unsigned int> neighbors_flatten;
+
+    for (const auto &[primary, secondaries] : neighbors)
+      {
+        neighbors_flatten.push_back(primary.first);
+        neighbors_flatten.push_back(primary.second);
+        neighbors_flatten.push_back(secondaries.size());
+        for (const auto &secondary : secondaries)
+          {
+            neighbors_flatten.push_back(secondary.first);
+            neighbors_flatten.push_back(secondary.second);
+          }
+      }
+
+    const auto neighbors_global =
+      Utilities::MPI::all_gather(dof_handler.get_communicator(),
+                                 neighbors_flatten);
+
+    // Gather results from the communication
+    neighbors.clear();
+    for (const auto &neighbors_current : neighbors_global)
+      for (unsigned int i = 0; i < neighbors_current.size();)
+        {
+          const auto [it, status] = neighbors.emplace(
+            std::make_pair(neighbors_current[i], neighbors_current[i + 1]),
+            std::set<std::pair<unsigned int, unsigned int>>());
+
+          const unsigned int n_neighbors = neighbors_current[i + 2];
+          for (unsigned int j = 0; j < n_neighbors; ++j)
+            it->second.insert(
+              std::make_pair(neighbors_current[i + 3 + 2 * j],
+                             neighbors_current[i + 3 + 2 * j + 1]));
+
+          i += 3 + 2 * n_neighbors;
+        }
 
     return neighbors;
   }
