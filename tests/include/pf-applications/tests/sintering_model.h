@@ -99,9 +99,11 @@ namespace Test
       const bool         allow_new_grains         = false;
       const bool         greedy_init              = false;
       const bool         fast_reassignment        = false;
-      const bool         elliptical_grains        = false;
       const unsigned int op_offset                = 2;
       const unsigned int max_order_parameters_num = 2;
+
+      GrainTracker::GrainRepresentation grain_representation =
+        GrainTracker::GrainRepresentation::spherical;
 
       grain_tracker = std::make_unique<GrainTracker::Tracker<dim, Number>>(
         dof_handler,
@@ -109,8 +111,8 @@ namespace Test
         greedy_init,
         allow_new_grains,
         fast_reassignment,
-        elliptical_grains,
         max_order_parameters_num,
+        grain_representation,
         threshold_lower,
         threshold_upper,
         buffer_distance_ratio,

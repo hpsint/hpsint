@@ -245,4 +245,66 @@ namespace GrainTracker
   public:
     Ellipsoid<dim> ellipsoid;
   };
+
+  template <int dim>
+  struct RepresentationWavefront
+    : public RepresentationWrapper<RepresentationWavefront<dim>>
+  {
+    RepresentationWavefront(
+      const unsigned int order_param,
+      const unsigned int index_in,
+      const Point<dim> & center_in,
+      const std::map<std::pair<unsigned int, unsigned int>, double>
+        &distances_in)
+      : op_and_index{order_param, index_in}
+      , center(center_in)
+      , distances(distances_in)
+    {}
+
+    RepresentationWavefront() = default;
+
+    double
+    distance_impl(const RepresentationWavefront<dim> &other) const
+    {
+      const auto it = distances.find(other.op_and_index);
+
+      return (it != distances.end()) ? it->second :
+                                       std::numeric_limits<double>::max();
+    }
+
+    bool
+    trivial() const override
+    {
+      return false;
+    }
+
+    void
+    print(std::ostream &stream) const override
+    {
+      stream << "center = " << center << " | neighbors = " << distances.size();
+    }
+
+    std::unique_ptr<Representation>
+    clone() const override
+    {
+      return std::make_unique<RepresentationWavefront>(op_and_index.first,
+                                                       op_and_index.second,
+                                                       center,
+                                                       distances);
+    }
+
+    template <class Archive>
+    void
+    serialize(Archive &ar, const unsigned int /*version*/)
+    {
+      ar &BOOST_SERIALIZATION_BASE_OBJECT_NVP(Representation);
+      ar &op_and_index;
+      ar &center;
+      ar &distances;
+    }
+
+    std::pair<unsigned int, unsigned int>                   op_and_index;
+    Point<dim>                                              center;
+    std::map<std::pair<unsigned int, unsigned int>, double> distances;
+  };
 } // namespace GrainTracker

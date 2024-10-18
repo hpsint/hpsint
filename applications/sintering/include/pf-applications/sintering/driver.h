@@ -951,14 +951,25 @@ namespace Sintering
       const bool         do_timing               = true;
       const bool         do_logging = params.grain_tracker_data.verbosity >= 1;
 
+      // Grain representation type
+      GrainTracker::GrainRepresentation grain_representation;
+      if (params.grain_tracker_data.grain_representation == "Spherical")
+        grain_representation = GrainTracker::GrainRepresentation::spherical;
+      else if (params.grain_tracker_data.grain_representation == "Elliptical")
+        grain_representation = GrainTracker::GrainRepresentation::elliptical;
+      else if (params.grain_tracker_data.grain_representation == "Wavefront")
+        grain_representation = GrainTracker::GrainRepresentation::wavefront;
+      else
+        AssertThrow(false, ExcNotImplemented());
+
       GrainTracker::Tracker<dim, Number> grain_tracker(
         dof_handler,
         tria,
         !params.geometry_data.minimize_order_parameters,
         allow_new_grains,
         params.grain_tracker_data.fast_reassignment,
-        params.grain_tracker_data.elliptical_grains,
         MAX_SINTERING_GRAINS,
+        grain_representation,
         params.grain_tracker_data.threshold_lower,
         params.grain_tracker_data.threshold_new_grains,
         params.grain_tracker_data.buffer_distance_ratio,

@@ -196,27 +196,82 @@ main(int argc, char **argv)
   const double       buffer_distance_fixed    = 0.0;
   const bool         allow_new_grains         = false;
   const bool         fast_reassignment        = false;
-  const bool         elliptical_grains        = false;
   const bool         greedy_init              = false;
   const unsigned int max_order_parameters_num = 80;
 
-  Tracker<dim, double> grain_tracker(dof_handler,
-                                     tria,
-                                     greedy_init,
-                                     allow_new_grains,
-                                     fast_reassignment,
-                                     elliptical_grains,
-                                     max_order_parameters_num,
-                                     threshold_lower,
-                                     threshold_new_grains,
-                                     buffer_distance_ratio,
-                                     buffer_distance_fixed,
-                                     op_offset);
+  // Lambda to remap vectors
+  auto remap_vector = [&](BlockVectorType &           vector,
+                          const Tracker<dim, double> &grain_tracker,
+                          bool                        grains_reassigned,
+                          bool                        op_number_changed) {
+    const auto new_op_number =
+      grain_tracker.get_active_order_parameters().size();
 
-  grain_tracker.initial_setup(solution, initial_values.n_order_parameters());
+    if (op_number_changed &&
+        new_op_number > initial_values.n_order_parameters())
+      vector.reinit(op_offset +
+                    grain_tracker.get_active_order_parameters().size());
 
-  pcout << "n_grains_from_gt = " << grain_tracker.get_grains().size()
-        << std::endl;
+    if (grains_reassigned)
+      grain_tracker.remap(vector);
+  };
+
+  // Lambda to run tests
+  auto test_tracking = [&](GrainRepresentation grain_representation,
+                           std::string         label_representation,
+                           std::string         output_prefix) {
+    Tracker<dim, double> grain_tracker(dof_handler,
+                                       tria,
+                                       greedy_init,
+                                       allow_new_grains,
+                                       fast_reassignment,
+                                       max_order_parameters_num,
+                                       grain_representation,
+                                       threshold_lower,
+                                       threshold_new_grains,
+                                       buffer_distance_ratio,
+                                       buffer_distance_fixed,
+                                       op_offset);
+
+    const auto [n_collisions, grains_reassigned, op_number_changed] =
+      grain_tracker.initial_setup(solution,
+                                  initial_values.n_order_parameters());
+
+    // const std::string prefix = "/mnt/c/Work/HZG/microstructure/";
+    // grain_tracker.output_all_particle_ids(prefix);
+
+    pcout << std::boolalpha;
+
+    pcout << std::endl;
+    pcout << label_representation << " grain representation:" << std::endl;
+    pcout << "n_grains_from_gt  = " << grain_tracker.get_grains().size()
+          << std::endl;
+    pcout << "n_collisions      = " << n_collisions << std::endl;
+    pcout << "grains_reassigned = " << grains_reassigned << std::endl;
+    pcout << "op_number_changed = " << op_number_changed << std::endl;
+    pcout << "new_op_number     = "
+          << grain_tracker.get_active_order_parameters().size() << std::endl;
+
+    // Remap grains to verify that we did not break the microstructure
+    BlockVectorType solution_remap(solution);
+    solution_remap.update_ghost_values();
+
+    remap_vector(solution_remap,
+                 grain_tracker,
+                 grains_reassigned,
+                 op_number_changed);
+
+    for (unsigned int b = op_offset; b < solution_remap.n_blocks(); ++b)
+      data_out.add_data_vector(dof_handler,
+                               solution_remap.block(b),
+                               output_prefix + "_op_" +
+                                 std::to_string(b - op_offset));
+  };
+
+  // Test various grain tracking representations
+  test_tracking(GrainRepresentation::spherical, "Spherical", "sp");
+  test_tracking(GrainRepresentation::elliptical, "Elliptical", "el");
+  test_tracking(GrainRepresentation::wavefront, "Wavefront", "wf");
 
   // Generate output
   data_out.build_patches(mapping);
