@@ -3565,6 +3565,23 @@ namespace Sintering
           Postprocessors::write_table(table, t, MPI_COMM_WORLD, output);
         }
 
+      if (params.output_data.grains_as_spheres)
+        {
+          const std::string output = params.output_data.vtk_path +
+                                     "/grains_as_spheres_" + label + "." +
+                                     std::to_string(counters[label]) + ".vtu";
+          GrainTracker::output_grains_as_spherical_particles(
+            grain_tracker.get_grains(), dof_handler, output);
+        }
+
+      if (params.output_data.particle_indices)
+        {
+          const std::string output = params.output_data.vtk_path +
+                                     "/particle_ids_" + label + "." +
+                                     std::to_string(counters[label]) + ".vtu";
+          grain_tracker.output_current_particle_ids(output);
+        }
+
       counters[label]++;
     }
 
