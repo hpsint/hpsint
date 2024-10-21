@@ -15,6 +15,15 @@
 
 #pragma once
 
+#include <deal.II/dofs/dof_handler.h>
+
+#include <deal.II/grid/grid_tools.h>
+
+#include <deal.II/numerics/data_out.h>
+
+#include <deal.II/particles/data_out.h>
+#include <deal.II/particles/particle_handler.h>
+
 #include "grain.h"
 #include "tracking.h"
 
