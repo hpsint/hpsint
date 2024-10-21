@@ -146,4 +146,39 @@ namespace GrainTracker
           }
       }
   }
+
+  // Output particle ids per order param
+  template <int dim, typename BlockVectorType>
+  void
+  output_particle_ids(const BlockVectorType &op_particle_ids,
+                      const DoFHandler<dim> &dof_handler,
+                      const std::string      filename)
+  {
+    DataOutBase::VtkFlags flags;
+    flags.write_higher_order_cells = false;
+
+    DataOut<dim> data_out;
+    data_out.set_flags(flags);
+
+    Vector<double> ranks(dof_handler.get_triangulation().n_active_cells());
+    ranks = Utilities::MPI::this_mpi_process(dof_handler.get_communicator());
+
+    data_out.attach_triangulation(dof_handler.get_triangulation());
+
+    data_out.add_data_vector(ranks,
+                             "ranks",
+                             DataOut<dim>::DataVectorType::type_cell_data);
+
+    for (unsigned int b = 0; b < op_particle_ids.n_blocks(); ++b)
+      {
+        data_out.add_data_vector(op_particle_ids.block(b),
+                                 "particle_id_op_" + std::to_string(b),
+                                 DataOut<dim>::DataVectorType::type_cell_data);
+
+        data_out.build_patches();
+      }
+
+    data_out.write_vtu_in_parallel(filename, dof_handler.get_communicator());
+  }
+
 } // namespace GrainTracker

@@ -1063,11 +1063,12 @@ namespace GrainTracker
         print_grains(old_grains, out);
     }
 
-    // Output last grains
+    // Output current particle ids, mainly used for debugging
     void
-    output_current_grains(std::string prefix = std::string("grains")) const
+    output_current_particle_ids(
+      const std::string filename = std::string("particle_ids.vtu")) const
     {
-      output_grains(grains, prefix);
+      output_particle_ids(op_particle_ids, dof_handler, filename);
     }
 
     /* If there is any particle located at a given cell within a given order
@@ -1826,43 +1827,6 @@ namespace GrainTracker
 
             ++n_total_segments;
           }
-    }
-
-    // Output particle ids
-    void
-    output_particle_ids(const LinearAlgebra::distributed::Vector<double>
-                          &current_particle_ids) const
-    {
-      DataOutBase::VtkFlags flags;
-      flags.write_higher_order_cells = false;
-
-      DataOut<dim> data_out;
-      data_out.set_flags(flags);
-
-      Vector<double> ranks(tria.n_active_cells());
-      ranks = Utilities::MPI::this_mpi_process(MPI_COMM_WORLD);
-
-      data_out.attach_triangulation(tria);
-
-      data_out.add_data_vector(ranks,
-                               "ranks",
-                               DataOut<dim>::DataVectorType::type_cell_data);
-
-      data_out.add_data_vector(current_particle_ids,
-                               "particle_ids",
-                               DataOut<dim>::DataVectorType::type_cell_data);
-
-      data_out.build_patches();
-
-      pcout << "Outputing particle_ids..." << std::endl;
-
-      static unsigned int counter = 0;
-
-      const std::string filename =
-        "particle_ids." + std::to_string(counter) + ".vtu";
-      data_out.write_vtu_in_parallel(filename, MPI_COMM_WORLD);
-
-      counter++;
     }
 
     // Output clouds as particles (fast)
