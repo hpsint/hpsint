@@ -236,6 +236,8 @@ namespace Sintering
     bool                  fluxes_divergences     = false;
     bool                  concentration_contour  = false;
     bool                  coordination_number    = false;
+    bool                  grains_as_spheres      = false;
+    bool                  particle_indices       = false;
     double                output_time_interval   = 10;
     std::string           vtk_path               = ".";
     std::set<std::string> fields                 = {"CH",
@@ -886,6 +888,12 @@ namespace Sintering
       prm.add_parameter("CoordinationNumber",
                         output_data.coordination_number,
                         "Compute coordination number.");
+      prm.add_parameter("GrainsAsSpheres",
+                        output_data.grains_as_spheres,
+                        "Output grains as spheres using particles framework.");
+      prm.add_parameter("ParticleIndices",
+                        output_data.particle_indices,
+                        "Internal particle indices of the grain tracker.");
       prm.add_parameter("OutputTimeInterval",
                         output_data.output_time_interval,
                         "Output time interval.");

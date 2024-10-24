@@ -15,6 +15,15 @@
 
 #pragma once
 
+#include <deal.II/dofs/dof_handler.h>
+
+#include <deal.II/grid/grid_tools.h>
+
+#include <deal.II/numerics/data_out.h>
+
+#include <deal.II/particles/data_out.h>
+#include <deal.II/particles/particle_handler.h>
+
 #include "grain.h"
 #include "tracking.h"
 
@@ -145,5 +154,98 @@ namespace GrainTracker
             out << std::endl;
           }
       }
+  }
+
+  // Output particle ids per order param
+  template <int dim, typename BlockVectorType>
+  void
+  output_particle_ids(const BlockVectorType &op_particle_ids,
+                      const DoFHandler<dim> &dof_handler,
+                      const std::string      filename)
+  {
+    DataOutBase::VtkFlags flags;
+    flags.write_higher_order_cells = false;
+
+    DataOut<dim> data_out;
+    data_out.set_flags(flags);
+
+    Vector<double> ranks(dof_handler.get_triangulation().n_active_cells());
+    ranks = Utilities::MPI::this_mpi_process(dof_handler.get_communicator());
+
+    data_out.attach_triangulation(dof_handler.get_triangulation());
+
+    data_out.add_data_vector(ranks,
+                             "ranks",
+                             DataOut<dim>::DataVectorType::type_cell_data);
+
+    for (unsigned int b = 0; b < op_particle_ids.n_blocks(); ++b)
+      {
+        data_out.add_data_vector(op_particle_ids.block(b),
+                                 "particle_id_op_" + std::to_string(b),
+                                 DataOut<dim>::DataVectorType::type_cell_data);
+
+        data_out.build_patches();
+      }
+
+    data_out.write_vtu_in_parallel(filename, dof_handler.get_communicator());
+  }
+
+  // Output clouds as spherical particles
+  template <int dim>
+  void
+  output_grains_as_spherical_particles(
+    const std::map<unsigned int, Grain<dim>> &grains,
+    const DoFHandler<dim> &                   dof_handler,
+    const std::string                         filename)
+  {
+    /* The simplest mapping is provided since it is not employed by the
+     * functionality used in this function. So we do not need here the
+     * original mapping of the problem we are working with.
+     */
+    const MappingQ<dim> mapping(1);
+
+    const unsigned int n_properties = 3;
+
+    Particles::ParticleHandler particles_handler(
+      dof_handler.get_triangulation(), mapping, n_properties);
+    particles_handler.reserve(grains.size());
+
+    MPI_Comm comm = dof_handler.get_communicator();
+
+    const auto local_boxes = GridTools::compute_mesh_predicate_bounding_box(
+      dof_handler.get_triangulation(), IteratorFilters::LocallyOwnedCell());
+    const auto global_bounding_boxes =
+      Utilities::MPI::all_gather(comm, local_boxes);
+
+    std::vector<Point<dim>>          positions;
+    std::vector<std::vector<double>> properties;
+
+    // Append each cloud to the particle handler
+    for (const auto &[gid, grain] : grains)
+      {
+        const unsigned int order_parameter_id = grain.get_order_parameter_id();
+
+        for (const auto &segment : grain.get_segments())
+          {
+            positions.push_back(segment.get_center());
+
+            properties.push_back(
+              std::vector<double>({static_cast<double>(gid),
+                                   segment.get_radius(),
+                                   static_cast<double>(order_parameter_id)}));
+          }
+      }
+
+    particles_handler.insert_global_particles(positions,
+                                              global_bounding_boxes,
+                                              properties);
+
+    Particles::DataOut<dim>  particles_out;
+    std::vector<std::string> data_component_names{"grain_id",
+                                                  "radius",
+                                                  "order_parameter"};
+
+    particles_out.build_patches(particles_handler, data_component_names);
+    particles_out.write_vtu_in_parallel(filename, comm);
   }
 } // namespace GrainTracker

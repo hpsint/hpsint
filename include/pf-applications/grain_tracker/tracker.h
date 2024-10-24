@@ -1063,11 +1063,12 @@ namespace GrainTracker
         print_grains(old_grains, out);
     }
 
-    // Output last grains
+    // Output current particle ids, mainly used for debugging
     void
-    output_current_grains(std::string prefix = std::string("grains")) const
+    output_current_particle_ids(
+      const std::string filename = std::string("particle_ids.vtu")) const
     {
-      output_grains(grains, prefix);
+      output_particle_ids(op_particle_ids, dof_handler, filename);
     }
 
     /* If there is any particle located at a given cell within a given order
@@ -1826,105 +1827,6 @@ namespace GrainTracker
 
             ++n_total_segments;
           }
-    }
-
-    // Output particle ids
-    void
-    output_particle_ids(const LinearAlgebra::distributed::Vector<double>
-                          &current_particle_ids) const
-    {
-      DataOutBase::VtkFlags flags;
-      flags.write_higher_order_cells = false;
-
-      DataOut<dim> data_out;
-      data_out.set_flags(flags);
-
-      Vector<double> ranks(tria.n_active_cells());
-      ranks = Utilities::MPI::this_mpi_process(MPI_COMM_WORLD);
-
-      data_out.attach_triangulation(tria);
-
-      data_out.add_data_vector(ranks,
-                               "ranks",
-                               DataOut<dim>::DataVectorType::type_cell_data);
-
-      data_out.add_data_vector(current_particle_ids,
-                               "particle_ids",
-                               DataOut<dim>::DataVectorType::type_cell_data);
-
-      data_out.build_patches();
-
-      pcout << "Outputing particle_ids..." << std::endl;
-
-      static unsigned int counter = 0;
-
-      const std::string filename =
-        "particle_ids." + std::to_string(counter) + ".vtu";
-      data_out.write_vtu_in_parallel(filename, MPI_COMM_WORLD);
-
-      counter++;
-    }
-
-    // Output clouds as particles (fast)
-    void
-    output_grains(const std::map<unsigned int, Grain<dim>> &current_grains,
-                  const std::string &                       prefix) const
-    {
-      /* The simplest mapping is provided since it is not employed by the
-       * functionality used in this function. So we do not need here the
-       * original mapping of the problem we are working with.
-       */
-      const MappingQ<dim> mapping(1);
-
-      const unsigned int n_properties = 3;
-
-      Particles::ParticleHandler particles_handler(
-        dof_handler.get_triangulation(), mapping, n_properties);
-      particles_handler.reserve(current_grains.size());
-
-      const auto local_boxes = GridTools::compute_mesh_predicate_bounding_box(
-        dof_handler.get_triangulation(), IteratorFilters::LocallyOwnedCell());
-      const auto global_bounding_boxes =
-        Utilities::MPI::all_gather(MPI_COMM_WORLD, local_boxes);
-
-      std::vector<Point<dim>>          positions;
-      std::vector<std::vector<double>> properties;
-
-      // Append each cloud to the particle handler
-      for (const auto &[gid, grain] : current_grains)
-        {
-          for (const auto &segment : grain.get_segments())
-            {
-              positions.push_back(segment.get_center());
-
-              const unsigned int order_parameter_id =
-                grain.get_order_parameter_id();
-              properties.push_back(
-                std::vector<double>({static_cast<double>(gid),
-                                     segment.get_radius(),
-                                     static_cast<double>(order_parameter_id)}));
-            }
-        }
-
-      particles_handler.insert_global_particles(positions,
-                                                global_bounding_boxes,
-                                                properties);
-
-      Particles::DataOut<dim>  particles_out;
-      std::vector<std::string> data_component_names{"grain_id",
-                                                    "radius",
-                                                    "order_parameter"};
-      particles_out.build_patches(particles_handler, data_component_names);
-
-      pcout << "Outputing grains..." << std::endl;
-
-      static unsigned int counter = 0;
-
-      const std::string filename =
-        prefix + "." + std::to_string(counter) + ".vtu";
-      particles_out.write_vtu_in_parallel(filename, MPI_COMM_WORLD);
-
-      counter++;
     }
 
     // Print unique log events merged from multiple ranks
