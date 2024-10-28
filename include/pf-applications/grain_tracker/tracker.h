@@ -44,6 +44,7 @@
 #include <type_traits>
 
 #include "distributed_stitching.h"
+#include "elliptical_helpers.h"
 #include "grain.h"
 #include "mapper.h"
 #include "output.h"
@@ -1398,6 +1399,66 @@ namespace GrainTracker
                       std::make_pair(secondary.first, secondary.second), 0);
             }
 
+          // Create representation for the elliptical case beforehand
+          std::vector<std::unique_ptr<RepresentationElliptical<dim>>>
+            representations;
+          if (grain_representation == GrainRepresentation::elliptical)
+            {
+              for (unsigned int i = 0; i < n_particles; i++)
+                {
+                  /* Here we check if the most remote point is actually covered
+                   * by the elliptical representation. If that is not the case,
+                   * we enlarge the radii respectively. */
+                  auto representation_el =
+                    std::make_unique<RepresentationElliptical<dim>>(
+                      particle_centers[i],
+                      particle_measures[i],
+                      &(particle_inertia[i * num_inertias<dim>]));
+
+                  const auto remote_point =
+                    particle_centers[i] + particle_remotes[i];
+                  const auto &E = representation_el->ellipsoid;
+                  const auto [t_inter, overlap] =
+                    find_ellipsoid_intersection(E,
+                                                E.get_center(),
+                                                remote_point);
+
+                  // This means that we need to enlarge the radii
+                  if (t_inter > 0 && t_inter < 1)
+                    {
+                      const auto scale = 1. / t_inter;
+
+                      // Replace representation with the rescaled one
+                      representations.push_back(
+                        std::make_unique<RepresentationElliptical<dim>>(
+                          representation_el->ellipsoid, scale));
+                    }
+                  else
+                    {
+                      representations.push_back(std::move(representation_el));
+                    }
+                }
+
+              /* Additional scaling if needed. Even if the most remote point got
+               * covered by the ellisoid in the previous check, there are still
+               * can be points (e.g. located along the axis of the smallest
+               * radius) that fall outside on the ellipsoid. The prvious check
+               * minimizes the number of points to be checked at this step. */
+              const auto additional_scales =
+                scale_elliptical_representations(representations,
+                                                 dof_handler,
+                                                 particle_ids,
+                                                 invalid_particle_id);
+
+              // Rescale representation if needed
+              const auto scale_lower_limit = 1 + 1e-9;
+              for (unsigned int i = 0; i < n_particles; i++)
+                if (additional_scales[i] > scale_lower_limit)
+                  representations[i] =
+                    std::make_unique<RepresentationElliptical<dim>>(
+                      representations[i]->ellipsoid, additional_scales[i]);
+            }
+
           // Lambda to create grains and segments
           auto append_segment = [&,
                                  grain_representation = grain_representation](
@@ -1408,56 +1469,23 @@ namespace GrainTracker
                                      numbers::invalid_unsigned_int,
                                    current_order_parameter_id);
 
+            Number                          r_max;
             std::unique_ptr<Representation> representation;
 
             if (grain_representation == GrainRepresentation::spherical)
               {
+                r_max          = particle_radii[index];
                 representation = std::make_unique<RepresentationSpherical<dim>>(
                   particle_centers[index], particle_radii[index]);
               }
             else if (grain_representation == GrainRepresentation::elliptical)
               {
-                auto representation_el =
-                  std::make_unique<RepresentationElliptical<dim>>(
-                    particle_centers[index],
-                    particle_measures[index],
-                    &(particle_inertia[index * num_inertias<dim>]));
-
-                const auto remote_point =
-                  particle_centers[index] + particle_remotes[index];
-                const auto &E = representation_el->ellipsoid;
-                const auto [t_inter, overlap] =
-                  find_ellipsoid_intersection(E, E.get_center(), remote_point);
-
-                // This means that we need to enlarge the radii
-                if (t_inter > 0 && t_inter < 1)
-                  {
-                    const auto scale = 1. + (1 - t_inter);
-
-                    const auto &center =
-                      representation_el->ellipsoid.get_center();
-                    const auto &radii =
-                      representation_el->ellipsoid.get_radii();
-                    const auto &axes = representation_el->ellipsoid.get_axes();
-
-                    std::array<double, dim> radii_scaled;
-                    std::transform(radii.cbegin(),
-                                   radii.cend(),
-                                   radii_scaled.begin(),
-                                   [&scale](double r) { return r * scale; });
-
-                    // Recreate representation
-                    representation =
-                      std::make_unique<RepresentationElliptical<dim>>(
-                        center, radii_scaled, axes);
-                  }
-                else
-                  {
-                    representation = std::move(representation_el);
-                  }
+                r_max          = representations[index]->ellipsoid.get_r_max();
+                representation = std::move(representations[index]);
               }
             else if (grain_representation == GrainRepresentation::wavefront)
               {
+                r_max          = particle_radii[index];
                 representation = std::make_unique<RepresentationWavefront<dim>>(
                   current_order_parameter_id,
                   index,
@@ -1469,7 +1497,7 @@ namespace GrainTracker
 
             new_grains.at(grain_id).add_segment(
               Segment<dim>(particle_centers[index],
-                           particle_radii[index],
+                           r_max,
                            particle_measures[index],
                            particle_max_values[index],
                            std::move(representation)));
