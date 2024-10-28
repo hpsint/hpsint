@@ -98,21 +98,7 @@ namespace GrainTracker
       , axes(axes)
       , center(center)
     {
-      Tensor<2, dim, Number> S;
-
-      for (unsigned int d = 0; d < dim; ++d)
-        S[d][d] = 1. / std::pow(radii[d], 2);
-
-      // Build a rotation tensor from a global cartesian system to the local one
-      const auto Q = rotation_tensor_from_axes<dim, Number>(axes);
-
-      // Build the quadratic form
-      A = Physics::Transformations::basis_transformation(S, Q);
-      b = A * center;
-      b *= -1;
-      alpha = 0.5 * (A * center) * center - 0.5;
-
-      norm = A.norm();
+      init_quadratic_form();
     }
 
     /* Build an ellipsoid from its center, principal moments, principal axes and
@@ -184,6 +170,21 @@ namespace GrainTracker
                      vecC.end(),
                      center.begin_raw(),
                      [](Number v) { return -v; });
+    }
+
+    Ellipsoid(const Ellipsoid &el, const double scale)
+      : axes(el.get_axes())
+      , center(el.get_center())
+    {
+      std::transform(el.get_radii().cbegin(),
+                     el.get_radii().cend(),
+                     radii.begin(),
+                     [&scale](double r) { return r * scale; });
+
+      r_min = *std::min_element(radii.cbegin(), radii.cend());
+      r_max = *std::max_element(radii.cbegin(), radii.cend());
+
+      init_quadratic_form();
     }
 
     Ellipsoid() = default;
@@ -264,6 +265,26 @@ namespace GrainTracker
     }
 
   private:
+    void
+    init_quadratic_form()
+    {
+      Tensor<2, dim, Number> S;
+
+      for (unsigned int d = 0; d < dim; ++d)
+        S[d][d] = 1. / std::pow(radii[d], 2);
+
+      // Build a rotation tensor from a global cartesian system to the local one
+      const auto Q = rotation_tensor_from_axes<dim, Number>(axes);
+
+      // Build the quadratic form
+      A = Physics::Transformations::basis_transformation(S, Q);
+      b = A * center;
+      b *= -1;
+      alpha = 0.5 * (A * center) * center - 0.5;
+
+      norm = A.norm();
+    }
+
     // Components of the quadratic form
     Tensor<2, dim, Number> A;
     Tensor<1, dim, Number> b;
