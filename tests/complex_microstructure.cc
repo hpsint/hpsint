@@ -13,6 +13,8 @@
 //
 // ---------------------------------------------------------------------
 
+#define MAX_SINTERING_GRAINS 20
+
 #include <deal.II/base/conditional_ostream.h>
 #include <deal.II/base/mpi.h>
 
@@ -236,9 +238,6 @@ main(int argc, char **argv)
     const auto [n_collisions, grains_reassigned, op_number_changed] =
       grain_tracker.initial_setup(solution,
                                   initial_values.n_order_parameters());
-
-    // const std::string prefix = "/mnt/c/Work/HZG/microstructure/";
-    // grain_tracker.output_all_particle_ids(prefix);
 
     pcout << std::boolalpha;
 
