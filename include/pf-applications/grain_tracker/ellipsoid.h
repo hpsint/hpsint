@@ -264,6 +264,13 @@ namespace GrainTracker
       return axes;
     }
 
+    bool
+    point_inside(const Point<dim, Number> &p, const Number tol = 1e-9) const
+    {
+      const auto f = 0.5 * (A * p) * p + b * p + alpha;
+      return f <= tol;
+    }
+
   private:
     void
     init_quadratic_form()
