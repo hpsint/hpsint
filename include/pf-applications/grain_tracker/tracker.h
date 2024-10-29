@@ -1440,9 +1440,9 @@ namespace GrainTracker
                 }
 
               /* Additional scaling if needed. Even if the most remote point got
-               * covered by the ellisoid in the previous check, there are still
+               * covered by the ellisoid in the first check, there are still
                * can be points (e.g. located along the axis of the smallest
-               * radius) that fall outside on the ellipsoid. The prvious check
+               * radius) that fall outside on the ellipsoid. The first check
                * minimizes the number of points to be checked at this step. */
               const auto additional_scales =
                 scale_elliptical_representations(representations,
