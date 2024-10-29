@@ -19,6 +19,6 @@ op_number_changed = false
 Number of order parameters: 1
 Number of grains: 2
 op_index_current = 0 | op_index_old = 0 | segments = 1
-    segment: center = 4.00036 6.50233 | radii = 1.63955 1.65964 | max_value = 1
+    segment: center = 4.00036 6.50233 | radii = 1.64862 1.66883 | max_value = 1
 op_index_current = 0 | op_index_old = 0 | segments = 1
-    segment: center = 4.00241 1.99956 | radii = 1.08272 3.15291 | max_value = 1
+    segment: center = 4.00241 1.99956 | radii = 1.12864 3.28663 | max_value = 1
