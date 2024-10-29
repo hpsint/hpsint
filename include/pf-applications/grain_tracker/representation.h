@@ -169,6 +169,11 @@ namespace GrainTracker
       : ellipsoid(center, radii, axes)
     {}
 
+    RepresentationElliptical(const Ellipsoid<dim> &ellipsoid,
+                             const double          scale)
+      : ellipsoid(ellipsoid, scale)
+    {}
+
     RepresentationElliptical(const Ellipsoid<dim> &ellipsoid)
       : ellipsoid(ellipsoid)
     {}

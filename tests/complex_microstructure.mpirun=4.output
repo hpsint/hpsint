@@ -12,10 +12,10 @@ new_op_number     = 14
 
 Elliptical grain representation:
 n_grains_from_gt  = 81
-n_collisions      = 42
+n_collisions      = 55
 grains_reassigned = true
 op_number_changed = true
-new_op_number     = 9
+new_op_number     = 11
 
 Wavefront grain representation:
 n_grains_from_gt  = 81
