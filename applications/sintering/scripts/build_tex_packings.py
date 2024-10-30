@@ -46,6 +46,16 @@ args = parser.parse_args()
 
 show_labels = args.label_grain_ids or args.label_order_params
 
+def progress_bar(current, total, bar_length=20):
+    fraction = current / total
+
+    arrow = int(fraction * bar_length - 1) * '-' + '>'
+    padding = int(bar_length - len(arrow)) * ' '
+
+    ending = '\n' if current == total else '\r'
+
+    print(f'Processing grains: [{arrow}{padding}] {int(fraction*100)}%', end=ending)
+
 def build_grain(pts_in, dim):
 
     if args.contour_ordering != 'convex':
@@ -121,18 +131,18 @@ def axes_rotation(x):
     return angle_between(np.array([1, 0]), np.array(x)) * 180. / np.pi
 
 # Multiprocessing job
-def do_job(tasks_to_execute, tasks_completed):
+def do_job(tasks_to_execute, tasks_completed, n_total):
     while True:
         try:
             grain_index = tasks_to_execute.get_nowait()
         except queue.Empty:
             break
         else:
-            print("processing grain {} ...".format(grain_index))
             ordered_points = build_grain(points[grain_index][0::args.coarsening], dim)
-            print("completed grain {} ...".format(grain_index))
             
             tasks_completed.put((grain_index, ordered_points))
+
+            progress_bar(tasks_completed.qsize(), n_total)
 
     return True
 
@@ -302,8 +312,9 @@ with open(ofname, 'w') as f:
             f.write("\\node[] at (%f,%f) {%s %s};\n" % (0.5 + xs, normalized_height + 0.05 + ys, args.font_size, headers[j]))
 
         # Precompute contours if we need them
-        tasks_to_execute = multiprocessing.Queue()
-        tasks_completed = multiprocessing.Queue()
+        manager = multiprocessing.Manager()
+        tasks_to_execute = manager.Queue()
+        tasks_completed = manager.Queue()
         processes = []
 
         grain_contours = [[] for _ in range(n_grains)]
@@ -313,11 +324,12 @@ with open(ofname, 'w') as f:
                 if len(points[g]) > 0 and (args.order_params is None or grain_to_op[g] in args.order_params):
                     tasks_to_execute.put(g)
 
-            print("n_grains to process = {}".format(tasks_to_execute.qsize()))
+            n_grains_to_process = tasks_to_execute.qsize()
+            print("n_grains to process = {}".format(n_grains_to_process))
 
             # creating processes
             for w in range(number_of_processes):
-                p = multiprocessing.Process(target=do_job, args=(tasks_to_execute, tasks_completed))
+                p = multiprocessing.Process(target=do_job, args=(tasks_to_execute, tasks_completed, n_grains_to_process))
                 processes.append(p)
                 p.start()
 
