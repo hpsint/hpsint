@@ -206,3 +206,14 @@ def tex_escape(text):
     }
     regex = re.compile('|'.join(re.escape(str(key)) for key in sorted(conv.keys(), key = lambda item: - len(item))))
     return regex.sub(lambda match: conv[match.group()], text)
+
+# The code is from https://stackoverflow.com/questions/6169217/replace-console-output-in-python
+def progress_bar(current, total, bar_length=20):
+    fraction = current / total
+
+    arrow = int(fraction * bar_length - 1) * '-' + '>'
+    padding = int(bar_length - len(arrow)) * ' '
+
+    ending = '\n' if current == total else '\r'
+
+    print(f'Progress: [{arrow}{padding}] {int(fraction*100)}%', end=ending)

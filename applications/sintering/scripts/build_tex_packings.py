@@ -46,16 +46,6 @@ args = parser.parse_args()
 
 show_labels = args.label_grain_ids or args.label_order_params
 
-def progress_bar(current, total, bar_length=20):
-    fraction = current / total
-
-    arrow = int(fraction * bar_length - 1) * '-' + '>'
-    padding = int(bar_length - len(arrow)) * ' '
-
-    ending = '\n' if current == total else '\r'
-
-    print(f'Processing grains: [{arrow}{padding}] {int(fraction*100)}%', end=ending)
-
 def build_grain(pts_in, dim):
 
     if args.contour_ordering != 'convex':
@@ -142,7 +132,7 @@ def do_job(tasks_to_execute, tasks_completed, n_total):
             
             tasks_completed.put((grain_index, ordered_points))
 
-            progress_bar(tasks_completed.qsize(), n_total)
+            library.progress_bar(tasks_completed.qsize(), n_total)
 
     return True
 
@@ -326,17 +316,18 @@ with open(ofname, 'w') as f:
             n_grains_to_process = tasks_to_execute.qsize()
             print("n_grains to process = {}".format(n_grains_to_process))
 
-            # creating processes
+            # Creating processes and creating contours
+            library.progress_bar(0, n_grains_to_process)
             for w in range(number_of_processes):
                 p = multiprocessing.Process(target=do_job, args=(tasks_to_execute, tasks_completed, n_grains_to_process))
                 processes.append(p)
                 p.start()
 
-            # completing process
+            # Completing process
             for p in processes:
                 p.join()
 
-            # handle results
+            # Handle results
             while not tasks_completed.empty():
                 res = tasks_completed.get()
                 grain_contours[res[0]] = res[1]
