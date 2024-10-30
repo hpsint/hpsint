@@ -2,6 +2,8 @@ import os
 import numpy as np
 import argparse
 import library
+import alphashape
+from random import randrange
 from scipy.spatial import ConvexHull
 
 parser = argparse.ArgumentParser(description='Build tex packing from special hpsint output')
@@ -25,9 +27,12 @@ parser.add_argument("-n", "--font-size", dest='font_size', required=False, help=
 parser.add_argument("-l", "--ncolors", dest='ncolors', required=False, help="Number of colors", type=int, default=None)
 parser.add_argument("-q", "--color-suffix", dest='color_suffix', required=False, help="Suffix for color names", type=str, default='')
 
-parser.add_argument("-g", "--show-topology", dest='show_topology', required=False, help="Show grain topology", action="store_true", default=False)
+parser.add_argument("-t", "--show-topology", dest='show_topology', required=False, help="Show grain topology", action="store_true", default=False)
 parser.add_argument("-m", "--show-simplified", dest='show_simplified', required=False, help="Show simplified representation", action="store_true", default=False)
 parser.add_argument("-d", "--hide-headers", dest='hide_headers', required=False, help="Hide headers", action="store_true", default=False)
+
+parser.add_argument("-g", "--rand-range", dest='rand_range', required=False, help="Randomization magnitude divided by 1000", type=int, default=2)
+parser.add_argument("-z", "--contour-ordering", default='convex', const='iterate', nargs='?', choices=['iterate', 'optimize', 'convex'], help="Choose the contour points ordering")
 
 group = parser.add_mutually_exclusive_group(required=False)
 group.add_argument("--label-grain-ids", dest='label_grain_ids', required=False, help="Show grain ids as labels", action="store_true", default=False)
@@ -37,14 +42,68 @@ args = parser.parse_args()
 
 show_labels = args.label_grain_ids or args.label_order_params
 
-def build_grain(pts, dim):
+def build_grain(pts_in, dim):
+
+    if args.contour_ordering != 'convex':
+        pts = []
+        for i in range(len(pts_in)):
+            pts.append((pts_in[i][0] + randrange(-args.rand_range, args.rand_range)/1000., pts_in[i][1] + randrange(-args.rand_range, args.rand_range)/1000.))
+
+        last_alpha = 0
+
+        if args.contour_ordering == 'optimize':
+            last_alpha = 0.9 * alphashape.optimizealpha(pts)
+
+        elif args.contour_ordering == 'iterate':
+            alpha0 = 0.0
+            alpha_step = 0.01
+            alpha = alpha0
+
+            hull = alphashape.alphashape(pts, alpha)
+
+            last_na_points = 0
+            last_length = 0
+
+            do_iterate = True
+
+            while do_iterate:
+                alpha += alpha_step
+                hull = alphashape.alphashape(pts, alpha)
+                if hasattr(hull, 'exterior'):
+                    na_points = len(hull.exterior.coords.xy[0])
+                    dl = (hull.length - last_length) / hull.length
+
+                    # This is to detect if inner intersections have appeared or not
+                    if alpha > 0.2 and dl > 0.1:
+                        do_iterate = False
+                        break
+
+                    last_length = hull.length
+                    if (na_points > last_na_points):
+                        last_na_points = na_points
+                        last_alpha = alpha
+                else:
+                    do_iterate = False
+
+        if last_alpha > 0:
+            hull = alphashape.alphashape(pts, last_alpha)
+
+            if hasattr(hull, 'exterior'):
+                hull_pts = hull.exterior.coords.xy
+                ordered_points = [[hull_pts[0][i], hull_pts[1][i]] for i in range(len(hull_pts[0]))]
+
+                return ordered_points
+
+    # If we reached here, then either 'convex' option was chosen for ordering or we failed with the previous methods
     if dim == 2:
-        center = pts.mean(0)
-        angle = np.arctan2(*(pts - center).T[::-1])
+        center = pts_in.mean(0)
+        angle = np.arctan2(*(pts_in - center).T[::-1])
         index = np.argsort(angle)
     else:
-        hull = ConvexHull(pts)
+        hull = ConvexHull(pts_in)
         index = hull.vertices
+
+    return pts_in[index]
 
 def unit_vector(vector):
     return vector / np.linalg.norm(vector)
@@ -205,7 +264,6 @@ with open(ofname, 'w') as f:
 
         for g in range(0, n_grains):
             if len(points[grain_ids[g]]) > 0 and (args.order_params is None or grain_to_op[g] in args.order_params):
-                indices = build_grain(points[grain_ids[g]], dim)
 
                 color = "clr{}{}".format(grain_to_op[g], args.color_suffix)
 
@@ -220,8 +278,9 @@ with open(ofname, 'w') as f:
                 cy = c[1] + ys
 
                 if args.show_topology:
+                    ordered_points = build_grain(points[g][0::args.coarsening], dim)
                     f.write("\\draw [fill=%s]\n" % color)
-                    for p in points[grain_ids[g]][indices]:
+                    for p in ordered_points:
                         pp = normalize_point(p)
 
                         f.write("(%f, %f) --\n" % (pp[0] + xs, pp[1] + ys))
