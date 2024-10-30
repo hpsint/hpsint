@@ -35,6 +35,7 @@
 #include <pf-applications/lac/dynamic_block_vector.h>
 
 #include <pf-applications/sintering/initial_values_microstructure.h>
+#include <pf-applications/sintering/postprocessors.h>
 #include <pf-applications/sintering/tools.h>
 
 #include <pf-applications/grain_tracker/distributed_stitching.h>
@@ -265,6 +266,16 @@ main(int argc, char **argv)
                                solution_remap.block(b),
                                output_prefix + "_op_" +
                                  std::to_string(b - op_offset));
+
+    // Output tex
+    const unsigned int n_op =
+      grain_tracker.get_active_order_parameters().size();
+    grain_tracker.track(solution_remap, n_op, true);
+
+    const std::string filename = "81grains_" + label_representation + ".txt";
+
+    Postprocessors::output_grain_contours(
+      mapping, dof_handler, solution_remap, 0.5, filename, n_op, grain_tracker);
   };
 
   // Test various grain tracking representations
