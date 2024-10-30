@@ -145,8 +145,8 @@ namespace GrainTracker
     void
     save(std::vector<double> &output) const override
     {
-      // The nubmer of entries to save
-      output.push_back(dim + 1);
+      // Output representation type
+      output.push_back(1);
 
       std::copy(center.begin_raw(),
                 center.end_raw(),
@@ -239,8 +239,8 @@ namespace GrainTracker
     void
     save(std::vector<double> &output) const override
     {
-      // The nubmer of entries to save
-      output.push_back(dim + dim * dim + dim);
+      // Output representation type
+      output.push_back(2);
 
       const auto &center = ellipsoid.get_center();
       const auto &axes   = ellipsoid.get_axes();
@@ -350,12 +350,21 @@ namespace GrainTracker
     void
     save(std::vector<double> &output) const override
     {
-      // The nubmer of entries to save
-      output.push_back(dim);
+      // Output representation type
+      output.push_back(3);
 
       std::copy(center.begin_raw(),
                 center.end_raw(),
                 std::back_inserter(output));
+
+      double dist_min = std::numeric_limits<double>::max();
+
+      for (const auto &[n_op_and_index, dist] : distances)
+        if (n_op_and_index.first == op_and_index.first && dist < dist_min)
+          dist_min = dist;
+
+      // The offset estimate is the half of the minimum distance
+      output.push_back(dist_min / 2.);
     }
 
     std::pair<unsigned int, unsigned int>                   op_and_index;

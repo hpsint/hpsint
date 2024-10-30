@@ -8,6 +8,7 @@ import queue
 import multiprocessing
 from random import randrange
 from scipy.spatial import ConvexHull
+from shapely import ops, geometry
 
 parser = argparse.ArgumentParser(description='Build tex packing from special hpsint output')
 parser.add_argument("-f", "--files", dest="files", required=True, nargs='+', help="Files to process, can be mask")
@@ -213,6 +214,11 @@ with open(ofname, 'w') as f:
         print("n_op = {}".format(n_op))
 
         n_props_to_grain_types = {(dim + 1): 'spherical', (2*dim + dim*dim): 'elliptical', (dim): 'wavefront'}
+        grain_types = {
+            1: {'label': 'spherical', 'n_data': (dim + 1)},
+            2: {'label': 'elliptical', 'n_data': (2*dim + dim*dim)},
+            3: {'label': 'wavefront', 'n_data': (dim + 1)}
+        }
 
         properties = [float(i) for i in data[7].split()]
 
@@ -222,33 +228,42 @@ with open(ofname, 'w') as f:
         n_props = len(properties)
         i = 0
         while i < n_props:
-            n_data = int(properties[i])
-            if n_data not in n_props_to_grain_types:
-                raise Exception("Unknown grain type for n_data = {}".format(n_data))
+            grain_type_id = int(properties[i])
+            if grain_type_id not in grain_types:
+                raise Exception("Unknown grain type_id = {}".format(grain_type_id))
             
-            gtype = n_props_to_grain_types[n_data]
+            grain_type_data = grain_types[grain_type_id]
             center = [float(j) for j in properties[(i + 1) : (i + 1 + dim)]]
 
-            grain = {'type': gtype, 'center': center}
+            grain = {'type': grain_type_data['label'], 'center': center}
 
-            if gtype == 'spherical':
+            if grain_type_data['label'] == 'spherical':
                 grain['radius'] = float(properties[i + 1 + dim])
                 min_radius = min(min_radius, grain['radius'])
-            elif gtype == 'elliptical':
+            elif grain_type_data['label'] == 'elliptical':
                 grain['axes'] = [[float(j) for j in properties[(i + 1 + (1 + d)*dim) : (i + 1 + (2 + d)*dim)]] for d in range(0, dim)]
                 grain['radii'] = [float(j) for j in properties[(i + 1 + (1 + dim)*dim) : (i + 1 + (2 + dim)*dim)]]
                 min_radius = min(min_radius, min(grain['radii']))
+            elif grain_type_data['label'] == 'wavefront':
+                grain['offset'] = float(properties[i + 1 + dim])
 
             grains.append(grain)
             
-            i += n_data + 1
+            i += grain_type_data['n_data'] + 1
 
+        # Read points data and repack them
         points = [[] for i in range(n_grains)]
         for g in range(8, len(data), 2):
             grain_num = int(data[g])
             points[grain_num] += [float(i) for i in data[g + 1].split()]
 
         points = [np.array([[p[g*dim + d] for d in range(0, dim)] for g in range(0, int(len(p)/dim))]) for p in points]
+
+        # Determine min_radius for the wavefront representations
+        for g in range(0, n_grains):
+            if grains[g]['type'] == 'wavefront':
+                sizes = [np.amax(points[g][:,d]) - np.amin(points[g][:,d]) for d in range(dim)]
+                min_radius = min(min_radius, np.amin(sizes) / 2.)
 
         width = point1[0] - point0[0]
         height = point1[1] - point0[1]
@@ -353,6 +368,16 @@ with open(ofname, 'w') as f:
                         angle = axes_rotation(grains[g]['axes'][0])
                         f.write("\\draw[dashed, color=%s, fill=%s!10!white, fill opacity=%f, rotate around={%f:(%f,%f)}] (%f,%f) ellipse (%f and %f);\n"
                             % (color, color, args.circle_opacity, -angle, cx, cy, cx, cy, radii[0], radii[1]))
+                    elif grains[g]['type'] == 'wavefront':
+                        poly_line = geometry.LinearRing(grain_contours[g])
+                        poly_line_offset = poly_line.buffer(grains[g]['offset'], resolution=2, join_style=2, mitre_limit=1).exterior
+
+                        f.write("\\draw [dashed, color=%s, fill=%s!10!white, fill opacity=%f]\n" 
+                            % (color, color, args.circle_opacity))
+                        for p in poly_line_offset.coords:
+                            pp = normalize_point(p)
+                            f.write("(%f, %f) --\n" % (pp[0] + xs, pp[1] + ys))
+                        f.write("cycle;\n")
 
                     if not args.show_topology:
                         if show_labels:
