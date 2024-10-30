@@ -223,7 +223,6 @@ with open(ofname, 'w') as f:
         print("n_grains = {}".format(n_grains))
         print("n_op = {}".format(n_op))
 
-        n_props_to_grain_types = {(dim + 1): 'spherical', (2*dim + dim*dim): 'elliptical', (dim): 'wavefront'}
         grain_types = {
             1: {'label': 'spherical', 'n_data': (dim + 1)},
             2: {'label': 'elliptical', 'n_data': (2*dim + dim*dim)},
