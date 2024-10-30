@@ -45,8 +45,17 @@ def build_grain(pts, dim):
     else:
         hull = ConvexHull(pts)
         index = hull.vertices
-    
-    return index[0::args.coarsening]
+
+def unit_vector(vector):
+    return vector / np.linalg.norm(vector)
+
+def angle_between(v1, v2):
+    v1_u = unit_vector(v1)
+    v2_u = unit_vector(v2)
+    return np.arccos(np.clip(np.dot(v1_u, v2_u), -1.0, 1.0))
+
+def axes_rotation(x):
+    return angle_between(np.array([1, 0]), np.array(x)) * 180. / np.pi
 
 # Get all files to process
 files_list = library.get_solutions(args.files, do_sort = False)
@@ -89,6 +98,7 @@ if args.ncolors is None:
 else:
     ncolors = args.ncolors
 
+# Main colors
 colors = library.get_hex_colors(ncolors)
 
 with open(ofname, 'w') as f:
@@ -116,9 +126,39 @@ with open(ofname, 'w') as f:
         point0      = [float(i) for i in data[5].split()]
         point1      = [float(i) for i in data[6].split()]
 
+        print("n_grains = {}".format(n_grains))
+        print("n_op = {}".format(n_op))
+
+        n_props_to_grain_types = {(dim + 1): 'spherical', (2*dim + dim*dim): 'elliptical', (dim): 'wavefront'}
+
         properties = [float(i) for i in data[7].split()]
-        centers = [[float(i) for i in properties[(g*(dim + 1)) : (g*(dim + 1) + dim)]] for g in range(0, n_grains)]
-        radii = [properties[g*(dim + 1) + dim] for g in range(0, n_grains)]
+
+        # Read grains properties
+        min_radius = 1e16
+        grains = []
+        n_props = len(properties)
+        i = 0
+        while i < n_props:
+            n_data = int(properties[i])
+            if n_data not in n_props_to_grain_types:
+                raise Exception("Unknown grain type for n_data = {}".format(n_data))
+            
+            gtype = n_props_to_grain_types[n_data]
+            center = [float(j) for j in properties[(i + 1) : (i + 1 + dim)]]
+
+            grain = {'type': gtype, 'center': center}
+
+            if gtype == 'spherical':
+                grain['radius'] = float(properties[i + 1 + dim])
+                min_radius = min(min_radius, grain['radius'])
+            elif gtype == 'elliptical':
+                grain['axes'] = [[float(j) for j in properties[(i + 1 + (1 + d)*dim) : (i + 1 + (2 + d)*dim)]] for d in range(0, dim)]
+                grain['radii'] = [float(j) for j in properties[(i + 1 + (1 + dim)*dim) : (i + 1 + (2 + dim)*dim)]]
+                min_radius = min(min_radius, min(grain['radii']))
+
+            grains.append(grain)
+            
+            i += n_data + 1
 
         points = [[] for i in range(n_grains)]
         for g in range(8, len(data), 2):
@@ -153,7 +193,9 @@ with open(ofname, 'w') as f:
         def normalize_radius(r):
             return r / width
 
-        center_tick_radius_normalized = args.center_tick_ratio * normalize_radius(min(radii))
+        min_radius = min(min_radius, width)
+
+        center_tick_radius_normalized = args.center_tick_ratio * normalize_radius(min_radius)
 
         f.write("\\draw [] (%f,%f) rectangle (%f,%f);\n" % (xs, ys, xs + normalized_width, ys + normalized_height))
         f.write("\n")
@@ -173,6 +215,10 @@ with open(ofname, 'w') as f:
                 if args.label_order_params:
                     lbl = grain_to_op[g]
 
+                c = normalize_point(grains[g]['center'])
+                cx = c[0] + xs
+                cy = c[1] + ys
+
                 if args.show_topology:
                     f.write("\\draw [fill=%s]\n" % color)
                     for p in points[grain_ids[g]][indices]:
@@ -182,21 +228,28 @@ with open(ofname, 'w') as f:
                     f.write("cycle;\n")
 
                     if show_labels:
-                        c = normalize_point(centers[g])
-                        f.write("\\node[anchor=center] at (%f,%f) {%s\color{%s} %d};\n" % (c[0] + xs, c[1] + ys, args.font_size, args.color_text, lbl))
+                        f.write("\\node[anchor=center] at (%f,%f) {%s\color{%s} %d};\n" % (cx, cy, args.font_size, args.color_text, lbl))
 
                 if args.show_simplified:
-                    c = normalize_point(centers[g])
-                    r = normalize_radius(radii[g])
-                    f.write("\\draw[dashed, color=%s, fill=%s!10!white, fill opacity=%f] (%f,%f) circle (%f);\n" % (color, color, args.circle_opacity, c[0] + xs, c[1] + ys, r))
+                    c = normalize_point(grains[g]['center'])
+
+                    if grains[g]['type'] == 'spherical':
+                        r = normalize_radius(grains[g]['radius'])
+                        f.write("\\draw[dashed, color=%s, fill=%s!10!white, fill opacity=%f] (%f,%f) circle (%f);\n"
+                            % (color, color, args.circle_opacity, cx, cy, r))
+                    elif grains[g]['type'] == 'elliptical':
+                        radii = [normalize_radius(r) for r in grains[g]['radii']]
+                        angle = axes_rotation(grains[g]['axes'][0])
+                        f.write("\\draw[dashed, color=%s, fill=%s!10!white, fill opacity=%f, rotate around={%f:(%f,%f)}] (%f,%f) ellipse (%f and %f);\n"
+                            % (color, color, args.circle_opacity, -angle, cx, cy, cx, cy, radii[0], radii[1]))
 
                     if not args.show_topology:
                         if show_labels:
-                            f.write("\\node[anchor=center] at (%f,%f) {%s\color{%s} %d};\n" % (c[0] + xs, c[1] + ys, args.font_size, color, lbl))
+                            f.write("\\node[anchor=center] at (%f,%f) {%s\color{%s} %d};\n" % (cx, cy, args.font_size, color, lbl))
                         else:
-                            f.write("\\fill [color=%s] (%f, %f) circle (%f);\n" % (color, c[0] + xs, c[1] + ys, center_tick_radius_normalized))
+                            f.write("\\fill [color=%s] (%f, %f) circle (%f);\n" % (color, cx, cy, center_tick_radius_normalized))
                     elif not show_labels:
-                        f.write("\\fill [color=%s] (%f, %f) circle (%f);\n" % (args.color_text, c[0] + xs, c[1] + ys, center_tick_radius_normalized))
+                        f.write("\\fill [color=%s] (%f, %f) circle (%f);\n" % (args.color_text, cx, cy, center_tick_radius_normalized))
 
                 f.write("\n")
 
