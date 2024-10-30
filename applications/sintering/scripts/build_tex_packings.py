@@ -46,6 +46,8 @@ args = parser.parse_args()
 
 show_labels = args.label_grain_ids or args.label_order_params
 
+max_progress_bar_length = 50
+
 def build_grain(pts_in, dim):
 
     if args.contour_ordering != 'convex':
@@ -132,7 +134,7 @@ def do_job(tasks_to_execute, tasks_completed, n_total):
             
             tasks_completed.put((grain_index, ordered_points))
 
-            library.progress_bar(tasks_completed.qsize(), n_total)
+            library.progress_bar(tasks_completed.qsize(), n_total, max(n_total, max_progress_bar_length))
 
     return True
 
@@ -317,7 +319,7 @@ with open(ofname, 'w') as f:
             print("n_grains to process = {}".format(n_grains_to_process))
 
             # Creating processes and creating contours
-            library.progress_bar(0, n_grains_to_process)
+            library.progress_bar(0, n_grains_to_process, max(n_grains_to_process, max_progress_bar_length))
             for w in range(number_of_processes):
                 p = multiprocessing.Process(target=do_job, args=(tasks_to_execute, tasks_completed, n_grains_to_process))
                 processes.append(p)
