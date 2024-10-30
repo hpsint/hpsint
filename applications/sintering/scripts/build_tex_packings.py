@@ -3,6 +3,9 @@ import numpy as np
 import argparse
 import library
 import alphashape
+import psutil
+import queue
+import multiprocessing
 from random import randrange
 from scipy.spatial import ConvexHull
 
@@ -116,6 +119,22 @@ def angle_between(v1, v2):
 def axes_rotation(x):
     return angle_between(np.array([1, 0]), np.array(x)) * 180. / np.pi
 
+# Multiprocessing job
+def do_job(tasks_to_execute, tasks_completed):
+    while True:
+        try:
+            grain_index = tasks_to_execute.get_nowait()
+        except queue.Empty:
+            break
+        else:
+            print("processing grain {} ...".format(grain_index))
+            ordered_points = build_grain(points[grain_index][0::args.coarsening], dim)
+            print("completed grain {} ...".format(grain_index))
+            
+            tasks_completed.put((grain_index, ordered_points))
+
+    return True
+
 # Get all files to process
 files_list = library.get_solutions(args.files, do_sort = False)
 
@@ -159,6 +178,11 @@ else:
 
 # Main colors
 colors = library.get_hex_colors(ncolors)
+
+# Multiprocessing settings
+number_of_processes = psutil.cpu_count(logical=False)
+
+print("cpu_count = {}".format(number_of_processes))
 
 with open(ofname, 'w') as f:
 
@@ -262,8 +286,37 @@ with open(ofname, 'w') as f:
         if not args.hide_headers:
             f.write("\\node[] at (%f,%f) {%s %s};\n" % (0.5 + xs, normalized_height + 0.05 + ys, args.font_size, headers[j]))
 
+        # Precompute contours if we need them
+        tasks_to_execute = multiprocessing.Queue()
+        tasks_completed = multiprocessing.Queue()
+        processes = []
+
+        grain_contours = [[] for _ in range(n_grains)]
+        if args.show_topology:
+
+            for g in range(0, n_grains):
+                if len(points[g]) > 0 and (args.order_params is None or grain_to_op[g] in args.order_params):
+                    tasks_to_execute.put(g)
+
+            print("n_grains to process = {}".format(tasks_to_execute.qsize()))
+
+            # creating processes
+            for w in range(number_of_processes):
+                p = multiprocessing.Process(target=do_job, args=(tasks_to_execute, tasks_completed))
+                processes.append(p)
+                p.start()
+
+            # completing process
+            for p in processes:
+                p.join()
+
+            # handle results
+            while not tasks_completed.empty():
+                res = tasks_completed.get()
+                grain_contours[res[0]] = res[1]
+
         for g in range(0, n_grains):
-            if len(points[grain_ids[g]]) > 0 and (args.order_params is None or grain_to_op[g] in args.order_params):
+            if len(grain_contours[g]) > 0:
 
                 color = "clr{}{}".format(grain_to_op[g], args.color_suffix)
 
@@ -278,9 +331,8 @@ with open(ofname, 'w') as f:
                 cy = c[1] + ys
 
                 if args.show_topology:
-                    ordered_points = build_grain(points[g][0::args.coarsening], dim)
                     f.write("\\draw [fill=%s]\n" % color)
-                    for p in ordered_points:
+                    for p in grain_contours[g]:
                         pp = normalize_point(p)
 
                         f.write("(%f, %f) --\n" % (pp[0] + xs, pp[1] + ys))
