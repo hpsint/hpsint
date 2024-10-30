@@ -112,6 +112,12 @@ namespace GrainTracker
       stream << " | max_value = " << max_value;
     }
 
+    void
+    save(std::vector<double> &output) const
+    {
+      representation->save(output);
+    }
+
     template <class Archive>
     void
     serialize(Archive &ar, const unsigned int /*version*/)
