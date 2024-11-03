@@ -58,6 +58,12 @@ namespace GrainTracker
     virtual std::unique_ptr<Representation>
     clone() const = 0;
 
+    // It would be nice to be able to provide here custom iterators, but that
+    // would require significatn refactoring to make representation a part of
+    // class Grain and Tracker.
+    virtual void
+    save(std::vector<double> &output) const = 0;
+
     virtual ~Representation()
     {}
 
@@ -134,6 +140,19 @@ namespace GrainTracker
       ar &BOOST_SERIALIZATION_BASE_OBJECT_NVP(Representation);
       ar &center;
       ar &radius;
+    }
+
+    void
+    save(std::vector<double> &output) const override
+    {
+      // Output representation type
+      output.push_back(1);
+
+      std::copy(center.begin_raw(),
+                center.end_raw(),
+                std::back_inserter(output));
+
+      output.push_back(radius);
     }
 
     Point<dim> center;
@@ -215,6 +234,26 @@ namespace GrainTracker
     {
       ar &BOOST_SERIALIZATION_BASE_OBJECT_NVP(Representation);
       ar &ellipsoid;
+    }
+
+    void
+    save(std::vector<double> &output) const override
+    {
+      // Output representation type
+      output.push_back(2);
+
+      const auto &center = ellipsoid.get_center();
+      const auto &axes   = ellipsoid.get_axes();
+      const auto &radii  = ellipsoid.get_radii();
+
+      auto inserter = std::back_inserter(output);
+
+      std::copy(center.begin_raw(), center.end_raw(), inserter);
+
+      for (unsigned int d = 0; d < dim; ++d)
+        std::copy(axes[d].begin_raw(), axes[d].end_raw(), inserter);
+
+      std::copy(radii.cbegin(), radii.cend(), inserter);
     }
 
   private:
@@ -306,6 +345,26 @@ namespace GrainTracker
       ar &op_and_index;
       ar &center;
       ar &distances;
+    }
+
+    void
+    save(std::vector<double> &output) const override
+    {
+      // Output representation type
+      output.push_back(3);
+
+      std::copy(center.begin_raw(),
+                center.end_raw(),
+                std::back_inserter(output));
+
+      double dist_min = std::numeric_limits<double>::max();
+
+      for (const auto &[n_op_and_index, dist] : distances)
+        if (n_op_and_index.first == op_and_index.first && dist < dist_min)
+          dist_min = dist;
+
+      // The offset estimate is the half of the minimum distance
+      output.push_back(dist_min / 2.);
     }
 
     std::pair<unsigned int, unsigned int>                   op_and_index;

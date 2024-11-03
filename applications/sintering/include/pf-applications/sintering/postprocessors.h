@@ -561,7 +561,7 @@ namespace Sintering
       const auto bb = GridTools::compute_bounding_box(
         background_dof_handler.get_triangulation());
 
-      std::vector<Number> parameters((dim + 1) * n_grains, 0);
+      std::vector<Number> parameters;
 
       // Get grain properties from the grain tracker, assume 1 segment per grain
       unsigned int                         g_counter = 0;
@@ -572,10 +572,7 @@ namespace Sintering
 
           const auto &segment = grain.get_segments()[0];
 
-          for (unsigned int d = 0; d < dim; ++d)
-            parameters[g_counter * (dim + 1) + d] = segment.get_center()[d];
-
-          parameters[g_counter * (dim + 1) + dim] = segment.get_radius();
+          segment.save(parameters);
 
           grain_id_to_index.emplace(g, g_counter);
           ++g_counter;
