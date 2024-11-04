@@ -2211,7 +2211,10 @@ namespace Sintering
                 // Perform sanity check
                 if (params.time_integration_data.sanity_check_solution &&
                     has_converged)
-                  nonlinear_operator.sanity_check(solution);
+                  hpsint::limit_vector_values(
+                    solution,
+                    sintering_data.build_pf_component_mask(
+                      solution.n_blocks()));
 
                 bool do_mesh_refinement = false;
                 bool do_grain_tracker   = false;
@@ -2363,7 +2366,10 @@ namespace Sintering
 
                 // Sanity check of the predicted value
                 if (params.time_integration_data.sanity_check_predictor)
-                  nonlinear_operator.sanity_check(extrap);
+                  hpsint::limit_vector_values(
+                    extrap,
+                    sintering_data.build_pf_component_mask(
+                      solution.n_blocks()));
 
                 solution = extrap;
               }

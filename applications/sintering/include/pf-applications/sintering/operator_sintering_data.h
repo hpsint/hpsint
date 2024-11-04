@@ -124,6 +124,17 @@ namespace Sintering
       return number_of_components - 2;
     }
 
+    ComponentMask
+    build_pf_component_mask(const unsigned int n_total_components) const
+    {
+      ComponentMask mask(n_total_components, false);
+      mask.set(0, true); // CH concentration, CH chemical potential is skipped
+      for (unsigned int g = 0; g < n_grains(); ++g)
+        mask.set(2 + g, true); // AC order parameters
+
+      return mask;
+    }
+
     void
     set_component_mask(
       const MatrixFree<dim, Number, VectorizedArrayType> &          matrix_free,
