@@ -66,6 +66,7 @@
 
 #include <pf-applications/numerics/data_out.h>
 #include <pf-applications/numerics/output.h>
+#include <pf-applications/numerics/phasefield_tools.h>
 #include <pf-applications/numerics/vector_tools.h>
 
 #include <pf-applications/sintering/advection.h>
@@ -3204,15 +3205,17 @@ namespace Sintering
                       q_values = sintering_operator.calc_domain_quantities(
                         q_evaluators,
                         solution,
+                        sintering_operator.n_grains(),
                         predicate_integrals,
                         eval_flags);
                     }
                   else
                     {
-                      q_values =
-                        sintering_operator.calc_domain_quantities(q_evaluators,
-                                                                  solution,
-                                                                  eval_flags);
+                      q_values = sintering_operator.calc_domain_quantities(
+                        q_evaluators,
+                        solution,
+                        sintering_operator.n_grains(),
+                        eval_flags);
                     }
 
 
