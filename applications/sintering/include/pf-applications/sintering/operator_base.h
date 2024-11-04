@@ -625,6 +625,13 @@ namespace Sintering
       return result;
     }
 
+
+    void
+    do_update()
+    {
+      if (this->matrix_based)
+        this->initialize_system_matrix(); // assemble matrix
+    }
   protected:
     template <int n_comp, int n_grains>
     void

@@ -65,13 +65,6 @@ namespace Sintering
     ~SinteringOperatorBase()
     {}
 
-    void
-    do_update()
-    {
-      if (this->matrix_based)
-        this->initialize_system_matrix(); // assemble matrix
-    }
-
     const SinteringOperatorData<dim, VectorizedArrayType> &
     get_data() const
     {
