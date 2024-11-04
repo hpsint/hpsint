@@ -910,6 +910,32 @@ namespace Sintering
       return q_values;
     }
 
+    template <auto n_data_variants, typename O>
+    auto
+    get_vector_output_entries_mask(
+      const std::array<std::tuple<std::string, O, unsigned int>,
+                       n_data_variants> &possible_entries,
+      const std::set<std::string> &      fields_list) const
+    {
+      // A better design is possible, but at the moment this is sufficient
+      std::array<bool, n_data_variants> entries_mask;
+      entries_mask.fill(false);
+
+      unsigned int n_entries = 0;
+
+      for (unsigned int i = 0; i < possible_entries.size(); i++)
+        {
+          const auto &entry = possible_entries[i];
+          if (fields_list.count(std::get<0>(entry)))
+            {
+              entries_mask[std::get<1>(entry)] = true;
+              n_entries += std::get<2>(entry);
+            }
+        }
+
+      return std::make_tuple(entries_mask, n_entries);
+    }
+
   protected:
     const MatrixFree<dim, Number, VectorizedArrayType> &matrix_free;
     const AffineConstraints<Number> &                   constraints;
