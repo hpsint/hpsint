@@ -66,6 +66,7 @@
 
 #include <pf-applications/numerics/data_out.h>
 #include <pf-applications/numerics/output.h>
+#include <pf-applications/numerics/phasefield_tools.h>
 #include <pf-applications/numerics/vector_tools.h>
 
 #include <pf-applications/sintering/advection.h>
@@ -2211,7 +2212,10 @@ namespace Sintering
                 // Perform sanity check
                 if (params.time_integration_data.sanity_check_solution &&
                     has_converged)
-                  nonlinear_operator.sanity_check(solution);
+                  hpsint::limit_vector_values(
+                    solution,
+                    sintering_data.build_pf_component_mask(
+                      solution.n_blocks()));
 
                 bool do_mesh_refinement = false;
                 bool do_grain_tracker   = false;
@@ -2363,7 +2367,10 @@ namespace Sintering
 
                 // Sanity check of the predicted value
                 if (params.time_integration_data.sanity_check_predictor)
-                  nonlinear_operator.sanity_check(extrap);
+                  hpsint::limit_vector_values(
+                    extrap,
+                    sintering_data.build_pf_component_mask(
+                      solution.n_blocks()));
 
                 solution = extrap;
               }
@@ -3198,15 +3205,17 @@ namespace Sintering
                       q_values = sintering_operator.calc_domain_quantities(
                         q_evaluators,
                         solution,
+                        sintering_operator.n_grains(),
                         predicate_integrals,
                         eval_flags);
                     }
                   else
                     {
-                      q_values =
-                        sintering_operator.calc_domain_quantities(q_evaluators,
-                                                                  solution,
-                                                                  eval_flags);
+                      q_values = sintering_operator.calc_domain_quantities(
+                        q_evaluators,
+                        solution,
+                        sintering_operator.n_grains(),
+                        eval_flags);
                     }
 
 
