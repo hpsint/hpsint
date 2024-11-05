@@ -40,6 +40,7 @@ namespace Sintering
    */
   class InitialValuesMicrostructure : public InitialValues<2>
   {
+  protected:
     struct MicroSegment
     {
       std::vector<Point<2>> vertices;
@@ -203,55 +204,13 @@ namespace Sintering
       std::vector<MicroSegment> segments;
     };
 
-  public:
-    InitialValuesMicrostructure(std::istream &     stream,
-                                const double       interface_width = 0.,
+    InitialValuesMicrostructure(const double       interface_width = 0.,
                                 const unsigned int op_offset       = 2)
       : interface_width(interface_width)
       , op_offset(op_offset)
-    {
-      unsigned int row_counter = 0;
-      unsigned int n_grains    = 0;
+    {}
 
-      for (internal::CSVIterator loop(stream); loop != internal::CSVIterator();
-           ++loop, ++row_counter)
-        {
-          if (row_counter == 0)
-            {
-              n_grains = std::stoi(std::string((*loop)[0]));
-              grains.reserve(n_grains);
-            }
-          else if (row_counter == 1)
-            {
-              AssertDimension(n_grains, loop->size());
-
-              for (unsigned int i = 0; i < loop->size(); ++i)
-                {
-                  const auto color = std::stoi(std::string((*loop)[i]));
-                  grains.emplace_back(color, interface_width);
-                  order_parameter_to_grains[color].push_back(i);
-                }
-            }
-          else
-            {
-              MicroSegment segment;
-
-              for (unsigned int i = 0; i < loop->size(); i += 2)
-                {
-                  segment.vertices.emplace_back(
-                    std::stod(std::string((*loop)[i])),
-                    std::stod(std::string((*loop)[i + 1])));
-                }
-
-              segment.vertices.push_back(segment.vertices[0]);
-              segment.box = BoundingBox<2>(segment.vertices);
-              segment.box.extend(interface_width);
-
-              grains[row_counter - 2].add_segment(std::move(segment));
-            }
-        }
-    }
-
+  public:
     double
     do_value(const Point<2> &p, const unsigned int component) const final
     {
@@ -341,7 +300,7 @@ namespace Sintering
       return grains.size();
     }
 
-  private:
+  protected:
     // Interface thickness
     const double interface_width;
 
