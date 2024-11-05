@@ -41,10 +41,18 @@ namespace Sintering
   class InitialValuesMicrostructure : public InitialValues<2>
   {
   protected:
-    struct MicroSegment
+    class MicroSegment
     {
-      std::vector<Point<2>> vertices;
-      BoundingBox<2>        box;
+    public:
+      template <typename Iterator>
+      MicroSegment(Iterator begin, Iterator end, const double interface_width)
+      {
+        std::copy(begin, end, std::back_inserter(vertices));
+
+        vertices.push_back(vertices[0]);
+        box = BoundingBox<2>(vertices);
+        box.extend(interface_width);
+      }
 
       // This function is base on this algo:
       // https://wrfranklin.org/Research/Short_Notes/pnpoly.html
@@ -107,14 +115,26 @@ namespace Sintering
 
         return dist_min;
       }
+
+      const BoundingBox<2> &
+      bounding_box() const
+      {
+        return box;
+      }
+
+    private:
+      std::vector<Point<2>> vertices;
+      BoundingBox<2>        box;
     };
 
     class MicroGrain
     {
     public:
-      MicroGrain(const unsigned int color, const double interface_width)
-        : color(color)
-        , interface_width(interface_width)
+      MicroGrain(
+        const double       interface_width,
+        const unsigned int color = std::numeric_limits<unsigned int>::max())
+        : interface_width(interface_width)
+        , color(color)
       {}
 
       template <typename S>
@@ -171,11 +191,11 @@ namespace Sintering
       {
         auto it = segments.cbegin();
 
-        BoundingBox<2> bb(it->box);
+        BoundingBox<2> bb(it->bounding_box());
         ++it;
 
         std::for_each(it, segments.cend(), [&bb](auto &segment) {
-          bb.merge_with(segment.box);
+          bb.merge_with(segment.bounding_box());
         });
 
         return bb;
@@ -186,21 +206,32 @@ namespace Sintering
       {
         double dia_max = -std::numeric_limits<double>::max();
 
-        std::for_each(segments.cbegin(),
-                      segments.cend(),
-                      [&dia_max](auto &segment) {
-                        dia_max = std::max(
-                          {dia_max,
-                           std::sqrt(std::pow(segment.box.side_length(0), 2) +
-                                     std::pow(segment.box.side_length(1), 2))});
-                      });
+        std::for_each(
+          segments.cbegin(), segments.cend(), [&dia_max](auto &segment) {
+            dia_max = std::max(
+              {dia_max,
+               std::sqrt(std::pow(segment.bounding_box().side_length(0), 2) +
+                         std::pow(segment.bounding_box().side_length(1), 2))});
+          });
 
         return dia_max;
       }
 
+      void
+      set_color(unsigned int new_color)
+      {
+        color = new_color;
+      }
+
+      unsigned int
+      get_color() const
+      {
+        return color;
+      }
+
     private:
-      const unsigned int        color;
       const double              interface_width;
+      unsigned int              color;
       std::vector<MicroSegment> segments;
     };
 

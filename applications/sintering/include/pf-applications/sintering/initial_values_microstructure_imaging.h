@@ -65,24 +65,22 @@ namespace Sintering
               for (unsigned int i = 0; i < loop->size(); ++i)
                 {
                   const auto color = std::stoi(std::string((*loop)[i]));
-                  grains.emplace_back(color, interface_width);
+                  grains.emplace_back(interface_width, color);
                   order_parameter_to_grains[color].push_back(i);
                 }
             }
           else
             {
-              MicroSegment segment;
-
+              std::vector<Point<2>> vertices;
               for (unsigned int i = 0; i < loop->size(); i += 2)
                 {
-                  segment.vertices.emplace_back(
-                    std::stod(std::string((*loop)[i])),
-                    std::stod(std::string((*loop)[i + 1])));
+                  vertices.emplace_back(std::stod(std::string((*loop)[i])),
+                                        std::stod(std::string((*loop)[i + 1])));
                 }
 
-              segment.vertices.push_back(segment.vertices[0]);
-              segment.box = BoundingBox<2>(segment.vertices);
-              segment.box.extend(interface_width);
+              MicroSegment segment(std::make_move_iterator(vertices.begin()),
+                                   std::make_move_iterator(vertices.end()),
+                                   interface_width);
 
               grains[row_counter - 2].add_segment(std::move(segment));
             }
