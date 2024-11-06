@@ -246,7 +246,10 @@ namespace Sintering
                 interface_width / 2. :
                 interface_width)
       , ref_k(interface_direction == InterfaceDirection::middle ? 0.5 : 1.0)
-      , ref_b(interface_direction == InterfaceDirection::middle ? 0.5 : 0.0)
+      , ref_b(
+          interface_direction == InterfaceDirection::middle ?
+            0.5 :
+            (interface_direction == InterfaceDirection::outside ? 1.0 : 0.0))
       , op_offset(op_offset)
     {}
 
