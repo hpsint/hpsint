@@ -72,9 +72,13 @@ main(int argc, char **argv)
   std::ifstream fstream(file_micro);
   AssertThrow(fstream.is_open(), ExcMessage("File not found!"));
 
-  constexpr double interface_width = 0.4;
+  constexpr double             interface_width = 0.4;
+  constexpr InterfaceDirection interface_direction =
+    InterfaceDirection::outside;
 
-  InitialValuesMicrostructureImaging initial_values(fstream, interface_width);
+  InitialValuesMicrostructureImaging initial_values(fstream,
+                                                    interface_width,
+                                                    interface_direction);
 
   // Now build the mesh
   const unsigned int dim = 2;

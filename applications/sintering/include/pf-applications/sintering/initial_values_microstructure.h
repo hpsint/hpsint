@@ -45,13 +45,20 @@ namespace Sintering
     {
     public:
       template <typename Iterator>
-      MicroSegment(Iterator begin, Iterator end, const double interface_width)
+      MicroSegment(Iterator           begin,
+                   Iterator           end,
+                   const double       interface_width,
+                   InterfaceDirection interface_direction)
       {
         std::copy(begin, end, std::back_inserter(vertices));
 
         vertices.push_back(vertices[0]);
         box = BoundingBox<2>(vertices);
-        box.extend(interface_width);
+
+        if (interface_direction == InterfaceDirection::outside)
+          box.extend(interface_width);
+        else if (interface_direction == InterfaceDirection::middle)
+          box.extend(interface_width / 2.);
       }
 
       // This function is base on this algo:
@@ -131,10 +138,8 @@ namespace Sintering
     {
     public:
       MicroGrain(
-        const double       interface_width,
         const unsigned int color = std::numeric_limits<unsigned int>::max())
-        : interface_width(interface_width)
-        , color(color)
+        : color(color)
       {}
 
       template <typename S>
@@ -166,7 +171,7 @@ namespace Sintering
       }
 
       double
-      point_value(const Point<2> &p) const
+      distance_to_nearest_edge(const Point<2> &p) const
       {
         std::vector<double> distances(segments.size());
 
@@ -180,10 +185,7 @@ namespace Sintering
         const auto dist_min =
           *std::min_element(distances.begin(), distances.end());
 
-        if (dist_min < interface_width)
-          return -1. / interface_width * dist_min + 1.;
-        else
-          return 0;
+        return dist_min;
       }
 
       BoundingBox<2>
@@ -230,18 +232,25 @@ namespace Sintering
       }
 
     private:
-      const double              interface_width;
       unsigned int              color;
       std::vector<MicroSegment> segments;
     };
 
-    InitialValuesMicrostructure(const double       interface_width = 0.,
-                                const unsigned int op_offset       = 2)
+    InitialValuesMicrostructure(
+      const double             interface_width     = 0.,
+      const InterfaceDirection interface_direction = InterfaceDirection::middle,
+      const unsigned int       op_offset           = 2)
       : interface_width(interface_width)
+      , interface_direction(interface_direction)
+      , ref_h(interface_direction == InterfaceDirection::middle ?
+                interface_width / 2. :
+                interface_width)
+      , ref_k(interface_direction == InterfaceDirection::middle ? 0.5 : 1.0)
+      , ref_b(interface_direction == InterfaceDirection::middle ? 0.5 : 0.0)
       , op_offset(op_offset)
     {}
 
-  public:
+  protected:
     double
     do_value(const Point<2> &p, const unsigned int component) const final
     {
@@ -264,23 +273,40 @@ namespace Sintering
           for (const auto cadidate_id : candidates)
             if (grains[cadidate_id].point_inside(p))
               {
-                p_val = 1.;
+                // If we are inside, then for sure no need to check other
+                // candidates and we can set up p_val directly here and break
+                if (interface_direction == InterfaceDirection::outside ||
+                    interface_width == 0)
+                  {
+                    p_val = 1.;
+                  }
+                else
+                  {
+                    const auto dist =
+                      grains[cadidate_id].distance_to_nearest_edge(p);
+
+                    p_val =
+                      (dist < ref_h) ? (ref_b + ref_k * dist / ref_h) : 1.;
+                  }
                 break;
               }
-            else if (interface_width > 0)
+            else if (interface_width > 0 &&
+                     interface_direction != InterfaceDirection::inside)
               {
-                p_val = std::max(p_val, grains[cadidate_id].point_value(p));
-              }
-            else
-              {
-                p_val = 0.;
-                break;
+                const auto dist =
+                  grains[cadidate_id].distance_to_nearest_edge(p);
+
+                const auto c_val =
+                  (dist < ref_h) ? (ref_b - ref_k * dist / ref_h) : 0.;
+
+                p_val = std::max(p_val, c_val);
               }
         }
 
       return p_val;
     }
 
+  public:
     std::pair<Point<2>, Point<2>>
     get_domain_boundaries() const final
     {
@@ -334,6 +360,14 @@ namespace Sintering
   protected:
     // Interface thickness
     const double interface_width;
+
+    // Interface offset direction
+    InterfaceDirection interface_direction;
+
+    // Reference values for the linear approximation
+    const double ref_h;
+    const double ref_k;
+    const double ref_b;
 
     // Offset for the order params offset
     const unsigned int op_offset;

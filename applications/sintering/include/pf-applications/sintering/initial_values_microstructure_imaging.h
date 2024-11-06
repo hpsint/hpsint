@@ -42,10 +42,14 @@ namespace Sintering
   class InitialValuesMicrostructureImaging : public InitialValuesMicrostructure
   {
   public:
-    InitialValuesMicrostructureImaging(std::istream &     stream,
-                                       const double       interface_width = 0.,
-                                       const unsigned int op_offset       = 2)
-      : InitialValuesMicrostructure(interface_width, op_offset)
+    InitialValuesMicrostructureImaging(
+      std::istream &           stream,
+      const double             interface_width     = 0.,
+      const InterfaceDirection interface_direction = InterfaceDirection::middle,
+      const unsigned int       op_offset           = 2)
+      : InitialValuesMicrostructure(interface_width,
+                                    interface_direction,
+                                    op_offset)
     {
       unsigned int row_counter = 0;
       unsigned int n_grains    = 0;
@@ -80,7 +84,8 @@ namespace Sintering
 
               MicroSegment segment(std::make_move_iterator(vertices.begin()),
                                    std::make_move_iterator(vertices.end()),
-                                   interface_width);
+                                   interface_width,
+                                   interface_direction);
 
               grains[row_counter - 2].add_segment(std::move(segment));
             }
