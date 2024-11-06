@@ -69,7 +69,7 @@ namespace Sintering
               for (unsigned int i = 0; i < loop->size(); ++i)
                 {
                   const auto color = std::stoi(std::string((*loop)[i]));
-                  grains.emplace_back(interface_width, color);
+                  grains.emplace_back(color);
                   order_parameter_to_grains[color].push_back(i);
                 }
             }
