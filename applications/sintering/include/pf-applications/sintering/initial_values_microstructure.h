@@ -40,17 +40,31 @@ namespace Sintering
    */
   class InitialValuesMicrostructure : public InitialValues<2>
   {
-    struct MicroGrain
+  protected:
+    class MicroSegment
     {
-      std::vector<Point<2>> vertices;
-      unsigned int          color;
-      BoundingBox<2>        box;
-      double                interface_width;
+    public:
+      template <typename Iterator>
+      MicroSegment(Iterator           begin,
+                   Iterator           end,
+                   const double       interface_width,
+                   InterfaceDirection interface_direction)
+      {
+        std::copy(begin, end, std::back_inserter(vertices));
+
+        vertices.push_back(vertices[0]);
+        box = BoundingBox<2>(vertices);
+
+        if (interface_direction == InterfaceDirection::outside)
+          box.extend(interface_width);
+        else if (interface_direction == InterfaceDirection::middle)
+          box.extend(interface_width / 2.);
+      }
 
       // This function is base on this algo:
       // https://wrfranklin.org/Research/Short_Notes/pnpoly.html
       bool
-      point_inside(const dealii::Point<2> &p) const
+      point_inside(const Point<2> &p) const
       {
         bool is_inside = false;
 
@@ -68,11 +82,17 @@ namespace Sintering
         return is_inside;
       }
 
-      // This function computes value for a point that is located at the
-      // polygon diffuse interface, the algo is based on this discussion:
+      bool
+      point_inside_box(const Point<2> &p) const
+      {
+        return box.point_inside(p);
+      }
+
+      // This function computes the distance from the segment to a point,
+      // the algo is based on this discussion:
       // https://stackoverflow.com/questions/10983872/distance-from-a-point-to-a-polygon
       double
-      point_value(const dealii::Point<2> &p) const
+      distance(const Point<2> &p) const
       {
         double dist_min = std::numeric_limits<double>::max();
 
@@ -100,68 +120,148 @@ namespace Sintering
             dist_min = std::min(dist, dist_min);
           }
 
-        if (dist_min < interface_width)
-          return -1. / interface_width * dist_min + 1.;
-        else
-          return 0;
+        return dist_min;
       }
+
+      const BoundingBox<2> &
+      bounding_box() const
+      {
+        return box;
+      }
+
+    private:
+      std::vector<Point<2>> vertices;
+      BoundingBox<2>        box;
     };
 
-  public:
-    InitialValuesMicrostructure(std::istream &stream,
-                                const double  interface_width = 0.)
-      : interface_width(interface_width)
+    class MicroGrain
     {
-      unsigned int row_counter = 0;
+    public:
+      MicroGrain(
+        const unsigned int color = std::numeric_limits<unsigned int>::max())
+        : color(color)
+      {}
 
-      for (internal::CSVIterator loop(stream); loop != internal::CSVIterator();
-           ++loop, ++row_counter)
-        {
-          if (row_counter == 0)
-            {
-              const auto n_grains = std::stoi(std::string((*loop)[0]));
-              grains.resize(n_grains);
-            }
-          else if (row_counter == 1)
-            {
-              AssertDimension(grains.size(), loop->size());
+      template <typename S>
+      void
+      add_segment(S &&segment)
+      {
+        segments.emplace_back(std::forward<S>(segment));
+      }
 
-              for (unsigned int i = 0; i < loop->size(); ++i)
-                {
-                  grains[i].color = std::stoi(std::string((*loop)[i]));
-                  order_parameter_to_grains[grains[i].color].push_back(i);
-                }
-            }
-          else
-            {
-              auto &grain = grains[row_counter - 2];
+      bool
+      point_inside(const Point<2> &p) const
+      {
+        return std::find_if(segments.cbegin(),
+                            segments.cend(),
+                            [&p](const auto &segment) {
+                              return segment.point_inside_box(p) &&
+                                     segment.point_inside(p);
+                            }) != segments.cend();
+      }
 
-              grain.interface_width = interface_width;
+      bool
+      point_inside_box(const Point<2> &p) const
+      {
+        return std::find_if(segments.cbegin(),
+                            segments.cend(),
+                            [&p](const auto &segment) {
+                              return segment.point_inside_box(p);
+                            }) != segments.cend();
+      }
 
-              for (unsigned int i = 0; i < loop->size(); i += 2)
-                {
-                  grain.vertices.emplace_back(
-                    std::stod(std::string((*loop)[i])),
-                    std::stod(std::string((*loop)[i + 1])));
-                }
+      double
+      distance_to_nearest_edge(const Point<2> &p) const
+      {
+        std::vector<double> distances(segments.size());
 
-              grain.vertices.push_back(grain.vertices[0]);
+        std::transform(segments.begin(),
+                       segments.end(),
+                       distances.begin(),
+                       [&p](const auto &segment) {
+                         return segment.distance(p);
+                       });
 
-              grain.box = BoundingBox<2>(grain.vertices);
-              grain.box.extend(interface_width);
-            }
-        }
-    }
+        const auto dist_min =
+          *std::min_element(distances.begin(), distances.end());
 
+        return dist_min;
+      }
+
+      BoundingBox<2>
+      bounding_box() const
+      {
+        auto it = segments.cbegin();
+
+        BoundingBox<2> bb(it->bounding_box());
+        ++it;
+
+        std::for_each(it, segments.cend(), [&bb](auto &segment) {
+          bb.merge_with(segment.bounding_box());
+        });
+
+        return bb;
+      }
+
+      double
+      max_diameter() const
+      {
+        double dia_max = -std::numeric_limits<double>::max();
+
+        std::for_each(
+          segments.cbegin(), segments.cend(), [&dia_max](auto &segment) {
+            dia_max = std::max(
+              {dia_max,
+               std::sqrt(std::pow(segment.bounding_box().side_length(0), 2) +
+                         std::pow(segment.bounding_box().side_length(1), 2))});
+          });
+
+        return dia_max;
+      }
+
+      void
+      set_color(unsigned int new_color)
+      {
+        color = new_color;
+      }
+
+      unsigned int
+      get_color() const
+      {
+        return color;
+      }
+
+    private:
+      unsigned int              color;
+      std::vector<MicroSegment> segments;
+    };
+
+    InitialValuesMicrostructure(
+      const double             interface_width     = 0.,
+      const InterfaceDirection interface_direction = InterfaceDirection::middle,
+      const unsigned int       op_offset           = 2)
+      : interface_width(interface_width)
+      , interface_direction(interface_direction)
+      , ref_h(interface_direction == InterfaceDirection::middle ?
+                interface_width / 2. :
+                interface_width)
+      , ref_k(interface_direction == InterfaceDirection::middle ? 0.5 : 1.0)
+      , ref_b(
+          interface_direction == InterfaceDirection::middle ?
+            0.5 :
+            (interface_direction == InterfaceDirection::outside ? 1.0 : 0.0))
+      , op_offset(op_offset)
+    {}
+
+  protected:
     double
-    do_value(const dealii::Point<2> &p,
-             const unsigned int      component) const final
+    do_value(const Point<2> &p, const unsigned int component) const final
     {
       double p_val = 0.;
 
-      if (component > 1)
+      if (component >= op_offset)
         {
-          const unsigned int order_parameter = component - 2;
+          const unsigned int order_parameter = component - op_offset;
 
           std::vector<unsigned int> candidates;
 
@@ -169,30 +269,47 @@ namespace Sintering
             {
               const auto &grain = grains.at(gid);
 
-              if (grain.box.point_inside(p))
+              if (grain.point_inside_box(p))
                 candidates.push_back(gid);
             }
 
           for (const auto cadidate_id : candidates)
             if (grains[cadidate_id].point_inside(p))
               {
-                p_val = 1.;
+                // If we are inside, then for sure no need to check other
+                // candidates and we can set up p_val directly here and break
+                if (interface_direction == InterfaceDirection::outside ||
+                    interface_width == 0)
+                  {
+                    p_val = 1.;
+                  }
+                else
+                  {
+                    const auto dist =
+                      grains[cadidate_id].distance_to_nearest_edge(p);
+
+                    p_val =
+                      (dist < ref_h) ? (ref_b + ref_k * dist / ref_h) : 1.;
+                  }
                 break;
               }
-            else if (interface_width > 0)
+            else if (interface_width > 0 &&
+                     interface_direction != InterfaceDirection::inside)
               {
-                p_val = std::max(p_val, grains[cadidate_id].point_value(p));
-              }
-            else
-              {
-                p_val = 0.;
-                break;
+                const auto dist =
+                  grains[cadidate_id].distance_to_nearest_edge(p);
+
+                const auto c_val =
+                  (dist < ref_h) ? (ref_b - ref_k * dist / ref_h) : 0.;
+
+                p_val = std::max(p_val, c_val);
               }
         }
 
       return p_val;
     }
 
+  public:
     std::pair<Point<2>, Point<2>>
     get_domain_boundaries() const final
     {
@@ -203,7 +320,7 @@ namespace Sintering
 
       for (const auto &grain : grains)
         {
-          const auto &bp = grain.box.get_boundary_points();
+          const auto &bp = grain.bounding_box().get_boundary_points();
 
           x_min = std::min(x_min, bp.first[0]);
           y_min = std::min(y_min, bp.first[1]);
@@ -220,10 +337,7 @@ namespace Sintering
       double r_max = -std::numeric_limits<double>::max();
 
       for (const auto &grain : grains)
-        r_max =
-          std::max({r_max,
-                    0.5 * std::sqrt(std::pow(grain.box.side_length(0), 2) +
-                                    std::pow(grain.box.side_length(1), 2))});
+        r_max = std::max({r_max, 0.5 * grain.max_diameter()});
 
       return r_max;
     }
@@ -246,9 +360,20 @@ namespace Sintering
       return grains.size();
     }
 
-  private:
+  protected:
     // Interface thickness
     const double interface_width;
+
+    // Interface offset direction
+    InterfaceDirection interface_direction;
+
+    // Reference values for the linear approximation
+    const double ref_h;
+    const double ref_k;
+    const double ref_b;
+
+    // Offset for the order params offset
+    const unsigned int op_offset;
 
     // Grains
     std::vector<MicroGrain> grains;

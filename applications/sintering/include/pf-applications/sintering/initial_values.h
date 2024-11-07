@@ -33,6 +33,13 @@ namespace Sintering
                  << " initial values class provides this feature."
                  << std::endl);
 
+  enum class InterfaceDirection
+  {
+    inside,
+    outside,
+    middle
+  };
+
   template <int dim>
   class InitialValues : public Function<dim>
   {
