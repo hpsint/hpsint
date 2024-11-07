@@ -45,48 +45,9 @@ main(int argc, char **argv)
   constexpr InterfaceDirection interface_direction =
     InterfaceDirection::outside;
 
-  InitialValuesMicrostructure initial_values(fstream, interface_width);
-
-  // Now build the mesh
-  const unsigned int dim = 2;
-
-  const unsigned int fe_degree      = 1;
-  const unsigned int n_points_1D    = 2;
-  const unsigned int n_subdivisions = 1;
-
-  FE_Q<dim>      fe{fe_degree};
-  MappingQ1<dim> mapping;
-  Quadrature<1>  quad(QIterated<1>(QGauss<1>(n_points_1D), n_subdivisions));
-
-  parallel::distributed::Triangulation<dim> tria(comm);
-
-  const auto boundaries = initial_values.get_domain_boundaries();
-
-  pcout << "n_grains    = " << initial_values.n_particles() << std::endl;
-  pcout << "n_ops       = " << initial_values.n_order_parameters() << std::endl;
-  pcout << "bottom_left = " << boundaries.first << std::endl;
-  pcout << "top_right   = " << boundaries.second << std::endl;
-
-  GridGenerator::subdivided_hyper_rectangle(tria,
-                                            {5, 1},
-                                            boundaries.first,
-                                            boundaries.second);
-
-  const unsigned int n_refines_global = 4;
-  const unsigned int n_refines_local  = 3;
-
-  const double       top_fraction_of_cells    = 0.9;
-  const double       bottom_fraction_of_cells = 0.1;
-  const unsigned int max_refinement_depth     = 1;
-  const unsigned int min_refinement_depth     = 3;
-  const double       interface_val_min        = 0.05;
-  const double       interface_val_max        = 0.95;
-  const unsigned int op_offset                = 2;
-
-  tria.refine_global(n_refines_global);
-
-  const unsigned int n_global_levels_0 =
-    tria.n_global_levels() + n_refines_local;
+  InitialValuesMicrostructureImaging initial_values(fstream,
+                                                    interface_width,
+                                                    interface_direction);
 
   // Settings
   const std::vector<unsigned int> subdivisions{5, 1};
