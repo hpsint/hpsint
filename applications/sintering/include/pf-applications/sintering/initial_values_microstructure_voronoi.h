@@ -108,9 +108,8 @@ namespace Sintering
           auto it_grain = initial_grains.find(id_grain);
           if (it_grain == initial_grains.end())
             {
-              const auto [it, res] =
-                initial_grains.try_emplace(id_grain);
-              it_grain = it;
+              const auto [it, res] = initial_grains.try_emplace(id_grain);
+              it_grain             = it;
             }
 
           it_grain->second.add_segment(std::move(segment));
