@@ -205,14 +205,14 @@ with open(ofname, 'w') as f:
         data = [d.replace(" \n", "").replace("\n", "") for d in data]
 
         dim         = int(data[0])
-        n_grains    = int(data[1])
+        n_segments  = int(data[1])
         n_op        = int(data[2])
         grain_ids   = [int(i) for i in data[3].split()]
         grain_to_op = [int(i) for i in data[4].split()]
         point0      = [float(i) for i in data[5].split()]
         point1      = [float(i) for i in data[6].split()]
 
-        print("n_grains = {}".format(n_grains))
+        print("n_segments = {}".format(n_segments))
         print("n_op = {}".format(n_op))
 
         grain_types = {
@@ -253,7 +253,7 @@ with open(ofname, 'w') as f:
             i += grain_type_data['n_data'] + 1
 
         # Read points data and repack them
-        points = [[] for i in range(n_grains)]
+        points = [[] for i in range(n_segments)]
         for g in range(8, len(data), 2):
             grain_num = int(data[g])
             points[grain_num] += [float(i) for i in data[g + 1].split()]
@@ -261,7 +261,7 @@ with open(ofname, 'w') as f:
         points = [np.array([[p[g*dim + d] for d in range(0, dim)] for g in range(0, int(len(p)/dim))]) for p in points]
 
         # Determine min_radius for the wavefront representations
-        for g in range(0, n_grains):
+        for g in range(0, n_segments):
             if grains[g]['type'] == 'wavefront':
                 sizes = [np.amax(points[g][:,d]) - np.amin(points[g][:,d]) for d in range(dim)]
                 min_radius = min(min_radius, np.amin(sizes) / 2.)
@@ -308,20 +308,20 @@ with open(ofname, 'w') as f:
         tasks_completed = manager.Queue()
         processes = []
 
-        grain_contours = [[] for _ in range(n_grains)]
+        grain_contours = [[] for _ in range(n_segments)]
         if args.show_topology:
 
-            for g in range(0, n_grains):
+            for g in range(0, n_segments):
                 if len(points[g]) > 0 and (args.order_params is None or grain_to_op[g] in args.order_params):
                     tasks_to_execute.put(g)
 
-            n_grains_to_process = tasks_to_execute.qsize()
-            print("n_grains to process = {}".format(n_grains_to_process))
+            n_segments_to_process = tasks_to_execute.qsize()
+            print("n_segments to process = {}".format(n_segments_to_process))
 
             # Creating processes and creating contours
-            library.progress_bar(0, n_grains_to_process, max(n_grains_to_process, max_progress_bar_length))
+            library.progress_bar(0, n_segments_to_process, max(n_segments_to_process, max_progress_bar_length))
             for w in range(number_of_processes):
-                p = multiprocessing.Process(target=do_job, args=(tasks_to_execute, tasks_completed, n_grains_to_process))
+                p = multiprocessing.Process(target=do_job, args=(tasks_to_execute, tasks_completed, n_segments_to_process))
                 processes.append(p)
                 p.start()
 
@@ -334,7 +334,7 @@ with open(ofname, 'w') as f:
                 res = tasks_completed.get()
                 grain_contours[res[0]] = res[1]
 
-        for g in range(0, n_grains):
+        for g in range(0, n_segments):
             if len(grain_contours[g]) > 0:
 
                 color = "clr{}{}".format(grain_to_op[g], args.color_suffix)
