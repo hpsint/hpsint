@@ -15,7 +15,7 @@
 
 #pragma once
 
-#include <deal.II/base/mpi_compute_index_owner_internal.h>
+#include <deal.II/base/mpi_consensus_algorithms.h>
 
 #include <deal.II/lac/precondition.h>
 #include <deal.II/lac/trilinos_precondition.h>
@@ -370,23 +370,14 @@ namespace Preconditioners
 
       const auto comm = dof_handler.get_communicator();
 
-      std::vector<unsigned int> dummy(locally_active_dofs.n_elements());
-
-      Utilities::MPI::internal::ComputeIndexOwner::ConsensusAlgorithmsPayload
-        process(locally_owned_dofs, locally_active_dofs, comm, dummy, true);
-
-      Utilities::MPI::ConsensusAlgorithms::Selector<
-        std::vector<
-          std::pair<types::global_dof_index, types::global_dof_index>>,
-        std::vector<unsigned int>>
-        consensus_algorithm;
-      consensus_algorithm.run(process, comm);
+      const auto [dummy, requesters] =
+        Utilities::MPI::compute_index_owner_and_requesters(locally_owned_dofs,
+                                                           locally_active_dofs,
+                                                           comm);
 
       using T1 = std::vector<
         std::pair<types::global_dof_index,
                   std::vector<std::pair<types::global_dof_index, Number>>>>;
-
-      auto requesters = process.get_requesters();
 
       std::vector<std::vector<std::pair<types::global_dof_index, Number>>>
         locally_relevant_matrix_entries(locally_active_dofs.n_elements());
@@ -402,7 +393,7 @@ namespace Preconditioners
         [&](const unsigned int other_rank) {
           T1 send_buffer;
 
-          for (auto index : requesters[other_rank])
+          for (auto index : requesters.at(other_rank))
             {
               std::vector<std::pair<types::global_dof_index, Number>> t;
 
