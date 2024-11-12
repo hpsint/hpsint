@@ -308,7 +308,7 @@ namespace Sintering
       template <int dim, typename Number>
       void
       write_grain_contours_tex(
-        const unsigned int                                        n_grains,
+        const unsigned int                                        n_segments,
         const unsigned int                                        n_op,
         const std::vector<std::pair<unsigned int, unsigned int>> &grains_data,
         const BoundingBox<dim> &                                  bb,
@@ -319,7 +319,7 @@ namespace Sintering
       {
         /* File format (data and length):
         problem dimensionality         - dim
-        number of grains               - N
+        number of segments             - N
         number of order_parameters     - M
         grain indices                  - array[N]
         grain order parameters         - array[N]
@@ -358,7 +358,7 @@ namespace Sintering
             std::stringstream ss;
 
             ss << dim << std::endl;
-            ss << n_grains << std::endl;
+            ss << n_segments << std::endl;
             ss << n_op << std::endl;
 
             for (const auto &entry : grains_data)
@@ -398,7 +398,7 @@ namespace Sintering
 
         // Write points per rank to independent streams
         std::stringstream ss;
-        for (unsigned int i = 0; i < n_grains; ++i)
+        for (unsigned int i = 0; i < n_segments; ++i)
           if (!points_local[i].empty())
             {
               ss << i << std::endl;
@@ -556,29 +556,31 @@ namespace Sintering
 
       const auto &grains = grain_tracker.get_grains();
 
-      const auto n_grains = grains.size();
-
       const auto bb = GridTools::compute_bounding_box(
         background_dof_handler.get_triangulation());
 
       std::vector<Number> parameters;
 
-      // Get grain properties from the grain tracker, assume 1 segment per grain
-      unsigned int                         g_counter = 0;
-      std::map<unsigned int, unsigned int> grain_id_to_index;
+      // Get grain properties from the grain tracker
+      unsigned int g_counter = 0;
+      std::map<std::pair<unsigned int, unsigned int>, unsigned int>
+                                                         grain_id_to_index;
+      std::vector<std::pair<unsigned int, unsigned int>> grains_data;
       for (const auto &[g, grain] : grains)
-        {
-          Assert(grain.get_segments().size() == 1, ExcNotImplemented());
+        for (unsigned int segment_id = 0;
+             segment_id < grain.get_segments().size();
+             ++segment_id)
+          {
+            grain.get_segments()[segment_id].save(parameters);
 
-          const auto &segment = grain.get_segments()[0];
+            grain_id_to_index.emplace(std::make_pair(g, segment_id), g_counter);
+            ++g_counter;
 
-          segment.save(parameters);
+            grains_data.emplace_back(grain.get_grain_id(),
+                                     grain.get_order_parameter_id());
+          }
 
-          grain_id_to_index.emplace(g, g_counter);
-          ++g_counter;
-        }
-
-      std::vector<std::vector<Point<dim>>> points_local(n_grains);
+      std::vector<std::vector<Point<dim>>> points_local(g_counter);
 
       const GridTools::MarchingCubeAlgorithm<dim,
                                              typename VectorType::BlockType>
@@ -596,29 +598,25 @@ namespace Sintering
                 if (particle_id == numbers::invalid_unsigned_int)
                   continue;
 
-                const auto grain_id =
-                  grain_tracker.get_grain_and_segment(b, particle_id).first;
+                const auto grain_and_segment_ids =
+                  grain_tracker.get_grain_and_segment(b, particle_id);
 
-                if (grain_id == numbers::invalid_unsigned_int)
+                if (grain_and_segment_ids.first ==
+                    numbers::invalid_unsigned_int)
                   continue;
 
-                mc.process_cell(cell,
-                                vector.block(b + 2),
-                                iso_level,
-                                points_local[grain_id_to_index.at(grain_id)]);
+                mc.process_cell(
+                  cell,
+                  vector.block(b + 2),
+                  iso_level,
+                  points_local[grain_id_to_index.at(grain_and_segment_ids)]);
               }
         }
 
       if (has_ghost_elements == false)
         vector.zero_out_ghost_values();
 
-      std::vector<std::pair<unsigned int, unsigned int>> grains_data;
-
-      for (const auto &entry : grains)
-        grains_data.emplace_back(entry.second.get_grain_id(),
-                                 entry.second.get_order_parameter_id());
-
-      internal::write_grain_contours_tex(n_grains,
+      internal::write_grain_contours_tex(g_counter,
                                          n_op,
                                          grains_data,
                                          bb,

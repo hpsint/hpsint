@@ -220,6 +220,10 @@ namespace Sintering
       return projection;
     }
 
+    /* Output projection of a grain to a text file. Only spherical grain
+     * representation is supported here, since we need to search for an
+     * intersection between a plane and a 3-dimenshional shape, which is
+     * currently implemented for spheres only.  */
     template <int dim, typename VectorType, typename Number>
     void
     output_grain_contours_projected(
@@ -241,42 +245,48 @@ namespace Sintering
 
       const auto &grains = grain_tracker.get_grains();
 
-      const auto n_grains = grains.size();
-
       const auto bb = GridTools::compute_bounding_box(
         background_dof_handler.get_triangulation());
 
-      // Here effectively
-      std::vector<Number> parameters((dim + 1) * n_grains, 0);
+      std::vector<Number> parameters;
 
-      // Get grain properties from the grain tracker, assume 1 segment per grain
-      unsigned int                         g_counter = 0;
-      std::map<unsigned int, unsigned int> grain_id_to_index;
+      // Get grain properties from the grain tracker
+      unsigned int g_counter = 0;
+      std::map<std::pair<unsigned int, unsigned int>, unsigned int>
+                                                         grain_id_to_index;
+      std::vector<std::pair<unsigned int, unsigned int>> grains_data;
       for (const auto &[g, grain] : grains)
-        {
-          Assert(grain.get_segments().size() == 1, ExcNotImplemented());
+        for (unsigned int segment_id = 0;
+             segment_id < grain.get_segments().size();
+             ++segment_id)
+          {
+            const auto &segment = grain.get_segments()[segment_id];
 
-          const auto &segment = grain.get_segments()[0];
+            const auto dist =
+              (segment.get_center() - plane_origin) * plane_normal;
+            const auto circle_center =
+              segment.get_center() + dist * plane_normal;
 
-          const auto dist =
-            (segment.get_center() - plane_origin) * plane_normal;
-          const auto circle_center = segment.get_center() + dist * plane_normal;
+            std::copy(circle_center.begin_raw(),
+                      circle_center.end_raw(),
+                      std::back_inserter(parameters));
 
-          for (unsigned int d = 0; d < dim; ++d)
-            parameters[g_counter * (dim + 1) + d] = circle_center[d];
+            const auto circle_radius =
+              (dist <= segment.get_radius()) ?
+                std::sqrt(std::pow(segment.get_radius(), 2) -
+                          std::pow(dist, 2)) :
+                0;
 
-          const auto circle_radius =
-            (dist <= segment.get_radius()) ?
-              std::sqrt(std::pow(segment.get_radius(), 2) - std::pow(dist, 2)) :
-              0;
+            parameters.push_back(circle_radius);
 
-          parameters[g_counter * (dim + 1) + dim] = circle_radius;
+            grain_id_to_index.emplace(std::make_pair(g, segment_id), g_counter);
+            ++g_counter;
 
-          grain_id_to_index.emplace(g, g_counter);
-          ++g_counter;
-        }
+            grains_data.emplace_back(grain.get_grain_id(),
+                                     grain.get_order_parameter_id());
+          }
 
-      std::vector<std::vector<Point<dim>>> points_local(n_grains);
+      std::vector<std::vector<Point<dim>>> points_local(g_counter);
 
       const GridTools::MarchingCubeAlgorithm<dim,
                                              typename VectorType::BlockType>
@@ -294,26 +304,22 @@ namespace Sintering
                 if (particle_id == numbers::invalid_unsigned_int)
                   continue;
 
-                const auto grain_id =
-                  grain_tracker.get_grain_and_segment(b, particle_id).first;
+                const auto grain_and_segment_ids =
+                  grain_tracker.get_grain_and_segment(b, particle_id);
 
-                if (grain_id == numbers::invalid_unsigned_int)
+                if (grain_and_segment_ids.first ==
+                    numbers::invalid_unsigned_int)
                   continue;
 
-                mc.process_cell(cell,
-                                vector.block(b + 2),
-                                iso_level,
-                                points_local[grain_id_to_index.at(grain_id)]);
+                mc.process_cell(
+                  cell,
+                  vector.block(b + 2),
+                  iso_level,
+                  points_local[grain_id_to_index.at(grain_and_segment_ids)]);
               }
         }
 
-      std::vector<std::pair<unsigned int, unsigned int>> grains_data;
-
-      for (const auto &entry : grains)
-        grains_data.emplace_back(entry.second.get_grain_id(),
-                                 entry.second.get_order_parameter_id());
-
-      internal::write_grain_contours_tex(n_grains,
+      internal::write_grain_contours_tex(g_counter,
                                          n_op,
                                          grains_data,
                                          bb,
