@@ -15,7 +15,7 @@
 
 #pragma once
 
-#include <deal.II/base/mpi_consensus_algorithm.h>
+#include <deal.II/base/mpi_consensus_algorithms.h>
 
 #include <deal.II/lac/precondition.h>
 #include <deal.II/lac/trilinos_precondition.h>
