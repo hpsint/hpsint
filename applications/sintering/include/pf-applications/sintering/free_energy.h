@@ -16,106 +16,13 @@
 #pragma once
 
 #include <deal.II/base/utilities.h>
+
+#include <pf-applications/numerics/power_helper.h>
+
 namespace Sintering
 {
   using namespace dealii;
-
-  template <unsigned int n, std::size_t p>
-  class PowerHelper
-  {
-  public:
-    template <typename T>
-    DEAL_II_ALWAYS_INLINE static T
-    power_sum(const T *etas)
-    {
-      T initial = 0.0;
-
-      for (unsigned int i = 0; i < n; ++i)
-        initial += Utilities::fixed_power<p>(etas[i]);
-
-      return initial;
-    }
-
-    template <typename T>
-    DEAL_II_ALWAYS_INLINE static T
-    power_sum(const std::array<T, n> &etas)
-    {
-      T initial = 0.0;
-
-      return std::accumulate(
-        etas.begin(), etas.end(), initial, [](auto a, auto b) {
-          return std::move(a) + Utilities::fixed_power<p>(b);
-        });
-    }
-
-    template <typename T>
-    DEAL_II_ALWAYS_INLINE static T
-    power_sum(const std::vector<T> &etas)
-    {
-      T initial = 0.0;
-
-      return std::accumulate(
-        etas.begin(), etas.end(), initial, [](auto a, auto b) {
-          return std::move(a) + Utilities::fixed_power<p>(b);
-        });
-    }
-  };
-
-  template <>
-  class PowerHelper<2, 2>
-  {
-  public:
-    template <typename T>
-    DEAL_II_ALWAYS_INLINE static T
-    power_sum(const T *etas)
-    {
-      return etas[0] * etas[0] + etas[1] * etas[1];
-    }
-
-    template <typename T>
-    DEAL_II_ALWAYS_INLINE static T
-    power_sum(const std::array<T, 2> &etas)
-    {
-      return etas[0] * etas[0] + etas[1] * etas[1];
-    }
-  };
-
-  template <>
-  class PowerHelper<2, 3>
-  {
-  public:
-    template <typename T>
-    DEAL_II_ALWAYS_INLINE static T
-    power_sum(const T *etas)
-    {
-      return etas[0] * etas[0] * etas[0] + etas[1] * etas[1] * etas[1];
-    }
-
-    template <typename T>
-    DEAL_II_ALWAYS_INLINE static T
-    power_sum(const std::array<T, 2> &etas)
-    {
-      return etas[0] * etas[0] * etas[0] + etas[1] * etas[1] * etas[1];
-    }
-  };
-
-  template <class T>
-  class SizeHelper;
-
-  template <class T, std::size_t n>
-  class SizeHelper<std::array<T, n>>
-  {
-  public:
-    static const std::size_t size = n;
-  };
-
-  template <class T>
-  class SizeHelper<std::vector<T>>
-  {
-  public:
-    static const std::size_t size = 0;
-  };
-
+  using namespace hpsint;
 
   template <typename VectorizedArrayType>
   class FreeEnergy
