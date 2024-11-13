@@ -57,7 +57,7 @@ main()
   std::cout << "p=4: " << PowerHelper<n_grains, 4>::power_sum(ten) << std::endl;
 
   // Test raw pointers
-  const auto ptr  = arr.data();
+  const auto ptr = arr.data();
   std::cout << "pointer data = ";
   dump(ptr, ptr + n_grains);
   std::cout << "p=1: " << PowerHelper<n_grains, 1>::power_sum(ptr) << std::endl;
