@@ -1,0 +1,31 @@
+Generalized versions:
+std::array = 3 4 2 -5
+p=1: 4
+p=2: 54
+p=3: -26
+p=4: 978
+Tensor = 3 4 2 -5
+p=1: 4
+p=2: 54
+p=3: -26
+p=4: 978
+pointer data = 3 4 2 -5
+p=1: 4
+p=2: 54
+p=3: -26
+p=4: 978
+std::vector = 3 4 2 -5
+p=1: 4
+p=2: 54
+p=3: -26
+p=4: 978
+Optimized versions:
+std::array = 3 4
+p=2: 25
+p=3: 91
+Tensor = 3 4
+p=2: 25
+p=3: 91
+pointer data = 3 4
+p=2: 25
+p=3: 91
