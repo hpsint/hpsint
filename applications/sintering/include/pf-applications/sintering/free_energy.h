@@ -54,6 +54,24 @@ namespace Sintering
           etaPower3Sum = PowerHelper<n_grains, 3>::power_sum(etas);
       }
 
+      template <typename VectorType, int n_grains>
+      Evaluation(const double               A,
+                 const double               B,
+                 const VectorType & state,
+                 std::integral_constant<int, n_grains>)
+        : A(A)
+        , B(B)
+        , c(state[0])
+      {
+        std::array<VectorizedArrayType, n_grains> etas;
+        for (unsigned int ig = 0; ig < n_grains; ++ig)
+          etas[ig] = state[2 + ig];
+
+        etaPower2Sum = PowerHelper<n_grains, 2>::power_sum(etas);
+        if constexpr (with_power_3)
+          etaPower3Sum = PowerHelper<n_grains, 3>::power_sum(etas);
+      }
+
       template <typename VectorType>
       Evaluation(const double       A,
                  const double       B,
@@ -63,7 +81,7 @@ namespace Sintering
         , B(B)
         , c(state[0])
       {
-        std::vector<VectorizedArrayType> etas(this->n_grains());
+        std::vector<VectorizedArrayType> etas(n_grains);
         for (unsigned int ig = 0; ig < n_grains; ++ig)
           etas[ig] = state[2 + ig];
 
@@ -73,17 +91,17 @@ namespace Sintering
       }
 
       template <typename VectorType,
-                int n_grains = SizeHelper<VectorType>::size>
+                int n_components = SizeHelper<VectorType>::size>
       Evaluation(const double A, const double B, const VectorType &state)
         : A(A)
         , B(B)
         , c(state[0])
       {
+        constexpr int n_grains = n_components - 2;
+
         std::array<VectorizedArrayType, n_grains> etas;
         for (unsigned int ig = 0; ig < n_grains; ++ig)
           etas[ig] = state[2 + ig];
-
-        const std::size_t n = SizeHelper<VectorType>::size;
 
         etaPower2Sum = PowerHelper<n_grains, 2>::power_sum(etas);
         if constexpr (with_power_3)
@@ -165,10 +183,8 @@ namespace Sintering
     EvaluationConcrete<Mask>
     eval(const VectorizedArrayType *state) const
     {
-      return EvaluationConcrete<Mask>(A,
-                                      B,
-                                      state,
-                                      std::integral_constant<int, n_grains>());
+      return EvaluationConcrete<Mask>(
+        A, B, state, std::integral_constant<int, n_grains>());
     }
 
     template <typename Mask, typename VectorType>
@@ -178,9 +194,15 @@ namespace Sintering
       return EvaluationConcrete<Mask>(A, B, state, n_grains);
     }
 
-    template <typename Mask,
-              typename VectorType,
-              int n_grains = SizeHelper<VectorType>::size>
+    template <typename Mask, int n_grains, typename VectorType>
+    EvaluationConcrete<Mask>
+    eval(const VectorType &state) const
+    {
+      return EvaluationConcrete<Mask>(
+        A, B, state, std::integral_constant<int, n_grains>());
+    }
+
+    template <typename Mask, typename VectorType>
     EvaluationConcrete<Mask>
     eval(const VectorType &state) const
     {
