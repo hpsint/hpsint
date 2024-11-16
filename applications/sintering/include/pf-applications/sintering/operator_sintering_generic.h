@@ -114,8 +114,8 @@ namespace Sintering
 
       const VectorizedArrayType *lin_etas_value = &lin_value[0] + 2;
 
-      const auto lin_etas_value_power_2_sum =
-        PowerHelper<n_grains, 2>::power_sum(lin_etas_value);
+      const auto free_energy_eval =
+        free_energy.template eval<EnergyZero, n_grains>(lin_value);
 
 
 
@@ -138,13 +138,11 @@ namespace Sintering
 
 
       // 2) process mu row
-      value_result[1] =
-        -value[1] + free_energy.d2f_dc2(lin_c_value, lin_etas_value) * value[0];
+      value_result[1] = -value[1] + free_energy_eval.d2f_dc2() * value[0];
 
       for (unsigned int ig = 0; ig < n_grains; ++ig)
         value_result[1] +=
-          free_energy.d2f_dcdetai(lin_c_value, lin_etas_value, ig) *
-          value[ig + 2];
+          free_energy_eval.d2f_dcdetai(lin_etas_value[ig]) * value[ig + 2];
 
       gradient_result[1] = kappa_c * gradient[0];
 
@@ -155,13 +153,9 @@ namespace Sintering
         {
           value_result[ig + 2] +=
             value[ig + 2] * weight +
-            L * (free_energy.d2f_dcdetai(lin_c_value, lin_etas_value, ig) *
-                   value[0] +
-                 free_energy.d2f_detai2(lin_c_value,
-                                        lin_etas_value,
-                                        lin_etas_value_power_2_sum,
-                                        ig) *
-                   value[ig + 2]);
+            L *
+              (free_energy_eval.d2f_dcdetai(lin_etas_value[ig]) * value[0] +
+               free_energy_eval.d2f_detai2(lin_etas_value[ig]) * value[ig + 2]);
 
           gradient_result[ig + 2] = L * kappa_p * gradient[ig + 2];
         }
