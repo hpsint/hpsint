@@ -2084,19 +2084,19 @@ namespace Sintering
                 const unsigned int                         n_grains) {
                 VectorizedArrayType energy(0.0);
 
-                std::vector<VectorizedArrayType> etas(n_grains);
                 for (unsigned int ig = 0; ig < n_grains; ++ig)
-                  {
-                    etas[ig] = value[2 + ig];
-                    energy += gradient[2 + ig].norm_square();
-                  }
+                  energy += gradient[2 + ig].norm_square();
+
                 energy *= 0.5 * sintering_data.kappa_p;
 
-                const auto &c      = value[0];
                 const auto &c_grad = gradient[0];
                 energy += 0.5 * sintering_data.kappa_c * c_grad.norm_square();
 
-                energy += sintering_data.free_energy.f(c, etas);
+                const auto free_energy_eval =
+                  sintering_data.free_energy.template eval<EnergyZero>(
+                    value, n_grains);
+
+                energy += free_energy_eval.f();
 
                 return energy;
               });
@@ -2108,13 +2108,15 @@ namespace Sintering
                 const unsigned int                         n_grains) {
                 (void)gradient;
 
-                const VectorizedArrayType &c = value[0];
-
                 std::vector<VectorizedArrayType> etas(n_grains);
                 for (unsigned int ig = 0; ig < n_grains; ++ig)
                   etas[ig] = value[2 + ig];
 
-                return sintering_data.free_energy.f(c, etas);
+                const auto free_energy_eval =
+                  sintering_data.free_energy.template eval<EnergyZero>(
+                    value, n_grains);
+
+                return free_energy_eval.f();
               });
           else if (qty == "interface_energy")
             q_evaluators.emplace_back(
