@@ -55,9 +55,9 @@ namespace Sintering
       }
 
       template <typename VectorType, int n_grains>
-      Evaluation(const double               A,
-                 const double               B,
-                 const VectorType & state,
+      Evaluation(const double      A,
+                 const double      B,
+                 const VectorType &state,
                  std::integral_constant<int, n_grains>)
         : A(A)
         , B(B)
@@ -111,6 +111,10 @@ namespace Sintering
       DEAL_II_ALWAYS_INLINE VectorizedArrayType
       f() const
       {
+        Assert(with_power_3,
+               ExcMessage("The evaluator was initialized without "
+                          " parameter with_power_3 enabled"));
+
         return A * (c * c) * ((-c + 1.0) * (-c + 1.0)) +
                B * ((c * c) + (-6.0 * c + 6.0) * etaPower2Sum -
                     (-4.0 * c + 8.0) * etaPower3Sum +
@@ -120,6 +124,10 @@ namespace Sintering
       DEAL_II_ALWAYS_INLINE VectorizedArrayType
       df_dc() const
       {
+        Assert(with_power_3,
+               ExcMessage("The evaluator was initialized without "
+                          " parameter with_power_3 enabled"));
+
         return A * (c * c) * (2.0 * c - 2.0) +
                2.0 * A * c * ((-c + 1.0) * (-c + 1.0)) +
                B * (2.0 * c - 6.0 * etaPower2Sum + 4.0 * etaPower3Sum);
@@ -183,8 +191,10 @@ namespace Sintering
     EvaluationConcrete<Mask>
     eval(const VectorizedArrayType *state) const
     {
-      return EvaluationConcrete<Mask>(
-        A, B, state, std::integral_constant<int, n_grains>());
+      return EvaluationConcrete<Mask>(A,
+                                      B,
+                                      state,
+                                      std::integral_constant<int, n_grains>());
     }
 
     template <typename Mask, typename VectorType>
@@ -198,8 +208,10 @@ namespace Sintering
     EvaluationConcrete<Mask>
     eval(const VectorType &state) const
     {
-      return EvaluationConcrete<Mask>(
-        A, B, state, std::integral_constant<int, n_grains>());
+      return EvaluationConcrete<Mask>(A,
+                                      B,
+                                      state,
+                                      std::integral_constant<int, n_grains>());
     }
 
     template <typename Mask, typename VectorType>
