@@ -697,10 +697,6 @@ namespace Sintering
             for (unsigned int q = 0; q < integrator.n_q_points; ++q)
               {
                 const auto &val = nonlinear_data.values[q];
-                const auto &c   = val[0];
-
-                for (unsigned int ig = 0; ig < this->n_grains(); ++ig)
-                  etas[ig] = val[2 + ig];
 
                 switch (free_energy_approximation)
                   {
