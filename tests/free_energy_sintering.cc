@@ -99,7 +99,7 @@ main()
   std::cout << std::endl;
 
   // State as raw pointer with n_grains via ctor param
-  const auto  free_energy_eval_ptr_par =
+  const auto free_energy_eval_ptr_par =
     free_energy.template eval<EnergyZero>(ptr, n_grains);
   std::cout << "state raw pointer with n_grains via ctor param:" << std::endl;
   test_evaluator(free_energy_eval_ptr_par);
