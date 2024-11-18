@@ -197,6 +197,13 @@ namespace Sintering
                                       std::integral_constant<int, n_grains>());
     }
 
+    template <typename Mask>
+    EvaluationConcrete<Mask>
+    eval(const VectorizedArrayType *state, const unsigned int n_grains) const
+    {
+      return EvaluationConcrete<Mask>(A, B, state, n_grains);
+    }
+
     template <typename Mask, typename VectorType>
     EvaluationConcrete<Mask>
     eval(const VectorType &state, const unsigned int n_grains) const
