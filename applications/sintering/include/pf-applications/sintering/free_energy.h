@@ -17,6 +17,8 @@
 
 #include <deal.II/base/utilities.h>
 
+#include <pf-applications/base/mask.h>
+
 #include <pf-applications/numerics/power_helper.h>
 
 namespace Sintering
@@ -31,153 +33,199 @@ namespace Sintering
     double A;
     double B;
 
+    // This class knows about the structure of the state vector
+    template <bool with_power_3>
+    class Evaluation
+    {
+    public:
+      template <int n_grains>
+      Evaluation(const double               A,
+                 const double               B,
+                 const VectorizedArrayType *state,
+                 std::integral_constant<int, n_grains>)
+        : A(A)
+        , B(B)
+        , c(state[0])
+      {
+        const VectorizedArrayType *etas = &state[0] + 2;
+
+        etaPower2Sum = PowerHelper<n_grains, 2>::power_sum(etas);
+        if constexpr (with_power_3)
+          etaPower3Sum = PowerHelper<n_grains, 3>::power_sum(etas);
+      }
+
+      template <typename VectorType, int n_grains>
+      Evaluation(const double      A,
+                 const double      B,
+                 const VectorType &state,
+                 std::integral_constant<int, n_grains>)
+        : A(A)
+        , B(B)
+        , c(state[0])
+      {
+        std::array<VectorizedArrayType, n_grains> etas;
+        for (unsigned int ig = 0; ig < n_grains; ++ig)
+          etas[ig] = state[2 + ig];
+
+        etaPower2Sum = PowerHelper<n_grains, 2>::power_sum(etas);
+        if constexpr (with_power_3)
+          etaPower3Sum = PowerHelper<n_grains, 3>::power_sum(etas);
+      }
+
+      template <typename VectorType>
+      Evaluation(const double       A,
+                 const double       B,
+                 const VectorType & state,
+                 const unsigned int n_grains)
+        : A(A)
+        , B(B)
+        , c(state[0])
+      {
+        std::vector<VectorizedArrayType> etas(n_grains);
+        for (unsigned int ig = 0; ig < n_grains; ++ig)
+          etas[ig] = state[2 + ig];
+
+        etaPower2Sum = PowerHelper<0, 2>::power_sum(etas);
+        if constexpr (with_power_3)
+          etaPower3Sum = PowerHelper<0, 3>::power_sum(etas);
+      }
+
+      template <typename VectorType,
+                int n_components = SizeHelper<VectorType>::size>
+      Evaluation(const double A, const double B, const VectorType &state)
+        : A(A)
+        , B(B)
+        , c(state[0])
+      {
+        constexpr int n_grains = n_components - 2;
+
+        std::array<VectorizedArrayType, n_grains> etas;
+        for (unsigned int ig = 0; ig < n_grains; ++ig)
+          etas[ig] = state[2 + ig];
+
+        etaPower2Sum = PowerHelper<n_grains, 2>::power_sum(etas);
+        if constexpr (with_power_3)
+          etaPower3Sum = PowerHelper<n_grains, 3>::power_sum(etas);
+      }
+
+      DEAL_II_ALWAYS_INLINE VectorizedArrayType
+      f() const
+      {
+        Assert(with_power_3,
+               ExcMessage("The evaluator was initialized without "
+                          " parameter with_power_3 enabled"));
+
+        return A * (c * c) * ((-c + 1.0) * (-c + 1.0)) +
+               B * ((c * c) + (-6.0 * c + 6.0) * etaPower2Sum -
+                    (-4.0 * c + 8.0) * etaPower3Sum +
+                    3.0 * (etaPower2Sum * etaPower2Sum));
+      }
+
+      DEAL_II_ALWAYS_INLINE VectorizedArrayType
+      df_dc() const
+      {
+        Assert(with_power_3,
+               ExcMessage("The evaluator was initialized without "
+                          " parameter with_power_3 enabled"));
+
+        return A * (c * c) * (2.0 * c - 2.0) +
+               2.0 * A * c * ((-c + 1.0) * (-c + 1.0)) +
+               B * (2.0 * c - 6.0 * etaPower2Sum + 4.0 * etaPower3Sum);
+      }
+
+      DEAL_II_ALWAYS_INLINE VectorizedArrayType
+      df_detai(const VectorizedArrayType &etai) const
+      {
+        return etai * (B * 12.0) *
+               (etai * (1.0 * c - 2.0) + (-c + 1.0) + etaPower2Sum);
+      }
+
+      DEAL_II_ALWAYS_INLINE VectorizedArrayType
+      d2f_dc2() const
+      {
+        return 2.0 * A * (c * c) + 4.0 * A * c * (2.0 * c - 2.0) +
+               2.0 * A * ((-c + 1.0) * (-c + 1.0)) + 2.0 * B;
+      }
+
+      DEAL_II_ALWAYS_INLINE VectorizedArrayType
+      d2f_dcdetai(const VectorizedArrayType &etai) const
+      {
+        return (B * 12.0) * etai * (etai - 1.0);
+      }
+
+      DEAL_II_ALWAYS_INLINE VectorizedArrayType
+      d2f_detai2(const VectorizedArrayType &etai) const
+      {
+        return B * (12.0 - 12.0 * c + 2.0 * etai * (12.0 * c - 24.0) +
+                    24.0 * (etai * etai) + 12.0 * etaPower2Sum);
+      }
+
+      DEAL_II_ALWAYS_INLINE VectorizedArrayType
+      d2f_detaidetaj(const VectorizedArrayType &etai,
+                     const VectorizedArrayType &etaj) const
+      {
+        return 24.0 * B * etai * etaj;
+      }
+
+    private:
+      double              A;
+      double              B;
+      VectorizedArrayType c;
+      VectorizedArrayType etaPower2Sum;
+      VectorizedArrayType etaPower3Sum;
+    };
+
+    template <typename Mask>
+    using EvaluationConcrete =
+      Evaluation<any_energy_eval_of_v<Mask,
+                                      EnergyEvaluation::zero,
+                                      EnergyEvaluation::first>>;
+
   public:
     FreeEnergy(double A, double B)
       : A(A)
       , B(B)
     {}
 
-    template <typename VectorType>
-    DEAL_II_ALWAYS_INLINE VectorizedArrayType
-    f(const VectorizedArrayType &c,
-      const VectorType &         etas,
-      const VectorizedArrayType &etaPower2Sum,
-      const VectorizedArrayType &etaPower3Sum) const
+    template <typename Mask, int n_grains>
+    EvaluationConcrete<Mask>
+    eval(const VectorizedArrayType *state) const
     {
-      (void)etas;
-
-      return A * (c * c) * ((-c + 1.0) * (-c + 1.0)) +
-             B * ((c * c) + (-6.0 * c + 6.0) * etaPower2Sum -
-                  (-4.0 * c + 8.0) * etaPower3Sum +
-                  3.0 * (etaPower2Sum * etaPower2Sum));
+      return EvaluationConcrete<Mask>(A,
+                                      B,
+                                      state,
+                                      std::integral_constant<int, n_grains>());
     }
 
-    template <typename VectorType>
-    DEAL_II_ALWAYS_INLINE VectorizedArrayType
-    f(const VectorizedArrayType &c, const VectorType &etas) const
+    template <typename Mask>
+    EvaluationConcrete<Mask>
+    eval(const VectorizedArrayType *state, const unsigned int n_grains) const
     {
-      const std::size_t n = SizeHelper<VectorType>::size;
-
-      const auto etaPower2Sum = PowerHelper<n, 2>::power_sum(etas);
-      const auto etaPower3Sum = PowerHelper<n, 3>::power_sum(etas);
-
-      return f(c, etas, etaPower2Sum, etaPower3Sum);
+      return EvaluationConcrete<Mask>(A, B, state, n_grains);
     }
 
-    template <typename VectorType>
-    DEAL_II_ALWAYS_INLINE VectorizedArrayType
-    df_dc(const VectorizedArrayType &c,
-          const VectorType &         etas,
-          const VectorizedArrayType &etaPower2Sum,
-          const VectorizedArrayType &etaPower3Sum) const
+    template <typename Mask, typename VectorType>
+    EvaluationConcrete<Mask>
+    eval(const VectorType &state, const unsigned int n_grains) const
     {
-      (void)etas;
-
-      return A * (c * c) * (2.0 * c - 2.0) +
-             2.0 * A * c * ((-c + 1.0) * (-c + 1.0)) +
-             B * (2.0 * c - 6.0 * etaPower2Sum + 4.0 * etaPower3Sum);
+      return EvaluationConcrete<Mask>(A, B, state, n_grains);
     }
 
-    template <typename VectorType>
-    DEAL_II_ALWAYS_INLINE VectorizedArrayType
-    df_dc(const VectorizedArrayType &c, const VectorType &etas) const
+    template <typename Mask, int n_grains, typename VectorType>
+    EvaluationConcrete<Mask>
+    eval(const VectorType &state) const
     {
-      const std::size_t n = SizeHelper<VectorType>::size;
-
-      const auto etaPower2Sum = PowerHelper<n, 2>::power_sum(etas);
-      const auto etaPower3Sum = PowerHelper<n, 3>::power_sum(etas);
-
-      return df_dc(c, etas, etaPower2Sum, etaPower3Sum);
+      return EvaluationConcrete<Mask>(A,
+                                      B,
+                                      state,
+                                      std::integral_constant<int, n_grains>());
     }
 
-    template <typename VectorType>
-    DEAL_II_ALWAYS_INLINE VectorizedArrayType
-    df_detai(const VectorizedArrayType &c,
-             const VectorType &         etas,
-             const VectorizedArrayType &etaPower2Sum,
-             unsigned int               index_i) const
+    template <typename Mask, typename VectorType>
+    EvaluationConcrete<Mask>
+    eval(const VectorType &state) const
     {
-      const auto &etai = etas[index_i];
-
-      return etai * (B * 12.0) *
-             (etai * (1.0 * c - 2.0) + (-c + 1.0) + etaPower2Sum);
-    }
-
-    template <typename VectorType>
-    DEAL_II_ALWAYS_INLINE VectorizedArrayType
-    df_detai(const VectorizedArrayType &c,
-             const VectorType &         etas,
-             unsigned int               index_i) const
-    {
-      const std::size_t n = SizeHelper<VectorType>::size;
-
-      const auto etaPower2Sum = PowerHelper<n, 2>::power_sum(etas);
-
-      return df_detai(c, etas, etaPower2Sum, index_i);
-    }
-
-    template <typename VectorType>
-    DEAL_II_ALWAYS_INLINE VectorizedArrayType
-    d2f_dc2(const VectorizedArrayType &c, const VectorType &etas) const
-    {
-      (void)etas;
-
-      return 2.0 * A * (c * c) + 4.0 * A * c * (2.0 * c - 2.0) +
-             2.0 * A * ((-c + 1.0) * (-c + 1.0)) + 2.0 * B;
-    }
-
-    template <typename VectorType>
-    DEAL_II_ALWAYS_INLINE VectorizedArrayType
-    d2f_dcdetai(const VectorizedArrayType &c,
-                const VectorType &         etas,
-                unsigned int               index_i) const
-    {
-      (void)c;
-
-      const auto &etai = etas[index_i];
-
-      return (B * 12.0) * etai * (etai - 1.0);
-    }
-
-    template <typename VectorType>
-    DEAL_II_ALWAYS_INLINE VectorizedArrayType
-    d2f_detai2(const VectorizedArrayType &c,
-               const VectorType &         etas,
-               const VectorizedArrayType &etaPower2Sum,
-               unsigned int               index_i) const
-    {
-      const auto &etai = etas[index_i];
-
-      return B * (12.0 - 12.0 * c + 2.0 * etai * (12.0 * c - 24.0) +
-                  24.0 * (etai * etai) + 12.0 * etaPower2Sum);
-    }
-
-    template <typename VectorType>
-    DEAL_II_ALWAYS_INLINE VectorizedArrayType
-    d2f_detai2(const VectorizedArrayType &c,
-               const VectorType &         etas,
-               unsigned int               index_i) const
-    {
-      const std::size_t n = SizeHelper<VectorType>::size;
-
-      const auto etaPower2Sum = PowerHelper<n, 2>::power_sum(etas);
-
-      return d2f_detai2(c, etas, etaPower2Sum, index_i);
-    }
-
-    template <typename VectorType>
-    DEAL_II_ALWAYS_INLINE VectorizedArrayType
-    d2f_detaidetaj(const VectorizedArrayType &c,
-                   const VectorType &         etas,
-                   unsigned int               index_i,
-                   unsigned int               index_j) const
-    {
-      (void)c;
-
-      const auto &etai = etas[index_i];
-      const auto &etaj = etas[index_j];
-
-      return 24.0 * B * etai * etaj;
+      return EvaluationConcrete<Mask>(A, B, state);
     }
 
     template <typename VectorType>

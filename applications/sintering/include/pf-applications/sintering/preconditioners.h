@@ -124,10 +124,13 @@ namespace Sintering
           typename FECellIntegratorType::gradient_type gradient_result;
 
 #if true
+          const auto free_energy_eval =
+            free_energy.template eval<EnergySecond, n_grains>(val);
+
           // CH with all terms
           value_result[0] = phi.get_value(q)[0] * weight;
           value_result[1] = -phi.get_value(q)[1] +
-                            free_energy.d2f_dc2(c, etas) * phi.get_value(q)[0];
+                            free_energy_eval.d2f_dc2() * phi.get_value(q)[0];
 
           gradient_result[0] =
             mobility.apply_M(
@@ -353,21 +356,18 @@ namespace Sintering
             {
               const auto &val = nonlinear_data.values[q];
 
-              const auto &c = val[0];
-
-              std::array<VectorizedArrayType, n_grains> etas;
-
-              for (unsigned int ig = 0; ig < n_grains; ++ig)
-                etas[ig] = val[2 + ig];
+              const auto free_energy_eval =
+                free_energy.template eval<EnergySecond, n_grains>(val);
 
               typename FECellIntegratorType::value_type    value_result;
               typename FECellIntegratorType::gradient_type gradient_result;
 
               for (unsigned int ig = 0; ig < n_grains; ++ig)
                 {
-                  value_result[ig] = phi.get_value(q)[ig] * weight +
-                                     L * free_energy.d2f_detai2(c, etas, ig) *
-                                       phi.get_value(q)[ig];
+                  value_result[ig] =
+                    phi.get_value(q)[ig] * weight +
+                    L * free_energy_eval.d2f_detai2(val[2 + ig]) *
+                      phi.get_value(q)[ig];
 
                   gradient_result[ig] = L * kappa_p * phi.get_gradient(q)[ig];
 
@@ -376,7 +376,9 @@ namespace Sintering
                       if (ig != jg)
                         {
                           value_result[ig] +=
-                            L * free_energy.d2f_detaidetaj(c, etas, ig, jg) *
+                            L *
+                            free_energy_eval.d2f_detaidetaj(val[2 + ig],
+                                                            val[2 + jg]) *
                             phi.get_value(q)[jg];
                         }
                     }
@@ -515,21 +517,18 @@ namespace Sintering
             {
               const auto &val = nonlinear_data.values[q];
 
-              const auto &c = val[0];
-
-              std::array<VectorizedArrayType, n_grains> etas;
-
-              for (unsigned int ig = 0; ig < n_grains; ++ig)
-                etas[ig] = val[2 + ig];
+              const auto free_energy_eval =
+                free_energy.template eval<EnergySecond, n_grains>(val);
 
               typename FECellIntegratorType::value_type    value_result;
               typename FECellIntegratorType::gradient_type gradient_result;
 
               for (unsigned int ig = 0; ig < n_grains; ++ig)
                 {
-                  value_result[ig] = phi.get_value(q)[ig] * weight +
-                                     L * free_energy.d2f_detai2(c, etas, ig) *
-                                       phi.get_value(q)[ig];
+                  value_result[ig] =
+                    phi.get_value(q)[ig] * weight +
+                    L * free_energy_eval.d2f_detai2(val[2 + ig]) *
+                      phi.get_value(q)[ig];
 
                   gradient_result[ig] = L * kappa_p * phi.get_gradient(q)[ig];
                 }
@@ -698,10 +697,6 @@ namespace Sintering
             for (unsigned int q = 0; q < integrator.n_q_points; ++q)
               {
                 const auto &val = nonlinear_data.values[q];
-                const auto &c   = val[0];
-
-                for (unsigned int ig = 0; ig < this->n_grains(); ++ig)
-                  etas[ig] = val[2 + ig];
 
                 switch (free_energy_approximation)
                   {
@@ -712,25 +707,35 @@ namespace Sintering
                       // nothing to do
                       break;
                     case 2:
-                      for (unsigned int b = 0; b < this->n_components(); ++b)
-                        scaling[q] =
-                          scaling[q] + free_energy.d2f_detai2(c, etas, b);
-                      scaling[q] =
-                        scaling[q] / static_cast<Number>(this->n_components());
+                      {
+                        const auto free_energy_eval =
+                          free_energy.template eval<EnergySecond>(
+                            val, this->n_components());
+                        for (unsigned int b = 0; b < this->n_components(); ++b)
+                          scaling[q] = scaling[q] +
+                                       free_energy_eval.d2f_detai2(val[2 + b]);
+                        scaling[q] = scaling[q] /
+                                     static_cast<Number>(this->n_components());
+                      }
                       break;
                     case 3:
-                      for (unsigned int b = 0; b < this->n_components(); ++b)
-                        for (unsigned int v = 0;
-                             v < VectorizedArrayType::size();
-                             ++v)
-                          {
-                            const auto temp =
-                              free_energy.d2f_detai2(c, etas, b)[v];
-                            scaling[q][v] =
-                              std::abs(scaling[q][v]) > std::abs(temp) ?
-                                scaling[q][v] :
-                                temp;
-                          }
+                      {
+                        const auto free_energy_eval =
+                          free_energy.template eval<EnergySecond>(
+                            val, this->n_components());
+                        for (unsigned int b = 0; b < this->n_components(); ++b)
+                          for (unsigned int v = 0;
+                               v < VectorizedArrayType::size();
+                               ++v)
+                            {
+                              const auto temp =
+                                free_energy_eval.d2f_detai2(val[2 + b])[v];
+                              scaling[q][v] =
+                                std::abs(scaling[q][v]) > std::abs(temp) ?
+                                  scaling[q][v] :
+                                  temp;
+                            }
+                      }
                       break;
                     default:
                       AssertThrow(false, ExcNotImplemented());
@@ -745,11 +750,11 @@ namespace Sintering
                     for (unsigned int q = 0; q < integrator.n_q_points; ++q)
                       {
                         const auto &val = nonlinear_data.values[q];
-                        const auto &c   = val[0];
+                        const auto  free_energy_eval =
+                          free_energy.template eval<EnergySecond>(
+                            val, this->n_components());
 
-                        for (unsigned int ig = 0; ig < this->n_grains(); ++ig)
-                          etas[ig] = val[2 + ig];
-                        scaling[q] = free_energy.d2f_detai2(c, etas, b);
+                        scaling[q] = free_energy_eval.d2f_detai2(val[2 + b]);
                       }
                   }
 

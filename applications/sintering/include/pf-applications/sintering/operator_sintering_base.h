@@ -178,18 +178,21 @@ namespace Sintering
                   temp[counter++] = etaijSum;
                 }
 
+              const auto free_energy_eval =
+                free_energy.template eval<EnergyZero, n_grains>(val);
+
               if (entries_mask[FieldD2f])
                 {
-                  temp[counter++] = free_energy.d2f_dc2(c, etas);
+                  temp[counter++] = free_energy_eval.d2f_dc2();
 
                   for (unsigned int ig = 0; ig < n_grains; ++ig)
                     {
-                      temp[counter++] = free_energy.d2f_dcdetai(c, etas, ig);
+                      temp[counter++] = free_energy_eval.d2f_dcdetai(etas[ig]);
                     }
 
                   for (unsigned int ig = 0; ig < n_grains; ++ig)
                     {
-                      temp[counter++] = free_energy.d2f_detai2(c, etas, ig);
+                      temp[counter++] = free_energy_eval.d2f_detai2(etas[ig]);
                     }
 
                   for (unsigned int ig = 0; ig < n_grains; ++ig)
@@ -197,7 +200,7 @@ namespace Sintering
                       for (unsigned int jg = ig + 1; jg < n_grains; ++jg)
                         {
                           temp[counter++] =
-                            free_energy.d2f_detaidetaj(c, etas, ig, jg);
+                            free_energy_eval.d2f_detaidetaj(etas[ig], etas[jg]);
                         }
                     }
                 }
@@ -253,8 +256,8 @@ namespace Sintering
 
               if (entries_mask[FieldF])
                 {
-                  temp[counter++] = free_energy.f(c, etas);
-                  temp[counter++] = free_energy.df_dc(c, etas);
+                  temp[counter++] = free_energy_eval.f();
+                  temp[counter++] = free_energy_eval.df_dc();
                 }
 
               if (entries_mask[FieldFlux])

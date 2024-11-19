@@ -110,13 +110,10 @@ namespace Sintering
 
       constexpr int n_grains = n_comp - 2;
 
-      const auto &lin_c_value = lin_value[0];
-
       const VectorizedArrayType *lin_etas_value = &lin_value[0] + 2;
 
-      const auto lin_etas_value_power_2_sum =
-        PowerHelper<n_grains, 2>::power_sum(lin_etas_value);
-
+      const auto free_energy_eval =
+        free_energy.template eval<EnergySecond, n_grains>(lin_value);
 
 
       // 1) process c row
@@ -138,13 +135,11 @@ namespace Sintering
 
 
       // 2) process mu row
-      value_result[1] =
-        -value[1] + free_energy.d2f_dc2(lin_c_value, lin_etas_value) * value[0];
+      value_result[1] = -value[1] + free_energy_eval.d2f_dc2() * value[0];
 
       for (unsigned int ig = 0; ig < n_grains; ++ig)
         value_result[1] +=
-          free_energy.d2f_dcdetai(lin_c_value, lin_etas_value, ig) *
-          value[ig + 2];
+          free_energy_eval.d2f_dcdetai(lin_etas_value[ig]) * value[ig + 2];
 
       gradient_result[1] = kappa_c * gradient[0];
 
@@ -155,13 +150,9 @@ namespace Sintering
         {
           value_result[ig + 2] +=
             value[ig + 2] * weight +
-            L * (free_energy.d2f_dcdetai(lin_c_value, lin_etas_value, ig) *
-                   value[0] +
-                 free_energy.d2f_detai2(lin_c_value,
-                                        lin_etas_value,
-                                        lin_etas_value_power_2_sum,
-                                        ig) *
-                   value[ig + 2]);
+            L *
+              (free_energy_eval.d2f_dcdetai(lin_etas_value[ig]) * value[0] +
+               free_energy_eval.d2f_detai2(lin_etas_value[ig]) * value[ig + 2]);
 
           gradient_result[ig + 2] = L * kappa_p * gradient[ig + 2];
         }
@@ -272,10 +263,8 @@ namespace Sintering
             const Tensor<1, dim, VectorizedArrayType> *etas_gradient =
               &gradient[0] + 2;
 
-            const auto etas_value_power_2_sum =
-              PowerHelper<n_grains, 2>::power_sum(etas_value);
-            const auto etas_value_power_3_sum =
-              PowerHelper<n_grains, 3>::power_sum(etas_value);
+            const auto free_energy_eval =
+              free_energy.template eval<EnergyFirst, n_grains>(value);
 
             // 1) process c row
             if (with_time_derivative >= 1)
@@ -291,11 +280,7 @@ namespace Sintering
                                                   gradient[1]);
 
             // 2) process mu row
-            value_result[1] =
-              -value[1] + free_energy.df_dc(value[0],
-                                            etas_value,
-                                            etas_value_power_2_sum,
-                                            etas_value_power_3_sum);
+            value_result[1]    = -value[1] + free_energy_eval.df_dc();
             gradient_result[1] = kappa_c * gradient[0];
 
 
@@ -303,10 +288,7 @@ namespace Sintering
             for (unsigned int ig = 0; ig < n_grains; ++ig)
               {
                 value_result[2 + ig] =
-                  L * free_energy.df_detai(value[0],
-                                           etas_value,
-                                           etas_value_power_2_sum,
-                                           ig);
+                  L * free_energy_eval.df_detai(etas_value[ig]);
 
                 if (with_time_derivative >= 1)
                   value_result[ig + 2] += value[ig + 2] * weight;
