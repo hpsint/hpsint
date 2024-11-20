@@ -3178,9 +3178,9 @@ namespace Sintering
                         params.output_data.domain_integrals.end(),
                         std::back_inserter(quantities));
 
-              auto [q_labels, q_evaluators] = Postprocessors::
-                build_domain_quantities_evaluators<dim, VectorizedArrayType>(
-                  quantities, sintering_operator.get_data());
+              auto [q_labels, q_evaluators] =
+                sintering_operator.build_domain_quantities_evaluators(
+                  quantities);
 
               // TODO: each quantity should provide its flag
               EvaluationFlags::EvaluationFlags eval_flags =
@@ -3205,17 +3205,15 @@ namespace Sintering
                       q_values = sintering_operator.calc_domain_quantities(
                         q_evaluators,
                         solution,
-                        sintering_operator.n_grains(),
                         predicate_integrals,
                         eval_flags);
                     }
                   else
                     {
-                      q_values = sintering_operator.calc_domain_quantities(
-                        q_evaluators,
-                        solution,
-                        sintering_operator.n_grains(),
-                        eval_flags);
+                      q_values =
+                        sintering_operator.calc_domain_quantities(q_evaluators,
+                                                                  solution,
+                                                                  eval_flags);
                     }
 
 
