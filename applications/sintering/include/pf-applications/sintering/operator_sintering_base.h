@@ -552,7 +552,6 @@ namespace Sintering
       return std::make_tuple(q_labels, q_evaluators);
     }
 
-    const FreeEnergy<VectorizedArrayType> &
   protected:
     const SinteringOperatorData<dim, VectorizedArrayType> &  data;
     const TimeIntegration::SolutionHistory<BlockVectorType> &history;
