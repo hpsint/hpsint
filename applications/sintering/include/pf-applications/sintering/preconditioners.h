@@ -41,9 +41,11 @@ namespace Sintering
   {
   public:
     OperatorCahnHilliard(
-      const MatrixFree<dim, Number, VectorizedArrayType> &        matrix_free,
-      const AffineConstraints<Number> &                           constraints,
-      const SinteringOperatorData<dim, VectorizedArrayType> &     data,
+      const NonLinearOperator<dim, Number, VectorizedArrayType>
+        &                                                    nonlinear_operator,
+      const MatrixFree<dim, Number, VectorizedArrayType> &   matrix_free,
+      const AffineConstraints<Number> &                      constraints,
+      const SinteringOperatorData<dim, VectorizedArrayType> &data,
       const AdvectionMechanism<dim, Number, VectorizedArrayType> &advection)
       : OperatorBase<dim,
                      Number,
@@ -56,6 +58,7 @@ namespace Sintering
           constraints,
           0,
           "cahn_hilliard_op")
+      , nonlinear_operator(nonlinear_operator)
       , data(data)
       , advection(advection)
     {}
@@ -150,14 +153,12 @@ namespace Sintering
 #endif
 
           if (this->advection.enabled())
-            NonLinearOperator<dim, Number, VectorizedArrayType>::
-              precondition_advection_ch(q,
-                                        advection_data,
-                                        this->data,
-                                        nonlinear_data,
-                                        phi,
-                                        value_result,
-                                        gradient_result);
+            nonlinear_operator.precondition_advection_ch(q,
+                                                         advection_data,
+                                                         nonlinear_data,
+                                                         phi,
+                                                         value_result,
+                                                         gradient_result);
 
           phi.submit_value(value_result, q);
           phi.submit_gradient(gradient_result, q);
@@ -165,7 +166,9 @@ namespace Sintering
     }
 
   private:
-    const SinteringOperatorData<dim, VectorizedArrayType> &     data;
+    const NonLinearOperator<dim, Number, VectorizedArrayType>
+      &                                                    nonlinear_operator;
+    const SinteringOperatorData<dim, VectorizedArrayType> &data;
     const AdvectionMechanism<dim, Number, VectorizedArrayType> &advection;
   };
 
@@ -294,9 +297,11 @@ namespace Sintering
   {
   public:
     OperatorAllenCahn(
-      const MatrixFree<dim, Number, VectorizedArrayType> &        matrix_free,
-      const AffineConstraints<Number> &                           constraints,
-      const SinteringOperatorData<dim, VectorizedArrayType> &     data,
+      const NonLinearOperator<dim, Number, VectorizedArrayType>
+        &                                                    nonlinear_operator,
+      const MatrixFree<dim, Number, VectorizedArrayType> &   matrix_free,
+      const AffineConstraints<Number> &                      constraints,
+      const SinteringOperatorData<dim, VectorizedArrayType> &data,
       const AdvectionMechanism<dim, Number, VectorizedArrayType> &advection)
       : OperatorBase<dim,
                      Number,
@@ -308,6 +313,7 @@ namespace Sintering
                                                            constraints,
                                                            0,
                                                            "allen_cahn_op")
+      , nonlinear_operator(nonlinear_operator)
       , data(data)
       , advection(advection)
     {}
@@ -385,14 +391,12 @@ namespace Sintering
                 }
 
               if (this->advection.enabled())
-                NonLinearOperator<dim, Number, VectorizedArrayType>::
-                  precondition_advection_ac(q,
-                                            advection_data,
-                                            this->data,
-                                            nonlinear_data,
-                                            phi,
-                                            value_result,
-                                            gradient_result);
+                nonlinear_operator.precondition_advection_ac(q,
+                                                             advection_data,
+                                                             nonlinear_data,
+                                                             phi,
+                                                             value_result,
+                                                             gradient_result);
 
               phi.submit_value(value_result, q);
               phi.submit_gradient(gradient_result, q);
@@ -406,7 +410,9 @@ namespace Sintering
     }
 
   private:
-    const SinteringOperatorData<dim, VectorizedArrayType> &     data;
+    const NonLinearOperator<dim, Number, VectorizedArrayType>
+      &                                                    nonlinear_operator;
+    const SinteringOperatorData<dim, VectorizedArrayType> &data;
     const AdvectionMechanism<dim, Number, VectorizedArrayType> &advection;
   };
 
@@ -428,9 +434,11 @@ namespace Sintering
   {
   public:
     OperatorAllenCahnBlocked(
-      const MatrixFree<dim, Number, VectorizedArrayType> &        matrix_free,
-      const AffineConstraints<Number> &                           constraints,
-      const SinteringOperatorData<dim, VectorizedArrayType> &     data,
+      const NonLinearOperator<dim, Number, VectorizedArrayType>
+        &                                                    nonlinear_operator,
+      const MatrixFree<dim, Number, VectorizedArrayType> &   matrix_free,
+      const AffineConstraints<Number> &                      constraints,
+      const SinteringOperatorData<dim, VectorizedArrayType> &data,
       const AdvectionMechanism<dim, Number, VectorizedArrayType> &advection,
       const std::string free_energy_approximation_string = "all")
       : OperatorBase<dim,
@@ -444,6 +452,7 @@ namespace Sintering
           constraints,
           0,
           "allen_cahn_op_blocked")
+      , nonlinear_operator(nonlinear_operator)
       , data(data)
       , advection(advection)
       , free_energy_approximation(to_value(free_energy_approximation_string))
@@ -534,14 +543,12 @@ namespace Sintering
                 }
 
               if (this->advection.enabled())
-                NonLinearOperator<dim, Number, VectorizedArrayType>::
-                  precondition_advection_ac(q,
-                                            advection_data,
-                                            this->data,
-                                            nonlinear_data,
-                                            phi,
-                                            value_result,
-                                            gradient_result);
+                nonlinear_operator.precondition_advection_ac(q,
+                                                             advection_data,
+                                                             nonlinear_data,
+                                                             phi,
+                                                             value_result,
+                                                             gradient_result);
 
               phi.submit_value(value_result, q);
               phi.submit_gradient(gradient_result, q);
@@ -787,15 +794,14 @@ namespace Sintering
 
                         if (free_energy_approximation == 0 &&
                             this->advection.enabled())
-                          NonLinearOperator<dim, Number, VectorizedArrayType>::
-                            precondition_advection_ac(q,
-                                                      b,
-                                                      advection_data,
-                                                      this->data,
-                                                      nonlinear_data,
-                                                      integrator,
-                                                      value_result,
-                                                      gradient_result);
+                          nonlinear_operator.precondition_advection_ac(
+                            q,
+                            b,
+                            advection_data,
+                            nonlinear_data,
+                            integrator,
+                            value_result,
+                            gradient_result);
 
 
                         if (free_energy_approximation == 0 &&
@@ -875,7 +881,9 @@ namespace Sintering
     }
 
   private:
-    const SinteringOperatorData<dim, VectorizedArrayType> &     data;
+    const NonLinearOperator<dim, Number, VectorizedArrayType>
+      &                                                    nonlinear_operator;
+    const SinteringOperatorData<dim, VectorizedArrayType> &data;
     const AdvectionMechanism<dim, Number, VectorizedArrayType> &advection;
 
     const unsigned int free_energy_approximation;
@@ -961,6 +969,8 @@ namespace Sintering
     using vector_type = VectorType;
 
     BlockPreconditioner2(
+      const NonLinearOperator<dim, Number, VectorizedArrayType>
+        &                                                    nonlinear_operator,
       const SinteringOperatorData<dim, VectorizedArrayType> &sintering_data,
       const MatrixFree<dim, Number, VectorizedArrayType> &   matrix_free,
       const AffineConstraints<Number> &                      constraints,
@@ -973,15 +983,24 @@ namespace Sintering
                                                          Number,
                                                          VectorizedArrayType,
                                                          NonLinearOperator>>(
-        matrix_free, constraints, sintering_data, advection);
+        nonlinear_operator,
+        matrix_free,
+        constraints,
+        sintering_data,
+        advection);
       operator_1 = std::make_unique<
         OperatorAllenCahn<dim, Number, VectorizedArrayType, NonLinearOperator>>(
-        matrix_free, constraints, sintering_data, advection);
+        nonlinear_operator,
+        matrix_free,
+        constraints,
+        sintering_data,
+        advection);
       operator_1_blocked =
         std::make_unique<OperatorAllenCahnBlocked<dim,
                                                   Number,
                                                   VectorizedArrayType,
                                                   NonLinearOperator>>(
+          nonlinear_operator,
           matrix_free,
           constraints,
           sintering_data,
@@ -1012,6 +1031,8 @@ namespace Sintering
     }
 
     BlockPreconditioner2(
+      const NonLinearOperator<dim, Number, VectorizedArrayType>
+        &                                                    nonlinear_operator,
       const SinteringOperatorData<dim, VectorizedArrayType> &sintering_data,
       const MatrixFree<dim, Number, VectorizedArrayType> &   matrix_free,
       const AffineConstraints<Number> &                      constraints,
@@ -1023,7 +1044,8 @@ namespace Sintering
       const double                        nu = 0.25,
       const Structural::MaterialPlaneType plane_type =
         Structural::MaterialPlaneType::none)
-      : BlockPreconditioner2(sintering_data,
+      : BlockPreconditioner2(nonlinear_operator,
+                             sintering_data,
                              matrix_free,
                              constraints,
                              data,
@@ -1058,6 +1080,8 @@ namespace Sintering
     }
 
     BlockPreconditioner2(
+      const NonLinearOperator<dim, Number, VectorizedArrayType>
+        &                                                    nonlinear_operator,
       const SinteringOperatorData<dim, VectorizedArrayType> &sintering_data,
       const MatrixFree<dim, Number, VectorizedArrayType> &   matrix_free,
       const AffineConstraints<Number> &                      constraints,
@@ -1088,7 +1112,11 @@ namespace Sintering
                                                          Number,
                                                          VectorizedArrayType,
                                                          NonLinearOperator>>(
-        matrix_free, constraints, sintering_data, advection);
+        nonlinear_operator,
+        matrix_free,
+        constraints,
+        sintering_data,
+        advection);
 
       if (data.block_1_preconditioner == "GMG")
         {
@@ -1099,6 +1127,7 @@ namespace Sintering
                                                  Number,
                                                  VectorizedArrayType,
                                                  NonLinearOperator>>(
+                nonlinear_operator,
                 mg_matrix_free[l],
                 mg_constraints[l],
                 mg_sintering_data[l],
@@ -1115,6 +1144,7 @@ namespace Sintering
                                                         Number,
                                                         VectorizedArrayType,
                                                         NonLinearOperator>>(
+                nonlinear_operator,
                 mg_matrix_free[l],
                 mg_constraints[l],
                 mg_sintering_data[l],
