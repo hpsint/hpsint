@@ -3205,7 +3205,6 @@ namespace Sintering
                       q_values = sintering_operator.calc_domain_quantities(
                         q_evaluators,
                         solution,
-                        sintering_operator.n_grains(),
                         predicate_integrals,
                         eval_flags);
                     }
@@ -3214,7 +3213,6 @@ namespace Sintering
                       q_values = sintering_operator.calc_domain_quantities(
                         q_evaluators,
                         solution,
-                        sintering_operator.n_grains(),
                         eval_flags);
                     }
 
