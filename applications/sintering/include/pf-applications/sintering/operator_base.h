@@ -49,8 +49,7 @@ namespace Sintering
 
     using QuantityCallback = std::function<
       VectorizedArrayType(const VectorizedArrayType *,
-                          const Tensor<1, dim, VectorizedArrayType> *,
-                          const unsigned int)>;
+                          const Tensor<1, dim, VectorizedArrayType> *)>;
 
     using QuantityPredicate = std::function<VectorizedArrayType(
       const Point<dim, VectorizedArrayType> &)>;
@@ -637,7 +636,6 @@ namespace Sintering
     std::vector<Number>
     calc_domain_quantities(std::vector<QuantityCallback> &        quantities,
                            const BlockVectorType &                vec,
-                           const unsigned int                     n_grains,
                            const EvaluationFlags::EvaluationFlags eval_flags =
                              EvaluationFlags::values |
                              EvaluationFlags::gradients) const
@@ -646,14 +644,12 @@ namespace Sintering
         [](const FECellIntegrator<dim, 1, Number, VectorizedArrayType> &,
            unsigned int) { return VectorizedArrayType(1.0); };
 
-      return do_calc_domain_quantities(
-        quantities, vec, n_grains, predicate, eval_flags);
+      return do_calc_domain_quantities(quantities, vec, predicate, eval_flags);
     }
 
     std::vector<Number>
     calc_domain_quantities(std::vector<QuantityCallback> &        quantities,
                            const BlockVectorType &                vec,
-                           const unsigned int                     n_grains,
                            QuantityPredicate                      qp_predicate,
                            const EvaluationFlags::EvaluationFlags eval_flags =
                              EvaluationFlags::values |
@@ -664,8 +660,7 @@ namespace Sintering
           const FECellIntegrator<dim, 1, Number, VectorizedArrayType> &fe_eval,
           unsigned int q) { return qp_predicate(fe_eval.quadrature_point(q)); };
 
-      return do_calc_domain_quantities(
-        quantities, vec, n_grains, predicate, eval_flags);
+      return do_calc_domain_quantities(quantities, vec, predicate, eval_flags);
     }
 
     void
@@ -824,7 +819,6 @@ namespace Sintering
     do_calc_domain_quantities(
       std::vector<QuantityCallback> &        quantities,
       const BlockVectorType &                vec,
-      const unsigned int                     n_grains,
       std::function<VectorizedArrayType(
         const FECellIntegrator<dim, 1, Number, VectorizedArrayType> &,
         unsigned int)>                       predicate,
@@ -882,9 +876,8 @@ namespace Sintering
 
               for (unsigned int i = 0; i < quantities.size(); ++i)
                 {
-                  const auto &q_eval = quantities[i];
-                  const auto  value_result =
-                    q_eval(&val[0], &grad[0], n_grains) * filter;
+                  const auto &q_eval       = quantities[i];
+                  const auto  value_result = q_eval(&val[0], &grad[0]) * filter;
 
                   fe_eval[i].submit_value(value_result, q);
                 }
