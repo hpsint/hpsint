@@ -778,21 +778,20 @@ namespace Sintering
     }
 
     template <typename FECellIntegratorType>
-    static void
+    void
     precondition_advection_ch(
       const unsigned int q,
       const AdvectionVelocityData<dim, Number, VectorizedArrayType>
         &                                                     advection_data,
-      const SinteringOperatorData<dim, VectorizedArrayType> & sintering_data,
       const SinteringNonLinearData<dim, VectorizedArrayType> &nonlinear_data,
       const FECellIntegratorType &                            phi,
       typename FECellIntegratorType::value_type &             value_result,
-      typename FECellIntegratorType::gradient_type &          gradient_result)
+      typename FECellIntegratorType::gradient_type &gradient_result) const
     {
       (void)nonlinear_data;
       (void)value_result;
 
-      for (unsigned int ig = 0; ig < sintering_data.n_grains(); ++ig)
+      for (unsigned int ig = 0; ig < this->data.n_grains(); ++ig)
         if (advection_data.has_velocity(ig))
           {
             const auto &velocity_ig =
@@ -803,21 +802,20 @@ namespace Sintering
     }
 
     template <typename FECellIntegratorType>
-    static void
+    void
     precondition_advection_ac(
       const unsigned int q,
       const AdvectionVelocityData<dim, Number, VectorizedArrayType>
         &                                                     advection_data,
-      const SinteringOperatorData<dim, VectorizedArrayType> & sintering_data,
       const SinteringNonLinearData<dim, VectorizedArrayType> &nonlinear_data,
       const FECellIntegratorType &                            phi,
       typename FECellIntegratorType::value_type &             value_result,
-      typename FECellIntegratorType::gradient_type &          gradient_result)
+      typename FECellIntegratorType::gradient_type &gradient_result) const
     {
       (void)nonlinear_data;
       (void)value_result;
 
-      for (unsigned int ig = 0; ig < sintering_data.n_grains(); ++ig)
+      for (unsigned int ig = 0; ig < this->data.n_grains(); ++ig)
         if (advection_data.has_velocity(ig))
           {
             const auto &velocity_ig =
@@ -828,19 +826,17 @@ namespace Sintering
     }
 
     template <typename FECellIntegratorType>
-    static void
+    void
     precondition_advection_ac(
       const unsigned int q,
       const unsigned int igrain,
       const AdvectionVelocityData<dim, Number, VectorizedArrayType>
         &                                                     advection_data,
-      const SinteringOperatorData<dim, VectorizedArrayType> & sintering_data,
       const SinteringNonLinearData<dim, VectorizedArrayType> &nonlinear_data,
       const FECellIntegratorType &                            phi,
       typename FECellIntegratorType::value_type &             value_result,
-      typename FECellIntegratorType::gradient_type &          gradient_result)
+      typename FECellIntegratorType::gradient_type &gradient_result) const
     {
-      (void)sintering_data;
       (void)nonlinear_data;
       (void)value_result;
 
