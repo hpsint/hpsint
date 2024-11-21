@@ -1066,6 +1066,7 @@ namespace Sintering
                                                 Number,
                                                 VectorizedArrayType,
                                                 NonLinearOperatorTpl>>(
+            nonlinear_operator,
             sintering_data,
             matrix_free,
             constraints,
@@ -1088,6 +1089,7 @@ namespace Sintering
                                                     Number,
                                                     VectorizedArrayType,
                                                     NonLinearOperatorTpl>>(
+                nonlinear_operator,
                 sintering_data,
                 matrix_free,
                 constraints,
@@ -1103,6 +1105,7 @@ namespace Sintering
                                                     Number,
                                                     VectorizedArrayType,
                                                     NonLinearOperatorTpl>>(
+                nonlinear_operator,
                 sintering_data,
                 matrix_free,
                 constraints,
