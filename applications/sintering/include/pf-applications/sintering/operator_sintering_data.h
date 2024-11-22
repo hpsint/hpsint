@@ -15,7 +15,6 @@
 
 #pragma once
 
-#include <pf-applications/sintering/free_energy.h>
 #include <pf-applications/sintering/mobility.h>
 
 #include <pf-applications/time_integration/time_integrators.h>
@@ -42,21 +41,16 @@ namespace Sintering
                                 MobilityTensorial<dim, VectorizedArrayType>,
                                 MobilityScalar<dim, VectorizedArrayType>>::type;
 
-    SinteringOperatorData(const Number                      A,
-                          const Number                      B,
-                          const Number                      kappa_c,
+    SinteringOperatorData(const Number                      kappa_c,
                           const Number                      kappa_p,
                           std::shared_ptr<MobilityProvider> mobility_provider,
                           const unsigned int                integration_order)
-      : free_energy(A, B)
-      , kappa_c(kappa_c)
+      : kappa_c(kappa_c)
       , kappa_p(kappa_p)
       , time_data(integration_order)
       , mobility(mobility_provider)
       , t(0.0)
     {}
-
-    const FreeEnergy<VectorizedArrayType> free_energy;
 
     const Number kappa_c;
     const Number kappa_p;
