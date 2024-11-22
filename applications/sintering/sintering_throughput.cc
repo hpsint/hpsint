@@ -276,10 +276,7 @@ main(int argc, char **argv)
               FreeEnergy<VectorizedArrayType> free_energy(A, B);
 
               SinteringOperatorData<dim, VectorizedArrayType> sintering_data(
-                kappa_c,
-                kappa_p,
-                mobility_provider,
-                time_integration_order);
+                kappa_c, kappa_p, mobility_provider, time_integration_order);
 
               sintering_data.set_n_components(n_components);
               sintering_data.time_data.set_all_dt(dts);
@@ -329,10 +326,7 @@ main(int argc, char **argv)
               FreeEnergy<VectorizedArrayType> free_energy(A, B);
 
               SinteringOperatorData<dim, VectorizedArrayType> sintering_data(
-                kappa_c,
-                kappa_p,
-                mobility_provider,
-                time_integration_order);
+                kappa_c, kappa_p, mobility_provider, time_integration_order);
 
               sintering_data.set_n_components(n_components);
               sintering_data.time_data.set_all_dt(dts);
