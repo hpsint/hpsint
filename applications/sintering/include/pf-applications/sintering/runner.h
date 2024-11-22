@@ -101,7 +101,9 @@ namespace Sintering
   } // namespace internal
 
   template <template <int dim, typename Number, typename VectorizedArrayType>
-            typename NonLinearOperator>
+            typename NonLinearOperator,
+            template <typename VectorizedArrayType>
+            typename FreeEnergy>
   void
   runner(int argc, char **argv)
   {
@@ -151,8 +153,8 @@ namespace Sintering
                       initial_solution->n_order_parameters(),
                       MAX_SINTERING_GRAINS));
 
-        Sintering::Problem<SINTERING_DIM, NonLinearOperator> problem(
-          params, initial_solution);
+        Sintering::Problem<SINTERING_DIM, NonLinearOperator, FreeEnergy>
+          problem(params, initial_solution);
       }
     else if (std::string(argv[1]) == "--hypercube")
       {
@@ -212,8 +214,8 @@ namespace Sintering
                       initial_solution->n_order_parameters(),
                       MAX_SINTERING_GRAINS));
 
-        Sintering::Problem<SINTERING_DIM, NonLinearOperator> problem(
-          params, initial_solution);
+        Sintering::Problem<SINTERING_DIM, NonLinearOperator, FreeEnergy>
+          problem(params, initial_solution);
       }
     else if (std::string(argv[1]) == "--cloud")
       {
@@ -258,8 +260,8 @@ namespace Sintering
                       initial_solution->n_order_parameters(),
                       MAX_SINTERING_GRAINS));
 
-        Sintering::Problem<SINTERING_DIM, NonLinearOperator> problem(
-          params, initial_solution);
+        Sintering::Problem<SINTERING_DIM, NonLinearOperator, FreeEnergy>
+          problem(params, initial_solution);
       }
     else if (std::string(argv[1]) == "--restart")
       {
@@ -274,8 +276,8 @@ namespace Sintering
 
         internal::parse_params(argc, argv, 3, params, pcout);
 
-        Sintering::Problem<SINTERING_DIM, NonLinearOperator> problem(
-          params, restart_path);
+        Sintering::Problem<SINTERING_DIM, NonLinearOperator, FreeEnergy>
+          problem(params, restart_path);
       }
     else if (std::string(argv[1]) == "--debug")
       {
@@ -287,8 +289,8 @@ namespace Sintering
         const auto initial_solution =
           std::make_shared<Sintering::InitialValuesDebug<SINTERING_DIM>>();
 
-        Sintering::Problem<SINTERING_DIM, NonLinearOperator> problem(
-          params, initial_solution);
+        Sintering::Problem<SINTERING_DIM, NonLinearOperator, FreeEnergy>
+          problem(params, initial_solution);
       }
     else
       {

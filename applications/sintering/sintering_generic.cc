@@ -18,6 +18,7 @@
 
 #include <pf-applications/base/revision.h>
 
+#include <pf-applications/sintering/free_energy.h>
 #include <pf-applications/sintering/operator_sintering_generic.h>
 #include <pf-applications/sintering/runner.h>
 #include <pf-applications/sintering/tools.h>
@@ -46,7 +47,7 @@ main(int argc, char **argv)
   pcout << std::endl;
   pcout << std::endl;
 
-  runner<SinteringOperatorGeneric>(argc, argv);
+  runner<SinteringOperatorGeneric, FreeEnergy>(argc, argv);
 
   return 0;
 }
