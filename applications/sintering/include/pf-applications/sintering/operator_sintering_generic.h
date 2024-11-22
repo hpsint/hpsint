@@ -42,6 +42,7 @@ namespace Sintering
 
     DEAL_II_ALWAYS_INLINE inline SinteringOperatorGenericQuad(
       const FECellIntegratorType &                                phi,
+      const FreeEnergy<VectorizedArrayType> &                     free_energy,
       const SinteringOperatorData<dim, VectorizedArrayType> &     data,
       const AdvectionMechanism<dim, Number, VectorizedArrayType> &advection,
       Tensor<1, n_comp, VectorizedArrayType> *gradient_buffer)
@@ -49,7 +50,7 @@ namespace Sintering
       , cell(phi.get_current_cell_index())
       , lin_value(data.get_nonlinear_values(cell))
       , lin_gradient(data.get_nonlinear_gradients(cell))
-      , free_energy(data.free_energy)
+      , free_energy(free_energy)
       , mobility(data.get_mobility())
       , kappa_c(data.kappa_c)
       , kappa_p(data.kappa_p)
@@ -235,9 +236,10 @@ namespace Sintering
     using Number = typename VectorizedArrayType::value_type;
 
     DEAL_II_ALWAYS_INLINE inline SinteringOperatorGenericResidualQuad(
+      const FreeEnergy<VectorizedArrayType> &                free_energy,
       const SinteringOperatorData<dim, VectorizedArrayType> &data,
       const AlignedVector<VectorizedArrayType> &             buffer)
-      : free_energy(data.free_energy)
+      : free_energy(free_energy)
       , mobility(data.get_mobility())
       , kappa_c(data.kappa_c)
       , kappa_p(data.kappa_p)
@@ -335,6 +337,7 @@ namespace Sintering
     SinteringOperatorGeneric(
       const MatrixFree<dim, Number, VectorizedArrayType> &        matrix_free,
       const AffineConstraints<Number> &                           constraints,
+      const FreeEnergy<VectorizedArrayType> &                     free_energy,
       const SinteringOperatorData<dim, VectorizedArrayType> &     data,
       const TimeIntegration::SolutionHistory<BlockVectorType> &   history,
       const AdvectionMechanism<dim, Number, VectorizedArrayType> &advection,
@@ -347,6 +350,7 @@ namespace Sintering
           SinteringOperatorGeneric<dim, Number, VectorizedArrayType>>(
           matrix_free,
           constraints,
+          free_energy,
           data,
           history,
           matrix_based)
@@ -363,6 +367,7 @@ namespace Sintering
     create(
       const MatrixFree<dim, Number, VectorizedArrayType> &     matrix_free,
       const AffineConstraints<Number> &                        constraints,
+      const FreeEnergy<VectorizedArrayType> &                  free_energy,
       const SinteringOperatorData<dim, VectorizedArrayType> &  sintering_data,
       const TimeIntegration::SolutionHistory<BlockVectorType> &solution_history,
       const AdvectionMechanism<dim, Number, VectorizedArrayType>
@@ -373,6 +378,7 @@ namespace Sintering
     {
       return T(matrix_free,
                constraints,
+               free_energy,
                sintering_data,
                solution_history,
                advection_mechanism,
@@ -640,6 +646,7 @@ namespace Sintering
                                          Number,
                                          VectorizedArrayType>
         quad_op(phi,
+                this->free_energy,
                 this->data,
                 this->advection,
                 reinterpret_cast<Tensor<1, n_comp, VectorizedArrayType> *>(
@@ -868,7 +875,7 @@ namespace Sintering
       SinteringOperatorGenericResidualQuad<dim,
                                            VectorizedArrayType,
                                            with_time_derivative>
-        quad_op(this->data, buffer);
+        quad_op(this->free_energy, this->data, buffer);
 
       phi.evaluate(EvaluationFlags::EvaluationFlags::values |
                    EvaluationFlags::EvaluationFlags::gradients);
