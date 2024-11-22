@@ -57,8 +57,6 @@ main(int argc, char **argv)
     mapping, dof_handler, constraints, quadrature, additional_data);
 
   // Material properties
-  const double A                      = 16;
-  const double B                      = 1;
   const double kappa_c                = 1;
   const double kappa_p                = 0.5;
   const double Mvol                   = 1e-2;
@@ -74,7 +72,7 @@ main(int argc, char **argv)
     std::make_shared<ProviderAbstract>(Mvol, Mvap, Msurf, Mgb, L);
 
   SinteringOperatorData<dim, VectorizedArrayType> sintering_data(
-    A, B, kappa_c, kappa_p, mobility_provider, time_integration_order);
+    kappa_c, kappa_p, mobility_provider, time_integration_order);
 
   const unsigned int n_grains     = 3;
   const unsigned int n_components = n_grains + 2;

@@ -52,6 +52,7 @@ static_assert(false, "No grains number has been given!");
 #include <pf-applications/base/revision.h>
 
 #include <pf-applications/sintering/advection.h>
+#include <pf-applications/sintering/free_energy.h>
 #include <pf-applications/sintering/mobility.h>
 #include <pf-applications/sintering/operator_sintering_data.h>
 #include <pf-applications/sintering/operator_sintering_generic.h>
@@ -272,9 +273,9 @@ main(int argc, char **argv)
               TimeIntegration::SolutionHistory<BlockVectorType>
                 solution_history(time_integration_order + 1);
 
+              FreeEnergy<VectorizedArrayType> free_energy(A, B);
+
               SinteringOperatorData<dim, VectorizedArrayType> sintering_data(
-                A,
-                B,
                 kappa_c,
                 kappa_p,
                 mobility_provider,
@@ -290,6 +291,7 @@ main(int argc, char **argv)
               const SinteringOperatorGeneric<dim, Number, VectorizedArrayType>
                 sintering_operator(matrix_free,
                                    constraints,
+                                   free_energy,
                                    sintering_data,
                                    solution_history,
                                    advection_mechanism,
@@ -324,9 +326,9 @@ main(int argc, char **argv)
               TimeIntegration::SolutionHistory<BlockVectorType>
                 solution_history(time_integration_order + 1);
 
+              FreeEnergy<VectorizedArrayType> free_energy(A, B);
+
               SinteringOperatorData<dim, VectorizedArrayType> sintering_data(
-                A,
-                B,
                 kappa_c,
                 kappa_p,
                 mobility_provider,
@@ -366,6 +368,7 @@ main(int argc, char **argv)
               const SinteringOperatorGeneric<dim, Number, VectorizedArrayType>
                 sintering_operator(matrix_free,
                                    constraints,
+                                   free_energy,
                                    sintering_data,
                                    solution_history,
                                    advection_mechanism,
