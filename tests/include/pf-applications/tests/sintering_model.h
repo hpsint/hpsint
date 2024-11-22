@@ -8,6 +8,7 @@
 #include <deal.II/numerics/vector_tools.h>
 
 #include <pf-applications/sintering/advection.h>
+#include <pf-applications/sintering/free_energy.h>
 #include <pf-applications/sintering/initial_values_debug.h>
 #include <pf-applications/sintering/operator_advection.h>
 #include <pf-applications/sintering/tools.h>
@@ -40,9 +41,9 @@ namespace Test
       , quad(fe_degree + 1)
       , dof_handler(tria)
       , solution_history(time_integration_order + 1)
+      , free_energy(/*A=*/1.,
+                    /*B=*/1.)
       , sintering_data(
-          /*A=*/1.,
-          /*B=*/1.,
           /*kappa_c=*/0.1,
           /*kappa_p=*/0.1,
           std::make_shared<ProviderAbstract>(1e-1, 1e-8, 1e1, 1e0, 1e1),
@@ -155,6 +156,7 @@ namespace Test
       new (&nonlinear_operator) NonLinearOperator(
         NonLinearOperator::create(matrix_free,
                                   constraints,
+                                  free_energy,
                                   sintering_data,
                                   solution_history,
                                   advection_mechanism,
@@ -268,6 +270,7 @@ namespace Test
     DoFHandler<dim>                                      dof_handler;
     AffineConstraints<Number>                            constraints;
     TimeIntegration::SolutionHistory<VectorType>         solution_history;
+    FreeEnergy<VectorizedArrayType>                      free_energy;
     SinteringOperatorData<dim, VectorizedArrayType>      sintering_data;
     MatrixFree<dim, Number, VectorizedArrayType>         matrix_free;
     AdvectionMechanism<dim, Number, VectorizedArrayType> advection_mechanism;
