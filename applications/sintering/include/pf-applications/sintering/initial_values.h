@@ -1,6 +1,6 @@
 // ---------------------------------------------------------------------
 //
-// Copyright (C) 2023 by the hpsint authors
+// Copyright (C) 2024 by the hpsint authors
 //
 // This file is part of the hpsint library.
 //
@@ -44,20 +44,27 @@ namespace Sintering
   class InitialValues : public Function<dim>
   {
   public:
-    InitialValues(double interface_offset = 0)
+    InitialValues(
+      const double             interface_width,
+      const InterfaceDirection interface_direction = InterfaceDirection::middle,
+      const unsigned int       op_components_offset = 2,
+      const bool               is_accumulative      = false)
       : Function<dim>(1)
+      , interface_width(interface_width)
+      , interface_direction(interface_direction)
+      , op_components_offset(op_components_offset)
+      , is_accumulative(is_accumulative)
       , current_component(numbers::invalid_unsigned_int)
-      , interface_offset(interface_offset)
     {}
 
     double
-    value(const Point<dim> &p, const unsigned int component) const final
+    value(const Point<dim> &p, const unsigned int component) const override
     {
       AssertDimension(component, 0);
 
       (void)component;
 
-      return this->do_value(p, current_component);
+      return do_value(p, current_component);
     }
 
     virtual std::pair<Point<dim>, Point<dim>>
@@ -66,8 +73,11 @@ namespace Sintering
     virtual double
     get_r_max() const = 0;
 
-    virtual double
-    get_interface_width() const = 0;
+    double
+    get_interface_width() const
+    {
+      return interface_width;
+    }
 
     void
     set_component(const unsigned int current_component) const
@@ -79,7 +89,7 @@ namespace Sintering
     unsigned int
     n_components() const
     {
-      return n_order_parameters() + 2;
+      return n_order_parameters() + op_components_offset;
     }
 
     virtual unsigned int
@@ -88,40 +98,31 @@ namespace Sintering
     virtual unsigned int
     n_particles() const = 0;
 
-  private:
-    mutable unsigned int current_component;
-    const double         interface_offset;
-
   protected:
     virtual double
     do_value(const Point<dim> &p, const unsigned int component) const = 0;
 
-    double
-    is_in_sphere(const Point<dim> &point,
-                 const Point<dim> &center,
-                 double            rc) const
-    {
-      double c = 0;
+  protected:
+    // Interface thickness
+    const double interface_width;
 
-      double rm  = rc - interface_offset;
-      double rad = center.distance(point);
+    // Interface offset direction
+    const InterfaceDirection interface_direction;
 
-      if (rad <= rm - get_interface_width() / 2.0)
-        {
-          c = 1;
-        }
-      else if (rad < rm + get_interface_width() / 2.0)
-        {
-          double outvalue = 0.;
-          double invalue  = 1.;
-          double int_pos =
-            (rad - rm + get_interface_width() / 2.0) / get_interface_width();
+    // Offset for the order params offset
+    const unsigned int op_components_offset;
 
-          c = outvalue + (invalue - outvalue) *
-                           (1.0 + std::cos(int_pos * numbers::PI)) / 2.0;
-        }
+    /* This parameter defines how particles interact within a grain boundary at
+     * the initial configuration: whether the particles barely touch each other
+     * or proto-necks are built up.
+     *
+     * That what happens at the grain boundary for the case of two particles:
+     *    - false -> min(eta0, eta1)
+     *    - true  -> eta0 + eta1
+     */
+    const bool is_accumulative;
 
-      return c;
-    }
+  private:
+    mutable unsigned int current_component;
   };
 } // namespace Sintering
