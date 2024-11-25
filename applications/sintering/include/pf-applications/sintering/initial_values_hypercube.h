@@ -1,6 +1,6 @@
 // ---------------------------------------------------------------------
 //
-// Copyright (C) 2023 by the hpsint authors
+// Copyright (C) 2024 by the hpsint authors
 //
 // This file is part of the hpsint library.
 //
@@ -15,7 +15,7 @@
 
 #pragma once
 
-#include "initial_values_array.h"
+#include <pf-applications/sintering/initial_values_array.h>
 
 namespace Sintering
 {
@@ -23,12 +23,19 @@ namespace Sintering
   class InitialValuesHypercube : public InitialValuesArray<dim>
   {
   public:
-    InitialValuesHypercube(const double                         r0,
-                           const double                         interface_width,
-                           const std::array<unsigned int, dim> &n_grains,
-                           const unsigned int n_order_parameters,
-                           const bool         is_accumulative)
-      : InitialValuesArray<dim>(r0, interface_width, is_accumulative)
+    InitialValuesHypercube(
+      const double                         r0,
+      const double                         interface_width,
+      const std::array<unsigned int, dim> &n_grains,
+      const unsigned int                   n_order_parameters,
+      const InterfaceDirection interface_direction = InterfaceDirection::middle,
+      const unsigned int       op_components_offset = 2,
+      const bool               is_accumulative      = false)
+      : InitialValuesArray<dim>(r0,
+                                interface_width,
+                                interface_direction,
+                                op_components_offset,
+                                is_accumulative)
     {
       unsigned int counter = 0;
 
