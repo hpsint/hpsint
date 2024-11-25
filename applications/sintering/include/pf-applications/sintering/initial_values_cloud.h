@@ -1,6 +1,6 @@
 // ---------------------------------------------------------------------
 //
-// Copyright (C) 2023 by the hpsint authors
+// Copyright (C) 2024 by the hpsint authors
 //
 // This file is part of the hpsint library.
 //
@@ -19,23 +19,30 @@
 #include <deal.II/lac/sparsity_pattern.h>
 #include <deal.II/lac/sparsity_tools.h>
 
-#include "initial_values.h"
-#include "particle.h"
+#include <pf-applications/sintering/initial_values_spherical.h>
+#include <pf-applications/sintering/particle.h>
 
 namespace Sintering
 {
   using namespace dealii;
 
   template <int dim>
-  class InitialValuesCloud : public InitialValues<dim>
+  class InitialValuesCloud : public InitialValuesSpherical<dim>
   {
   public:
-    InitialValuesCloud(const std::vector<Particle<dim>> &particles_in,
-                       const double                      interface_width,
-                       const bool   minimize_order_parameters,
-                       const double interface_buffer_ratio = 0.5,
-                       const double radius_buffer_ratio    = 0.0)
-      : InitialValues<dim>()
+    InitialValuesCloud(
+      const std::vector<Particle<dim>> &particles_in,
+      const double                      interface_width,
+      const bool                        minimize_order_parameters,
+      const double                      interface_buffer_ratio = 0.5,
+      const double                      radius_buffer_ratio    = 0.0,
+      const InterfaceDirection interface_direction = InterfaceDirection::middle,
+      const unsigned int       op_components_offset = 2,
+      const bool               is_accumulative      = false)
+      : InitialValuesSpherical<dim>(interface_width,
+                                    interface_direction,
+                                    op_components_offset,
+                                    is_accumulative)
       , particles(particles_in)
       , interface_width(interface_width)
     {
@@ -214,54 +221,28 @@ namespace Sintering
     }
 
     double
-    do_value(const dealii::Point<dim> &p,
-             const unsigned int        component = 0) const final
+    op_value(const dealii::Point<dim> &p,
+             const unsigned int        order_parameter) const final
     {
-      if (component == 0)
+      AssertThrow(order_parameter < n_order_parameters(),
+                  ExcMessage(
+                    "Incorrect order parameter " +
+                    std::to_string(order_parameter) +
+                    " requested, but the total number of order parameters is " +
+                    std::to_string(n_order_parameters())));
+
+      double ret_val = 0;
+
+      for (const auto pid : order_parameter_to_grains.at(order_parameter))
         {
-          double c_main = 0;
+          const auto &particle_current = particles.at(pid);
+          ret_val = value_for_particle(p, particle_current);
 
-          for (const auto &particle_current : particles)
-            {
-              double c_current = this->is_in_sphere(p,
-                                                    particle_current.center,
-                                                    particle_current.radius);
-
-              c_main = std::max(c_main, c_current);
-            }
-
-          return c_main;
+          if (ret_val != 0)
+            break;
         }
-      else if (component == 1)
-        {
-          return 0;
-        }
-      else
-        {
-          AssertThrow(component < this->n_components(),
-                      ExcMessage(
-                        "Incorrect function component " +
-                        std::to_string(component) +
-                        " requested, but the total number of components is " +
-                        std::to_string(this->n_components())));
 
-          const unsigned int order_parameter = component - 2;
-
-          double ret_val = 0;
-
-          for (const auto pid : order_parameter_to_grains.at(order_parameter))
-            {
-              const auto &particle_current = particles.at(pid);
-              ret_val = this->value_for_particle(p, particle_current);
-
-              if (ret_val != 0)
-                {
-                  break;
-                }
-            }
-
-          return ret_val;
-        }
+      return ret_val;
     }
 
     std::pair<dealii::Point<dim>, dealii::Point<dim>>
@@ -285,12 +266,6 @@ namespace Sintering
                                                return a.radius < b.radius;
                                              });
       return pt_rmax->radius;
-    }
-
-    double
-    get_interface_width() const final
-    {
-      return interface_width;
     }
 
     unsigned int
