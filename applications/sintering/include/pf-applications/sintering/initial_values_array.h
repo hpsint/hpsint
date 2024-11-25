@@ -1,6 +1,6 @@
 // ---------------------------------------------------------------------
 //
-// Copyright (C) 2023 by the hpsint authors
+// Copyright (C) 2024 by the hpsint authors
 //
 // This file is part of the hpsint library.
 //
@@ -15,73 +15,40 @@
 
 #pragma once
 
-#include "initial_values.h"
+#include <pf-applications/sintering/initial_values_spherical.h>
 
 namespace Sintering
 {
   template <int dim>
-  class InitialValuesArray : public InitialValues<dim>
+  class InitialValuesArray : public InitialValuesSpherical<dim>
   {
   public:
-    InitialValuesArray(const double r0,
-                       const double interface_width,
-                       const bool   is_accumulative)
-      : InitialValues<dim>()
+    InitialValuesArray(
+      const double             r0,
+      const double             interface_width,
+      const InterfaceDirection interface_direction = InterfaceDirection::middle,
+      const unsigned int       op_components_offset = 2,
+      const bool               is_accumulative      = false)
+      : InitialValuesSpherical<dim>(interface_width,
+                                    interface_direction,
+                                    op_components_offset,
+                                    is_accumulative)
       , r0(r0)
-      , interface_width(interface_width)
-      , is_accumulative(is_accumulative)
     {}
 
     double
-    do_value(const dealii::Point<dim> &p,
-             const unsigned int        component) const final
+    op_value(const dealii::Point<dim> &p,
+             const unsigned int        order_parameter) const final
     {
       double ret_val = 0;
 
-      if (component == 0)
+      for (const auto pid : order_parameter_to_grains.at(order_parameter))
         {
-          std::vector<double> etas;
-          for (const auto &pt : centers)
-            {
-              etas.push_back(this->is_in_sphere(p, pt, r0));
-            }
+          const auto &pt = centers.at(pid);
+          ret_val        = this->is_in_sphere(p, pt, r0);
 
-          if (is_accumulative)
-            {
-              ret_val = std::accumulate(etas.begin(),
-                                        etas.end(),
-                                        0,
-                                        [](auto a, auto b) {
-                                          return std::move(a) + b;
-                                        });
-              if (ret_val > 1.0)
-                {
-                  ret_val = 1.0;
-                }
-            }
-          else
-            {
-              ret_val = *std::max_element(etas.begin(), etas.end());
-            }
-        }
-      else if (component == 1)
-        {
-          ret_val = 0;
-        }
-      else
-        {
-          const unsigned int order_parameter = component - 2;
-
-          for (const auto pid : order_parameter_to_grains.at(order_parameter))
-            {
-              const auto &pt = centers.at(pid);
-              ret_val        = this->is_in_sphere(p, pt, r0);
-
-              if (ret_val != 0)
-                {
-                  break;
-                }
-            }
+          if (ret_val != 0)
+            break;
         }
 
       return ret_val;
@@ -153,12 +120,6 @@ namespace Sintering
       return r0;
     }
 
-    double
-    get_interface_width() const final
-    {
-      return interface_width;
-    }
-
     unsigned int
     n_order_parameters() const final
     {
@@ -180,16 +141,5 @@ namespace Sintering
 
   private:
     double r0;
-    double interface_width;
-
-    /* This parameter defines how particles interact within a grain boundary at
-     * the initial configuration: whether the particles barely touch each other
-     * or proto-necks are built up.
-     *
-     * That what happens at the grain boundary for the case of two particles:
-     *    - false -> min(eta0, eta1)
-     *    - true  -> eta0 + eta1
-     */
-    bool is_accumulative;
   };
 } // namespace Sintering
