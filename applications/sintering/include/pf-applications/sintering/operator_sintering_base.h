@@ -17,6 +17,7 @@
 
 #include <deal.II/base/table_handler.h>
 
+#include <pf-applications/sintering/free_energy.h>
 #include <pf-applications/sintering/operator_base.h>
 #include <pf-applications/sintering/operator_sintering_data.h>
 
@@ -41,6 +42,7 @@ namespace Sintering
     SinteringOperatorBase(
       const MatrixFree<dim, Number, VectorizedArrayType> &     matrix_free,
       const AffineConstraints<Number> &                        constraints,
+      const FreeEnergy<VectorizedArrayType> &                  free_energy,
       const SinteringOperatorData<dim, VectorizedArrayType> &  data,
       const TimeIntegration::SolutionHistory<BlockVectorType> &history,
       const bool                                               matrix_based)
@@ -49,6 +51,7 @@ namespace Sintering
                                                           0,
                                                           "sintering_op",
                                                           matrix_based)
+      , free_energy(free_energy)
       , data(data)
       , history(history)
       , time_integrator(data.time_data, history)
@@ -121,7 +124,7 @@ namespace Sintering
 
       AlignedVector<VectorizedArrayType> buffer(fe_eval.n_q_points * n_entries);
 
-      const auto &free_energy = this->data.free_energy;
+      const auto &free_energy = this->free_energy;
       const auto &mobility    = this->data.get_mobility();
       const auto &kappa_c     = this->data.kappa_c;
       const auto &kappa_p     = this->data.kappa_p;
@@ -477,8 +480,7 @@ namespace Sintering
                 energy += 0.5 * data.kappa_c * c_grad.norm_square();
 
                 const auto free_energy_eval =
-                  data.free_energy.template eval<EnergyZero>(value,
-                                                             data.n_grains());
+                  free_energy.template eval<EnergyZero>(value, data.n_grains());
 
                 energy += free_energy_eval.f();
 
@@ -491,8 +493,7 @@ namespace Sintering
                 (void)gradient;
 
                 const auto free_energy_eval =
-                  data.free_energy.template eval<EnergyZero>(value,
-                                                             data.n_grains());
+                  free_energy.template eval<EnergyZero>(value, data.n_grains());
 
                 return free_energy_eval.f();
               });
@@ -552,7 +553,14 @@ namespace Sintering
       return std::make_tuple(q_labels, q_evaluators);
     }
 
+    const FreeEnergy<VectorizedArrayType> &
+    get_free_energy() const
+    {
+      return free_energy;
+    }
+
   protected:
+    const FreeEnergy<VectorizedArrayType>                    free_energy;
     const SinteringOperatorData<dim, VectorizedArrayType> &  data;
     const TimeIntegration::SolutionHistory<BlockVectorType> &history;
     const TimeIntegration::BDFIntegrator<dim, Number, VectorizedArrayType>

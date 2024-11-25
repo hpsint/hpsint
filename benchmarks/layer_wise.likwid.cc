@@ -47,6 +47,7 @@
 #define MAX_N_COMPONENTS MAX_SINTERING_GRAINS + 2
 
 #include <pf-applications/sintering/advection.h>
+#include <pf-applications/sintering/free_energy.h>
 #include <pf-applications/sintering/mobility.h>
 #include <pf-applications/sintering/operator_sintering_data.h>
 #include <pf-applications/sintering/operator_sintering_generic.h>
@@ -449,8 +450,10 @@ test(const Parameters &params, ConvergenceTable &table)
       const std::shared_ptr<MobilityProvider> mobility_provider =
         std::make_shared<ProviderAbstract>(Mvol, Mvap, Msurf, Mgb, L);
 
+      FreeEnergy<VectorizedArrayType> free_energy(A, B);
+
       SinteringOperatorData<dim, VectorizedArrayType> sintering_data(
-        A, B, kappa_c, kappa_p, mobility_provider, time_integration_order);
+        kappa_c, kappa_p, mobility_provider, time_integration_order);
 
       sintering_data.set_n_components(n_components);
       sintering_data.time_data.set_all_dt(dts);
@@ -458,7 +461,7 @@ test(const Parameters &params, ConvergenceTable &table)
 
       AlignedVector<VectorizedArrayType> buffer;
       SinteringOperatorGenericResidualQuad<dim, VectorizedArrayType, 1>
-        q_point_operator_s(sintering_data, buffer);
+        q_point_operator_s(free_energy, sintering_data, buffer);
 
       const auto run_op = [&](auto &q_point_operator, const std::string label) {
         // version 2: vectorial (block system)

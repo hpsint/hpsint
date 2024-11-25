@@ -94,6 +94,8 @@ namespace Sintering
   template <int dim,
             template <int, typename, typename>
             typename NonLinearOperatorTpl,
+            template <typename>
+            typename FreeEnergyTpl,
             typename Number              = double,
             typename VectorizedArrayType = VectorizedArray<Number>>
   class Problem
@@ -925,7 +927,7 @@ namespace Sintering
         }
 
       SinteringOperatorData<dim, VectorizedArrayType> sintering_data(
-        A, B, kappa_c, kappa_p, mobility_provider, time_integration_order);
+        kappa_c, kappa_p, mobility_provider, time_integration_order);
 
       pcout << "Mobility type: "
             << (sintering_data.use_tensorial_mobility ? "tensorial" : "scalar")
@@ -1009,9 +1011,12 @@ namespace Sintering
       else
         AssertThrow(false, ExcNotImplemented());
 
+      FreeEnergyTpl<VectorizedArrayType> free_energy(A, B);
+
       auto nonlinear_operator = NonLinearOperator::create(
         matrix_free,
         constraints,
+        free_energy,
         sintering_data,
         solution_history,
         advection_mechanism,
