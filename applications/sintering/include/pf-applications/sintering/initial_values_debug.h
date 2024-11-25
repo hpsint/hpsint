@@ -15,7 +15,7 @@
 
 #pragma once
 
-#include "initial_values.h"
+#include <pf-applications/sintering/initial_values.h>
 
 namespace Sintering
 {
@@ -25,6 +25,10 @@ namespace Sintering
   class InitialValuesDebug : public InitialValues<dim>
   {
   public:
+    InitialValuesDebug()
+      : InitialValues<dim>(1.0)
+    {}
+
     double
     do_value(const Point<dim> &p, const unsigned int component) const final
     {
@@ -104,12 +108,6 @@ namespace Sintering
 
     double
     get_r_max() const final
-    {
-      return 1.;
-    }
-
-    double
-    get_interface_width() const final
     {
       return 1.;
     }
