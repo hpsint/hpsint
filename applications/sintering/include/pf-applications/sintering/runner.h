@@ -122,9 +122,8 @@ namespace Sintering
         AssertThrow(argc >= 4, ExcNotImplemented());
 
         // geometry
-        const double          r0              = atof(argv[2]);
-        const unsigned int    n_grains        = atoi(argv[3]);
-        static constexpr bool is_accumulative = false;
+        const double       r0       = atof(argv[2]);
+        const unsigned int n_grains = atoi(argv[3]);
 
         AssertThrow(r0 > 0,
                     ExcMessage("Particle radius should be grater than 0!"));
@@ -144,8 +143,7 @@ namespace Sintering
             r0,
             params.geometry_data.interface_width,
             n_grains,
-            params.geometry_data.minimize_order_parameters,
-            is_accumulative);
+            params.geometry_data.minimize_order_parameters);
 
         AssertThrow(initial_solution->n_order_parameters() <=
                       MAX_SINTERING_GRAINS,
@@ -166,8 +164,6 @@ namespace Sintering
         std::array<unsigned int, SINTERING_DIM> n_grains;
         for (unsigned int d = 0; d < SINTERING_DIM; ++d)
           n_grains[d] = atoi(argv[3 + d]);
-
-        static constexpr bool is_accumulative = false;
 
         AssertThrow(r0 > 0,
                     ExcMessage("Particle radius should be grater than 0!"));
@@ -205,8 +201,7 @@ namespace Sintering
             r0,
             params.geometry_data.interface_width,
             n_grains,
-            n_order_params_to_use,
-            is_accumulative);
+            n_order_params_to_use);
 
         AssertThrow(initial_solution->n_order_parameters() <=
                       MAX_SINTERING_GRAINS,

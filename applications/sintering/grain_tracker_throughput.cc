@@ -390,7 +390,7 @@ main(int argc, char **argv)
           // mesh which can then be reused for the cases with different maximum
           // numbers of order parameters
           Sintering::InitialValuesHypercube<dim> initial_solution(
-            radius, interface_width, n_grains_dir, 2, is_accumulative);
+            radius, interface_width, n_grains_dir, 2);
 
           Benchmark<dim> benchmark(initial_solution,
                                    interface_width,
@@ -407,8 +407,7 @@ main(int argc, char **argv)
                 radius,
                 interface_width,
                 n_grains_dir,
-                n_max_op_for_ic,
-                is_accumulative);
+                n_max_op_for_ic);
 
               benchmark.run_tests(initial_solution_max_op, table);
             }
