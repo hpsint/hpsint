@@ -404,10 +404,7 @@ main(int argc, char **argv)
             {
               // Initial distribution of particles
               Sintering::InitialValuesHypercube<dim> initial_solution_max_op(
-                radius,
-                interface_width,
-                n_grains_dir,
-                n_max_op_for_ic);
+                radius, interface_width, n_grains_dir, n_max_op_for_ic);
 
               benchmark.run_tests(initial_solution_max_op, table);
             }
