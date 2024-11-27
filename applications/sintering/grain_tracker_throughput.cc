@@ -380,9 +380,6 @@ main(int argc, char **argv)
            n_grains_per_row <= max_grains_per_row;
            ++n_grains_per_row)
         {
-          // Geometry
-          const bool is_accumulative = false;
-
           std::array<unsigned int, dim> n_grains_dir;
           n_grains_dir.fill(n_grains_per_row);
 
