@@ -18,7 +18,7 @@
 #include <deal.II/base/bounding_box.h>
 
 #include <pf-applications/sintering/csv_reader.h>
-#include <pf-applications/sintering/initial_values.h>
+#include <pf-applications/sintering/initial_values_ch_ac.h>
 
 namespace Sintering
 {
@@ -38,7 +38,7 @@ namespace Sintering
    * The points of each contour have to be written in the clockwise or
    * counterclockwise order, the first point is not not repeated at the end.
    */
-  class InitialValuesMicrostructure : public InitialValues<2>
+  class InitialValuesMicrostructure : public InitialValuesCHAC<2>
   {
   protected:
     class MicroSegment
@@ -239,9 +239,12 @@ namespace Sintering
     InitialValuesMicrostructure(
       const double             interface_width     = 0.,
       const InterfaceDirection interface_direction = InterfaceDirection::middle,
-      const unsigned int       op_offset           = 2)
-      : interface_width(interface_width)
-      , interface_direction(interface_direction)
+      const unsigned int       op_components_offset = 2,
+      const bool               is_accumulative      = false)
+      : InitialValuesCHAC<2>(interface_width,
+                             interface_direction,
+                             op_components_offset,
+                             is_accumulative)
       , ref_h(interface_direction == InterfaceDirection::middle ?
                 interface_width / 2. :
                 interface_width)
@@ -250,61 +253,53 @@ namespace Sintering
           interface_direction == InterfaceDirection::middle ?
             0.5 :
             (interface_direction == InterfaceDirection::outside ? 1.0 : 0.0))
-      , op_offset(op_offset)
     {}
 
   protected:
     double
-    do_value(const Point<2> &p, const unsigned int component) const final
+    op_value(const Point<2> &p, const unsigned int order_parameter) const final
     {
       double p_val = 0.;
 
-      if (component >= op_offset)
+      std::vector<unsigned int> candidates;
+
+      for (const auto gid : order_parameter_to_grains.at(order_parameter))
         {
-          const unsigned int order_parameter = component - op_offset;
+          const auto &grain = grains.at(gid);
 
-          std::vector<unsigned int> candidates;
+          if (grain.point_inside_box(p))
+            candidates.push_back(gid);
+        }
 
-          for (const auto gid : order_parameter_to_grains.at(order_parameter))
-            {
-              const auto &grain = grains.at(gid);
-
-              if (grain.point_inside_box(p))
-                candidates.push_back(gid);
-            }
-
-          for (const auto cadidate_id : candidates)
-            if (grains[cadidate_id].point_inside(p))
+      for (const auto cadidate_id : candidates)
+        if (grains[cadidate_id].point_inside(p))
+          {
+            // If we are inside, then for sure no need to check other
+            // candidates and we can set up p_val directly here and break
+            if (interface_direction == InterfaceDirection::outside ||
+                interface_width == 0)
               {
-                // If we are inside, then for sure no need to check other
-                // candidates and we can set up p_val directly here and break
-                if (interface_direction == InterfaceDirection::outside ||
-                    interface_width == 0)
-                  {
-                    p_val = 1.;
-                  }
-                else
-                  {
-                    const auto dist =
-                      grains[cadidate_id].distance_to_nearest_edge(p);
-
-                    p_val =
-                      (dist < ref_h) ? (ref_b + ref_k * dist / ref_h) : 1.;
-                  }
-                break;
+                p_val = 1.;
               }
-            else if (interface_width > 0 &&
-                     interface_direction != InterfaceDirection::inside)
+            else
               {
                 const auto dist =
                   grains[cadidate_id].distance_to_nearest_edge(p);
 
-                const auto c_val =
-                  (dist < ref_h) ? (ref_b - ref_k * dist / ref_h) : 0.;
-
-                p_val = std::max(p_val, c_val);
+                p_val = (dist < ref_h) ? (ref_b + ref_k * dist / ref_h) : 1.;
               }
-        }
+            break;
+          }
+        else if (interface_width > 0 &&
+                 interface_direction != InterfaceDirection::inside)
+          {
+            const auto dist = grains[cadidate_id].distance_to_nearest_edge(p);
+
+            const auto c_val =
+              (dist < ref_h) ? (ref_b - ref_k * dist / ref_h) : 0.;
+
+            p_val = std::max(p_val, c_val);
+          }
 
       return p_val;
     }
@@ -342,12 +337,6 @@ namespace Sintering
       return r_max;
     }
 
-    double
-    get_interface_width() const final
-    {
-      return interface_width;
-    }
-
     unsigned int
     n_order_parameters() const final
     {
@@ -361,19 +350,10 @@ namespace Sintering
     }
 
   protected:
-    // Interface thickness
-    const double interface_width;
-
-    // Interface offset direction
-    InterfaceDirection interface_direction;
-
     // Reference values for the linear approximation
     const double ref_h;
     const double ref_k;
     const double ref_b;
-
-    // Offset for the order params offset
-    const unsigned int op_offset;
 
     // Grains
     std::vector<MicroGrain> grains;

@@ -46,10 +46,12 @@ namespace Sintering
       std::istream &           stream,
       const double             interface_width     = 0.,
       const InterfaceDirection interface_direction = InterfaceDirection::middle,
-      const unsigned int       op_offset           = 2)
+      const unsigned int       op_components_offset = 2,
+      const bool               is_accumulative      = false)
       : InitialValuesMicrostructure(interface_width,
                                     interface_direction,
-                                    op_offset)
+                                    op_components_offset,
+                                    is_accumulative)
     {
       unsigned int row_counter = 0;
       unsigned int n_grains    = 0;
