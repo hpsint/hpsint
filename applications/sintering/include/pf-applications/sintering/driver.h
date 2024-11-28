@@ -927,7 +927,11 @@ namespace Sintering
         }
 
       SinteringOperatorData<dim, VectorizedArrayType> sintering_data(
-        kappa_c, kappa_p, mobility_provider, time_integration_order);
+        kappa_c,
+        kappa_p,
+        mobility_provider,
+        time_integration_order,
+        FreeEnergyTpl<VectorizedArrayType>::op_components_offset);
 
       pcout << "Mobility type: "
             << (sintering_data.use_tensorial_mobility ? "tensorial" : "scalar")
@@ -949,10 +953,11 @@ namespace Sintering
                           sintering_data);
 
       // New grains can not appear in current sintering simulations
-      const bool         allow_new_grains        = false;
-      const unsigned int order_parameters_offset = 2;
-      const bool         do_timing               = true;
-      const bool         do_logging = params.grain_tracker_data.verbosity >= 1;
+      const unsigned int order_parameters_offset =
+        FreeEnergyTpl<VectorizedArrayType>::op_components_offset;
+      const bool allow_new_grains = false;
+      const bool do_timing        = true;
+      const bool do_logging       = params.grain_tracker_data.verbosity >= 1;
 
       // Grain representation type
       GrainTracker::GrainRepresentation grain_representation;
@@ -1424,10 +1429,13 @@ namespace Sintering
 
         if (r.n_blocks() > 0)
           {
-            check_value_ch =
-              std::sqrt(r.block(0).norm_sqr() + r.block(0).norm_sqr());
+            if (order_parameters_offset > 0)
+              check_value_ch =
+                std::sqrt(r.block(0).norm_sqr() + r.block(0).norm_sqr());
 
-            for (unsigned int b = 2; b < sintering_data.n_components(); ++b)
+            for (unsigned int b = order_parameters_offset;
+                 b < sintering_data.n_components();
+                 ++b)
               check_value_ac += r.block(b).norm_sqr();
             check_value_ac = std::sqrt(check_value_ac);
 
@@ -1746,7 +1754,7 @@ namespace Sintering
               }
           };
 
-          const unsigned int block_estimate_start = 2;
+          const unsigned int block_estimate_start = order_parameters_offset;
           const unsigned int block_estimate_end = sintering_data.n_components();
           coarsen_and_refine_mesh(vector_solutions_except_recent,
                                   tria,
@@ -1968,7 +1976,8 @@ namespace Sintering
                   }
 
                 // Change number of components after remapping completed
-                sintering_data.set_n_components(n_grains_new + 2);
+                sintering_data.set_n_components(n_grains_new +
+                                                order_parameters_offset);
               }
             else if (has_reassigned_grains)
               {
@@ -2988,17 +2997,19 @@ namespace Sintering
         {
           std::vector<std::string> names(solution.n_blocks());
 
-          if (params.output_data.fields.count("CH"))
+          if (params.output_data.fields.count("CH") &&
+              sintering_operator.get_data().n_non_grains() > 0)
             {
               names[0] = "c";
               names[1] = "mu";
             }
 
           if (params.output_data.fields.count("AC"))
-            for (unsigned int ig = 2;
-                 ig < sintering_operator.get_data().n_components();
+            for (unsigned int ig = 0;
+                 ig < sintering_operator.get_data().n_grains();
                  ++ig)
-              names[ig] = "eta" + std::to_string(ig - 2);
+              names[sintering_operator.get_data().n_non_grains() + ig] =
+                "eta" + std::to_string(ig);
 
           if (params.output_data.fields.count("displ") &&
               sintering_operator.n_components() >
