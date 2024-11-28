@@ -182,6 +182,8 @@ namespace Sintering
                                       EnergyEvaluation::first>>;
 
   public:
+    static const unsigned int op_components_offset = 2;
+
     FreeEnergy(double A, double B)
       : A(A)
       , B(B)
