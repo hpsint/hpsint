@@ -1,6 +1,6 @@
 // ---------------------------------------------------------------------
 //
-// Copyright (C) 2023 by the hpsint authors
+// Copyright (C) 2023 - 2024 by the hpsint authors
 //
 // This file is part of the hpsint library.
 //
@@ -44,11 +44,13 @@ namespace Sintering
     SinteringOperatorData(const Number                      kappa_c,
                           const Number                      kappa_p,
                           std::shared_ptr<MobilityProvider> mobility_provider,
-                          const unsigned int                integration_order)
+                          const unsigned int                integration_order,
+                          const unsigned int op_components_offset = 2)
       : kappa_c(kappa_c)
       , kappa_p(kappa_p)
       , time_data(integration_order)
       , mobility(mobility_provider)
+      , op_components_offset(op_components_offset)
       , t(0.0)
     {}
 
@@ -58,12 +60,6 @@ namespace Sintering
     TimeIntegration::TimeIntegratorData<Number> time_data;
 
   public:
-    bool
-    has_additional_variables_attached() const
-    {
-      return nonlinear_values.size(2) > 2 + n_grains();
-    }
-
     const Table<3, VectorizedArrayType> &
     get_nonlinear_values() const
     {
@@ -103,6 +99,14 @@ namespace Sintering
     void
     set_n_components(const unsigned int number_of_components)
     {
+      AssertThrow(
+        number_of_components >= op_components_offset,
+        ExcMessage(
+          "The new total number of components (" +
+          std::to_string(number_of_components) +
+          ") should not be smaller than the number of CH components (" +
+          std::to_string(op_components_offset) + ")."));
+
       this->number_of_components = number_of_components;
     }
 
@@ -115,7 +119,13 @@ namespace Sintering
     unsigned int
     n_grains() const
     {
-      return number_of_components - 2;
+      return number_of_components - op_components_offset;
+    }
+
+    unsigned int
+    n_non_grains() const
+    {
+      return op_components_offset;
     }
 
     ComponentMask
@@ -124,7 +134,7 @@ namespace Sintering
       ComponentMask mask(n_total_components, false);
       mask.set(0, true); // CH concentration, CH chemical potential is skipped
       for (unsigned int g = 0; g < n_grains(); ++g)
-        mask.set(2 + g, true); // AC order parameters
+        mask.set(op_components_offset + g, true); // AC order parameters
 
       return mask;
     }
@@ -174,7 +184,9 @@ namespace Sintering
 
               for (unsigned int b = 0; b < n_grains(); ++b)
                 {
-                  cell_iterator->get_dof_values(src.block(b + 2), values);
+                  cell_iterator->get_dof_values(src.block(b +
+                                                          op_components_offset),
+                                                values);
 
                   if (values.linfty_norm() > grain_use_cut_off_tolerance)
                     {
@@ -213,7 +225,7 @@ namespace Sintering
           const unsigned n_components_save_gradient =
             use_tensorial_mobility || save_op_gradients ?
               n_components_save_value :
-              2;
+              op_components_offset;
 
           value_ptr.emplace_back(value_ptr.back() +
                                  n_quadrature_points * n_components_save_value);
@@ -303,10 +315,11 @@ namespace Sintering
       nonlinear_values.reinit(
         {n_cells, n_quadrature_points, n_components_save});
 
-      nonlinear_gradients.reinit(
-        {n_cells,
-         n_quadrature_points,
-         use_tensorial_mobility || save_op_gradients ? n_components_save : 2});
+      nonlinear_gradients.reinit({n_cells,
+                                  n_quadrature_points,
+                                  use_tensorial_mobility || save_op_gradients ?
+                                    n_components_save :
+                                    op_components_offset});
 
       if (value_ptr.empty() == false)
         nonlinear_values_new.resize(value_ptr.back());
@@ -333,8 +346,10 @@ namespace Sintering
                   auto value    = phi.get_value(q);
                   auto gradient = phi.get_gradient(q);
 
-                  if ((component_table.size(0) > 0) && (c >= 2))
-                    if (component_table[cell][c - 2] == false)
+                  if ((component_table.size(0) > 0) &&
+                      (c >= op_components_offset))
+                    if (component_table[cell][c - op_components_offset] ==
+                        false)
                       {
                         value    = VectorizedArrayType();
                         gradient = Tensor<1, dim, VectorizedArrayType>();
@@ -342,7 +357,8 @@ namespace Sintering
 
                   nonlinear_values(cell, q, c) = value;
 
-                  if (use_tensorial_mobility || (c < 2) || save_op_gradients)
+                  if (use_tensorial_mobility || (c < op_components_offset) ||
+                      save_op_gradients)
                     nonlinear_gradients(cell, q, c) = gradient;
                 }
             }
@@ -355,7 +371,7 @@ namespace Sintering
               const unsigned n_components_save_gradient =
                 use_tensorial_mobility || save_op_gradients ?
                   n_components_save_value :
-                  2;
+                  op_components_offset;
 
               unsigned int counter_v = value_ptr[cell];
               unsigned int counter_g = gradient_ptr[cell];
@@ -363,14 +379,16 @@ namespace Sintering
               for (unsigned int q = 0; q < n_quadrature_points; ++q)
                 {
                   for (unsigned int c = 0; c < n_components_save_value; ++c)
-                    if (((c < 2) || (c >= (2 + n_grains()))) ||
-                        component_table[cell][c - 2])
+                    if (((c < op_components_offset) ||
+                         (c >= (op_components_offset + n_grains()))) ||
+                        component_table[cell][c - op_components_offset])
                       nonlinear_values_new[counter_v++] =
                         nonlinear_values(cell, q, c);
 
                   for (unsigned int c = 0; c < n_components_save_gradient; ++c)
-                    if (((c < 2) || (c >= (2 + n_grains()))) ||
-                        component_table[cell][c - 2])
+                    if (((c < op_components_offset) ||
+                         (c >= (op_components_offset + n_grains()))) ||
+                        component_table[cell][c - op_components_offset])
                       nonlinear_gradients_new[counter_g++] =
                         nonlinear_gradients(cell, q, c);
                 }
@@ -454,6 +472,8 @@ namespace Sintering
 
   private:
     MobilityType mobility;
+
+    const unsigned int op_components_offset;
 
     mutable Table<3, VectorizedArrayType> nonlinear_values;
     mutable Table<3, dealii::Tensor<1, dim, VectorizedArrayType>>
