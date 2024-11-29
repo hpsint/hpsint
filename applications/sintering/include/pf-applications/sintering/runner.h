@@ -122,11 +122,13 @@ namespace Sintering
 
     Sintering::Parameters params;
 
-    if (argc == 1 || std::string(argv[1]) == "--help")
+    const std::string mode(argv[1]);
+
+    if (argc == 1 || mode == "--help")
       {
         params.print_help();
       }
-    else if (std::string(argv[1]) == "--circle")
+    else if (mode == "--circle")
       {
         AssertThrow(argc >= 4, ExcNotImplemented());
 
@@ -162,7 +164,7 @@ namespace Sintering
 
         SinteringProblem problem(params, initial_solution);
       }
-    else if (std::string(argv[1]) == "--hypercube")
+    else if (mode == "--hypercube")
       {
         AssertThrow(argc >= 3 + SINTERING_DIM, ExcNotImplemented());
 
@@ -219,7 +221,7 @@ namespace Sintering
 
         SinteringProblem problem(params, initial_solution);
       }
-    else if (std::string(argv[1]) == "--cloud")
+    else if (mode == "--cloud")
       {
         AssertThrow(argc >= 3,
                     ExcMessage("Argument cloud_file has to be provided!"));
@@ -264,6 +266,7 @@ namespace Sintering
 
         SinteringProblem problem(params, initial_solution);
       }
+    else if (mode == "--restart")
       {
         AssertThrow(argc >= 3, ExcNotImplemented());
 
@@ -278,7 +281,7 @@ namespace Sintering
 
         SinteringProblem problem(params, restart_path);
       }
-    else if (std::string(argv[1]) == "--debug")
+    else if (mode == "--debug")
       {
         // Output case specific info
         pcout << "Mode: debug" << std::endl;
