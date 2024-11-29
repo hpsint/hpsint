@@ -40,6 +40,21 @@ namespace Sintering
     middle
   };
 
+  inline InterfaceDirection
+  to_interface_direction(const std::string label)
+  {
+    if (label == "Inside")
+      return InterfaceDirection::inside;
+    if (label == "Outside")
+      return InterfaceDirection::outside;
+    if (label == "Middle")
+      return InterfaceDirection::middle;
+
+    AssertThrow(false, ExcNotImplemented());
+
+    return InterfaceDirection::middle;
+  }
+
   template <int dim>
   class InitialValues : public Function<dim>
   {
