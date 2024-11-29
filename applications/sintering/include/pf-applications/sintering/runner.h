@@ -151,12 +151,17 @@ namespace Sintering
 
         internal::parse_params(argc, argv, 4, params, pcout);
 
+        const InterfaceDirection interface_direction(
+          to_interface_direction(params.geometry_data.interface_direction));
+
         const auto initial_solution =
           std::make_shared<Sintering::InitialValuesCircle<SINTERING_DIM>>(
             r0,
             params.geometry_data.interface_width,
             n_grains,
-            params.geometry_data.minimize_order_parameters);
+            params.geometry_data.minimize_order_parameters,
+            interface_direction,
+            FreeEnergy<VectorizedArrayType>::op_components_offset);
 
         AssertThrow(initial_solution->n_order_parameters() <=
                       MAX_SINTERING_GRAINS,
@@ -203,6 +208,9 @@ namespace Sintering
 
         internal::parse_params(argc, argv, 3 + SINTERING_DIM, params, pcout);
 
+        const InterfaceDirection interface_direction(
+          to_interface_direction(params.geometry_data.interface_direction));
+
         // By default, 2 order parameters are enough for the packing description
         // If minimization is not required, then 0 value disables it
         const unsigned int n_order_params_to_use =
@@ -213,7 +221,9 @@ namespace Sintering
             r0,
             params.geometry_data.interface_width,
             n_grains,
-            n_order_params_to_use);
+            n_order_params_to_use,
+            interface_direction,
+            FreeEnergy<VectorizedArrayType>::op_components_offset);
 
         AssertThrow(initial_solution->n_order_parameters() <=
                       MAX_SINTERING_GRAINS,
@@ -248,13 +258,18 @@ namespace Sintering
 
         internal::parse_params(argc, argv, 3, params, pcout);
 
+        const InterfaceDirection interface_direction(
+          to_interface_direction(params.geometry_data.interface_direction));
+
         const auto initial_solution =
           std::make_shared<Sintering::InitialValuesCloud<SINTERING_DIM>>(
             particles,
             params.geometry_data.interface_width,
             params.geometry_data.minimize_order_parameters,
             params.geometry_data.interface_buffer_ratio,
-            params.geometry_data.radius_buffer_ratio);
+            params.geometry_data.radius_buffer_ratio,
+            interface_direction,
+            FreeEnergy<VectorizedArrayType>::op_components_offset);
 
         AssertThrow(initial_solution->n_order_parameters() <=
                       MAX_SINTERING_GRAINS,
