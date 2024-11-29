@@ -54,6 +54,7 @@ namespace Sintering
     double          divisions_per_interface            = 4;
     double          boundary_factor                    = 0.5;
     double          interface_width                    = 2.0;
+    std::string     interface_direction                = "Middle";
     bool            minimize_order_parameters          = true;
     double          interface_buffer_ratio             = 1.0;
     double          radius_buffer_ratio                = 0.0;
@@ -493,6 +494,10 @@ namespace Sintering
       prm.add_parameter("InterfaceWidth",
                         geometry_data.interface_width,
                         "Phase-field interface width.");
+      prm.add_parameter("InterfaceDirection",
+                        geometry_data.interface_direction,
+                        "Interface offset.",
+                        Patterns::Selection("Inside|Outside|Middle"));
       prm.add_parameter("MinimizeOrderParameters",
                         geometry_data.minimize_order_parameters,
                         "Minimize number of initial order parameters.");
