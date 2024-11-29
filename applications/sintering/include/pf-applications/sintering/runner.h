@@ -248,10 +248,6 @@ namespace Sintering
 
         internal::parse_params(argc, argv, 3, params, pcout);
 
-        pcout << "Parameters in JSON format:" << std::endl;
-        params.print_input();
-        pcout << std::endl;
-
         const auto initial_solution =
           std::make_shared<Sintering::InitialValuesCloud<SINTERING_DIM>>(
             particles,
@@ -286,10 +282,6 @@ namespace Sintering
         pcout << std::endl;
 
         internal::parse_params(argc, argv, 3, params, pcout);
-
-        pcout << "Parameters in JSON format:" << std::endl;
-        params.print_input();
-        pcout << std::endl;
 
         const InterfaceDirection interface_direction(
           to_interface_direction(params.geometry_data.interface_direction));
