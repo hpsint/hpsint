@@ -124,7 +124,9 @@ namespace Sintering
 
     Sintering::Parameters params;
 
-    const std::string mode(argv[1]);
+    const std::string  mode(argv[1]);
+    const unsigned int op_components_offset =
+      FreeEnergy<VectorizedArrayType>::op_components_offset;
 
     if (argc == 1 || mode == "--help")
       {
@@ -161,7 +163,7 @@ namespace Sintering
             n_grains,
             params.geometry_data.minimize_order_parameters,
             interface_direction,
-            FreeEnergy<VectorizedArrayType>::op_components_offset);
+            op_components_offset);
 
         AssertThrow(initial_solution->n_order_parameters() <=
                       MAX_SINTERING_GRAINS,
@@ -223,7 +225,7 @@ namespace Sintering
             n_grains,
             n_order_params_to_use,
             interface_direction,
-            FreeEnergy<VectorizedArrayType>::op_components_offset);
+            op_components_offset);
 
         AssertThrow(initial_solution->n_order_parameters() <=
                       MAX_SINTERING_GRAINS,
@@ -269,7 +271,7 @@ namespace Sintering
             params.geometry_data.interface_buffer_ratio,
             params.geometry_data.radius_buffer_ratio,
             interface_direction,
-            FreeEnergy<VectorizedArrayType>::op_components_offset);
+            op_components_offset);
 
         AssertThrow(initial_solution->n_order_parameters() <=
                       MAX_SINTERING_GRAINS,
@@ -308,14 +310,14 @@ namespace Sintering
                   fstream,
                   params.geometry_data.interface_width,
                   interface_direction,
-                  FreeEnergy<VectorizedArrayType>::op_components_offset);
+                  op_components_offset);
             else if (mode == "--imaging")
               initial_solution =
                 std::make_shared<Sintering::InitialValuesMicrostructureImaging>(
                   fstream,
                   params.geometry_data.interface_width,
                   interface_direction,
-                  FreeEnergy<VectorizedArrayType>::op_components_offset);
+                  op_components_offset);
             else
               AssertThrow(false, ExcNotImplemented());
 
@@ -332,24 +334,24 @@ namespace Sintering
 
             SinteringProblem problem(params, initial_solution);
           }
-        else if (mode == "--restart")
-          {
-            AssertThrow(argc >= 3, ExcNotImplemented());
-
-            const std::string restart_path = std::string(argv[2]);
-
-            // Output case specific info
-            pcout << "Mode:         restart" << std::endl;
-            pcout << "Restart path: " << restart_path << std::endl;
-            pcout << std::endl;
-
-            internal::parse_params(argc, argv, 3, params, pcout);
-
-            SinteringProblem problem(params, restart_path);
-          }
         else
           AssertThrow(SINTERING_DIM == 2,
-                      "Only 2D case is currently supported");
+                      ExcMessage("Only 2D case is currently supported"));
+      }
+    else if (mode == "--restart")
+      {
+        AssertThrow(argc >= 3, ExcNotImplemented());
+
+        const std::string restart_path = std::string(argv[2]);
+
+        // Output case specific info
+        pcout << "Mode:         restart" << std::endl;
+        pcout << "Restart path: " << restart_path << std::endl;
+        pcout << std::endl;
+
+        internal::parse_params(argc, argv, 3, params, pcout);
+
+        SinteringProblem problem(params, restart_path);
       }
     else if (mode == "--debug")
       {
