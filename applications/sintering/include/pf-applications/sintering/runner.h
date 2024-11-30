@@ -281,8 +281,7 @@ namespace Sintering
       }
     else if (mode == "--voronoi" || mode == "--imaging")
       {
-        static_assert(SINTERING_DIM == 2,
-                      "Only 2D case is currently supported");
+        AssertThrow(SINTERING_DIM == 2, "Only 2D case is currently supported");
 
         AssertThrow(argc >= 3,
                     ExcMessage("Argument file_name has to be provided!"));
