@@ -42,11 +42,16 @@ static_assert(false, "No grains number has been given!");
 #include <pf-applications/sintering/initial_values_cloud.h>
 #include <pf-applications/sintering/initial_values_debug.h>
 #include <pf-applications/sintering/initial_values_hypercube.h>
+#include <pf-applications/sintering/initial_values_microstructure_imaging.h>
+#include <pf-applications/sintering/initial_values_microstructure_voronoi.h>
 
 #include <cstdlib>
 #include <regex>
 
 using namespace dealii;
+
+using Number              = double;
+using VectorizedArrayType = VectorizedArray<Number>;
 
 namespace Sintering
 {
@@ -107,17 +112,27 @@ namespace Sintering
   void
   runner(int argc, char **argv)
   {
+    using SinteringProblem = Sintering::Problem<SINTERING_DIM,
+                                                NonLinearOperator,
+                                                FreeEnergy,
+                                                Number,
+                                                VectorizedArrayType>;
+
     ConditionalOStream pcout(std::cout,
                              Utilities::MPI::this_mpi_process(MPI_COMM_WORLD) ==
                                0);
 
     Sintering::Parameters params;
 
-    if (argc == 1 || std::string(argv[1]) == "--help")
+    const std::string  mode(argv[1]);
+    const unsigned int op_components_offset =
+      FreeEnergy<VectorizedArrayType>::op_components_offset;
+
+    if (argc == 1 || mode == "--help")
       {
         params.print_help();
       }
-    else if (std::string(argv[1]) == "--circle")
+    else if (mode == "--circle")
       {
         AssertThrow(argc >= 4, ExcNotImplemented());
 
@@ -138,12 +153,17 @@ namespace Sintering
 
         internal::parse_params(argc, argv, 4, params, pcout);
 
+        const InterfaceDirection interface_direction(
+          to_interface_direction(params.geometry_data.interface_direction));
+
         const auto initial_solution =
           std::make_shared<Sintering::InitialValuesCircle<SINTERING_DIM>>(
             r0,
             params.geometry_data.interface_width,
             n_grains,
-            params.geometry_data.minimize_order_parameters);
+            params.geometry_data.minimize_order_parameters,
+            interface_direction,
+            op_components_offset);
 
         AssertThrow(initial_solution->n_order_parameters() <=
                       MAX_SINTERING_GRAINS,
@@ -151,10 +171,9 @@ namespace Sintering
                       initial_solution->n_order_parameters(),
                       MAX_SINTERING_GRAINS));
 
-        Sintering::Problem<SINTERING_DIM, NonLinearOperator, FreeEnergy>
-          problem(params, initial_solution);
+        SinteringProblem problem(params, initial_solution);
       }
-    else if (std::string(argv[1]) == "--hypercube")
+    else if (mode == "--hypercube")
       {
         AssertThrow(argc >= 3 + SINTERING_DIM, ExcNotImplemented());
 
@@ -191,6 +210,9 @@ namespace Sintering
 
         internal::parse_params(argc, argv, 3 + SINTERING_DIM, params, pcout);
 
+        const InterfaceDirection interface_direction(
+          to_interface_direction(params.geometry_data.interface_direction));
+
         // By default, 2 order parameters are enough for the packing description
         // If minimization is not required, then 0 value disables it
         const unsigned int n_order_params_to_use =
@@ -201,7 +223,9 @@ namespace Sintering
             r0,
             params.geometry_data.interface_width,
             n_grains,
-            n_order_params_to_use);
+            n_order_params_to_use,
+            interface_direction,
+            op_components_offset);
 
         AssertThrow(initial_solution->n_order_parameters() <=
                       MAX_SINTERING_GRAINS,
@@ -209,10 +233,9 @@ namespace Sintering
                       initial_solution->n_order_parameters(),
                       MAX_SINTERING_GRAINS));
 
-        Sintering::Problem<SINTERING_DIM, NonLinearOperator, FreeEnergy>
-          problem(params, initial_solution);
+        SinteringProblem problem(params, initial_solution);
       }
-    else if (std::string(argv[1]) == "--cloud")
+    else if (mode == "--cloud")
       {
         AssertThrow(argc >= 3,
                     ExcMessage("Argument cloud_file has to be provided!"));
@@ -237,9 +260,8 @@ namespace Sintering
 
         internal::parse_params(argc, argv, 3, params, pcout);
 
-        pcout << "Parameters in JSON format:" << std::endl;
-        params.print_input();
-        pcout << std::endl;
+        const InterfaceDirection interface_direction(
+          to_interface_direction(params.geometry_data.interface_direction));
 
         const auto initial_solution =
           std::make_shared<Sintering::InitialValuesCloud<SINTERING_DIM>>(
@@ -247,7 +269,9 @@ namespace Sintering
             params.geometry_data.interface_width,
             params.geometry_data.minimize_order_parameters,
             params.geometry_data.interface_buffer_ratio,
-            params.geometry_data.radius_buffer_ratio);
+            params.geometry_data.radius_buffer_ratio,
+            interface_direction,
+            op_components_offset);
 
         AssertThrow(initial_solution->n_order_parameters() <=
                       MAX_SINTERING_GRAINS,
@@ -255,10 +279,66 @@ namespace Sintering
                       initial_solution->n_order_parameters(),
                       MAX_SINTERING_GRAINS));
 
-        Sintering::Problem<SINTERING_DIM, NonLinearOperator, FreeEnergy>
-          problem(params, initial_solution);
+        SinteringProblem problem(params, initial_solution);
       }
-    else if (std::string(argv[1]) == "--restart")
+    else if (mode == "--voronoi" || mode == "--imaging")
+      {
+        if constexpr (SINTERING_DIM == 2)
+          {
+            AssertThrow(argc >= 3,
+                        ExcMessage("Argument file_name has to be provided!"));
+
+            std::string   input_file = std::string(argv[2]);
+            std::ifstream fstream(input_file);
+            AssertThrow(fstream.is_open(), ExcMessage("File not found!"));
+
+            // Output case specific info
+            pcout << "Mode:       " << mode.substr(2) << std::endl;
+            pcout << "Input file: " << input_file << std::endl;
+            pcout << std::endl;
+
+            internal::parse_params(argc, argv, 3, params, pcout);
+
+            const InterfaceDirection interface_direction(
+              to_interface_direction(params.geometry_data.interface_direction));
+
+            std::shared_ptr<InitialValues<SINTERING_DIM>> initial_solution;
+
+            if (mode == "--voronoi")
+              initial_solution =
+                std::make_shared<Sintering::InitialValuesMicrostructureVoronoi>(
+                  fstream,
+                  params.geometry_data.interface_width,
+                  interface_direction,
+                  op_components_offset);
+            else if (mode == "--imaging")
+              initial_solution =
+                std::make_shared<Sintering::InitialValuesMicrostructureImaging>(
+                  fstream,
+                  params.geometry_data.interface_width,
+                  interface_direction,
+                  op_components_offset);
+            else
+              AssertThrow(false, ExcNotImplemented());
+
+            pcout << "initial_n_particles  = "
+                  << initial_solution->n_particles() << std::endl;
+            pcout << "initial_n_components = "
+                  << initial_solution->n_components() << std::endl;
+
+            AssertThrow(initial_solution->n_order_parameters() <=
+                          MAX_SINTERING_GRAINS,
+                        Sintering::ExcMaxGrainsExceeded(
+                          initial_solution->n_order_parameters(),
+                          MAX_SINTERING_GRAINS));
+
+            SinteringProblem problem(params, initial_solution);
+          }
+        else
+          AssertThrow(SINTERING_DIM == 2,
+                      ExcMessage("Only 2D case is currently supported"));
+      }
+    else if (mode == "--restart")
       {
         AssertThrow(argc >= 3, ExcNotImplemented());
 
@@ -271,10 +351,9 @@ namespace Sintering
 
         internal::parse_params(argc, argv, 3, params, pcout);
 
-        Sintering::Problem<SINTERING_DIM, NonLinearOperator, FreeEnergy>
-          problem(params, restart_path);
+        SinteringProblem problem(params, restart_path);
       }
-    else if (std::string(argv[1]) == "--debug")
+    else if (mode == "--debug")
       {
         // Output case specific info
         pcout << "Mode: debug" << std::endl;
@@ -284,8 +363,7 @@ namespace Sintering
         const auto initial_solution =
           std::make_shared<Sintering::InitialValuesDebug<SINTERING_DIM>>();
 
-        Sintering::Problem<SINTERING_DIM, NonLinearOperator, FreeEnergy>
-          problem(params, initial_solution);
+        SinteringProblem problem(params, initial_solution);
       }
     else
       {
