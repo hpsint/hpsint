@@ -39,6 +39,25 @@ constexpr bool has_n_grains_method =
   dealii::internal::is_supported_operation<n_grains_t, T>
     &&dealii::internal::is_supported_operation<n_grains_to_n_components_t, T>;
 
+template <typename T>
+using n_min_possible_components_t =
+  decltype(std::declval<T const>().n_min_possible_components());
+
+template <typename T, typename = void>
+struct can_decay_to_scalar
+{
+  static constexpr bool value = false;
+};
+
+template <typename T>
+struct can_decay_to_scalar<T, std::void_t<n_min_possible_components_t<T>>>
+{
+  static constexpr bool value = (T::n_min_possible_components() == 1);
+};
+
+template <typename T>
+constexpr bool can_decay_to_scalar_v = can_decay_to_scalar<T>::value;
+
 DeclException4(ExcInvalidNumberOfComponents,
                unsigned int,
                unsigned int,
@@ -75,27 +94,50 @@ DeclException4(ExcInvalidNumberOfComponents,
 #define EXPAND_MAX_SINTERING_COMPONENTS \
   BOOST_PP_ADD(MAX_SINTERING_GRAINS, 2)
 
-#define EXPAND_OPERATIONS(OPERATION)                                                                                  \
-  if constexpr(has_n_grains_method<T>)                                                                                \
-    {                                                                                                                 \
-      constexpr int max_grains = MAX_SINTERING_GRAINS;                                                                \
-      const unsigned int n_grains = static_cast<const T&>(*this).n_grains();                                          \
-      switch (n_grains)                                                                                               \
-        {                                                                                                             \
-          BOOST_PP_REPEAT_FROM_TO(1, BOOST_PP_INC(MAX_SINTERING_GRAINS), EXPAND_CONST, OPERATION);                    \
-          default:                                                                                                    \
-            AssertThrow(false, ExcInvalidNumberOfComponents(1, MAX_SINTERING_GRAINS, n_grains, "grains"));            \
-        }                                                                                                             \
-    }                                                                                                                 \
-  else                                                                                                                \
-    {                                                                                                                 \
-      constexpr int max_components = MAX_SINTERING_GRAINS + 2;                                                        \
-      switch (this->n_components())                                                                                   \
-        {                                                                                                             \
-          BOOST_PP_REPEAT_FROM_TO(1, BOOST_PP_INC(EXPAND_MAX_SINTERING_COMPONENTS), EXPAND_NONCONST, OPERATION);      \
-          default:                                                                                                    \
-            AssertThrow(false, ExcInvalidNumberOfComponents(1, max_components, this->n_components(), "components"));  \
-        }                                                                                                             \
+#define EXPAND_OPERATIONS(OPERATION)                                                                                    \
+  if constexpr(!can_decay_to_scalar_v<T>)                                                                               \
+    if constexpr(has_n_grains_method<T>)                                                                                \
+      {                                                                                                                 \
+        constexpr int max_grains = MAX_SINTERING_GRAINS;                                                                \
+        const unsigned int n_grains = static_cast<const T&>(*this).n_grains();                                          \
+        switch (n_grains)                                                                                               \
+          {                                                                                                             \
+            BOOST_PP_REPEAT_FROM_TO(1, BOOST_PP_INC(MAX_SINTERING_GRAINS), EXPAND_CONST, OPERATION);                    \
+            default:                                                                                                    \
+              AssertThrow(false, ExcInvalidNumberOfComponents(1, MAX_SINTERING_GRAINS, n_grains, "grains"));            \
+          }                                                                                                             \
+      }                                                                                                                 \
+    else                                                                                                                \
+      {                                                                                                                 \
+        constexpr int max_components = MAX_SINTERING_GRAINS + 2;                                                        \
+        switch (this->n_components())                                                                                   \
+          {                                                                                                             \
+            BOOST_PP_REPEAT_FROM_TO(1, BOOST_PP_INC(EXPAND_MAX_SINTERING_COMPONENTS), EXPAND_NONCONST, OPERATION);      \
+            default:                                                                                                    \
+              AssertThrow(false, ExcInvalidNumberOfComponents(1, max_components, this->n_components(), "components"));  \
+          }                                                                                                             \
+    }                                                                                                                   \
+  else                                                                                                                  \
+    if constexpr(has_n_grains_method<T>)                                                                                \
+      {                                                                                                                 \
+        constexpr int max_grains = MAX_SINTERING_GRAINS;                                                                \
+        const unsigned int n_grains = static_cast<const T&>(*this).n_grains();                                          \
+        switch (n_grains)                                                                                               \
+          {                                                                                                             \
+            BOOST_PP_REPEAT_FROM_TO(2, BOOST_PP_INC(MAX_SINTERING_GRAINS), EXPAND_CONST, OPERATION);                    \
+            default:                                                                                                    \
+              AssertThrow(false, ExcInvalidNumberOfComponents(1, MAX_SINTERING_GRAINS, n_grains, "grains"));            \
+          }                                                                                                             \
+      }                                                                                                                 \
+    else                                                                                                                \
+      {                                                                                                                 \
+        constexpr int max_components = MAX_SINTERING_GRAINS + 2;                                                        \
+        switch (this->n_components())                                                                                   \
+          {                                                                                                             \
+            BOOST_PP_REPEAT_FROM_TO(2, BOOST_PP_INC(EXPAND_MAX_SINTERING_COMPONENTS), EXPAND_NONCONST, OPERATION);      \
+            default:                                                                                                    \
+              AssertThrow(false, ExcInvalidNumberOfComponents(1, max_components, this->n_components(), "components"));  \
+          }                                                                                                             \
     }
 
 #define EXPAND_OPERATIONS_N_COMP_NT(OPERATION)                                                               \

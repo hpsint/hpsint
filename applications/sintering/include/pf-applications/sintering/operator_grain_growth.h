@@ -497,6 +497,12 @@ namespace Sintering
       return n_grains;
     }
 
+    static constexpr unsigned int
+    n_min_possible_components()
+    {
+      return 1;
+    }
+
     template <int with_time_derivative>
     void
     evaluate_nonlinear_residual(
