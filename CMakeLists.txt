@@ -1,4 +1,4 @@
-CMAKE_MINIMUM_REQUIRED(VERSION 2.8.12)
+CMAKE_MINIMUM_REQUIRED(VERSION 3.20)
 
 set(CMAKE_CXX_STANDARD 17)
 
@@ -69,6 +69,7 @@ set(LIKWID_INC CACHE STRING "Path to likwid includes")
 option(TARGET_AC "Build Allen-Cahn executables" ON)
 option(TARGET_CH "Build Cahn-Hilliard executables" ON)
 option(TARGET_SINTERING "Build sintering executables" ON)
+option(TARGET_GRAIN_GROWTH "Build grain growth executables" ON)
 option(TARGET_STRUCTURAL "Build structural executables" ON)
 option(TARGET_BENCHMARKS "Build benchmarks" ON)
 option(TARGET_TESTS "Build tests" ON)
@@ -89,12 +90,11 @@ if(TARGET_CH)
   ADD_SUBDIRECTORY(applications/cahn_hilliard)
 ENDIF()
 
-if(TARGET_SINTERING)
-  message(STATUS "Building sintering targets")
-  ADD_SUBDIRECTORY(applications/sintering)
-  ADD_SUBDIRECTORY(applications/sintering/include)
-  ADD_SUBDIRECTORY(applications/structural/include)
-ENDIF()
+# This is a complex submodule, it checks the targets itself
+message(STATUS "Building sintering targets")
+ADD_SUBDIRECTORY(applications/sintering)
+ADD_SUBDIRECTORY(applications/sintering/include)
+ADD_SUBDIRECTORY(applications/structural/include)
 
 if(TARGET_STRUCTURAL)
   message(STATUS "Building structural targets")
