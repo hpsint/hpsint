@@ -84,6 +84,9 @@ namespace hpsint
   using EnergyZero   = Mask<to_underlying(EnergyEvaluation::zero)>;
   using EnergyFirst  = Mask<to_underlying(EnergyEvaluation::first)>;
   using EnergySecond = Mask<to_underlying(EnergyEvaluation::second)>;
+  using EnergyAll    = Mask<to_underlying(EnergyEvaluation::zero),
+                         to_underlying(EnergyEvaluation::first),
+                         to_underlying(EnergyEvaluation::second)>;
 
   template <typename M, EnergyEvaluation B, EnergyEvaluation... Bs>
   struct any_energy_eval_of
