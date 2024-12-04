@@ -10,7 +10,7 @@
     },
     "Simulation": {
         "CmdTemplate": "sbatch {slurm} template.job {executable} '{options}' {lock_file}",
-        "BuildRoot": "HPSINT_BUILD_PATH",
+        "BuildRoot": "HPSINT_BUILD_PATH/applications/sintering",
         "Mode": "--cloud"
     },
     "Settings": {
