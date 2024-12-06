@@ -336,8 +336,9 @@ namespace Sintering
 
     std::string nonlinear_solver_type = "damped";
 
-    bool fdm_jacobian_approximation = false;
-    bool jacobi_free                = false;
+    bool fdm_jacobian_approximation       = false;
+    bool fdm_precond_system_approximation = false;
+    bool jacobi_free                      = false;
 
     unsigned int verbosity = 1;
 
@@ -1038,6 +1039,8 @@ namespace Sintering
 
       prm.add_parameter("FDMJacobianApproximation",
                         nonlinear_data.fdm_jacobian_approximation);
+      prm.add_parameter("FDMPrecondSystemApproximation",
+                        nonlinear_data.fdm_precond_system_approximation);
       prm.add_parameter("JacobiFree", nonlinear_data.jacobi_free);
       prm.add_parameter("Verbosity", nonlinear_data.verbosity);
 
