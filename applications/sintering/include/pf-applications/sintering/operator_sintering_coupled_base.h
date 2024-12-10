@@ -38,6 +38,7 @@ namespace Sintering
     SinteringOperatorCoupledBase(
       const MatrixFree<dim, Number, VectorizedArrayType> &     matrix_free,
       const AffineConstraints<Number> &                        constraints,
+      const FreeEnergy<VectorizedArrayType> &                  free_energy,
       const SinteringOperatorData<dim, VectorizedArrayType> &  data,
       const TimeIntegration::SolutionHistory<BlockVectorType> &history,
       const bool                                               matrix_based,
@@ -48,6 +49,7 @@ namespace Sintering
       const double c_min = 0.1)
       : SinteringOperatorBase<dim, Number, VectorizedArrayType, T>(matrix_free,
                                                                    constraints,
+                                                                   free_energy,
                                                                    data,
                                                                    history,
                                                                    matrix_based)
