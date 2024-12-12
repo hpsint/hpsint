@@ -61,6 +61,7 @@
 #include <pf-applications/base/solution_serialization.h>
 #include <pf-applications/base/timer.h>
 
+#include <pf-applications/lac/evaluation.h>
 #include <pf-applications/lac/solvers_linear.h>
 #include <pf-applications/lac/solvers_nonlinear.h>
 
@@ -1315,6 +1316,19 @@ namespace Sintering
                   params.advection_data.enable,
                   save_all_blocks);
               }
+          }
+
+        // Use numerical approximation of the underlying system, if a
+        // preconditiner uses it, of course. Mainly, a debug feature.
+        if (params.nonlinear_data.fdm_precond_system_approximation)
+          {
+            auto &system_matrix = nonlinear_operator.get_system_matrix();
+
+            calc_numeric_tangent(dof_handler,
+                                 nonlinear_operator,
+                                 current_u,
+                                 nl_residual,
+                                 system_matrix);
           }
 
         preconditioner->do_update();
