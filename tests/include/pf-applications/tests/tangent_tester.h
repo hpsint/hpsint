@@ -15,9 +15,9 @@
 
 #include <deal.II/base/conditional_ostream.h>
 
-#include <pf-applications/tests/sintering_model.h>
-
 #include <pf-applications/lac/evaluation.h>
+
+#include <pf-applications/tests/sintering_model.h>
 
 #include <iostream>
 
@@ -58,13 +58,12 @@ namespace Test
     ConditionalOStream pcout(std::cout, is_zero_rank);
 
     // How to compute residual
-    auto nl_residual =
-      [&](const auto &src, auto &dst) {
-        if (enable_rbm)
-          advection_operator.evaluate_forces(src);
+    auto nl_residual = [&](const auto &src, auto &dst) {
+      if (enable_rbm)
+        advection_operator.evaluate_forces(src);
 
-        nonlinear_operator.evaluate_nonlinear_residual(dst, src);
-      };
+      nonlinear_operator.evaluate_nonlinear_residual(dst, src);
+    };
 
     // Evaluate residual (used for debug and to init advection data structures)
     VectorType residual;
