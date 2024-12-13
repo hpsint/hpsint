@@ -141,7 +141,7 @@ with open(args.file) as json_data:
         default_output_root = study_output
 
     # Executable name
-    common_options["executable"] = os.path.join(data["Simulation"]["BuildRoot"], "applications/sintering")
+    common_options["executable"] = data["Simulation"]["BuildRoot"]
 
     # Settings file
     settings_file = data["Settings"]["File"]
@@ -197,9 +197,6 @@ with open(args.file) as json_data:
                     # Copy common options
                     case_options = copy.deepcopy(case_common_options)
 
-                    # Determine physics
-                    physics = dim.upper() + "-"
-
                     # Possible special options per case
                     special_names = []
 
@@ -212,19 +209,19 @@ with open(args.file) as json_data:
                     job_name = cwd_short + "_" + default_job_folder + suffix + "_" + dim
 
                     if phys == "generic":
-                        physics += "generic"
+                        physics = "generic"
                         case_options["settings_extra"] += " " + "--Advection.Enable=false"
                         job_name += '_generic'
                         special_names.append("Generic")
 
                     elif phys == "generic_wang":
-                        physics += "generic"
+                        physics = "generic"
                         case_options["settings_extra"] += " " + "--Advection.Enable=true"
                         job_name += '_genwang'
                         special_names.append("Generic")
 
                     elif phys == "coupled_wang":
-                        physics += "wang"
+                        physics = "wang"
                         case_options["settings_extra"] += " " + "--Advection.Enable=true"
                         job_name += '_couwang'
                         special_names.append("Coupled")
@@ -232,7 +229,7 @@ with open(args.file) as json_data:
                     job_name += "_" + mobility[0]
                     case_options["--job-name"] = job_name
 
-                    case_options["executable"] = os.path.join(case_options["executable"], "sintering-{}-{}".format(physics, mobility))
+                    case_options["executable"] = os.path.join(case_options["executable"], "sintering-{}-{}-{}".format(physics, dim.upper(), mobility))
 
                     # Other options
                     special_names.append(special_names[0] + dim.upper())

@@ -10,7 +10,7 @@
     },
     "Simulation": {
         "CmdTemplate": "sbatch {slurm} mpirun {executable} {options} \\; rm {lock_file}",
-        "BuildRoot": "HPSINT_BUILD_PATH",
+        "BuildRoot": "HPSINT_BUILD_PATH/applications/sintering",
         "Mode": "--cloud",
         "SlurmOptions": "--output=./%x.%j.out --error=./%x.%j.err --mail-type=END --no-requeue --export=NONE --get-user-env"
     },
