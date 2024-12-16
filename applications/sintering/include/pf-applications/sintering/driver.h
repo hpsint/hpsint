@@ -1258,6 +1258,7 @@ namespace Sintering
           {
             AssertThrow(params.matrix_based, ExcNotImplemented());
 
+            nonlinear_operator.initialize_system_matrix(false);
             auto &system_matrix = nonlinear_operator.get_system_matrix();
 
             calc_numeric_tangent(dof_handler,
@@ -1318,18 +1319,32 @@ namespace Sintering
               }
           }
 
-        // Use numerical approximation of the underlying system, if a
-        // preconditiner uses it, of course. Mainly, a debug feature.
-        if (params.nonlinear_data.fdm_precond_system_approximation)
+        // Update the underlying system if a preconditioner uses it. The use of
+        // the numerical FDM approximation for non-block systems is very slow
+        // and should be deemed as, mainly, a debug or prototyping feature.
+        if (static_cast<bool>(preconditioner->underlying_entity() &
+                              Preconditioners::UnderlyingEntity::System))
           {
-            auto &system_matrix = nonlinear_operator.get_system_matrix();
+            if (params.nonlinear_data.fdm_precond_system_approximation)
+              {
+                nonlinear_operator.initialize_system_matrix(false);
+                auto &system_matrix = nonlinear_operator.get_system_matrix();
 
-            calc_numeric_tangent(dof_handler,
-                                 nonlinear_operator,
-                                 current_u,
-                                 nl_residual,
-                                 system_matrix);
+                calc_numeric_tangent(dof_handler,
+                                     nonlinear_operator,
+                                     current_u,
+                                     nl_residual,
+                                     system_matrix);
+              }
+            else
+              {
+                nonlinear_operator.initialize_system_matrix(true);
+              }
           }
+
+        if (static_cast<bool>(preconditioner->underlying_entity() &
+                              Preconditioners::UnderlyingEntity::BlockSystem))
+          nonlinear_operator.initialize_block_system_matrix(true);
 
         preconditioner->do_update();
       };
