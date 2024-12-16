@@ -37,6 +37,14 @@ namespace Preconditioners
 {
   using namespace dealii;
 
+  enum class UnderlyingEntity
+  {
+    None        = 0x00,
+    System      = 0x01,
+    BlockSystem = 0x02
+  };
+
+
   template <typename Number>
   class PreconditionerBase
   {
@@ -69,6 +77,9 @@ namespace Preconditioners
 
     virtual void
     do_update() = 0;
+
+    virtual UnderlyingEntity
+    underlying_entity() = 0;
   };
 
 
@@ -102,6 +113,12 @@ namespace Preconditioners
     void
     do_update() override
     {}
+
+    UnderlyingEntity
+    underlying_entity() override
+    {
+      return UnderlyingEntity::None;
+    }
 
     virtual std::size_t
     memory_consumption() const override
@@ -148,6 +165,12 @@ namespace Preconditioners
     do_update() override
     {
       op.compute_inverse_diagonal(diagonal_matrix.get_vector());
+    }
+
+    UnderlyingEntity
+    underlying_entity() override
+    {
+      return UnderlyingEntity::None;
     }
 
     virtual std::size_t
@@ -250,6 +273,12 @@ namespace Preconditioners
         }
     }
 
+    UnderlyingEntity
+    underlying_entity() override
+    {
+      return UnderlyingEntity::System;
+    }
+
   private:
     const Operator &                op;
     std::vector<FullMatrix<Number>> diagonal_matrix;
@@ -349,6 +378,11 @@ namespace Preconditioners
       weights.update_ghost_values();
     }
 
+    UnderlyingEntity
+    underlying_entity() override
+    {
+      return UnderlyingEntity::System;
+    }
 
   private:
     static void
@@ -599,6 +633,12 @@ namespace Preconditioners
       precondition_amg.initialize(op.get_system_matrix(), additional_data);
     }
 
+    UnderlyingEntity
+    underlying_entity() override
+    {
+      return UnderlyingEntity::System;
+    }
+
     virtual std::size_t
     memory_consumption() const override
     {
@@ -672,6 +712,12 @@ namespace Preconditioners
             std::make_shared<TrilinosWrappers::PreconditionAMG>();
           precondition_amg[b]->initialize(*block_matrix[b], additional_data);
         }
+    }
+
+    UnderlyingEntity
+    underlying_entity() override
+    {
+      return UnderlyingEntity::BlockSystem;
     }
 
     virtual std::size_t
@@ -755,6 +801,12 @@ namespace Preconditioners
     {
       MyScope scope(timer, "ilu::setup");
       precondition_ilu.initialize(op.get_system_matrix(), additional_data);
+    }
+
+    UnderlyingEntity
+    underlying_entity() override
+    {
+      return UnderlyingEntity::System;
     }
 
     virtual std::size_t
@@ -881,6 +933,12 @@ namespace Preconditioners
             std::make_shared<TrilinosWrappers::PreconditionILU>();
           precondition_ilu[b]->initialize(*block_matrix[b], additional_data);
         }
+    }
+
+    UnderlyingEntity
+    underlying_entity() override
+    {
+      return UnderlyingEntity::BlockSystem;
     }
 
     virtual std::size_t
@@ -1138,6 +1196,12 @@ namespace Preconditioners
         else
           timer.leave_subsection(label);
       });
+    }
+
+    UnderlyingEntity
+    underlying_entity() override
+    {
+      return UnderlyingEntity::None;
     }
 
   private:
