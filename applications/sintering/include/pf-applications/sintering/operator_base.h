@@ -1,6 +1,6 @@
 // ---------------------------------------------------------------------
 //
-// Copyright (C) 2023 by the hpsint authors
+// Copyright (C) 2023 - 2024 by the hpsint authors
 //
 // This file is part of the hpsint library.
 //
@@ -395,21 +395,18 @@ namespace Sintering
     TrilinosWrappers::SparseMatrix &
     get_system_matrix()
     {
-      initialize_system_matrix();
-
       return system_matrix;
     }
 
     const TrilinosWrappers::SparseMatrix &
     get_system_matrix() const
     {
-      initialize_system_matrix();
-
       return system_matrix;
     }
 
     void
-    initialize_system_matrix(const bool print_stats = true) const
+    initialize_system_matrix(const bool compute     = true,
+                             const bool print_stats = true) const
     {
       const bool system_matrix_is_empty =
         system_matrix.m() == 0 || system_matrix.n() == 0;
@@ -459,6 +456,9 @@ namespace Sintering
               this->pcout << std::endl;
             }
         }
+
+      if (compute == false)
+        return;
 
       {
         MyScope scope(this->timer,

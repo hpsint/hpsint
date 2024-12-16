@@ -75,7 +75,7 @@ namespace Test
 
     // At first compute analytic matrix
     FullMatrix<Number> tangent_analytic(n_dofs, n_dofs);
-    nonlinear_operator.initialize_system_matrix(false);
+    nonlinear_operator.initialize_system_matrix(true, false);
     tangent_analytic.copy_from(nonlinear_operator.get_system_matrix());
 
     // Then compute analytic matrix
