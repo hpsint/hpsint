@@ -531,7 +531,7 @@ namespace Sintering
 
     void
     initialize_block_system_matrix(const bool compute     = true,
-                             const bool print_stats = true) const
+                                   const bool print_stats = true) const
     {
       const bool system_matrix_is_empty = block_system_matrix.size() == 0;
 
@@ -567,15 +567,15 @@ namespace Sintering
 
           if (print_stats)
             {
-          this->pcout << std::endl;
-          this->pcout << "Create block sparsity pattern (" << this->label
-                      << ") with:" << std::endl;
-          this->pcout << " - number of blocks: " << this->n_components()
-                      << std::endl;
-          this->pcout << " - NNZ:              "
-                      << block_system_matrix[0]->n_nonzero_elements()
-                      << std::endl;
-          this->pcout << std::endl;
+              this->pcout << std::endl;
+              this->pcout << "Create block sparsity pattern (" << this->label
+                          << ") with:" << std::endl;
+              this->pcout << " - number of blocks: " << this->n_components()
+                          << std::endl;
+              this->pcout << " - NNZ:              "
+                          << block_system_matrix[0]->n_nonzero_elements()
+                          << std::endl;
+              this->pcout << std::endl;
             }
         }
 
