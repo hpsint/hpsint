@@ -1,6 +1,6 @@
 // ---------------------------------------------------------------------
 //
-// Copyright (C) 2023 by the hpsint authors
+// Copyright (C) 2023 - 2024 by the hpsint authors
 //
 // This file is part of the hpsint library.
 //
