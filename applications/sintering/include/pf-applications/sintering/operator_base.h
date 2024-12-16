@@ -1,6 +1,6 @@
 // ---------------------------------------------------------------------
 //
-// Copyright (C) 2023 by the hpsint authors
+// Copyright (C) 2023 - 2024 by the hpsint authors
 //
 // This file is part of the hpsint library.
 //
@@ -395,21 +395,18 @@ namespace Sintering
     TrilinosWrappers::SparseMatrix &
     get_system_matrix()
     {
-      initialize_system_matrix();
-
       return system_matrix;
     }
 
     const TrilinosWrappers::SparseMatrix &
     get_system_matrix() const
     {
-      initialize_system_matrix();
-
       return system_matrix;
     }
 
     void
-    initialize_system_matrix(const bool print_stats = true) const
+    initialize_system_matrix(const bool compute     = true,
+                             const bool print_stats = true) const
     {
       const bool system_matrix_is_empty =
         system_matrix.m() == 0 || system_matrix.n() == 0;
@@ -459,6 +456,9 @@ namespace Sintering
               this->pcout << std::endl;
             }
         }
+
+      if (compute == false)
+        return;
 
       {
         MyScope scope(this->timer,
@@ -526,6 +526,13 @@ namespace Sintering
     const std::vector<std::shared_ptr<TrilinosWrappers::SparseMatrix>> &
     get_block_system_matrix() const
     {
+      return block_system_matrix;
+    }
+
+    void
+    initialize_block_system_matrix(const bool compute     = true,
+                                   const bool print_stats = true) const
+    {
       const bool system_matrix_is_empty = block_system_matrix.size() == 0;
 
       if (system_matrix_is_empty)
@@ -558,16 +565,22 @@ namespace Sintering
               block_system_matrix[b]->reinit(dsp);
             }
 
-          this->pcout << std::endl;
-          this->pcout << "Create block sparsity pattern (" << this->label
-                      << ") with:" << std::endl;
-          this->pcout << " - number of blocks: " << this->n_components()
-                      << std::endl;
-          this->pcout << " - NNZ:              "
-                      << block_system_matrix[0]->n_nonzero_elements()
-                      << std::endl;
-          this->pcout << std::endl;
+          if (print_stats)
+            {
+              this->pcout << std::endl;
+              this->pcout << "Create block sparsity pattern (" << this->label
+                          << ") with:" << std::endl;
+              this->pcout << " - number of blocks: " << this->n_components()
+                          << std::endl;
+              this->pcout << " - NNZ:              "
+                          << block_system_matrix[0]->n_nonzero_elements()
+                          << std::endl;
+              this->pcout << std::endl;
+            }
         }
+
+      if (compute == false)
+        return;
 
       {
         MyScope scope(this->timer,
@@ -588,8 +601,6 @@ namespace Sintering
         EXPAND_OPERATIONS(OPERATION);
 #undef OPERATION
       }
-
-      return block_system_matrix;
     }
 
     void

@@ -1,6 +1,6 @@
 // ---------------------------------------------------------------------
 //
-// Copyright (C) 2022 by the deal.II authors
+// Copyright (C) 2022 - 2024 by the deal.II authors
 //
 // This file is part of the deal.II library.
 //
@@ -214,6 +214,8 @@ main(int argc, char **argv)
 
     if (op.n_components() <= 2 + max_sintering_grains_mb) // ... matrix-based
       {
+        op.initialize_system_matrix();
+
         const auto &matrix = op.get_system_matrix();
 
         const auto partitioner = op.get_system_partitioner();
