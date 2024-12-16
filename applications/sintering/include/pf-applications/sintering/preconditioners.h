@@ -1268,6 +1268,24 @@ namespace Sintering
         }
     }
 
+    Preconditioners::UnderlyingEntity
+    underlying_entity() override
+    {
+      Preconditioners::UnderlyingEntity underlying =
+        Preconditioners::UnderlyingEntity::None;
+
+      if (preconditioner_0)
+        underlying |= preconditioner_0->underlying_entity();
+
+      if (preconditioner_1)
+        underlying |= preconditioner_1->underlying_entity();
+
+      if (preconditioner_2)
+        underlying |= preconditioner_2->underlying_entity();
+
+      return underlying;
+    }
+
     virtual std::size_t
     memory_consumption() const override
     {

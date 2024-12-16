@@ -44,6 +44,31 @@ namespace Preconditioners
     BlockSystem = 0x02
   };
 
+  inline UnderlyingEntity
+  operator|(UnderlyingEntity a, UnderlyingEntity b)
+  {
+    return static_cast<UnderlyingEntity>(static_cast<int>(a) |
+                                         static_cast<int>(b));
+  }
+
+  inline UnderlyingEntity
+  operator&(UnderlyingEntity a, UnderlyingEntity b)
+  {
+    return static_cast<UnderlyingEntity>(static_cast<int>(a) &
+                                         static_cast<int>(b));
+  }
+
+  inline UnderlyingEntity &
+  operator|=(UnderlyingEntity &a, UnderlyingEntity b)
+  {
+    return a = a | b;
+  }
+
+  inline UnderlyingEntity &
+  operator&=(UnderlyingEntity &a, UnderlyingEntity b)
+  {
+    return a = a & b;
+  }
 
   template <typename Number>
   class PreconditionerBase
