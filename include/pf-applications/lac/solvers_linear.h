@@ -1,6 +1,6 @@
 // ---------------------------------------------------------------------
 //
-// Copyright (C) 2023 by the hpsint authors
+// Copyright (C) 2023 - 2024 by the hpsint authors
 //
 // This file is part of the hpsint library.
 //
@@ -19,6 +19,7 @@
 #include <deal.II/lac/solver_control.h>
 #include <deal.II/lac/solver_gmres.h>
 #include <deal.II/lac/solver_idr.h>
+#include <deal.II/lac/trilinos_solver.h>
 
 #include <pf-applications/base/timer.h>
 
@@ -298,6 +299,65 @@ namespace LinearSolvers
     Preconditioner &   preconditioner;
     SolverControl &    solver_control;
     const unsigned int max_bicgsteps;
+
+    mutable MyTimerOutput timer;
+  };
+
+  template <typename Operator>
+  class SolverDirectWrapper
+    : public LinearSolverBase<typename Operator::value_type>
+  {
+  public:
+    using VectorType      = typename Operator::vector_type;
+    using BlockVectorType = typename Operator::BlockVectorType;
+
+    SolverDirectWrapper(const Operator &op,
+                     SolverControl & solver_control)
+      : op(op)
+      , solver_control(solver_control)
+    {}
+
+    unsigned int
+    solve(VectorType &dst, const VectorType &src) override
+    {
+      return solve_internal(dst, src);
+    }
+
+    unsigned int
+    solve(BlockVectorType &dst, const BlockVectorType &src) override
+    {
+      VectorType src_, dst_;
+
+      const auto partitioner = op.get_system_partitioner();
+
+      src_.reinit(partitioner);
+      dst_.reinit(partitioner);
+
+      VectorTools::merge_components_fast(src, src_);
+      auto ret_val = solve_internal(dst_, src_);
+      VectorTools::split_up_components_fast(dst_, dst);
+      
+      return ret_val;
+    }
+
+  private:
+    template <typename T>
+    unsigned int
+    solve_internal(T &dst, const T &src)
+    {
+      MyScope scope(timer, "direct::solve");
+
+      const auto& mtr = op.get_system_matrix();
+
+      TrilinosWrappers::SolverDirect solver(solver_control);
+      solver.initialize(mtr);
+      solver.solve(dst, src);
+
+      return solver_control.last_step();
+    }
+
+    const Operator &op;
+    SolverControl & solver_control;
 
     mutable MyTimerOutput timer;
   };
