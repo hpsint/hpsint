@@ -1173,6 +1173,17 @@ namespace Sintering
           *preconditioner,
           *solver_control_l,
           params.nonlinear_data.l_bisgstab_tries);
+      else if (params.nonlinear_data.l_solver == "Direct")
+        {
+          AssertThrow(
+            params.matrix_based,
+            ExcMessage(
+              "A matrix-based mode has to be enabled to use the direct solver"));
+
+          linear_solver = std::make_unique<
+            LinearSolvers::SolverDirectWrapper<NonLinearOperator>>(
+            nonlinear_operator, *solver_control_l);
+        }
 
       MyTimerOutput timer;
       TimerCollection::configure(params.profiling_data.output_time_interval);
@@ -1524,10 +1535,12 @@ namespace Sintering
             nonlinear_operator.initialize_dof_vector(vector);
           };
 
-          non_linear_solver.residual             = nl_residual;
-          non_linear_solver.setup_jacobian       = nl_setup_jacobian;
-          non_linear_solver.setup_preconditioner = nl_setup_preconditioner;
-          non_linear_solver.solve_with_jacobian  = nl_solve_with_jacobian;
+          non_linear_solver.residual            = nl_residual;
+          non_linear_solver.setup_jacobian      = nl_setup_jacobian;
+          non_linear_solver.solve_with_jacobian = nl_solve_with_jacobian;
+
+          if (params.nonlinear_data.l_solver != "Direct")
+            non_linear_solver.setup_preconditioner = nl_setup_preconditioner;
 
           if (params.nonlinear_data.verbosity >= 1) // TODO
             non_linear_solver.check_iteration_status =
@@ -1595,11 +1608,12 @@ namespace Sintering
               return 0;
             };
 
-          non_linear_solver.setup_preconditioner =
-            [&nl_setup_preconditioner](const auto &current_u) {
-              nl_setup_preconditioner(current_u);
-              return 0;
-            };
+          if (params.nonlinear_data.l_solver != "Direct")
+            non_linear_solver.setup_preconditioner =
+              [&nl_setup_preconditioner](const auto &current_u) {
+                nl_setup_preconditioner(current_u);
+                return 0;
+              };
 
           non_linear_solver.solve_with_jacobian_and_track_n_linear_iterations =
             [&nl_solve_with_jacobian](const auto & src,
