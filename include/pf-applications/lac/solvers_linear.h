@@ -311,8 +311,7 @@ namespace LinearSolvers
     using VectorType      = typename Operator::vector_type;
     using BlockVectorType = typename Operator::BlockVectorType;
 
-    SolverDirectWrapper(const Operator &op,
-                     SolverControl & solver_control)
+    SolverDirectWrapper(const Operator &op, SolverControl &solver_control)
       : op(op)
       , solver_control(solver_control)
     {}
@@ -336,7 +335,7 @@ namespace LinearSolvers
       VectorTools::merge_components_fast(src, src_);
       auto ret_val = solve_internal(dst_, src_);
       VectorTools::split_up_components_fast(dst_, dst);
-      
+
       return ret_val;
     }
 
@@ -347,7 +346,7 @@ namespace LinearSolvers
     {
       MyScope scope(timer, "direct::solve");
 
-      const auto& mtr = op.get_system_matrix();
+      const auto &mtr = op.get_system_matrix();
 
       TrilinosWrappers::SolverDirect solver(solver_control);
       solver.initialize(mtr);
