@@ -182,7 +182,7 @@ namespace Sintering
                 }
 
               const auto free_energy_eval =
-                free_energy.template eval<EnergyZero, n_grains>(val);
+                free_energy.template eval<EnergyAll, n_grains>(val);
 
               if (entries_mask[FieldD2f])
                 {
