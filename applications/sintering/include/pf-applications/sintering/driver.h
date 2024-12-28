@@ -1412,6 +1412,7 @@ namespace Sintering
       // Lambda to check iterations and output stats
       double check_value_0     = 0.0;
       double check_value_0_ch  = 0.0;
+      double check_value_0_mu  = 0.0;
       double check_value_0_ac  = 0.0;
       double check_value_0_mec = 0.0;
 
@@ -1424,14 +1425,17 @@ namespace Sintering
         (void)x;
 
         double check_value_ch  = 0.0;
+        double check_value_mu  = 0.0;
         double check_value_ac  = 0.0;
         double check_value_mec = 0.0;
 
         if (r.n_blocks() > 0)
           {
             if (order_parameters_offset > 0)
-              check_value_ch =
-                std::sqrt(r.block(0).norm_sqr() + r.block(0).norm_sqr());
+              check_value_ch = std::sqrt(r.block(0).norm_sqr());
+
+            if (order_parameters_offset > 1)
+              check_value_mu = std::sqrt(r.block(1).norm_sqr());
 
             for (unsigned int b = order_parameters_offset;
                  b < sintering_data.n_components();
@@ -1450,6 +1454,7 @@ namespace Sintering
           {
             check_value_0     = check_value;
             check_value_0_ch  = check_value_ch;
+            check_value_0_mu  = check_value_mu;
             check_value_0_ac  = check_value_ac;
             check_value_0_mec = check_value_mec;
 
@@ -1465,30 +1470,33 @@ namespace Sintering
           {
             if (step == 0)
               printf(
-                "\nit      res_abs      res_rel   ch_res_abs   ch_res_rel   ac_res_abs   ac_res_rel  mec_res_abs  mec_res_rel  linear_iter\n");
+                "\nit      res_abs      res_rel   ch_res_abs   ch_res_rel   mu_res_abs   mu_res_rel   ac_res_abs   ac_res_rel  mec_res_abs  mec_res_rel  linear_iter\n");
 
             if (step == 0)
               printf(
-                "%2d %.6e ------------ %.6e ------------ %.6e ------------ %.6e ------------ %12d\n",
+                "%2d %.6e ------------ %.6e ------------ %.6e ------------ %.6e ------------ %.6e ------------ %12d\n",
                 step,
                 check_value,
                 check_value_ch,
+                check_value_mu,
                 check_value_ac,
                 check_value_mec,
                 step_linear_iter);
             else
-              printf("%2d %.6e %.6e %.6e %.6e %.6e %.6e %.6e %.6e %12d\n",
-                     step,
-                     check_value,
-                     check_value_0 ? check_value / check_value_0 : 0.,
-                     check_value_ch,
-                     check_value_0_ch ? check_value_ch / check_value_0_ch : 0.,
-                     check_value_ac,
-                     check_value_0_ac ? check_value_ac / check_value_0_ac : 0.,
-                     check_value_mec,
-                     check_value_0_mec ? check_value_mec / check_value_0_mec :
-                                         0.,
-                     step_linear_iter);
+              printf(
+                "%2d %.6e %.6e %.6e %.6e %.6e %.6e %.6e %.6e %.6e %.6e %12d\n",
+                step,
+                check_value,
+                check_value_0 ? check_value / check_value_0 : 0.,
+                check_value_ch,
+                check_value_0_ch ? check_value_ch / check_value_0_ch : 0.,
+                check_value_mu,
+                check_value_0_mu ? check_value_mu / check_value_0_mu : 0.,
+                check_value_ac,
+                check_value_0_ac ? check_value_ac / check_value_0_ac : 0.,
+                check_value_mec,
+                check_value_0_mec ? check_value_mec / check_value_0_mec : 0.,
+                step_linear_iter);
           }
 
         /* This function does not really test anything and simply prints more
