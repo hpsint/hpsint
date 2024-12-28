@@ -1,6 +1,6 @@
 // ---------------------------------------------------------------------
 //
-// Copyright (C) 2023 by the hpsint authors
+// Copyright (C) 2023 - 2024 by the hpsint authors
 //
 // This file is part of the hpsint library.
 //
@@ -1266,6 +1266,24 @@ namespace Sintering
           MyScope scope(timer, "precon::update::precon_2");
           preconditioner_2->do_update();
         }
+    }
+
+    Preconditioners::UnderlyingEntity
+    underlying_entity() override
+    {
+      Preconditioners::UnderlyingEntity underlying =
+        Preconditioners::UnderlyingEntity::None;
+
+      if (preconditioner_0)
+        underlying |= preconditioner_0->underlying_entity();
+
+      if (preconditioner_1)
+        underlying |= preconditioner_1->underlying_entity();
+
+      if (preconditioner_2)
+        underlying |= preconditioner_2->underlying_entity();
+
+      return underlying;
     }
 
     virtual std::size_t

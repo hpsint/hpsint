@@ -61,6 +61,7 @@
 #include <pf-applications/base/solution_serialization.h>
 #include <pf-applications/base/timer.h>
 
+#include <pf-applications/lac/evaluation.h>
 #include <pf-applications/lac/solvers_linear.h>
 #include <pf-applications/lac/solvers_nonlinear.h>
 
@@ -1257,68 +1258,14 @@ namespace Sintering
           {
             AssertThrow(params.matrix_based, ExcNotImplemented());
 
-            const double epsilon   = 1e-7;
-            const double tolerance = 1e-12;
-
+            nonlinear_operator.initialize_system_matrix(false);
             auto &system_matrix = nonlinear_operator.get_system_matrix();
 
-            const unsigned int n_blocks = current_u.n_blocks();
-
-            // for (unsigned int b = 0; b < n_blocks; ++b)
-            //  for (unsigned int i = 0; i < current_u.block(b).size();
-            //  ++i)
-            //    if(constraints.is_constrained (i))
-            //                system_matrix.set(b + i * n_blocks,
-            //                                  b + i * n_blocks,
-            //                                  1.0);
-
-            system_matrix = 0.0;
-
-            VectorType src, dst, dst_;
-            src.reinit(current_u);
-            dst.reinit(current_u);
-            dst_.reinit(current_u);
-
-            src.copy_locally_owned_data_from(current_u);
-
-            nl_residual(src, dst_);
-
-            const auto locally_owned_dofs = dof_handler.locally_owned_dofs();
-
-            for (unsigned int b = 0; b < n_blocks; ++b)
-              for (unsigned int i = 0; i < current_u.block(b).size(); ++i)
-                {
-                  if (locally_owned_dofs.is_element(i))
-                    src.block(b)[i] += epsilon;
-
-                  nl_residual(src, dst);
-
-                  if (locally_owned_dofs.is_element(i))
-                    src.block(b)[i] -= epsilon;
-
-                  for (unsigned int b_ = 0; b_ < n_blocks; ++b_)
-                    for (unsigned int i_ = 0; i_ < current_u.block(b).size();
-                         ++i_)
-                      if (locally_owned_dofs.is_element(i_))
-                        {
-                          if (nonlinear_operator.get_sparsity_pattern().exists(
-                                b_ + i_ * n_blocks, b + i * n_blocks))
-                            {
-                              const Number value =
-                                (dst.block(b_)[i_] - dst_.block(b_)[i_]) /
-                                epsilon;
-
-                              if (std::abs(value) > tolerance)
-                                system_matrix.set(b_ + i_ * n_blocks,
-                                                  b + i * n_blocks,
-                                                  value);
-                              else if ((b == b_) && (i == i_))
-                                system_matrix.set(b_ + i_ * n_blocks,
-                                                  b + i * n_blocks,
-                                                  1.0);
-                            }
-                        }
-                }
+            calc_numeric_tangent(dof_handler,
+                                 nonlinear_operator,
+                                 current_u,
+                                 nl_residual,
+                                 system_matrix);
           }
 
         jacobian_operator->reinit(current_u);
@@ -1371,6 +1318,33 @@ namespace Sintering
                   save_all_blocks);
               }
           }
+
+        // Update the underlying system if a preconditioner uses it. The use of
+        // the numerical FDM approximation for non-block systems is very slow
+        // and should be deemed as, mainly, a debug or prototyping feature.
+        if (static_cast<bool>(preconditioner->underlying_entity() &
+                              Preconditioners::UnderlyingEntity::System))
+          {
+            if (params.nonlinear_data.fdm_precond_system_approximation)
+              {
+                nonlinear_operator.initialize_system_matrix(false);
+                auto &system_matrix = nonlinear_operator.get_system_matrix();
+
+                calc_numeric_tangent(dof_handler,
+                                     nonlinear_operator,
+                                     current_u,
+                                     nl_residual,
+                                     system_matrix);
+              }
+            else
+              {
+                nonlinear_operator.initialize_system_matrix(true);
+              }
+          }
+
+        if (static_cast<bool>(preconditioner->underlying_entity() &
+                              Preconditioners::UnderlyingEntity::BlockSystem))
+          nonlinear_operator.initialize_block_system_matrix(true);
 
         preconditioner->do_update();
       };
