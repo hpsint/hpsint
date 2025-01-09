@@ -314,6 +314,7 @@ namespace LinearSolvers
     SolverDirectWrapper(const Operator &op, SolverControl &solver_control)
       : op(op)
       , solver_control(solver_control)
+      , solver(solver_control)
     {}
 
     unsigned int
@@ -348,15 +349,15 @@ namespace LinearSolvers
 
       const auto &mtr = op.get_system_matrix();
 
-      TrilinosWrappers::SolverDirect solver(solver_control);
       solver.initialize(mtr);
       solver.solve(dst, src);
 
       return solver_control.last_step();
     }
 
-    const Operator &op;
-    SolverControl & solver_control;
+    const Operator &               op;
+    SolverControl &                solver_control;
+    TrilinosWrappers::SolverDirect solver;
 
     mutable MyTimerOutput timer;
   };
