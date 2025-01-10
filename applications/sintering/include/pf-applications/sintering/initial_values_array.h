@@ -27,11 +27,13 @@ namespace Sintering
       const double             r0,
       const double             interface_width,
       const InterfaceDirection interface_direction = InterfaceDirection::middle,
-      const unsigned int       op_components_offset = 2,
-      const bool               is_accumulative      = false)
+      const unsigned int       op_components_offset  = 2,
+      const bool               concentration_as_void = false,
+      const bool               is_accumulative       = false)
       : InitialValuesSpherical<dim>(interface_width,
                                     interface_direction,
                                     op_components_offset,
+                                    concentration_as_void,
                                     is_accumulative)
       , r0(r0)
     {}

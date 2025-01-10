@@ -239,11 +239,13 @@ namespace Sintering
     InitialValuesMicrostructure(
       const double             interface_width     = 0.,
       const InterfaceDirection interface_direction = InterfaceDirection::middle,
-      const unsigned int       op_components_offset = 2,
-      const bool               is_accumulative      = false)
+      const unsigned int       op_components_offset  = 2,
+      const bool               concentration_as_void = false,
+      const bool               is_accumulative       = false)
       : InitialValuesCHAC<2>(interface_width,
                              interface_direction,
                              op_components_offset,
+                             concentration_as_void,
                              is_accumulative)
       , ref_h(interface_direction == InterfaceDirection::middle ?
                 interface_width / 2. :

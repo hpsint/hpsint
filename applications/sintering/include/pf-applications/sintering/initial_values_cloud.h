@@ -37,11 +37,13 @@ namespace Sintering
       const double                      interface_buffer_ratio = 0.5,
       const double                      radius_buffer_ratio    = 0.0,
       const InterfaceDirection interface_direction = InterfaceDirection::middle,
-      const unsigned int       op_components_offset = 2,
-      const bool               is_accumulative      = false)
+      const unsigned int       op_components_offset  = 2,
+      const bool               concentration_as_void = false,
+      const bool               is_accumulative       = false)
       : InitialValuesSpherical<dim>(interface_width,
                                     interface_direction,
                                     op_components_offset,
+                                    concentration_as_void,
                                     is_accumulative)
       , particles(particles_in)
       , interface_width(interface_width)

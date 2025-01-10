@@ -29,12 +29,14 @@ namespace Sintering
       const std::array<unsigned int, dim> &n_grains,
       const unsigned int                   n_order_parameters,
       const InterfaceDirection interface_direction = InterfaceDirection::middle,
-      const unsigned int       op_components_offset = 2,
-      const bool               is_accumulative      = false)
+      const unsigned int       op_components_offset  = 2,
+      const bool               concentration_as_void = false,
+      const bool               is_accumulative       = false)
       : InitialValuesArray<dim>(r0,
                                 interface_width,
                                 interface_direction,
                                 op_components_offset,
+                                concentration_as_void,
                                 is_accumulative)
     {
       unsigned int counter = 0;
