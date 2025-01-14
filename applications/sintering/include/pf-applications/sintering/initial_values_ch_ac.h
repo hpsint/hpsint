@@ -28,7 +28,18 @@ namespace Sintering
   class InitialValuesCHAC : public InitialValues<dim>
   {
   public:
-    using InitialValues<dim>::InitialValues;
+    InitialValuesCHAC(
+      const double             interface_width,
+      const InterfaceDirection interface_direction = InterfaceDirection::middle,
+      const unsigned int       op_components_offset  = 2,
+      const bool               concentration_as_void = false,
+      const bool               is_accumulative       = false)
+      : InitialValues<dim>(interface_width,
+                           interface_direction,
+                           op_components_offset,
+                           is_accumulative)
+      , concentration_as_void(concentration_as_void)
+    {}
 
   protected:
     double
@@ -59,6 +70,9 @@ namespace Sintering
               ret_val =
                 *std::max_element(all_op_values.begin(), all_op_values.end());
             }
+
+          if (concentration_as_void)
+            ret_val = 1.0 - ret_val;
         }
       // Chemical potential of the CH equation
       else if (component == (this->op_components_offset - 1))
@@ -79,5 +93,9 @@ namespace Sintering
 
     virtual double
     op_value(const Point<dim> &p, const unsigned int order_parameter) const = 0;
+
+  private:
+    // Treat concentration term as a void param
+    const bool concentration_as_void;
   };
 } // namespace Sintering

@@ -31,11 +31,13 @@ namespace Sintering
     InitialValuesSpherical(
       const double             interface_width,
       const InterfaceDirection interface_direction = InterfaceDirection::middle,
-      const unsigned int       op_components_offset = 2,
-      const bool               is_accumulative      = false)
+      const unsigned int       op_components_offset  = 2,
+      const bool               concentration_as_void = false,
+      const bool               is_accumulative       = false)
       : InitialValuesCHAC<dim>(interface_width,
                                interface_direction,
                                op_components_offset,
+                               concentration_as_void,
                                is_accumulative)
       , interface_offset(interface_direction == InterfaceDirection::inside ?
                            (-interface_width / 2.) :

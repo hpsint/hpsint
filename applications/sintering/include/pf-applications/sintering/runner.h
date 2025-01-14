@@ -127,6 +127,7 @@ namespace Sintering
     const std::string  mode(argv[1]);
     const unsigned int op_components_offset =
       FreeEnergy<VectorizedArrayType>::op_components_offset;
+    const bool concentration_as_void = false;
 
     if (argc == 1 || mode == "--help")
       {
@@ -163,7 +164,8 @@ namespace Sintering
             n_grains,
             params.geometry_data.minimize_order_parameters,
             interface_direction,
-            op_components_offset);
+            op_components_offset,
+            concentration_as_void);
 
         AssertThrow(initial_solution->n_order_parameters() <=
                       MAX_SINTERING_GRAINS,
@@ -225,7 +227,8 @@ namespace Sintering
             n_grains,
             n_order_params_to_use,
             interface_direction,
-            op_components_offset);
+            op_components_offset,
+            concentration_as_void);
 
         AssertThrow(initial_solution->n_order_parameters() <=
                       MAX_SINTERING_GRAINS,
@@ -271,7 +274,8 @@ namespace Sintering
             params.geometry_data.interface_buffer_ratio,
             params.geometry_data.radius_buffer_ratio,
             interface_direction,
-            op_components_offset);
+            op_components_offset,
+            concentration_as_void);
 
         AssertThrow(initial_solution->n_order_parameters() <=
                       MAX_SINTERING_GRAINS,
@@ -310,14 +314,16 @@ namespace Sintering
                   fstream,
                   params.geometry_data.interface_width,
                   interface_direction,
-                  op_components_offset);
+                  op_components_offset,
+                  concentration_as_void);
             else if (mode == "--imaging")
               initial_solution =
                 std::make_shared<Sintering::InitialValuesMicrostructureImaging>(
                   fstream,
                   params.geometry_data.interface_width,
                   interface_direction,
-                  op_components_offset);
+                  op_components_offset,
+                  concentration_as_void);
             else
               AssertThrow(false, ExcNotImplemented());
 
