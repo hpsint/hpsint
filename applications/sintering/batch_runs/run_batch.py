@@ -4,6 +4,7 @@ import os
 import copy
 import time
 import shutil
+import re
 from collections import abc
 
 def clean_folder(folder):
@@ -273,13 +274,33 @@ with open(args.file) as json_data:
                         restart_file = args.restart
                         if not(os.path.isabs(restart_file)):
                             restart_file = os.path.join(job_dir, args.restart)
+
+                        # If not a specific file has been provided, try to take the latest one
+                        if not(os.path.isfile(restart_file)):
+
+                            pattern = re.escape(args.restart) + r'_\d+_driver'
+                            restart_files = [f for f in os.listdir(job_dir) if re.match(pattern, f)]
+                            if not restart_files:
+                                raise Exception('The provided restart file does not exist')
+
+                            restart_file = ''
+                            restart_mtime = 0
+                            for restart_candidate in restart_files:
+                                c_full_path = os.path.join(job_dir, restart_candidate)
+                                c_mtime = os.path.getmtime(c_full_path)
+                                if c_mtime > restart_mtime:
+                                    restart_mtime = c_mtime
+                                    restart_file = c_full_path
+
+                            restart_file = restart_file.replace('_driver', '')
+
                         case_options["simulation_case"] = "--restart " + restart_file
 
                     # Print options
                     print("\nRunning case #{}:".format(counter))
                     counter += 1
                     for key, value in case_options.items():
-                        print("  {}: {}".format(key.rjust(20), value))
+                        print("  {}: {}".format(key.rjust(20), value))
 
                     # Can we proceed - check if there is something using the folder
                     lock_file = os.path.join(job_dir, "job.lock")
