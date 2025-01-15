@@ -30,7 +30,8 @@ namespace Test
   template <int dim,
             typename Number,
             typename VectorizedArrayType,
-            typename NonLinearOperator>
+            typename NonLinearOperator,
+            typename FreeEnergy>
   void
   check_tangent(const bool        enable_rbm,
                 const std::string prefix,
@@ -43,7 +44,8 @@ namespace Test
                    Number,
                    VectorType,
                    VectorizedArrayType,
-                   NonLinearOperator>
+                   NonLinearOperator,
+                   FreeEnergy>
       sintering_model(enable_rbm);
 
     auto &nonlinear_operator = sintering_model.get_nonlinear_operator();
