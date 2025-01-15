@@ -4,6 +4,7 @@
 
 #include <deal.II/base/mpi.h>
 
+#include <pf-applications/sintering/free_energy.h>
 #include <pf-applications/sintering/operator_sintering_generic.h>
 
 #include <pf-applications/tests/residual_tester.h>
@@ -24,6 +25,11 @@ main(int argc, char **argv)
   using NonLinearOperator =
     SinteringOperatorGeneric<dim, Number, VectorizedArrayType>;
 
-  Test::calc_residual<dim, Number, VectorizedArrayType, NonLinearOperator>(
-    false);
+  using OperatorFreeEnergy = FreeEnergy<VectorizedArrayType>;
+
+  Test::calc_residual<dim,
+                      Number,
+                      VectorizedArrayType,
+                      NonLinearOperator,
+                      OperatorFreeEnergy>(false);
 }
