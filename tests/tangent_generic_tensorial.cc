@@ -20,6 +20,7 @@
 
 #include <deal.II/base/mpi.h>
 
+#include <pf-applications/sintering/free_energy.h>
 #include <pf-applications/sintering/operator_sintering_generic.h>
 
 #include <pf-applications/tests/tangent_tester.h>
@@ -40,20 +41,34 @@ main(int argc, char **argv)
   using NonLinearOperator =
     SinteringOperatorGeneric<dim, Number, VectorizedArrayType>;
 
+  using OperatorFreeEnergy = FreeEnergy<VectorizedArrayType>;
+
   // Tangent for the tensorial mobility case is less accurate and has to be
   // refined. PR #484 does not helps, there are some other issues.
   // The tolerance is lowered while this is not resolved.
   const double tol_abs_no_rbm = 1e-0;
   const double tol_rel_no_rbm = 1e-5;
 
-  Test::check_tangent<dim, Number, VectorizedArrayType, NonLinearOperator>(
-    false, "WITHOUT RBM", tol_abs_no_rbm, tol_rel_no_rbm);
+  Test::check_tangent<dim,
+                      Number,
+                      VectorizedArrayType,
+                      NonLinearOperator,
+                      OperatorFreeEnergy>(false,
+                                          "WITHOUT RBM",
+                                          tol_abs_no_rbm,
+                                          tol_rel_no_rbm);
 
   // Tolerances for the native RBM are less tight since we are aware the tangent
   // matrix is not exact here
   const double tol_abs_rbm = 1e2;
   const double tol_rel_rbm = 1e-3;
 
-  Test::check_tangent<dim, Number, VectorizedArrayType, NonLinearOperator>(
-    true, "WITH RBM", tol_abs_rbm, tol_rel_rbm);
+  Test::check_tangent<dim,
+                      Number,
+                      VectorizedArrayType,
+                      NonLinearOperator,
+                      OperatorFreeEnergy>(true,
+                                          "WITH RBM",
+                                          tol_abs_rbm,
+                                          tol_rel_rbm);
 }

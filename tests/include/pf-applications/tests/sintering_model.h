@@ -8,7 +8,6 @@
 #include <deal.II/numerics/vector_tools.h>
 
 #include <pf-applications/sintering/advection.h>
-#include <pf-applications/sintering/free_energy.h>
 #include <pf-applications/sintering/initial_values_debug.h>
 #include <pf-applications/sintering/operator_advection.h>
 #include <pf-applications/sintering/tools.h>
@@ -28,7 +27,8 @@ namespace Test
             typename Number,
             typename VectorType,
             typename VectorizedArrayType,
-            typename NonLinearOperator>
+            typename NonLinearOperator,
+            typename FreeEnergy>
   struct SinteringModel
   {
   public:
@@ -270,7 +270,7 @@ namespace Test
     DoFHandler<dim>                                      dof_handler;
     AffineConstraints<Number>                            constraints;
     TimeIntegration::SolutionHistory<VectorType>         solution_history;
-    FreeEnergy<VectorizedArrayType>                      free_energy;
+    FreeEnergy                                           free_energy;
     SinteringOperatorData<dim, VectorizedArrayType>      sintering_data;
     MatrixFree<dim, Number, VectorizedArrayType>         matrix_free;
     AdvectionMechanism<dim, Number, VectorizedArrayType> advection_mechanism;

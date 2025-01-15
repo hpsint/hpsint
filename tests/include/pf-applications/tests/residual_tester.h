@@ -12,7 +12,8 @@ namespace Test
   template <int dim,
             typename Number,
             typename VectorizedArrayType,
-            typename NonLinearOperator>
+            typename NonLinearOperator,
+            typename FreeEnergy>
   void
   calc_residual(const bool enable_rbm)
   {
@@ -22,7 +23,8 @@ namespace Test
                    Number,
                    VectorType,
                    VectorizedArrayType,
-                   NonLinearOperator>
+                   NonLinearOperator,
+                   FreeEnergy>
       sintering_model(enable_rbm);
 
     auto &nonlinear_operator = sintering_model.get_nonlinear_operator();
