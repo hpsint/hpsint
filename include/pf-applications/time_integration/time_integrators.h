@@ -179,8 +179,19 @@ namespace TimeIntegration
 
     template <int n_comp>
     void
+    compute_time_derivative(VectorizedArrayType &              value_result,
+                            const CellIntegratorValue<n_comp> &val,
+                            const TimeCellIntegrator<n_comp> & time_phi,
+                            const unsigned int                 index,
+                            const unsigned int                 q) const
+    {
+      compute_time_derivative(value_result, val[index], time_phi, index, q);
+    }
+
+    template <int n_comp>
+    void
     compute_time_derivative(VectorizedArrayType &             value_result,
-                            CellIntegratorValue<n_comp>       val,
+                            const VectorizedArrayType &       val,
                             const TimeCellIntegrator<n_comp> &time_phi,
                             const unsigned int                index,
                             const unsigned int                q) const
@@ -190,7 +201,7 @@ namespace TimeIntegration
 
       const auto &weights = time_data.get_weights();
 
-      value_result += val[index] * weights[0];
+      value_result += val * weights[0];
       for (unsigned int i = 0; i < time_data.get_order(); ++i)
         {
           const auto val_old = time_phi[i].get_value(q);
