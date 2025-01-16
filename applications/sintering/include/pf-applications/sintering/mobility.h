@@ -545,6 +545,19 @@ namespace Sintering
       return dMdc;
     }
 
+    // TODO: add apply!?
+    DEAL_II_ALWAYS_INLINE Tensor<2, dim, VectorizedArrayType>
+                          dM_surf_dc(const VectorizedArrayType &                c,
+                                     const Tensor<1, dim, VectorizedArrayType> &c_grad) const
+    {
+      (void)c_grad;
+
+      const auto factor = 8.0 * c * (1.0 - 3.0 * c + 2.0 * c * c);
+
+      const auto dMdc = diagonal_matrix<dim>(Msurf * factor);
+
+      return dMdc;
+    }
 
 
     double
@@ -915,6 +928,26 @@ namespace Sintering
       return dMdc;
     }
 
+    // TODO: add apply!?
+    DEAL_II_ALWAYS_INLINE Tensor<2, dim, VectorizedArrayType>
+                          dM_surf_dc(const VectorizedArrayType &                c,
+                                     const Tensor<1, dim, VectorizedArrayType> &c_grad) const
+    {
+      const auto c2_1minusc2 = 4.0 * c * c * (1. - c) * (1. - c);
+
+      // Surface part
+      const auto fsurf  = Msurf * c2_1minusc2;
+      auto       dfsurf = Msurf * 8.0 * c * (1. - c) * (1. - 2. * c);
+
+      dfsurf = compare_and_apply_mask<SIMDComparison::less_than>(
+        fsurf, VectorizedArrayType(1e-6), VectorizedArrayType(0.0), dfsurf);
+
+      const auto nc = unit_vector(c_grad);
+      const auto dMdc =
+        projector_matrix(nc, dfsurf, VectorizedArrayType(projector_scale));
+
+      return dMdc;
+    }
 
 
     double
