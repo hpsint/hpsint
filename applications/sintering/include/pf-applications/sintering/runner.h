@@ -127,7 +127,8 @@ namespace Sintering
     const std::string  mode(argv[1]);
     const unsigned int op_components_offset =
       FreeEnergy<VectorizedArrayType>::op_components_offset;
-    const bool concentration_as_void = false;
+    const bool concentration_as_void =
+      FreeEnergy<VectorizedArrayType>::concentration_as_void;
 
     if (argc == 1 || mode == "--help")
       {
