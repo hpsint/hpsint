@@ -189,7 +189,8 @@ namespace Sintering
       Evaluation<any_energy_eval_of_v<Mask, EnergyEvaluation::zero>>;
 
   public:
-    static const unsigned int op_components_offset = 0;
+    static const unsigned int op_components_offset  = 0;
+    static const bool         concentration_as_void = false;
 
     GrainGrowthFreeEnergy(double A, double B)
       : A(A)
