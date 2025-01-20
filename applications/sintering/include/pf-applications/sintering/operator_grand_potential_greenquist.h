@@ -129,6 +129,39 @@ namespace Sintering
         phi = state[0];
         mu  = state[1];
       }
+    private:
+      Number kB{8.617333262145e-5}; // Ev/K - Boltzman
+
+      Number interface_width{60};
+
+      Number T{1816};
+      Number km{157.16 - 0.0025 * T};
+      Number kb{10 * km};
+      Number Va{0.04092};
+
+      Number M0{1.476e9};
+      Number Q{2.77};
+      Number T0{2294};
+
+      Number Mv{M0 * std::exp(-Q / (kB * T0))};
+      Number Ms{M0 * std::exp(-Q / (kB * T))};
+
+      Number L_phi{4. / 3. * Mv / interface_width};
+      Number L{4. / 3. * Ms / interface_width};
+
+      Number sigma_s{19.72};
+      Number sigma_gb{9.86};
+      Number eps_s{6 * sigma_s / interface_width};
+      Number eps_gb{6 * sigma_gb / interface_width};
+      Number kappa_s{3. / 4. * sigma_s * interface_width};
+      Number kappa_gb{3. / 4. * sigma_gb * interface_width};
+
+      Number Ef{2.69};
+      Number ceq_B{std::exp(-Ef / (kB * T))};
+      Number ceq_GB{0.189};
+      Number cb_eq{1.0};
+
+      Number gamma{1.5};
 
       VectorizedArrayType phi;
       VectorizedArrayType mu;
