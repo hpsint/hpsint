@@ -41,6 +41,102 @@ namespace Sintering
   private:
     using Number = double;
 
+    // This class knows about the structure of the state vector
+    class Evaluation
+    {
+    public:
+      template <int n_grains>
+      Evaluation(const VectorizedArrayType *state,
+                 std::integral_constant<int, n_grains>)
+      {
+        std::array<VectorizedArrayType, n_grains + 1> phases;
+        phases[0] = state[0];
+        for (unsigned int ig = 0; ig < n_grains; ++ig)
+          phases[ig + 1] = state[ig + 2];
+
+        phasesPower2Sum = PowerHelper<n_grains + 1, 2>::power_sum(phases);
+        phasesPower4Sum = PowerHelper<n_grains + 1, 4>::power_sum(phases);
+
+        mixed_sum2 = 0;
+        for (unsigned int i = 0; i < phases.size(); ++i)
+          for (unsigned int j = i + 1; j < phases.size(); ++j)
+            mixed_sum2 += phases[i] * phases[i] * phases[j] * phases[j];
+        mixed_sum2 *= 2.;
+
+        phi = state[0];
+        mu  = state[1];
+      }
+
+      template <typename VectorType, int n_grains>
+      Evaluation(const VectorType &state, std::integral_constant<int, n_grains>)
+      {
+        std::array<VectorizedArrayType, n_grains + 1> phases;
+        phases[0] = state[0];
+        for (unsigned int ig = 0; ig < n_grains; ++ig)
+          phases[ig + 1] = state[ig + 2];
+
+        phasesPower2Sum = PowerHelper<n_grains + 1, 2>::power_sum(phases);
+        phasesPower4Sum = PowerHelper<n_grains + 1, 4>::power_sum(phases);
+
+        mixed_sum2 = 0;
+        for (unsigned int i = 0; i < phases.size(); ++i)
+          for (unsigned int j = i + 1; j < phases.size(); ++j)
+            mixed_sum2 += phases[i] * phases[i] * phases[j] * phases[j];
+        mixed_sum2 *= 2.;
+
+        phi = state[0];
+        mu  = state[1];
+      }
+
+      template <typename VectorType>
+      Evaluation(const VectorType &state, const unsigned int n_grains)
+      {
+        std::vector<VectorizedArrayType> phases(n_grains + 1);
+        phases[0] = state[0];
+        for (unsigned int ig = 0; ig < n_grains; ++ig)
+          phases[ig + 1] = state[ig + 2];
+
+        phasesPower2Sum = PowerHelper<0, 2>::power_sum(phases);
+        phasesPower4Sum = PowerHelper<0, 4>::power_sum(phases);
+
+        mixed_sum2 = 0;
+        for (unsigned int i = 0; i < phases.size(); ++i)
+          for (unsigned int j = i + 1; j < phases.size(); ++j)
+            mixed_sum2 += phases[i] * phases[i] * phases[j] * phases[j];
+        mixed_sum2 *= 2.;
+
+        phi = state[0];
+        mu  = state[1];
+      }
+
+      template <typename VectorType, int n_comp = SizeHelper<VectorType>::size>
+      Evaluation(const VectorType &state)
+      {
+        std::array<VectorizedArrayType, n_comp - 1> phases;
+        phases[0] = state[0];
+        for (unsigned int ig = 0; ig < n_comp - 2; ++ig)
+          phases[ig + 1] = state[ig + 2];
+
+        phasesPower2Sum = PowerHelper<n_comp - 1, 2>::power_sum(phases);
+        phasesPower4Sum = PowerHelper<n_comp - 1, 4>::power_sum(phases);
+
+        mixed_sum2 = 0;
+        for (unsigned int i = 0; i < phases.size(); ++i)
+          for (unsigned int j = i + 1; j < phases.size(); ++j)
+            mixed_sum2 += phases[i] * phases[i] * phases[j] * phases[j];
+        mixed_sum2 *= 2.;
+
+        phi = state[0];
+        mu  = state[1];
+      }
+
+      VectorizedArrayType phi;
+      VectorizedArrayType mu;
+      VectorizedArrayType phasesPower2Sum;
+      VectorizedArrayType phasesPower4Sum;
+      VectorizedArrayType mixed_sum2;
+    };
+
   public:
     static const unsigned int op_components_offset  = 2;
     static const bool         concentration_as_void = true;
