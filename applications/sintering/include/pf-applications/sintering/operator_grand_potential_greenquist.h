@@ -217,6 +217,64 @@ namespace Sintering
       {
         return -d2H(VectorizedArrayType(1.0));
       }
+
+      VectorizedArrayType
+      switching(const Number fac_s, const Number fac_gb) const
+      {
+        VectorizedArrayType phi0(0.3);
+        return fac_s * H(phi0) + fac_gb * (VectorizedArrayType(1.) - H(phi0));
+      }
+
+      VectorizedArrayType
+      dswitching_dphi(const Number fac_s, const Number fac_gb) const
+      {
+        VectorizedArrayType phi0(0.3);
+        return fac_s * dH(phi0) - fac_gb * dH(phi0);
+      }
+
+      VectorizedArrayType
+      d2switching_dphi2(const Number fac_s, const Number fac_gb) const
+      {
+        VectorizedArrayType phi0(0.3);
+        return fac_s * d2H(phi0) - fac_gb * d2H(phi0);
+      }
+
+      VectorizedArrayType
+      epsilon() const
+      {
+        return switching(eps_s, eps_gb);
+      }
+
+      VectorizedArrayType
+      depsilon_dphi() const
+      {
+        return dswitching_dphi(eps_s, eps_gb);
+      }
+
+      VectorizedArrayType
+      d2epsilon_dphi2() const
+      {
+        return d2switching_dphi2(eps_s, eps_gb);
+      }
+
+      VectorizedArrayType
+      kappa() const
+      {
+        return switching(kappa_s, kappa_gb);
+      }
+
+      VectorizedArrayType
+      dkappa_dphi() const
+      {
+        return dswitching_dphi(kappa_s, kappa_gb);
+      }
+
+      VectorizedArrayType
+      d2kappa_dphi2() const
+      {
+        return d2switching_dphi2(kappa_s, kappa_gb);
+      }
+
     private:
       Number kB{8.617333262145e-5}; // Ev/K - Boltzman
 
