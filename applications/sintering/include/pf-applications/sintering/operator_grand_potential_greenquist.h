@@ -129,6 +129,94 @@ namespace Sintering
         phi = state[0];
         mu  = state[1];
       }
+      VectorizedArrayType
+      H(const VectorizedArrayType &phi0) const
+      {
+        VectorizedArrayType h = 6. * Utilities::fixed_power<5>(phi) /
+                                  Utilities::fixed_power<5>(phi0) -
+                                15. * Utilities::fixed_power<4>(phi) /
+                                  Utilities::fixed_power<4>(phi0) +
+                                10. * Utilities::fixed_power<3>(phi) /
+                                  Utilities::fixed_power<3>(phi0);
+
+        h = compare_and_apply_mask<SIMDComparison::less_than>(
+          phi, VectorizedArrayType(0.0), VectorizedArrayType(0.0), h);
+        h = compare_and_apply_mask<SIMDComparison::greater_than>(
+          phi, phi0, VectorizedArrayType(1.0), h);
+
+        return h;
+      }
+
+      VectorizedArrayType
+      dH(const VectorizedArrayType &phi0) const
+      {
+        VectorizedArrayType h = 30. * Utilities::fixed_power<4>(phi) /
+                                  Utilities::fixed_power<5>(phi0) -
+                                60. * Utilities::fixed_power<3>(phi) /
+                                  Utilities::fixed_power<4>(phi0) +
+                                30. * Utilities::fixed_power<2>(phi) /
+                                  Utilities::fixed_power<3>(phi0);
+
+        h = compare_and_apply_mask<SIMDComparison::less_than>(
+          phi, VectorizedArrayType(0.0), VectorizedArrayType(0.0), h);
+        h = compare_and_apply_mask<SIMDComparison::greater_than>(
+          phi, phi0, VectorizedArrayType(0.0), h);
+
+        return h;
+      }
+
+      VectorizedArrayType
+      d2H(const VectorizedArrayType &phi0) const
+      {
+        VectorizedArrayType h = 120. * Utilities::fixed_power<3>(phi) /
+                                  Utilities::fixed_power<5>(phi0) -
+                                180. * Utilities::fixed_power<2>(phi) /
+                                  Utilities::fixed_power<4>(phi0) +
+                                60. * phi / Utilities::fixed_power<3>(phi0);
+
+        h = compare_and_apply_mask<SIMDComparison::less_than>(
+          phi, VectorizedArrayType(0.0), VectorizedArrayType(0.0), h);
+        h = compare_and_apply_mask<SIMDComparison::greater_than>(
+          phi, phi0, VectorizedArrayType(0.0), h);
+
+        return h;
+      }
+
+      VectorizedArrayType
+      hb() const
+      {
+        return H(VectorizedArrayType(1.0));
+      }
+
+      VectorizedArrayType
+      dhb() const
+      {
+        return dH(VectorizedArrayType(1.0));
+      }
+
+      VectorizedArrayType
+      d2hb() const
+      {
+        return d2H(VectorizedArrayType(1.0));
+      }
+
+      VectorizedArrayType
+      hm() const
+      {
+        return VectorizedArrayType(1.0) - H(VectorizedArrayType(1.0));
+      }
+
+      VectorizedArrayType
+      dhm() const
+      {
+        return -dH(VectorizedArrayType(1.0));
+      }
+
+      VectorizedArrayType
+      d2hm() const
+      {
+        return -d2H(VectorizedArrayType(1.0));
+      }
     private:
       Number kB{8.617333262145e-5}; // Ev/K - Boltzman
 
