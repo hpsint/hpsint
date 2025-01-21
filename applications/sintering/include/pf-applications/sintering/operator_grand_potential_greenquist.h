@@ -438,6 +438,51 @@ namespace Sintering
         return L_phi;
       }
 
+      // TODO: compute energy properly
+      DEAL_II_ALWAYS_INLINE VectorizedArrayType
+      f() const
+      {
+        return VectorizedArrayType(0.);
+      }
+
+      // Dummy functions for preconditioners
+      DEAL_II_ALWAYS_INLINE VectorizedArrayType
+      df_dc() const
+      {
+        return VectorizedArrayType(0.);
+      }
+
+      DEAL_II_ALWAYS_INLINE VectorizedArrayType
+      df_detai(const VectorizedArrayType &etai) const
+      {
+        return VectorizedArrayType(0.);
+      }
+
+      DEAL_II_ALWAYS_INLINE VectorizedArrayType
+      d2f_dc2() const
+      {
+        return VectorizedArrayType(0.);
+      }
+
+      DEAL_II_ALWAYS_INLINE VectorizedArrayType
+      d2f_dcdetai(const VectorizedArrayType &etai) const
+      {
+        return VectorizedArrayType(0.);
+      }
+
+      DEAL_II_ALWAYS_INLINE VectorizedArrayType
+      d2f_detai2(const VectorizedArrayType &etai) const
+      {
+        return VectorizedArrayType(0.);
+      }
+
+      DEAL_II_ALWAYS_INLINE VectorizedArrayType
+      d2f_detaidetaj(const VectorizedArrayType &etai,
+                     const VectorizedArrayType &etaj) const
+      {
+        return VectorizedArrayType(0.);
+      }
+
     private:
       Number kB{8.617333262145e-5}; // Ev/K - Boltzman
 
