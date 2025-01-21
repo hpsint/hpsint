@@ -586,4 +586,100 @@ namespace Sintering
       (void)value_result;
     }
   };
+
+  template <int dim, typename Number, typename VectorizedArrayType>
+  class GreenquistGrandPotentialOperator
+    : public OperatorBase<
+        dim,
+        Number,
+        VectorizedArrayType,
+        GreenquistGrandPotentialOperator<dim, Number, VectorizedArrayType>>
+  {
+  public:
+    using T =
+      GreenquistGrandPotentialOperator<dim, Number, VectorizedArrayType>;
+
+    using VectorType = LinearAlgebra::distributed::Vector<Number>;
+    using BlockVectorType =
+      LinearAlgebra::distributed::DynamicBlockVector<Number>;
+
+    using value_type  = Number;
+    using vector_type = VectorType;
+
+    GreenquistGrandPotentialOperator(
+      const MatrixFree<dim, Number, VectorizedArrayType> &     matrix_free,
+      const AffineConstraints<Number> &                        constraints,
+      const GreenquistFreeEnergy<VectorizedArrayType> &        free_energy,
+      const SinteringOperatorData<dim, VectorizedArrayType> &  data,
+      const TimeIntegration::SolutionHistory<BlockVectorType> &history,
+      const bool                                               matrix_based)
+      : OperatorBase<dim, Number, VectorizedArrayType, T>(matrix_free,
+                                                          constraints,
+                                                          0,
+                                                          "sintering_gp_op",
+                                                          matrix_based)
+      , free_energy(free_energy)
+      , data(data)
+      , history(history)
+      , time_integrator(data.time_data, history)
+    {}
+
+    ~GreenquistGrandPotentialOperator()
+    {}
+
+    template <typename... Arg>
+    static T
+    create(
+      const MatrixFree<dim, Number, VectorizedArrayType> &     matrix_free,
+      const AffineConstraints<Number> &                        constraints,
+      const GreenquistFreeEnergy<VectorizedArrayType> &        free_energy,
+      const SinteringOperatorData<dim, VectorizedArrayType> &  sintering_data,
+      const TimeIntegration::SolutionHistory<BlockVectorType> &solution_history,
+      const AdvectionMechanism<dim, Number, VectorizedArrayType>
+        &        advection_mechanism,
+      const bool matrix_based,
+      Arg &&...)
+    {
+      (void)advection_mechanism;
+
+      return T(matrix_free,
+               constraints,
+               free_energy,
+               sintering_data,
+               solution_history,
+               matrix_based);
+    }
+
+    const SinteringOperatorData<dim, VectorizedArrayType> &
+    get_data() const
+    {
+      return data;
+    }
+
+
+    unsigned int
+    n_components() const override
+    {
+      return this->data.n_components();
+    }
+
+    unsigned int
+    n_grains() const
+    {
+      return this->data.n_components() - 2;
+    }
+
+    static constexpr unsigned int
+    n_grains_to_n_components(const unsigned int n_grains)
+    {
+      return n_grains + 2;
+    }
+
+  protected:
+    const GreenquistFreeEnergy<VectorizedArrayType>          free_energy;
+    const SinteringOperatorData<dim, VectorizedArrayType> &  data;
+    const TimeIntegration::SolutionHistory<BlockVectorType> &history;
+    const TimeIntegration::BDFIntegrator<dim, Number, VectorizedArrayType>
+      time_integrator;
+  };
 } // namespace Sintering
