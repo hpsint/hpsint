@@ -220,6 +220,18 @@ namespace Sintering
       }
 
       VectorizedArrayType
+      chi() const
+      {
+        return VectorizedArrayType(1.) / (Va * Va) * (hb() / kb + hm() / km);
+      }
+
+      VectorizedArrayType
+      dchi_dphi() const
+      {
+        return VectorizedArrayType(1.) / (Va * Va) * (dhb() / kb + dhm() / km);
+      }
+
+      VectorizedArrayType
       switching(const Number fac_s, const Number fac_gb) const
       {
         VectorizedArrayType phi0(0.3);
@@ -350,6 +362,80 @@ namespace Sintering
                                const VectorizedArrayType &phase_j) const
       {
         return -1. * d2cm_eq_dphaseiphasej(phase_i, phase_j) * mu / Va;
+      }
+
+      // Concentrations
+      VectorizedArrayType
+      cm_eq() const
+      {
+        return ceq_B + 4. * (ceq_GB - ceq_B) *
+                         Utilities::fixed_power<2>(VectorizedArrayType(1.) -
+                                                   phasesPower2Sum);
+      }
+
+      VectorizedArrayType
+      dcm_eq_dphasei(const VectorizedArrayType &phase_i) const
+      {
+        return -16. * (ceq_GB - ceq_B) *
+               (VectorizedArrayType(1.) - phasesPower2Sum) * phase_i;
+      }
+
+      VectorizedArrayType
+      d2cm_eq_dphasei2(const VectorizedArrayType &phase_i) const
+      {
+        return -16. * (ceq_GB - ceq_B) *
+               (VectorizedArrayType(1.) - phasesPower2Sum -
+                2. * phase_i * phase_i);
+      }
+
+      VectorizedArrayType
+      d2cm_eq_dphaseiphasej(const VectorizedArrayType &phase_i,
+                            const VectorizedArrayType &phase_j) const
+      {
+        return 32. * (ceq_GB - ceq_B) * phase_i * phase_j;
+      }
+
+      VectorizedArrayType
+      zeta() const
+      {
+        return phasesPower4Sum + gamma * mixed_sum2 +
+               VectorizedArrayType(1. / 4.);
+      }
+
+      VectorizedArrayType
+      dzeta_dphasei(const VectorizedArrayType &phase_i) const
+      {
+        return Utilities::fixed_power<3>(phase_i) - phase_i +
+               2. * gamma * phase_i *
+                 (phasesPower2Sum - Utilities::fixed_power<2>(phase_i));
+      }
+
+      VectorizedArrayType
+      d2zeta_dphasei2(const VectorizedArrayType &phase_i) const
+      {
+        return 3. * Utilities::fixed_power<2>(phase_i) -
+               VectorizedArrayType(1.0) +
+               2. * gamma *
+                 (phasesPower2Sum - Utilities::fixed_power<2>(phase_i));
+      }
+
+      VectorizedArrayType
+      d2zeta_dphaseidphasej(const VectorizedArrayType &phase_i,
+                            const VectorizedArrayType &phase_j) const
+      {
+        return 4. * gamma * phase_i * phase_j;
+      }
+
+      Number
+      get_L() const
+      {
+        return L;
+      }
+
+      Number
+      get_Lphi() const
+      {
+        return L_phi;
       }
 
     private:
