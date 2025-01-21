@@ -129,6 +129,7 @@ namespace Sintering
         phi = state[0];
         mu  = state[1];
       }
+
       VectorizedArrayType
       H(const VectorizedArrayType &phi0) const
       {
@@ -273,6 +274,82 @@ namespace Sintering
       d2kappa_dphi2() const
       {
         return d2switching_dphi2(kappa_s, kappa_gb);
+      }
+
+      // Omega_b
+      VectorizedArrayType
+      omega_b() const
+      {
+        return -1. * mu * mu / (2 * Va * Va * kb) - cb_eq * mu / Va;
+      }
+
+      VectorizedArrayType
+      domega_b_dmu() const
+      {
+        return -1. * mu / (Va * Va * kb) - VectorizedArrayType(cb_eq / Va);
+      }
+
+      VectorizedArrayType
+      d2omega_b_dmu2() const
+      {
+        return VectorizedArrayType(-1. / (Va * Va * kb));
+      }
+
+      // Omega_m
+      VectorizedArrayType
+      omega_m() const
+      {
+        return -1. * mu * mu / (2 * Va * Va * km) - cm_eq() * mu / Va;
+      }
+
+      VectorizedArrayType
+      domega_m_dmu() const
+      {
+        return -1. * mu / (Va * Va * km) - cm_eq() / Va;
+      }
+
+      VectorizedArrayType
+      domega_m_dphasei(const VectorizedArrayType &phase_i) const
+      {
+        return -1. * dcm_eq_dphasei(phase_i) * mu / Va;
+      }
+
+      VectorizedArrayType
+      d2omega_m_dmu2(const VectorizedArrayType &mu) const
+      {
+        return VectorizedArrayType(-1. / (Va * Va * km));
+      }
+
+      VectorizedArrayType
+      d2omega_m_dmudphasei(const VectorizedArrayType &phase_i) const
+      {
+        return -1. * dcm_eq_dphasei(phase_i) / Va;
+      }
+
+      VectorizedArrayType
+      d3omega_m_dmudphasei2(const VectorizedArrayType &phase_i) const
+      {
+        return -1. * d2cm_eq_dphasei2(phase_i) / Va;
+      }
+
+      VectorizedArrayType
+      d3omega_m_dmudphaseidphasej(const VectorizedArrayType &phase_i,
+                                  const VectorizedArrayType &phase_j) const
+      {
+        return -1. * d2cm_eq_dphaseiphasej(phase_i, phase_j) / Va;
+      }
+
+      VectorizedArrayType
+      d2omega_m_dphasei2(const VectorizedArrayType &phase_i) const
+      {
+        return -1. * d2cm_eq_dphasei2(phase_i) * mu / Va;
+      }
+
+      VectorizedArrayType
+      d2omega_m_dphaseidphasej(const VectorizedArrayType &phase_i,
+                               const VectorizedArrayType &phase_j) const
+      {
+        return -1. * d2cm_eq_dphaseiphasej(phase_i, phase_j) * mu / Va;
       }
 
     private:
