@@ -837,6 +837,256 @@ namespace Sintering
 #undef OPERATION
     }
 
+    template <int n_comp, int n_grains, typename FECellIntegratorType>
+    void
+    do_vmult_kernel(FECellIntegratorType &phi) const
+    {
+      AssertDimension(n_comp, n_grains + 2);
+
+      const unsigned int cell = phi.get_current_cell_index();
+
+      const auto &nonlinear_values    = this->data.get_nonlinear_values();
+      const auto &nonlinear_gradients = this->data.get_nonlinear_gradients();
+
+      const auto &free_energy = this->free_energy;
+      const auto &mobility    = this->data.get_mobility();
+      const auto  weight      = this->data.time_data.get_primary_weight();
+      const auto &order       = this->data.time_data.get_order();
+
+      const auto old_solutions = this->history.get_old_solutions();
+
+      auto time_eval = this->time_integrator.create_cell_intergator(phi);
+
+      for (unsigned int i = 0; i < order; ++i)
+        {
+          time_eval[i].reinit(cell);
+          time_eval[i].read_dof_values_plain(*old_solutions[i]);
+          time_eval[i].evaluate(EvaluationFlags::EvaluationFlags::values);
+        }
+
+      VectorizedArrayType dummy_one(1.0);
+
+      for (unsigned int q = 0; q < phi.n_q_points; ++q)
+        {
+          typename FECellIntegratorType::value_type    value_result;
+          typename FECellIntegratorType::gradient_type gradient_result;
+
+          const auto  value        = phi.get_value(q);
+          const auto  gradient     = phi.get_gradient(q);
+          const auto &lin_value    = nonlinear_values[cell][q];
+          const auto &lin_gradient = nonlinear_gradients[cell][q];
+
+          const auto &lin_phi_value    = lin_value[0];
+          const auto &lin_mu_value     = lin_value[1];
+          const auto &lin_phi_gradient = lin_gradient[0];
+          const auto &mu_lin_gradient  = lin_gradient[1];
+
+          const auto free_energy_eval =
+            free_energy.template eval<EnergySecond, n_grains>(lin_value);
+
+          const VectorizedArrayType *lin_etas_value = &lin_value[2];
+          const Tensor<1, dim, VectorizedArrayType> *lin_etas_gradient =
+            nullptr;
+
+          if (SinteringOperatorData<dim, VectorizedArrayType>::
+                use_tensorial_mobility)
+            lin_etas_gradient = &lin_gradient[2];
+
+          // Evaluate some time derivatives
+          VectorizedArrayType dphi_dt, dmu_dt;
+
+          this->time_integrator.compute_time_derivative(
+            dphi_dt, lin_phi_value, time_eval, 0, q);
+
+          this->time_integrator.compute_time_derivative(
+            dmu_dt, lin_mu_value, time_eval, 1, q);
+
+          // Evaluate phi row
+          value_result[0] = value[0] * weight;
+          value_result[0] +=
+            free_energy_eval.get_Lphi() *
+            (free_energy_eval.d2hb() * free_energy_eval.omega_b() +
+
+             free_energy_eval.d2hm() * free_energy_eval.omega_m() +
+             free_energy_eval.dhm() *
+               free_energy_eval.domega_m_dphasei(lin_phi_value) +
+
+             free_energy_eval.dhm() *
+               free_energy_eval.domega_m_dphasei(lin_phi_value) +
+             free_energy_eval.hm() *
+               free_energy_eval.d2omega_m_dphasei2(lin_phi_value) +
+
+
+             free_energy_eval.d2epsilon_dphi2() * free_energy_eval.zeta() +
+             free_energy_eval.depsilon_dphi() *
+               free_energy_eval.dzeta_dphasei(lin_phi_value) +
+
+             free_energy_eval.depsilon_dphi() *
+               free_energy_eval.dzeta_dphasei(lin_phi_value) +
+             free_energy_eval.epsilon() *
+               free_energy_eval.d2zeta_dphasei2(lin_phi_value)) *
+            value[0];
+
+          value_result[0] +=
+            free_energy_eval.get_Lphi() *
+            (free_energy_eval.dhb() * free_energy_eval.domega_b_dmu() +
+             free_energy_eval.dhm() * free_energy_eval.domega_m_dmu() +
+             free_energy_eval.hm() *
+               free_energy_eval.d2omega_m_dmudphasei(lin_phi_value)) *
+            value[1];
+
+          gradient_result[0] = free_energy_eval.get_Lphi() *
+                                 free_energy_eval.dkappa_dphi() *
+                                 lin_phi_gradient * value[0] +
+                               free_energy_eval.get_Lphi() *
+                                 free_energy_eval.kappa() * gradient[0];
+
+          for (unsigned int ig = 0; ig < n_grains; ++ig)
+            {
+              value_result[0] +=
+                free_energy_eval.get_Lphi() *
+                (free_energy_eval.dhm() *
+                   free_energy_eval.domega_m_dphasei(lin_value[ig + 2]) +
+
+                 free_energy_eval.hm() *
+                   free_energy_eval.d2omega_m_dphaseidphasej(
+                     lin_phi_value, lin_value[ig + 2]) +
+
+                 free_energy_eval.depsilon_dphi() *
+                   free_energy_eval.dzeta_dphasei(lin_value[ig + 2]) +
+
+                 free_energy_eval.epsilon() *
+                   free_energy_eval.d2zeta_dphaseidphasej(lin_phi_value,
+                                                          lin_value[ig + 2])) *
+                value[ig + 2];
+            }
+
+          // Evaluate mu row
+          value_result[1] = (value[1] * weight) * free_energy_eval.chi() +
+                            dmu_dt * free_energy_eval.dchi_dphi() * value[0];
+
+          value_result[1] -=
+            (free_energy_eval.dhb() * free_energy_eval.domega_b_dmu() +
+             free_energy_eval.dhm() * free_energy_eval.domega_m_dmu() +
+             free_energy_eval.hm() *
+               free_energy_eval.d2omega_m_dmudphasei(lin_phi_value)) *
+            value[0] * weight;
+
+          value_result[1] -=
+            (free_energy_eval.d2hb() * free_energy_eval.domega_b_dmu() +
+             free_energy_eval.d2hm() * free_energy_eval.domega_m_dmu() +
+             free_energy_eval.dhm() *
+               free_energy_eval.d2omega_m_dmudphasei(lin_phi_value) +
+             free_energy_eval.dhm() *
+               free_energy_eval.d2omega_m_dmudphasei(lin_phi_value) +
+             free_energy_eval.hm() *
+               free_energy_eval.d3omega_m_dmudphasei2(lin_phi_value)) *
+            value[0] * dphi_dt;
+
+          value_result[1] -=
+            (free_energy_eval.dhb() * free_energy_eval.d2omega_b_dmu2() +
+             free_energy_eval.dhm() * free_energy_eval.d2omega_b_dmu2()) *
+            value[1] * dphi_dt;
+
+          for (unsigned int ig = 0; ig < n_grains; ++ig)
+            {
+              value_result[1] -=
+                (free_energy_eval.dhm() *
+                   free_energy_eval.d2omega_m_dmudphasei(lin_value[ig + 2]) +
+                 free_energy_eval.hm() *
+                   free_energy_eval.d3omega_m_dmudphaseidphasej(
+                     lin_phi_value, lin_value[ig + 2])) *
+                value[ig + 2] * dphi_dt;
+            }
+
+          gradient_result[1] =
+            (mobility.M_vol(dummy_one) +
+             mobility.M_surf(lin_phi_value, lin_phi_gradient) +
+             mobility.M_gb(lin_etas_value, n_grains, lin_etas_gradient)) *
+            mu_lin_gradient * free_energy_eval.dchi_dphi() * value[0];
+
+          gradient_result[1] +=
+            (mobility.M_vol(dummy_one) +
+             mobility.M_surf(lin_phi_value, lin_phi_gradient) +
+             mobility.M_gb(lin_etas_value, n_grains, lin_etas_gradient)) *
+            free_energy_eval.chi() * gradient[1];
+
+          gradient_result[1] +=
+            free_energy_eval.chi() *
+            (mobility.dM_surf_dc(lin_phi_value, lin_phi_gradient) *
+               mu_lin_gradient * value[0] +
+             mobility.dM_dgrad_c(lin_phi_value,
+                                 lin_phi_gradient,
+                                 mu_lin_gradient) *
+               gradient[0]);
+
+          for (unsigned int ig = 0; ig < n_grains; ++ig)
+            {
+              gradient_result[1] +=
+                free_energy_eval.chi() * (mobility.dM_detai(lin_phi_value,
+                                                            lin_etas_value,
+                                                            n_grains,
+                                                            lin_phi_gradient,
+                                                            lin_etas_gradient,
+                                                            ig) *
+                                          mu_lin_gradient * value[ig + 2]);
+            }
+
+          // Evaluate etas[ig] row
+          for (unsigned int ig = 0; ig < n_grains; ++ig)
+            {
+              value_result[ig + 2] = value[ig + 2] * weight;
+
+              value_result[ig + 2] +=
+                free_energy_eval.get_L() *
+                (free_energy_eval.dhm() *
+                   free_energy_eval.domega_m_dphasei(lin_value[ig + 2]) +
+                 free_energy_eval.hm() *
+                   free_energy_eval.d2omega_m_dphaseidphasej(lin_value[ig + 2],
+                                                             lin_phi_value) +
+                 free_energy_eval.depsilon_dphi() *
+                   free_energy_eval.dzeta_dphasei(lin_value[ig + 2]) +
+                 free_energy_eval.epsilon() *
+                   free_energy_eval.d2zeta_dphaseidphasej(lin_value[ig + 2],
+                                                          lin_phi_value)) *
+                value[0];
+
+              value_result[ig + 2] +=
+                free_energy_eval.get_L() *
+                (free_energy_eval.hm() *
+                 free_energy_eval.d2omega_m_dmudphasei(lin_value[ig + 2])) *
+                value[1];
+
+              value_result[ig + 2] +=
+                free_energy_eval.get_L() *
+                (free_energy_eval.hm() *
+                   free_energy_eval.d2omega_m_dphasei2(lin_value[ig + 2]) +
+                 free_energy_eval.epsilon() *
+                   free_energy_eval.d2zeta_dphasei2(lin_value[ig + 2])) *
+                value[ig + 2];
+
+              for (unsigned int jg = 0; jg < n_grains; ++jg)
+                if (jg != ig)
+                  value_result[ig + 2] +=
+                    free_energy_eval.get_L() *
+                    (free_energy_eval.hm() *
+                       free_energy_eval.d2omega_m_dphaseidphasej(
+                         lin_value[ig + 2], lin_value[jg + 2]) +
+                     free_energy_eval.epsilon() *
+                       free_energy_eval.d2zeta_dphaseidphasej(
+                         lin_value[ig + 2], lin_value[jg + 2])) *
+                    value[jg + 2];
+
+              gradient_result[ig + 2] = free_energy_eval.get_L() *
+                                        free_energy_eval.kappa() *
+                                        gradient[ig + 2];
+            }
+
+          phi.submit_value(value_result, q);
+          phi.submit_gradient(gradient_result, q);
+        }
+    }
+
 
     /* Build scalar quantities to compute */
     auto
