@@ -656,6 +656,126 @@ namespace Sintering
       return data;
     }
 
+    template <int n_comp, int n_grains>
+    void
+    do_add_data_vectors_kernel(DataOut<dim> &               data_out,
+                               const BlockVectorType &      vec,
+                               const std::set<std::string> &fields_list) const
+    {
+      // Possible output options
+      enum OutputFields
+      {
+        FieldBnds,
+        FieldGb,
+        FieldF,
+        FieldDf,
+        FieldD2f
+      };
+
+      constexpr unsigned int n_data_variants = 5;
+
+      const std::array<std::tuple<std::string, OutputFields, unsigned int>,
+                       n_data_variants>
+        possible_entries = {{{"bnds", FieldBnds, 1}, {"gb", FieldGb, 1}}};
+
+      // Get active entries to output
+      const auto [entries_mask, n_entries] =
+        this->get_vector_output_entries_mask(possible_entries, fields_list);
+
+      if (n_entries == 0)
+        return;
+
+      std::vector<VectorType> data_vectors(n_entries);
+
+      for (auto &data_vector : data_vectors)
+        this->matrix_free.initialize_dof_vector(data_vector, this->dof_index);
+
+      FECellIntegrator<dim, n_comp, Number, VectorizedArrayType> fe_eval_all(
+        this->matrix_free, this->dof_index);
+      FECellIntegrator<dim, 1, Number, VectorizedArrayType> fe_eval(
+        this->matrix_free, this->dof_index);
+
+      MatrixFreeOperators::
+        CellwiseInverseMassMatrix<dim, -1, 1, Number, VectorizedArrayType>
+          inverse_mass_matrix(fe_eval);
+
+      AlignedVector<VectorizedArrayType> buffer(fe_eval.n_q_points * n_entries);
+
+      vec.update_ghost_values();
+
+      std::vector<VectorizedArrayType> temp(n_entries);
+
+      for (unsigned int cell = 0; cell < this->matrix_free.n_cell_batches();
+           ++cell)
+        {
+          fe_eval_all.reinit(cell);
+          fe_eval.reinit(cell);
+
+          fe_eval_all.reinit(cell);
+          fe_eval_all.read_dof_values_plain(vec);
+          fe_eval_all.evaluate(EvaluationFlags::values |
+                               EvaluationFlags::gradients);
+
+          for (unsigned int q = 0; q < fe_eval.n_q_points; ++q)
+            {
+              const auto val = fe_eval_all.get_value(q);
+
+              std::array<VectorizedArrayType, n_grains> etas;
+
+              for (unsigned int ig = 0; ig < n_grains; ++ig)
+                etas[ig] = val[2 + ig];
+
+              unsigned int counter = 0;
+
+              if (entries_mask[FieldBnds])
+                temp[counter++] = PowerHelper<n_grains, 2>::power_sum(etas);
+
+              if (entries_mask[FieldGb])
+                {
+                  VectorizedArrayType etaijSum = 0.0;
+                  for (unsigned int i = 0; i < n_grains; ++i)
+                    for (unsigned int j = 0; j < i; ++j)
+                      etaijSum += etas[i + 2] * etas[j + 2];
+
+                  temp[counter++] = etaijSum;
+                }
+
+              for (unsigned int c = 0; c < n_entries; ++c)
+                buffer[c * fe_eval.n_q_points + q] = temp[c];
+            }
+
+          for (unsigned int c = 0; c < n_entries; ++c)
+            {
+              inverse_mass_matrix.transform_from_q_points_to_basis(
+                1,
+                buffer.data() + c * fe_eval.n_q_points,
+                fe_eval.begin_dof_values());
+
+              fe_eval.set_dof_values_plain(data_vectors[c]);
+            }
+        }
+
+      // TODO: remove once FEEvaluation::set_dof_values_plain()
+      // sets the values of constrainging DoFs in the case of PBC
+      for (unsigned int c = 0; c < n_entries; ++c)
+        this->constraints.distribute(data_vectors[c]);
+
+      vec.zero_out_ghost_values();
+
+      // Write names of fields
+      std::vector<std::string> names;
+      if (entries_mask[FieldBnds])
+        names.push_back("bnds");
+
+      if (entries_mask[FieldGb])
+        names.push_back("gb");
+
+      // Add data to output
+      for (unsigned int c = 0; c < n_entries; ++c)
+        {
+          data_out.add_data_vector(data_vectors[c], names[c]);
+        }
+    }
 
     unsigned int
     n_components() const override
@@ -673,6 +793,107 @@ namespace Sintering
     n_grains_to_n_components(const unsigned int n_grains)
     {
       return n_grains + 2;
+    }
+
+
+    /* Build scalar quantities to compute */
+    auto
+    build_domain_quantities_evaluators(
+      const std::vector<std::string> &labels) const
+    {
+      using QuantityCallback = std::function<
+        VectorizedArrayType(const VectorizedArrayType *,
+                            const Tensor<1, dim, VectorizedArrayType> *)>;
+
+      std::vector<std::string>      q_labels;
+      std::vector<QuantityCallback> q_evaluators;
+
+      for (const auto &qty : labels)
+        {
+          if (qty == "void_vol")
+            q_evaluators.emplace_back(
+              [](const VectorizedArrayType *                value,
+                 const Tensor<1, dim, VectorizedArrayType> *gradient) {
+                (void)gradient;
+
+                return value[0];
+              });
+          else if (qty == "surf_area")
+            q_evaluators.emplace_back(
+              [](const VectorizedArrayType *                value,
+                 const Tensor<1, dim, VectorizedArrayType> *gradient) {
+                (void)gradient;
+
+                return value[0] * (1.0 - value[0]);
+              });
+          else if (qty == "gb_area")
+            q_evaluators.emplace_back(
+              [this](const VectorizedArrayType *                value,
+                     const Tensor<1, dim, VectorizedArrayType> *gradient) {
+                (void)gradient;
+
+                VectorizedArrayType eta_ij_sum = 0.0;
+                for (unsigned int i = 0; i < data.n_grains(); ++i)
+                  for (unsigned int j = i + 1; j < data.n_grains(); ++j)
+                    eta_ij_sum += value[i + 2] * value[j + 2];
+
+                return eta_ij_sum;
+              });
+          else if (qty == "avg_grain_size")
+            q_evaluators.emplace_back(
+              [this](const VectorizedArrayType *                value,
+                     const Tensor<1, dim, VectorizedArrayType> *gradient) {
+                (void)gradient;
+
+                VectorizedArrayType eta_i2_sum = 0.0;
+                for (unsigned int i = 0; i < data.n_grains(); ++i)
+                  eta_i2_sum += value[2 + i] * value[2 + i];
+
+                return eta_i2_sum;
+              });
+          else if (qty == "order_params")
+            for (unsigned int i = 0; i < MAX_SINTERING_GRAINS; ++i)
+              {
+                // The number of order parameters can vary so we will output the
+                // maximum number of them. The unused order parameters will be
+                // simply filled with zeros.
+                q_labels.push_back("op_" + std::to_string(i));
+
+                q_evaluators.emplace_back(
+                  [this,
+                   i](const VectorizedArrayType *                value,
+                      const Tensor<1, dim, VectorizedArrayType> *gradient) {
+                    (void)gradient;
+
+                    return i < data.n_grains() ? value[i + 2] : 0.;
+                  });
+              }
+          else if (qty == "control_vol")
+            q_evaluators.emplace_back(
+              [this](const VectorizedArrayType *                value,
+                     const Tensor<1, dim, VectorizedArrayType> *gradient) {
+                (void)value;
+                (void)gradient;
+
+                return VectorizedArrayType(1.);
+              });
+          else
+            AssertThrow(false,
+                        ExcMessage("Invalid domain integral provided: " + qty));
+
+          if (qty != "order_params")
+            q_labels.push_back(qty);
+        }
+
+      AssertDimension(q_labels.size(), q_evaluators.size());
+
+      return std::make_tuple(q_labels, q_evaluators);
+    }
+
+    const GreenquistFreeEnergy<VectorizedArrayType> &
+    get_free_energy() const
+    {
+      return free_energy;
     }
 
   protected:
