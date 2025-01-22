@@ -795,6 +795,48 @@ namespace Sintering
       return n_grains + 2;
     }
 
+    template <int with_time_derivative = 2>
+    void
+    evaluate_nonlinear_residual(
+      BlockVectorType &      dst,
+      const BlockVectorType &src,
+      const std::function<void(const unsigned int, const unsigned int)>
+        pre_operation = {},
+      const std::function<void(const unsigned int, const unsigned int)>
+        post_operation = {}) const
+    {
+      MyScope scope(this->timer,
+                    "sintering_gp_op::nonlinear_residual",
+                    this->do_timing);
+
+      std::function<void(const unsigned int, const unsigned int)>
+        pre_operation_to_be_used = pre_operation;
+
+      if (!pre_operation)
+        // no pre-function is given -> attach function to clear dst vector
+        pre_operation_to_be_used = [&](const auto start_range,
+                                       const auto end_range) {
+          for (unsigned int b = 0; b < internal::n_blocks(dst); ++b)
+
+            std::memset(internal::block(dst, b).begin() + start_range,
+                        0,
+                        sizeof(Number) * (end_range - start_range));
+        };
+
+#define OPERATION(c, d)                                           \
+  MyMatrixFreeTools::cell_loop_wrapper(                           \
+    this->matrix_free,                                            \
+    &GreenquistGrandPotentialOperator::                           \
+      do_evaluate_nonlinear_residual<c, d, with_time_derivative>, \
+    this,                                                         \
+    dst,                                                          \
+    src,                                                          \
+    pre_operation_to_be_used,                                     \
+    post_operation);
+      EXPAND_OPERATIONS(OPERATION);
+#undef OPERATION
+    }
+
 
     /* Build scalar quantities to compute */
     auto
@@ -894,6 +936,147 @@ namespace Sintering
     get_free_energy() const
     {
       return free_energy;
+    }
+
+  private:
+    template <int n_comp, int n_grains, int with_time_derivative>
+    void
+    do_evaluate_nonlinear_residual(
+      const MatrixFree<dim, Number, VectorizedArrayType> &matrix_free,
+      BlockVectorType &                                   dst,
+      const BlockVectorType &                             src,
+      const std::pair<unsigned int, unsigned int> &       range) const
+    {
+      AssertDimension(n_comp, n_grains + 2);
+
+      FECellIntegrator<dim, n_comp, Number, VectorizedArrayType> eval(
+        matrix_free, this->dof_index);
+
+      auto time_eval = this->time_integrator.create_cell_intergator(eval);
+
+      const auto &mobility = this->data.get_mobility();
+      const auto &order    = this->data.time_data.get_order();
+
+      const auto old_solutions = this->history.get_old_solutions();
+
+      for (auto cell = range.first; cell < range.second; ++cell)
+        {
+          eval.reinit(cell);
+          eval.gather_evaluate(src,
+                               EvaluationFlags::EvaluationFlags::values |
+                                 EvaluationFlags::EvaluationFlags::gradients);
+
+          if (with_time_derivative)
+            for (unsigned int i = 0; i < order; ++i)
+              {
+                time_eval[i].reinit(cell);
+                time_eval[i].read_dof_values_plain(*old_solutions[i]);
+                time_eval[i].evaluate(EvaluationFlags::EvaluationFlags::values);
+              }
+
+          for (unsigned int q = 0; q < eval.n_q_points; ++q)
+            {
+              const auto val  = eval.get_value(q);
+              const auto grad = eval.get_gradient(q);
+
+              auto &phi      = val[0];
+              auto &phi_grad = grad[0];
+              auto &mu_grad  = grad[1];
+
+              typename FECellIntegrator<dim,
+                                        n_comp,
+                                        Number,
+                                        VectorizedArrayType>::value_type
+                value_result,
+                time_derivatives;
+              typename FECellIntegrator<dim,
+                                        n_comp,
+                                        Number,
+                                        VectorizedArrayType>::gradient_type
+                gradient_result;
+
+              std::array<VectorizedArrayType, n_grains>     etas;
+              std::array<VectorizedArrayType, n_grains + 1> phases;
+              std::array<Tensor<1, dim, VectorizedArrayType>, n_grains>
+                etas_grad;
+
+              phases[0] = val[0];
+              for (unsigned int ig = 0; ig < n_grains; ++ig)
+                {
+                  etas[ig]       = val[2 + ig];
+                  etas_grad[ig]  = grad[2 + ig];
+                  phases[ig + 1] = val[2 + ig];
+                }
+
+              const auto free_energy_eval =
+                free_energy.template eval<EnergyAll, n_grains>(val);
+
+              // Evaluate time derivatives of all quantities
+              if (with_time_derivative)
+                for (unsigned int ic = 0; ic < n_comp; ++ic)
+                  this->time_integrator.compute_time_derivative(
+                    value_result[ic], val, time_eval, ic, q);
+
+              // Copy dphi_dt for later use
+              auto dphi_dt = value_result[0];
+
+              // Modify the time derivative of mu
+              value_result[1] *= free_energy_eval.chi();
+
+              // Evaluate phi row
+              value_result[0] +=
+                free_energy_eval.get_Lphi() *
+                (free_energy_eval.dhb() * free_energy_eval.omega_b() +
+                 free_energy_eval.dhm() * free_energy_eval.omega_m() +
+                 free_energy_eval.hm() *
+                   free_energy_eval.domega_m_dphasei(phi) +
+                 free_energy_eval.depsilon_dphi() * free_energy_eval.zeta() +
+                 free_energy_eval.epsilon() *
+                   free_energy_eval.dzeta_dphasei(phi));
+
+              gradient_result[0] = free_energy_eval.get_Lphi() *
+                                   free_energy_eval.kappa() * grad[0];
+
+              // Evaluate etas[ig] row
+              for (unsigned int ig = 0; ig < n_grains; ++ig)
+                {
+                  value_result[ig + 2] +=
+                    free_energy_eval.get_L() *
+                    (free_energy_eval.hm() *
+                       free_energy_eval.domega_m_dphasei(etas[ig]) +
+                     free_energy_eval.epsilon() *
+                       free_energy_eval.dzeta_dphasei(etas[ig]));
+
+                  gradient_result[ig + 2] = free_energy_eval.get_L() *
+                                            free_energy_eval.kappa() *
+                                            etas_grad[ig];
+                }
+
+              // Evaluate chemical potential row
+              dphi_dt *=
+                free_energy_eval.dhb() * free_energy_eval.domega_b_dmu() +
+                free_energy_eval.dhm() * free_energy_eval.domega_m_dmu() +
+                free_energy_eval.hm() *
+                  free_energy_eval.d2omega_m_dmudphasei(phi);
+              dphi_dt *= -1.;
+
+              value_result[1] += dphi_dt;
+
+              VectorizedArrayType dummy_one(1.0);
+
+              gradient_result[1] =
+                free_energy_eval.chi() *
+                (mobility.M_vol(dummy_one) + mobility.M_surf(phi, phi_grad) +
+                 mobility.M_gb(etas, n_grains, etas_grad)) *
+                mu_grad;
+
+              eval.submit_value(value_result, q);
+              eval.submit_gradient(gradient_result, q);
+            }
+          eval.integrate_scatter(EvaluationFlags::EvaluationFlags::values |
+                                   EvaluationFlags::EvaluationFlags::gradients,
+                                 dst);
+        }
     }
 
   protected:
