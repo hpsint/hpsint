@@ -1087,6 +1087,64 @@ namespace Sintering
         }
     }
 
+    template <typename FECellIntegratorType>
+    void
+    precondition_advection_ch(
+      const unsigned int q,
+      const AdvectionVelocityData<dim, Number, VectorizedArrayType>
+        &                                                     advection_data,
+      const SinteringNonLinearData<dim, VectorizedArrayType> &nonlinear_data,
+      const FECellIntegratorType &                            phi,
+      typename FECellIntegratorType::value_type &             value_result,
+      typename FECellIntegratorType::gradient_type &gradient_result) const
+    {
+      (void)q;
+      (void)advection_data;
+      (void)nonlinear_data;
+      (void)phi;
+      (void)value_result;
+      (void)gradient_result;
+    }
+
+    template <typename FECellIntegratorType>
+    void
+    precondition_advection_ac(
+      const unsigned int q,
+      const AdvectionVelocityData<dim, Number, VectorizedArrayType>
+        &                                                     advection_data,
+      const SinteringNonLinearData<dim, VectorizedArrayType> &nonlinear_data,
+      const FECellIntegratorType &                            phi,
+      typename FECellIntegratorType::value_type &             value_result,
+      typename FECellIntegratorType::gradient_type &gradient_result) const
+    {
+      (void)q;
+      (void)advection_data;
+      (void)nonlinear_data;
+      (void)phi;
+      (void)value_result;
+      (void)gradient_result;
+    }
+
+    template <typename FECellIntegratorType>
+    void
+    precondition_advection_ac(
+      const unsigned int q,
+      const unsigned int igrain,
+      const AdvectionVelocityData<dim, Number, VectorizedArrayType>
+        &                                                     advection_data,
+      const SinteringNonLinearData<dim, VectorizedArrayType> &nonlinear_data,
+      const FECellIntegratorType &                            phi,
+      typename FECellIntegratorType::value_type &             value_result,
+      typename FECellIntegratorType::gradient_type &gradient_result) const
+    {
+      (void)q;
+      (void)igrain;
+      (void)advection_data;
+      (void)nonlinear_data;
+      (void)phi;
+      (void)value_result;
+      (void)gradient_result;
+    }
 
     /* Build scalar quantities to compute */
     auto
