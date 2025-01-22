@@ -11,6 +11,10 @@ if(TARGET_SINTERING)
   define_sintering_apps("sintering_generic.cc" "sintering-generic" generated_executables)
 ENDIF()
 
+if(TARGET_GP_GREENQUIST)
+  define_sintering_apps("grand_potential_greenquist.cc" "sintering-gp" generated_executables)
+ENDIF()
+
 if(TARGET_GRAIN_GROWTH)
   define_sintering_apps("grain_growth.cc" "grain-growth" generated_executables)
 ENDIF()
