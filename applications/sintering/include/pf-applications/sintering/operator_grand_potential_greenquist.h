@@ -467,12 +467,14 @@ namespace Sintering
       DEAL_II_ALWAYS_INLINE VectorizedArrayType
       d2f_dcdetai(const VectorizedArrayType &etai) const
       {
+        (void)etai;
         return VectorizedArrayType(0.);
       }
 
       DEAL_II_ALWAYS_INLINE VectorizedArrayType
       d2f_detai2(const VectorizedArrayType &etai) const
       {
+        (void)etai;
         return VectorizedArrayType(0.);
       }
 
@@ -480,6 +482,8 @@ namespace Sintering
       d2f_detaidetaj(const VectorizedArrayType &etai,
                      const VectorizedArrayType &etaj) const
       {
+        (void)etai;
+        (void)etaj;
         return VectorizedArrayType(0.);
       }
 
