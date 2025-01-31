@@ -42,8 +42,8 @@ main(int argc, char **argv)
 
   using OperatorFreeEnergy = GreenquistFreeEnergy<VectorizedArrayType>;
 
-  const double tol_abs_no_rbm = 2e0;
-  const double tol_rel_no_rbm = 2e-5;
+  const double tol_abs_no_rbm = 1e0;
+  const double tol_rel_no_rbm = 1e-5;
 
   Test::check_tangent<dim,
                       Number,

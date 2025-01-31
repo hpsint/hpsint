@@ -99,6 +99,9 @@ namespace Test
 
     pcout << "Tangent " << prefix << " is " << (all_correct ? "OK" : "ERROR")
           << " with tol_abs = " << tol_abs << " and tol_rel = " << tol_rel
+          << (all_correct ? "" :
+                            (": " + std::to_string(error_abs) + "/" +
+                             std::to_string(error_rel)))
           << std::endl;
 
     if (!all_correct)
