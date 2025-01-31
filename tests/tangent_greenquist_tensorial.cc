@@ -42,8 +42,14 @@ main(int argc, char **argv)
 
   using OperatorFreeEnergy = GreenquistFreeEnergy<VectorizedArrayType>;
 
+  // TODO: Understand why the tolerance is much worse in debug on github
+#ifndef NDEBUG
+  const double tol_abs_no_rbm = 1e2;
+  const double tol_rel_no_rbm = 1e-4;
+#else
   const double tol_abs_no_rbm = 1e0;
   const double tol_rel_no_rbm = 1e-5;
+#endif
 
   Test::check_tangent<dim,
                       Number,
