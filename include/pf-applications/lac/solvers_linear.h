@@ -26,6 +26,8 @@
 #include <pf-applications/lac/dynamic_block_vector.h>
 #include <pf-applications/lac/solvers_linear_parameters.h>
 
+#include <pf-applications/numerics/vector_tools.h>
+
 namespace LinearSolvers
 {
   using namespace dealii;
