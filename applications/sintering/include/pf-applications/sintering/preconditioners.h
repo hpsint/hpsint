@@ -1254,16 +1254,19 @@ namespace Sintering
       if (preconditioner_0)
         {
           MyScope scope(timer, "precon::update::precon_0");
+          operator_0->initialize_system_matrix(true);
           preconditioner_0->do_update();
         }
       if (preconditioner_1)
         {
           MyScope scope(timer, "precon::update::precon_1");
+          operator_1->initialize_system_matrix(true);
           preconditioner_1->do_update();
         }
       if (preconditioner_2)
         {
           MyScope scope(timer, "precon::update::precon_2");
+          operator_2->initialize_system_matrix(true);
           preconditioner_2->do_update();
         }
     }
@@ -1271,19 +1274,9 @@ namespace Sintering
     Preconditioners::UnderlyingEntity
     underlying_entity() override
     {
-      Preconditioners::UnderlyingEntity underlying =
-        Preconditioners::UnderlyingEntity::None;
-
-      if (preconditioner_0)
-        underlying |= preconditioner_0->underlying_entity();
-
-      if (preconditioner_1)
-        underlying |= preconditioner_1->underlying_entity();
-
-      if (preconditioner_2)
-        underlying |= preconditioner_2->underlying_entity();
-
-      return underlying;
+      // This preconditioner is not dependent on the system of the original
+      // nonlinear operator, but rather on its suboperators.
+      return Preconditioners::UnderlyingEntity::None;
     }
 
     virtual std::size_t
