@@ -3085,33 +3085,38 @@ namespace Sintering
       // and gb contours
       std::vector<std::shared_ptr<const BoundingBoxFilter<dim>>> box_filters;
 
-      // Flag if we have any real control boxes
-      const bool has_control_boxes =
-        !params.output_data.control_boxes.empty() ||
-        params.output_data.auto_control_box;
-
-      // Empty dummy box if we output data also for the whole domain
-      if (!has_control_boxes ||
-          (has_control_boxes && !params.output_data.only_control_boxes))
-        box_filters.push_back(nullptr);
-
       // If we need to add the automatic box
       if (params.output_data.auto_control_box)
         {
-          auto       boundaries   = geometry_domain_boundaries;
-          const auto packing_size = boundaries.second - boundaries.first;
+          const auto packing_size = geometry_domain_boundaries.second -
+                                    geometry_domain_boundaries.first;
           const auto internal_padding =
             params.output_data.box_rel_padding * packing_size;
-          for (unsigned int d = 0; d < dim; ++d)
-            {
-              boundaries.first[d] += geometry_r_max + internal_padding[d];
-              boundaries.second[d] -= geometry_r_max + internal_padding[d];
-            }
 
-          const BoundingBox<dim> control_box(
-            std::make_pair(boundaries.first, boundaries.second));
-          box_filters.push_back(
-            std::make_shared<const BoundingBoxFilter<dim>>(control_box));
+          auto auto_box_size = packing_size - internal_padding;
+          for (unsigned int d = 0; d < dim; ++d)
+            auto_box_size[d] -= 2 * geometry_r_max;
+
+          const auto has_negative_dim =
+            std::any_of(auto_box_size.begin_raw(),
+                        auto_box_size.end_raw(),
+                        [](const auto &val) { return val <= 0; });
+
+          if (!has_negative_dim)
+            {
+              auto boundaries = geometry_domain_boundaries;
+
+              for (unsigned int d = 0; d < dim; ++d)
+                {
+                  boundaries.first[d] += internal_padding[d] + geometry_r_max;
+                  boundaries.second[d] -= internal_padding[d] + geometry_r_max;
+                }
+
+              const BoundingBox<dim> control_box(
+                std::make_pair(boundaries.first, boundaries.second));
+              box_filters.push_back(
+                std::make_shared<const BoundingBoxFilter<dim>>(control_box));
+            }
         }
 
       // Add also each individual bounding box
@@ -3129,11 +3134,30 @@ namespace Sintering
               top_right[d]   = pp.second[d];
             }
 
-          const BoundingBox<dim> control_box(
-            std::make_pair(bottom_left, top_right));
-          box_filters.push_back(
-            std::make_shared<const BoundingBoxFilter<dim>>(control_box));
+          const auto box_size = top_right - bottom_left;
+
+          const auto has_negative_dim =
+            std::any_of(box_size.begin_raw(),
+                        box_size.end_raw(),
+                        [](const auto &val) { return val <= 0; });
+
+          if (!has_negative_dim)
+            {
+              const BoundingBox<dim> control_box(
+                std::make_pair(bottom_left, top_right));
+              box_filters.push_back(
+                std::make_shared<const BoundingBoxFilter<dim>>(control_box));
+            }
         }
+
+      // Flag if we have any real control boxes
+      const bool has_control_boxes = !box_filters.empty();
+
+      // Add empty dummy box if we output data also for the whole domain at the
+      // beginning of the vector. The vector is not large, so we can tolerate
+      // this expensive insertion.
+      if (!has_control_boxes || !params.output_data.only_control_boxes)
+        box_filters.insert(box_filters.begin(), nullptr);
 
       // We need to update the grain tracker data without remapping for these 3
       // kinds of output. Note, we do that only if advection is disabled, then
