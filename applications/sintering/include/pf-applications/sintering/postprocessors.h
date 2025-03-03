@@ -499,12 +499,17 @@ namespace Sintering
 
         if (vertices.size() > 0)
           {
-            for (const auto &cell : tria.active_cell_iterators())
+            for (auto &cell : tria.active_cell_iterators())
               {
                 vector_grain_id[cell->active_cell_index()] =
                   cell->material_id();
                 vector_order_parameter_id[cell->active_cell_index()] =
                   cell->manifold_id();
+
+                // We need to reset manifold_id to a flat manifold not to
+                // trigger a debug assert, since we just use the manifold_id for
+                // the data transfer but not for its actual purpose.
+                cell->set_manifold_id(numbers::flat_manifold_id);
               }
             tria.reset_all_manifolds();
           }
