@@ -441,6 +441,7 @@ namespace Sintering
           cell_data_extractor,
         std::optional<std::reference_wrapper<const GrainTracker::Mapper>>
                            grain_mapper   = {},
+        const MPI_Comm &   comm           = MPI_COMM_WORLD,
         const unsigned int n_subdivisions = 1,
         const double       tolerance      = 1e-10)
       {
@@ -519,8 +520,7 @@ namespace Sintering
           }
 
         Vector<float> vector_rank(tria.n_active_cells());
-        vector_rank = Utilities::MPI::this_mpi_process(
-          background_dof_handler.get_communicator());
+        vector_rank = Utilities::MPI::this_mpi_process(comm);
 
         SurfaceDataOut<dim - 1, dim> data_out;
         data_out.attach_triangulation(tria);
@@ -530,8 +530,7 @@ namespace Sintering
         data_out.add_data_vector(vector_rank, "subdomain");
 
         data_out.build_patches();
-        data_out.write_vtu_in_parallel(
-          filename, background_dof_handler.get_communicator());
+        data_out.write_vtu_in_parallel(filename, comm);
       }
     } // namespace internal
 
@@ -711,6 +710,7 @@ namespace Sintering
         n_grains,
         cell_data_extractor,
         opt_grain_mapper,
+        background_dof_handler.get_communicator(),
         n_subdivisions,
         tolerance);
 
