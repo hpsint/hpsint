@@ -203,6 +203,15 @@ namespace Sintering
                       }
                   }
 
+                Assert(vertex_counter == cell_data.vertices.size(),
+                       ExcMessage(
+                         "Number of vertices " +
+                         std::to_string(vertex_counter) +
+                         " added to the global set is not equal to the "
+                         "number of vertices " +
+                         std::to_string(cell_data.vertices.size()) +
+                         " in the CellData object"));
+
                 cells.push_back(cell_data);
               }
           }
