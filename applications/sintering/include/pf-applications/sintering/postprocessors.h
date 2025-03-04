@@ -448,43 +448,47 @@ namespace Sintering
         std::vector<CellData<dim - 1>> cells;
         SubCellData                    subcelldata;
 
-        const GridTools::MarchingCubeAlgorithm<dim,
-                                               typename VectorType::BlockType>
-          mc(mapping,
-             background_dof_handler.get_fe(),
-             n_subdivisions,
-             tolerance);
-
-        for (unsigned int b = 0; b < n_op; ++b)
+        if (background_dof_handler.n_dofs() > 0)
           {
-            for (const auto &cell :
-                 background_dof_handler.active_cell_iterators())
-              if (cell->is_locally_owned())
-                {
-                  const unsigned int old_size = cells.size();
+            const GridTools::
+              MarchingCubeAlgorithm<dim, typename VectorType::BlockType>
+                mc(mapping,
+                   background_dof_handler.get_fe(),
+                   n_subdivisions,
+                   tolerance);
 
-                  mc.process_cell(
-                    cell, vector.block(b + 2), iso_level, vertices, cells);
-
-                  for (unsigned int i = old_size; i < cells.size(); ++i)
+            for (unsigned int b = 0; b < n_op; ++b)
+              {
+                for (const auto &cell :
+                     background_dof_handler.active_cell_iterators())
+                  if (cell->is_locally_owned())
                     {
-                      if (grain_mapper && !grain_mapper->get().empty())
+                      const unsigned int old_size = cells.size();
+
+                      mc.process_cell(
+                        cell, vector.block(b + 2), iso_level, vertices, cells);
+
+                      for (unsigned int i = old_size; i < cells.size(); ++i)
                         {
-                          const auto particle_id_for_op =
-                            grain_mapper->get().get_particle_index(
-                              b, cell_data_extractor(*cell));
+                          if (grain_mapper && !grain_mapper->get().empty())
+                            {
+                              const auto particle_id_for_op =
+                                grain_mapper->get().get_particle_index(
+                                  b, cell_data_extractor(*cell));
 
-                          if (particle_id_for_op !=
-                              numbers::invalid_unsigned_int)
-                            cells[i].material_id =
-                              grain_mapper->get()
-                                .get_grain_and_segment(b, particle_id_for_op)
-                                .first;
+                              if (particle_id_for_op !=
+                                  numbers::invalid_unsigned_int)
+                                cells[i].material_id =
+                                  grain_mapper->get()
+                                    .get_grain_and_segment(b,
+                                                           particle_id_for_op)
+                                    .first;
+                            }
+
+                          cells[i].manifold_id = b;
                         }
-
-                      cells[i].manifold_id = b;
                     }
-                }
+              }
           }
 
         Triangulation<dim - 1, dim> tria;

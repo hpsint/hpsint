@@ -296,35 +296,41 @@ namespace Sintering
 
       std::vector<std::vector<Point<dim>>> points_local(g_counter);
 
-      const GridTools::MarchingCubeAlgorithm<dim,
-                                             typename VectorType::BlockType>
-        mc(mapping, background_dof_handler.get_fe(), n_subdivisions, tolerance);
-
-      for (unsigned int b = 0; b < n_op; ++b)
+      if (background_dof_handler.n_dofs() > 0)
         {
-          for (const auto &cell :
-               background_dof_handler.active_cell_iterators())
-            if (cell->is_locally_owned())
-              {
-                auto particle_id =
-                  grain_tracker.get_particle_index(b, cell->material_id());
+          const GridTools::MarchingCubeAlgorithm<dim,
+                                                 typename VectorType::BlockType>
+            mc(mapping,
+               background_dof_handler.get_fe(),
+               n_subdivisions,
+               tolerance);
 
-                if (particle_id == numbers::invalid_unsigned_int)
-                  continue;
+          for (unsigned int b = 0; b < n_op; ++b)
+            {
+              for (const auto &cell :
+                   background_dof_handler.active_cell_iterators())
+                if (cell->is_locally_owned())
+                  {
+                    auto particle_id =
+                      grain_tracker.get_particle_index(b, cell->material_id());
 
-                const auto grain_and_segment_ids =
-                  grain_tracker.get_grain_and_segment(b, particle_id);
+                    if (particle_id == numbers::invalid_unsigned_int)
+                      continue;
 
-                if (grain_and_segment_ids.first ==
-                    numbers::invalid_unsigned_int)
-                  continue;
+                    const auto grain_and_segment_ids =
+                      grain_tracker.get_grain_and_segment(b, particle_id);
 
-                mc.process_cell(
-                  cell,
-                  vector.block(b + 2),
-                  iso_level,
-                  points_local[grain_id_to_index.at(grain_and_segment_ids)]);
-              }
+                    if (grain_and_segment_ids.first ==
+                        numbers::invalid_unsigned_int)
+                      continue;
+
+                    mc.process_cell(cell,
+                                    vector.block(b + 2),
+                                    iso_level,
+                                    points_local[grain_id_to_index.at(
+                                      grain_and_segment_ids)]);
+                  }
+            }
         }
 
       internal::write_grain_contours_tex(g_counter,

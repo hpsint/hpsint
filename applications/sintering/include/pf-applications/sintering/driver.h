@@ -3064,7 +3064,8 @@ namespace Sintering
                 params.output_data.fields.count("subdomain"),
                 params.output_data.higher_order_cells);
 
-              proj_data_out.build_patches();
+              if (sections[i]->dof_handler.n_dofs() > 0)
+                proj_data_out.build_patches();
 
               std::stringstream ss;
               ss << params.output_data.vtk_path << "/section_"
