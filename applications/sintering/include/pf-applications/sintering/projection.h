@@ -217,11 +217,10 @@ namespace Sintering
           }
 
       if (vertices.size() > 0)
-        projection->tria.create_triangulation(vertices, cells, subcelldata);
-      else
-        GridGenerator::hyper_cube(projection->tria, -1e-6, 1e-6);
-
-      projection->dof_handler.distribute_dofs(projection->fe_dg);
+        {
+          projection->tria.create_triangulation(vertices, cells, subcelldata);
+          projection->dof_handler.distribute_dofs(projection->fe_dg);
+        }
 
       if (has_ghost_elements == false)
         vector.zero_out_ghost_values();
