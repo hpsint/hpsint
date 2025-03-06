@@ -352,6 +352,7 @@ namespace Sintering
       const std::string           filename,
       const unsigned int          n_op,
       const GrainTracker::Mapper &grain_mapper,
+      const MPI_Comm &            comm           = MPI_COMM_WORLD,
       const unsigned int          n_subdivisions = 1,
       const double                tolerance      = 1e-10)
     {
@@ -369,6 +370,7 @@ namespace Sintering
                                                n_op,
                                                cell_data_extractor,
                                                grain_mapper,
+                                               comm,
                                                n_subdivisions,
                                                tolerance);
     }

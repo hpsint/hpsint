@@ -3343,6 +3343,7 @@ namespace Sintering
                       output,
                       sintering_operator.n_grains(),
                       grain_tracker,
+                      MPI_COMM_WORLD,
                       params.output_data.n_mca_subdivisions);
                   }
             }
