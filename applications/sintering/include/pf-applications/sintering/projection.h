@@ -252,8 +252,32 @@ namespace Sintering
 
       const auto &grains = grain_tracker.get_grains();
 
-      const auto bb = GridTools::compute_bounding_box(
-        background_dof_handler.get_triangulation());
+      // For projections we get here the output per processor only and need to
+      // build a largest bounding box manually.
+      auto bb_min = create_array<dim>(std::numeric_limits<Number>::max());
+      auto bb_max = create_array<dim>(std::numeric_limits<Number>::min());
+
+      if (background_dof_handler.n_dofs() > 0)
+        {
+          const auto bb_local = GridTools::compute_bounding_box(
+            background_dof_handler.get_triangulation());
+
+          std::copy(bb_local.get_boundary_points().first.begin_raw(),
+                    bb_local.get_boundary_points().first.end_raw(),
+                    bb_min.begin());
+          std::copy(bb_local.get_boundary_points().second.begin_raw(),
+                    bb_local.get_boundary_points().second.end_raw(),
+                    bb_max.begin());
+        }
+
+      std::pair<Point<dim, Number>, Point<dim, Number>> bb_points_global;
+      for (unsigned int d = 0; d < dim; ++d)
+        {
+          bb_points_global.first[d]  = Utilities::MPI::min(bb_min[d], comm);
+          bb_points_global.second[d] = Utilities::MPI::max(bb_max[d], comm);
+        }
+
+      BoundingBox<dim, Number> bb(bb_points_global);
 
       std::vector<Number> parameters;
 
