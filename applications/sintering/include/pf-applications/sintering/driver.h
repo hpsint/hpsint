@@ -3492,7 +3492,8 @@ namespace Sintering
                   sintering_operator.n_grains(),
                   grain_tracker,
                   section_planes[i].first,
-                  section_planes[i].second);
+                  section_planes[i].second,
+                  MPI_COMM_WORLD);
               }
         }
 

@@ -244,12 +244,11 @@ namespace Sintering
       const GrainTracker::Tracker<dim + 1, Number> &grain_tracker,
       const Point<dim + 1> &                        plane_origin,
       const Point<dim + 1> &                        plane_normal,
+      const MPI_Comm &                              comm = MPI_COMM_WORLD,
       const unsigned int                            n_subdivisions = 1,
       const double                                  tolerance      = 1e-10)
     {
       static_assert(dim == 2);
-
-      const auto comm = background_dof_handler.get_communicator();
 
       const auto &grains = grain_tracker.get_grains();
 
