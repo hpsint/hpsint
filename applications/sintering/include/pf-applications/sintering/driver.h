@@ -3064,7 +3064,8 @@ namespace Sintering
                 params.output_data.fields.count("subdomain"),
                 params.output_data.higher_order_cells);
 
-              proj_data_out.build_patches();
+              if (sections[i]->dof_handler.n_dofs() > 0)
+                proj_data_out.build_patches();
 
               std::stringstream ss;
               ss << params.output_data.vtk_path << "/section_"
@@ -3366,6 +3367,7 @@ namespace Sintering
                       output,
                       sintering_operator.n_grains(),
                       grain_tracker,
+                      MPI_COMM_WORLD,
                       params.output_data.n_mca_subdivisions);
                   }
             }
@@ -3515,7 +3517,8 @@ namespace Sintering
                   sintering_operator.n_grains(),
                   grain_tracker,
                   section_planes[i].first,
-                  section_planes[i].second);
+                  section_planes[i].second,
+                  MPI_COMM_WORLD);
               }
         }
 

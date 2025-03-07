@@ -203,16 +203,24 @@ namespace Sintering
                       }
                   }
 
+                Assert(vertex_counter == cell_data.vertices.size(),
+                       ExcMessage(
+                         "Number of vertices " +
+                         std::to_string(vertex_counter) +
+                         " added to the global set is not equal to the "
+                         "number of vertices " +
+                         std::to_string(cell_data.vertices.size()) +
+                         " in the CellData object"));
+
                 cells.push_back(cell_data);
               }
           }
 
       if (vertices.size() > 0)
-        projection->tria.create_triangulation(vertices, cells, subcelldata);
-      else
-        GridGenerator::hyper_cube(projection->tria, -1e-6, 1e-6);
-
-      projection->dof_handler.distribute_dofs(projection->fe_dg);
+        {
+          projection->tria.create_triangulation(vertices, cells, subcelldata);
+          projection->dof_handler.distribute_dofs(projection->fe_dg);
+        }
 
       if (has_ghost_elements == false)
         vector.zero_out_ghost_values();
@@ -236,17 +244,40 @@ namespace Sintering
       const GrainTracker::Tracker<dim + 1, Number> &grain_tracker,
       const Point<dim + 1> &                        plane_origin,
       const Point<dim + 1> &                        plane_normal,
+      const MPI_Comm &                              comm = MPI_COMM_WORLD,
       const unsigned int                            n_subdivisions = 1,
       const double                                  tolerance      = 1e-10)
     {
       static_assert(dim == 2);
 
-      const auto comm = background_dof_handler.get_communicator();
-
       const auto &grains = grain_tracker.get_grains();
 
-      const auto bb = GridTools::compute_bounding_box(
-        background_dof_handler.get_triangulation());
+      // For projections we get here the output per processor only and need to
+      // build a largest bounding box manually.
+      auto bb_min = create_array<dim>(std::numeric_limits<Number>::max());
+      auto bb_max = create_array<dim>(std::numeric_limits<Number>::min());
+
+      if (background_dof_handler.n_dofs() > 0)
+        {
+          const auto bb_local = GridTools::compute_bounding_box(
+            background_dof_handler.get_triangulation());
+
+          std::copy(bb_local.get_boundary_points().first.begin_raw(),
+                    bb_local.get_boundary_points().first.end_raw(),
+                    bb_min.begin());
+          std::copy(bb_local.get_boundary_points().second.begin_raw(),
+                    bb_local.get_boundary_points().second.end_raw(),
+                    bb_max.begin());
+        }
+
+      std::pair<Point<dim, Number>, Point<dim, Number>> bb_points_global;
+      for (unsigned int d = 0; d < dim; ++d)
+        {
+          bb_points_global.first[d]  = Utilities::MPI::min(bb_min[d], comm);
+          bb_points_global.second[d] = Utilities::MPI::max(bb_max[d], comm);
+        }
+
+      BoundingBox<dim, Number> bb(bb_points_global);
 
       std::vector<Number> parameters;
 
@@ -288,35 +319,41 @@ namespace Sintering
 
       std::vector<std::vector<Point<dim>>> points_local(g_counter);
 
-      const GridTools::MarchingCubeAlgorithm<dim,
-                                             typename VectorType::BlockType>
-        mc(mapping, background_dof_handler.get_fe(), n_subdivisions, tolerance);
-
-      for (unsigned int b = 0; b < n_op; ++b)
+      if (background_dof_handler.n_dofs() > 0)
         {
-          for (const auto &cell :
-               background_dof_handler.active_cell_iterators())
-            if (cell->is_locally_owned())
-              {
-                auto particle_id =
-                  grain_tracker.get_particle_index(b, cell->material_id());
+          const GridTools::MarchingCubeAlgorithm<dim,
+                                                 typename VectorType::BlockType>
+            mc(mapping,
+               background_dof_handler.get_fe(),
+               n_subdivisions,
+               tolerance);
 
-                if (particle_id == numbers::invalid_unsigned_int)
-                  continue;
+          for (unsigned int b = 0; b < n_op; ++b)
+            {
+              for (const auto &cell :
+                   background_dof_handler.active_cell_iterators())
+                if (cell->is_locally_owned())
+                  {
+                    auto particle_id =
+                      grain_tracker.get_particle_index(b, cell->material_id());
 
-                const auto grain_and_segment_ids =
-                  grain_tracker.get_grain_and_segment(b, particle_id);
+                    if (particle_id == numbers::invalid_unsigned_int)
+                      continue;
 
-                if (grain_and_segment_ids.first ==
-                    numbers::invalid_unsigned_int)
-                  continue;
+                    const auto grain_and_segment_ids =
+                      grain_tracker.get_grain_and_segment(b, particle_id);
 
-                mc.process_cell(
-                  cell,
-                  vector.block(b + 2),
-                  iso_level,
-                  points_local[grain_id_to_index.at(grain_and_segment_ids)]);
-              }
+                    if (grain_and_segment_ids.first ==
+                        numbers::invalid_unsigned_int)
+                      continue;
+
+                    mc.process_cell(cell,
+                                    vector.block(b + 2),
+                                    iso_level,
+                                    points_local[grain_id_to_index.at(
+                                      grain_and_segment_ids)]);
+                  }
+            }
         }
 
       internal::write_grain_contours_tex(g_counter,
@@ -339,6 +376,7 @@ namespace Sintering
       const std::string           filename,
       const unsigned int          n_op,
       const GrainTracker::Mapper &grain_mapper,
+      const MPI_Comm &            comm           = MPI_COMM_WORLD,
       const unsigned int          n_subdivisions = 1,
       const double                tolerance      = 1e-10)
     {
@@ -356,6 +394,7 @@ namespace Sintering
                                                n_op,
                                                cell_data_extractor,
                                                grain_mapper,
+                                               comm,
                                                n_subdivisions,
                                                tolerance);
     }

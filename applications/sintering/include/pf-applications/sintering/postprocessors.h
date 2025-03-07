@@ -441,6 +441,7 @@ namespace Sintering
           cell_data_extractor,
         std::optional<std::reference_wrapper<const GrainTracker::Mapper>>
                            grain_mapper   = {},
+        const MPI_Comm &   comm           = MPI_COMM_WORLD,
         const unsigned int n_subdivisions = 1,
         const double       tolerance      = 1e-10)
       {
@@ -448,43 +449,47 @@ namespace Sintering
         std::vector<CellData<dim - 1>> cells;
         SubCellData                    subcelldata;
 
-        const GridTools::MarchingCubeAlgorithm<dim,
-                                               typename VectorType::BlockType>
-          mc(mapping,
-             background_dof_handler.get_fe(),
-             n_subdivisions,
-             tolerance);
-
-        for (unsigned int b = 0; b < n_op; ++b)
+        if (background_dof_handler.n_dofs() > 0)
           {
-            for (const auto &cell :
-                 background_dof_handler.active_cell_iterators())
-              if (cell->is_locally_owned())
-                {
-                  const unsigned int old_size = cells.size();
+            const GridTools::
+              MarchingCubeAlgorithm<dim, typename VectorType::BlockType>
+                mc(mapping,
+                   background_dof_handler.get_fe(),
+                   n_subdivisions,
+                   tolerance);
 
-                  mc.process_cell(
-                    cell, vector.block(b + 2), iso_level, vertices, cells);
-
-                  for (unsigned int i = old_size; i < cells.size(); ++i)
+            for (unsigned int b = 0; b < n_op; ++b)
+              {
+                for (const auto &cell :
+                     background_dof_handler.active_cell_iterators())
+                  if (cell->is_locally_owned())
                     {
-                      if (grain_mapper && !grain_mapper->get().empty())
+                      const unsigned int old_size = cells.size();
+
+                      mc.process_cell(
+                        cell, vector.block(b + 2), iso_level, vertices, cells);
+
+                      for (unsigned int i = old_size; i < cells.size(); ++i)
                         {
-                          const auto particle_id_for_op =
-                            grain_mapper->get().get_particle_index(
-                              b, cell_data_extractor(*cell));
+                          if (grain_mapper && !grain_mapper->get().empty())
+                            {
+                              const auto particle_id_for_op =
+                                grain_mapper->get().get_particle_index(
+                                  b, cell_data_extractor(*cell));
 
-                          if (particle_id_for_op !=
-                              numbers::invalid_unsigned_int)
-                            cells[i].material_id =
-                              grain_mapper->get()
-                                .get_grain_and_segment(b, particle_id_for_op)
-                                .first;
+                              if (particle_id_for_op !=
+                                  numbers::invalid_unsigned_int)
+                                cells[i].material_id =
+                                  grain_mapper->get()
+                                    .get_grain_and_segment(b,
+                                                           particle_id_for_op)
+                                    .first;
+                            }
+
+                          cells[i].manifold_id = b;
                         }
-
-                      cells[i].manifold_id = b;
                     }
-                }
+              }
           }
 
         Triangulation<dim - 1, dim> tria;
@@ -520,8 +525,7 @@ namespace Sintering
           }
 
         Vector<float> vector_rank(tria.n_active_cells());
-        vector_rank = Utilities::MPI::this_mpi_process(
-          background_dof_handler.get_communicator());
+        vector_rank = Utilities::MPI::this_mpi_process(comm);
 
         SurfaceDataOut<dim - 1, dim> data_out;
         data_out.attach_triangulation(tria);
@@ -531,8 +535,7 @@ namespace Sintering
         data_out.add_data_vector(vector_rank, "subdomain");
 
         data_out.build_patches();
-        data_out.write_vtu_in_parallel(
-          filename, background_dof_handler.get_communicator());
+        data_out.write_vtu_in_parallel(filename, comm);
       }
     } // namespace internal
 
@@ -712,6 +715,7 @@ namespace Sintering
         n_grains,
         cell_data_extractor,
         opt_grain_mapper,
+        background_dof_handler.get_communicator(),
         n_subdivisions,
         tolerance);
 
