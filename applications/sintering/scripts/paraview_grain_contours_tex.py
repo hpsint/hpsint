@@ -241,8 +241,10 @@ with open(save_fname,'w') as f:
     f.write("\n")
 
     # Write particle points
+    segment_counter = 0
     for gid, grain in grains_data.items():
-        f.write("{:d}\n".format(gid))
+        f.write("{:d}\n".format(segment_counter))
         for p in grain['points']:
             f.write("{} {} ".format(p[0], p[1]))
         f.write("\n")
+        segment_counter += 1
