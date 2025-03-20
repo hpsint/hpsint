@@ -45,6 +45,7 @@ parser.add_argument("-x", "--xaxis", type=float, nargs=3, help="Orentation point
 parser.add_argument("-z", "--zaxis", type=float, nargs=3, help="Orentation point of the z-axis", required=False, default=None)
 parser.add_argument("-b", "--bottom-left", type=float, nargs=2, help="Bottom left point of the bounding box", required=False, default=None)
 parser.add_argument("-t", "--top-right", type=float, nargs=2, help="Top right point of the bounding box", required=False, default=None)
+parser.add_argument("-d", "--two", action='store_true', help="If the input file is a 2D plot already", required=False, default=False)
 
 args = parser.parse_args()
 
@@ -106,22 +107,28 @@ R = np.tensordot(ex0, ex, 0) + np.tensordot(ey0, ey, 0) + np.tensordot(ez0, ez, 
 
 print("Local axes: {}, {}, {}".format(ex, ey, ez))
 
-slice = Slice(reader)
+#print(reader.GetDataInformation().GetNumberOfPoints())
+#exit()
 
-slice.SliceType = 'Plane'
-slice.HyperTreeGridSlicer = 'Plane'
-slice.SliceOffsetValues = [0.0]
+if not args.two:
+    slice = Slice(reader)
 
-# init the 'Plane' selected for 'SliceType'
-slice.SliceType.Origin = args.origin
+    slice.SliceType = 'Plane'
+    slice.HyperTreeGridSlicer = 'Plane'
+    slice.SliceOffsetValues = [0.0]
 
-# init the 'Plane' selected for 'HyperTreeGridSlicer'
-slice.HyperTreeGridSlicer.Origin = args.origin
+    # init the 'Plane' selected for 'SliceType'
+    slice.SliceType.Origin = args.origin
 
-# Properties modified on slice1.SliceType
-slice.SliceType.Normal = ez.tolist()
+    # init the 'Plane' selected for 'HyperTreeGridSlicer'
+    slice.HyperTreeGridSlicer.Origin = args.origin
 
-slice.UpdatePipeline()
+    # Properties modified on slice1.SliceType
+    slice.SliceType.Normal = ez.tolist()
+
+    slice.UpdatePipeline()
+else:
+    slice = reader
 
 # Raw Paraview data
 number_of_points = slice.GetDataInformation().GetNumberOfPoints()
