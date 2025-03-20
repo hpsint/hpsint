@@ -188,19 +188,19 @@ if args.top_right:
     bbox['max'] = np.array(args.top_right)
 
 # File format (data and length):
-# problem dimensionality         - dim
-# number of grains               - N
-# number of order_parameters     - M
-# grain indices                  - array[N]
-# grain order parameters         - array[N]
-# BB bottom left point           - array[dim]
-# BB top right point             - array[dim]
-# properties (center and radius) - array[(dim+1)*N]
-# particle_0                     - 1
-# points_0                       - array[...]
+# problem dimensionality               - dim
+# number of grains                     - N
+# number of order_parameters           - M
+# grain indices                        - array[N]
+# grain order parameters               - array[N]
+# BB bottom left point                 - array[dim]
+# BB top right point                   - array[dim]
+# properties (type, center and radius) - array[(dim+2)*N]
+# particle_0                           - 1
+# points_0                             - array[...]
 # ...
-# particle_N                     - 1
-# points_N                       - array[...]
+# particle_N                           - 1
+# points_N                             - array[...]
 
 # Output save filename
 if args.output:
@@ -235,9 +235,10 @@ with open(save_fname,'w') as f:
     f.write("{} {}\n".format(bbox['min'][0], bbox['min'][1]))
     f.write("{} {}\n".format(bbox['max'][0], bbox['max'][1]))
 
-    # Write centers and radii
+    # Write types (spherical for this type of postprocessing), centers and radii
+    representation_type = 1
     for gid, grain in grains_data.items():
-        f.write("{} {} {} ".format(grain['center'][0], grain['center'][1], grain['radius']))
+        f.write("{} {} {} {} ".format(representation_type, grain['center'][0], grain['center'][1], grain['radius']))
     f.write("\n")
 
     # Write particle points
