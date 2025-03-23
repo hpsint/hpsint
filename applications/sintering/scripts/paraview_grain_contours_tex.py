@@ -107,9 +107,6 @@ R = np.tensordot(ex0, ex, 0) + np.tensordot(ey0, ey, 0) + np.tensordot(ez0, ez, 
 
 print("Local axes: {}, {}, {}".format(ex, ey, ez))
 
-#print(reader.GetDataInformation().GetNumberOfPoints())
-#exit()
-
 if not args.two:
     slice = Slice(reader)
 
