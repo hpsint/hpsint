@@ -45,6 +45,7 @@ parser.add_argument("-x", "--xaxis", type=float, nargs=3, help="Orentation point
 parser.add_argument("-z", "--zaxis", type=float, nargs=3, help="Orentation point of the z-axis", required=False, default=None)
 parser.add_argument("-b", "--bottom-left", type=float, nargs=2, help="Bottom left point of the bounding box", required=False, default=None)
 parser.add_argument("-t", "--top-right", type=float, nargs=2, help="Top right point of the bounding box", required=False, default=None)
+parser.add_argument("-d", "--two", action='store_true', help="If the input file is a 2D plot already", required=False, default=False)
 
 args = parser.parse_args()
 
@@ -106,22 +107,25 @@ R = np.tensordot(ex0, ex, 0) + np.tensordot(ey0, ey, 0) + np.tensordot(ez0, ez, 
 
 print("Local axes: {}, {}, {}".format(ex, ey, ez))
 
-slice = Slice(reader)
+if not args.two:
+    slice = Slice(reader)
 
-slice.SliceType = 'Plane'
-slice.HyperTreeGridSlicer = 'Plane'
-slice.SliceOffsetValues = [0.0]
+    slice.SliceType = 'Plane'
+    slice.HyperTreeGridSlicer = 'Plane'
+    slice.SliceOffsetValues = [0.0]
 
-# init the 'Plane' selected for 'SliceType'
-slice.SliceType.Origin = args.origin
+    # init the 'Plane' selected for 'SliceType'
+    slice.SliceType.Origin = args.origin
 
-# init the 'Plane' selected for 'HyperTreeGridSlicer'
-slice.HyperTreeGridSlicer.Origin = args.origin
+    # init the 'Plane' selected for 'HyperTreeGridSlicer'
+    slice.HyperTreeGridSlicer.Origin = args.origin
 
-# Properties modified on slice1.SliceType
-slice.SliceType.Normal = ez.tolist()
+    # Properties modified on slice1.SliceType
+    slice.SliceType.Normal = ez.tolist()
 
-slice.UpdatePipeline()
+    slice.UpdatePipeline()
+else:
+    slice = reader
 
 # Raw Paraview data
 number_of_points = slice.GetDataInformation().GetNumberOfPoints()
@@ -188,19 +192,19 @@ if args.top_right:
     bbox['max'] = np.array(args.top_right)
 
 # File format (data and length):
-# problem dimensionality         - dim
-# number of grains               - N
-# number of order_parameters     - M
-# grain indices                  - array[N]
-# grain order parameters         - array[N]
-# BB bottom left point           - array[dim]
-# BB top right point             - array[dim]
-# properties (center and radius) - array[(dim+1)*N]
-# particle_0                     - 1
-# points_0                       - array[...]
+# problem dimensionality               - dim
+# number of grains                     - N
+# number of order_parameters           - M
+# grain indices                        - array[N]
+# grain order parameters               - array[N]
+# BB bottom left point                 - array[dim]
+# BB top right point                   - array[dim]
+# properties (type, center and radius) - array[(dim+2)*N]
+# particle_0                           - 1
+# points_0                             - array[...]
 # ...
-# particle_N                     - 1
-# points_N                       - array[...]
+# particle_N                           - 1
+# points_N                             - array[...]
 
 # Output save filename
 if args.output:
@@ -235,14 +239,17 @@ with open(save_fname,'w') as f:
     f.write("{} {}\n".format(bbox['min'][0], bbox['min'][1]))
     f.write("{} {}\n".format(bbox['max'][0], bbox['max'][1]))
 
-    # Write centers and radii
+    # Write types (spherical for this type of postprocessing), centers and radii
+    representation_type = 1
     for gid, grain in grains_data.items():
-        f.write("{} {} {} ".format(grain['center'][0], grain['center'][1], grain['radius']))
+        f.write("{} {} {} {} ".format(representation_type, grain['center'][0], grain['center'][1], grain['radius']))
     f.write("\n")
 
     # Write particle points
+    segment_counter = 0
     for gid, grain in grains_data.items():
-        f.write("{:d}\n".format(gid))
+        f.write("{:d}\n".format(segment_counter))
         for p in grain['points']:
             f.write("{} {} ".format(p[0], p[1]))
         f.write("\n")
+        segment_counter += 1
