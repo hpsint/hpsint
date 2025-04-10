@@ -2210,17 +2210,21 @@ namespace Sintering
                         additional_output);
         }
 
-      bool has_converged    = true;
-      bool force_refinement = false;
+      bool has_converged      = true;
+      bool do_mesh_refinement = false;
+      bool do_grain_tracker   = false;
+
+      const double tol_termination = 1e-9;
 
       // run time loop
       {
-        while (std::abs(t - params.time_integration_data.time_end) > 1e-15)
+        while (std::abs(t - params.time_integration_data.time_end) >
+               tol_termination)
           {
             ScopedName         sc("time_loop");
             TimerOutput::Scope scope(timer(), sc);
 
-            if (has_converged || force_refinement)
+            if (has_converged)
               {
                 // Perform sanity check
                 if (params.time_integration_data.sanity_check_solution &&
@@ -2229,62 +2233,6 @@ namespace Sintering
                     solution,
                     sintering_data.build_pf_component_mask(
                       solution.n_blocks()));
-
-                bool do_mesh_refinement = false;
-                bool do_grain_tracker   = false;
-                if (n_timestep != 0)
-                  {
-                    if (force_refinement)
-                      {
-                        do_mesh_refinement = true;
-                        force_refinement   = false;
-                      }
-                    else
-                      {
-                        // If quality control is enabled, then frequency is not
-                        // used
-                        if (params.adaptivity_data.quality_control)
-                          {
-                            const auto only_order_parameters =
-                              solution.create_view(
-                                2, sintering_data.n_components());
-
-                            const auto quality =
-                              Postprocessors::estimate_mesh_quality_min(
-                                dof_handler, *only_order_parameters);
-
-                            do_mesh_refinement =
-                              quality < current_min_mesh_quality;
-                          }
-                        else
-                          {
-                            do_mesh_refinement =
-                              params.adaptivity_data.refinement_frequency > 0 &&
-                              (n_timestep - n_timestep_last_amr) %
-                                  params.adaptivity_data.refinement_frequency ==
-                                0;
-                          }
-                      }
-
-                    // If advection is enabled or certain boundary conditions
-                    // are imposed, then execute grain tracker
-                    if (params.advection_data.enable ||
-                        grain_tracker_required_for_ebc)
-                      do_grain_tracker = true;
-                    // If mesh quality control is enabled and grain tracker is
-                    // asked to run at the same time, then execute it
-                    // synchronously
-                    else if (params.adaptivity_data.quality_control &&
-                             params.grain_tracker_data.track_with_quality)
-                      do_grain_tracker = do_mesh_refinement;
-                    // Otherwise use the default frequency settings
-                    else
-                      do_grain_tracker =
-                        params.grain_tracker_data.grain_tracker_frequency > 0 &&
-                        (n_timestep - n_timestep_last_gt) %
-                            params.grain_tracker_data.grain_tracker_frequency ==
-                          0;
-                  }
 
                 if (do_mesh_refinement)
                   {
@@ -2529,6 +2477,11 @@ namespace Sintering
               preconditioner->clear();
 
               has_converged = false;
+
+              // We do not need to refine the mesh and also no need to run the
+              // grain tracker
+              do_mesh_refinement = false;
+              do_grain_tracker   = false;
             };
 
             try
@@ -2561,7 +2514,110 @@ namespace Sintering
                 // constraints applied
                 non_linear_solver_executor->solve(solution);
 
+                // We do not commit yet the state since the GT still can fail
+                // the tracking stage due to the poor quality of the solution
+                const double       t_new          = t + dt;
+                const unsigned int n_timestep_new = n_timestep + 1;
+
+                const bool good_iterations =
+                  statistics.n_newton_iterations() <
+                    params.time_integration_data.desirable_newton_iterations &&
+                  statistics.n_linear_iterations() <
+                    params.time_integration_data.desirable_linear_iterations;
+
+                // Reset AMR and GT flags
+                do_mesh_refinement = false;
+                do_grain_tracker   = false;
+
+                // If this was the last step
+                const bool is_last_time_step =
+                  (std::abs(t_new - params.time_integration_data.time_end) <
+                   tol_termination);
+
+                if (!is_last_time_step)
+                  {
+                    // Coarsen mesh if we have solved everything nicely, we
+                    // can do it only if quality control is disabled
+                    if (good_iterations &&
+                        params.adaptivity_data.extra_coarsening &&
+                        !params.adaptivity_data.quality_control &&
+                        this->current_max_refinement_depth ==
+                          params.adaptivity_data.max_refinement_depth)
+                      {
+                        --this->current_max_refinement_depth;
+                        pcout << "\033[33mReducing mesh quality"
+                              << "\033[0m" << std::endl;
+                        do_mesh_refinement = true;
+                      }
+
+                    // Check if we need to perform AMR. If quality control is
+                    // enabled, then AMR frequency setting is not used
+                    if (!do_mesh_refinement)
+                      {
+                        if (params.adaptivity_data.quality_control)
+                          {
+                            const auto only_order_parameters =
+                              solution.create_view(
+                                2, sintering_data.n_components());
+
+                            const auto quality =
+                              Postprocessors::estimate_mesh_quality_min(
+                                dof_handler, *only_order_parameters);
+
+                            do_mesh_refinement =
+                              quality < current_min_mesh_quality;
+                          }
+                        else
+                          {
+                            do_mesh_refinement =
+                              params.adaptivity_data.refinement_frequency > 0 &&
+                              (n_timestep_new - n_timestep_last_amr) %
+                                  params.adaptivity_data.refinement_frequency ==
+                                0;
+                          }
+                      }
+
+                    // If advection is enabled or we force the solver to attempt
+                    // to recover from the inconsistency exception, then execute
+                    // grain tracker
+                    if (params.advection_data.enable ||
+                        params.grain_tracker_data.check_inconsistency)
+                      do_grain_tracker = true;
+                    // If mesh quality control is enabled and grain tracker is
+                    // asked to run at the same time, then execute it
+                    // synchronously
+                    else if (params.adaptivity_data.quality_control &&
+                             params.grain_tracker_data.track_with_quality)
+                      do_grain_tracker = do_mesh_refinement;
+                    // Otherwise use the default frequency settings
+                    else
+                      do_grain_tracker =
+                        params.grain_tracker_data.grain_tracker_frequency > 0 &&
+                        (n_timestep_new - n_timestep_last_gt) %
+                            params.grain_tracker_data.grain_tracker_frequency ==
+                          0;
+
+                    if (do_grain_tracker)
+                      {
+                        run_grain_tracker(t, /*do_initialize = */ false);
+                        n_timestep_last_gt = n_timestep_new;
+
+                        // If the mesh is to be executed at the beginning of the
+                        // next step, then we still need to run the grain
+                        // tracker once again if advection is enabled, otherwise
+                        // there is no need to
+                        if (do_mesh_refinement && params.advection_data.enable)
+                          do_grain_tracker = true;
+                        else
+                          do_grain_tracker = false;
+                      }
+                  }
+
+                // If we have reached this point, then we are ready to commit
+                // the solution
                 has_converged = true;
+                t             = t_new;
+                n_timestep    = n_timestep_new;
 
                 pcout << std::endl;
                 pcout << "t = " << t << ", t_n = " << n_timestep
@@ -2571,25 +2627,20 @@ namespace Sintering
                       << statistics.n_linear_iterations()
                       << " linear iterations" << std::endl;
 
-                n_timestep += 1;
                 n_linear_iterations += statistics.n_linear_iterations();
                 n_non_linear_iterations += statistics.n_newton_iterations();
                 n_residual_evaluations += statistics.n_residual_evaluations();
                 max_reached_dt = std::max(max_reached_dt, dt);
 
-                // Commit current timestep
-                t += dt;
+                // Commit timesteps in accordance with history
                 for (int i = dts.size() - 2; i >= 0; --i)
                   dts[i + 1] = dts[i];
 
-                if (std::abs(t - params.time_integration_data.time_end) > 1e-9)
+                if (!is_last_time_step)
                   {
-                    if (statistics.n_newton_iterations() <
-                          params.time_integration_data
-                            .desirable_newton_iterations &&
-                        statistics.n_linear_iterations() <
-                          params.time_integration_data
-                            .desirable_linear_iterations)
+                    // If solution has converged within a few iterations, we
+                    // can increase the timestep
+                    if (good_iterations)
                       {
                         dt *= params.time_integration_data.growth_factor;
                         pcout << "\033[32mIncreasing timestep, dt = " << dt
@@ -2599,21 +2650,9 @@ namespace Sintering
                           {
                             dt = params.time_integration_data.time_step_max;
                           }
-
-                        // Coarsen mesh if we have solved everything nicely, we
-                        // can do it only if quality control is disabled
-                        if (params.adaptivity_data.extra_coarsening &&
-                            !params.adaptivity_data.quality_control &&
-                            this->current_max_refinement_depth ==
-                              params.adaptivity_data.max_refinement_depth)
-                          {
-                            --this->current_max_refinement_depth;
-                            pcout << "\033[33mReducing mesh quality"
-                                  << "\033[0m" << std::endl;
-                            force_refinement = true;
-                          }
                       }
 
+                    // Adjust timestep if we exceeded time end
                     if (t + dt > params.time_integration_data.time_end)
                       {
                         dt = params.time_integration_data.time_end - t;
@@ -2719,7 +2758,8 @@ namespace Sintering
 
                 // If this was the last step
                 const bool is_last_time_step =
-                  (std::abs(t - params.time_integration_data.time_end) < 1e-8);
+                  (std::abs(t - params.time_integration_data.time_end) <
+                   tol_termination);
 
                 // Output results
                 if ((params.output_data.output_time_interval > 0.0) &&
