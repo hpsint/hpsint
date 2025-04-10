@@ -2750,6 +2750,10 @@ namespace Sintering
               {
                 process_failure(e.message(), "courant_violated");
               }
+            catch (const GrainTracker::ExcGrainsInconsistency &e)
+              {
+                process_failure(e.what(), "grains_inconsistency");
+              }
 
             if (has_converged)
               {
