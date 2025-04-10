@@ -2577,10 +2577,12 @@ namespace Sintering
                           }
                       }
 
-                    // If advection is enabled or we force the solver to attempt
-                    // to recover from the inconsistency exception, then execute
-                    // grain tracker
+                    // If advection is enabled or certain boundary conditions
+                    // are imposed or we force the solver to attempt to recover
+                    // from the inconsistency exception, then execute the grain
+                    // tracker.
                     if (params.advection_data.enable ||
+                        grain_tracker_required_for_ebc ||
                         params.grain_tracker_data.check_inconsistency)
                       do_grain_tracker = true;
                     // If mesh quality control is enabled and grain tracker is
@@ -2602,11 +2604,14 @@ namespace Sintering
                         run_grain_tracker(t, /*do_initialize = */ false);
                         n_timestep_last_gt = n_timestep_new;
 
-                        // If the mesh is to be executed at the beginning of the
-                        // next step, then we still need to run the grain
-                        // tracker once again if advection is enabled, otherwise
-                        // there is no need to
-                        if (do_mesh_refinement && params.advection_data.enable)
+                        // If the mesh refinement is to be executed at the
+                        // beginning of the next step, then we still need to run
+                        // the grain tracker once again if advection is enabled
+                        // or this is required for certain EBC, otherwise there
+                        // is no need to do that again.
+                        if (do_mesh_refinement &&
+                            (params.advection_data.enable ||
+                             grain_tracker_required_for_ebc))
                           do_grain_tracker = true;
                         else
                           do_grain_tracker = false;
