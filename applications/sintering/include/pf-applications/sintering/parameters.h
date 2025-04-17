@@ -633,6 +633,10 @@ namespace Sintering
       prm.add_parameter("UseOldRemap",
                         grain_tracker_data.use_old_remap,
                         "Use old remapping algo.");
+      prm.add_parameter("GrainRepresentation",
+                        grain_tracker_data.grain_representation,
+                        "Grain representation",
+                        Patterns::Selection("Spherical|Elliptical|Wavefront"));
       prm.leave_subsection();
 
 
