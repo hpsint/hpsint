@@ -1,21 +1,70 @@
 from paraview.simple import *
+import argparse
+import library
 import os
 import math
 import numpy as np
+import re
 
-# Path to VTU files
-vtu_folder = "c:\\Work\\HZG\\TUM\\clouds\\"
-output_folder = "c:\\Work\\HZG\\TUM\\clouds\\img"
+parser = argparse.ArgumentParser(description='Generate output for a series of packings')
+parser.add_argument("-f", "--files", dest="files", nargs='+', required=True, help="Source VTU filenames, can be defined as masks")
+parser.add_argument("-o", "--output", type=str, required=False, help="Output folder", default=None)
+parser.add_argument("-p", "--mask-particles", type=str, required=False, help="Particles mask regexp", default="my_particles_(.*)")
+parser.add_argument("-g", "--mask-grid", type=str, required=False, help="Grid mask regexp", default="my_grid_(.*)")
 
-vtu_files = [os.path.join(vtu_folder, f) for f in os.listdir(vtu_folder) if f.endswith(".vtu")]
+args = parser.parse_args()
+
+# Get all files to process
+vtu_files = library.get_solutions(args.files)
+
+if not vtu_files:
+    raise Exception("The files list is empty, nothing to plot")
+
+# Sort vtu files
+pattern_particles = re.compile(args.mask_particles)
+pattern_grid = re.compile(args.mask_grid)
+
+vtu_pairs = {}
+for file in vtu_files:
+    fname = os.path.splitext(os.path.basename(file))[0]
+    mp = pattern_particles.match(fname)
+    mg = pattern_grid.match(fname)
+
+    if mp and mg:
+        raise Exception("Something is not OK with naming of your files")
+
+    if mp:
+        pack_name = mp.group(1)
+        if not pack_name in vtu_pairs:
+            vtu_pairs[pack_name] = {"grid": None, "particles": None}
+        vtu_pairs[pack_name]["particles"] = file
+
+    if mg:
+        pack_name = mg.group(1)
+        if not pack_name in vtu_pairs:
+            vtu_pairs[pack_name] = {"grid": None, "particles": None}
+        vtu_pairs[pack_name]["grid"] = file
+
+# Check if all pairs have packing at least
+for key, data in vtu_pairs.items():
+    if not data["particles"]:
+        raise Exception("No particles file for packing {}".format(key))
+    if not data["grid"]:
+        raise Exception("No grid file for packing {}".format(key))
+
+# Output folder path
+if args.output:
+    pathlib.Path(args.output).mkdir(parents=True, exist_ok=True)
+    output_folder = args.output
+else:
+    output_folder = None
 
 # Track the largest bounding box
 max_extent = -1
-largest_glyph = None
-largest_vtu = None
+largest_vtu_key = None
 
 # Store glyphs for later rendering
-glyphs_list = []
+scenes_list = {}
 
 # Create a render view
 renderView = CreateView('RenderView')
@@ -55,20 +104,24 @@ def compute_bounding_box_with_radius(data_source):
     
     return min_coords, max_coords
 
-for file in vtu_files:
-    # Read VTU file
-    particles = XMLUnstructuredGridReader(FileName=[file])
-    
+for key, data in vtu_pairs.items():
+    file_particles = data["particles"]
+    file_grid = data["grid"]
+
+    # Read VTU files
+    particles = XMLUnstructuredGridReader(FileName=[file_particles])
+    grid = XMLUnstructuredGridReader(FileName=[file_grid])
+
     # Compute bounding box with radius
     try:
         min_coords, max_coords = compute_bounding_box_with_radius(particles)
     except Exception as e:
-        print(f"Skipping {file}: {e}")
+        print(f"Skipping {key}: {e}")
         continue
 
     extent_vector = max_coords - min_coords
     bbox_diagonal = np.linalg.norm(extent_vector)
-    
+
     # Apply Glyph filter
     glyph = Glyph(Input=particles, GlyphType='Sphere')
     glyph.ScaleArray = 'radius'
@@ -79,23 +132,35 @@ for file in vtu_files:
     glyph.GlyphType.ThetaResolution = 32
     glyph.GlyphType.PhiResolution = 32
 
-    ss = Sphere(ThetaResolution=1000, PhiResolution=500) 
+    # Extract edges
+    edges = ExtractEdges(Input=grid)
 
-    #print(dir(glyph))
-    #exit()
-    
-    glyphs_list.append((file, glyph))
-    
+    scenes_list[key] = (glyph, grid, edges)
+
     if bbox_diagonal > max_extent:
         max_extent = bbox_diagonal
-        largest_glyph = glyph
-        largest_vtu = file
+        largest_vtu_key = key
+
+# Show packing
+def show_packing(key):
+    display_particles = Show(scenes_list[key][0], renderView)
+    display_grid = Show(scenes_list[key][1], renderView)
+    display_grid.Opacity = 0.3
+    display_edges = Show(scenes_list[key][2], renderView)
+    display_edges.DiffuseColor = [0, 0, 0]  # black edges
+    display_edges.LineWidth = 10
+
+# Show packing
+def hide_packing(key):
+    Hide(scenes_list[key][0], renderView)
+    Hide(scenes_list[key][1], renderView)
+    Hide(scenes_list[key][2], renderView)
 
 # Hide axes
 renderView.OrientationAxesVisibility = 0
 
 # Set view to fit the largest bounding box
-Show(largest_glyph, renderView)
+show_packing(largest_vtu_key)
 renderView.ResetCamera()
 
 # Optional: tighten zoom (lower view angle = more zoomed out)
@@ -116,28 +181,38 @@ camera_focal_point = renderView.CameraFocalPoint
 camera_view_up = renderView.CameraViewUp
 
 # Function to output a packing
-def output_packing(filename):
+def output_packing(key):
+    data = vtu_pairs[key]
+    file_particles = data["particles"]
+    file_grid = data["grid"]
+
     Render()
-    image_name = os.path.splitext(os.path.basename(filename))[0] + ".png"
-    SaveScreenshot(os.path.join(output_folder, image_name), renderView, TransparentBackground=1, ImageResolution=[2000, 2000])
+    image_name = os.path.splitext(os.path.basename(file_particles))[0] + ".png"
+
+    local_output_folder = output_folder
+    if not local_output_folder:
+        local_output_folder = os.path.dirname(file_particles)
+
+    SaveScreenshot(os.path.join(local_output_folder, image_name), renderView, TransparentBackground=1, ImageResolution=[2000, 2000])
 
 # Output at first the largest one
-output_packing(largest_vtu)
+output_packing(largest_vtu_key)
 
-Hide(largest_glyph, renderView)
+hide_packing(largest_vtu_key)
 
 # Render and save images with consistent camera settings
-for file, glyph in glyphs_list:
-    if file == largest_vtu:
+for key, data in scenes_list.items():
+    if key == largest_vtu_key:
         continue
 
-    Show(glyph, renderView)
+    show_packing(key)
+
     renderView.CameraPosition = camera_position
     renderView.CameraFocalPoint = camera_focal_point
     renderView.CameraViewUp = camera_view_up
     
-    output_packing(file)
+    output_packing(key)
 
-    Hide(glyph, renderView)
+    hide_packing(key)
 
 Delete(renderView)
