@@ -144,6 +144,7 @@ for key, data in vtu_pairs.items():
 # Show packing
 def show_packing(key):
     display_particles = Show(scenes_list[key][0], renderView)
+    #display_particles.DiffuseColor = [0, 0, 1]
     display_grid = Show(scenes_list[key][1], renderView)
     display_grid.Opacity = 0.3
     display_edges = Show(scenes_list[key][2], renderView)
@@ -180,6 +181,18 @@ camera_position = renderView.CameraPosition
 camera_focal_point = renderView.CameraFocalPoint
 camera_view_up = renderView.CameraViewUp
 
+# Enable ray tracing and ambient occlusion
+renderView.BackEnd = 'OSPRay raycaster'
+renderView.EnableRayTracing = 1
+renderView.Shadows = 0  # Optional: turn off shadows if not needed
+renderView.UseAmbientOcclusion = 1
+#renderView.AmbientSamples = 10  # Typical range: 5–20
+
+# Enable tone mapping
+renderView.UseToneMapping = 1
+#renderView.ToneMappingType = 3 # Clamp = 0, Reinhard = 1, Exponential = 2, GenericFilmic = 3, NeutralPBR = 4
+renderView.Exposure = 1.0  # Higher = brighter; try values like 0.8–1.5
+
 # Function to output a packing
 def output_packing(key):
     data = vtu_pairs[key]
@@ -187,7 +200,7 @@ def output_packing(key):
     file_grid = data["grid"]
 
     Render()
-    image_name = os.path.splitext(os.path.basename(file_particles))[0] + ".png"
+    image_name = key + ".png"
 
     local_output_folder = output_folder
     if not local_output_folder:
