@@ -11,6 +11,14 @@ parser.add_argument("-f", "--files", dest="files", nargs='+', required=True, hel
 parser.add_argument("-o", "--output", type=str, required=False, help="Output folder", default=None)
 parser.add_argument("-p", "--mask-particles", type=str, required=False, help="Particles mask regexp", default="my_particles_(.*)")
 parser.add_argument("-g", "--mask-grid", type=str, required=False, help="Grid mask regexp", default="my_grid_(.*)")
+parser.add_argument("-w", "--width", type=int, required=False, help="Image width", default=2000)
+parser.add_argument("-t", "--height", type=int, required=False, help="Image height", default=2000)
+parser.add_argument("-y", "--y-rotation", type=int, required=False, help="Rotation about y-axis", default=35)
+parser.add_argument("-r", "--resolution", type=int, required=False, help="Spheres resolution", default=32)
+parser.add_argument("-s", "--scale-factor", type=int, required=False, help="Glyph scale factor", default=2)
+parser.add_argument("-d", "--scale-field", type=str, required=False, help="Glyph scale field", default="radius")
+parser.add_argument("-e", "--edge-width", type=int, required=False, help="Bounding box edge width", default=10)
+parser.add_argument("-a", "--opacity", type=float, required=False, help="Bounding box opacity", default=0.3)
 
 args = parser.parse_args()
 
@@ -124,13 +132,13 @@ for key, data in vtu_pairs.items():
 
     # Apply Glyph filter
     glyph = Glyph(Input=particles, GlyphType='Sphere')
-    glyph.ScaleArray = 'radius'
-    glyph.ScaleFactor = 2.0
+    glyph.ScaleArray = args.scale_field
+    glyph.ScaleFactor = args.scale_factor
     glyph.GlyphMode = 'All Points'
     
     # Set sphere resolution
-    glyph.GlyphType.ThetaResolution = 32
-    glyph.GlyphType.PhiResolution = 32
+    glyph.GlyphType.ThetaResolution = args.resolution
+    glyph.GlyphType.PhiResolution = args.resolution
 
     # Extract edges
     edges = ExtractEdges(Input=grid)
@@ -146,10 +154,10 @@ def show_packing(key):
     display_particles = Show(scenes_list[key][0], renderView)
     #display_particles.DiffuseColor = [0, 0, 1]
     display_grid = Show(scenes_list[key][1], renderView)
-    display_grid.Opacity = 0.3
+    display_grid.Opacity = args.opacity
     display_edges = Show(scenes_list[key][2], renderView)
     display_edges.DiffuseColor = [0, 0, 0]  # black edges
-    display_edges.LineWidth = 10
+    display_edges.LineWidth = args.edge_width
 
 # Show packing
 def hide_packing(key):
@@ -168,11 +176,10 @@ renderView.ResetCamera()
 renderView.CameraViewAngle = 30  # default is ~30–45
 
 # Rotate around Y axis by the given degrees, for example
-angle_deg = 35
 rotated_position = rotate_camera_around_y(
     renderView.CameraPosition,
     renderView.CameraFocalPoint,
-    angle_deg
+    args.y_rotation
 )
 renderView.CameraPosition = rotated_position
 
@@ -206,7 +213,7 @@ def output_packing(key):
     if not local_output_folder:
         local_output_folder = os.path.dirname(file_particles)
 
-    SaveScreenshot(os.path.join(local_output_folder, image_name), renderView, TransparentBackground=1, ImageResolution=[2000, 2000])
+    SaveScreenshot(os.path.join(local_output_folder, image_name), renderView, TransparentBackground=1, ImageResolution=[args.width, args.height])
 
 # Output at first the largest one
 output_packing(largest_vtu_key)
