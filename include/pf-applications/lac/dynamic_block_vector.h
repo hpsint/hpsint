@@ -36,6 +36,7 @@ namespace dealii
         using BlockType  = Vector<T>;
         using value_type = T;
         using size_type  = types::global_dof_index;
+        using real_type  = double;
 
         /**
          * Initialization.
@@ -295,7 +296,7 @@ namespace dealii
         /**
          * Computation.
          */
-        T
+        real_type
         l2_norm() const
         {
           T result = 0.0;
@@ -304,7 +305,7 @@ namespace dealii
           return std::sqrt(result);
         }
 
-        T
+        real_type
         l1_norm() const
         {
           T result = 0.0;
@@ -313,13 +314,31 @@ namespace dealii
           return result;
         }
 
-        T
+        real_type
         linfty_norm() const
         {
           T result = 0.0;
           for (unsigned int b = 0; b < n_blocks(); ++b)
             result = std::max<T>(result, block(b).linfty_norm());
           return result;
+        }
+
+        value_type
+        mean_value() const
+        {
+          value_type sum = 0.;
+
+          for (unsigned int b = 0; b < n_blocks(); ++b)
+            sum += block(b).mean_value() * block(b).size();
+
+          return sum / size();
+        }
+
+        void
+        add(const T a)
+        {
+          for (unsigned int b = 0; b < n_blocks(); ++b)
+            block(b).add(a);
         }
 
         void
@@ -392,6 +411,30 @@ namespace dealii
 
           for (unsigned int b = 0; b < n_blocks(); ++b)
             block(b) *= inverse_factor;
+        }
+
+        DynamicBlockVector<T> &
+        operator+=(const DynamicBlockVector<T> &v)
+        {
+          Assert(n_blocks() == v.n_blocks(),
+                 ExcDimensionMismatch(n_blocks(), v.n_blocks()));
+
+          for (unsigned int b = 0; b < n_blocks(); ++b)
+            block(b) += v.block(b);
+
+          return *this;
+        }
+
+        DynamicBlockVector<T> &
+        operator-=(const DynamicBlockVector<T> &v)
+        {
+          Assert(n_blocks() == v.n_blocks(),
+                 ExcDimensionMismatch(n_blocks(), v.n_blocks()));
+
+          for (unsigned int b = 0; b < n_blocks(); ++b)
+            block(b) -= v.block(b);
+
+          return *this;
         }
 
         T
@@ -467,6 +510,14 @@ namespace dealii
           is.compress();
 
           return is;
+        }
+
+        MPI_Comm
+        get_mpi_communicator() const
+        {
+          Assert(n_blocks() > 0, ExcInternalError());
+
+          return block(0).get_mpi_communicator();
         }
 
         static constexpr unsigned int communication_block_size = 0;
