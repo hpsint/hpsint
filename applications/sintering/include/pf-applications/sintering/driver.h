@@ -1796,11 +1796,18 @@ namespace Sintering
         params.boundary_conditions.type == "CentralParticle" ||
         params.boundary_conditions.type == "CentralParticleSection";
 
+      const bool grain_tracker_required_for_output =
+        params.output_data.contours || params.output_data.contours_tex ||
+        params.output_data.grains_stats ||
+        params.output_data.coordination_number;
+
       const bool grain_tracker_enabled =
         params.grain_tracker_data.grain_tracker_frequency > 0 ||
         (params.adaptivity_data.quality_control &&
          params.grain_tracker_data.track_with_quality) ||
-        params.advection_data.enable || grain_tracker_required_for_ebc;
+        params.advection_data.enable || grain_tracker_required_for_ebc ||
+        grain_tracker_required_for_output ||
+        params.grain_tracker_data.check_inconsistency;
 
       const auto run_grain_tracker = [&](const double t,
                                          const bool   do_initialize = false) {
@@ -2599,22 +2606,52 @@ namespace Sintering
                             params.grain_tracker_data.grain_tracker_frequency ==
                           0;
 
-                    if (do_grain_tracker)
+                    // If we check for inconsistency,
+                    // then we run the grain tracker now
+                    if (params.grain_tracker_data.check_inconsistency)
                       {
                         run_grain_tracker(t, /*do_initialize = */ false);
                         n_timestep_last_gt = n_timestep_new;
 
-                        // If the mesh refinement is to be executed at the
-                        // beginning of the next step, then we still need to run
-                        // the grain tracker once again if advection is enabled
-                        // or this is required for certain EBC, otherwise there
-                        // is no need to do that again.
-                        if (do_mesh_refinement &&
-                            (params.advection_data.enable ||
-                             grain_tracker_required_for_ebc))
-                          do_grain_tracker = true;
-                        else
-                          do_grain_tracker = false;
+                        // We rerun the grain tracker once again after AMR if
+                        // 1) it is synced with mesh, or
+                        // 2) advection is enabled, or
+                        // 3) this is required for certain EBCs, or
+                        // 4) this is required for certain outputs,
+                        // otherwise there is no need to do that again.
+                        do_grain_tracker =
+                          do_mesh_refinement &&
+                          ((params.adaptivity_data.quality_control &&
+                            params.grain_tracker_data.track_with_quality) ||
+                           params.advection_data.enable ||
+                           grain_tracker_required_for_ebc ||
+                           grain_tracker_required_for_output);
+                      }
+                    else
+                      {
+                        // If we have not run the grain tracker now, then we may
+                        // need to run it at the beginning of the next step if:
+                        // 1) it is synced with mesh, or
+                        // 2) advection is enabled, or
+                        // 3) this is required for certain EBCs, or
+                        // 4) this is required for certain outputs provided AMR
+                        // is also to be executed, or
+                        // 5) its regular execution is expected according to the
+                        // frequency settings.
+                        do_grain_tracker =
+                          (do_mesh_refinement &&
+                           params.adaptivity_data.quality_control &&
+                           params.grain_tracker_data.track_with_quality) ||
+                          params.advection_data.enable ||
+                          (do_mesh_refinement &&
+                           grain_tracker_required_for_output) ||
+                          grain_tracker_required_for_ebc ||
+                          (params.grain_tracker_data.grain_tracker_frequency >
+                             0 &&
+                           (n_timestep_new - n_timestep_last_gt) %
+                               params.grain_tracker_data
+                                 .grain_tracker_frequency ==
+                             0);
                       }
                   }
 
@@ -3217,7 +3254,8 @@ namespace Sintering
       // may result in inconsistency of the data structures which store forces
       // data. This is a design issue, it needs to be fixed, but so far we just
       // keep it in mind.
-      if ((params.output_data.contours_tex || params.output_data.grains_stats ||
+      if ((params.output_data.contours || params.output_data.contours_tex ||
+           params.output_data.grains_stats ||
            params.output_data.coordination_number) &&
           !grain_tracker.empty() && !advection_mechanism.enabled())
         {
