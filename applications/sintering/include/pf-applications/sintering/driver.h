@@ -3040,14 +3040,11 @@ namespace Sintering
       TableHandler table;
 
       // Initialize all sections - relevant for 3D case only
-      std::vector<std::unique_ptr<Postprocessors::StateData<dim - 1, Number>>>
-        sections;
+      std::vector<Postprocessors::ProjectedData<dim - 1, Number>> sections;
 
       const std::unordered_map<std::string, int> directions = {{"x", 0},
                                                                {"y", 1},
                                                                {"z", 2}};
-
-      std::vector<std::pair<Point<dim>, Point<dim>>> section_planes;
 
       // A separate if to exclude this part for 2D for the code
       if constexpr (dim == 3)
@@ -3063,14 +3060,14 @@ namespace Sintering
                 Point<dim> normal;
                 normal[directions.at(direction_code)] = 1;
 
-                section_planes.emplace_back(origin, normal);
-
-                sections.push_back(Postprocessors::build_projection(
-                  dof_handler,
-                  solution,
-                  directions.at(direction_code),
-                  location,
-                  params.output_data.n_coarsening_steps));
+                sections.emplace_back(Postprocessors::build_projection(
+                                        dof_handler,
+                                        solution,
+                                        directions.at(direction_code),
+                                        location,
+                                        params.output_data.n_coarsening_steps),
+                                      origin,
+                                      normal);
               }
           }
 
@@ -3142,14 +3139,14 @@ namespace Sintering
           for (unsigned int i = 0; i < sections.size(); ++i)
             {
               auto proj_data_out = Postprocessors::build_default_output(
-                sections[i].dof_handler,
+                sections[i].state.dof_handler,
                 Postprocessors::BlockVectorWrapper<std::vector<Vector<Number>>>(
-                  sections[i].solution),
+                  sections[i].state.solution),
                 names,
                 params.output_data.fields.count("subdomain"),
                 params.output_data.higher_order_cells);
 
-              if (sections[i].dof_handler.n_dofs() > 0)
+              if (sections[i].state.dof_handler.n_dofs() > 0)
                 proj_data_out.build_patches();
 
               std::stringstream ss;
@@ -3469,7 +3466,6 @@ namespace Sintering
                                         params.output_data,
                                         grain_tracker,
                                         sections,
-                                        section_planes,
                                         box_filters,
                                         table,
                                         t,
