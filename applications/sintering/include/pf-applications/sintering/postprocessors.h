@@ -48,8 +48,8 @@ namespace dealii
   public:
     void
     write_vtu_in_parallel(
-      const std::string &         filename,
-      const MPI_Comm &            comm,
+      const std::string          &filename,
+      const MPI_Comm             &comm,
       const DataOutBase::VtkFlags vtk_flags = DataOutBase::VtkFlags()) const
     {
       const unsigned int myrank = Utilities::MPI::this_mpi_process(comm);
@@ -65,7 +65,7 @@ namespace dealii
 
       if (true) // main
         {
-          const auto &                  patches      = this->get_patches();
+          const auto                   &patches      = this->get_patches();
           const types::global_dof_index my_n_patches = patches.size();
           const types::global_dof_index global_n_patches =
             Utilities::MPI::sum(my_n_patches, comm);
@@ -112,10 +112,10 @@ namespace Sintering
       template <int dim, typename VectorType>
       bool
       build_grain_boundaries_mesh(
-        Triangulation<dim - 1, dim> &                 tria,
-        const Mapping<dim> &                          mapping,
-        const DoFHandler<dim> &                       background_dof_handler,
-        const VectorType &                            vector,
+        Triangulation<dim - 1, dim>                  &tria,
+        const Mapping<dim>                           &mapping,
+        const DoFHandler<dim>                        &background_dof_handler,
+        const VectorType                             &vector,
         const double                                  iso_level,
         const unsigned int                            n_grains,
         const double                                  gb_lim             = 0.14,
@@ -311,9 +311,9 @@ namespace Sintering
         const unsigned int                                        n_segments,
         const unsigned int                                        n_op,
         const std::vector<std::pair<unsigned int, unsigned int>> &grains_data,
-        const BoundingBox<dim> &                                  bb,
-        const std::vector<Number> &                               parameters,
-        const std::vector<std::vector<Point<dim>>> &              points_local,
+        const BoundingBox<dim>                                   &bb,
+        const std::vector<Number>                                &parameters,
+        const std::vector<std::vector<Point<dim>>>               &points_local,
         const std::string                                         filename,
         MPI_Comm comm = MPI_COMM_WORLD)
       {
@@ -431,9 +431,9 @@ namespace Sintering
       template <int dim, typename VectorType>
       void
       build_write_grain_contours_vtu(
-        const Mapping<dim> &   mapping,
+        const Mapping<dim>    &mapping,
         const DoFHandler<dim> &background_dof_handler,
-        const VectorType &     vector,
+        const VectorType      &vector,
         const double           iso_level,
         const std::string      filename,
         const unsigned int     n_op,
@@ -441,7 +441,7 @@ namespace Sintering
           cell_data_extractor,
         std::optional<std::reference_wrapper<const GrainTracker::Mapper>>
                            grain_mapper   = {},
-        const MPI_Comm &   comm           = MPI_COMM_WORLD,
+        const MPI_Comm    &comm           = MPI_COMM_WORLD,
         const unsigned int n_subdivisions = 1,
         const double       tolerance      = 1e-10)
       {
@@ -542,9 +542,9 @@ namespace Sintering
     template <int dim, typename VectorType, typename Number>
     void
     output_grain_contours(
-      const Mapping<dim> &                      mapping,
-      const DoFHandler<dim> &                   background_dof_handler,
-      const VectorType &                        vector,
+      const Mapping<dim>                       &mapping,
+      const DoFHandler<dim>                    &background_dof_handler,
+      const VectorType                         &vector,
       const double                              iso_level,
       const std::string                         filename,
       const unsigned int                        n_op,
@@ -637,13 +637,13 @@ namespace Sintering
     template <int dim, typename VectorType>
     void
     output_grain_contours_vtu(
-      const Mapping<dim> &                          mapping,
-      const DoFHandler<dim> &                       background_dof_handler,
-      const VectorType &                            vector,
+      const Mapping<dim>                           &mapping,
+      const DoFHandler<dim>                        &background_dof_handler,
+      const VectorType                             &vector,
       const double                                  iso_level,
       const std::string                             filename,
       const unsigned int                            n_grains,
-      const GrainTracker::Mapper &                  grain_mapper,
+      const GrainTracker::Mapper                   &grain_mapper,
       const unsigned int                            n_coarsening_steps = 0,
       std::shared_ptr<const BoundingBoxFilter<dim>> box_filter     = nullptr,
       const unsigned int                            n_subdivisions = 1,
@@ -726,9 +726,9 @@ namespace Sintering
     template <int dim, typename VectorType>
     void
     output_grain_boundaries_vtu(
-      const Mapping<dim> &                          mapping,
-      const DoFHandler<dim> &                       background_dof_handler,
-      const VectorType &                            vector,
+      const Mapping<dim>                           &mapping,
+      const DoFHandler<dim>                        &background_dof_handler,
+      const VectorType                             &vector,
       const double                                  iso_level,
       const std::string                             filename,
       const unsigned int                            n_grains,
@@ -768,9 +768,9 @@ namespace Sintering
     template <int dim, typename VectorType>
     void
     output_concentration_contour_vtu(
-      const Mapping<dim> &                          mapping,
-      const DoFHandler<dim> &                       background_dof_handler,
-      const VectorType &                            vector,
+      const Mapping<dim>                           &mapping,
+      const DoFHandler<dim>                        &background_dof_handler,
+      const VectorType                             &vector,
       const double                                  iso_level,
       const std::string                             filename,
       const unsigned int                            n_coarsening_steps = 0,
@@ -866,9 +866,9 @@ namespace Sintering
     template <int dim, typename VectorType>
     typename VectorType::value_type
     compute_surface_area(
-      const Mapping<dim> &                          mapping,
-      const DoFHandler<dim> &                       background_dof_handler,
-      const VectorType &                            vector,
+      const Mapping<dim>                           &mapping,
+      const DoFHandler<dim>                        &background_dof_handler,
+      const VectorType                             &vector,
       const double                                  iso_level,
       std::shared_ptr<const BoundingBoxFilter<dim>> box_filter     = nullptr,
       const unsigned int                            n_subdivisions = 1,
@@ -918,9 +918,9 @@ namespace Sintering
     template <int dim, typename VectorType>
     typename VectorType::value_type
     compute_grain_boundaries_area(
-      const Mapping<dim> &                          mapping,
-      const DoFHandler<dim> &                       background_dof_handler,
-      const VectorType &                            vector,
+      const Mapping<dim>                           &mapping,
+      const DoFHandler<dim>                        &background_dof_handler,
+      const VectorType                             &vector,
       const double                                  iso_level,
       const unsigned int                            n_grains,
       const double                                  gb_lim         = 0.14,
@@ -964,9 +964,9 @@ namespace Sintering
 
     template <int dim, typename VectorType>
     void
-    estimate_overhead(const Mapping<dim> &   mapping,
+    estimate_overhead(const Mapping<dim>    &mapping,
                       const DoFHandler<dim> &background_dof_handler,
-                      const VectorType &     vector,
+                      const VectorType      &vector,
                       const bool             output_mesh = false)
     {
       using Number = typename VectorType::value_type;
@@ -1155,8 +1155,8 @@ namespace Sintering
       unsigned int
       run_flooding(
         const typename DoFHandler<dim>::cell_iterator &cell,
-        const BlockVectorType &                        solution,
-        LinearAlgebra::distributed::Vector<Number> &   particle_ids,
+        const BlockVectorType                         &solution,
+        LinearAlgebra::distributed::Vector<Number>    &particle_ids,
         const unsigned int                             id,
         const double                                   threshold_upper = 0.8,
         const double invalid_particle_id                               = -1.0,
@@ -1230,7 +1230,7 @@ namespace Sintering
                  unsigned int>
       detect_pores(
         const DoFHandler<dim> &dof_handler,
-        const VectorType &     solution,
+        const VectorType      &solution,
         const double           invalid_particle_id               = -1.0,
         const double           threshold_upper                   = 0.8,
         std::shared_ptr<const BoundingBoxFilter<dim>> box_filter = nullptr)
@@ -1299,9 +1299,9 @@ namespace Sintering
     template <int dim, typename VectorType>
     void
     output_porosity(
-      const Mapping<dim> &                          mapping,
-      const DoFHandler<dim> &                       dof_handler,
-      const VectorType &                            solution,
+      const Mapping<dim>                           &mapping,
+      const DoFHandler<dim>                        &dof_handler,
+      const VectorType                             &solution,
       const std::string                             output,
       const double                                  threshold_upper = 0.8,
       std::shared_ptr<const BoundingBoxFilter<dim>> box_filter      = nullptr)
@@ -1384,9 +1384,9 @@ namespace Sintering
     template <int dim, typename VectorType>
     void
     output_porosity_contours_vtu(
-      const Mapping<dim> &                          mapping,
-      const DoFHandler<dim> &                       dof_handler,
-      const VectorType &                            solution,
+      const Mapping<dim>                           &mapping,
+      const DoFHandler<dim>                        &dof_handler,
+      const VectorType                             &solution,
       const double                                  iso_level,
       const std::string                             output,
       const unsigned int                            n_coarsening_steps = 0,
@@ -1542,8 +1542,8 @@ namespace Sintering
     template <int dim, typename VectorType>
     void
     output_porosity_stats(
-      const DoFHandler<dim> &                       dof_handler,
-      const VectorType &                            solution,
+      const DoFHandler<dim>                        &dof_handler,
+      const VectorType                             &solution,
       const std::string                             output,
       const double                                  threshold_upper = 0.8,
       std::shared_ptr<const BoundingBoxFilter<dim>> box_filter      = nullptr)
@@ -1609,8 +1609,8 @@ namespace Sintering
     template <int dim, typename Number>
     void
     write_bounding_box(const BoundingBox<dim, Number> &bb,
-                       const Mapping<dim> &            mapping,
-                       const DoFHandler<dim> &         dof_handler,
+                       const Mapping<dim>             &mapping,
+                       const DoFHandler<dim>          &dof_handler,
                        const std::string               output)
     {
       Triangulation<dim> tria;
@@ -1626,9 +1626,9 @@ namespace Sintering
 
     template <int dim, typename VectorType>
     BoundingBox<dim, typename VectorType::value_type>
-    estimate_shrinkage(const Mapping<dim> &   mapping,
+    estimate_shrinkage(const Mapping<dim>    &mapping,
                        const DoFHandler<dim> &dof_handler,
-                       const VectorType &     solution,
+                       const VectorType      &solution,
                        const unsigned int     n_intervals = 10)
     {
       const double threshold = 0.5 - 1e-2;
@@ -1821,9 +1821,9 @@ namespace Sintering
 
     template <int dim, typename VectorType>
     void
-    estimate_shrinkage(const Mapping<dim> &   mapping,
+    estimate_shrinkage(const Mapping<dim>    &mapping,
                        const DoFHandler<dim> &dof_handler,
-                       const VectorType &     solution,
+                       const VectorType      &solution,
                        const std::string      output,
                        const unsigned int     n_intervals = 10)
     {
@@ -1836,7 +1836,7 @@ namespace Sintering
     void
     write_table(const TableHandler &table,
                 const double        t,
-                const MPI_Comm &    comm,
+                const MPI_Comm     &comm,
                 const std::string   save_path)
     {
       if (Utilities::MPI::this_mpi_process(comm) != 0)
@@ -1918,15 +1918,15 @@ namespace Sintering
       template <int dim, typename BlockVectorType>
       void
       do_output_mesh_quality(
-        const Mapping<dim> &                          mapping,
-        const DoFHandler<dim> &                       dof_handler,
-        const BlockVectorType &                       solution,
+        const Mapping<dim>                           &mapping,
+        const DoFHandler<dim>                        &dof_handler,
+        const BlockVectorType                        &solution,
         const std::string                             output,
         Vector<typename BlockVectorType::value_type> &quality)
       {
         const auto callback =
           [&quality](const typename BlockVectorType::value_type qval,
-                     const DoFCellAccessor<dim, dim, false> &   cell) {
+                     const DoFCellAccessor<dim, dim, false>    &cell) {
             quality[cell.active_cell_index()] = qval;
           };
 
@@ -1945,7 +1945,7 @@ namespace Sintering
     /* Output mesh quality: 0 - low, 1 - high */
     template <int dim, typename BlockVectorType>
     void
-    output_mesh_quality(const Mapping<dim> &   mapping,
+    output_mesh_quality(const Mapping<dim>    &mapping,
                         const DoFHandler<dim> &dof_handler,
                         const BlockVectorType &solution,
                         const std::string      output)
@@ -1960,7 +1960,7 @@ namespace Sintering
     /* Output mesh quality and return its min: 0 - low, 1 - high */
     template <int dim, typename BlockVectorType>
     typename BlockVectorType::value_type
-    output_mesh_quality_and_min(const Mapping<dim> &   mapping,
+    output_mesh_quality_and_min(const Mapping<dim>    &mapping,
                                 const DoFHandler<dim> &dof_handler,
                                 const BlockVectorType &solution,
                                 const std::string      output)
@@ -1987,7 +1987,7 @@ namespace Sintering
 
       const auto callback =
         [&quality](const typename BlockVectorType::value_type qval,
-                   const DoFCellAccessor<dim, dim, false> &   cell) {
+                   const DoFCellAccessor<dim, dim, false>    &cell) {
           (void)cell;
           quality = std::min(quality, qval);
         };
@@ -2006,12 +2006,12 @@ namespace Sintering
               typename Number>
     void
     output_grains_stats(
-      const Mapping<dim> &                      mapping,
-      const DoFHandler<dim> &                   dof_handler,
-      const NonLinearOperator &                 sintering_operator,
+      const Mapping<dim>                       &mapping,
+      const DoFHandler<dim>                    &dof_handler,
+      const NonLinearOperator                  &sintering_operator,
       const GrainTracker::Tracker<dim, Number> &grain_tracker,
       const AdvectionMechanism<dim, Number, VectorizedArrayType>
-        &               advection_mechanism,
+                       &advection_mechanism,
       const VectorType &solution,
       const std::string output)
     {
@@ -2184,7 +2184,7 @@ namespace Sintering
       const AdvectionMechanism<dim, Number, VectorizedArrayType>
         &advection_mechanism,
       const SinteringOperatorData<dim, VectorizedArrayType> &sintering_data,
-      DataOut<dim> &                                         data_out,
+      DataOut<dim>                                          &data_out,
       const std::string                                      prefix = "trans")
     {
       std::vector<Vector<double>> velocities;
@@ -2235,9 +2235,9 @@ namespace Sintering
     template <int dim, typename Number>
     double
     compute_average_coordination_number(
-      const DoFHandler<dim> &                       dof_handler,
+      const DoFHandler<dim>                        &dof_handler,
       const unsigned int                            n_op,
-      const GrainTracker::Tracker<dim, Number> &    grain_tracker,
+      const GrainTracker::Tracker<dim, Number>     &grain_tracker,
       std::shared_ptr<const BoundingBoxFilter<dim>> box_filter = nullptr)
     {
       const auto &grains = grain_tracker.get_grains();

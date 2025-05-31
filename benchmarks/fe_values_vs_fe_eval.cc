@@ -36,14 +36,14 @@
 
 using namespace dealii;
 
-//#define USE_SUBDIVISIONS
+// #define USE_SUBDIVISIONS
 
 
 template <int dim, int n_components, typename Number, typename VectorType>
 void
-helmholtz_operator_fe_values_0(VectorType &           dst,
-                               const VectorType &     src,
-                               const Mapping<dim> &   mapping,
+helmholtz_operator_fe_values_0(VectorType            &dst,
+                               const VectorType      &src,
+                               const Mapping<dim>    &mapping,
                                const DoFHandler<dim> &dof_handler,
                                const Quadrature<dim> &quadrature)
 {
@@ -123,9 +123,9 @@ helmholtz_operator_fe_values_0(VectorType &           dst,
 
 template <int dim, int n_components, typename Number, typename VectorType>
 void
-helmholtz_operator_fe_values_1(VectorType &           dst,
-                               const VectorType &     src,
-                               const Mapping<dim> &   mapping,
+helmholtz_operator_fe_values_1(VectorType            &dst,
+                               const VectorType      &src,
+                               const Mapping<dim>    &mapping,
                                const DoFHandler<dim> &dof_handler,
                                const Quadrature<dim> &quadrature)
 {
@@ -217,8 +217,8 @@ template <int dim,
           typename Number,
           typename VectorType>
 void
-helmholtz_operator_fe_evaluation(VectorType &                   dst,
-                                 const VectorType &             src,
+helmholtz_operator_fe_evaluation(VectorType                    &dst,
+                                 const VectorType              &src,
                                  const MatrixFree<dim, Number> &matrix_free)
 {
   matrix_free.template cell_loop<VectorType, VectorType>(

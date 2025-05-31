@@ -60,21 +60,23 @@ namespace Sintering
     struct check
     {
       template <typename T_>
-      using do_post_vmult_t = decltype(
-        std::declval<T_ const>().template do_post_vmult<BlockVectorType_>(
-          std::declval<BlockVectorType_ &>(),
-          std::declval<BlockVectorType_ const &>()));
+      using do_post_vmult_t =
+        decltype(std::declval<const T_>()
+                   .template do_post_vmult<BlockVectorType_>(
+                     std::declval<BlockVectorType_ &>(),
+                     std::declval<const BlockVectorType_ &>()));
 
       template <typename T_>
-      using do_pre_vmult_t = decltype(
-        std::declval<T_ const>().template do_pre_vmult<BlockVectorType_>(
-          std::declval<BlockVectorType_ &>(),
-          std::declval<BlockVectorType_ const &>()));
+      using do_pre_vmult_t =
+        decltype(std::declval<const T_>()
+                   .template do_pre_vmult<BlockVectorType_>(
+                     std::declval<BlockVectorType_ &>(),
+                     std::declval<const BlockVectorType_ &>()));
     };
 
     OperatorBase(
       const MatrixFree<dim, Number, VectorizedArrayType> &matrix_free,
-      const AffineConstraints<Number> &                   constraints,
+      const AffineConstraints<Number>                    &constraints,
       const unsigned int                                  dof_index,
       const std::string                                   label        = "",
       const bool                                          matrix_based = false)
@@ -203,7 +205,7 @@ namespace Sintering
 
     virtual void
     vmult_internal(
-      LinearAlgebra::distributed::BlockVector<Number> &      dst,
+      LinearAlgebra::distributed::BlockVector<Number>       &dst,
       const LinearAlgebra::distributed::BlockVector<Number> &src) const
     {
 #define OPERATION(c, d)                                                     \
@@ -491,7 +493,7 @@ namespace Sintering
     }
 
     virtual void
-    add_matrix_constraints(const DoFHandler<dim> &    dof_handler,
+    add_matrix_constraints(const DoFHandler<dim>     &dof_handler,
                            AffineConstraints<Number> &matrix_constraints) const
     {
       (void)dof_handler;
@@ -604,8 +606,8 @@ namespace Sintering
     }
 
     void
-    add_data_vectors(DataOut<dim> &               data_out,
-                     const BlockVectorType &      vec,
+    add_data_vectors(DataOut<dim>                &data_out,
+                     const BlockVectorType       &vec,
                      const std::set<std::string> &fields_list) const
     {
 #define OPERATION(c, d) \
@@ -616,8 +618,8 @@ namespace Sintering
 
     template <int n_comp, int n_grains>
     void
-    do_add_data_vectors(DataOut<dim> &               data_out,
-                        const BlockVectorType &      vec,
+    do_add_data_vectors(DataOut<dim>                &data_out,
+                        const BlockVectorType       &vec,
                         const std::set<std::string> &fields_list) const
     {
       static_cast<const T &>(*this)
@@ -645,8 +647,8 @@ namespace Sintering
 
     /* Compute integrals over the domain */
     std::vector<Number>
-    calc_domain_quantities(std::vector<QuantityCallback> &        quantities,
-                           const BlockVectorType &                vec,
+    calc_domain_quantities(std::vector<QuantityCallback>         &quantities,
+                           const BlockVectorType                 &vec,
                            const EvaluationFlags::EvaluationFlags eval_flags =
                              EvaluationFlags::values |
                              EvaluationFlags::gradients) const
@@ -659,8 +661,8 @@ namespace Sintering
     }
 
     std::vector<Number>
-    calc_domain_quantities(std::vector<QuantityCallback> &        quantities,
-                           const BlockVectorType &                vec,
+    calc_domain_quantities(std::vector<QuantityCallback>         &quantities,
+                           const BlockVectorType                 &vec,
                            QuantityPredicate                      qp_predicate,
                            const EvaluationFlags::EvaluationFlags eval_flags =
                              EvaluationFlags::values |
@@ -701,9 +703,9 @@ namespace Sintering
     void
     do_vmult_range(
       const MatrixFree<dim, Number, VectorizedArrayType> &matrix_free,
-      VectorType &                                        dst,
-      const VectorType &                                  src,
-      const std::pair<unsigned int, unsigned int> &       range) const
+      VectorType                                         &dst,
+      const VectorType                                   &src,
+      const std::pair<unsigned int, unsigned int>        &range) const
     {
       static_assert(n_comp > 0);
 
@@ -730,9 +732,9 @@ namespace Sintering
     void
     do_vmult_range(
       const MatrixFree<dim, Number, VectorizedArrayType> &matrix_free,
-      BlockVectorType &                                   dst,
-      const BlockVectorType &                             src,
-      const std::pair<unsigned int, unsigned int> &       range) const
+      BlockVectorType                                    &dst,
+      const BlockVectorType                              &src,
+      const std::pair<unsigned int, unsigned int>        &range) const
     {
       static_assert(n_comp > 0);
 
@@ -758,10 +760,10 @@ namespace Sintering
     template <int n_comp, int n_grains>
     void
     do_vmult_range(
-      const MatrixFree<dim, Number, VectorizedArrayType> &   matrix_free,
-      LinearAlgebra::distributed::BlockVector<Number> &      dst,
+      const MatrixFree<dim, Number, VectorizedArrayType>    &matrix_free,
+      LinearAlgebra::distributed::BlockVector<Number>       &dst,
       const LinearAlgebra::distributed::BlockVector<Number> &src,
-      const std::pair<unsigned int, unsigned int> &          range) const
+      const std::pair<unsigned int, unsigned int>           &range) const
     {
       static_assert(n_comp > 0);
 
@@ -828,8 +830,8 @@ namespace Sintering
 
     std::vector<Number>
     do_calc_domain_quantities(
-      std::vector<QuantityCallback> &        quantities,
-      const BlockVectorType &                vec,
+      std::vector<QuantityCallback>         &quantities,
+      const BlockVectorType                 &vec,
       std::function<VectorizedArrayType(
         const FECellIntegrator<dim, 1, Number, VectorizedArrayType> &,
         unsigned int)>                       predicate,
@@ -919,7 +921,7 @@ namespace Sintering
     get_vector_output_entries_mask(
       const std::array<std::tuple<std::string, O, unsigned int>,
                        n_data_variants> &possible_entries,
-      const std::set<std::string> &      fields_list) const
+      const std::set<std::string>       &fields_list) const
     {
       // A better design is possible, but at the moment this is sufficient
       std::array<bool, n_data_variants> entries_mask;
@@ -942,7 +944,7 @@ namespace Sintering
 
   protected:
     const MatrixFree<dim, Number, VectorizedArrayType> &matrix_free;
-    const AffineConstraints<Number> &                   constraints;
+    const AffineConstraints<Number>                    &constraints;
     mutable AffineConstraints<Number>                   constraints_for_matrix;
 
     const unsigned int dof_index;

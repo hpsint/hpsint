@@ -1,10 +1,11 @@
 #include <deal.II/lac/affine_constraints.h>
 #include <deal.II/lac/affine_constraints.templates.h>
 
-#include <pf-applications/lac/dynamic_block_vector.h>
-
 #include <deal.II/trilinos/nox.h>
 #include <deal.II/trilinos/nox.templates.h>
+
+#include <pf-applications/lac/dynamic_block_vector.h>
+
 #include <pf-applications/grain_tracker/representation.h>
 
 using namespace dealii;

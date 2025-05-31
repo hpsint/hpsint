@@ -63,7 +63,7 @@ public:
 
   ProjectionOperator(
     const MatrixFree<dim, Number, VectorizedArrayType> &matrix_free,
-    const QPointType &                                  apply_q,
+    const QPointType                                   &apply_q,
     unsigned int                                        level = 2)
     : matrix_free(matrix_free)
     , level(level)
@@ -123,7 +123,7 @@ public:
     if (level == 4 || level == 5)
       matrix_free.template cell_loop<VT, VT>(
         [&](const auto &matrix_free,
-            auto &      dst,
+            auto       &dst,
             const auto &src,
             const auto  range) {
           if (dim != 3)
@@ -169,7 +169,7 @@ public:
           value_type    value_in_0    = {};
           gradient_type gradient_in_0 = {};
 
-          const auto &              dof_info = matrix_free.get_dof_info();
+          const auto               &dof_info = matrix_free.get_dof_info();
           const VectorizedArrayType val0 =
             matrix_free.get_shape_info().data.front().shape_values[0];
           const VectorizedArrayType val1 =
@@ -631,7 +631,7 @@ public:
     else
       matrix_free.template cell_loop<VT, VT>(
         [this](const auto &matrix_free,
-               auto &      dst,
+               auto       &dst,
                const auto &src,
                const auto  range) {
           FEEvaluation<dim,
@@ -659,8 +659,8 @@ private:
   void
   op_local(
     FEEvaluation<dim, fe_degree, n_q_points, nc, Number, VectorizedArrayType>
-      &       phi,
-    VT &      dst,
+             &phi,
+    VT       &dst,
     const VT &src) const
   {
     if (level == 0)
@@ -739,5 +739,5 @@ private:
 private:
   const MatrixFree<dim, Number, VectorizedArrayType> &matrix_free;
   const unsigned int                                  level;
-  const QPointType &                                  apply_q;
+  const QPointType                                   &apply_q;
 };

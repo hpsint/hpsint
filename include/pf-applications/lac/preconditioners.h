@@ -205,7 +205,7 @@ namespace Preconditioners
     }
 
   private:
-    const Operator &                op;
+    const Operator                 &op;
     DiagonalMatrix<BlockVectorType> diagonal_matrix;
   };
 
@@ -305,7 +305,7 @@ namespace Preconditioners
     }
 
   private:
-    const Operator &                op;
+    const Operator                 &op;
     std::vector<FullMatrix<Number>> diagonal_matrix;
 
     mutable VectorType src_, dst_;
@@ -412,8 +412,8 @@ namespace Preconditioners
   private:
     static void
     compute_block_diagonal_matrix(
-      const DoFHandler<dim> &                                   dof_handler,
-      const TrilinosWrappers::SparseMatrix &                    system_matrix_0,
+      const DoFHandler<dim>                                    &dof_handler,
+      const TrilinosWrappers::SparseMatrix                     &system_matrix_0,
       std::vector<FullMatrix<typename VectorType::value_type>> &blocks)
     {
       const unsigned int dofs_per_cell = dof_handler.get_fe().n_dofs_per_cell();
@@ -693,7 +693,7 @@ namespace Preconditioners
       typename Operator::value_type>::BlockVectorType;
 
     BlockAMG(
-      const Operator &                                         op,
+      const Operator                                          &op,
       const TrilinosWrappers::PreconditionAMG::AdditionalData &additional_data =
         TrilinosWrappers::PreconditionAMG::AdditionalData())
       : op(op)
@@ -781,7 +781,7 @@ namespace Preconditioners
     }
 
     ILU(
-      const Operator &                                         op,
+      const Operator                                          &op,
       const TrilinosWrappers::PreconditionILU::AdditionalData &additional_data)
       : op(op)
       , additional_data(additional_data)
@@ -880,7 +880,7 @@ namespace Preconditioners
     }
 
     BlockILU(
-      const Operator &                                         op,
+      const Operator                                          &op,
       const TrilinosWrappers::PreconditionILU::AdditionalData &additional_data)
       : op(op)
       , single_block(op.n_unique_components() == 1)
@@ -1231,7 +1231,7 @@ namespace Preconditioners
 
   private:
     const MGLevelObject<std::shared_ptr<Operator>> &op;
-    const std::shared_ptr<MGTransferTypeScalar> &   transfer;
+    const std::shared_ptr<MGTransferTypeScalar>    &transfer;
     mutable MyTimerOutput                           timer;
 
     DoFHandler<dim> dof_handler_dummy;
@@ -1295,8 +1295,8 @@ namespace Preconditioners
 
   template <typename T>
   std::unique_ptr<PreconditionerBase<typename T::value_type>>
-  create(const T &                                          op,
-         const std::string &                                label,
+  create(const T                                           &op,
+         const std::string                                 &label,
          TrilinosWrappers::PreconditionAMG::AdditionalData &additional_data)
   {
     if (label == "AMG")
@@ -1315,8 +1315,8 @@ namespace Preconditioners
 
   template <typename T>
   std::unique_ptr<PreconditionerBase<typename T::value_type>>
-  create(const T &                                          op,
-         const std::string &                                label,
+  create(const T                                           &op,
+         const std::string                                 &label,
          TrilinosWrappers::PreconditionILU::AdditionalData &additional_data)
   {
     if (label == "ILU")
@@ -1338,7 +1338,7 @@ namespace Preconditioners
   create(const MGLevelObject<std::shared_ptr<T>> &op,
          const std::shared_ptr<
            MGTransferGlobalCoarsening<T::dimension, typename T::VectorType>>
-           &                transfer,
+                           &transfer,
          const std::string &label)
   {
     if (label == "GMG" || label == "BlockGMG")

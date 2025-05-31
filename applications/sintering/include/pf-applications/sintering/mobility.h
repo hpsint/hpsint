@@ -343,7 +343,7 @@ namespace Sintering
 
     // note: only for postprocessing
     DEAL_II_ALWAYS_INLINE VectorizedArrayType
-    M_surf(const VectorizedArrayType &                c,
+    M_surf(const VectorizedArrayType                 &c,
            const Tensor<1, dim, VectorizedArrayType> &c_grad) const
     {
       (void)c_grad;
@@ -356,7 +356,7 @@ namespace Sintering
     // note: only for postprocessing
     template <typename VectorTypeValue, typename VectorTypeGradient>
     DEAL_II_ALWAYS_INLINE VectorizedArrayType
-    M_gb(const VectorTypeValue &   etas,
+    M_gb(const VectorTypeValue    &etas,
          const unsigned int        etas_size,
          const VectorTypeGradient &etas_grad) const
     {
@@ -376,10 +376,10 @@ namespace Sintering
     // TODO: replace by apply!?
     template <typename VectorTypeValue, typename VectorTypeGradient>
     DEAL_II_ALWAYS_INLINE VectorizedArrayType
-    dM_dc(const VectorizedArrayType &                c,
-          const VectorTypeValue &                    etas,
+    dM_dc(const VectorizedArrayType                 &c,
+          const VectorTypeValue                     &etas,
           const Tensor<1, dim, VectorizedArrayType> &c_grad,
-          const VectorTypeGradient &                 etas_grad) const
+          const VectorTypeGradient                  &etas_grad) const
     {
       (void)etas;
       (void)c_grad;
@@ -397,7 +397,7 @@ namespace Sintering
 
     // TODO: replace by apply!?
     DEAL_II_ALWAYS_INLINE Tensor<2, dim, VectorizedArrayType>
-                          dM_dgrad_c(const VectorizedArrayType &                c,
+                          dM_dgrad_c(const VectorizedArrayType                 &c,
                                      const Tensor<1, dim, VectorizedArrayType> &c_grad,
                                      const Tensor<1, dim, VectorizedArrayType> &mu_grad) const
     {
@@ -413,11 +413,11 @@ namespace Sintering
     // TODO: replace by apply!?
     template <typename VectorTypeValue, typename VectorTypeGradient>
     DEAL_II_ALWAYS_INLINE VectorizedArrayType
-    dM_detai(const VectorizedArrayType &                c,
-             const VectorTypeValue &                    etas,
+    dM_detai(const VectorizedArrayType                 &c,
+             const VectorTypeValue                     &etas,
              const unsigned int                         etas_size,
              const Tensor<1, dim, VectorizedArrayType> &c_grad,
-             const VectorTypeGradient &                 etas_grad,
+             const VectorTypeGradient                  &etas_grad,
              unsigned int                               index_i) const
     {
       (void)c;
@@ -438,11 +438,11 @@ namespace Sintering
 
     template <typename VectorTypeValue, typename VectorTypeGradient>
     DEAL_II_ALWAYS_INLINE Tensor<1, dim, VectorizedArrayType>
-                          apply_M(const VectorizedArrayType &                lin_c_value,
-                                  const VectorTypeValue &                    lin_etas_value,
+                          apply_M(const VectorizedArrayType                 &lin_c_value,
+                                  const VectorTypeValue                     &lin_etas_value,
                                   const unsigned int                         n_grains,
                                   const Tensor<1, dim, VectorizedArrayType> &lin_c_gradient,
-                                  const VectorTypeGradient &                 lin_etas_gradient,
+                                  const VectorTypeGradient                  &lin_etas_gradient,
                                   const Tensor<1, dim, VectorizedArrayType> &mu_gradient) const
     {
       (void)lin_c_gradient;
@@ -475,10 +475,10 @@ namespace Sintering
 
     DEAL_II_ALWAYS_INLINE Tensor<1, dim, VectorizedArrayType>
                           apply_M_derivative(
-                            const VectorizedArrayType *                lin_value,
+                            const VectorizedArrayType                 *lin_value,
                             const Tensor<1, dim, VectorizedArrayType> *lin_gradient,
                             const unsigned int                         n_grains,
-                            const VectorizedArrayType *                value,
+                            const VectorizedArrayType                 *value,
                             const Tensor<1, dim, VectorizedArrayType> *gradient) const
     {
       const auto &lin_c_value     = lin_value[0];
@@ -547,7 +547,7 @@ namespace Sintering
 
     // TODO: add apply!?
     DEAL_II_ALWAYS_INLINE Tensor<2, dim, VectorizedArrayType>
-                          dM_surf_dc(const VectorizedArrayType &                c,
+                          dM_surf_dc(const VectorizedArrayType                 &c,
                                      const Tensor<1, dim, VectorizedArrayType> &c_grad) const
     {
       (void)c_grad;
@@ -620,7 +620,7 @@ namespace Sintering
 
     // note: only for postprocessing
     DEAL_II_ALWAYS_INLINE Tensor<2, dim, VectorizedArrayType>
-                          M_surf(const VectorizedArrayType &                c,
+                          M_surf(const VectorizedArrayType                 &c,
                                  const Tensor<1, dim, VectorizedArrayType> &c_grad) const
     {
       // Surface anisotropic part
@@ -636,7 +636,7 @@ namespace Sintering
     // note: only for postprocessing
     template <typename VectorTypeValue, typename VectorTypeGradient>
     DEAL_II_ALWAYS_INLINE Tensor<2, dim, VectorizedArrayType>
-                          M_gb(const VectorTypeValue &   etas,
+                          M_gb(const VectorTypeValue    &etas,
                                const unsigned int        etas_size,
                                const VectorTypeGradient &etas_grad) const
     {
@@ -667,10 +667,10 @@ namespace Sintering
     // TODO: replace by apply!?
     template <typename VectorTypeValue, typename VectorTypeGradient>
     DEAL_II_ALWAYS_INLINE Tensor<2, dim, VectorizedArrayType>
-                          dM_dc(const VectorizedArrayType &                c,
-                                const VectorTypeValue &                    etas,
+                          dM_dc(const VectorizedArrayType                 &c,
+                                const VectorTypeValue                     &etas,
                                 const Tensor<1, dim, VectorizedArrayType> &c_grad,
-                                const VectorTypeGradient &                 etas_grad) const
+                                const VectorTypeGradient                  &etas_grad) const
     {
       (void)etas;
       (void)etas_grad;
@@ -699,7 +699,7 @@ namespace Sintering
 
     // TODO: replace by apply!?
     DEAL_II_ALWAYS_INLINE Tensor<2, dim, VectorizedArrayType>
-                          dM_dgrad_c(const VectorizedArrayType &                c,
+                          dM_dgrad_c(const VectorizedArrayType                 &c,
                                      const Tensor<1, dim, VectorizedArrayType> &c_grad,
                                      const Tensor<1, dim, VectorizedArrayType> &mu_grad) const
     {
@@ -725,11 +725,11 @@ namespace Sintering
     // TODO: replace by apply!?
     template <typename VectorTypeValue, typename VectorTypeGradient>
     DEAL_II_ALWAYS_INLINE Tensor<2, dim, VectorizedArrayType>
-                          dM_detai(const VectorizedArrayType &                c,
-                                   const VectorTypeValue &                    etas,
+                          dM_detai(const VectorizedArrayType                 &c,
+                                   const VectorTypeValue                     &etas,
                                    const unsigned int                         etas_size,
                                    const Tensor<1, dim, VectorizedArrayType> &c_grad,
-                                   const VectorTypeGradient &                 etas_grad,
+                                   const VectorTypeGradient                  &etas_grad,
                                    unsigned int                               index_i) const
     {
       (void)c;
@@ -755,11 +755,11 @@ namespace Sintering
 
     template <typename VectorTypeValue, typename VectorTypeGradient>
     DEAL_II_ALWAYS_INLINE Tensor<1, dim, VectorizedArrayType>
-                          apply_M(const VectorizedArrayType &                lin_c_value,
-                                  const VectorTypeValue &                    lin_etas_value,
+                          apply_M(const VectorizedArrayType                 &lin_c_value,
+                                  const VectorTypeValue                     &lin_etas_value,
                                   const unsigned int                         n_grains,
                                   const Tensor<1, dim, VectorizedArrayType> &lin_c_gradient,
-                                  const VectorTypeGradient &                 lin_etas_gradient,
+                                  const VectorTypeGradient                  &lin_etas_gradient,
                                   const Tensor<1, dim, VectorizedArrayType> &mu_gradient) const
     {
       VectorizedArrayType phi =
@@ -807,10 +807,10 @@ namespace Sintering
 
     DEAL_II_ALWAYS_INLINE Tensor<1, dim, VectorizedArrayType>
                           apply_M_derivative(
-                            const VectorizedArrayType *                lin_value,
+                            const VectorizedArrayType                 *lin_value,
                             const Tensor<1, dim, VectorizedArrayType> *lin_gradient,
                             const unsigned int                         n_grains,
-                            const VectorizedArrayType *                value,
+                            const VectorizedArrayType                 *value,
                             const Tensor<1, dim, VectorizedArrayType> *gradient) const
     {
       const auto &lin_c_value       = lin_value[0];
@@ -930,7 +930,7 @@ namespace Sintering
 
     // TODO: add apply!?
     DEAL_II_ALWAYS_INLINE Tensor<2, dim, VectorizedArrayType>
-                          dM_surf_dc(const VectorizedArrayType &                c,
+                          dM_surf_dc(const VectorizedArrayType                 &c,
                                      const Tensor<1, dim, VectorizedArrayType> &c_grad) const
     {
       const auto c2_1minusc2 = 4.0 * c * c * (1. - c) * (1. - c);

@@ -31,8 +31,8 @@ namespace debug
   template <typename BlockVectorType, typename Stream>
   void
   print_vector(const BlockVectorType &vec,
-               const std::string &    label,
-               Stream &               stream)
+               const std::string     &label,
+               Stream                &stream)
   {
     const unsigned int n_len = vec.block(0).size();
 

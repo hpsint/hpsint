@@ -256,8 +256,8 @@ namespace GrainTracker
 
     /* Check if a given remapping exists in the graph. */
     bool
-    remapping_exists(const Vertex &     vertex_src,
-                     const Vertex &     vertex_dst,
+    remapping_exists(const Vertex      &vertex_src,
+                     const Vertex      &vertex_dst,
                      const unsigned int grain_id) const
     {
       for (auto e : boost::make_iterator_range(

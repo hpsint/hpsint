@@ -75,7 +75,7 @@ namespace Sintering
       template <typename VectorType>
       Evaluation(const double       A,
                  const double       B,
-                 const VectorType & state,
+                 const VectorType  &state,
                  const unsigned int n_grains)
         : A(A)
         , B(B)
@@ -233,11 +233,11 @@ namespace Sintering
 
     template <typename VectorType>
     DEAL_II_ALWAYS_INLINE void
-    apply_d2f_detaidetaj(const VectorType &         L,
+    apply_d2f_detaidetaj(const VectorType          &L,
                          const VectorizedArrayType *etas,
                          const unsigned int         n_grains,
                          const VectorizedArrayType *value,
-                         VectorizedArrayType *      value_result) const
+                         VectorizedArrayType       *value_result) const
     {
       if (n_grains <= 1)
         return; // nothing to do

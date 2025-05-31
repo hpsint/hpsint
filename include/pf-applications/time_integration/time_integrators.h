@@ -171,7 +171,7 @@ namespace TimeIntegration
     using TimeCellIntegrator =
       std::vector<FECellIntegrator<dim, n_comp, Number, VectorizedArrayType>>;
 
-    BDFIntegrator(const TimeIntegratorData<Number> &      time_data,
+    BDFIntegrator(const TimeIntegratorData<Number>       &time_data,
                   const SolutionHistory<BlockVectorType> &history)
       : time_data(time_data)
       , history(history)
@@ -179,9 +179,9 @@ namespace TimeIntegration
 
     template <int n_comp>
     void
-    compute_time_derivative(VectorizedArrayType &              value_result,
+    compute_time_derivative(VectorizedArrayType               &value_result,
                             const CellIntegratorValue<n_comp> &val,
-                            const TimeCellIntegrator<n_comp> & time_phi,
+                            const TimeCellIntegrator<n_comp>  &time_phi,
                             const unsigned int                 index,
                             const unsigned int                 q) const
     {
@@ -190,8 +190,8 @@ namespace TimeIntegration
 
     template <int n_comp>
     void
-    compute_time_derivative(VectorizedArrayType &             value_result,
-                            const VectorizedArrayType &       val,
+    compute_time_derivative(VectorizedArrayType              &value_result,
+                            const VectorizedArrayType        &val,
                             const TimeCellIntegrator<n_comp> &time_phi,
                             const unsigned int                index,
                             const unsigned int                q) const
@@ -218,7 +218,7 @@ namespace TimeIntegration
     }
 
   private:
-    const TimeIntegratorData<Number> &      time_data;
+    const TimeIntegratorData<Number>       &time_data;
     const SolutionHistory<BlockVectorType> &history;
   };
 } // namespace TimeIntegration

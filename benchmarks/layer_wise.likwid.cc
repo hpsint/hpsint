@@ -41,7 +41,7 @@
 #  include <likwid.h>
 #endif
 
-//#define WITH_TENSORIAL_MOBILITY
+// #define WITH_TENSORIAL_MOBILITY
 
 #define MAX_SINTERING_GRAINS 10
 #define MAX_N_COMPONENTS MAX_SINTERING_GRAINS + 2
@@ -133,7 +133,7 @@ template <int n_components,
 std::shared_ptr<ProjectionOperatorBase<Number>>
 create_op(const unsigned int                                  level,
           const MatrixFree<dim, Number, VectorizedArrayType> &matrix_free,
-          const QPointType &                                  q_point_operator)
+          const QPointType                                   &q_point_operator)
 {
   const auto &si = matrix_free.get_shape_info().data.front();
 
@@ -192,7 +192,7 @@ std::shared_ptr<ProjectionOperatorBase<Number>>
 create_op(const unsigned int                                  n_components,
           const unsigned int                                  level,
           const MatrixFree<dim, Number, VectorizedArrayType> &matrix_free,
-          const QPointType &                                  q_point_operator)
+          const QPointType                                   &q_point_operator)
 {
 #if MAX_N_COMPONENTS >= 1
   if (n_components == 1)

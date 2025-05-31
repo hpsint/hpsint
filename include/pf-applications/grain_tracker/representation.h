@@ -165,7 +165,7 @@ namespace GrainTracker
   {
     RepresentationElliptical(const Point<dim> &center,
                              const double      measure,
-                             const double *    data)
+                             const double     *data)
     {
       double inertia_data[num_inertias<dim>];
       std::copy_n(data, num_inertias<dim>, inertia_data);
@@ -175,15 +175,15 @@ namespace GrainTracker
       initialize(center, measure, inertia);
     }
 
-    RepresentationElliptical(const Point<dim> &             center,
+    RepresentationElliptical(const Point<dim>              &center,
                              const double                   measure,
                              const SymmetricTensor<2, dim> &inertia)
     {
       initialize(center, measure, inertia);
     }
 
-    RepresentationElliptical(const Point<dim> &                 center,
-                             const std::array<double, dim> &    radii,
+    RepresentationElliptical(const Point<dim>                  &center,
+                             const std::array<double, dim>     &radii,
                              const std::array<Point<dim>, dim> &axes)
       : ellipsoid(center, radii, axes)
     {}
@@ -258,7 +258,7 @@ namespace GrainTracker
 
   private:
     void
-    initialize(const Point<dim> &             center,
+    initialize(const Point<dim>              &center,
                const double                   measure,
                const SymmetricTensor<2, dim> &inertia)
     {
@@ -297,7 +297,7 @@ namespace GrainTracker
     RepresentationWavefront(
       const unsigned int order_param,
       const unsigned int index_in,
-      const Point<dim> & center_in,
+      const Point<dim>  &center_in,
       const std::map<std::pair<unsigned int, unsigned int>, double>
         &distances_in)
       : op_and_index{order_param, index_in}

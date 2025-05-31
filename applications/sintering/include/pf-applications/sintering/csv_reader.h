@@ -110,24 +110,24 @@ namespace Sintering
         ++(*this);
         return tmp;
       }
-      CSVRow const &
+      const CSVRow &
       operator*() const
       {
         return row;
       }
-      CSVRow const *
+      const CSVRow *
       operator->() const
       {
         return &row;
       }
 
       bool
-      operator==(CSVIterator const &rhs)
+      operator==(const CSVIterator &rhs)
       {
         return ((this == &rhs) || ((this->str == NULL) && (rhs.str == NULL)));
       }
       bool
-      operator!=(CSVIterator const &rhs)
+      operator!=(const CSVIterator &rhs)
       {
         return !((*this) == rhs);
       }

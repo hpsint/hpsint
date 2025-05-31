@@ -33,9 +33,9 @@ namespace GrainTracker
   std::vector<double>
   scale_elliptical_representations(
     const std::vector<std::unique_ptr<RepresentationElliptical<dim>>>
-      &                    representations,
+                          &representations,
     const DoFHandler<dim> &dof_handler,
-    const VectorIds &      particle_ids,
+    const VectorIds       &particle_ids,
     const double           invalid_particle_id = -1.0)
   {
     const auto comm = dof_handler.get_communicator();

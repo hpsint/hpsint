@@ -141,7 +141,7 @@ namespace Sintering
 
     void
     set_component_mask(
-      const MatrixFree<dim, Number, VectorizedArrayType> &          matrix_free,
+      const MatrixFree<dim, Number, VectorizedArrayType>           &matrix_free,
       const LinearAlgebra::distributed::DynamicBlockVector<Number> &src,
       const bool   save_op_gradients,
       const bool   save_all_blocks,
@@ -292,7 +292,7 @@ namespace Sintering
 
     void
     fill_quadrature_point_values(
-      const MatrixFree<dim, Number, VectorizedArrayType> &          matrix_free,
+      const MatrixFree<dim, Number, VectorizedArrayType>           &matrix_free,
       const LinearAlgebra::distributed::DynamicBlockVector<Number> &src,
       const bool save_op_gradients = false,
       const bool save_all_blocks   = false)
@@ -502,9 +502,9 @@ namespace Sintering
   struct SinteringNonLinearData
   {
     decltype(std::declval<const Table<3, VectorizedArrayType>>().operator[](0))
-      const &values;
-    decltype(
-      std::declval<const Table<3, Tensor<1, dim, VectorizedArrayType>>>().
-      operator[](0)) const &gradients;
+      const                         &values;
+    decltype(std::declval<const Table<3, Tensor<1, dim, VectorizedArrayType>>>()
+               .
+               operator[](0)) const &gradients;
   };
 } // namespace Sintering

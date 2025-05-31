@@ -42,9 +42,9 @@ namespace Sintering
   public:
     OperatorCahnHilliard(
       const NonLinearOperator<dim, Number, VectorizedArrayType>
-        &                                                    nonlinear_operator,
-      const MatrixFree<dim, Number, VectorizedArrayType> &   matrix_free,
-      const AffineConstraints<Number> &                      constraints,
+                                                            &nonlinear_operator,
+      const MatrixFree<dim, Number, VectorizedArrayType>    &matrix_free,
+      const AffineConstraints<Number>                       &constraints,
       const SinteringOperatorData<dim, VectorizedArrayType> &data,
       const AdvectionMechanism<dim, Number, VectorizedArrayType> &advection)
       : OperatorBase<dim,
@@ -167,7 +167,7 @@ namespace Sintering
 
   private:
     const NonLinearOperator<dim, Number, VectorizedArrayType>
-      &                                                    nonlinear_operator;
+                                                          &nonlinear_operator;
     const SinteringOperatorData<dim, VectorizedArrayType> &data;
     const AdvectionMechanism<dim, Number, VectorizedArrayType> &advection;
   };
@@ -181,11 +181,11 @@ namespace Sintering
   {
   public:
     OperatorSolid(
-      const MatrixFree<dim, Number, VectorizedArrayType> &   matrix_free,
-      const AffineConstraints<Number> &                      constraints,
+      const MatrixFree<dim, Number, VectorizedArrayType>    &matrix_free,
+      const AffineConstraints<Number>                       &constraints,
       const SinteringOperatorData<dim, VectorizedArrayType> &data,
       const std::array<std::vector<unsigned int>, dim>
-        &                                 displ_constraints_indices,
+                                         &displ_constraints_indices,
       const double                        E  = 1.0,
       const double                        nu = 0.25,
       const Structural::MaterialPlaneType plane_type =
@@ -263,7 +263,7 @@ namespace Sintering
 
     Tensor<2, dim, VectorizedArrayType>
     get_stress(const Tensor<2, dim, VectorizedArrayType> &H,
-               const VectorizedArrayType &                c) const
+               const VectorizedArrayType                 &c) const
     {
       const auto cl = compare_and_apply_mask<SIMDComparison::less_than>(
         c, VectorizedArrayType(c_min), VectorizedArrayType(c_min), c);
@@ -298,9 +298,9 @@ namespace Sintering
   public:
     OperatorAllenCahn(
       const NonLinearOperator<dim, Number, VectorizedArrayType>
-        &                                                    nonlinear_operator,
-      const MatrixFree<dim, Number, VectorizedArrayType> &   matrix_free,
-      const AffineConstraints<Number> &                      constraints,
+                                                            &nonlinear_operator,
+      const MatrixFree<dim, Number, VectorizedArrayType>    &matrix_free,
+      const AffineConstraints<Number>                       &constraints,
       const SinteringOperatorData<dim, VectorizedArrayType> &data,
       const AdvectionMechanism<dim, Number, VectorizedArrayType> &advection)
       : OperatorBase<dim,
@@ -411,7 +411,7 @@ namespace Sintering
 
   private:
     const NonLinearOperator<dim, Number, VectorizedArrayType>
-      &                                                    nonlinear_operator;
+                                                          &nonlinear_operator;
     const SinteringOperatorData<dim, VectorizedArrayType> &data;
     const AdvectionMechanism<dim, Number, VectorizedArrayType> &advection;
   };
@@ -435,9 +435,9 @@ namespace Sintering
   public:
     OperatorAllenCahnBlocked(
       const NonLinearOperator<dim, Number, VectorizedArrayType>
-        &                                                    nonlinear_operator,
-      const MatrixFree<dim, Number, VectorizedArrayType> &   matrix_free,
-      const AffineConstraints<Number> &                      constraints,
+                                                            &nonlinear_operator,
+      const MatrixFree<dim, Number, VectorizedArrayType>    &matrix_free,
+      const AffineConstraints<Number>                       &constraints,
       const SinteringOperatorData<dim, VectorizedArrayType> &data,
       const AdvectionMechanism<dim, Number, VectorizedArrayType> &advection,
       const std::string free_energy_approximation_string = "all")
@@ -882,7 +882,7 @@ namespace Sintering
 
   private:
     const NonLinearOperator<dim, Number, VectorizedArrayType>
-      &                                                    nonlinear_operator;
+                                                          &nonlinear_operator;
     const SinteringOperatorData<dim, VectorizedArrayType> &data;
     const AdvectionMechanism<dim, Number, VectorizedArrayType> &advection;
 
@@ -900,7 +900,7 @@ namespace Sintering
   {
   public:
     MassMatrix(const MatrixFree<dim, Number, VectorizedArrayType> &matrix_free,
-               const AffineConstraints<Number> &                   constraints)
+               const AffineConstraints<Number>                    &constraints)
       : OperatorBase<dim,
                      Number,
                      VectorizedArrayType,
@@ -970,11 +970,11 @@ namespace Sintering
 
     BlockPreconditioner2(
       const NonLinearOperator<dim, Number, VectorizedArrayType>
-        &                                                    nonlinear_operator,
+                                                            &nonlinear_operator,
       const SinteringOperatorData<dim, VectorizedArrayType> &sintering_data,
-      const MatrixFree<dim, Number, VectorizedArrayType> &   matrix_free,
-      const AffineConstraints<Number> &                      constraints,
-      const BlockPreconditioner2Data &                       data,
+      const MatrixFree<dim, Number, VectorizedArrayType>    &matrix_free,
+      const AffineConstraints<Number>                       &constraints,
+      const BlockPreconditioner2Data                        &data,
       const AdvectionMechanism<dim, Number, VectorizedArrayType> &advection)
       : data(data)
     {
@@ -1032,14 +1032,14 @@ namespace Sintering
 
     BlockPreconditioner2(
       const NonLinearOperator<dim, Number, VectorizedArrayType>
-        &                                                    nonlinear_operator,
+                                                            &nonlinear_operator,
       const SinteringOperatorData<dim, VectorizedArrayType> &sintering_data,
-      const MatrixFree<dim, Number, VectorizedArrayType> &   matrix_free,
-      const AffineConstraints<Number> &                      constraints,
-      const BlockPreconditioner2Data &                       data,
+      const MatrixFree<dim, Number, VectorizedArrayType>    &matrix_free,
+      const AffineConstraints<Number>                       &constraints,
+      const BlockPreconditioner2Data                        &data,
       const AdvectionMechanism<dim, Number, VectorizedArrayType> &advection,
       const std::array<std::vector<unsigned int>, dim>
-        &                                 zero_constraints_indices,
+                                         &zero_constraints_indices,
       const double                        E  = 1.0,
       const double                        nu = 0.25,
       const Structural::MaterialPlaneType plane_type =
@@ -1081,17 +1081,17 @@ namespace Sintering
 
     BlockPreconditioner2(
       const NonLinearOperator<dim, Number, VectorizedArrayType>
-        &                                                    nonlinear_operator,
+                                                            &nonlinear_operator,
       const SinteringOperatorData<dim, VectorizedArrayType> &sintering_data,
-      const MatrixFree<dim, Number, VectorizedArrayType> &   matrix_free,
-      const AffineConstraints<Number> &                      constraints,
+      const MatrixFree<dim, Number, VectorizedArrayType>    &matrix_free,
+      const AffineConstraints<Number>                       &constraints,
       const MGLevelObject<SinteringOperatorData<dim, VectorizedArrayType>>
         &mg_sintering_data,
       const MGLevelObject<MatrixFree<dim, Number, VectorizedArrayType>>
-        &                                             mg_matrix_free,
+                                                     &mg_matrix_free,
       const MGLevelObject<AffineConstraints<Number>> &mg_constraints,
       const std::shared_ptr<MGTransferGlobalCoarsening<dim, VectorType>>
-        &                             transfer,
+                                     &transfer,
       const BlockPreconditioner2Data &data)
       : data(data)
     {
@@ -1341,7 +1341,7 @@ namespace Sintering
   public:
     HelmholtzOperator(
       const MatrixFree<dim, Number, VectorizedArrayType> &matrix_free,
-      const AffineConstraints<Number> &                   constraints,
+      const AffineConstraints<Number>                    &constraints,
       const unsigned int                                  n_components_)
       : OperatorBase<dim,
                      Number,

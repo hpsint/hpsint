@@ -96,9 +96,9 @@ namespace dealii
 
     template <typename VectorType>
     void
-    split_up_fast(const VectorType & vec,
-                  VectorType &       vec_0,
-                  VectorType &       vec_1,
+    split_up_fast(const VectorType  &vec,
+                  VectorType        &vec_0,
+                  VectorType        &vec_1,
                   const unsigned int n_grains)
     {
       for (unsigned int i = 0, i0 = 0, i1 = 0;
@@ -124,9 +124,9 @@ namespace dealii
               typename VectorType>
     void
     split_up(const MatrixFree<dim, Number, VectorizedArrayType> &matrix_free,
-             const VectorType &                                  vec,
-             VectorType &                                        vec_0,
-             VectorType &                                        vec_1)
+             const VectorType                                   &vec,
+             VectorType                                         &vec_0,
+             VectorType                                         &vec_1)
     {
       vec.update_ghost_values();
 
@@ -191,10 +191,10 @@ namespace dealii
 
     template <typename VectorType>
     void
-    split_up_fast(const VectorType & vec,
-                  VectorType &       vec_0,
-                  VectorType &       vec_1,
-                  VectorType &       vec_2,
+    split_up_fast(const VectorType  &vec,
+                  VectorType        &vec_0,
+                  VectorType        &vec_1,
+                  VectorType        &vec_2,
                   const unsigned int n_grains)
     {
       for (unsigned int i = 0, i0 = 0, i1 = 0, i2 = 0;
@@ -216,10 +216,10 @@ namespace dealii
               typename VectorType>
     void
     split_up(const MatrixFree<dim, Number, VectorizedArrayType> &matrix_free,
-             const VectorType &                                  vec,
-             VectorType &                                        vec_0,
-             VectorType &                                        vec_1,
-             VectorType &                                        vec_2)
+             const VectorType                                   &vec,
+             VectorType                                         &vec_0,
+             VectorType                                         &vec_1,
+             VectorType                                         &vec_2)
     {
       vec.update_ghost_values();
 
@@ -306,9 +306,9 @@ namespace dealii
 
     template <typename VectorType>
     void
-    merge_fast(const VectorType & vec_0,
-               const VectorType & vec_1,
-               VectorType &       vec,
+    merge_fast(const VectorType  &vec_0,
+               const VectorType  &vec_1,
+               VectorType        &vec,
                const unsigned int n_grains)
     {
       for (unsigned int i = 0, i0 = 0, i1 = 0;
@@ -330,9 +330,9 @@ namespace dealii
               typename VectorType>
     void
     merge(const MatrixFree<dim, Number, VectorizedArrayType> &matrix_free,
-          const VectorType &                                  vec_0,
-          const VectorType &                                  vec_1,
-          VectorType &                                        vec)
+          const VectorType                                   &vec_0,
+          const VectorType                                   &vec_1,
+          VectorType                                         &vec)
     {
       vec_0.update_ghost_values();
       vec_1.update_ghost_values();
@@ -398,10 +398,10 @@ namespace dealii
 
     template <typename VectorType>
     void
-    merge_fast(const VectorType & vec_0,
-               const VectorType & vec_1,
-               const VectorType & vec_2,
-               VectorType &       vec,
+    merge_fast(const VectorType  &vec_0,
+               const VectorType  &vec_1,
+               const VectorType  &vec_2,
+               VectorType        &vec,
                const unsigned int n_grains)
     {
       for (unsigned int i = 0, i0 = 0, i1 = 0, i2 = 0;
@@ -423,10 +423,10 @@ namespace dealii
               typename VectorType>
     void
     merge(const MatrixFree<dim, Number, VectorizedArrayType> &matrix_free,
-          const VectorType &                                  vec_0,
-          const VectorType &                                  vec_1,
-          const VectorType &                                  vec_2,
-          VectorType &                                        vec)
+          const VectorType                                   &vec_0,
+          const VectorType                                   &vec_1,
+          const VectorType                                   &vec_2,
+          VectorType                                         &vec)
     {
       vec_0.update_ghost_values();
       vec_1.update_ghost_values();

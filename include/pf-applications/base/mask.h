@@ -22,19 +22,19 @@ namespace hpsint
   template <int N, int... M>
   struct Mask
   {
-    static int const value = (1 << (N - 1)) | Mask<M...>::value;
+    static const int value = (1 << (N - 1)) | Mask<M...>::value;
   };
 
   template <int N>
   struct Mask<N>
   {
-    static int const value = (1 << (N - 1));
+    static const int value = (1 << (N - 1));
   };
 
   template <>
   struct Mask<0>
   {
-    static int const value = 0;
+    static const int value = 0;
   };
 
   template <typename M, int bit>

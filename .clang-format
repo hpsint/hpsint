@@ -1,5 +1,5 @@
 #
-# The clang-format (Clang 11) style file used by deal.II.
+# The clang-format (Clang 16) style file used by deal.II.
 #
 
 AccessModifierOffset: -2
@@ -79,6 +79,8 @@ IncludeCategories:
     Priority: 120
   - Regex:    "deal.II/boost_adaptors/.*\\.h"
     Priority: 125
+  - Regex:    "deal.II/cgal/.*\\.h"
+    Priority: 127
   - Regex:    "deal.II/differentiation/.*\\.h"
     Priority: 130
   - Regex:    "deal.II/distributed/.*\\.h"
@@ -115,10 +117,12 @@ IncludeCategories:
     Priority: 290
   - Regex:    "deal.II/physics/.*\\.h"
     Priority: 300
-  - Regex:    "deal.II/simplex/.*\\.h"
-    Priority: 310
   - Regex:    "deal.II/sundials/.*\\.h"
+    Priority: 310
+  - Regex:    "deal.II/trilinos/.*\\.h"
     Priority: 320
+  - Regex:    "deal.II/vtk/.*\\.h"
+    Priority: 330
   - Regex:    "pf-applications/base/.*\\.h"
     Priority: 400
   - Regex:    "pf-applications/lac/.*\\.h"
@@ -168,6 +172,8 @@ PointerAlignment: Right
 ReflowComments: true
 CommentPragmas: '( \| |\*--|<li>|@ref | @p |@param |@name |@returns |@warning |@ingroup |@author |@date |@related |@relates |@relatesalso |@deprecated |@image |@return |@brief |@attention |@copydoc |@addtogroup |@todo |@tparam |@see |@note |@skip |@skipline |@until |@line |@dontinclude |@include)'
 
+QualifierAlignment: Left
+
 SortIncludes: true
 SortUsingDeclarations: true
 
@@ -183,7 +189,7 @@ SpacesInContainerLiterals: false
 SpacesInParentheses: false
 SpacesInSquareBrackets: false
 
-Standard: Cpp11
+Standard: c++20
 
 TabWidth: 2
 

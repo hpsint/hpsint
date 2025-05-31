@@ -17,7 +17,7 @@
 
 using namespace dealii;
 
-//#define DEBUG_NORM
+// #define DEBUG_NORM
 
 struct NewtonSolverData
 {
@@ -50,9 +50,9 @@ template <typename VectorType,
 class NewtonSolver
 {
 public:
-  NewtonSolver(NonlinearOperator &      nonlinear_operator_in,
+  NewtonSolver(NonlinearOperator       &nonlinear_operator_in,
                SolverLinearizedProblem &linear_solver_in,
-               const NewtonSolverData & solver_data_in = NewtonSolverData())
+               const NewtonSolverData  &solver_data_in = NewtonSolverData())
     : solver_data(solver_data_in)
     , nonlinear_operator(nonlinear_operator_in)
     , linear_solver(linear_solver_in)
@@ -63,9 +63,9 @@ public:
   }
 
   NewtonSolverStatistics
-  solve(VectorType &       dst,
-        bool const         update_preconditioner_linear_solver     = true,
-        unsigned int const update_preconditioner_every_newton_iter = true)
+  solve(VectorType        &dst,
+        const bool         update_preconditioner_linear_solver     = true,
+        const unsigned int update_preconditioner_every_newton_iter = true)
   {
     VectorType rhs;
     return this->solve(dst,
@@ -77,10 +77,10 @@ public:
 
 
   NewtonSolverStatistics
-  solve(VectorType &       dst,
-        VectorType const & rhs,
-        bool const         update_preconditioner_linear_solver     = true,
-        unsigned int const update_preconditioner_every_newton_iter = true)
+  solve(VectorType        &dst,
+        const VectorType  &rhs,
+        const bool         update_preconditioner_linear_solver     = true,
+        const unsigned int update_preconditioner_every_newton_iter = true)
   {
     const bool constant_rhs = rhs.size() > 0;
 
@@ -117,7 +117,7 @@ public:
         // solve linear problem
         nonlinear_operator.set_solution_linearization(dst);
         nonlinear_operator.evaluate_newton_step(dst);
-        bool const do_update = update_preconditioner_linear_solver &&
+        const bool do_update = update_preconditioner_linear_solver &&
                                (statistics.newton_iterations %
                                   update_preconditioner_every_newton_iter ==
                                 0);
@@ -185,7 +185,7 @@ public:
 
 private:
   NewtonSolverData         solver_data;
-  NonlinearOperator &      nonlinear_operator;
+  NonlinearOperator       &nonlinear_operator;
   SolverLinearizedProblem &linear_solver;
 
   VectorType residual, increment, tmp;

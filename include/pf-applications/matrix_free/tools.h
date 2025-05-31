@@ -35,15 +35,15 @@ namespace dealii
     void
     compute_matrix(
       const MatrixFree<dim, Number, VectorizedArrayType> &matrix_free,
-      const AffineConstraints<Number> &                   constraints_in,
-      TrilinosWrappers::SparseMatrix &                    matrix,
+      const AffineConstraints<Number>                    &constraints_in,
+      TrilinosWrappers::SparseMatrix                     &matrix,
       const std::function<void(FEEvaluation<dim,
                                             fe_degree,
                                             n_q_points_1d,
                                             n_components,
                                             Number,
                                             VectorizedArrayType> &)>
-        &                local_vmult,
+                        &local_vmult,
       const unsigned int dof_no                   = 0,
       const unsigned int quad_no                  = 0,
       const unsigned int first_selected_component = 0)
@@ -184,15 +184,15 @@ namespace dealii
     void
     compute_matrix(
       const MatrixFree<dim, Number, VectorizedArrayType> &matrix_free,
-      const AffineConstraints<Number> &                   constraints,
-      TrilinosWrappers::SparseMatrix &                    matrix,
+      const AffineConstraints<Number>                    &constraints,
+      TrilinosWrappers::SparseMatrix                     &matrix,
       void (CLASS::*cell_operation)(FEEvaluation<dim,
                                                  fe_degree,
                                                  n_q_points_1d,
                                                  n_components,
                                                  Number,
                                                  VectorizedArrayType> &) const,
-      const CLASS *      owning_class,
+      const CLASS       *owning_class,
       const unsigned int dof_no                   = 0,
       const unsigned int quad_no                  = 0,
       const unsigned int first_selected_component = 0)
@@ -220,7 +220,7 @@ namespace dealii
     void
     compute_matrix(
       const MatrixFree<dim, Number, VectorizedArrayType> &matrix_free,
-      const AffineConstraints<Number> &                   constraints_in,
+      const AffineConstraints<Number>                    &constraints_in,
       std::vector<std::shared_ptr<TrilinosWrappers::SparseMatrix>> &matrix,
       const std::function<void(FEEvaluation<dim,
                                             fe_degree,
@@ -228,7 +228,7 @@ namespace dealii
                                             n_components,
                                             Number,
                                             VectorizedArrayType> &)>
-        &                local_vmult,
+                        &local_vmult,
       const unsigned int dof_no                   = 0,
       const unsigned int quad_no                  = 0,
       const unsigned int first_selected_component = 0)
@@ -364,8 +364,8 @@ namespace dealii
               typename VectorizedArrayType>
     void
     compute_matrix(
-      const MatrixFree<dim, Number, VectorizedArrayType> &          matrix_free,
-      const AffineConstraints<Number> &                             constraints,
+      const MatrixFree<dim, Number, VectorizedArrayType>           &matrix_free,
+      const AffineConstraints<Number>                              &constraints,
       std::vector<std::shared_ptr<TrilinosWrappers::SparseMatrix>> &matrix,
       void (CLASS::*cell_operation)(FEEvaluation<dim,
                                                  fe_degree,
@@ -373,7 +373,7 @@ namespace dealii
                                                  n_components,
                                                  Number,
                                                  VectorizedArrayType> &) const,
-      const CLASS *      owning_class,
+      const CLASS       *owning_class,
       const unsigned int dof_no                   = 0,
       const unsigned int quad_no                  = 0,
       const unsigned int first_selected_component = 0)
@@ -418,8 +418,8 @@ namespace dealii
         OutVector &,
         const InVector &,
         const std::pair<unsigned int, unsigned int> &) const,
-      const CLASS *   owning_class,
-      OutVector &     dst,
+      const CLASS    *owning_class,
+      OutVector      &dst,
       const InVector &src,
       const bool      zero_dst_vector = false)
     {
@@ -441,13 +441,13 @@ namespace dealii
         OutVector &,
         const InVector &,
         const std::pair<unsigned int, unsigned int> &) const,
-      const CLASS *   owning_class,
-      OutVector &     dst,
+      const CLASS    *owning_class,
+      OutVector      &dst,
       const InVector &src,
       const std::function<void(const unsigned int, const unsigned int)>
         &operation_before_loop,
       const std::function<void(const unsigned int, const unsigned int)>
-        &                operation_after_loop,
+                        &operation_after_loop,
       const unsigned int dof_handler_index_pre_post = 0)
     {
       matrix_free.cell_loop(cell_operation,

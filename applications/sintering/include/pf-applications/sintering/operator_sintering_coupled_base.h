@@ -36,10 +36,10 @@ namespace Sintering
     using vector_type = VectorType;
 
     SinteringOperatorCoupledBase(
-      const MatrixFree<dim, Number, VectorizedArrayType> &     matrix_free,
-      const AffineConstraints<Number> &                        constraints,
-      const FreeEnergy<VectorizedArrayType> &                  free_energy,
-      const SinteringOperatorData<dim, VectorizedArrayType> &  data,
+      const MatrixFree<dim, Number, VectorizedArrayType>      &matrix_free,
+      const AffineConstraints<Number>                         &constraints,
+      const FreeEnergy<VectorizedArrayType>                   &free_energy,
+      const SinteringOperatorData<dim, VectorizedArrayType>   &data,
       const TimeIntegration::SolutionHistory<BlockVectorType> &history,
       const bool                                               matrix_based,
       const double                                             E  = 1.0,
@@ -194,8 +194,8 @@ namespace Sintering
 
     template <int n_comp, int n_grains>
     void
-    do_add_data_vectors_kernel(DataOut<dim> &               data_out,
-                               const BlockVectorType &      vec,
+    do_add_data_vectors_kernel(DataOut<dim>                &data_out,
+                               const BlockVectorType       &vec,
                                const std::set<std::string> &fields_list) const
     {
       // Output from the parent
@@ -412,7 +412,7 @@ namespace Sintering
 
     Tensor<2, dim, VectorizedArrayType>
     get_stress(const Tensor<2, dim, VectorizedArrayType> &H,
-               const VectorizedArrayType &                c) const
+               const VectorizedArrayType                 &c) const
     {
       const auto cl = compare_and_apply_mask<SIMDComparison::less_than>(
         c, VectorizedArrayType(c_min), VectorizedArrayType(c_min), c);

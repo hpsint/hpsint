@@ -122,7 +122,7 @@ main(int argc, char **argv)
   DoFHandler<dim>           dof_handler(tria);
   AffineConstraints<double> constraints;
   BlockVectorType           dbv_wrapper(1);
-  auto &                    solution = dbv_wrapper.block(0);
+  auto                     &solution = dbv_wrapper.block(0);
 
   const auto initialize_dofs = [&]() {
     dof_handler.distribute_dofs(fe);

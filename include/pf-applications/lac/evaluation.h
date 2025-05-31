@@ -28,11 +28,11 @@ namespace hpsint
             typename Residual,
             typename NonLinearOperator>
   void
-  calc_numeric_tangent(const DoFHandler<dim> &  dof_handler,
+  calc_numeric_tangent(const DoFHandler<dim>   &dof_handler,
                        const NonLinearOperator &nonlinear_operator,
-                       const VectorType &       linearization_point,
+                       const VectorType        &linearization_point,
                        Residual                 nl_residual,
-                       MatrixType &             tangent_numeric,
+                       MatrixType              &tangent_numeric,
                        const double             epsilon   = 1e-7,
                        const double             tolerance = 1e-12)
   {

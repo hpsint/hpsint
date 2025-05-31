@@ -56,10 +56,10 @@ namespace Test
 
   void
   track_grains_for_microstructure(
-    const InitialValues<2> &             initial_values,
-    const std::string &                  base_name,
+    const InitialValues<2>              &initial_values,
+    const std::string                   &base_name,
     const std::pair<Point<2>, Point<2>> &boundaries,
-    const std::vector<unsigned int> &    subdivisions,
+    const std::vector<unsigned int>     &subdivisions,
     const bool                           periodic,
     const bool                           print_grains)
   {
@@ -214,7 +214,7 @@ namespace Test
     const unsigned int max_order_parameters_num = 80;
 
     // Lambda to remap vectors
-    auto remap_vector = [&](BlockVectorType &           vector,
+    auto remap_vector = [&](BlockVectorType            &vector,
                             const Tracker<dim, double> &grain_tracker,
                             bool                        grains_reassigned,
                             bool                        op_number_changed) {
@@ -313,7 +313,7 @@ namespace Test
 
   void
   track_grains_for_microstructure(const InitialValues<2> &initial_values,
-                                  const std::string &     base_name,
+                                  const std::string      &base_name,
                                   const std::vector<unsigned int> &subdivisions,
                                   const bool                       periodic,
                                   const bool                       print_grains)

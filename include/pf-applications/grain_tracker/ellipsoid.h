@@ -89,8 +89,8 @@ namespace GrainTracker
   {
   public:
     // Build an ellipsoid from its center, radii and principal axes
-    Ellipsoid(const Point<dim, Number> &                 center,
-              const std::array<Number, dim> &            radii,
+    Ellipsoid(const Point<dim, Number>                  &center,
+              const std::array<Number, dim>             &radii,
               const std::array<Point<dim, Number>, dim> &axes)
       : radii(radii)
       , r_min(*std::min_element(radii.cbegin(), radii.cend()))
@@ -105,8 +105,8 @@ namespace GrainTracker
      * measure (i.e. volume). Effectively, we evaluated radii from the principal
      * moments and then delegate to the constructor above.
      */
-    Ellipsoid(const Point<dim, Number> &                 principal_center,
-              const std::array<Number, dim> &            principal_moments,
+    Ellipsoid(const Point<dim, Number>                  &principal_center,
+              const std::array<Number, dim>             &principal_moments,
               const std::array<Point<dim, Number>, dim> &principal_axes,
               const Number                               measure)
       : Ellipsoid(principal_center,
@@ -116,7 +116,7 @@ namespace GrainTracker
 
     // Build an ellipsoid from its quadratic form
     Ellipsoid(const SymmetricTensor<2, dim, Number> &A_in,
-              const Tensor<1, dim, Number> &         b_in,
+              const Tensor<1, dim, Number>          &b_in,
               const Number                           alpha_in)
       : A(A_in)
       , b(b_in)

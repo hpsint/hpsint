@@ -32,9 +32,9 @@ namespace dealii
   bool
   coarsen_triangulation(parallel::distributed::Triangulation<dim> &tria_copy,
                         const DoFHandler<dim> &background_dof_handler,
-                        DoFHandler<dim> &      background_dof_handler_coarsened,
-                        const VectorType &     vector,
-                        VectorType &           vector_coarsened,
+                        DoFHandler<dim>       &background_dof_handler_coarsened,
+                        const VectorType      &vector,
+                        VectorType            &vector_coarsened,
                         const unsigned int     n_coarsening_steps)
   {
     if (n_coarsening_steps == 0)
@@ -113,12 +113,12 @@ namespace dealii
 
   template <typename Number, typename VectorType>
   void
-  update_selected_ghosts(VectorType &                  vector,
+  update_selected_ghosts(VectorType                   &vector,
                          const VectorOperation::values operation,
-                         Utilities::MPI::Partitioner & partitioner,
-                         std::vector<Number> &         ghosts_values,
-                         const IndexSet &              ghost_indices,
-                         const IndexSet &              larger_ghost_index_set)
+                         Utilities::MPI::Partitioner  &partitioner,
+                         std::vector<Number>          &ghosts_values,
+                         const IndexSet               &ghost_indices,
+                         const IndexSet               &larger_ghost_index_set)
   {
     partitioner.set_ghost_indices(ghost_indices, larger_ghost_index_set);
 
@@ -149,8 +149,8 @@ namespace dealii
   template <int dim, typename VectorType>
   void
   filter_mesh_withing_bounding_box(
-    const DoFHandler<dim> &                       background_dof_handler,
-    VectorType &                                  vector,
+    const DoFHandler<dim>                        &background_dof_handler,
+    VectorType                                   &vector,
     const double                                  iso_level,
     std::shared_ptr<const BoundingBoxFilter<dim>> box_filter,
     const double                                  null_value = 0.)

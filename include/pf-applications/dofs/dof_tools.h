@@ -26,9 +26,9 @@ namespace dealii
               typename number>
     void
     make_sparsity_pattern(const DoFHandler<dim, spacedim> &dof_handler,
-                          SparsityPatternType &            sparsity,
+                          SparsityPatternType             &sparsity,
                           const AffineConstraints<number> &constraints,
-                          const Quadrature<dim> &          quadrature,
+                          const Quadrature<dim>           &quadrature,
                           const bool keep_constrained_dofs = true)
     {
       const auto &fe = dof_handler.get_fe();

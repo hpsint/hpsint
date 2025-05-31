@@ -139,7 +139,7 @@ namespace NonLinearSolvers
     };
 
     SNESSolver(const AdditionalData &additional_data,
-               const std::string &   snes_type = "");
+               const std::string    &snes_type = "");
 
     void
     clear();
@@ -166,8 +166,8 @@ namespace NonLinearSolvers
 
     std::function<SolverControl::State(const unsigned int i,
                                        const double       norm_f,
-                                       const VectorType & x,
-                                       const VectorType & f)>
+                                       const VectorType  &x,
+                                       const VectorType  &f)>
       check_iteration_status;
 
     std::function<bool()> update_preconditioner_predicate;
@@ -207,7 +207,7 @@ namespace NonLinearSolvers
 
   template <typename VectorType>
   SNESSolver<VectorType>::SNESSolver(const AdditionalData &additional_data,
-                                     const std::string &   snes_type)
+                                     const std::string    &snes_type)
     : additional_data(additional_data)
     , snes_type(snes_type)
     , n_residual_evaluations(0)
@@ -317,7 +317,7 @@ namespace NonLinearSolvers
     };
 
     solver.solve_for_jacobian_system = [&](const PVectorType &src,
-                                           PVectorType &      dst) -> int {
+                                           PVectorType       &dst) -> int {
       // TODO: tolerance not used
       const double tolerance = 0.0;
 

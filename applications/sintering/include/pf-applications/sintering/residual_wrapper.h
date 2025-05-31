@@ -40,7 +40,7 @@ namespace Sintering
     template <int with_time_derivative = 2>
     void
     evaluate_nonlinear_residual(
-      BlockVectorType &      dst,
+      BlockVectorType       &dst,
       const BlockVectorType &src,
       const std::function<void(const unsigned int, const unsigned int)>
         pre_operation = {},
@@ -58,7 +58,7 @@ namespace Sintering
   private:
     virtual void
     evaluate_for_residual(
-      BlockVectorType &      dst,
+      BlockVectorType       &dst,
       const BlockVectorType &src,
       const std::function<void(const unsigned int, const unsigned int)>
         pre_operation = {},
@@ -67,7 +67,7 @@ namespace Sintering
 
     virtual void
     evaluate_for_jacobian(
-      BlockVectorType &      dst,
+      BlockVectorType       &dst,
       const BlockVectorType &src,
       const std::function<void(const unsigned int, const unsigned int)>
         pre_operation = {},
@@ -92,7 +92,7 @@ namespace Sintering
     template <unsigned int with_time_derivative = 2>
     void
     do_evaluate_nonlinear_residual(
-      BlockVectorType &      dst,
+      BlockVectorType       &dst,
       const BlockVectorType &src,
       const std::function<void(const unsigned int, const unsigned int)>
         pre_operation = {},
@@ -149,7 +149,7 @@ namespace Sintering
   private:
     void
     evaluate_for_residual(
-      BlockVectorType &      dst,
+      BlockVectorType       &dst,
       const BlockVectorType &src,
       const std::function<void(const unsigned int, const unsigned int)>
         pre_operation = {},
@@ -164,7 +164,7 @@ namespace Sintering
 
     void
     evaluate_for_jacobian(
-      BlockVectorType &      dst,
+      BlockVectorType       &dst,
       const BlockVectorType &src,
       const std::function<void(const unsigned int, const unsigned int)>
         pre_operation = {},
@@ -197,7 +197,7 @@ namespace Sintering
 
     ResidualWrapperAdvection(
       const AdvectionOperator<dim, Number, VectorizedArrayType>
-        &                 advection_operator,
+                         &advection_operator,
       const OperatorType &nonlinear_operator)
       : ResidualWrapperBase<Number, OperatorType>(nonlinear_operator)
       , advection_operator(advection_operator)
@@ -206,7 +206,7 @@ namespace Sintering
   private:
     void
     evaluate_for_residual(
-      BlockVectorType &      dst,
+      BlockVectorType       &dst,
       const BlockVectorType &src,
       const std::function<void(const unsigned int, const unsigned int)>
         pre_operation = {},
@@ -222,7 +222,7 @@ namespace Sintering
 
     void
     evaluate_for_jacobian(
-      BlockVectorType &      dst,
+      BlockVectorType       &dst,
       const BlockVectorType &src,
       const std::function<void(const unsigned int, const unsigned int)>
         pre_operation = {},

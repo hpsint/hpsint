@@ -49,10 +49,10 @@ namespace Sintering
       const double                                           cgb,
       const double                                           ceq,
       const double                                           smoothening,
-      const MatrixFree<dim, Number, VectorizedArrayType> &   matrix_free,
-      const AffineConstraints<Number> &                      constraints,
+      const MatrixFree<dim, Number, VectorizedArrayType>    &matrix_free,
+      const AffineConstraints<Number>                       &constraints,
       const SinteringOperatorData<dim, VectorizedArrayType> &data,
-      const GrainTracker::Tracker<dim, Number> &             grain_tracker,
+      const GrainTracker::Tracker<dim, Number>              &grain_tracker,
       AdvectionMechanism<dim, Number, VectorizedArrayType> &advection_mechanism)
       : OperatorBase<dim,
                      Number,
@@ -249,9 +249,9 @@ namespace Sintering
     void
     do_evaluate_forces(
       const MatrixFree<dim, Number, VectorizedArrayType> &matrix_free,
-      BlockVectorType &                                   dummy,
-      const BlockVectorType &                             solution,
-      const std::pair<unsigned int, unsigned int> &       range) const
+      BlockVectorType                                    &dummy,
+      const BlockVectorType                              &solution,
+      const std::pair<unsigned int, unsigned int>        &range) const
     {
       (void)dummy;
 
@@ -488,7 +488,7 @@ namespace Sintering
     const double smoothening;
 
     const SinteringOperatorData<dim, VectorizedArrayType> &data;
-    const GrainTracker::Tracker<dim, Number> &             grain_tracker;
+    const GrainTracker::Tracker<dim, Number>              &grain_tracker;
 
     AdvectionMechanism<dim, Number, VectorizedArrayType> &advection_mechanism;
 

@@ -113,7 +113,7 @@ public:
       {
         // Apply DBC
         constraints_imposition =
-          [&](const DoFHandler<dim> &    local_dof_handler,
+          [&](const DoFHandler<dim>     &local_dof_handler,
               AffineConstraints<Number> &local_constraints) {
             DoFTools::make_zero_boundary_constraints(local_dof_handler,
                                                      1,
