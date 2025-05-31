@@ -73,7 +73,7 @@ namespace GrainTracker
     using BlockVectorType =
       LinearAlgebra::distributed::DynamicBlockVector<Number>;
 
-    Tracker(const DoFHandler<dim> &                 dof_handler,
+    Tracker(const DoFHandler<dim>                  &dof_handler,
             const parallel::TriangulationBase<dim> &tria,
             const bool                              greedy_init,
             const bool                              allow_new_grains,
@@ -730,7 +730,7 @@ namespace GrainTracker
             [this,
              &values,
              op_id](const dealii::DoFCellAccessor<dim, dim, false> &cell,
-                    BlockVectorType *                               solution) {
+                    BlockVectorType                                *solution) {
               cell.set_dof_values(values, solution->block(op_id));
             });
         }
@@ -904,7 +904,7 @@ namespace GrainTracker
             grain,
             [this, &values, op_id_src, op_id_dst, &solutions_to_temps](
               const dealii::DoFCellAccessor<dim, dim, false> &cell,
-              BlockVectorType *                               solution) {
+              BlockVectorType                                *solution) {
               cell.get_dof_values(solution->block(op_id_src), values);
               cell.set_dof_values(
                 values, solutions_to_temps.at(solution)->block(op_id_dst));
@@ -949,7 +949,7 @@ namespace GrainTracker
             grain,
             [this, &values, op_id_src, op_id_dst](
               const dealii::DoFCellAccessor<dim, dim, false> &cell,
-              BlockVectorType *                               solution) {
+              BlockVectorType                                *solution) {
               cell.get_dof_values(solution->block(op_id_src), values);
               cell.set_dof_values(values, solution->block(op_id_dst));
             });
@@ -992,7 +992,7 @@ namespace GrainTracker
             grain,
             [this, &values, op_id_src, op_id_dst, &solutions_to_temps](
               const dealii::DoFCellAccessor<dim, dim, false> &cell,
-              BlockVectorType *                               solution) {
+              BlockVectorType                                *solution) {
               cell.get_dof_values(
                 solutions_to_temps.at(solution)->block(op_id_src), values);
               cell.set_dof_values(values, solution->block(op_id_dst));

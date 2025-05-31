@@ -339,7 +339,7 @@ namespace Sintering
     DEAL_II_ALWAYS_INLINE inline Tensor<1, dim, VectorizedArrayType>
     calc_rotation_velocity(
       const AdvectionCellData<dim, Number, VectorizedArrayType> &op_cell_data,
-      const Point<dim, VectorizedArrayType> &                    r) const
+      const Point<dim, VectorizedArrayType>                     &r) const
     {
       // Get vector from the particle center to the current point
       const auto r_rc = r - op_cell_data.rc;
@@ -456,7 +456,7 @@ namespace Sintering
 
     template <typename Stream>
     void
-    print_forces(Stream &                                  out,
+    print_forces(Stream                                   &out,
                  const GrainTracker::Tracker<dim, Number> &grain_tracker) const
     {
       out << std::endl;

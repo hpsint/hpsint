@@ -40,8 +40,8 @@ namespace Sintering
     using vector_type = VectorType;
 
     PostprocOperator(
-      const MatrixFree<dim, Number, VectorizedArrayType> &   matrix_free,
-      const AffineConstraints<Number> &                      constraints,
+      const MatrixFree<dim, Number, VectorizedArrayType>    &matrix_free,
+      const AffineConstraints<Number>                       &constraints,
       const SinteringOperatorData<dim, VectorizedArrayType> &data,
       const bool                                             matrix_based)
       : OperatorBase<dim,
@@ -110,8 +110,8 @@ namespace Sintering
 
     template <int n_comp, int n_grains>
     void
-    do_add_data_vectors_kernel(DataOut<dim> &               data_out,
-                               const BlockVectorType &      vec,
+    do_add_data_vectors_kernel(DataOut<dim>                &data_out,
+                               const BlockVectorType       &vec,
                                const std::set<std::string> &fields_list) const
     {
       (void)fields_list;
@@ -135,9 +135,9 @@ namespace Sintering
     void
     do_evaluate_rhs(
       const MatrixFree<dim, Number, VectorizedArrayType> &matrix_free,
-      BlockVectorType &                                   dst,
-      const BlockVectorType &                             src,
-      const std::pair<unsigned int, unsigned int> &       range) const
+      BlockVectorType                                    &dst,
+      const BlockVectorType                              &src,
+      const std::pair<unsigned int, unsigned int>        &range) const
     {
       FECellIntegrator<dim, 2 + n_grains, Number, VectorizedArrayType> phi_sint(
         matrix_free, this->dof_index);

@@ -55,6 +55,8 @@
 
 #include <deal.II/numerics/vector_tools.h>
 
+#include <deal.II/trilinos/nox.h>
+
 #include <pf-applications/base/debug.h>
 #include <pf-applications/base/fe_integrator.h>
 #include <pf-applications/base/scoped_name.h>
@@ -83,7 +85,6 @@
 #include <pf-applications/sintering/residual_wrapper.h>
 #include <pf-applications/sintering/tools.h>
 
-#include <deal.II/trilinos/nox.h>
 #include <pf-applications/grain_tracker/tracker.h>
 #include <pf-applications/grid/constraint_helper.h>
 #include <pf-applications/matrix_free/output.h>
@@ -164,7 +165,7 @@ namespace Sintering
 
     std::map<std::string, unsigned int> counters;
 
-    Problem(const Parameters &                  params,
+    Problem(const Parameters                   &params,
             std::shared_ptr<InitialValues<dim>> initial_solution)
       : params(params)
       , pcout(std::cout,
@@ -249,7 +250,7 @@ namespace Sintering
 
       const auto initialize_solution =
         [&](std::vector<typename VectorType::BlockType *> solution_ptr,
-            MyTimerOutput &                               timer) {
+            MyTimerOutput                                &timer) {
           ScopedName sc("initialize_solution");
           MyScope    scope(timer, sc);
 
@@ -410,7 +411,7 @@ namespace Sintering
       const auto initialize_solution =
         [&, flexible_output, n_blocks_total, restart_path](
           std::vector<typename VectorType::BlockType *> solution_ptr,
-          MyTimerOutput &                               timer) {
+          MyTimerOutput                                &timer) {
           ScopedName sc("deserialize_solution");
           MyScope    scope(timer, sc);
 
@@ -1579,7 +1580,7 @@ namespace Sintering
             additional_data, non_linear_parameters);
 
           non_linear_solver.residual = [&nl_residual](const auto &src,
-                                                      auto &      dst) {
+                                                      auto       &dst) {
             nl_residual(src, dst);
             return 0;
           };
@@ -1598,8 +1599,8 @@ namespace Sintering
               };
 
           non_linear_solver.solve_with_jacobian_and_track_n_linear_iterations =
-            [&nl_solve_with_jacobian](const auto & src,
-                                      auto &       dst,
+            [&nl_solve_with_jacobian](const auto  &src,
+                                      auto        &dst,
                                       const double tolerance) {
               (void)tolerance;
               return nl_solve_with_jacobian(src, dst);
@@ -1636,7 +1637,7 @@ namespace Sintering
             additional_data, params.nonlinear_data.snes_data.solver_name);
 
           non_linear_solver.residual = [&nl_residual](const auto &src,
-                                                      auto &      dst) {
+                                                      auto       &dst) {
             nl_residual(src, dst);
             return 0;
           };
@@ -1654,8 +1655,8 @@ namespace Sintering
             };
 
           non_linear_solver.solve_with_jacobian_and_track_n_linear_iterations =
-            [&nl_solve_with_jacobian](const auto & src,
-                                      auto &       dst,
+            [&nl_solve_with_jacobian](const auto  &src,
+                                      auto        &dst,
                                       const double tolerance) {
               (void)tolerance;
               return nl_solve_with_jacobian(src, dst);
@@ -3014,14 +3015,14 @@ namespace Sintering
   private:
     void
     output_result(
-      const VectorType &                  solution,
-      const NonLinearOperator &           sintering_operator,
+      const VectorType                   &solution,
+      const NonLinearOperator            &sintering_operator,
       GrainTracker::Tracker<dim, Number> &grain_tracker,
       const AdvectionMechanism<dim, Number, VectorizedArrayType>
-        &                                                advection_mechanism,
+                                                        &advection_mechanism,
       const NonLinearSolvers::NewtonSolverSolverControl &statistics,
       const double                                       t,
-      MyTimerOutput &                                    timer,
+      MyTimerOutput                                     &timer,
       const std::string                                  label = "solution",
       std::function<void(DataOut<dim> &data_out)>        additional_output = {})
     {

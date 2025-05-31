@@ -23,8 +23,8 @@ static_assert(false, "No dimension has been given!");
 static_assert(false, "No grains number has been given!");
 #endif
 
-//#define USE_FE_Q_iso_Q1
-//#define WITH_TENSORIAL_MOBILITY
+// #define USE_FE_Q_iso_Q1
+// #define WITH_TENSORIAL_MOBILITY
 
 #ifdef USE_FE_Q_iso_Q1
 #  define FE_DEGREE 2
@@ -35,7 +35,7 @@ static_assert(false, "No grains number has been given!");
 #endif
 
 #define WITH_TIMING
-//#define WITH_TIMING_OUTPUT
+// #define WITH_TIMING_OUTPUT
 
 #include <deal.II/base/convergence_table.h>
 #include <deal.II/base/mpi.h>
@@ -63,7 +63,7 @@ using namespace Sintering;
 
 template <typename T, typename VectorType>
 using evaluate_nonlinear_residual_t =
-  decltype(std::declval<T const>().evaluate_nonlinear_residual(
+  decltype(std::declval<const T>().evaluate_nonlinear_residual(
     std::declval<VectorType &>(),
     std::declval<const VectorType &>()));
 

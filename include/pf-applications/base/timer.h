@@ -243,9 +243,9 @@ private:
   TimerPredicate                                           predicate;
 
 public:
-  TimerCollection(TimerCollection const &) = delete;
+  TimerCollection(const TimerCollection &) = delete;
   void
-  operator=(TimerCollection const &) = delete;
+  operator=(const TimerCollection &) = delete;
 };
 
 
@@ -339,7 +339,7 @@ class MyScope
 {
 public:
   MyScope(dealii::TimerOutput &timer_,
-          const std::string &  section_name,
+          const std::string   &section_name,
           const bool           do_timing = true)
     : section_name(section_name)
   {
@@ -354,7 +354,7 @@ public:
 #endif
   }
 
-  MyScope(MyTimerOutput &    timer_,
+  MyScope(MyTimerOutput     &timer_,
           const std::string &section_name,
           const bool         do_timing = true)
     : MyScope(timer_(), section_name, do_timing)

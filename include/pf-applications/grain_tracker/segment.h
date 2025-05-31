@@ -41,7 +41,7 @@ namespace GrainTracker
       : representation(nullptr)
     {}
 
-    Segment(const Point<dim> &                center_in,
+    Segment(const Point<dim>                 &center_in,
             const double                      radius_in,
             const double                      measure_in,
             const double                      max_value_in,

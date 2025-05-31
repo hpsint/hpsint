@@ -39,10 +39,10 @@ namespace GrainTracker
   template <int dim, typename VectorSolution, typename VectorIds>
   unsigned int
   run_flooding(const typename DoFHandler<dim>::cell_iterator &cell,
-               const VectorSolution &                         solution,
-               VectorIds &                                    particle_ids,
+               const VectorSolution                          &solution,
+               VectorIds                                     &particle_ids,
                const unsigned int                             id,
-               double &                                       max_value,
+               double                                        &max_value,
                const double threshold_lower     = 0,
                const double invalid_particle_id = -1.0)
   {
@@ -128,7 +128,7 @@ namespace GrainTracker
   perform_distributed_stitching_via_graph(
     const MPI_Comm comm,
     const std::vector<std::vector<std::tuple<unsigned int, unsigned int>>>
-      &            edges_in,
+                  &edges_in,
     MyTimerOutput *timer = nullptr)
   {
     ScopedName sc("perform_distributed_stitching");
@@ -255,8 +255,8 @@ namespace GrainTracker
             for (const auto &data_i : data)
               {
                 const unsigned int index   = std::get<0>(data_i) - offset;
-                const auto &       values  = std::get<1>(data_i);
-                auto &             input_i = input[index];
+                const auto        &values  = std::get<1>(data_i);
+                auto              &input_i = input[index];
 
                 const unsigned int old_size = input_i.size();
 
@@ -357,7 +357,7 @@ namespace GrainTracker
   template <int dim, typename VectorIds>
   auto
   build_local_connectivity(const DoFHandler<dim> &dof_handler,
-                           const VectorIds &      particle_ids,
+                           const VectorIds       &particle_ids,
                            const double           local_grains_num,
                            const double           local_offset,
                            const double           invalid_particle_id = -1.0)
@@ -442,7 +442,7 @@ namespace GrainTracker
   template <typename VectorIds>
   void
   switch_to_global_indices(
-    VectorIds &                      particle_ids,
+    VectorIds                       &particle_ids,
     const std::vector<unsigned int> &local_to_global_particle_ids,
     const unsigned int               offset,
     const double                     invalid_particle_id = -1.0)
@@ -467,12 +467,12 @@ namespace GrainTracker
   template <int dim, typename VectorIds>
   std::vector<double>
   compute_particles_max_values(
-    const DoFHandler<dim> &          dof_handler,
-    const VectorIds &                particle_ids,
+    const DoFHandler<dim>           &dof_handler,
+    const VectorIds                 &particle_ids,
     const std::vector<unsigned int> &local_to_global_particle_ids,
     const unsigned int               local_offset,
     const double                     invalid_particle_id       = -1.0,
-    const std::vector<double> &      local_particle_max_values = {})
+    const std::vector<double>       &local_particle_max_values = {})
   {
     const auto comm = dof_handler.get_communicator();
 
@@ -516,7 +516,7 @@ namespace GrainTracker
   std::tuple<std::vector<Point<dim>>, // particle_centers
              std::vector<double>>     // particle_measures
   compute_particles_info(const DoFHandler<dim> &dof_handler,
-                         const VectorIds &      particle_ids,
+                         const VectorIds       &particle_ids,
                          const unsigned int     n_particles,
                          const double           invalid_particle_id = -1.0)
   {
@@ -573,8 +573,8 @@ namespace GrainTracker
   template <int dim, typename VectorIds>
   std::tuple<std::vector<double>,     // particle_radii
              std::vector<Point<dim>>> // particle_remotes
-  compute_particles_radii(const DoFHandler<dim> &        dof_handler,
-                          const VectorIds &              particle_ids,
+  compute_particles_radii(const DoFHandler<dim>         &dof_handler,
+                          const VectorIds               &particle_ids,
                           const std::vector<Point<dim>> &particle_centers,
                           const bool   evaluate_remotes    = false,
                           const double invalid_particle_id = -1.0)
@@ -648,8 +648,8 @@ namespace GrainTracker
 
   template <int dim, typename VectorIds>
   std::vector<double>
-  compute_particles_inertia(const DoFHandler<dim> &        dof_handler,
-                            const VectorIds &              particle_ids,
+  compute_particles_inertia(const DoFHandler<dim>         &dof_handler,
+                            const VectorIds               &particle_ids,
                             const std::vector<Point<dim>> &particle_centers,
                             const double invalid_particle_id = -1.0)
   {
@@ -692,9 +692,9 @@ namespace GrainTracker
 
   template <int dim, typename VectorSolution, typename VectorIds>
   std::tuple<unsigned int, std::vector<unsigned int>, std::vector<double>>
-  detect_local_particle_groups(VectorIds &            particle_ids,
+  detect_local_particle_groups(VectorIds             &particle_ids,
                                const DoFHandler<dim> &dof_handler,
-                               const VectorSolution & solution,
+                               const VectorSolution  &solution,
                                const bool     stitching_via_graphs = true,
                                const double   threshold_lower      = 0.01,
                                const double   invalid_particle_id  = -1.0,
@@ -786,8 +786,8 @@ namespace GrainTracker
     void
     run_flooding_prep(
       const typename DoFHandler<dim>::cell_iterator &cell,
-      const VectorIds &                              particle_ids,
-      VectorIds &                                    particle_markers,
+      const VectorIds                               &particle_ids,
+      VectorIds                                     &particle_markers,
       std::deque<std::vector<DoFCellAccessor<dim, dim, false>>> &agglomerations,
       const double invalid_particle_id = -1.0)
     {
@@ -885,11 +885,11 @@ namespace GrainTracker
 
   template <int dim, typename VectorIds>
   std::map<std::pair<unsigned int, unsigned int>, double>
-  estimate_particle_distances(const VectorIds &      particle_ids,
+  estimate_particle_distances(const VectorIds       &particle_ids,
                               const DoFHandler<dim> &dof_handler,
                               const double           invalid_particle_id = -1.0,
-                              MyTimerOutput *        timer    = nullptr,
-                              DataOut<dim> *         data_out = nullptr)
+                              MyTimerOutput         *timer    = nullptr,
+                              DataOut<dim>          *data_out = nullptr)
   {
     ScopedName sc("estimate_particle_distances");
     MyScope    scope(sc, timer);
@@ -1280,7 +1280,7 @@ namespace GrainTracker
   std::map<std::pair<unsigned int, unsigned int>,
            std::set<std::pair<unsigned int, unsigned int>>>
   get_direct_neighbors(const DoFHandler<dim> &dof_handler,
-                       const BlockVectorIds & particle_ids,
+                       const BlockVectorIds  &particle_ids,
                        const double           invalid_particle_id = -1.0)
   {
     /* Each pair here is (order_parameter_id, global_particle_id), where

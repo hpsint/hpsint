@@ -68,7 +68,7 @@ namespace GrainTracker
   template <int dim, typename Stream>
   void
   print_grains_invariant(const std::map<unsigned int, Grain<dim>> &grains,
-                         Stream &                                  out)
+                         Stream                                   &out)
   {
     std::vector<unsigned int>                         ordered_grains;
     std::map<unsigned int, std::vector<unsigned int>> ordered_segments;
@@ -195,7 +195,7 @@ namespace GrainTracker
   void
   output_grains_as_spherical_particles(
     const std::map<unsigned int, Grain<dim>> &grains,
-    const DoFHandler<dim> &                   dof_handler,
+    const DoFHandler<dim>                    &dof_handler,
     const std::string                         filename)
   {
     /* The simplest mapping is provided since it is not employed by the

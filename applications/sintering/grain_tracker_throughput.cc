@@ -152,7 +152,7 @@ public:
 
   void
   run_tests(const Sintering::InitialValues<dim> &initial_solution,
-            ConvergenceTable &                   table)
+            ConvergenceTable                    &table)
   {
     const unsigned int n_order_parameters =
       initial_solution.n_order_parameters();

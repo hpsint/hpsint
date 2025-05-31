@@ -40,10 +40,10 @@ namespace Sintering
     using vector_type = VectorType;
 
     SinteringOperatorBase(
-      const MatrixFree<dim, Number, VectorizedArrayType> &     matrix_free,
-      const AffineConstraints<Number> &                        constraints,
-      const FreeEnergy<VectorizedArrayType> &                  free_energy,
-      const SinteringOperatorData<dim, VectorizedArrayType> &  data,
+      const MatrixFree<dim, Number, VectorizedArrayType>      &matrix_free,
+      const AffineConstraints<Number>                         &constraints,
+      const FreeEnergy<VectorizedArrayType>                   &free_energy,
+      const SinteringOperatorData<dim, VectorizedArrayType>   &data,
       const TimeIntegration::SolutionHistory<BlockVectorType> &history,
       const bool                                               matrix_based)
       : OperatorBase<dim, Number, VectorizedArrayType, T>(matrix_free,
@@ -68,8 +68,8 @@ namespace Sintering
 
     template <int n_comp, int n_grains>
     void
-    do_add_data_vectors_kernel(DataOut<dim> &               data_out,
-                               const BlockVectorType &      vec,
+    do_add_data_vectors_kernel(DataOut<dim>                &data_out,
+                               const BlockVectorType       &vec,
                                const std::set<std::string> &fields_list) const
     {
       // Possible output options
@@ -406,7 +406,7 @@ namespace Sintering
         {
           if (qty == "solid_vol")
             q_evaluators.emplace_back(
-              [](const VectorizedArrayType *                value,
+              [](const VectorizedArrayType                 *value,
                  const Tensor<1, dim, VectorizedArrayType> *gradient) {
                 (void)gradient;
 
@@ -414,7 +414,7 @@ namespace Sintering
               });
           else if (qty == "surf_area")
             q_evaluators.emplace_back(
-              [](const VectorizedArrayType *                value,
+              [](const VectorizedArrayType                 *value,
                  const Tensor<1, dim, VectorizedArrayType> *gradient) {
                 (void)gradient;
 
@@ -422,7 +422,7 @@ namespace Sintering
               });
           else if (qty == "gb_area")
             q_evaluators.emplace_back(
-              [this](const VectorizedArrayType *                value,
+              [this](const VectorizedArrayType                 *value,
                      const Tensor<1, dim, VectorizedArrayType> *gradient) {
                 (void)gradient;
 
@@ -435,7 +435,7 @@ namespace Sintering
               });
           else if (qty == "avg_grain_size")
             q_evaluators.emplace_back(
-              [this](const VectorizedArrayType *                value,
+              [this](const VectorizedArrayType                 *value,
                      const Tensor<1, dim, VectorizedArrayType> *gradient) {
                 (void)gradient;
 
@@ -447,7 +447,7 @@ namespace Sintering
               });
           else if (qty == "surf_area_nrm")
             q_evaluators.emplace_back(
-              [](const VectorizedArrayType *                value,
+              [](const VectorizedArrayType                 *value,
                  const Tensor<1, dim, VectorizedArrayType> *gradient) {
                 (void)gradient;
 
@@ -467,7 +467,7 @@ namespace Sintering
               });
           else if (qty == "free_energy")
             q_evaluators.emplace_back(
-              [this](const VectorizedArrayType *                value,
+              [this](const VectorizedArrayType                 *value,
                      const Tensor<1, dim, VectorizedArrayType> *gradient) {
                 VectorizedArrayType energy(0.0);
 
@@ -488,7 +488,7 @@ namespace Sintering
               });
           else if (qty == "bulk_energy")
             q_evaluators.emplace_back(
-              [this](const VectorizedArrayType *                value,
+              [this](const VectorizedArrayType                 *value,
                      const Tensor<1, dim, VectorizedArrayType> *gradient) {
                 (void)gradient;
 
@@ -499,7 +499,7 @@ namespace Sintering
               });
           else if (qty == "interface_energy")
             q_evaluators.emplace_back(
-              [this](const VectorizedArrayType *                value,
+              [this](const VectorizedArrayType                 *value,
                      const Tensor<1, dim, VectorizedArrayType> *gradient) {
                 (void)value;
 
@@ -524,7 +524,7 @@ namespace Sintering
 
                 q_evaluators.emplace_back(
                   [this,
-                   i](const VectorizedArrayType *                value,
+                   i](const VectorizedArrayType                 *value,
                       const Tensor<1, dim, VectorizedArrayType> *gradient) {
                     (void)gradient;
 
@@ -533,7 +533,7 @@ namespace Sintering
               }
           else if (qty == "control_vol")
             q_evaluators.emplace_back(
-              [this](const VectorizedArrayType *                value,
+              [this](const VectorizedArrayType                 *value,
                      const Tensor<1, dim, VectorizedArrayType> *gradient) {
                 (void)value;
                 (void)gradient;
@@ -561,7 +561,7 @@ namespace Sintering
 
   protected:
     const FreeEnergy<VectorizedArrayType>                    free_energy;
-    const SinteringOperatorData<dim, VectorizedArrayType> &  data;
+    const SinteringOperatorData<dim, VectorizedArrayType>   &data;
     const TimeIntegration::SolutionHistory<BlockVectorType> &history;
     const TimeIntegration::BDFIntegrator<dim, Number, VectorizedArrayType>
       time_integrator;

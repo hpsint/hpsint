@@ -27,7 +27,7 @@ namespace dealii
     void
     add_mf_indices_vector(
       const MatrixFree<dim, Number, VectorizedArrayType> &matrix_free,
-      DataOut<dim> &                                      data_out,
+      DataOut<dim>                                       &data_out,
       const std::string name_batch_index = "mf_cell_batch_index",
       const std::string name_lane_index  = "mf_lane_index")
     {

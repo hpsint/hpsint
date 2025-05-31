@@ -24,7 +24,7 @@ namespace GrainTracker
   using namespace dealii;
 
   template <int dim>
-  constexpr unsigned int num_inertias = dim *((dim + 1) / 2.);
+  constexpr unsigned int num_inertias = dim * ((dim + 1) / 2.);
 
   /* Build a rotation tensor between the two given coordinate systems each given
    * by unitary vectors e_i and e_i0 as Q = e_i e_i0^T. */
@@ -61,7 +61,7 @@ namespace GrainTracker
   void
   evaluate_inertia_properties(const Point<2, Number> &r,
                               const Number            measure,
-                              Number *                data)
+                              Number                 *data)
   {
     const auto x = r[0];
     const auto y = r[1];
@@ -76,7 +76,7 @@ namespace GrainTracker
   void
   evaluate_inertia_properties(const Point<3, Number> &r,
                               const Number            measure,
-                              Number *                data)
+                              Number                 *data)
   {
     const auto x = r[0];
     const auto y = r[1];

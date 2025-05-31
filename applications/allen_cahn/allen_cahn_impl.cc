@@ -353,7 +353,7 @@ public:
     return reduction_control.last_step();
   }
 
-  const Operator &      op;
+  const Operator       &op;
   const Preconditioner &preconditioner;
 };
 
@@ -521,7 +521,7 @@ public:
 
         // ... evaluate residual
         nonlinear_solver.residual = [&](const VectorType &evaluation_point,
-                                        VectorType &      residual) {
+                                        VectorType       &residual) {
           ++n_eval_residual;
           nonlinear_operator.evaluate_nonlinear_residual(residual,
                                                          evaluation_point);
@@ -530,7 +530,7 @@ public:
 
         // ... setup Jacobian (MatrixFree) simply set linearization point
         nonlinear_solver.setup_jacobian =
-          [&](const VectorType &current_u, const VectorType & /*current_f*/) {
+          [&](const VectorType &current_u, const VectorType         &/*current_f*/) {
             nonlinear_operator.set_solution_linearization(current_u);
             return 0;
           };

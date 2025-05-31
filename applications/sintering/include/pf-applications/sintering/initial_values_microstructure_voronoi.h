@@ -34,7 +34,7 @@ namespace Sintering
   {
   public:
     InitialValuesMicrostructureVoronoi(
-      std::istream &           stream,
+      std::istream            &stream,
       const double             interface_width     = 0.,
       const InterfaceDirection interface_direction = InterfaceDirection::middle,
       const unsigned int       op_components_offset  = 2,

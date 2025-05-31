@@ -18,12 +18,12 @@
 #include <deal.II/lac/solver_control.h>
 #include <deal.II/lac/vector.h>
 
+#include <deal.II/trilinos/nox.h>
+
 #include <pf-applications/base/timer.h>
 
 #include <pf-applications/lac/dynamic_block_vector.h>
 #include <pf-applications/lac/solvers_nonlinear_snes.h>
-
-#include <deal.II/trilinos/nox.h>
 
 namespace NonLinearSolvers
 {
@@ -92,8 +92,8 @@ namespace NonLinearSolvers
     SolverControl::State
     check(const unsigned int step,
           const double       check_value,
-          const VectorType & solution,
-          const VectorType & residuum)
+          const VectorType  &solution,
+          const VectorType  &residuum)
     {
       (void)solution;
       (void)residuum;
@@ -236,7 +236,7 @@ namespace NonLinearSolvers
   class DampedNewtonSolver : public NewtonSolver<VectorType>
   {
   public:
-    DampedNewtonSolver(NewtonSolverSolverControl &       statistics,
+    DampedNewtonSolver(NewtonSolverSolverControl        &statistics,
                        const NewtonSolverAdditionalData &solver_data_in =
                          NewtonSolverAdditionalData())
       : statistics(statistics)
@@ -366,8 +366,8 @@ namespace NonLinearSolvers
     SolverControl::State
     check(const unsigned int step,
           const double       check_value,
-          const VectorType & x,
-          const VectorType & r) const
+          const VectorType  &x,
+          const VectorType  &r) const
     {
       if (this->check_iteration_status == nullptr)
         return statistics.check(step, check_value, x, r);
@@ -385,7 +385,7 @@ namespace NonLinearSolvers
         return SolverControl::success;
     }
 
-    NewtonSolverSolverControl &      statistics;
+    NewtonSolverSolverControl       &statistics;
     const NewtonSolverAdditionalData solver_data;
 
     mutable unsigned int history_linear_iterations_last = 0;
@@ -423,7 +423,7 @@ namespace NonLinearSolvers
   {
   public:
     NonLinearSolverWrapper(TrilinosWrappers::NOXSolver<VectorType> &&solver,
-                           NewtonSolverSolverControl &               statistics)
+                           NewtonSolverSolverControl                &statistics)
       : solver(std::move(solver))
       , statistics(statistics)
     {}
@@ -461,7 +461,7 @@ namespace NonLinearSolvers
     : public NewtonSolver<VectorType>
   {
   public:
-    NonLinearSolverWrapper(SNESSolver<VectorType> &&  solver,
+    NonLinearSolverWrapper(SNESSolver<VectorType>   &&solver,
                            NewtonSolverSolverControl &statistics)
       : solver(std::move(solver))
       , statistics(statistics)
@@ -569,7 +569,7 @@ namespace NonLinearSolvers
 
   template <typename T, typename VectorType>
   using evaluate_nonlinear_residual_with_pre_post_t =
-    decltype(std::declval<T const>().evaluate_nonlinear_residual(
+    decltype(std::declval<const T>().evaluate_nonlinear_residual(
       std::declval<VectorType &>(),
       std::declval<const VectorType &>(),
       std::declval<
@@ -656,7 +656,7 @@ namespace NonLinearSolvers
             {
               const auto  delta     = h;
               const auto  delta_inv = 1.0 / delta;
-              auto &      tmp       = u;
+              auto       &tmp       = u;
               const auto &res       = residual_u;
 
               const auto pre_op = [&](const auto begin, const auto end) {

@@ -94,7 +94,7 @@ namespace Sintering
       template <typename VectorType>
       Evaluation(const double       A,
                  const double       B,
-                 const VectorType & state,
+                 const VectorType  &state,
                  const unsigned int n_grains)
         : A(A)
         , B(B)
@@ -240,11 +240,11 @@ namespace Sintering
 
     template <typename VectorType>
     DEAL_II_ALWAYS_INLINE void
-    apply_d2f_detaidetaj(const VectorType &         L,
+    apply_d2f_detaidetaj(const VectorType          &L,
                          const VectorizedArrayType *etas,
                          const unsigned int         n_grains,
                          const VectorizedArrayType *value,
-                         VectorizedArrayType *      value_result) const
+                         VectorizedArrayType       *value_result) const
     {
       if (n_grains <= 1)
         return; // nothing to do
@@ -278,10 +278,10 @@ namespace Sintering
     using vector_type = VectorType;
 
     GrainGrowthOperator(
-      const MatrixFree<dim, Number, VectorizedArrayType> &     matrix_free,
-      const AffineConstraints<Number> &                        constraints,
-      const GrainGrowthFreeEnergy<VectorizedArrayType> &       free_energy,
-      const SinteringOperatorData<dim, VectorizedArrayType> &  data,
+      const MatrixFree<dim, Number, VectorizedArrayType>      &matrix_free,
+      const AffineConstraints<Number>                         &constraints,
+      const GrainGrowthFreeEnergy<VectorizedArrayType>        &free_energy,
+      const SinteringOperatorData<dim, VectorizedArrayType>   &data,
       const TimeIntegration::SolutionHistory<BlockVectorType> &history,
       const bool                                               matrix_based)
       : OperatorBase<dim, Number, VectorizedArrayType, T>(matrix_free,
@@ -301,13 +301,13 @@ namespace Sintering
     template <typename... Arg>
     static T
     create(
-      const MatrixFree<dim, Number, VectorizedArrayType> &     matrix_free,
-      const AffineConstraints<Number> &                        constraints,
-      const GrainGrowthFreeEnergy<VectorizedArrayType> &       free_energy,
-      const SinteringOperatorData<dim, VectorizedArrayType> &  sintering_data,
+      const MatrixFree<dim, Number, VectorizedArrayType>      &matrix_free,
+      const AffineConstraints<Number>                         &constraints,
+      const GrainGrowthFreeEnergy<VectorizedArrayType>        &free_energy,
+      const SinteringOperatorData<dim, VectorizedArrayType>   &sintering_data,
       const TimeIntegration::SolutionHistory<BlockVectorType> &solution_history,
       const AdvectionMechanism<dim, Number, VectorizedArrayType>
-        &        advection_mechanism,
+                &advection_mechanism,
       const bool matrix_based,
       Arg &&...)
     {
@@ -329,8 +329,8 @@ namespace Sintering
 
     template <int n_comp, int n_grains>
     void
-    do_add_data_vectors_kernel(DataOut<dim> &               data_out,
-                               const BlockVectorType &      vec,
+    do_add_data_vectors_kernel(DataOut<dim>                &data_out,
+                               const BlockVectorType       &vec,
                                const std::set<std::string> &fields_list) const
     {
       // Possible output options
@@ -507,7 +507,7 @@ namespace Sintering
     template <int with_time_derivative>
     void
     evaluate_nonlinear_residual(
-      BlockVectorType &      dst,
+      BlockVectorType       &dst,
       const BlockVectorType &src,
       const std::function<void(const unsigned int, const unsigned int)>
         pre_operation = {},
@@ -604,10 +604,10 @@ namespace Sintering
     precondition_advection_ch(
       const unsigned int q,
       const AdvectionVelocityData<dim, Number, VectorizedArrayType>
-        &                                                     advection_data,
+                                                             &advection_data,
       const SinteringNonLinearData<dim, VectorizedArrayType> &nonlinear_data,
-      const FECellIntegratorType &                            phi,
-      typename FECellIntegratorType::value_type &             value_result,
+      const FECellIntegratorType                             &phi,
+      typename FECellIntegratorType::value_type              &value_result,
       typename FECellIntegratorType::gradient_type &gradient_result) const
     {
       (void)q;
@@ -623,10 +623,10 @@ namespace Sintering
     precondition_advection_ac(
       const unsigned int q,
       const AdvectionVelocityData<dim, Number, VectorizedArrayType>
-        &                                                     advection_data,
+                                                             &advection_data,
       const SinteringNonLinearData<dim, VectorizedArrayType> &nonlinear_data,
-      const FECellIntegratorType &                            phi,
-      typename FECellIntegratorType::value_type &             value_result,
+      const FECellIntegratorType                             &phi,
+      typename FECellIntegratorType::value_type              &value_result,
       typename FECellIntegratorType::gradient_type &gradient_result) const
     {
       (void)q;
@@ -643,10 +643,10 @@ namespace Sintering
       const unsigned int q,
       const unsigned int igrain,
       const AdvectionVelocityData<dim, Number, VectorizedArrayType>
-        &                                                     advection_data,
+                                                             &advection_data,
       const SinteringNonLinearData<dim, VectorizedArrayType> &nonlinear_data,
-      const FECellIntegratorType &                            phi,
-      typename FECellIntegratorType::value_type &             value_result,
+      const FECellIntegratorType                             &phi,
+      typename FECellIntegratorType::value_type              &value_result,
       typename FECellIntegratorType::gradient_type &gradient_result) const
     {
       (void)q;
@@ -674,7 +674,7 @@ namespace Sintering
         {
           if (qty == "gb_area")
             q_evaluators.emplace_back(
-              [this](const VectorizedArrayType *                value,
+              [this](const VectorizedArrayType                 *value,
                      const Tensor<1, dim, VectorizedArrayType> *gradient) {
                 (void)gradient;
 
@@ -687,7 +687,7 @@ namespace Sintering
               });
           else if (qty == "avg_grain_size")
             q_evaluators.emplace_back(
-              [this](const VectorizedArrayType *                value,
+              [this](const VectorizedArrayType                 *value,
                      const Tensor<1, dim, VectorizedArrayType> *gradient) {
                 (void)gradient;
 
@@ -699,7 +699,7 @@ namespace Sintering
               });
           else if (qty == "free_energy")
             q_evaluators.emplace_back(
-              [this](const VectorizedArrayType *                value,
+              [this](const VectorizedArrayType                 *value,
                      const Tensor<1, dim, VectorizedArrayType> *gradient) {
                 VectorizedArrayType energy(0.0);
 
@@ -717,7 +717,7 @@ namespace Sintering
               });
           else if (qty == "bulk_energy")
             q_evaluators.emplace_back(
-              [this](const VectorizedArrayType *                value,
+              [this](const VectorizedArrayType                 *value,
                      const Tensor<1, dim, VectorizedArrayType> *gradient) {
                 (void)gradient;
 
@@ -728,7 +728,7 @@ namespace Sintering
               });
           else if (qty == "interface_energy")
             q_evaluators.emplace_back(
-              [this](const VectorizedArrayType *                value,
+              [this](const VectorizedArrayType                 *value,
                      const Tensor<1, dim, VectorizedArrayType> *gradient) {
                 (void)value;
 
@@ -750,7 +750,7 @@ namespace Sintering
 
                 q_evaluators.emplace_back(
                   [this,
-                   i](const VectorizedArrayType *                value,
+                   i](const VectorizedArrayType                 *value,
                       const Tensor<1, dim, VectorizedArrayType> *gradient) {
                     (void)gradient;
 
@@ -759,7 +759,7 @@ namespace Sintering
               }
           else if (qty == "control_vol")
             q_evaluators.emplace_back(
-              [this](const VectorizedArrayType *                value,
+              [this](const VectorizedArrayType                 *value,
                      const Tensor<1, dim, VectorizedArrayType> *gradient) {
                 (void)value;
                 (void)gradient;
@@ -790,9 +790,9 @@ namespace Sintering
     void
     do_evaluate_nonlinear_residual(
       const MatrixFree<dim, Number, VectorizedArrayType> &matrix_free,
-      BlockVectorType &                                   dst,
-      const BlockVectorType &                             src,
-      const std::pair<unsigned int, unsigned int> &       range) const
+      BlockVectorType                                    &dst,
+      const BlockVectorType                              &src,
+      const std::pair<unsigned int, unsigned int>        &range) const
     {
       AssertDimension(n_comp, n_grains);
 
@@ -865,7 +865,7 @@ namespace Sintering
 
   protected:
     const GrainGrowthFreeEnergy<VectorizedArrayType>         free_energy;
-    const SinteringOperatorData<dim, VectorizedArrayType> &  data;
+    const SinteringOperatorData<dim, VectorizedArrayType>   &data;
     const TimeIntegration::SolutionHistory<BlockVectorType> &history;
     const TimeIntegration::BDFIntegrator<dim, Number, VectorizedArrayType>
       time_integrator;

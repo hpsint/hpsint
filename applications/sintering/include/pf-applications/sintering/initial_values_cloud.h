@@ -405,7 +405,7 @@ namespace Sintering
     }
 
     double
-    value_for_particle(const Point<dim> &   p,
+    value_for_particle(const Point<dim>    &p,
                        const Particle<dim> &particle_current) const
     {
       // Concentration value for the i-th particle

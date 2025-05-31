@@ -56,8 +56,8 @@ namespace Sintering
 
     template <int dim, typename VectorType>
     DataOutWithRanges<dim>
-    build_default_output(const DoFHandler<dim> &         dof_handler,
-                         const VectorType &              solution,
+    build_default_output(const DoFHandler<dim>          &dof_handler,
+                         const VectorType               &solution,
                          const std::vector<std::string> &names,
                          const bool                      add_subdomains = true,
                          const bool higher_order_cells                  = false)

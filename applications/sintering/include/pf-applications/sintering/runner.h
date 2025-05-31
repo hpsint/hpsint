@@ -21,7 +21,7 @@ static_assert(false, "No dimension has been given!");
 static_assert(false, "No grains number has been given!");
 #endif
 
-//#define USE_FE_Q_iso_Q1
+// #define USE_FE_Q_iso_Q1
 
 #ifdef USE_FE_Q_iso_Q1
 #  define FE_DEGREE 2
@@ -32,8 +32,8 @@ static_assert(false, "No grains number has been given!");
 #endif
 
 #define WITH_TIMING
-//#define WITH_TIMING_OUTPUT
-//#define DISABLE_MPI_IO_SURFACE_OUTPUT
+// #define WITH_TIMING_OUTPUT
+// #define DISABLE_MPI_IO_SURFACE_OUTPUT
 
 
 
@@ -59,10 +59,10 @@ namespace Sintering
   {
     void
     parse_params(const int              argc,
-                 char **                argv,
+                 char                 **argv,
                  const unsigned int     offset,
                  Sintering::Parameters &params,
-                 ConditionalOStream &   pcout)
+                 ConditionalOStream    &pcout)
     {
       if (static_cast<unsigned int>(argc) >= offset + 1)
         {

@@ -243,21 +243,21 @@ namespace Sintering
     double                output_time_interval   = 10;
     std::string           vtk_path               = ".";
     std::set<std::string> fields                 = {"CH",
-                                    "AC",
-                                    "displ",
-                                    "bnds",
-                                    "gb",
-                                    "d2f",
-                                    "M",
-                                    "dM",
-                                    "kappa",
-                                    "L",
-                                    "flux",
-                                    "energy",
-                                    "subdomain",
-                                    "mf_indices",
-                                    "vel",
-                                    "trans"};
+                                                    "AC",
+                                                    "displ",
+                                                    "bnds",
+                                                    "gb",
+                                                    "d2f",
+                                                    "M",
+                                                    "dM",
+                                                    "kappa",
+                                                    "L",
+                                                    "flux",
+                                                    "energy",
+                                                    "subdomain",
+                                                    "mf_indices",
+                                                    "vel",
+                                                    "trans"};
     bool                  mesh_overhead_estimate = false;
     bool                  only_control_boxes     = false;
 

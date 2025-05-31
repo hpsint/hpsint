@@ -21,7 +21,7 @@ namespace hpsint
 {
   template <typename BlockVectorType>
   void
-  limit_vector_values(BlockVectorType &    vec,
+  limit_vector_values(BlockVectorType     &vec,
                       const ComponentMask &mask = ComponentMask(),
                       const typename BlockVectorType::value_type val_min = 0,
                       const typename BlockVectorType::value_type val_max = 1)

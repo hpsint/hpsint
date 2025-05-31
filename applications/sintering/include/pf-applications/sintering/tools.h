@@ -105,8 +105,8 @@ namespace Sintering
 
   template <int dim>
   void
-  print_mesh_info(const Point<dim> &               bottom_left,
-                  const Point<dim> &               top_right,
+  print_mesh_info(const Point<dim>                &bottom_left,
+                  const Point<dim>                &top_right,
                   const std::vector<unsigned int> &subdivisions,
                   const unsigned int               n_refinements_global,
                   const unsigned int               n_refinements_delayed)
@@ -226,7 +226,7 @@ namespace Sintering
     base and interface refinements are performed later by the AMR algo. */
     template <typename Triangulation>
     std::pair<unsigned int, unsigned int>
-    make_initial_refines(Triangulation &     tria,
+    make_initial_refines(Triangulation      &tria,
                          const InitialRefine refine,
                          const unsigned int  n_refinements_base,
                          const unsigned int  n_refinements_interface)
@@ -264,9 +264,9 @@ namespace Sintering
   template <typename Triangulation, int dim>
   unsigned int
   create_mesh_from_interface(
-    Triangulation &     tria,
-    const Point<dim> &  bottom_left,
-    const Point<dim> &  top_right,
+    Triangulation      &tria,
+    const Point<dim>   &bottom_left,
+    const Point<dim>   &top_right,
     const double        interface_width,
     const double        divisions_per_interface,
     const bool          periodic,
@@ -323,9 +323,9 @@ namespace Sintering
   /* This function creates a grid with the predefined number of sudivisions. */
   template <typename Triangulation, int dim>
   unsigned int
-  create_mesh_from_divisions(Triangulation &                  tria,
-                             const Point<dim> &               bottom_left,
-                             const Point<dim> &               top_right,
+  create_mesh_from_divisions(Triangulation                   &tria,
+                             const Point<dim>                &bottom_left,
+                             const Point<dim>                &top_right,
                              const std::vector<unsigned int> &subdivisions,
                              const bool                       periodic,
                              const unsigned int               n_refinements,
@@ -353,9 +353,9 @@ namespace Sintering
    * sizes at the diffuse iterfaces. */
   template <typename Triangulation, int dim>
   unsigned int
-  create_mesh_from_radius(Triangulation &     tria,
-                          const Point<dim> &  bottom_left,
-                          const Point<dim> &  top_right,
+  create_mesh_from_radius(Triangulation      &tria,
+                          const Point<dim>   &bottom_left,
+                          const Point<dim>   &top_right,
                           const double        interface_width,
                           const double        divisions_per_interface,
                           const double        r_ref,
@@ -412,10 +412,10 @@ namespace Sintering
     template <typename VectorType, typename Triangulation, int dim>
     void
     prepare_coarsening_and_refinement(
-      const VectorType &                    solution_to_estimate,
-      Triangulation &                       tria,
-      DoFHandler<dim> &                     dof_handler,
-      const Quadrature<dim - 1> &           quad,
+      const VectorType                     &solution_to_estimate,
+      Triangulation                        &tria,
+      DoFHandler<dim>                      &dof_handler,
+      const Quadrature<dim - 1>            &quad,
       const double                          top_fraction_of_cells,
       const double                          bottom_fraction_of_cells,
       const unsigned int                    min_allowed_level,
@@ -524,9 +524,9 @@ namespace Sintering
 
   template <typename VectorType, typename Triangulation, int dim>
   void
-  coarsen_and_refine_mesh(const VectorType &         solution_to_estimate,
-                          Triangulation &            tria,
-                          DoFHandler<dim> &          dof_handler,
+  coarsen_and_refine_mesh(const VectorType          &solution_to_estimate,
+                          Triangulation             &tria,
+                          DoFHandler<dim>           &dof_handler,
                           const Quadrature<dim - 1> &quad,
                           const double               top_fraction_of_cells,
                           const double               bottom_fraction_of_cells,
@@ -554,11 +554,11 @@ namespace Sintering
   template <typename VectorType, typename Triangulation, int dim>
   void
   coarsen_and_refine_mesh(
-    VectorType &                                        solution,
-    Triangulation &                                     tria,
-    DoFHandler<dim> &                                   dof_handler,
+    VectorType                                         &solution,
+    Triangulation                                      &tria,
+    DoFHandler<dim>                                    &dof_handler,
     AffineConstraints<typename VectorType::value_type> &constraints,
-    const Quadrature<dim - 1> &                         quad,
+    const Quadrature<dim - 1>                          &quad,
     const double                                        top_fraction_of_cells,
     const double                          bottom_fraction_of_cells,
     const unsigned int                    min_allowed_level,

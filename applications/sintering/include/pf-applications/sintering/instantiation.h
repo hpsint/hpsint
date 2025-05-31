@@ -27,21 +27,21 @@
 #include <utility>
 
 template <typename T>
-using n_grains_t = decltype(std::declval<T const>().n_grains());
+using n_grains_t = decltype(std::declval<const T>().n_grains());
 
 template <typename T>
 using n_grains_to_n_components_t =
-  decltype(std::declval<T const>().n_grains_to_n_components(
+  decltype(std::declval<const T>().n_grains_to_n_components(
     std::declval<const unsigned int>()));
 
 template <typename T>
 constexpr bool has_n_grains_method =
-  dealii::internal::is_supported_operation<n_grains_t, T>
-    &&dealii::internal::is_supported_operation<n_grains_to_n_components_t, T>;
+  dealii::internal::is_supported_operation<n_grains_t, T> &&
+  dealii::internal::is_supported_operation<n_grains_to_n_components_t, T>;
 
 template <typename T>
 using n_min_possible_components_t =
-  decltype(std::declval<T const>().n_min_possible_components());
+  decltype(std::declval<const T>().n_min_possible_components());
 
 template <typename T, typename = void>
 struct can_decay_to_scalar

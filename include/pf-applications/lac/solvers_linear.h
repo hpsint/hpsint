@@ -59,9 +59,9 @@ namespace LinearSolvers
     using VectorType      = typename Operator::vector_type;
     using BlockVectorType = typename Operator::BlockVectorType;
 
-    SolverGMRESWrapper(const Operator & op,
-                       Preconditioner & preconditioner,
-                       SolverControl &  solver_control,
+    SolverGMRESWrapper(const Operator  &op,
+                       Preconditioner  &preconditioner,
+                       SolverControl   &solver_control,
                        const GMRESData &data = GMRESData())
       : op(op)
       , preconditioner(preconditioner)
@@ -107,7 +107,7 @@ namespace LinearSolvers
 
     const Operator &op;
     Preconditioner &preconditioner;
-    SolverControl & solver_control;
+    SolverControl  &solver_control;
     const GMRESData data;
 
     mutable MyTimerOutput timer;
@@ -123,8 +123,8 @@ namespace LinearSolvers
     using VectorType      = typename Operator::vector_type;
     using BlockVectorType = typename Operator::BlockVectorType;
 
-    SolverRelaxation(const Operator &   op,
-                     Preconditioner &   preconditioner,
+    SolverRelaxation(const Operator    &op,
+                     Preconditioner    &preconditioner,
                      const double       relaxation   = 1.,
                      const unsigned int n_iterations = 1)
       : op(op)
@@ -166,8 +166,8 @@ namespace LinearSolvers
       return n_iterations;
     }
 
-    const Operator &   op;
-    Preconditioner &   preconditioner;
+    const Operator    &op;
+    Preconditioner    &preconditioner;
     const double       relaxation;
     const unsigned int n_iterations;
 
@@ -186,7 +186,7 @@ namespace LinearSolvers
 
     SolverIDRWrapper(const Operator &op,
                      Preconditioner &preconditioner,
-                     SolverControl & solver_control)
+                     SolverControl  &solver_control)
       : op(op)
       , preconditioner(preconditioner)
       , solver_control(solver_control)
@@ -219,7 +219,7 @@ namespace LinearSolvers
 
     const Operator &op;
     Preconditioner &preconditioner;
-    SolverControl & solver_control;
+    SolverControl  &solver_control;
 
     mutable MyTimerOutput timer;
   };
@@ -234,9 +234,9 @@ namespace LinearSolvers
     using VectorType      = typename Operator::vector_type;
     using BlockVectorType = typename Operator::BlockVectorType;
 
-    SolverBicgstabWrapper(const Operator &   op,
-                          Preconditioner &   preconditioner,
-                          SolverControl &    solver_control,
+    SolverBicgstabWrapper(const Operator    &op,
+                          Preconditioner    &preconditioner,
+                          SolverControl     &solver_control,
                           const unsigned int max_bicgsteps)
       : op(op)
       , preconditioner(preconditioner)
@@ -297,9 +297,9 @@ namespace LinearSolvers
         }
     }
 
-    const Operator &   op;
-    Preconditioner &   preconditioner;
-    SolverControl &    solver_control;
+    const Operator    &op;
+    Preconditioner    &preconditioner;
+    SolverControl     &solver_control;
     const unsigned int max_bicgsteps;
 
     mutable MyTimerOutput timer;
@@ -357,8 +357,8 @@ namespace LinearSolvers
       return solver_control.last_step();
     }
 
-    const Operator &               op;
-    SolverControl &                solver_control;
+    const Operator                &op;
+    SolverControl                 &solver_control;
     TrilinosWrappers::SolverDirect solver;
 
     mutable MyTimerOutput timer;

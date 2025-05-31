@@ -38,8 +38,8 @@ namespace Sintering
                unsigned int>
     find_containing_cell_and_dof_index(
       const MatrixFree<dim, Number, VectorizedArrayType> &matrix_free,
-      const Mapping<dim> &                                mapping,
-      const Point<dim> &                                  origin_in)
+      const Mapping<dim>                                 &mapping,
+      const Point<dim>                                   &origin_in)
     {
       const auto   comm = matrix_free.get_dof_handler().get_communicator();
       const double tol  = 1e-10;
@@ -146,9 +146,9 @@ namespace Sintering
   clamp_section(
     std::array<std::vector<unsigned int>, dim> &displ_constraints_indices,
     const MatrixFree<dim, Number, VectorizedArrayType> &matrix_free,
-    const Mapping<dim> &                                mapping,
-    const Point<dim> &                                  origin_in,
-    const std::array<bool, dim> &                       directions_mask)
+    const Mapping<dim>                                 &mapping,
+    const Point<dim>                                   &origin_in,
+    const std::array<bool, dim>                        &directions_mask)
   {
     std::vector<unsigned int> directions;
     for (unsigned int d = 0; d < dim; ++d)
@@ -222,8 +222,8 @@ namespace Sintering
   clamp_central_section(
     std::array<std::vector<unsigned int>, dim> &displ_constraints_indices,
     const MatrixFree<dim, Number, VectorizedArrayType> &matrix_free,
-    const Mapping<dim> &                                mapping,
-    const std::array<bool, dim> &                       directions_mask)
+    const Mapping<dim>                                 &mapping,
+    const std::array<bool, dim>                        &directions_mask)
   {
     // Add central constraints
     const auto bb_tria = GridTools::compute_bounding_box(
@@ -244,13 +244,13 @@ namespace Sintering
   void
   clamp_section_within_particle(
     std::array<std::vector<unsigned int>, dim> &displ_constraints_indices,
-    const MatrixFree<dim, Number, VectorizedArrayType> &   matrix_free,
-    const Mapping<dim> &                                   mapping,
+    const MatrixFree<dim, Number, VectorizedArrayType>    &matrix_free,
+    const Mapping<dim>                                    &mapping,
     const SinteringOperatorData<dim, VectorizedArrayType> &data,
-    const GrainTracker::Tracker<dim, Number> &             grain_tracker,
-    const BlockVectorType &                                solution,
-    const Point<dim> &                                     origin_in,
-    const std::array<bool, dim> &                          directions_mask,
+    const GrainTracker::Tracker<dim, Number>              &grain_tracker,
+    const BlockVectorType                                 &solution,
+    const Point<dim>                                      &origin_in,
+    const std::array<bool, dim>                           &directions_mask,
     const Number order_parameter_threshold = 0.1)
   {
     for (unsigned int b = 2; b < data.n_components(); ++b)
@@ -397,7 +397,7 @@ namespace Sintering
 
   template <int dim, typename Number>
   Point<dim>
-  find_center_origin(const Triangulation<dim> &                triangulation,
+  find_center_origin(const Triangulation<dim>                 &triangulation,
                      const GrainTracker::Tracker<dim, Number> &grain_tracker,
                      const bool prefer_growing = false,
                      const bool use_barycenter = false)

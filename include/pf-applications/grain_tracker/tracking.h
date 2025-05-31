@@ -49,8 +49,8 @@ namespace GrainTracker
   template <int dim>
   std::map<unsigned int, unsigned int>
   transfer_grain_ids(
-    const std::map<unsigned int, Grain<dim>> &          new_grains,
-    const std::map<unsigned int, Grain<dim>> &          old_grains,
+    const std::map<unsigned int, Grain<dim>>           &new_grains,
+    const std::map<unsigned int, Grain<dim>>           &old_grains,
     const unsigned int                                  n_order_params,
     std::optional<std::reference_wrapper<std::ostream>> logger = {})
   {

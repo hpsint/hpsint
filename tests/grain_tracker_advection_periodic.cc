@@ -45,9 +45,9 @@ template <int dim>
 class AdvectSolution : public Function<dim>
 {
 public:
-  AdvectSolution(const Point<dim> &                   direction,
-                 const Point<dim> &                   bottom_left,
-                 const Point<dim> &                   top_right,
+  AdvectSolution(const Point<dim>                    &direction,
+                 const Point<dim>                    &bottom_left,
+                 const Point<dim>                    &top_right,
                  std::shared_ptr<const Function<dim>> initial_values)
     : Function<dim>(1)
     , direction(direction)

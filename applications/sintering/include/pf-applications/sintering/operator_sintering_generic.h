@@ -41,9 +41,9 @@ namespace Sintering
                                               VectorizedArrayType>;
 
     DEAL_II_ALWAYS_INLINE inline SinteringOperatorGenericQuad(
-      const FECellIntegratorType &                                phi,
-      const FreeEnergy<VectorizedArrayType> &                     free_energy,
-      const SinteringOperatorData<dim, VectorizedArrayType> &     data,
+      const FECellIntegratorType                                 &phi,
+      const FreeEnergy<VectorizedArrayType>                      &free_energy,
+      const SinteringOperatorData<dim, VectorizedArrayType>      &data,
       const AdvectionMechanism<dim, Number, VectorizedArrayType> &advection,
       Tensor<1, n_comp, VectorizedArrayType> *gradient_buffer)
       : phi(phi)
@@ -65,9 +65,8 @@ namespace Sintering
             phi.get_shape_info().data[0].shape_gradients_collocation;
 
           using EvaluatorTypeData = Tensor<1, n_comp, VectorizedArrayType>;
-          using EvaluatorTypeCoefficients =
-            typename std::remove_reference_t<decltype(
-              shape_values)>::value_type;
+          using EvaluatorTypeCoefficients = typename std::remove_reference_t<
+            decltype(shape_values)>::value_type;
 
           dealii::internal::EvaluatorTensorProduct<
             dealii::internal::EvaluatorVariant::evaluate_general,
@@ -103,7 +102,7 @@ namespace Sintering
       typename FECellIntegratorType::gradient_type>
     operator()(
       const unsigned int                                  q,
-      const typename FECellIntegratorType::value_type &   value,
+      const typename FECellIntegratorType::value_type    &value,
       const typename FECellIntegratorType::gradient_type &gradient) const
     {
       typename FECellIntegratorType::value_type    value_result;
@@ -189,13 +188,13 @@ namespace Sintering
     }
 
   private:
-    const FECellIntegratorType &                               phi;
+    const FECellIntegratorType                                &phi;
     const unsigned int                                         cell;
-    const VectorizedArrayType mutable *                        lin_value;
+    const VectorizedArrayType mutable                         *lin_value;
     const dealii::Tensor<1, dim, VectorizedArrayType> mutable *lin_gradient;
-    const FreeEnergy<VectorizedArrayType> &                    free_energy;
+    const FreeEnergy<VectorizedArrayType>                     &free_energy;
     const typename SinteringOperatorData<dim, VectorizedArrayType>::MobilityType
-      &          mobility;
+                &mobility;
     const Number kappa_c;
     const Number kappa_p;
     const Number weight;
@@ -236,9 +235,9 @@ namespace Sintering
     using Number = typename VectorizedArrayType::value_type;
 
     DEAL_II_ALWAYS_INLINE inline SinteringOperatorGenericResidualQuad(
-      const FreeEnergy<VectorizedArrayType> &                free_energy,
+      const FreeEnergy<VectorizedArrayType>                 &free_energy,
       const SinteringOperatorData<dim, VectorizedArrayType> &data,
-      const AlignedVector<VectorizedArrayType> &             buffer)
+      const AlignedVector<VectorizedArrayType>              &buffer)
       : free_energy(free_energy)
       , mobility(data.get_mobility())
       , kappa_c(data.kappa_c)
@@ -307,7 +306,7 @@ namespace Sintering
   private:
     const FreeEnergy<VectorizedArrayType> &free_energy;
     const typename SinteringOperatorData<dim, VectorizedArrayType>::MobilityType
-      &          mobility;
+                &mobility;
     const Number kappa_c;
     const Number kappa_p;
     const Number weight;
@@ -335,11 +334,11 @@ namespace Sintering
     using vector_type = VectorType;
 
     SinteringOperatorGeneric(
-      const MatrixFree<dim, Number, VectorizedArrayType> &        matrix_free,
-      const AffineConstraints<Number> &                           constraints,
-      const FreeEnergy<VectorizedArrayType> &                     free_energy,
-      const SinteringOperatorData<dim, VectorizedArrayType> &     data,
-      const TimeIntegration::SolutionHistory<BlockVectorType> &   history,
+      const MatrixFree<dim, Number, VectorizedArrayType>         &matrix_free,
+      const AffineConstraints<Number>                            &constraints,
+      const FreeEnergy<VectorizedArrayType>                      &free_energy,
+      const SinteringOperatorData<dim, VectorizedArrayType>      &data,
+      const TimeIntegration::SolutionHistory<BlockVectorType>    &history,
       const AdvectionMechanism<dim, Number, VectorizedArrayType> &advection,
       const bool                                                  matrix_based,
       const bool use_tensorial_mobility_gradient_on_the_fly)
@@ -365,13 +364,13 @@ namespace Sintering
     template <typename... Arg>
     static T
     create(
-      const MatrixFree<dim, Number, VectorizedArrayType> &     matrix_free,
-      const AffineConstraints<Number> &                        constraints,
-      const FreeEnergy<VectorizedArrayType> &                  free_energy,
-      const SinteringOperatorData<dim, VectorizedArrayType> &  sintering_data,
+      const MatrixFree<dim, Number, VectorizedArrayType>      &matrix_free,
+      const AffineConstraints<Number>                         &constraints,
+      const FreeEnergy<VectorizedArrayType>                   &free_energy,
+      const SinteringOperatorData<dim, VectorizedArrayType>   &sintering_data,
       const TimeIntegration::SolutionHistory<BlockVectorType> &solution_history,
       const AdvectionMechanism<dim, Number, VectorizedArrayType>
-        &        advection_mechanism,
+                &advection_mechanism,
       const bool matrix_based,
       const bool use_tensorial_mobility_gradient_on_the_fly = false,
       Arg &&...)
@@ -389,7 +388,7 @@ namespace Sintering
     template <unsigned int with_time_derivative = 2>
     void
     evaluate_nonlinear_residual(
-      BlockVectorType &      dst,
+      BlockVectorType       &dst,
       const BlockVectorType &src,
       const std::function<void(const unsigned int, const unsigned int)>
         pre_operation = {},
@@ -452,9 +451,9 @@ namespace Sintering
     void
     do_vmult_range_no_template(
       const MatrixFree<dim, Number, VectorizedArrayType> &matrix_free,
-      BlockVectorType &                                   dst,
-      const BlockVectorType &                             src,
-      const std::pair<unsigned int, unsigned int> &       range) const
+      BlockVectorType                                    &dst,
+      const BlockVectorType                              &src,
+      const std::pair<unsigned int, unsigned int>        &range) const
     {
       std::vector<
         std::shared_ptr<FEEvaluationData<dim, VectorizedArrayType, false>>>
@@ -536,9 +535,9 @@ namespace Sintering
     void
     do_vmult_range(
       const MatrixFree<dim, Number, VectorizedArrayType> &matrix_free,
-      BlockVectorType &                                   dst,
-      const BlockVectorType &                             src,
-      const std::pair<unsigned int, unsigned int> &       range) const
+      BlockVectorType                                    &dst,
+      const BlockVectorType                              &src,
+      const std::pair<unsigned int, unsigned int>        &range) const
     {
       FECellIntegrator<dim, n_comp, Number, VectorizedArrayType> phi(
         matrix_free, this->dof_index);
@@ -573,7 +572,7 @@ namespace Sintering
     }
 
     void
-    vmult_internal(BlockVectorType &      dst,
+    vmult_internal(BlockVectorType       &dst,
                    const BlockVectorType &src) const override
     {
       if (this->data.get_component_table().size(0) == 0)
@@ -603,7 +602,7 @@ namespace Sintering
 
     void
     vmult_internal(
-      LinearAlgebra::distributed::BlockVector<Number> &      dst,
+      LinearAlgebra::distributed::BlockVector<Number>       &dst,
       const LinearAlgebra::distributed::BlockVector<Number> &src) const override
     {
       OperatorBase<dim, Number, VectorizedArrayType, T>::vmult(dst, src);
@@ -667,8 +666,8 @@ namespace Sintering
 
     template <int n_comp, int n_grains>
     void
-    do_add_data_vectors_kernel(DataOut<dim> &               data_out,
-                               const BlockVectorType &      vec,
+    do_add_data_vectors_kernel(DataOut<dim>                &data_out,
+                               const BlockVectorType       &vec,
                                const std::set<std::string> &fields_list) const
     {
       // Output from the parent
@@ -789,10 +788,10 @@ namespace Sintering
     precondition_advection_ch(
       const unsigned int q,
       const AdvectionVelocityData<dim, Number, VectorizedArrayType>
-        &                                                     advection_data,
+                                                             &advection_data,
       const SinteringNonLinearData<dim, VectorizedArrayType> &nonlinear_data,
-      const FECellIntegratorType &                            phi,
-      typename FECellIntegratorType::value_type &             value_result,
+      const FECellIntegratorType                             &phi,
+      typename FECellIntegratorType::value_type              &value_result,
       typename FECellIntegratorType::gradient_type &gradient_result) const
     {
       (void)nonlinear_data;
@@ -813,10 +812,10 @@ namespace Sintering
     precondition_advection_ac(
       const unsigned int q,
       const AdvectionVelocityData<dim, Number, VectorizedArrayType>
-        &                                                     advection_data,
+                                                             &advection_data,
       const SinteringNonLinearData<dim, VectorizedArrayType> &nonlinear_data,
-      const FECellIntegratorType &                            phi,
-      typename FECellIntegratorType::value_type &             value_result,
+      const FECellIntegratorType                             &phi,
+      typename FECellIntegratorType::value_type              &value_result,
       typename FECellIntegratorType::gradient_type &gradient_result) const
     {
       (void)nonlinear_data;
@@ -838,10 +837,10 @@ namespace Sintering
       const unsigned int q,
       const unsigned int igrain,
       const AdvectionVelocityData<dim, Number, VectorizedArrayType>
-        &                                                     advection_data,
+                                                             &advection_data,
       const SinteringNonLinearData<dim, VectorizedArrayType> &nonlinear_data,
-      const FECellIntegratorType &                            phi,
-      typename FECellIntegratorType::value_type &             value_result,
+      const FECellIntegratorType                             &phi,
+      typename FECellIntegratorType::value_type              &value_result,
       typename FECellIntegratorType::gradient_type &gradient_result) const
     {
       (void)nonlinear_data;
@@ -863,7 +862,7 @@ namespace Sintering
               typename FECellIntegratorType>
     void
     do_evaluate_nonlinear_residual_cell(
-      FECellIntegratorType &                    phi,
+      FECellIntegratorType                     &phi,
       const AlignedVector<VectorizedArrayType> &buffer) const
     {
       const unsigned int cell = phi.get_current_cell_index();
@@ -912,9 +911,9 @@ namespace Sintering
               typename FECellIntegratorType>
     void
     do_evalute_history(
-      FECellIntegratorType &              phi,
+      FECellIntegratorType               &phi,
       AlignedVector<VectorizedArrayType> &buffer,
-      const std::vector<unsigned char> &  vector_indices = {}) const
+      const std::vector<unsigned char>   &vector_indices = {}) const
     {
       if (with_time_derivative == 2)
         {
@@ -961,9 +960,9 @@ namespace Sintering
     void
     do_evaluate_nonlinear_residual(
       const MatrixFree<dim, Number, VectorizedArrayType> &matrix_free,
-      BlockVectorType &                                   dst,
-      const BlockVectorType &                             src,
-      const std::pair<unsigned int, unsigned int> &       range) const
+      BlockVectorType                                    &dst,
+      const BlockVectorType                              &src,
+      const std::pair<unsigned int, unsigned int>        &range) const
     {
       AssertDimension(n_comp - 2, n_grains);
       FECellIntegrator<dim, n_comp, Number, VectorizedArrayType> phi(
@@ -992,9 +991,9 @@ namespace Sintering
     void
     do_evaluate_nonlinear_residual_nt(
       const MatrixFree<dim, Number, VectorizedArrayType> &matrix_free,
-      BlockVectorType &                                   dst,
-      const BlockVectorType &                             src,
-      const std::pair<unsigned int, unsigned int> &       range) const
+      BlockVectorType                                    &dst,
+      const BlockVectorType                              &src,
+      const std::pair<unsigned int, unsigned int>        &range) const
     {
       std::vector<
         std::shared_ptr<FEEvaluationData<dim, VectorizedArrayType, false>>>

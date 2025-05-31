@@ -90,8 +90,8 @@ namespace dealii
         static void
         visit_cells_recursevely(
           const typename DoFHandler<dim, spacedim>::cell_iterator &cell,
-          const IndexSet &           locally_owned_dofs,
-          std::vector<bool> &        mask,
+          const IndexSet            &locally_owned_dofs,
+          std::vector<bool>         &mask,
           std::vector<unsigned int> &result)
         {
           if (cell->is_active())
@@ -150,7 +150,7 @@ namespace dealii
 
         void
         mpi_io_read_or_write(const bool               do_read,
-                             const std::string &      filename,
+                             const std::string       &filename,
                              std::vector<value_type> &src) const
         {
           const size_type local_size = src.size();

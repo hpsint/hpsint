@@ -81,7 +81,7 @@ main(int argc, char **argv)
     };
 
     solver.solve_for_jacobian_system = [&](const VectorType &src,
-                                           VectorType &      dst) -> int {
+                                           VectorType       &dst) -> int {
       dst.block(0)[0] =
         Jinv(0, 0) * src.block(0)[0] + Jinv(0, 1) * src.block(1)[0];
       dst.block(1)[0] =

@@ -39,7 +39,7 @@ namespace Structural
 
     LinearElasticOperator(
       const MatrixFree<dim, Number, VectorizedArrayType> &matrix_free,
-      const AffineConstraints<Number> &                   constraints,
+      const AffineConstraints<Number>                    &constraints,
       const bool                                          matrix_based,
       const double                                        E,
       const double                                        nu,
@@ -65,7 +65,7 @@ namespace Structural
     {}
 
     void
-    evaluate_nonlinear_residual(BlockVectorType &      dst,
+    evaluate_nonlinear_residual(BlockVectorType       &dst,
                                 const BlockVectorType &src) const
     {
       MyScope scope(this->timer,
@@ -121,7 +121,7 @@ namespace Structural
 
     void
     add_matrix_constraints(
-      const DoFHandler<dim> &    dof_handler,
+      const DoFHandler<dim>     &dof_handler,
       AffineConstraints<Number> &matrix_constraints) const override
     {
       if (constraints_imposition)
@@ -265,9 +265,9 @@ namespace Structural
     void
     do_evaluate_nonlinear_residual(
       const MatrixFree<dim, Number, VectorizedArrayType> &matrix_free,
-      BlockVectorType &                                   dst,
-      const BlockVectorType &                             src,
-      const std::pair<unsigned int, unsigned int> &       range) const
+      BlockVectorType                                    &dst,
+      const BlockVectorType                              &src,
+      const std::pair<unsigned int, unsigned int>        &range) const
     {
       FECellIntegrator<dim, dim, Number, VectorizedArrayType> phi(
         matrix_free, this->dof_index);

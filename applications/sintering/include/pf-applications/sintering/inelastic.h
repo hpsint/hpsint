@@ -45,9 +45,9 @@ namespace Sintering
     template <typename VectorTypeValue, typename VectorTypeGradient>
     Tensor<2, dim, VectorizedArrayType>
     flux_eps_dot(const VectorizedArrayType &c,
-                 const VectorTypeValue &    etas,
+                 const VectorTypeValue     &etas,
                  const unsigned int         etas_size,
-                 const VectorTypeGradient & etas_grad,
+                 const VectorTypeGradient  &etas_grad,
                  const VectorizedArrayType &div_gb,
                  const VectorizedArrayType &div_vol) const
     {
@@ -65,9 +65,9 @@ namespace Sintering
     template <typename VectorTypeValue, typename VectorTypeGradient>
     Tensor<2, dim, VectorizedArrayType>
     flux_eps_dot_dc(const VectorizedArrayType &c,
-                    const VectorTypeValue &    etas,
+                    const VectorTypeValue     &etas,
                     const unsigned int         etas_size,
-                    const VectorTypeGradient & etas_grad,
+                    const VectorTypeGradient  &etas_grad,
                     const VectorizedArrayType &div_gb,
                     const VectorizedArrayType &div_vol) const
     {
@@ -88,9 +88,9 @@ namespace Sintering
     template <typename VectorTypeValue, typename VectorTypeGradient>
     Tensor<2, dim, VectorizedArrayType>
     flux_eps_dot_detai(const VectorizedArrayType &c,
-                       const VectorTypeValue &    etas,
+                       const VectorTypeValue     &etas,
                        const unsigned int         etas_size,
-                       const VectorTypeGradient & etas_grad,
+                       const VectorTypeGradient  &etas_grad,
                        const VectorizedArrayType &div_gb,
                        const VectorizedArrayType &div_vol,
                        const unsigned int         index_i) const
@@ -126,9 +126,9 @@ namespace Sintering
     template <typename VectorTypeValue, typename VectorTypeGradient>
     Tensor<2, dim, VectorizedArrayType>
     flux_eps_dot_ddiv_gb(const VectorizedArrayType &c,
-                         const VectorTypeValue &    etas,
+                         const VectorTypeValue     &etas,
                          const unsigned int         etas_size,
-                         const VectorTypeGradient & etas_grad) const
+                         const VectorTypeGradient  &etas_grad) const
     {
       if (sintering_data.get_time() < time_start)
         return {};
@@ -147,7 +147,7 @@ namespace Sintering
     template <typename VectorTypeValue>
     Tensor<2, dim, VectorizedArrayType>
     flux_eps_dot_ddiv_vol(const VectorizedArrayType &c,
-                          const VectorTypeValue &    etas,
+                          const VectorTypeValue     &etas,
                           const unsigned int         etas_size) const
     {
       if (sintering_data.get_time() < time_start)
@@ -165,9 +165,9 @@ namespace Sintering
   private:
     template <typename VectorTypeValue, typename VectorTypeGradient>
     Tensor<2, dim, VectorizedArrayType>
-    chi(const VectorTypeValue &    etas,
+    chi(const VectorTypeValue     &etas,
         const unsigned int         etas_size,
-        const VectorTypeGradient & etas_grad,
+        const VectorTypeGradient  &etas_grad,
         const VectorizedArrayType &div_gb,
         const VectorizedArrayType &div_vol) const
     {
@@ -189,7 +189,7 @@ namespace Sintering
 
     template <typename VectorTypeValue, typename VectorTypeGradient>
     Tensor<1, dim, VectorizedArrayType>
-    gb_norm(const VectorTypeValue &   etas,
+    gb_norm(const VectorTypeValue    &etas,
             const unsigned int        etas_size,
             const VectorTypeGradient &etas_grad) const
     {
@@ -213,7 +213,7 @@ namespace Sintering
 
     template <typename VectorTypeValue, typename VectorTypeGradient>
     Tensor<1, dim, VectorizedArrayType>
-    gb_norm_detai(const VectorTypeValue &   etas,
+    gb_norm_detai(const VectorTypeValue    &etas,
                   const unsigned int        etas_size,
                   const VectorTypeGradient &etas_grad,
                   const unsigned            index_i) const

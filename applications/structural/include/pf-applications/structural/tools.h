@@ -7,7 +7,7 @@ namespace Structural
   using namespace dealii;
 
   template <int dim>
-  constexpr unsigned int voigt_size = dim *((dim + 1) / 2.);
+  constexpr unsigned int voigt_size = dim * ((dim + 1) / 2.);
 
   namespace internal
   {

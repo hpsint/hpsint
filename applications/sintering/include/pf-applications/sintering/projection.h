@@ -68,7 +68,7 @@ namespace Sintering
     template <typename VectorType, int dim = 3>
     std::unique_ptr<StateData<dim - 1, typename VectorType::value_type>>
     build_projection(const DoFHandler<dim> &background_dof_handler,
-                     const VectorType &     vector,
+                     const VectorType      &vector,
                      const unsigned int     direction                = 2,
                      const double           location                 = 0,
                      const unsigned int     n_coarsening_steps       = 0,
@@ -235,16 +235,16 @@ namespace Sintering
     template <int dim, typename VectorType, typename Number>
     void
     output_grain_contours_projected(
-      const Mapping<dim> &                          mapping,
-      const DoFHandler<dim> &                       background_dof_handler,
-      const VectorType &                            vector,
+      const Mapping<dim>                           &mapping,
+      const DoFHandler<dim>                        &background_dof_handler,
+      const VectorType                             &vector,
       const double                                  iso_level,
       const std::string                             filename,
       const unsigned int                            n_op,
       const GrainTracker::Tracker<dim + 1, Number> &grain_tracker,
-      const Point<dim + 1> &                        plane_origin,
-      const Point<dim + 1> &                        plane_normal,
-      const MPI_Comm &                              comm = MPI_COMM_WORLD,
+      const Point<dim + 1>                         &plane_origin,
+      const Point<dim + 1>                         &plane_normal,
+      const MPI_Comm                               &comm = MPI_COMM_WORLD,
       const unsigned int                            n_subdivisions = 1,
       const double                                  tolerance      = 1e-10)
     {
@@ -369,14 +369,14 @@ namespace Sintering
     template <int dim, typename VectorType>
     void
     output_grain_contours_projected_vtu(
-      const Mapping<dim> &        mapping,
-      const DoFHandler<dim> &     background_dof_handler,
-      const VectorType &          vector,
+      const Mapping<dim>         &mapping,
+      const DoFHandler<dim>      &background_dof_handler,
+      const VectorType           &vector,
       const double                iso_level,
       const std::string           filename,
       const unsigned int          n_op,
       const GrainTracker::Mapper &grain_mapper,
-      const MPI_Comm &            comm           = MPI_COMM_WORLD,
+      const MPI_Comm             &comm           = MPI_COMM_WORLD,
       const unsigned int          n_subdivisions = 1,
       const double                tolerance      = 1e-10)
     {
