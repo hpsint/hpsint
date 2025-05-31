@@ -3136,32 +3136,33 @@ namespace Sintering
           data_out.write_vtu_in_parallel(output, MPI_COMM_WORLD);
 
           // Output sections for 3D case
-          for (unsigned int i = 0; i < sections.size(); ++i)
-            {
-              auto proj_data_out = Postprocessors::build_default_output(
-                sections[i].state.dof_handler,
-                Postprocessors::BlockVectorWrapper<std::vector<Vector<Number>>>(
-                  sections[i].state.solution),
-                names,
-                params.output_data.fields.count("subdomain"),
-                params.output_data.higher_order_cells);
+          if constexpr (dim == 3)
+            for (unsigned int i = 0; i < sections.size(); ++i)
+              {
+                auto proj_data_out = Postprocessors::build_default_output(
+                  sections[i].state.dof_handler,
+                  Postprocessors::BlockVectorWrapper<
+                    std::vector<Vector<Number>>>(sections[i].state.solution),
+                  names,
+                  params.output_data.fields.count("subdomain"),
+                  params.output_data.higher_order_cells);
 
-              if (sections[i].state.dof_handler.n_dofs() > 0)
-                proj_data_out.build_patches();
+                if (sections[i].state.dof_handler.n_dofs() > 0)
+                  proj_data_out.build_patches();
 
-              std::stringstream ss;
-              ss << params.output_data.vtk_path << "/section_"
-                 << params.output_data.sections[i].first << "="
-                 << params.output_data.sections[i].second << "_" << label << "."
-                 << counters[label] << ".vtu";
+                std::stringstream ss;
+                ss << params.output_data.vtk_path << "/section_"
+                   << params.output_data.sections[i].first << "="
+                   << params.output_data.sections[i].second << "_" << label
+                   << "." << counters[label] << ".vtu";
 
-              const std::string output = ss.str();
+                const std::string output = ss.str();
 
-              pcout << "Outputing data at t = " << t << " (" << output << ")"
-                    << std::endl;
+                pcout << "Outputing data at t = " << t << " (" << output << ")"
+                      << std::endl;
 
-              proj_data_out.write_vtu_in_parallel(output, MPI_COMM_WORLD);
-            }
+                proj_data_out.write_vtu_in_parallel(output, MPI_COMM_WORLD);
+              }
         }
 
       // Bounding boxes can be used for scalar table output and for the surface
