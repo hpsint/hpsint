@@ -33,13 +33,13 @@ namespace Sintering
               typename StreamType>
     void
     advanced_output(
-      const MappingQ<dim>                      &mapping,
-      const DoFHandler<dim>                    &dof_handler,
-      const VectorType                         &solution,
-      const unsigned int                        n_op,
-      const OutputData                         &params,
-      const GrainTracker::Tracker<dim, Number> &grain_tracker,
-      const std::vector<std::unique_ptr<StateData<dim - 1, Number>>> &sections,
+      const MappingQ<dim>                                  &mapping,
+      const DoFHandler<dim>                                &dof_handler,
+      const VectorType                                     &solution,
+      const unsigned int                                    n_op,
+      const OutputData                                     &params,
+      const GrainTracker::Tracker<dim, Number>             &grain_tracker,
+      const std::vector<StateData<dim - 1, Number>>        &sections,
       const std::vector<std::pair<Point<dim>, Point<dim>>> &section_planes,
       const std::vector<std::shared_ptr<const BoundingBoxFilter<dim>>>
                     &box_filters,
@@ -145,10 +145,10 @@ namespace Sintering
                           << ")" << std::endl;
 
                     Postprocessors::output_grain_contours_projected_vtu(
-                      sections[i]->mapping,
-                      sections[i]->dof_handler,
+                      sections[i].mapping,
+                      sections[i].dof_handler,
                       Postprocessors::BlockVectorWrapper<
-                        std::vector<Vector<Number>>>(sections[i]->solution),
+                        std::vector<Vector<Number>>>(sections[i].solution),
                       iso_value,
                       output,
                       n_op,
@@ -290,10 +290,10 @@ namespace Sintering
                       << std::endl;
 
                 Postprocessors::output_grain_contours_projected(
-                  sections[i]->mapping,
-                  sections[i]->dof_handler,
+                  sections[i].mapping,
+                  sections[i].dof_handler,
                   Postprocessors::BlockVectorWrapper<
-                    std::vector<Vector<Number>>>(sections[i]->solution),
+                    std::vector<Vector<Number>>>(sections[i].solution),
                   iso_value,
                   output,
                   n_op,

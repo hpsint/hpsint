@@ -3142,14 +3142,14 @@ namespace Sintering
           for (unsigned int i = 0; i < sections.size(); ++i)
             {
               auto proj_data_out = Postprocessors::build_default_output(
-                sections[i]->dof_handler,
+                sections[i].dof_handler,
                 Postprocessors::BlockVectorWrapper<std::vector<Vector<Number>>>(
-                  sections[i]->solution),
+                  sections[i].solution),
                 names,
                 params.output_data.fields.count("subdomain"),
                 params.output_data.higher_order_cells);
 
-              if (sections[i]->dof_handler.n_dofs() > 0)
+              if (sections[i].dof_handler.n_dofs() > 0)
                 proj_data_out.build_patches();
 
               std::stringstream ss;
