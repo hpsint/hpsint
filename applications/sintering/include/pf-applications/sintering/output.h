@@ -144,11 +144,11 @@ namespace Sintering
                           << ")" << std::endl;
 
                     Postprocessors::output_grain_contours_projected_vtu(
-                      sections[i].state.mapping,
-                      sections[i].state.dof_handler,
+                      sections[i].state->mapping,
+                      sections[i].state->dof_handler,
                       Postprocessors::BlockVectorWrapper<
                         std::vector<Vector<Number>>>(
-                        sections[i].state.solution),
+                        sections[i].state->solution),
                       iso_value,
                       output,
                       n_op,
@@ -290,10 +290,10 @@ namespace Sintering
                       << std::endl;
 
                 Postprocessors::output_grain_contours_projected(
-                  sections[i].state.mapping,
-                  sections[i].state.dof_handler,
+                  sections[i].state->mapping,
+                  sections[i].state->dof_handler,
                   Postprocessors::BlockVectorWrapper<
-                    std::vector<Vector<Number>>>(sections[i].state.solution),
+                    std::vector<Vector<Number>>>(sections[i].state->solution),
                   iso_value,
                   output,
                   n_op,

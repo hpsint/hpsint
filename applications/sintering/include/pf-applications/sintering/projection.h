@@ -68,13 +68,21 @@ namespace Sintering
     template <int dim, typename Number>
     struct ProjectedData
     {
-      StateData<dim, Number> state;
-      Point<dim>             origin;
-      Point<dim>             normal;
+      std::unique_ptr<StateData<dim, Number>> state;
+      Point<dim + 1>                          origin;
+      Point<dim + 1>                          normal;
+
+      ProjectedData(std::unique_ptr<StateData<dim, Number>> state,
+                    const Point<dim + 1>                   &origin,
+                    const Point<dim + 1>                   &normal)
+        : state(std::move(state))
+        , origin(origin)
+        , normal(normal)
+      {}
     };
 
     template <typename VectorType, int dim = 3>
-    StateData<dim - 1, typename VectorType::value_type>
+    std::unique_ptr<StateData<dim - 1, typename VectorType::value_type>>
     build_projection(const DoFHandler<dim> &background_dof_handler,
                      const VectorType      &vector,
                      const unsigned int     direction                = 2,
@@ -135,8 +143,9 @@ namespace Sintering
         if (d != direction)
           projector.push_back(d);
 
-      StateData<dim - 1, typename VectorType::value_type> projection(
-        vector_to_be_used->n_blocks());
+      auto projection =
+        std::make_unique<StateData<dim - 1, typename VectorType::value_type>>(
+          vector_to_be_used->n_blocks());
 
       for (const auto &cell :
            background_dof_handler_to_be_used->active_cell_iterators())
@@ -149,12 +158,12 @@ namespace Sintering
               {
                 CellData<dim - 1> cell_data;
                 unsigned int      vertex_counter = 0;
-                unsigned int vertex_numerator = projection.solution[0].size();
+                unsigned int vertex_numerator = projection->solution[0].size();
 
                 for (unsigned int b = 0; b < vector_to_be_used->n_blocks(); ++b)
                   {
-                    projection.solution[b].grow_or_shrink(
-                      projection.solution[b].size() +
+                    projection->solution[b].grow_or_shrink(
+                      projection->solution[b].size() +
                       cell_data.vertices.size());
                   }
 
@@ -196,7 +205,8 @@ namespace Sintering
 
                             const auto val_proj = val0 + fac * (val0 - val1);
 
-                            projection.solution[b][vertex_numerator] = val_proj;
+                            projection->solution[b][vertex_numerator] =
+                              val_proj;
                           }
 
                         // Transfer graint tracker data to the projected grid
@@ -224,8 +234,8 @@ namespace Sintering
 
       if (vertices.size() > 0)
         {
-          projection.tria.create_triangulation(vertices, cells, subcelldata);
-          projection.dof_handler.distribute_dofs(projection.fe_dg);
+          projection->tria.create_triangulation(vertices, cells, subcelldata);
+          projection->dof_handler.distribute_dofs(projection->fe_dg);
         }
 
       if (has_ghost_elements == false)
