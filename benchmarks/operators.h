@@ -126,7 +126,7 @@ public:
             auto       &dst,
             const auto &src,
             const auto  range) {
-          if (dim != 3)
+          if constexpr (dim != 3)
             return;
 
           FEEvaluation<dim,

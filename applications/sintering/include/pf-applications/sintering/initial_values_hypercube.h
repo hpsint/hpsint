@@ -56,7 +56,15 @@ namespace Sintering
             this->order_parameter_to_grains[op];
         }
 
-      if (dim == 2)
+      if constexpr (dim == 1)
+        {
+          for (unsigned int i = 0; i < n_grains[0]; ++i)
+            {
+              this->centers.emplace_back(2 * r0 * i);
+              assign_order_parameter(i, counter++, n_order_parameters);
+            }
+        }
+      else if constexpr (dim == 2)
         {
           for (unsigned int i = 0; i < n_grains[0]; ++i)
             for (unsigned int j = 0; j < n_grains[1]; ++j)
@@ -65,7 +73,7 @@ namespace Sintering
                 assign_order_parameter(i + j, counter++, n_order_parameters);
               }
         }
-      else if (dim == 3)
+      else if constexpr (dim == 3)
         {
           for (unsigned int i = 0; i < n_grains[0]; ++i)
             for (unsigned int j = 0; j < n_grains[1]; ++j)

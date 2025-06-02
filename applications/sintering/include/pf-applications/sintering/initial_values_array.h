@@ -59,61 +59,26 @@ namespace Sintering
     std::pair<dealii::Point<dim>, dealii::Point<dim>>
     get_domain_boundaries() const final
     {
-      const auto pt_xmax = *std::max_element(centers.begin(),
-                                             centers.end(),
-                                             [](const auto &a, const auto &b) {
-                                               return a[0] < b[0];
-                                             });
+      dealii::Point<dim> max, min;
 
-      const auto pt_ymax = *std::max_element(centers.begin(),
-                                             centers.end(),
-                                             [](const auto &a, const auto &b) {
-                                               return a[1] < b[1];
-                                             });
-
-      const auto pt_xmin = *std::min_element(centers.begin(),
-                                             centers.end(),
-                                             [](const auto &a, const auto &b) {
-                                               return a[0] < b[0];
-                                             });
-
-      const auto pt_ymin = *std::min_element(centers.begin(),
-                                             centers.end(),
-                                             [](const auto &a, const auto &b) {
-                                               return a[1] < b[1];
-                                             });
-
-      double xmin = pt_xmin[0] - r0;
-      double xmax = pt_xmax[0] + r0;
-      double ymin = pt_ymin[1] - r0;
-      double ymax = pt_ymax[1] + r0;
-
-      if (dim == 2)
+      for (unsigned int d = 0; d < dim; ++d)
         {
-          return std::make_pair(dealii::Point<dim>(xmin, ymin),
-                                dealii::Point<dim>(xmax, ymax));
-        }
-      else if (dim == 3)
-        {
-          const auto pt_zmax =
-            *std::max_element(centers.begin(),
-                              centers.end(),
-                              [](const auto &a, const auto &b) {
-                                return a[2] < b[2];
-                              });
+          max[d] = (*std::max_element(centers.begin(),
+                                      centers.end(),
+                                      [d](const auto &a, const auto &b) {
+                                        return a[d] < b[d];
+                                      }))[d] +
+                   r0;
 
-          const auto pt_zmin =
-            *std::min_element(centers.begin(),
-                              centers.end(),
-                              [](const auto &a, const auto &b) {
-                                return a[2] < b[2];
-                              });
-
-          double zmin = pt_zmin[2] - r0;
-          double zmax = pt_zmax[2] + r0;
-          return std::make_pair(dealii::Point<dim>(xmin, ymin, zmin),
-                                dealii::Point<dim>(xmax, ymax, zmax));
+          min[d] = (*std::min_element(centers.begin(),
+                                      centers.end(),
+                                      [d](const auto &a, const auto &b) {
+                                        return a[d] < b[d];
+                                      }))[d] -
+                   r0;
         }
+
+      return std::make_pair(min, max);
     }
 
     double

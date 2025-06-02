@@ -83,13 +83,13 @@ namespace Sintering
             reinterpret_cast<const EvaluatorTypeData *>(lin_value),
             gradient_buffer + 0 * FECellIntegratorType::static_n_q_points);
 
-          if (dim >= 2) // gradient y-direction
+          if constexpr (dim >= 2) // gradient y-direction
             phi.template apply<1, true, false>(
               shape_values.data(),
               reinterpret_cast<const EvaluatorTypeData *>(lin_value),
               gradient_buffer + 1 * FECellIntegratorType::static_n_q_points);
 
-          if (dim >= 3) // gradient z-direction
+          if constexpr (dim >= 3) // gradient z-direction
             phi.template apply<2, true, false>(
               shape_values.data(),
               reinterpret_cast<const EvaluatorTypeData *>(lin_value),

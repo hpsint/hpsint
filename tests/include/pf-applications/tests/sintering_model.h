@@ -130,7 +130,7 @@ namespace Test
         Tensor<1, dim, VectorizedArrayType> value_result;
         value_result[0] = -0.5;
         value_result[1] = -0.2;
-        if (dim == 3)
+        if constexpr (dim == 3)
           value_result[2] = -0.7;
 
         return value_result;

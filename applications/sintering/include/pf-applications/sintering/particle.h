@@ -51,17 +51,23 @@ namespace Sintering
           }
         else
           {
-            double x0 = std::stod(std::string((*loop)[0]));
-            double y0 = std::stod(std::string((*loop)[1]));
+            const double x0 = std::stod(std::string((*loop)[0]));
 
             dealii::Point<dim> pt;
-            if (dim == 2)
+            if constexpr (dim == 1)
               {
+                pt = dealii::Point<dim>(x0);
+              }
+            if constexpr (dim == 2)
+              {
+                const double y0 = std::stod(std::string((*loop)[1]));
+
                 pt = dealii::Point<dim>(x0, y0);
               }
-            else if (dim == 3)
+            else if constexpr (dim == 3)
               {
-                double z0 = std::stod(std::string((*loop)[2]));
+                const double y0 = std::stod(std::string((*loop)[1]));
+                const double z0 = std::stod(std::string((*loop)[2]));
 
                 pt = dealii::Point<dim>(x0, y0, z0);
               }

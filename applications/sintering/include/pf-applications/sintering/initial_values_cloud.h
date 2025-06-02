@@ -48,12 +48,12 @@ namespace Sintering
       , particles(particles_in)
       , interface_width(interface_width)
     {
-      if (dim == 2)
+      if constexpr (dim == 2)
         {
           ex0 = dealii::Point<dim>(1, 0);
           ey0 = dealii::Point<dim>(0, 1);
         }
-      else if (dim == 3)
+      else if constexpr (dim == 3)
         {
           ex0 = dealii::Point<dim>(1, 0, 0);
           ey0 = dealii::Point<dim>(0, 1, 0);
@@ -135,11 +135,11 @@ namespace Sintering
 
                       // Compute unitary vector ey of the y-axis
                       dealii::Point<dim> ey;
-                      if (dim == 2)
+                      if constexpr (dim == 2)
                         {
                           ey = dealii::cross_product_2d(ex);
                         }
-                      else if (dim == 3)
+                      else if constexpr (dim == 3)
                         {
                           dealii::Point<dim> current_z_orientation =
                             get_orientation_point(p1.center, ex);
@@ -155,7 +155,7 @@ namespace Sintering
                       dealii::Tensor<2, dim> rotation_matrix =
                         dealii::outer_product(ex0, ex) +
                         dealii::outer_product(ey0, ey);
-                      if (dim == 3)
+                      if constexpr (dim == 3)
                         {
                           const dealii::Point<dim> ez(
                             dealii::cross_product_3d(ex, ey));
