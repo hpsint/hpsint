@@ -15,6 +15,8 @@
 
 #pragma once
 
+#include <string>
+
 namespace LinearSolvers
 {
   struct GMRESData
