@@ -1272,7 +1272,7 @@ namespace Sintering
     }
 
     Preconditioners::UnderlyingEntity
-    underlying_entity() override
+    underlying_entity() const override
     {
       // This preconditioner is not dependent on the system of the original
       // nonlinear operator, but rather on its suboperators.

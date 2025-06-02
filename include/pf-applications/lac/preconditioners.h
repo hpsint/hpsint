@@ -104,7 +104,7 @@ namespace Preconditioners
     do_update() = 0;
 
     virtual UnderlyingEntity
-    underlying_entity() = 0;
+    underlying_entity() const = 0;
   };
 
 
@@ -140,7 +140,7 @@ namespace Preconditioners
     {}
 
     UnderlyingEntity
-    underlying_entity() override
+    underlying_entity() const override
     {
       return UnderlyingEntity::None;
     }
@@ -193,7 +193,7 @@ namespace Preconditioners
     }
 
     UnderlyingEntity
-    underlying_entity() override
+    underlying_entity() const override
     {
       return UnderlyingEntity::None;
     }
@@ -299,7 +299,7 @@ namespace Preconditioners
     }
 
     UnderlyingEntity
-    underlying_entity() override
+    underlying_entity() const override
     {
       return UnderlyingEntity::System;
     }
@@ -404,7 +404,7 @@ namespace Preconditioners
     }
 
     UnderlyingEntity
-    underlying_entity() override
+    underlying_entity() const override
     {
       return UnderlyingEntity::System;
     }
@@ -659,7 +659,7 @@ namespace Preconditioners
     }
 
     UnderlyingEntity
-    underlying_entity() override
+    underlying_entity() const override
     {
       return UnderlyingEntity::System;
     }
@@ -740,7 +740,7 @@ namespace Preconditioners
     }
 
     UnderlyingEntity
-    underlying_entity() override
+    underlying_entity() const override
     {
       return UnderlyingEntity::BlockSystem;
     }
@@ -829,7 +829,7 @@ namespace Preconditioners
     }
 
     UnderlyingEntity
-    underlying_entity() override
+    underlying_entity() const override
     {
       return UnderlyingEntity::System;
     }
@@ -961,7 +961,7 @@ namespace Preconditioners
     }
 
     UnderlyingEntity
-    underlying_entity() override
+    underlying_entity() const override
     {
       return UnderlyingEntity::BlockSystem;
     }
@@ -1224,7 +1224,7 @@ namespace Preconditioners
     }
 
     UnderlyingEntity
-    underlying_entity() override
+    underlying_entity() const override
     {
       return UnderlyingEntity::None;
     }
