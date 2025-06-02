@@ -35,7 +35,7 @@ namespace dealii::parallel
     void
     reinit(const Triangulation<dim, spacedim> &triangulation)
     {
-      if (dim == 3)
+      if constexpr (dim == 3)
         {
           this->line_to_cells.clear();
 
@@ -143,7 +143,7 @@ namespace dealii::parallel
       const typename Triangulation<dim, spacedim>::active_cell_iterator &cell)
       const
     {
-      if (dim == 3)
+      if constexpr (dim == 3)
         if (cell->is_locally_owned())
           for (const auto line : cell->line_indices())
             for (const auto &other_cell :

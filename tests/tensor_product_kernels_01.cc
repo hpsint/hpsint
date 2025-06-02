@@ -26,11 +26,12 @@ using namespace dealii;
 int
 main()
 {
-  const int dim          = 2;
-  const int fe_degree    = 1;
-  const int n_components = 4;
-  using Number           = double;
-  using ValueType        = Tensor<1, n_components, Number>;
+  constexpr int dim          = 2;
+  constexpr int fe_degree    = 1;
+  constexpr int n_components = 4;
+
+  using Number    = double;
+  using ValueType = Tensor<1, n_components, Number>;
 
   QGauss<dim> quad(fe_degree + 1);
   FE_Q<dim>   fe(fe_degree);
@@ -55,11 +56,11 @@ main()
   phi.template apply<0, false, false>(shape_values.data(),
                                       values.data(),
                                       gradients.data() + 0 * n_q_points);
-  if (dim >= 2)
+  if constexpr (dim >= 2)
     phi.template apply<1, false, false>(shape_values.data(),
                                         values.data(),
                                         gradients.data() + 1 * n_q_points);
-  if (dim >= 3)
+  if constexpr (dim >= 3)
     phi.template apply<2, false, false>(shape_values.data(),
                                         values.data(),
                                         gradients.data() + 2 * n_q_points);

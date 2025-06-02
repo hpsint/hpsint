@@ -520,21 +520,21 @@ namespace Sintering
         }
       else
         {
-          if (dim >= 1)
+          if constexpr (dim >= 1)
             {
               boundaries.first[0] =
                 params.geometry_data.bounding_box_data.x_min;
               boundaries.second[0] =
                 params.geometry_data.bounding_box_data.x_max;
             }
-          if (dim >= 2)
+          if constexpr (dim >= 2)
             {
               boundaries.first[1] =
                 params.geometry_data.bounding_box_data.y_min;
               boundaries.second[1] =
                 params.geometry_data.bounding_box_data.y_max;
             }
-          if (dim == 3)
+          if constexpr (dim == 3)
             {
               boundaries.first[2] =
                 params.geometry_data.bounding_box_data.z_min;
@@ -576,11 +576,11 @@ namespace Sintering
         {
           std::vector<unsigned int> subdivisions(dim);
 
-          if (dim >= 1)
+          if constexpr (dim >= 1)
             subdivisions[0] = params.geometry_data.divisions_data.nx;
-          if (dim >= 2)
+          if constexpr (dim >= 2)
             subdivisions[1] = params.geometry_data.divisions_data.ny;
-          if (dim >= 3)
+          if constexpr (dim >= 3)
             subdivisions[2] = params.geometry_data.divisions_data.nz;
 
           n_refinements_remaining =
