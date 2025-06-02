@@ -39,15 +39,24 @@ namespace Sintering
                                 concentration_as_void,
                                 is_accumulative)
     {
+      AssertThrow(
+        dim > 1 || n_grains == 1,
+        ExcMessage(
+          "InitialValuesCircle can create a single grain for the 1D scenario"));
+
       const double alfa = 2 * M_PI / n_grains;
 
       const double h = (n_grains > 1) ? r0 / std::sin(alfa / 2.) : 0.;
 
       for (unsigned int ip = 0; ip < n_grains; ip++)
         {
-          std::array<double, dim> scoords{{h, ip * alfa}};
-          if (dim == 3)
+          std::array<double, dim> scoords{{h}};
+
+          if constexpr (dim >= 2)
+            scoords[1] = ip * alfa;
+          if constexpr (dim == 3)
             scoords[2] = M_PI / 2.;
+
           this->centers.push_back(
             dealii::GeometricUtilities::Coordinates::from_spherical<dim>(
               scoords));
