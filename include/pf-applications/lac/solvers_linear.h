@@ -25,6 +25,7 @@
 
 #include <pf-applications/lac/dynamic_block_vector.h>
 #include <pf-applications/lac/solvers_linear_parameters.h>
+#include <pf-applications/lac/solvers_nonlinear_parameters.h>
 
 #include <pf-applications/numerics/vector_tools.h>
 
@@ -366,4 +367,57 @@ namespace LinearSolvers
     mutable MyTimerOutput timer;
   };
 
+  template <typename JacobianOperator, typename Preconditioner>
+  std::unique_ptr<LinearSolverBase<typename JacobianOperator::value_type>>
+  create(const JacobianOperator                &jacobian_operator,
+         const Preconditioner                  &preconditioner,
+         SolverControl                         &solver_control_l,
+         const NonLinearSolvers::NonLinearData &params,
+         const std::string                     &label)
+  {
+    if (label == "GMRES")
+      return std::make_unique<
+        LinearSolvers::SolverGMRESWrapper<JacobianOperator, Preconditioner>>(
+        jacobian_operator, preconditioner, solver_control_l, params.gmres_data);
+    else if (label == "Relaxation")
+      return std::make_unique<
+        LinearSolvers::SolverRelaxation<JacobianOperator, Preconditioner>>(
+        jacobian_operator, preconditioner);
+    else if (label == "IDR")
+      return std::make_unique<
+        LinearSolvers::SolverIDRWrapper<JacobianOperator, Preconditioner>>(
+        jacobian_operator, preconditioner, solver_control_l);
+    else if (label == "Bicgstab")
+      return std::make_unique<
+        LinearSolvers::SolverBicgstabWrapper<JacobianOperator, Preconditioner>>(
+        jacobian_operator,
+        preconditioner,
+        solver_control_l,
+        params.l_bisgstab_tries);
+
+    AssertThrow(false,
+                ExcMessage("Linear solver << " + label + " >> not known!"));
+
+    return {};
+  }
+
+  template <typename JacobianOperator,
+            typename Preconditioner,
+            typename NonLinearOperator>
+  std::unique_ptr<LinearSolverBase<typename JacobianOperator::value_type>>
+  create(const JacobianOperator                &jacobian_operator,
+         const Preconditioner                  &preconditioner,
+         const NonLinearOperator               &nonlinear_operator,
+         SolverControl                         &solver_control_l,
+         const NonLinearSolvers::NonLinearData &params,
+         const std::string                     &label)
+  {
+    if (label == "Direct")
+      return std::make_unique<
+        LinearSolvers::SolverDirectWrapper<NonLinearOperator>>(
+        nonlinear_operator, solver_control_l);
+    else
+      return create(
+        jacobian_operator, preconditioner, solver_control_l, params, label);
+  }
 } // namespace LinearSolvers
