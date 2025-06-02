@@ -78,6 +78,7 @@
 #include <pf-applications/sintering/operator_advection.h>
 #include <pf-applications/sintering/operator_postproc.h>
 #include <pf-applications/sintering/operator_sintering_coupled_base.h>
+#include <pf-applications/sintering/output.h>
 #include <pf-applications/sintering/parameters.h>
 #include <pf-applications/sintering/postprocessors.h>
 #include <pf-applications/sintering/preconditioners.h>
@@ -3032,9 +3033,6 @@ namespace Sintering
       ScopedName sc("output_result");
       MyScope    scope(timer, sc);
 
-      // Some settings
-      const double iso_value = 0.5;
-
       if (counters.find(label) == counters.end())
         counters[label] = 0;
 
@@ -3042,14 +3040,11 @@ namespace Sintering
       TableHandler table;
 
       // Initialize all sections - relevant for 3D case only
-      std::vector<std::unique_ptr<Postprocessors::StateData<dim - 1, Number>>>
-        sections;
+      std::vector<Postprocessors::ProjectedData<dim - 1, Number>> sections;
 
       const std::unordered_map<std::string, int> directions = {{"x", 0},
                                                                {"y", 1},
                                                                {"z", 2}};
-
-      std::vector<std::pair<Point<dim>, Point<dim>>> section_planes;
 
       // A separate if to exclude this part for 2D for the code
       if constexpr (dim == 3)
@@ -3065,14 +3060,14 @@ namespace Sintering
                 Point<dim> normal;
                 normal[directions.at(direction_code)] = 1;
 
-                section_planes.emplace_back(origin, normal);
-
-                sections.push_back(Postprocessors::build_projection(
-                  dof_handler,
-                  solution,
-                  directions.at(direction_code),
-                  location,
-                  params.output_data.n_coarsening_steps));
+                sections.emplace_back(Postprocessors::build_projection(
+                                        dof_handler,
+                                        solution,
+                                        directions.at(direction_code),
+                                        location,
+                                        params.output_data.n_coarsening_steps),
+                                      origin,
+                                      normal);
               }
           }
 
@@ -3141,32 +3136,33 @@ namespace Sintering
           data_out.write_vtu_in_parallel(output, MPI_COMM_WORLD);
 
           // Output sections for 3D case
-          for (unsigned int i = 0; i < sections.size(); ++i)
-            {
-              auto proj_data_out = Postprocessors::build_default_output(
-                sections[i]->dof_handler,
-                Postprocessors::BlockVectorWrapper<std::vector<Vector<Number>>>(
-                  sections[i]->solution),
-                names,
-                params.output_data.fields.count("subdomain"),
-                params.output_data.higher_order_cells);
+          if constexpr (dim == 3)
+            for (unsigned int i = 0; i < sections.size(); ++i)
+              {
+                auto proj_data_out = Postprocessors::build_default_output(
+                  sections[i].state->dof_handler,
+                  Postprocessors::BlockVectorWrapper<
+                    std::vector<Vector<Number>>>(sections[i].state->solution),
+                  names,
+                  params.output_data.fields.count("subdomain"),
+                  params.output_data.higher_order_cells);
 
-              if (sections[i]->dof_handler.n_dofs() > 0)
-                proj_data_out.build_patches();
+                if (sections[i].state->dof_handler.n_dofs() > 0)
+                  proj_data_out.build_patches();
 
-              std::stringstream ss;
-              ss << params.output_data.vtk_path << "/section_"
-                 << params.output_data.sections[i].first << "="
-                 << params.output_data.sections[i].second << "_" << label << "."
-                 << counters[label] << ".vtu";
+                std::stringstream ss;
+                ss << params.output_data.vtk_path << "/section_"
+                   << params.output_data.sections[i].first << "="
+                   << params.output_data.sections[i].second << "_" << label
+                   << "." << counters[label] << ".vtu";
 
-              const std::string output = ss.str();
+                const std::string output = ss.str();
 
-              pcout << "Outputing data at t = " << t << " (" << output << ")"
-                    << std::endl;
+                pcout << "Outputing data at t = " << t << " (" << output << ")"
+                      << std::endl;
 
-              proj_data_out.write_vtu_in_parallel(output, MPI_COMM_WORLD);
-            }
+                proj_data_out.write_vtu_in_parallel(output, MPI_COMM_WORLD);
+              }
         }
 
       // Bounding boxes can be used for scalar table output and for the surface
@@ -3266,15 +3262,16 @@ namespace Sintering
                               skip_reassignment);
         }
 
-      const auto generate_name = [&](const std::string &name,
-                                     const unsigned int index) {
-        if (!has_control_boxes)
-          return name;
-        else if (params.output_data.only_control_boxes)
-          return name + "_" + std::to_string(index);
-        else
-          return (index == 0) ? name : (name + "_" + std::to_string(index - 1));
-      };
+      const std::function<std::string(const std::string &, const unsigned int)>
+        generate_name = [&](const std::string &name, const unsigned int index) {
+          if (!has_control_boxes)
+            return name;
+          else if (params.output_data.only_control_boxes)
+            return name + "_" + std::to_string(index);
+          else
+            return (index == 0) ? name :
+                                  (name + "_" + std::to_string(index - 1));
+        };
 
       if (params.output_data.table)
         {
@@ -3360,37 +3357,6 @@ namespace Sintering
                   table.add_value(generate_name("control_box", i), box_volume);
                 }
 
-              if (params.output_data.iso_surf_area)
-                {
-                  const auto surface_area =
-                    Postprocessors::compute_surface_area(
-                      mapping,
-                      dof_handler,
-                      solution,
-                      iso_value,
-                      box_filters[i],
-                      params.output_data.n_mca_subdivisions);
-
-                  table.add_value(generate_name("iso_surf_area", i),
-                                  surface_area);
-                }
-
-              if (params.output_data.iso_gb_area)
-                {
-                  const auto gb_area =
-                    Postprocessors::compute_grain_boundaries_area(
-                      mapping,
-                      dof_handler,
-                      solution,
-                      iso_value,
-                      sintering_operator.n_grains(),
-                      params.output_data.gb_threshold,
-                      box_filters[i],
-                      params.output_data.n_mca_subdivisions);
-
-                  table.add_value(generate_name("iso_gb_area", i), gb_area);
-                }
-
               if (params.output_data.coordination_number &&
                   !grain_tracker.empty())
                 {
@@ -3405,209 +3371,6 @@ namespace Sintering
                                   avg_coord_num);
                 }
             }
-        }
-
-      for (unsigned int i = 0; i < box_filters.size(); ++i)
-        {
-          const std::string label_box = generate_name(label, i);
-
-          if (params.output_data.contours)
-            {
-              const std::string output =
-                params.output_data.vtk_path + "/contour_" + label_box + "." +
-                std::to_string(counters[label]) + ".vtu";
-
-              pcout << "Outputing data at t = " << t << " (" << output << ")"
-                    << std::endl;
-
-              Postprocessors::output_grain_contours_vtu(
-                mapping,
-                dof_handler,
-                solution,
-                iso_value,
-                output,
-                sintering_operator.n_grains(),
-                grain_tracker,
-                params.output_data.n_coarsening_steps,
-                box_filters[i],
-                params.output_data.n_mca_subdivisions);
-
-              if constexpr (dim == 3)
-                for (unsigned int i = 0; i < sections.size(); ++i)
-                  {
-                    std::stringstream ss;
-                    ss << params.output_data.vtk_path << "/contour_section_"
-                       << params.output_data.sections[i].first << "="
-                       << params.output_data.sections[i].second << "_" << label
-                       << "." << counters[label] << ".vtu";
-
-                    const std::string output = ss.str();
-
-                    pcout << "Outputing data at t = " << t << " (" << output
-                          << ")" << std::endl;
-
-                    Postprocessors::output_grain_contours_projected_vtu(
-                      sections[i]->mapping,
-                      sections[i]->dof_handler,
-                      Postprocessors::BlockVectorWrapper<
-                        std::vector<Vector<Number>>>(sections[i]->solution),
-                      iso_value,
-                      output,
-                      sintering_operator.n_grains(),
-                      grain_tracker,
-                      MPI_COMM_WORLD,
-                      params.output_data.n_mca_subdivisions);
-                  }
-            }
-
-          if (params.output_data.concentration_contour)
-            {
-              const std::string output =
-                params.output_data.vtk_path + "/surface_" + label_box + "." +
-                std::to_string(counters[label]) + ".vtu";
-
-              pcout << "Outputing data at t = " << t << " (" << output << ")"
-                    << std::endl;
-
-              const auto only_concentration = solution.create_view(0, 1);
-
-              Postprocessors::output_concentration_contour_vtu(
-                mapping,
-                dof_handler,
-                *only_concentration,
-                iso_value,
-                output,
-                params.output_data.n_coarsening_steps,
-                box_filters[i],
-                params.output_data.n_mca_subdivisions);
-            }
-
-          if (params.output_data.grain_boundaries)
-            {
-              const std::string output =
-                params.output_data.vtk_path + "/gb_" + label_box + "." +
-                std::to_string(counters[label]) + ".vtu";
-
-              pcout << "Outputing data at t = " << t << " (" << output << ")"
-                    << std::endl;
-
-              Postprocessors::output_grain_boundaries_vtu(
-                mapping,
-                dof_handler,
-                solution,
-                iso_value,
-                output,
-                sintering_operator.n_grains(),
-                params.output_data.gb_threshold,
-                params.output_data.n_coarsening_steps,
-                box_filters[i],
-                params.output_data.n_mca_subdivisions);
-            }
-
-          if (params.output_data.porosity)
-            {
-              const std::string output =
-                params.output_data.vtk_path + "/porosity_" + label_box + "." +
-                std::to_string(counters[label]) + ".vtu";
-
-              pcout << "Outputing data at t = " << t << " (" << output << ")"
-                    << std::endl;
-
-              Postprocessors::output_porosity(
-                mapping,
-                dof_handler,
-                solution,
-                output,
-                params.output_data.porosity_max_value,
-                box_filters[i]);
-            }
-
-          if (params.output_data.porosity_stats)
-            {
-              const std::string output =
-                params.output_data.vtk_path + "/porosity_stats_" + label_box +
-                "." + std::to_string(counters[label]) + ".log";
-
-              pcout << "Outputing data at t = " << t << " (" << output << ")"
-                    << std::endl;
-
-              Postprocessors::output_porosity_stats(
-                dof_handler,
-                solution,
-                output,
-                params.output_data.porosity_max_value,
-                box_filters[i]);
-            }
-
-          if (params.output_data.porosity_contours)
-            {
-              const std::string output =
-                params.output_data.vtk_path + "/porosity_contours_" +
-                label_box + "." + std::to_string(counters[label]) + ".vtu";
-
-              pcout << "Outputing data at t = " << t << " (" << output << ")"
-                    << std::endl;
-
-              const auto only_concentration = solution.create_view(0, 1);
-
-              Postprocessors::output_porosity_contours_vtu(
-                mapping,
-                dof_handler,
-                *only_concentration,
-                iso_value,
-                output,
-                params.output_data.n_coarsening_steps,
-                box_filters[i],
-                params.output_data.n_mca_subdivisions,
-                params.output_data.porosity_smooth);
-            }
-        }
-
-      if (params.output_data.contours_tex && !grain_tracker.empty())
-        {
-          const std::string output = params.output_data.vtk_path + "/contour_" +
-                                     label + "." +
-                                     std::to_string(counters[label]) + ".txt";
-
-          pcout << "Outputing data at t = " << t << " (" << output << ")"
-                << std::endl;
-
-          Postprocessors::output_grain_contours(mapping,
-                                                dof_handler,
-                                                solution,
-                                                iso_value,
-                                                output,
-                                                sintering_operator.n_grains(),
-                                                grain_tracker);
-
-          // Output sections for 3D case
-          if constexpr (dim == 3)
-            for (unsigned int i = 0; i < sections.size(); ++i)
-              {
-                std::stringstream ss;
-                ss << params.output_data.vtk_path << "/contour_section_"
-                   << params.output_data.sections[i].first << "="
-                   << params.output_data.sections[i].second << "_" << label
-                   << "." << counters[label] << ".txt";
-
-                const std::string output = ss.str();
-
-                pcout << "Outputing data at t = " << t << " (" << output << ")"
-                      << std::endl;
-
-                Postprocessors::output_grain_contours_projected(
-                  sections[i]->mapping,
-                  sections[i]->dof_handler,
-                  Postprocessors::BlockVectorWrapper<
-                    std::vector<Vector<Number>>>(sections[i]->solution),
-                  iso_value,
-                  output,
-                  sintering_operator.n_grains(),
-                  grain_tracker,
-                  section_planes[i].first,
-                  section_planes[i].second,
-                  MPI_COMM_WORLD);
-              }
         }
 
       if (params.output_data.shrinkage)
@@ -3694,6 +3457,24 @@ namespace Sintering
                                               solution,
                                               output);
         }
+
+      // Advanced output for contours
+      if constexpr (dim >= 2)
+        Postprocessors::advanced_output(mapping,
+                                        dof_handler,
+                                        solution,
+                                        sintering_operator.n_grains(),
+                                        params.output_data,
+                                        grain_tracker,
+                                        sections,
+                                        box_filters,
+                                        table,
+                                        t,
+                                        timer,
+                                        generate_name,
+                                        counters[label],
+                                        label,
+                                        pcout);
 
       if (params.output_data.table)
         {

@@ -65,6 +65,22 @@ namespace Sintering
       StateData(const StateData<dim, Number> &state) = delete;
     };
 
+    template <int dim, typename Number>
+    struct ProjectedData
+    {
+      std::unique_ptr<StateData<dim, Number>> state;
+      Point<dim + 1>                          origin;
+      Point<dim + 1>                          normal;
+
+      ProjectedData(std::unique_ptr<StateData<dim, Number>> state,
+                    const Point<dim + 1>                   &origin,
+                    const Point<dim + 1>                   &normal)
+        : state(std::move(state))
+        , origin(origin)
+        , normal(normal)
+      {}
+    };
+
     template <typename VectorType, int dim = 3>
     std::unique_ptr<StateData<dim - 1, typename VectorType::value_type>>
     build_projection(const DoFHandler<dim> &background_dof_handler,
