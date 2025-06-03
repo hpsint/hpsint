@@ -25,6 +25,7 @@
 
 #include <pf-applications/lac/dynamic_block_vector.h>
 #include <pf-applications/lac/solvers_linear_parameters.h>
+#include <pf-applications/lac/solvers_nonlinear_parameters.h>
 
 #include <pf-applications/numerics/vector_tools.h>
 
@@ -59,10 +60,10 @@ namespace LinearSolvers
     using VectorType      = typename Operator::vector_type;
     using BlockVectorType = typename Operator::BlockVectorType;
 
-    SolverGMRESWrapper(const Operator  &op,
-                       Preconditioner  &preconditioner,
-                       SolverControl   &solver_control,
-                       const GMRESData &data = GMRESData())
+    SolverGMRESWrapper(const Operator       &op,
+                       const Preconditioner &preconditioner,
+                       SolverControl        &solver_control,
+                       const GMRESData      &data = GMRESData())
       : op(op)
       , preconditioner(preconditioner)
       , solver_control(solver_control)
@@ -105,10 +106,10 @@ namespace LinearSolvers
       return solver_control.last_step();
     }
 
-    const Operator &op;
-    Preconditioner &preconditioner;
-    SolverControl  &solver_control;
-    const GMRESData data;
+    const Operator       &op;
+    const Preconditioner &preconditioner;
+    SolverControl        &solver_control;
+    const GMRESData       data;
 
     mutable MyTimerOutput timer;
   };
@@ -123,10 +124,10 @@ namespace LinearSolvers
     using VectorType      = typename Operator::vector_type;
     using BlockVectorType = typename Operator::BlockVectorType;
 
-    SolverRelaxation(const Operator    &op,
-                     Preconditioner    &preconditioner,
-                     const double       relaxation   = 1.,
-                     const unsigned int n_iterations = 1)
+    SolverRelaxation(const Operator       &op,
+                     const Preconditioner &preconditioner,
+                     const double          relaxation   = 1.,
+                     const unsigned int    n_iterations = 1)
       : op(op)
       , preconditioner(preconditioner)
       , relaxation(relaxation)
@@ -152,24 +153,26 @@ namespace LinearSolvers
     {
       MyScope scope(timer, "relaxation::solve");
 
-      typename PreconditionRelaxation<Operator, Preconditioner>::AdditionalData
+      typename PreconditionRelaxation<Operator,
+                                      const Preconditioner>::AdditionalData
         additional_data;
       additional_data.relaxation   = relaxation;
       additional_data.n_iterations = n_iterations;
       additional_data.preconditioner =
-        std::shared_ptr<Preconditioner>(&preconditioner, [](const auto &) {});
+        std::shared_ptr<const Preconditioner>(&preconditioner,
+                                              [](const auto &) {});
 
-      PreconditionRelaxation<Operator, Preconditioner> solver;
+      PreconditionRelaxation<Operator, const Preconditioner> solver;
       solver.initialize(op, additional_data);
       solver.vmult(dst, src);
 
       return n_iterations;
     }
 
-    const Operator    &op;
-    Preconditioner    &preconditioner;
-    const double       relaxation;
-    const unsigned int n_iterations;
+    const Operator       &op;
+    const Preconditioner &preconditioner;
+    const double          relaxation;
+    const unsigned int    n_iterations;
 
     mutable MyTimerOutput timer;
   };
@@ -184,9 +187,9 @@ namespace LinearSolvers
     using VectorType      = typename Operator::vector_type;
     using BlockVectorType = typename Operator::BlockVectorType;
 
-    SolverIDRWrapper(const Operator &op,
-                     Preconditioner &preconditioner,
-                     SolverControl  &solver_control)
+    SolverIDRWrapper(const Operator       &op,
+                     const Preconditioner &preconditioner,
+                     SolverControl        &solver_control)
       : op(op)
       , preconditioner(preconditioner)
       , solver_control(solver_control)
@@ -217,9 +220,9 @@ namespace LinearSolvers
       return solver_control.last_step();
     }
 
-    const Operator &op;
-    Preconditioner &preconditioner;
-    SolverControl  &solver_control;
+    const Operator       &op;
+    const Preconditioner &preconditioner;
+    SolverControl        &solver_control;
 
     mutable MyTimerOutput timer;
   };
@@ -234,10 +237,10 @@ namespace LinearSolvers
     using VectorType      = typename Operator::vector_type;
     using BlockVectorType = typename Operator::BlockVectorType;
 
-    SolverBicgstabWrapper(const Operator    &op,
-                          Preconditioner    &preconditioner,
-                          SolverControl     &solver_control,
-                          const unsigned int max_bicgsteps)
+    SolverBicgstabWrapper(const Operator       &op,
+                          const Preconditioner &preconditioner,
+                          SolverControl        &solver_control,
+                          const unsigned int    max_bicgsteps)
       : op(op)
       , preconditioner(preconditioner)
       , solver_control(solver_control)
@@ -297,10 +300,10 @@ namespace LinearSolvers
         }
     }
 
-    const Operator    &op;
-    Preconditioner    &preconditioner;
-    SolverControl     &solver_control;
-    const unsigned int max_bicgsteps;
+    const Operator       &op;
+    const Preconditioner &preconditioner;
+    SolverControl        &solver_control;
+    const unsigned int    max_bicgsteps;
 
     mutable MyTimerOutput timer;
   };
@@ -364,4 +367,57 @@ namespace LinearSolvers
     mutable MyTimerOutput timer;
   };
 
+  template <typename JacobianOperator, typename Preconditioner>
+  std::unique_ptr<LinearSolverBase<typename JacobianOperator::value_type>>
+  create(const JacobianOperator                &jacobian_operator,
+         const Preconditioner                  &preconditioner,
+         SolverControl                         &solver_control_l,
+         const NonLinearSolvers::NonLinearData &params,
+         const std::string                     &label)
+  {
+    if (label == "GMRES")
+      return std::make_unique<
+        LinearSolvers::SolverGMRESWrapper<JacobianOperator, Preconditioner>>(
+        jacobian_operator, preconditioner, solver_control_l, params.gmres_data);
+    else if (label == "Relaxation")
+      return std::make_unique<
+        LinearSolvers::SolverRelaxation<JacobianOperator, Preconditioner>>(
+        jacobian_operator, preconditioner);
+    else if (label == "IDR")
+      return std::make_unique<
+        LinearSolvers::SolverIDRWrapper<JacobianOperator, Preconditioner>>(
+        jacobian_operator, preconditioner, solver_control_l);
+    else if (label == "Bicgstab")
+      return std::make_unique<
+        LinearSolvers::SolverBicgstabWrapper<JacobianOperator, Preconditioner>>(
+        jacobian_operator,
+        preconditioner,
+        solver_control_l,
+        params.l_bisgstab_tries);
+
+    AssertThrow(false,
+                ExcMessage("Linear solver << " + label + " >> not known!"));
+
+    return {};
+  }
+
+  template <typename JacobianOperator,
+            typename Preconditioner,
+            typename NonLinearOperator>
+  std::unique_ptr<LinearSolverBase<typename JacobianOperator::value_type>>
+  create(const JacobianOperator                &jacobian_operator,
+         const Preconditioner                  &preconditioner,
+         const NonLinearOperator               &nonlinear_operator,
+         SolverControl                         &solver_control_l,
+         const NonLinearSolvers::NonLinearData &params,
+         const std::string                     &label)
+  {
+    if (label == "Direct")
+      return std::make_unique<
+        LinearSolvers::SolverDirectWrapper<NonLinearOperator>>(
+        nonlinear_operator, solver_control_l);
+    else
+      return create(
+        jacobian_operator, preconditioner, solver_control_l, params, label);
+  }
 } // namespace LinearSolvers
