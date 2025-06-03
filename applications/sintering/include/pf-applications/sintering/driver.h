@@ -89,6 +89,7 @@
 #include <pf-applications/grain_tracker/tracker.h>
 #include <pf-applications/grid/constraint_helper.h>
 #include <pf-applications/matrix_free/output.h>
+#include <pf-applications/time_integration/time_marching.h>
 
 namespace Sintering
 {
@@ -1050,16 +1051,7 @@ namespace Sintering
                                                     NonLinearOperator>>(
             advection_operator, nonlinear_operator);
 
-      // Create Jacobian operator
-      std::unique_ptr<NonLinearSolvers::JacobianBase<Number>> jacobian_operator;
-      if (params.nonlinear_data.jacobi_free == false)
-        jacobian_operator = std::make_unique<
-          NonLinearSolvers::JacobianWrapper<Number, NonLinearOperator>>(
-          nonlinear_operator);
-      else
-        jacobian_operator = std::make_unique<
-          NonLinearSolvers::JacobianFree<Number, ResidualWrapper<Number>>>(
-          *residual_wrapper);
+
 
       // Save all blocks at quadrature points if the advection mechanism is
       // enabled
@@ -1129,63 +1121,17 @@ namespace Sintering
         preconditioner = Preconditioners::create(
           nonlinear_operator, params.preconditioners_data.outer_preconditioner);
 
-      // ... linear solver
-      std::unique_ptr<SolverControl> solver_control_l;
-      if (true) // TODO: make parameter
+      // A check for validity of the FDM approximation and direct linear solver
+      if (params.nonlinear_data.fdm_jacobian_approximation)
         {
-          solver_control_l =
-            std::make_unique<ReductionControl>(params.nonlinear_data.l_max_iter,
-                                               params.nonlinear_data.l_abs_tol,
-                                               params.nonlinear_data.l_rel_tol);
+          AssertThrow(params.matrix_based, ExcNotImplemented());
         }
-      else
-        {
-          solver_control_l = std::make_unique<IterationNumberControl>(10);
-        }
-
-      // Enable tracking residual evolution
-      if (params.nonlinear_data.verbosity >= 2) // TODO
-        solver_control_l->enable_history_data();
-
-      std::unique_ptr<LinearSolvers::LinearSolverBase<Number>> linear_solver;
-
-      if (params.nonlinear_data.l_solver == "GMRES")
-        linear_solver = std::make_unique<LinearSolvers::SolverGMRESWrapper<
-          NonLinearSolvers::JacobianBase<Number>,
-          Preconditioners::PreconditionerBase<Number>>>(
-          *jacobian_operator,
-          *preconditioner,
-          *solver_control_l,
-          params.nonlinear_data.gmres_data);
-      else if (params.nonlinear_data.l_solver == "Relaxation")
-        linear_solver = std::make_unique<LinearSolvers::SolverRelaxation<
-          NonLinearSolvers::JacobianBase<Number>,
-          Preconditioners::PreconditionerBase<Number>>>(*jacobian_operator,
-                                                        *preconditioner);
-      else if (params.nonlinear_data.l_solver == "IDR")
-        linear_solver = std::make_unique<LinearSolvers::SolverIDRWrapper<
-          NonLinearSolvers::JacobianBase<Number>,
-          Preconditioners::PreconditionerBase<Number>>>(*jacobian_operator,
-                                                        *preconditioner,
-                                                        *solver_control_l);
-      else if (params.nonlinear_data.l_solver == "Bicgstab")
-        linear_solver = std::make_unique<LinearSolvers::SolverBicgstabWrapper<
-          NonLinearSolvers::JacobianBase<Number>,
-          Preconditioners::PreconditionerBase<Number>>>(
-          *jacobian_operator,
-          *preconditioner,
-          *solver_control_l,
-          params.nonlinear_data.l_bisgstab_tries);
-      else if (params.nonlinear_data.l_solver == "Direct")
+      if (params.nonlinear_data.l_solver == "Direct")
         {
           AssertThrow(
             params.matrix_based,
             ExcMessage(
               "A matrix-based mode has to be enabled to use the direct solver"));
-
-          linear_solver = std::make_unique<
-            LinearSolvers::SolverDirectWrapper<NonLinearOperator>>(
-            nonlinear_operator, *solver_control_l);
         }
 
       MyTimerOutput timer;
@@ -1241,54 +1187,17 @@ namespace Sintering
         params.nonlinear_data.nl_abs_tol,
         params.nonlinear_data.nl_rel_tol);
 
-      // Lambda to compute residual
-      const auto nl_residual = [&](const auto &src, auto &dst) {
-        ScopedName sc("residual");
-        MyScope    scope(timer, sc);
-
-        residual_wrapper->evaluate_nonlinear_residual(dst, src);
-
-        statistics.increment_residual_evaluations(1);
-      };
-
-      // Lambda to set up jacobian
-      const auto nl_setup_jacobian = [&](const auto &current_u) {
-        ScopedName sc("setup_jacobian");
-        MyScope    scope(timer, sc);
-
+      // Lambda to set up linearization point
+      auto nl_setup_linearization_point = [&](const VectorType &current_u) {
         sintering_data.fill_quadrature_point_values(
           matrix_free,
           current_u,
           params.advection_data.enable,
           save_all_blocks);
-
-        // TODO disable this feature for a while, fix later
-        // nonlinear_operator.update_state(current_u);
-
-        nonlinear_operator.do_update();
-
-        if (params.nonlinear_data.fdm_jacobian_approximation)
-          {
-            AssertThrow(params.matrix_based, ExcNotImplemented());
-
-            nonlinear_operator.initialize_system_matrix(false);
-            auto &system_matrix = nonlinear_operator.get_system_matrix();
-
-            calc_numeric_tangent(dof_handler,
-                                 nonlinear_operator,
-                                 current_u,
-                                 nl_residual,
-                                 system_matrix);
-          }
-
-        jacobian_operator->reinit(current_u);
       };
 
       // Lambda to update preconditioner
-      const auto nl_setup_preconditioner = [&](const auto &current_u) {
-        ScopedName sc("setup_preconditioner");
-        MyScope    scope(timer, sc);
-
+      auto nl_setup_custom_preconditioner = [&](const VectorType &current_u) {
         if (transfer) // update multigrid levels
           {
             const unsigned int min_level = transfers.min_level();
@@ -1331,69 +1240,6 @@ namespace Sintering
                   save_all_blocks);
               }
           }
-
-        // Update the underlying system if a preconditioner uses it. The use of
-        // the numerical FDM approximation for non-block systems is very slow
-        // and should be deemed as, mainly, a debug or prototyping feature.
-        if (static_cast<bool>(preconditioner->underlying_entity() &
-                              Preconditioners::UnderlyingEntity::System))
-          {
-            if (params.nonlinear_data.fdm_precond_system_approximation)
-              {
-                nonlinear_operator.initialize_system_matrix(false);
-                auto &system_matrix = nonlinear_operator.get_system_matrix();
-
-                calc_numeric_tangent(dof_handler,
-                                     nonlinear_operator,
-                                     current_u,
-                                     nl_residual,
-                                     system_matrix);
-              }
-            else
-              {
-                nonlinear_operator.initialize_system_matrix(true);
-              }
-          }
-
-        if (static_cast<bool>(preconditioner->underlying_entity() &
-                              Preconditioners::UnderlyingEntity::BlockSystem))
-          nonlinear_operator.initialize_block_system_matrix(true);
-
-        preconditioner->do_update();
-      };
-
-      // Lambda to solve system using jacobian
-      const auto nl_solve_with_jacobian = [&](const auto &src, auto &dst) {
-        ScopedName sc("solve_with_jacobian");
-        MyScope    scope(timer, sc);
-
-        // note: we mess with the input here, since we know that Newton does not
-        // use the content anymore
-        for (unsigned int b = 0; b < src.n_blocks(); ++b)
-          constraints.set_zero(const_cast<VectorType &>(src).block(b));
-
-        const unsigned int n_iterations = linear_solver->solve(dst, src);
-
-        for (unsigned int b = 0; b < src.n_blocks(); ++b)
-          constraints.distribute(dst.block(b));
-
-        if (params.nonlinear_data.verbosity >= 2 &&
-            !solver_control_l->get_history_data().empty())
-          {
-            pcout << " - l_res_abs: ";
-            for (const auto res : solver_control_l->get_history_data())
-              pcout << res << " ";
-            pcout << std::endl;
-
-            std::vector<double> &res_history =
-              const_cast<std::vector<double> &>(
-                solver_control_l->get_history_data());
-            res_history.clear();
-          }
-
-        statistics.increment_linear_iterations(n_iterations);
-
-        return n_iterations;
       };
 
       // Lambda to check iterations and output stats
@@ -1405,10 +1251,10 @@ namespace Sintering
 
       unsigned int previous_linear_iter = 0;
 
-      const auto nl_check_iteration_status = [&](const auto  step,
-                                                 const auto  check_value,
-                                                 const auto &x,
-                                                 const auto &r) {
+      auto nl_check_iteration_status = [&](const unsigned int step,
+                                           const double       check_value,
+                                           const VectorType  &x,
+                                           const VectorType  &r) {
         (void)x;
 
         double check_value_ch  = 0.0;
@@ -1498,190 +1344,22 @@ namespace Sintering
                  SolverControl::success;
       };
 
-      std::unique_ptr<NonLinearSolvers::NewtonSolver<VectorType>>
-        non_linear_solver_executor;
+      std::unique_ptr<TimeIntegration::TimeMarching<VectorType>> time_marching;
 
-      if (params.nonlinear_data.nonlinear_solver_type == "damped")
-        {
-          NonLinearSolvers::DampedNewtonSolver<VectorType> non_linear_solver(
-            statistics,
-            NonLinearSolvers::NewtonSolverAdditionalData(
-              params.nonlinear_data.newton_do_update,
-              params.nonlinear_data.newton_threshold_newton_iter,
-              params.nonlinear_data.newton_threshold_linear_iter,
-              params.nonlinear_data.newton_reuse_preconditioner,
-              params.nonlinear_data.newton_use_damping));
-
-          non_linear_solver.reinit_vector = [&](auto &vector) {
-            ScopedName sc("reinit_vector");
-            MyScope    scope(timer, sc);
-
-            nonlinear_operator.initialize_dof_vector(vector);
-          };
-
-          non_linear_solver.residual            = nl_residual;
-          non_linear_solver.setup_jacobian      = nl_setup_jacobian;
-          non_linear_solver.solve_with_jacobian = nl_solve_with_jacobian;
-
-          if (params.nonlinear_data.l_solver != "Direct")
-            non_linear_solver.setup_preconditioner = nl_setup_preconditioner;
-
-          if (params.nonlinear_data.verbosity >= 1) // TODO
-            non_linear_solver.check_iteration_status =
-              nl_check_iteration_status;
-
-          non_linear_solver_executor =
-            std::make_unique<NonLinearSolvers::NonLinearSolverWrapper<
-              VectorType,
-              NonLinearSolvers::DampedNewtonSolver<VectorType>>>(
-              std::move(non_linear_solver));
-        }
-      else if (params.nonlinear_data.nonlinear_solver_type == "NOX")
-        {
-          Teuchos::RCP<Teuchos::ParameterList> non_linear_parameters =
-            Teuchos::rcp(new Teuchos::ParameterList);
-
-          non_linear_parameters->set("Nonlinear Solver", "Line Search Based");
-
-          auto &printParams = non_linear_parameters->sublist("Printing");
-          printParams.set("Output Information",
-                          params.nonlinear_data.nox_data.output_information);
-
-          auto &dir_parameters = non_linear_parameters->sublist("Direction");
-          dir_parameters.set("Method",
-                             params.nonlinear_data.nox_data.direction_method);
-
-          /* Disable the recovery feature of NOX such that it behaves similarly
-           * to our damped solver in the case of linear solver failure. It has
-           * been observed that recovery steps are not efficient for our
-           * problem, so no need to waste time on them. */
-          dir_parameters.sublist("Newton").set("Rescue Bad Newton Solve",
-                                               false);
-
-          auto &search_parameters =
-            non_linear_parameters->sublist("Line Search");
-          search_parameters.set(
-            "Method", params.nonlinear_data.nox_data.line_search_method);
-
-          // Params for polynomial
-          auto &poly_params = search_parameters.sublist("Polynomial");
-          poly_params.set(
-            "Interpolation Type",
-            params.nonlinear_data.nox_data.line_search_interpolation_type);
-
-          typename TrilinosWrappers::NOXSolver<VectorType>::AdditionalData
-            additional_data(params.nonlinear_data.nl_max_iter,
-                            params.nonlinear_data.nl_abs_tol,
-                            params.nonlinear_data.nl_rel_tol,
-                            params.nonlinear_data.newton_threshold_newton_iter,
-                            params.nonlinear_data.newton_threshold_linear_iter,
-                            params.nonlinear_data.newton_reuse_preconditioner);
-
-          TrilinosWrappers::NOXSolver<VectorType> non_linear_solver(
-            additional_data, non_linear_parameters);
-
-          non_linear_solver.residual = [&nl_residual](const auto &src,
-                                                      auto       &dst) {
-            nl_residual(src, dst);
-            return 0;
-          };
-
-          non_linear_solver.setup_jacobian =
-            [&nl_setup_jacobian](const auto &current_u) {
-              nl_setup_jacobian(current_u);
-              return 0;
-            };
-
-          if (params.nonlinear_data.l_solver != "Direct")
-            non_linear_solver.setup_preconditioner =
-              [&nl_setup_preconditioner](const auto &current_u) {
-                nl_setup_preconditioner(current_u);
-                return 0;
-              };
-
-          non_linear_solver.solve_with_jacobian_and_track_n_linear_iterations =
-            [&nl_solve_with_jacobian](const auto  &src,
-                                      auto        &dst,
-                                      const double tolerance) {
-              (void)tolerance;
-              return nl_solve_with_jacobian(src, dst);
-            };
-
-          non_linear_solver.apply_jacobian =
-            [&jacobian_operator](const auto &src, auto &dst) {
-              jacobian_operator->vmult(dst, src);
-              return 0;
-            };
-
-          if (params.nonlinear_data.verbosity >= 1) // TODO
-            non_linear_solver.check_iteration_status =
-              nl_check_iteration_status;
-
-          non_linear_solver_executor =
-            std::make_unique<NonLinearSolvers::NonLinearSolverWrapper<
-              VectorType,
-              TrilinosWrappers::NOXSolver<VectorType>>>(
-              std::move(non_linear_solver), statistics);
-        }
-#if defined(DEAL_II_WITH_PETSC) && defined(USE_SNES)
-      else if (params.nonlinear_data.nonlinear_solver_type == "SNES")
-        {
-          typename NonLinearSolvers::SNESSolver<VectorType>::AdditionalData
-            additional_data(params.nonlinear_data.nl_max_iter,
-                            params.nonlinear_data.nl_abs_tol,
-                            params.nonlinear_data.nl_rel_tol,
-                            params.nonlinear_data.newton_threshold_newton_iter,
-                            params.nonlinear_data.newton_threshold_linear_iter,
-                            params.nonlinear_data.snes_data.line_search_name);
-
-          NonLinearSolvers::SNESSolver<VectorType> non_linear_solver(
-            additional_data, params.nonlinear_data.snes_data.solver_name);
-
-          non_linear_solver.residual = [&nl_residual](const auto &src,
-                                                      auto       &dst) {
-            nl_residual(src, dst);
-            return 0;
-          };
-
-          non_linear_solver.setup_jacobian =
-            [&nl_setup_jacobian](const auto &current_u) {
-              nl_setup_jacobian(current_u);
-              return 0;
-            };
-
-          non_linear_solver.setup_preconditioner =
-            [&nl_setup_preconditioner](const auto &current_u) {
-              nl_setup_preconditioner(current_u);
-              return 0;
-            };
-
-          non_linear_solver.solve_with_jacobian_and_track_n_linear_iterations =
-            [&nl_solve_with_jacobian](const auto  &src,
-                                      auto        &dst,
-                                      const double tolerance) {
-              (void)tolerance;
-              return nl_solve_with_jacobian(src, dst);
-            };
-
-          non_linear_solver.apply_jacobian =
-            [&jacobian_operator](const auto &src, auto &dst) {
-              jacobian_operator->vmult(dst, src);
-              return 0;
-            };
-
-          if (params.nonlinear_data.verbosity >= 1) // TODO
-            non_linear_solver.check_iteration_status =
-              nl_check_iteration_status;
-
-          non_linear_solver_executor =
-            std::make_unique<NonLinearSolvers::NonLinearSolverWrapper<
-              VectorType,
-              NonLinearSolvers::SNESSolver<VectorType>>>(
-              std::move(non_linear_solver), statistics);
-        }
-#endif
-      else
-        AssertThrow(false, ExcNotImplemented());
+      time_marching = std::make_unique<
+        TimeIntegration::
+          TimeMarchingImplicit<dim, VectorType, NonLinearOperator>>(
+        nonlinear_operator,
+        *preconditioner,
+        *residual_wrapper,
+        dof_handler,
+        constraints,
+        params.nonlinear_data,
+        statistics,
+        timer,
+        std::move(nl_setup_custom_preconditioner),
+        std::move(nl_setup_linearization_point),
+        std::move(nl_check_iteration_status));
 
       // set initial condition
 
@@ -1736,7 +1414,7 @@ namespace Sintering
             initialize(solution.n_blocks());
 
             nonlinear_operator.clear();
-            non_linear_solver_executor->clear();
+            time_marching->clear();
             preconditioner->clear();
 
             mass_operator.clear();
@@ -1922,7 +1600,7 @@ namespace Sintering
                                        ")."));
 
                 nonlinear_operator.clear();
-                non_linear_solver_executor->clear();
+                time_marching->clear();
                 preconditioner->clear();
 
                 /**
@@ -2482,7 +2160,7 @@ namespace Sintering
                 ExcMessage("Minimum timestep size exceeded, solution failed!"));
 
               nonlinear_operator.clear();
-              non_linear_solver_executor->clear();
+              time_marching->clear();
               preconditioner->clear();
 
               has_converged = false;
@@ -2521,7 +2199,7 @@ namespace Sintering
 
                 // note: input/output (solution) needs/has the right
                 // constraints applied
-                non_linear_solver_executor->solve(solution);
+                time_marching->make_step(solution);
 
                 // We do not commit yet the state since the GT still can fail
                 // the tracking stage due to the poor quality of the solution
