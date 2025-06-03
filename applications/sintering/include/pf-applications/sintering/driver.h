@@ -1242,113 +1242,39 @@ namespace Sintering
           }
       };
 
-      // Lambda to check iterations and output stats
-      double check_value_0     = 0.0;
-      double check_value_0_ch  = 0.0;
-      double check_value_0_mu  = 0.0;
-      double check_value_0_ac  = 0.0;
-      double check_value_0_mec = 0.0;
+      // Assemble quantities to check
+      auto nl_quantities_to_check = [&]() {
+        std::vector<std::tuple<std::string, unsigned int, unsigned int>>
+          check_qtys;
 
-      unsigned int previous_linear_iter = 0;
+        if (order_parameters_offset > 0)
+          check_qtys.emplace_back("ch", 0, 1);
 
-      auto nl_check_iteration_status = [&](const unsigned int step,
-                                           const double       check_value,
-                                           const VectorType  &x,
-                                           const VectorType  &r) {
-        (void)x;
+        if (order_parameters_offset > 1)
+          check_qtys.emplace_back("mu", 1, 1);
 
-        double check_value_ch  = 0.0;
-        double check_value_mu  = 0.0;
-        double check_value_ac  = 0.0;
-        double check_value_mec = 0.0;
+        const unsigned n_ac =
+          sintering_data.n_components() - order_parameters_offset;
+        if (n_ac)
+          check_qtys.emplace_back("ac", order_parameters_offset, n_ac);
 
-        if (r.n_blocks() > 0)
-          {
-            if (order_parameters_offset > 0)
-              check_value_ch = std::sqrt(r.block(0).norm_sqr());
+        const bool has_mec =
+          nonlinear_operator.n_components() > sintering_data.n_components();
+        if (has_mec)
+          check_qtys.emplace_back("mec",
+                                  nonlinear_operator.n_components() - dim,
+                                  dim);
 
-            if (order_parameters_offset > 1)
-              check_value_mu = std::sqrt(r.block(1).norm_sqr());
-
-            for (unsigned int b = order_parameters_offset;
-                 b < sintering_data.n_components();
-                 ++b)
-              check_value_ac += r.block(b).norm_sqr();
-            check_value_ac = std::sqrt(check_value_ac);
-
-            if (nonlinear_operator.n_components() >
-                sintering_data.n_components())
-              for (unsigned int b = r.n_blocks() - dim; b < r.n_blocks(); ++b)
-                check_value_mec += r.block(b).norm_sqr();
-            check_value_mec = std::sqrt(check_value_mec);
-          }
-
-        if (step == 0)
-          {
-            check_value_0     = check_value;
-            check_value_0_ch  = check_value_ch;
-            check_value_0_mu  = check_value_mu;
-            check_value_0_ac  = check_value_ac;
-            check_value_0_mec = check_value_mec;
-
-            previous_linear_iter = 0;
-          }
-
-        const unsigned int step_linear_iter =
-          statistics.n_linear_iterations() - previous_linear_iter;
-
-        previous_linear_iter = statistics.n_linear_iterations();
-
-        if (pcout.is_active())
-          {
-            if (step == 0)
-              printf(
-                "\nit      res_abs      res_rel   ch_res_abs   ch_res_rel   mu_res_abs   mu_res_rel   ac_res_abs   ac_res_rel  mec_res_abs  mec_res_rel  linear_iter\n");
-
-            if (step == 0)
-              printf(
-                "%2d %.6e ------------ %.6e ------------ %.6e ------------ %.6e ------------ %.6e ------------ %12d\n",
-                step,
-                check_value,
-                check_value_ch,
-                check_value_mu,
-                check_value_ac,
-                check_value_mec,
-                step_linear_iter);
-            else
-              printf(
-                "%2d %.6e %.6e %.6e %.6e %.6e %.6e %.6e %.6e %.6e %.6e %12d\n",
-                step,
-                check_value,
-                check_value_0 ? check_value / check_value_0 : 0.,
-                check_value_ch,
-                check_value_0_ch ? check_value_ch / check_value_0_ch : 0.,
-                check_value_mu,
-                check_value_0_mu ? check_value_mu / check_value_0_mu : 0.,
-                check_value_ac,
-                check_value_0_ac ? check_value_ac / check_value_0_ac : 0.,
-                check_value_mec,
-                check_value_0_mec ? check_value_mec / check_value_0_mec : 0.,
-                step_linear_iter);
-          }
-
-        /* This function does not really test anything and simply prints more
-         * details on the residual evolution. We have different return status
-         * here due to the fact that our DampedNewtonSolver::check() works
-         * slightly differently in comparison to
-         * NOX::StatusTest::Combo(NOX::StatusTest::Combo::OR). The latter has
-         * a bit strange not very obvious logic.
-         */
-        return params.nonlinear_data.nonlinear_solver_type == "NOX" ?
-                 SolverControl::iterate :
-                 SolverControl::success;
+        return check_qtys;
       };
 
       std::unique_ptr<TimeIntegration::TimeMarching<VectorType>> time_marching;
 
       time_marching = std::make_unique<
-        TimeIntegration::
-          TimeMarchingImplicit<dim, VectorType, NonLinearOperator>>(
+        TimeIntegration::TimeMarchingImplicit<dim,
+                                              VectorType,
+                                              NonLinearOperator,
+                                              ConditionalOStream>>(
         nonlinear_operator,
         *preconditioner,
         *residual_wrapper,
@@ -1357,9 +1283,10 @@ namespace Sintering
         params.nonlinear_data,
         statistics,
         timer,
+        pcout,
         std::move(nl_setup_custom_preconditioner),
         std::move(nl_setup_linearization_point),
-        std::move(nl_check_iteration_status));
+        std::move(nl_quantities_to_check));
 
       // set initial condition
 

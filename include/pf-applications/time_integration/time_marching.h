@@ -40,7 +40,10 @@ namespace TimeIntegration
   using namespace hpsint;
   using namespace NonLinearSolvers;
 
-  template <int dim, typename VectorType, typename NonLinearOperator>
+  template <int dim,
+            typename VectorType,
+            typename NonLinearOperator,
+            typename StreamType>
   class TimeMarchingImplicit : public TimeMarching<VectorType>
   {
   public:
@@ -55,13 +58,12 @@ namespace TimeIntegration
       const NonLinearData                         &nonlinear_params,
       NewtonSolverSolverControl                   &statistics,
       MyTimerOutput                               &timer,
+      StreamType                                  &stream,
       std::function<void(const VectorType &)>      setup_custom_preconditioner,
       std::function<void(const VectorType &)>      setup_linearization_point,
-      std::function<SolverControl::State(const unsigned int,
-                                         const double,
-                                         const VectorType &,
-                                         const VectorType &)>
-        check_iteration_status)
+      std::function<
+        std::vector<std::tuple<std::string, unsigned int, unsigned int>>(void)>
+        quantities_to_check)
     {
       // Create linear solver control
       if (true) // TODO: make parameter
@@ -196,13 +198,10 @@ namespace TimeIntegration
         if (nonlinear_params.verbosity >= 2 &&
             !solver_control_l->get_history_data().empty())
           {
-            // DEBUG - temporary disabled
-            /*
-            pcout << " - l_res_abs: ";
+            stream << " - l_res_abs: ";
             for (const auto res : solver_control_l->get_history_data())
-              pcout << res << " ";
-            pcout << std::endl;
-            */
+              stream << res << " ";
+            stream << std::endl;
 
             std::vector<double> &res_history =
               const_cast<std::vector<double> &>(
@@ -214,6 +213,105 @@ namespace TimeIntegration
 
         return n_iterations;
       };
+
+      const auto nl_check_iteration_status =
+        [&,
+         qtc                  = quantities_to_check,
+         check_value_0        = 0.0,
+         check_values_0       = std::vector<Number>(),
+         previous_linear_iter = 0](const auto  step,
+                                   const auto  check_value,
+                                   const auto &x,
+                                   const auto &r) mutable {
+          (void)x;
+
+          const auto check_qtys = qtc();
+
+          std::vector<Number> check_values;
+          for (const auto &qty : check_qtys)
+            {
+              const unsigned int offset       = std::get<1>(qty);
+              const unsigned int n_components = std::get<2>(qty);
+
+              Number val = 0;
+              for (unsigned int i = 0; i < n_components; ++i)
+                val += r.block(offset + i).norm_sqr();
+
+              check_values.push_back(std::sqrt(val));
+            }
+
+          if (step == 0)
+            {
+              check_value_0        = check_value;
+              check_values_0       = check_values;
+              previous_linear_iter = 0;
+            }
+
+          const unsigned int step_linear_iter =
+            statistics.n_linear_iterations() - previous_linear_iter;
+
+          previous_linear_iter = statistics.n_linear_iterations();
+
+          if (stream.is_active())
+            {
+              stream << std::scientific << std::setprecision(6);
+
+              if (step == 0)
+                {
+                  stream << "\nit";
+                  stream << std::setw(13) << std::right << "res_abs";
+                  stream << std::setw(13) << std::right << "res_rel";
+
+                  for (const auto &qty : check_qtys)
+                    {
+                      const std::string &name = std::get<0>(qty);
+                      stream << std::setw(13) << std::right
+                             << (name + "_res_abs");
+                      stream << std::setw(13) << std::right
+                             << (name + "_res_rel");
+                    }
+
+                  stream << std::setw(13) << std::right << "linear_iter"
+                         << std::endl;
+                }
+
+              stream << std::setw(2) << std::right << step;
+              stream << " " << check_value;
+              if (step > 0)
+                stream << " "
+                       << (check_value_0 ? check_value / check_value_0 : 0.);
+              else
+                stream << " ------------";
+
+              for (unsigned int i = 0; i < check_values.size(); ++i)
+                {
+                  stream << " " << check_values[i];
+
+                  if (step > 0)
+                    stream << " "
+                           << (check_values_0[i] ?
+                                 check_values[i] / check_values_0[i] :
+                                 0.);
+                  else
+                    stream << " ------------";
+                }
+              stream << std::setw(13) << std::right << step_linear_iter
+                     << std::endl;
+
+              stream << std::defaultfloat;
+            }
+
+          /* This function does not really test anything and simply prints more
+           * details on the residual evolution. We have different return status
+           * here due to the fact that our DampedNewtonSolver::check() works
+           * slightly differently in comparison to
+           * NOX::StatusTest::Combo(NOX::StatusTest::Combo::OR). The latter has
+           * a bit strange not very obvious logic.
+           */
+          return nonlinear_params.nonlinear_solver_type == "NOX" ?
+                   SolverControl::iterate :
+                   SolverControl::success;
+        };
 
       if (nonlinear_params.nonlinear_solver_type == "damped")
         {
@@ -241,7 +339,8 @@ namespace TimeIntegration
             non_linear_solver.setup_preconditioner = nl_setup_preconditioner;
 
           if (nonlinear_params.verbosity >= 1) // TODO
-            non_linear_solver.check_iteration_status = check_iteration_status;
+            non_linear_solver.check_iteration_status =
+              nl_check_iteration_status;
 
           non_linear_solver_executor = std::make_unique<
             NonLinearSolverWrapper<VectorType, DampedNewtonSolver<VectorType>>>(
@@ -325,7 +424,8 @@ namespace TimeIntegration
           };
 
           if (nonlinear_params.verbosity >= 1) // TODO
-            non_linear_solver.check_iteration_status = check_iteration_status;
+            non_linear_solver.check_iteration_status =
+              nl_check_iteration_status;
 
           non_linear_solver_executor = std::make_unique<
             NonLinearSolverWrapper<VectorType,
@@ -379,7 +479,8 @@ namespace TimeIntegration
           };
 
           if (nonlinear_params.verbosity >= 1) // TODO
-            non_linear_solver.check_iteration_status = check_iteration_status;
+            non_linear_solver.check_iteration_status =
+              nl_check_iteration_status;
 
           non_linear_solver_executor = std::make_unique<
             NonLinearSolverWrapper<VectorType, SNESSolver<VectorType>>>(
