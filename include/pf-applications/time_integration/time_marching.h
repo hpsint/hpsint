@@ -30,10 +30,10 @@ namespace TimeIntegration
     virtual ~TimeMarching() = default;
 
     virtual void
-    make_step(VectorType &) const = 0;
+    make_step(VectorType &) = 0;
 
     virtual void
-    clear() const = 0;
+    clear() = 0;
   };
 
   using namespace dealii;
@@ -492,13 +492,13 @@ namespace TimeIntegration
     }
 
     void
-    make_step(VectorType &current_solution) const override
+    make_step(VectorType &current_solution) override
     {
       non_linear_solver_executor->solve(current_solution);
     }
 
     void
-    clear() const override
+    clear() override
     {
       non_linear_solver_executor->clear();
     }
