@@ -1187,7 +1187,7 @@ namespace Sintering
         params.nonlinear_data.nl_abs_tol,
         params.nonlinear_data.nl_rel_tol);
 
-      // Lambda to set up linearization point
+      // Lambda to set up linearization point, not const as I move it later
       auto nl_setup_linearization_point = [&](const VectorType &current_u) {
         sintering_data.fill_quadrature_point_values(
           matrix_free,
@@ -1196,7 +1196,7 @@ namespace Sintering
           save_all_blocks);
       };
 
-      // Lambda to update preconditioner
+      // Lambda to update preconditioner, not const as I move it later
       auto nl_setup_custom_preconditioner = [&](const VectorType &current_u) {
         if (transfer) // update multigrid levels
           {
@@ -1242,7 +1242,7 @@ namespace Sintering
           }
       };
 
-      // Assemble quantities to check
+      // Assemble quantities to check, not const as I move it later
       auto nl_quantities_to_check = [&]() {
         std::vector<std::tuple<std::string, unsigned int, unsigned int>>
           check_qtys;
@@ -1270,6 +1270,7 @@ namespace Sintering
 
       std::unique_ptr<TimeIntegration::TimeMarching<VectorType>> time_marching;
 
+      // So far a single time marching option here, but later more will be added
       time_marching = std::make_unique<
         TimeIntegration::TimeMarchingImplicit<dim,
                                               VectorType,

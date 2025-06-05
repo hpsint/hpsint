@@ -115,7 +115,8 @@ namespace TimeIntegration
 
       // Lambda to set up jacobian
       const auto nl_setup_jacobian =
-        [&, slp = setup_linearization_point](const auto &current_u) {
+        [&, slp = std::move(setup_linearization_point), nl_residual](
+          const auto &current_u) {
           ScopedName sc("setup_jacobian");
           MyScope    scope(timer, sc);
 
@@ -143,7 +144,8 @@ namespace TimeIntegration
 
       // Lambda to update preconditioner
       const auto nl_setup_preconditioner =
-        [&, scp = setup_custom_preconditioner](const auto &current_u) {
+        [&, scp = std::move(setup_custom_preconditioner), nl_residual](
+          const auto &current_u) {
           ScopedName sc("setup_preconditioner");
           MyScope    scope(timer, sc);
 
@@ -216,7 +218,7 @@ namespace TimeIntegration
 
       const auto nl_check_iteration_status =
         [&,
-         qtc                  = quantities_to_check,
+         qtc                  = std::move(quantities_to_check),
          check_value_0        = 0.0,
          check_values_0       = std::vector<Number>(),
          previous_linear_iter = 0](const auto  step,
@@ -390,29 +392,29 @@ namespace TimeIntegration
           TrilinosWrappers::NOXSolver<VectorType> non_linear_solver(
             additional_data, non_linear_parameters);
 
-          non_linear_solver.residual = [&nl_residual](const auto &src,
-                                                      auto       &dst) {
+          non_linear_solver.residual = [nl_residual](const auto &src,
+                                                     auto       &dst) {
             nl_residual(src, dst);
             return 0;
           };
 
           non_linear_solver.setup_jacobian =
-            [&nl_setup_jacobian](const auto &current_u) {
+            [nl_setup_jacobian](const auto &current_u) {
               nl_setup_jacobian(current_u);
               return 0;
             };
 
           if (nonlinear_params.l_solver != "Direct")
             non_linear_solver.setup_preconditioner =
-              [&nl_setup_preconditioner](const auto &current_u) {
+              [nl_setup_preconditioner](const auto &current_u) {
                 nl_setup_preconditioner(current_u);
                 return 0;
               };
 
           non_linear_solver.solve_with_jacobian_and_track_n_linear_iterations =
-            [&nl_solve_with_jacobian](const auto  &src,
-                                      auto        &dst,
-                                      const double tolerance) {
+            [nl_solve_with_jacobian](const auto  &src,
+                                     auto        &dst,
+                                     const double tolerance) {
               (void)tolerance;
               return nl_solve_with_jacobian(src, dst);
             };
@@ -446,28 +448,28 @@ namespace TimeIntegration
           SNESSolver<VectorType> non_linear_solver(
             additional_data, nonlinear_params.snes_data.solver_name);
 
-          non_linear_solver.residual = [&nl_residual](const auto &src,
-                                                      auto       &dst) {
+          non_linear_solver.residual = [nl_residual](const auto &src,
+                                                     auto       &dst) {
             nl_residual(src, dst);
             return 0;
           };
 
           non_linear_solver.setup_jacobian =
-            [&nl_setup_jacobian](const auto &current_u) {
+            [nl_setup_jacobian](const auto &current_u) {
               nl_setup_jacobian(current_u);
               return 0;
             };
 
           non_linear_solver.setup_preconditioner =
-            [&nl_setup_preconditioner](const auto &current_u) {
+            [nl_setup_preconditioner](const auto &current_u) {
               nl_setup_preconditioner(current_u);
               return 0;
             };
 
           non_linear_solver.solve_with_jacobian_and_track_n_linear_iterations =
-            [&nl_solve_with_jacobian](const auto  &src,
-                                      auto        &dst,
-                                      const double tolerance) {
+            [nl_solve_with_jacobian](const auto  &src,
+                                     auto        &dst,
+                                     const double tolerance) {
               (void)tolerance;
               return nl_solve_with_jacobian(src, dst);
             };
