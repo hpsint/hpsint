@@ -1,6 +1,6 @@
 // ---------------------------------------------------------------------
 //
-// Copyright (C) 2023 by the hpsint authors
+// Copyright (C) 2025 by the hpsint authors
 //
 // This file is part of the hpsint library.
 //
@@ -14,8 +14,9 @@
 // ---------------------------------------------------------------------
 
 
-// Cahn-Hilliard equation with one phase.
+// GP based KKS model with 2 phases as derived by Marco Seiz
 
+#include <deal.II/base/conditional_ostream.h>
 #include <deal.II/base/mpi.h>
 #include <deal.II/base/quadrature_lib.h>
 
@@ -191,6 +192,10 @@ public:
   void
   run()
   {
+    ConditionalOStream pcout(std::cout,
+                             Utilities::MPI::this_mpi_process(MPI_COMM_WORLD) ==
+                               0);
+
     // Debug output
     constexpr bool print = false;
 
@@ -298,15 +303,15 @@ public:
                                  labels.at(c),
                                  DataOut_DoFData<dim, dim>::type_dof_data);
 
+      vec.update_ghost_values();
       data_out.build_patches(mapping, fe_degree);
 
       static unsigned int counter = 0;
 
+      pcout << "outputing at t = " << t << std::endl;
 
-      std::cout << "outputing at t = " << t << std::endl;
-
-      std::ofstream output("solution." + std::to_string(counter++) + ".vtk");
-      data_out.write_vtk(output);
+      std::string output = "solution." + std::to_string(counter++) + ".vtu";
+      data_out.write_vtu_in_parallel(output, MPI_COMM_WORLD);
     };
 
     FEEvaluation<dim,
@@ -330,15 +335,15 @@ public:
     const Number dt   = dtfac * std::min(dt_c, dt_phi);
 
     // Params
-    std::cout << "dx = " << dx << std::endl;
-    std::cout << "W  = " << W << std::endl;
-    std::cout << "A  = " << A << std::endl;
-    std::cout << "B  = " << B << std::endl;
-    std::cout << "L  = " << L << std::endl;
-    std::cout << "D  = " << D << std::endl;
-    std::cout << "dt = " << dt << std::endl;
-    std::cout << "n_steps = " << n_time_steps << std::endl;
-    std::cout << std::endl;
+    pcout << "dx = " << dx << std::endl;
+    pcout << "W  = " << W << std::endl;
+    pcout << "A  = " << A << std::endl;
+    pcout << "B  = " << B << std::endl;
+    pcout << "L  = " << L << std::endl;
+    pcout << "D  = " << D << std::endl;
+    pcout << "dt = " << dt << std::endl;
+    pcout << "n_steps = " << n_time_steps << std::endl;
+    pcout << std::endl;
 
     // Some helper lambdas for the calculations
     const auto calc_ca = [&](const VectorizedArrayType                    &c,
@@ -408,10 +413,13 @@ public:
         vec,
         false);
 
-      std::cout << "sums at t = " << t << ":" << std::endl;
       for (unsigned int c = 0; c < n_comp; ++c)
-        std::cout << "  " << labels.at(c) << " = " << sums[c] << std::endl;
-      std::cout << std::endl;
+        sums[c] = Utilities::MPI::sum<Number>(sums[c], MPI_COMM_WORLD);
+
+      pcout << "sums at t = " << t << ":" << std::endl;
+      for (unsigned int c = 0; c < n_comp; ++c)
+        pcout << "  " << labels.at(c) << " = " << sums[c] << std::endl;
+      pcout << std::endl;
     };
 
     // Initial output
@@ -512,8 +520,8 @@ public:
           solver.solve(mass_matrix, incr, rhs, PreconditionIdentity());
 
           if constexpr (print)
-            std::cout << "it " << counter << ": "
-                      << reduction_control.last_step() << std::endl;
+            pcout << "it " << counter << ": " << reduction_control.last_step()
+                  << std::endl;
         }
 
         // output_result(rhs, t);
@@ -534,11 +542,11 @@ public:
     auto elapsed =
       std::chrono::duration_cast<std::chrono::seconds>(end - start);
 
-    std::cout << std::endl;
+    pcout << std::endl;
 
     check_sums(solution, t);
 
-    std::cout << "Execution time: " << elapsed.count() << "s\n";
+    pcout << "Execution time: " << elapsed.count() << "s\n";
   }
 };
 
