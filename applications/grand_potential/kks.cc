@@ -42,7 +42,9 @@
 
 #include <pf-applications/lac/dynamic_block_vector.h>
 
+#include <chrono>
 #include <fstream>
+#include <unordered_map>
 
 using namespace dealii;
 
@@ -189,8 +191,16 @@ public:
   void
   run()
   {
+    // Debug output
+    constexpr bool print = false;
+
+    // Dimensionality
     constexpr unsigned int n_comp = 3;
     constexpr unsigned int n_phi  = n_comp - 1;
+
+    const std::unordered_map<unsigned int, std::string> labels = {{0, "phi0"},
+                                                                  {1, "phi1"},
+                                                                  {2, "c"}};
 
     // geometry
     const double size = 1.0;
@@ -217,13 +227,6 @@ public:
     const Number B     = 6 * gamma / W;
     const Number L     = 2 * M / (3 * W);
     const Number D     = 1;
-
-    std::cout << "dx: " << dx << std::endl;
-    std::cout << "W: " << W << std::endl;
-    std::cout << "A: " << A << std::endl;
-    std::cout << "B: " << B << std::endl;
-    std::cout << "L: " << L << std::endl;
-    std::cout << "D: " << D << std::endl;
 
     // Key expressions
     const std::array<Number, n_phi> k    = {{500.0, 500.0}};
@@ -260,27 +263,27 @@ public:
     MatrixFree<dim, Number, VectorizedArrayType> matrix_free;
     matrix_free.reinit(mapping, dof_handler, constraint, quad, additional_data);
 
-    VectorType src(n_comp), dst(n_comp), incr(n_comp);
+    VectorType solution(n_comp), rhs(n_comp), incr(n_comp);
 
     for (unsigned int c = 0; c < n_comp; ++c)
       {
-        matrix_free.initialize_dof_vector(src.block(c));
-        matrix_free.initialize_dof_vector(dst.block(c));
+        matrix_free.initialize_dof_vector(solution.block(c));
+        matrix_free.initialize_dof_vector(rhs.block(c));
         matrix_free.initialize_dof_vector(incr.block(c));
       }
 
     VectorTools::interpolate(mapping,
                              dof_handler,
                              InitialValues<dim, 0>(W),
-                             src.block(0));
+                             solution.block(0));
     VectorTools::interpolate(mapping,
                              dof_handler,
                              InitialValues<dim, 1>(W),
-                             src.block(1));
+                             solution.block(1));
     VectorTools::interpolate(mapping,
                              dof_handler,
                              InitialValues<dim, 2>(W, c_0),
-                             src.block(2));
+                             solution.block(2));
 
     const auto output_result = [&](const VectorType &vec, const double t) {
       DataOutBase::VtkFlags flags;
@@ -289,21 +292,18 @@ public:
       DataOut<dim> data_out;
       data_out.set_flags(flags);
       data_out.attach_dof_handler(dof_handler);
-      data_out.add_data_vector(vec.block(0),
-                               "phi0",
-                               DataOut_DoFData<dim, dim>::type_dof_data);
-      data_out.add_data_vector(vec.block(1),
-                               "phi1",
-                               DataOut_DoFData<dim, dim>::type_dof_data);
-      data_out.add_data_vector(vec.block(2),
-                               "c",
-                               DataOut_DoFData<dim, dim>::type_dof_data);
+
+      for (unsigned int c = 0; c < n_comp; ++c)
+        data_out.add_data_vector(vec.block(c),
+                                 labels.at(c),
+                                 DataOut_DoFData<dim, dim>::type_dof_data);
+
       data_out.build_patches(mapping, fe_degree);
 
       static unsigned int counter = 0;
 
 
-      std::cout << "outputing at " << t << std::endl;
+      std::cout << "outputing at t = " << t << std::endl;
 
       std::ofstream output("solution." + std::to_string(counter++) + ".vtk");
       data_out.write_vtk(output);
@@ -320,8 +320,6 @@ public:
     MassMatrix<dim, fe_degree, n_points_1D, n_comp, Number, VectorizedArrayType>
       mass_matrix(matrix_free);
 
-    output_result(src, 0.0);
-
     // Timestep estimates
     const Number dt_phi =
       3 * W * W * dx * dx * gamma /
@@ -330,6 +328,17 @@ public:
 
     const Number dt_c = dx * dx / (2 * 4 * D * (1 + std::abs(c_0[0] - c_0[1])));
     const Number dt   = dtfac * std::min(dt_c, dt_phi);
+
+    // Params
+    std::cout << "dx = " << dx << std::endl;
+    std::cout << "W  = " << W << std::endl;
+    std::cout << "A  = " << A << std::endl;
+    std::cout << "B  = " << B << std::endl;
+    std::cout << "L  = " << L << std::endl;
+    std::cout << "D  = " << D << std::endl;
+    std::cout << "dt = " << dt << std::endl;
+    std::cout << "n_steps = " << n_time_steps << std::endl;
+    std::cout << std::endl;
 
     // Some helper lambdas for the calculations
     const auto calc_ca = [&](const VectorizedArrayType                    &c,
@@ -375,11 +384,46 @@ public:
                              const Number               ki,
                              const Number c_0i) { return ki * (ca - c_0i); };
 
+    // Some postprocessing of scalar quantities
+    const auto check_sums = [&](const VectorType &vec, const double t) {
+      std::vector<Number> sums(n_comp, 0.0);
+      matrix_free.template cell_loop<VectorType, VectorType>(
+        [&](const auto &, auto &, const auto &src, auto cells) {
+          for (unsigned int cell = cells.first; cell < cells.second; ++cell)
+            {
+              eval.reinit(cell);
+              eval.gather_evaluate(src, EvaluationFlags::values);
 
+              for (unsigned int q = 0; q < eval.n_q_points; ++q)
+                eval.submit_value(eval.get_value(q), q);
+
+              const auto vals = eval.integrate_value();
+
+              for (unsigned int c = 0; c < n_comp; ++c)
+                sums[c] +=
+                  std::accumulate(vals[c].begin(), vals[c].end(), Number(0));
+            }
+        },
+        rhs,
+        vec,
+        false);
+
+      std::cout << "sums at t = " << t << ":" << std::endl;
+      for (unsigned int c = 0; c < n_comp; ++c)
+        std::cout << "  " << labels.at(c) << " = " << sums[c] << std::endl;
+      std::cout << std::endl;
+    };
+
+    // Initial output
+    check_sums(solution, 0.0);
+    output_result(solution, 0.0);
 
     // time loop: variables are phi_0, phi_1, c
     unsigned int counter = 0;
-    for (double t = 0; counter++ < n_time_steps; t += dt)
+    double       t       = 0;
+
+    auto start = std::chrono::high_resolution_clock::now();
+    for (; counter++ < n_time_steps; t += dt)
       {
         // compute right-hand side vector
         matrix_free.template cell_loop<VectorType, VectorType>(
@@ -458,32 +502,43 @@ public:
                                        dst);
               }
           },
-          dst,
-          src,
+          rhs,
+          solution,
           true);
 
         {
           ReductionControl     reduction_control;
           SolverCG<VectorType> solver(reduction_control);
-          solver.solve(mass_matrix, incr, dst, PreconditionIdentity());
+          solver.solve(mass_matrix, incr, rhs, PreconditionIdentity());
 
-          std::cout << "it " << counter << ": " << reduction_control.last_step()
-                    << std::endl;
+          if constexpr (print)
+            std::cout << "it " << counter << ": "
+                      << reduction_control.last_step() << std::endl;
         }
 
-        // output_result(dst, t);
-        // output_result(src, t);
+        // output_result(rhs, t);
+        // output_result(solution, t);
         // output_result(incr, t);
         // throw std::runtime_error("STOP");
 
         for (unsigned int c = 0; c < n_comp; ++c)
           incr.block(c) *= dt;
 
-        src += incr;
+        solution += incr;
 
         if (counter % n_time_steps_output == 0)
-          output_result(src, t);
+          output_result(solution, t + dt);
       }
+    auto end = std::chrono::high_resolution_clock::now();
+
+    auto elapsed =
+      std::chrono::duration_cast<std::chrono::seconds>(end - start);
+
+    std::cout << std::endl;
+
+    check_sums(solution, t);
+
+    std::cout << "Execution time: " << elapsed.count() << "s\n";
   }
 };
 
