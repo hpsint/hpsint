@@ -193,7 +193,7 @@ public:
   using VectorType = LinearAlgebra::distributed::DynamicBlockVector<Number>;
 
   void
-  run()
+  run(const TimeStepping::runge_kutta_method method)
   {
     ConditionalOStream pcout(std::cout,
                              Utilities::MPI::this_mpi_process(MPI_COMM_WORLD) ==
@@ -532,8 +532,6 @@ public:
     const double initial_time = 0.0;
     const double final_time   = n_time_steps * dt;
 
-    const auto method = TimeStepping::FORWARD_EULER;
-
     auto start = std::chrono::high_resolution_clock::now();
 
     TimeStepping::ExplicitRungeKutta<VectorType> explicit_runge_kutta(method);
@@ -569,11 +567,88 @@ public:
   }
 };
 
+char *
+get_cmd_option(char **begin, char **end, const std::string &option)
+{
+  char **itr = std::find(begin, end, option);
+  if (itr != end && ++itr != end)
+    return *itr;
+
+  return nullptr;
+}
+
+bool
+cmd_option_exists(char **begin, char **end, const std::string &option)
+{
+  return std::find(begin, end, option) != end;
+}
 
 int
 main(int argc, char **argv)
 {
   Utilities::MPI::MPI_InitFinalize mpi_init(argc, argv, 1);
   Test<2, 1>                       runner;
-  runner.run();
+
+  ConditionalOStream pcout(std::cout,
+                           Utilities::MPI::this_mpi_process(MPI_COMM_WORLD) ==
+                             0);
+
+  const auto print_methods = [&]() {
+    pcout << "Available methods: " << std::endl;
+    pcout << "  forward_euler - 1st order forward Euler" << std::endl;
+    pcout << "  rk3           - 3rd order Runge-Kutta" << std::endl;
+    pcout << "  rk3_ssp       - 3rd SSP Runge-Kutta" << std::endl;
+    pcout << "  rk4           - 4th order Runge-Kutta" << std::endl;
+    pcout << "  ls_rk3_st3    - low-storage 3 stages 3rd order Runge-Kutta"
+          << std::endl;
+    pcout << "  ls_rk4_st5    - low-storage 5 stages 4th order Runge-Kutta"
+          << std::endl;
+    pcout << "  ls_rk4_st7    - low-storage 7 stages 4rd order Runge-Kutta"
+          << std::endl;
+    pcout << "  ls_rk5_st9    - low-storage 9 stages 5rd order Runge-Kutta"
+          << std::endl;
+  };
+
+  if (cmd_option_exists(argv, argv + argc, "-h"))
+    {
+      pcout << "Options: " << std::endl;
+      pcout << "  -h: print this help message" << std::endl;
+      pcout
+        << "  -m <method>: specify the time-stepping method (default: forward_euler)"
+        << std::endl;
+      print_methods();
+      return 0;
+    }
+
+  char             *method_name = get_cmd_option(argv, argv + argc, "-m");
+  const std::string method_str  = method_name ? method_name : "forward_euler";
+
+  const std::unordered_map<std::string, TimeStepping::runge_kutta_method>
+    method_map = {{"forward_euler", TimeStepping::FORWARD_EULER},
+                  {"rk3", TimeStepping::RK_THIRD_ORDER},
+                  {"rk3_ssp", TimeStepping::SSP_THIRD_ORDER},
+                  {"rk4", TimeStepping::RK_CLASSIC_FOURTH_ORDER},
+                  {"ls_rk3_st3", TimeStepping::LOW_STORAGE_RK_STAGE3_ORDER3},
+                  {"ls_rk4_st5", TimeStepping::LOW_STORAGE_RK_STAGE5_ORDER4},
+                  {"ls_rk4_st7", TimeStepping::LOW_STORAGE_RK_STAGE7_ORDER4},
+                  {"ls_rk5_st9", TimeStepping::LOW_STORAGE_RK_STAGE9_ORDER5}};
+
+  if (method_map.find(method_str) == method_map.end())
+    {
+      pcout << "Unknown method: " << method_str << std::endl;
+      pcout << "Available methods: " << std::endl;
+      for (const auto &method : method_map)
+        pcout << "  " << method.first << std::endl;
+      return 1;
+    }
+  else
+    {
+      pcout << "Using method: " << method_str << std::endl;
+    }
+
+  const auto method = method_map.at(method_str);
+
+  runner.run(method);
+
+  return 0;
 }
