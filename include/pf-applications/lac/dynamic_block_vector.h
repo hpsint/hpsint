@@ -80,14 +80,14 @@ namespace dealii
           return *this;
         }
 
-        DynamicBlockVector(DynamicBlockVector<T> &&V)
+        DynamicBlockVector(DynamicBlockVector<T> &&V) noexcept
         {
           blocks        = std::move(V.blocks);
           block_indices = std::move(V.block_indices);
         }
 
         DynamicBlockVector<T> &
-        operator=(DynamicBlockVector<T> &&V)
+        operator=(DynamicBlockVector<T> &&V) noexcept
         {
           blocks        = std::move(V.blocks);
           block_indices = std::move(V.block_indices);
