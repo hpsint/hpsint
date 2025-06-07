@@ -80,6 +80,20 @@ namespace dealii
           return *this;
         }
 
+        DynamicBlockVector(DynamicBlockVector<T> &&V)
+        {
+          blocks        = std::move(V.blocks);
+          block_indices = std::move(V.block_indices);
+        }
+
+        DynamicBlockVector<T> &
+        operator=(DynamicBlockVector<T> &&V)
+        {
+          blocks        = std::move(V.blocks);
+          block_indices = std::move(V.block_indices);
+          return *this;
+        }
+
         value_type
         operator()(const size_type i) const
         {
