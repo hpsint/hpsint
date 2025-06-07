@@ -17,8 +17,11 @@
 // GP based KKS model with 2 phases as derived by Marco Seiz
 
 #include <deal.II/base/conditional_ostream.h>
+#include <deal.II/base/discrete_time.h>
 #include <deal.II/base/mpi.h>
 #include <deal.II/base/quadrature_lib.h>
+#include <deal.II/base/time_stepping.h>
+#include <deal.II/base/time_stepping.templates.h>
 
 #include <deal.II/distributed/tria.h>
 
@@ -268,13 +271,12 @@ public:
     MatrixFree<dim, Number, VectorizedArrayType> matrix_free;
     matrix_free.reinit(mapping, dof_handler, constraint, quad, additional_data);
 
-    VectorType solution(n_comp), rhs(n_comp), incr(n_comp);
+    VectorType solution(n_comp), rhs(n_comp);
 
     for (unsigned int c = 0; c < n_comp; ++c)
       {
         matrix_free.initialize_dof_vector(solution.block(c));
         matrix_free.initialize_dof_vector(rhs.block(c));
-        matrix_free.initialize_dof_vector(incr.block(c));
       }
 
     VectorTools::interpolate(mapping,
@@ -290,29 +292,30 @@ public:
                              InitialValues<dim, 2>(W, c_0),
                              solution.block(2));
 
-    const auto output_result = [&](const VectorType &vec, const double t) {
-      DataOutBase::VtkFlags flags;
-      flags.write_higher_order_cells = true;
+    const auto output_result =
+      [&](const VectorType &vec, const double t, const unsigned int step) {
+        DataOutBase::VtkFlags flags;
+        flags.write_higher_order_cells = true;
 
-      DataOut<dim> data_out;
-      data_out.set_flags(flags);
-      data_out.attach_dof_handler(dof_handler);
+        DataOut<dim> data_out;
+        data_out.set_flags(flags);
+        data_out.attach_dof_handler(dof_handler);
 
-      for (unsigned int c = 0; c < n_comp; ++c)
-        data_out.add_data_vector(vec.block(c),
-                                 labels.at(c),
-                                 DataOut_DoFData<dim, dim>::type_dof_data);
+        for (unsigned int c = 0; c < n_comp; ++c)
+          data_out.add_data_vector(vec.block(c),
+                                   labels.at(c),
+                                   DataOut_DoFData<dim, dim>::type_dof_data);
 
-      vec.update_ghost_values();
-      data_out.build_patches(mapping, fe_degree);
+        vec.update_ghost_values();
+        data_out.build_patches(mapping, fe_degree);
 
-      static unsigned int counter = 0;
+        static unsigned int counter = 0;
 
-      pcout << "outputing at t = " << t << std::endl;
+        pcout << "outputing at step = " << step << ", t = " << t << std::endl;
 
-      std::string output = "solution." + std::to_string(counter++) + ".vtu";
-      data_out.write_vtu_in_parallel(output, MPI_COMM_WORLD);
-    };
+        std::string output = "solution." + std::to_string(counter++) + ".vtu";
+        data_out.write_vtu_in_parallel(output, MPI_COMM_WORLD);
+      };
 
     FEEvaluation<dim,
                  fe_degree,
@@ -424,118 +427,134 @@ public:
 
     // Initial output
     check_sums(solution, 0.0);
-    output_result(solution, 0.0);
+    output_result(solution, 0.0, 0);
+
+    // RHS evaluation for the time-stepping
+    const auto evaluate_rhs = [&](const double t, const VectorType &y) {
+      VectorType incr(n_comp);
+      for (unsigned int c = 0; c < n_comp; ++c)
+        matrix_free.initialize_dof_vector(incr.block(c));
+
+      matrix_free.template cell_loop<VectorType, VectorType>(
+        [&](const auto &, auto &dst, const auto &src, auto cells) {
+          for (unsigned int cell = cells.first; cell < cells.second; ++cell)
+            {
+              eval.reinit(cell);
+              eval.gather_evaluate(src,
+                                   EvaluationFlags::values |
+                                     EvaluationFlags::gradients);
+              for (unsigned int q = 0; q < eval.n_q_points; ++q)
+                {
+                  const auto value    = eval.get_value(q);
+                  const auto gradient = eval.get_gradient(q);
+
+                  // Field values
+                  std::array<VectorizedArrayType, n_phi> phi = {
+                    {value[0], value[1]}};
+                  const auto c = value[2];
+
+                  // Field gradients
+                  const auto phi_grad =
+                    std::array<Tensor<1, dim, VectorizedArrayType>, n_phi>{
+                      {gradient[0], gradient[1]}};
+                  const auto c_grad = gradient[2];
+
+                  // Some auxiliary variables
+                  const auto ca_0 = calc_ca(c, phi, 0);
+                  const auto ca_1 = calc_ca(c, phi, 1);
+                  const auto grad_ca_0 =
+                    calc_grad_ca(c, c_grad, phi, phi_grad, 0);
+                  const auto grad_ca_1 =
+                    calc_grad_ca(c, c_grad, phi, phi_grad, 1);
+
+                  // Chemical potential
+                  const auto mu_0 = calc_mu(ca_0, k[0], c_0[0]);
+                  const auto mu_1 = calc_mu(ca_1, k[1], c_0[1]);
+
+                  const auto ga_0 = calc_ga(ca_0, k[0], c_0[0]);
+                  const auto ga_1 = calc_ga(ca_1, k[1], c_0[1]);
+
+                  // Number of active phases
+                  const VectorizedArrayType zeroes(0.0), ones(1.0);
+
+                  const auto nsz =
+                    compare_and_apply_mask<SIMDComparison::greater_than>(
+                      phi[0], zeroes, ones, zeroes) +
+                    compare_and_apply_mask<SIMDComparison::greater_than>(
+                      phi[1], zeroes, ones, zeroes);
+
+                  auto vvars0 =
+                    2. * B * phi[0] * std::pow(phi[1], 2.) + ga_0 - mu_0 * ca_0;
+                  auto vvars1 =
+                    2. * B * phi[1] * std::pow(phi[0], 2.) + ga_1 - mu_1 * ca_1;
+
+                  Tensor<1, n_comp, VectorizedArrayType> value_result;
+                  value_result[0] = -L / nsz * (vvars0 - vvars1);
+                  value_result[1] = -L / nsz * (vvars1 - vvars0);
+                  value_result[2] = 0.;
+
+                  Tensor<1, n_comp, Tensor<1, dim, VectorizedArrayType>>
+                    gradient_result;
+
+                  gradient_result[0] =
+                    L / nsz * A * (phi_grad[1] - phi_grad[0]);
+                  gradient_result[1] =
+                    L / nsz * A * (phi_grad[0] - phi_grad[1]);
+                  gradient_result[2] =
+                    -D * (phi[0] * grad_ca_0 + phi[1] * grad_ca_1);
+
+                  eval.submit_value(value_result, q);
+                  eval.submit_gradient(gradient_result, q);
+                }
+              eval.integrate_scatter(EvaluationFlags::values |
+                                       EvaluationFlags::gradients,
+                                     dst);
+            }
+        },
+        rhs,
+        y,
+        true);
+
+      {
+        ReductionControl     reduction_control;
+        SolverCG<VectorType> solver(reduction_control);
+        solver.solve(mass_matrix, incr, rhs, PreconditionIdentity());
+
+        if constexpr (print)
+          pcout << "# of linear iterations at t = " << t << ": "
+                << reduction_control.last_step() << std::endl;
+      }
+
+      return incr;
+    };
 
     // time loop: variables are phi_0, phi_1, c
-    unsigned int counter = 0;
-    double       t       = 0;
+    const double initial_time = 0.0;
+    const double final_time   = n_time_steps * dt;
+
+    const auto method = TimeStepping::FORWARD_EULER;
 
     auto start = std::chrono::high_resolution_clock::now();
-    for (; counter++ < n_time_steps; t += dt)
+
+    TimeStepping::ExplicitRungeKutta<VectorType> explicit_runge_kutta(method);
+
+    DiscreteTime time(initial_time, final_time, dt);
+    while (time.is_at_end() == false)
       {
-        // compute right-hand side vector
-        matrix_free.template cell_loop<VectorType, VectorType>(
-          [&](const auto &, auto &dst, const auto &src, auto cells) {
-            for (unsigned int cell = cells.first; cell < cells.second; ++cell)
-              {
-                eval.reinit(cell);
-                eval.gather_evaluate(src,
-                                     EvaluationFlags::values |
-                                       EvaluationFlags::gradients);
-                for (unsigned int q = 0; q < eval.n_q_points; ++q)
-                  {
-                    const auto value    = eval.get_value(q);
-                    const auto gradient = eval.get_gradient(q);
-
-                    // Field values
-                    std::array<VectorizedArrayType, n_phi> phi = {
-                      {value[0], value[1]}};
-                    const auto c = value[2];
-
-                    // Field gradients
-                    const auto phi_grad =
-                      std::array<Tensor<1, dim, VectorizedArrayType>, n_phi>{
-                        {gradient[0], gradient[1]}};
-                    const auto c_grad = gradient[2];
-
-                    // Some auxiliary variables
-                    const auto ca_0 = calc_ca(c, phi, 0);
-                    const auto ca_1 = calc_ca(c, phi, 1);
-                    const auto grad_ca_0 =
-                      calc_grad_ca(c, c_grad, phi, phi_grad, 0);
-                    const auto grad_ca_1 =
-                      calc_grad_ca(c, c_grad, phi, phi_grad, 1);
-
-                    // Chemical potential
-                    const auto mu_0 = calc_mu(ca_0, k[0], c_0[0]);
-                    const auto mu_1 = calc_mu(ca_1, k[1], c_0[1]);
-
-                    const auto ga_0 = calc_ga(ca_0, k[0], c_0[0]);
-                    const auto ga_1 = calc_ga(ca_1, k[1], c_0[1]);
-
-                    // Number of active phases
-                    const VectorizedArrayType zeroes(0.0), ones(1.0);
-
-                    const auto nsz =
-                      compare_and_apply_mask<SIMDComparison::greater_than>(
-                        phi[0], zeroes, ones, zeroes) +
-                      compare_and_apply_mask<SIMDComparison::greater_than>(
-                        phi[1], zeroes, ones, zeroes);
-
-                    auto vvars0 = 2. * B * phi[0] * std::pow(phi[1], 2.) +
-                                  ga_0 - mu_0 * ca_0;
-                    auto vvars1 = 2. * B * phi[1] * std::pow(phi[0], 2.) +
-                                  ga_1 - mu_1 * ca_1;
-
-                    Tensor<1, n_comp, VectorizedArrayType> value_result;
-                    value_result[0] = -L / nsz * (vvars0 - vvars1);
-                    value_result[1] = -L / nsz * (vvars1 - vvars0);
-                    value_result[2] = 0.;
-
-                    Tensor<1, n_comp, Tensor<1, dim, VectorizedArrayType>>
-                      gradient_result;
-
-                    gradient_result[0] =
-                      L / nsz * A * (phi_grad[1] - phi_grad[0]);
-                    gradient_result[1] =
-                      L / nsz * A * (phi_grad[0] - phi_grad[1]);
-                    gradient_result[2] =
-                      -D * (phi[0] * grad_ca_0 + phi[1] * grad_ca_1);
-
-                    eval.submit_value(value_result, q);
-                    eval.submit_gradient(gradient_result, q);
-                  }
-                eval.integrate_scatter(EvaluationFlags::values |
-                                         EvaluationFlags::gradients,
-                                       dst);
-              }
+        explicit_runge_kutta.evolve_one_time_step(
+          [&](const double t, const VectorType &y) {
+            return evaluate_rhs(t, y);
           },
-          rhs,
-          solution,
-          true);
+          time.get_current_time(),
+          time.get_next_step_size(),
+          solution);
 
-        {
-          ReductionControl     reduction_control;
-          SolverCG<VectorType> solver(reduction_control);
-          solver.solve(mass_matrix, incr, rhs, PreconditionIdentity());
+        time.advance_time();
 
-          if constexpr (print)
-            pcout << "it " << counter << ": " << reduction_control.last_step()
-                  << std::endl;
-        }
-
-        // output_result(rhs, t);
-        // output_result(solution, t);
-        // output_result(incr, t);
-        // throw std::runtime_error("STOP");
-
-        for (unsigned int c = 0; c < n_comp; ++c)
-          incr.block(c) *= dt;
-
-        solution += incr;
-
-        if (counter % n_time_steps_output == 0)
-          output_result(solution, t + dt);
+        if (time.get_step_number() % n_time_steps_output == 0)
+          output_result(solution,
+                        time.get_current_time(),
+                        time.get_step_number());
       }
     auto end = std::chrono::high_resolution_clock::now();
 
@@ -544,7 +563,7 @@ public:
 
     pcout << std::endl;
 
-    check_sums(solution, t);
+    check_sums(solution, time.get_current_time());
 
     pcout << "Execution time: " << elapsed.count() << "s\n";
   }
