@@ -193,7 +193,10 @@ public:
   using VectorType = LinearAlgebra::distributed::DynamicBlockVector<Number>;
 
   void
-  run(const TimeStepping::runge_kutta_method method)
+  run(const TimeStepping::runge_kutta_method method,
+      const unsigned int                     n_refinements,
+      const unsigned int                     n_time_steps,
+      const unsigned int                     n_time_steps_output)
   {
     ConditionalOStream pcout(std::cout,
                              Utilities::MPI::this_mpi_process(MPI_COMM_WORLD) ==
@@ -210,16 +213,9 @@ public:
                                                                   {1, "phi1"},
                                                                   {2, "c"}};
 
-    // geometry
-    const double size = 1.0;
-
-    // mesh
-    const unsigned int n_refinements  = 6; // -> 64x64 grid
+    // geometry and mesh
+    const double       size           = 1.0;
     const unsigned int n_subdivisions = 1;
-
-    // time discretization
-    const unsigned int n_time_steps        = 1000;
-    const unsigned int n_time_steps_output = 100;
 
     const auto getW_if = [](const Number Wfac, const Number dx) {
       return Wfac * dx / std::log(99.0);
@@ -345,7 +341,6 @@ public:
     pcout << "L  = " << L << std::endl;
     pcout << "D  = " << D << std::endl;
     pcout << "dt = " << dt << std::endl;
-    pcout << "n_steps = " << n_time_steps << std::endl;
     pcout << std::endl;
 
     // Some helper lambdas for the calculations
@@ -549,7 +544,8 @@ public:
 
         time.advance_time();
 
-        if (time.get_step_number() % n_time_steps_output == 0)
+        if (time.get_step_number() % n_time_steps_output == 0 ||
+            time.is_at_end())
           output_result(solution,
                         time.get_current_time(),
                         time.get_step_number());
@@ -648,7 +644,28 @@ main(int argc, char **argv)
 
   const auto method = method_map.at(method_str);
 
-  runner.run(method);
+  // Number of refinements
+  char              *n_refs_char = get_cmd_option(argv, argv + argc, "-r");
+  const unsigned int n_refs =
+    n_refs_char ? std::stoi(n_refs_char) : 6; // default to 6 refinements
+
+  // Number of steps
+  char              *n_steps_char = get_cmd_option(argv, argv + argc, "-s");
+  const unsigned int n_steps =
+    n_steps_char ? std::stoi(n_steps_char) : 1000; // default to 1000 steps
+
+  // Number of steps to generate output
+  char              *n_output_char = get_cmd_option(argv, argv + argc, "-o");
+  const unsigned int n_steps_output =
+    n_output_char ? std::stoi(n_output_char) : 100; // default to 100 steps
+
+  pcout << std::endl;
+  pcout << "Number of refinements: " << n_refs << std::endl;
+  pcout << "Number of steps:       " << n_steps << std::endl;
+  pcout << "Output at every:       " << n_steps_output << std::endl;
+  pcout << std::endl;
+
+  runner.run(method, n_refs, n_steps, n_steps_output);
 
   return 0;
 }
