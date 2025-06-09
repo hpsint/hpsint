@@ -404,10 +404,11 @@ public:
       const auto idx    = static_cast<unsigned>(a == 0);
       const auto prefac = linf[a];
 
-      const auto nom = (c * k[idx] + prefac * (c_0[vidx] * k[vidx] * phi[idx] -
-                                               c_0[sidx] * k[sidx] * phi[idx]));
+      const auto nom =
+        c * k[idx] +
+        prefac * (c_0[vidx] * k[vidx] - c_0[sidx] * k[sidx]) * phi[idx];
 
-      const auto denom = (k[0] * phi[1] + k[1] * phi[0]);
+      const auto denom = k[0] * phi[1] + k[1] * phi[0];
 
       return nom / denom;
     };
@@ -487,6 +488,8 @@ public:
 
     // RHS evaluation for the time-stepping
     const auto evaluate_rhs = [&](const double t, const VectorType &y) {
+      (void)t;
+
       VectorType incr(n_comp);
       for (unsigned int c = 0; c < n_comp; ++c)
         matrix_free.initialize_dof_vector(incr.block(c));
@@ -539,9 +542,9 @@ public:
                     compare_and_apply_mask<SIMDComparison::greater_than>(
                       phi[1], zeroes, ones, zeroes);
 
-                  auto vvars0 =
+                  const auto vvars0 =
                     2. * B * phi[0] * std::pow(phi[1], 2.) + ga_0 - mu_0 * ca_0;
-                  auto vvars1 =
+                  const auto vvars1 =
                     2. * B * phi[1] * std::pow(phi[0], 2.) + ga_1 - mu_1 * ca_1;
 
                   Tensor<1, n_comp, VectorizedArrayType> value_result;
