@@ -292,9 +292,14 @@ public:
     GridGenerator::subdivided_hyper_cube(tria, n_subdivisions, 0, size);
     tria.refine_global(n_refinements);
 
-    const auto create_fe = []() {
+    const auto create_fe = [&]() {
       if constexpr (fe_degree == 0)
-        return FE_DGQ<dim>(fe_degree);
+        {
+          pcout << "Warning: a zero-order DG approximation is chosen."
+                << " This is intended only for debug purposes." << std::endl;
+
+          return FE_DGQ<dim>(fe_degree);
+        }
       else
         return FE_Q<dim>(fe_degree);
     };
