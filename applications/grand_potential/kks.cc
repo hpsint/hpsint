@@ -40,6 +40,7 @@
 
 #include <deal.II/matrix_free/fe_evaluation.h>
 #include <deal.II/matrix_free/matrix_free.h>
+#include <deal.II/matrix_free/tools.h>
 
 #include <deal.II/numerics/data_out.h>
 #include <deal.II/numerics/vector_tools.h>
@@ -137,7 +138,14 @@ template <int dim,
 class MassMatrix
 {
 public:
-  using VectorType = LinearAlgebra::distributed::DynamicBlockVector<Number>;
+  using VectorType   = LinearAlgebra::distributed::DynamicBlockVector<Number>;
+  using value_type   = Number;
+  using FEIntegrator = FEEvaluation<dim,
+                                    degree,
+                                    n_points_1D,
+                                    n_components,
+                                    Number,
+                                    VectorizedArrayType>;
 
   MassMatrix(const MatrixFree<dim, Number, VectorizedArrayType> &matrix_free)
     : matrix_free(matrix_free)
@@ -146,13 +154,7 @@ public:
   void
   vmult(VectorType &dst, const VectorType &src) const
   {
-    FEEvaluation<dim,
-                 degree,
-                 n_points_1D,
-                 n_components,
-                 Number,
-                 VectorizedArrayType>
-      phi(matrix_free);
+    FEIntegrator phi(matrix_free);
 
     matrix_free.template cell_loop<VectorType, VectorType>(
       [&](const auto &, auto &dst, const auto &src, auto &range) {
@@ -171,6 +173,27 @@ public:
   }
 
   void
+  compute_diagonal(VectorType &diagonal) const
+  {
+    diagonal.reinit(n_components);
+
+    for (unsigned int b = 0; b < diagonal.n_blocks(); ++b)
+      matrix_free.initialize_dof_vector(diagonal.block(b));
+
+    const std::function<void(FEIntegrator &)> evaluate_cell =
+      [&](FEIntegrator &phi) {
+        phi.evaluate(EvaluationFlags::EvaluationFlags::values);
+
+        for (unsigned int q = 0; q < phi.n_q_points; ++q)
+          phi.submit_value(phi.get_value(q), q);
+
+        phi.integrate(EvaluationFlags::EvaluationFlags::values);
+      };
+
+    MatrixFreeTools::compute_diagonal(matrix_free, diagonal, evaluate_cell);
+  }
+
+  void
   initialize_dof_vector(VectorType &dst) const
   {
     matrix_free.initialize_dof_vector(dst);
@@ -178,6 +201,32 @@ public:
 
 private:
   const MatrixFree<dim, Number, VectorizedArrayType> &matrix_free;
+};
+
+template <typename Operator>
+class InverseDiagonalMatrix
+{
+public:
+  using VectorType = LinearAlgebra::distributed::DynamicBlockVector<
+    typename Operator::value_type>;
+
+  InverseDiagonalMatrix(const Operator &op)
+  {
+    op.compute_diagonal(diagonal_matrix.get_vector());
+
+    for (unsigned int b = 0; b < diagonal_matrix.get_vector().n_blocks(); ++b)
+      for (auto &i : diagonal_matrix.get_vector().block(b))
+        i = (std::abs(i) > 1.0e-10) ? (1.0 / i) : 1.0;
+  }
+
+  void
+  vmult(VectorType &dst, const VectorType &src) const
+  {
+    diagonal_matrix.vmult(dst, src);
+  }
+
+private:
+  DiagonalMatrix<VectorType> diagonal_matrix;
 };
 
 
@@ -424,6 +473,13 @@ public:
     check_sums(solution, 0.0);
     output_result(solution, 0.0, 0);
 
+    // Preconditioner
+    // PreconditionIdentity preconditioner;
+    InverseDiagonalMatrix preconditioner(mass_matrix);
+
+    // Count linear iterations
+    unsigned int n_linear_iterations = 0;
+
     // RHS evaluation for the time-stepping
     const auto evaluate_rhs = [&](const double t, const VectorType &y) {
       VectorType incr(n_comp);
@@ -513,11 +569,13 @@ public:
       {
         ReductionControl     reduction_control;
         SolverCG<VectorType> solver(reduction_control);
-        solver.solve(mass_matrix, incr, rhs, PreconditionIdentity());
+        solver.solve(mass_matrix, incr, rhs, preconditioner);
 
         if constexpr (print)
           pcout << "# of linear iterations at t = " << t << ": "
                 << reduction_control.last_step() << std::endl;
+
+        n_linear_iterations += reduction_control.last_step();
       }
 
       return incr;
@@ -559,7 +617,8 @@ public:
 
     check_sums(solution, time.get_current_time());
 
-    pcout << "Execution time: " << elapsed.count() << "s\n";
+    pcout << "Execution time: " << elapsed.count() << "s" << std::endl;
+    pcout << "n_linear_iterations: " << n_linear_iterations << std::endl;
   }
 };
 
