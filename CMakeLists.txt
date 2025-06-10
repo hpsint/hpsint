@@ -68,6 +68,7 @@ set(LIKWID_INC CACHE STRING "Path to likwid includes")
 
 option(TARGET_AC "Build Allen-Cahn executables" ON)
 option(TARGET_CH "Build Cahn-Hilliard executables" ON)
+option(TARGET_GP "Build grand potential executables" ON)
 option(TARGET_SINTERING "Build sintering executables" ON)
 option(TARGET_GRAIN_GROWTH "Build grain growth executables" ON)
 option(TARGET_GP_GREENQUIST "Build Greenquist grand potential model executables" ON)
@@ -89,6 +90,11 @@ ENDIF()
 if(TARGET_CH)
   message(STATUS "Building cahn_hilliard targets")
   ADD_SUBDIRECTORY(applications/cahn_hilliard)
+ENDIF()
+
+if(TARGET_GP)
+  message(STATUS "Building grand_potential targets")
+  ADD_SUBDIRECTORY(applications/grand_potential)
 ENDIF()
 
 # This is a complex submodule, it checks the targets itself
