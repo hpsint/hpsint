@@ -132,7 +132,7 @@ namespace Sintering
 
           // CH with all terms
           value_result[0] = phi.get_value(q)[0] * weight;
-          value_result[1] = -phi.get_value(q)[1] +
+          value_result[1] = phi.get_value(q)[1] -
                             free_energy_eval.d2f_dc2() * phi.get_value(q)[0];
 
           gradient_result[0] =
@@ -141,15 +141,15 @@ namespace Sintering
             mobility.dM_dc(c, etas, c_grad, etas_grad) * mu_grad *
               phi.get_value(q)[0] +
             mobility.dM_dgrad_c(c, c_grad, mu_grad) * phi.get_gradient(q)[0];
-          gradient_result[1] = kappa_c * phi.get_gradient(q)[0];
+          gradient_result[1] = -kappa_c * phi.get_gradient(q)[0];
 #else
           // CH with the terms as considered in BlockPreconditioner3CHData
           value_result[0] = phi.get_value(q)[0] * weight;
-          value_result[1] = -phi.get_value(q)[1];
+          value_result[1] = phi.get_value(q)[1];
 
           gradient_result[0] = mobility.apply_M(
             c, etas, etas.size(), c_grad, etas_grad, phi.get_gradient(q)[1]);
-          gradient_result[1] = kappa_c * phi.get_gradient(q)[0];
+          gradient_result[1] = -kappa_c * phi.get_gradient(q)[0];
 #endif
 
           if (this->advection.enabled())
