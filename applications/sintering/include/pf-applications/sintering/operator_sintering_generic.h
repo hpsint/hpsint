@@ -135,13 +135,13 @@ namespace Sintering
 
 
       // 2) process mu row
-      value_result[1] = -value[1] + free_energy_eval.d2f_dc2() * value[0];
+      value_result[1] = value[1] - free_energy_eval.d2f_dc2() * value[0];
 
       for (unsigned int ig = 0; ig < n_grains; ++ig)
-        value_result[1] +=
+        value_result[1] -=
           free_energy_eval.d2f_dcdetai(lin_etas_value[ig]) * value[ig + 2];
 
-      gradient_result[1] = kappa_c * gradient[0];
+      gradient_result[1] = -kappa_c * gradient[0];
 
 
 
@@ -281,8 +281,8 @@ namespace Sintering
                                                   gradient[1]);
 
             // 2) process mu row
-            value_result[1]    = -value[1] + free_energy_eval.df_dc();
-            gradient_result[1] = kappa_c * gradient[0];
+            value_result[1]    = value[1] - free_energy_eval.df_dc();
+            gradient_result[1] = -kappa_c * gradient[0];
 
 
             // 3) process eta rows
