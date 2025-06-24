@@ -87,12 +87,22 @@ namespace TimeIntegration
       return dt[0];
     }
 
+    // Weight for the current time step derivative
     Number
     get_primary_weight() const
     {
       return weights[0];
     }
 
+    // Weight for the algebraic equations which can be used in the DAE system
+    // being solved along with the time dependent PDEs
+    Number
+    get_algebraic_weight() const
+    {
+      return 1.0;
+    }
+
+    // All weights of the integration scheme
     const std::vector<Number> &
     get_weights() const
     {

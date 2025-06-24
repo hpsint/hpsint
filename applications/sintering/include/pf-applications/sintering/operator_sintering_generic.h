@@ -55,6 +55,7 @@ namespace Sintering
       , kappa_c(data.kappa_c)
       , kappa_p(data.kappa_p)
       , weight(data.time_data.get_primary_weight())
+      , weight_alg(data.time_data.get_algebraic_weight())
       , L(mobility.Lgb())
       , advection_data(cell, advection, data)
       , gradient_buffer(gradient_buffer)
@@ -135,7 +136,8 @@ namespace Sintering
 
 
       // 2) process mu row
-      value_result[1] = value[1] - free_energy_eval.d2f_dc2() * value[0];
+      value_result[1] =
+        weight_alg * value[1] - free_energy_eval.d2f_dc2() * value[0];
 
       for (unsigned int ig = 0; ig < n_grains; ++ig)
         value_result[1] -=
@@ -198,6 +200,7 @@ namespace Sintering
     const Number kappa_c;
     const Number kappa_p;
     const Number weight;
+    const Number weight_alg;
     const Number L;
     const AdvectionVelocityData<dim, Number, VectorizedArrayType>
       advection_data;
@@ -243,6 +246,7 @@ namespace Sintering
       , kappa_c(data.kappa_c)
       , kappa_p(data.kappa_p)
       , weight(data.time_data.get_primary_weight())
+      , weight_alg(data.time_data.get_algebraic_weight())
       , L(mobility.Lgb())
       , buffer(buffer)
     {}
@@ -281,7 +285,7 @@ namespace Sintering
                                                   gradient[1]);
 
             // 2) process mu row
-            value_result[1]    = value[1] - free_energy_eval.df_dc();
+            value_result[1] = weight_alg * value[1] - free_energy_eval.df_dc();
             gradient_result[1] = -kappa_c * gradient[0];
 
 
@@ -310,6 +314,7 @@ namespace Sintering
     const Number kappa_c;
     const Number kappa_p;
     const Number weight;
+    const Number weight_alg;
     const Number L;
 
     const AlignedVector<VectorizedArrayType> &buffer;
