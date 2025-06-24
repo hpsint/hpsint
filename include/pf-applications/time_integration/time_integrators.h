@@ -93,6 +93,12 @@ namespace TimeIntegration
       return weights[0];
     }
 
+    Number
+    get_algebraic_weight() const
+    {
+      return 1.0;
+    }
+
     const std::vector<Number> &
     get_weights() const
     {

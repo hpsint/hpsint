@@ -92,6 +92,7 @@ namespace Sintering
       const auto &mobility    = data.get_mobility();
       const auto &kappa_c     = data.kappa_c;
       const auto  weight      = this->data.time_data.get_primary_weight();
+      const auto  weight_alg  = this->data.time_data.get_algebraic_weight();
 
       // TODO: 1) allow std::array again and 2) allocate less often in the
       // case of std::vector
@@ -132,7 +133,7 @@ namespace Sintering
 
           // CH with all terms
           value_result[0] = phi.get_value(q)[0] * weight;
-          value_result[1] = phi.get_value(q)[1] -
+          value_result[1] = phi.get_value(q)[1] * weight_alg -
                             free_energy_eval.d2f_dc2() * phi.get_value(q)[0];
 
           gradient_result[0] =
@@ -145,7 +146,7 @@ namespace Sintering
 #else
           // CH with the terms as considered in BlockPreconditioner3CHData
           value_result[0] = phi.get_value(q)[0] * weight;
-          value_result[1] = phi.get_value(q)[1];
+          value_result[1] = phi.get_value(q)[1] * weight_alg;
 
           gradient_result[0] = mobility.apply_M(
             c, etas, etas.size(), c_grad, etas_grad, phi.get_gradient(q)[1]);
