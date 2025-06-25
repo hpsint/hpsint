@@ -498,6 +498,13 @@ namespace Sintering
       return n_grains;
     }
 
+    virtual EquationType
+    equation_type(const unsigned int component) const override
+    {
+      (void)component;
+      return EquationType::TimePDE;
+    }
+
     static constexpr unsigned int
     n_min_possible_components()
     {

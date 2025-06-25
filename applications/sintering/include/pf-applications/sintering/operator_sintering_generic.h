@@ -631,6 +631,12 @@ namespace Sintering
       return n_grains + 2;
     }
 
+    virtual EquationType
+    equation_type(const unsigned int component) const override
+    {
+      return component != 1 ? EquationType::TimePDE : EquationType::Algebraic;
+    }
+
     template <int n_comp, int n_grains, int fe_degree, int n_q_points>
     void
     do_vmult_kernel(FEEvaluation<dim,

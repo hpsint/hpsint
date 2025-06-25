@@ -36,6 +36,13 @@ namespace Sintering
 {
   using namespace dealii;
 
+  enum class EquationType
+  {
+    Undefined,
+    TimePDE,
+    Algebraic
+  };
+
   template <int dim, typename Number, typename VectorizedArrayType, typename T>
   class OperatorBase : public Subscriptor
   {
@@ -111,6 +118,13 @@ namespace Sintering
     n_unique_components() const
     {
       return n_components();
+    }
+
+    virtual EquationType
+    equation_type(const unsigned int component) const
+    {
+      (void)component;
+      return EquationType::Undefined;
     }
 
     const DoFHandler<dim> &
