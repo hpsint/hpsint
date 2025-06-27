@@ -105,7 +105,7 @@ namespace Sintering
     equation_type(const unsigned int component) const override
     {
       (void)component;
-      return EquationType::Algebraic;
+      return EquationType::Stationary;
     }
 
     template <int n_comp, int n_grains, typename FECellIntegratorType>

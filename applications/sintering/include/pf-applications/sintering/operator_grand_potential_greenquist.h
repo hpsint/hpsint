@@ -803,7 +803,7 @@ namespace Sintering
     equation_type(const unsigned int component) const override
     {
       (void)component;
-      return EquationType::TimePDE;
+      return EquationType::TimeDependent;
     }
 
     template <int with_time_derivative = 2>

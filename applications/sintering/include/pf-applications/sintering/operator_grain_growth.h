@@ -502,7 +502,7 @@ namespace Sintering
     equation_type(const unsigned int component) const override
     {
       (void)component;
-      return EquationType::TimePDE;
+      return EquationType::TimeDependent;
     }
 
     static constexpr unsigned int

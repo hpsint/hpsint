@@ -39,8 +39,8 @@ namespace Sintering
   enum class EquationType
   {
     Undefined,
-    TimePDE,
-    Algebraic
+    TimeDependent,
+    Stationary
   };
 
   template <int dim, typename Number, typename VectorizedArrayType, typename T>
