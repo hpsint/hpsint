@@ -799,6 +799,13 @@ namespace Sintering
       return n_grains + 2;
     }
 
+    virtual EquationType
+    equation_type(const unsigned int component) const override
+    {
+      (void)component;
+      return EquationType::TimeDependent;
+    }
+
     template <int with_time_derivative = 2>
     void
     evaluate_nonlinear_residual(

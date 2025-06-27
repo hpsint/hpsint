@@ -101,6 +101,13 @@ namespace Sintering
       return 4;
     }
 
+    virtual EquationType
+    equation_type(const unsigned int component) const override
+    {
+      (void)component;
+      return EquationType::Stationary;
+    }
+
     template <int n_comp, int n_grains, typename FECellIntegratorType>
     void
     do_vmult_kernel(FECellIntegratorType &) const
