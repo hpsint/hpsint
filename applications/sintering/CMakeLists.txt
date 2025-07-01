@@ -44,7 +44,7 @@ IF(BENCHMARK_THROUGHPUT)
         -D${OPTION_MOB_${VAR_MOB_UP}}
     )
 
-    TARGET_LINK_LIBRARIES(${executable_name} "pf-applications")
+    TARGET_LINK_LIBRARIES(${executable_name} "pf-applications" "sintering")
     target_include_directories(${executable_name} PUBLIC "include/" "../structural/include/")
       
     IF(LIKWID)
@@ -62,7 +62,7 @@ IF(PRINT_PARTICLES)
   message(STATUS "  ${print_exe}")
   ADD_EXECUTABLE(${print_exe} "sintering_print_particles.cc")
   DEAL_II_SETUP_TARGET(${print_exe})
-  TARGET_LINK_LIBRARIES(${print_exe} "pf-applications")
+  TARGET_LINK_LIBRARIES(${print_exe} "pf-applications" "sintering")
   target_include_directories(${print_exe} PUBLIC "include/" "../structural/include/")
 ENDIF()
 
@@ -79,7 +79,7 @@ IF(BENCHMARK_GT)
       -D${OPTION_DIM_${VAR_DIM}}
     )
 
-    TARGET_LINK_LIBRARIES(${gt_executable_name} "pf-applications")
+    TARGET_LINK_LIBRARIES(${gt_executable_name} "pf-applications" "sintering")
     target_include_directories(${gt_executable_name} PUBLIC "include/")
   endforeach()
 ENDIF()
