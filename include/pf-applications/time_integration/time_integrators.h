@@ -1,6 +1,6 @@
 // ---------------------------------------------------------------------
 //
-// Copyright (C) 2023 by the hpsint authors
+// Copyright (C) 2023-2025 by the hpsint authors
 //
 // This file is part of the hpsint library.
 //
@@ -28,20 +28,7 @@ namespace TimeIntegration
   using namespace dealii;
 
   unsigned int
-  get_scheme_order(std::string scheme)
-  {
-    unsigned int time_integration_order = 0;
-    if (scheme == "BDF1")
-      time_integration_order = 1;
-    else if (scheme == "BDF2")
-      time_integration_order = 2;
-    else if (scheme == "BDF3")
-      time_integration_order = 3;
-    else
-      AssertThrow(false, ExcNotImplemented());
-
-    return time_integration_order;
-  }
+  get_scheme_order(std::string scheme);
 
   template <typename Number>
   class TimeIntegratorData
