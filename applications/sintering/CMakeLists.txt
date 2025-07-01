@@ -1,6 +1,8 @@
-# Dummy sintering library
+# Sintering library
 SET(TARGET_SRC dummy.cc)
-ADD_LIBRARY(sintering ${TARGET_SRC})
+FILE(GLOB_RECURSE ADDITIONAL_TARGET_SRC "src/*.cc")
+ADD_LIBRARY(sintering ${TARGET_SRC} ${ADDITIONAL_TARGET_SRC})
+TARGET_LINK_LIBRARIES(sintering "pf-applications")
 DEAL_II_SETUP_TARGET(sintering)
 target_include_directories(sintering PUBLIC "include/" "../structural/include/")
 install(TARGETS sintering LIBRARY DESTINATION lib)
