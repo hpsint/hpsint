@@ -562,7 +562,8 @@ namespace Sintering
             global_refine,
             params.geometry_data.max_prime,
             params.geometry_data.max_level0_divisions_per_interface,
-            params.approximation_data.n_subdivisions);
+            params.approximation_data.n_subdivisions,
+            params.print_time_loop);
         }
       else if (initial_mesh == InitialMesh::MaxRadius)
         {
@@ -576,7 +577,8 @@ namespace Sintering
             params.geometry_data.periodic,
             global_refine,
             params.geometry_data.max_prime,
-            params.approximation_data.n_subdivisions);
+            params.approximation_data.n_subdivisions,
+            params.print_time_loop);
         }
       else
         {
@@ -1084,7 +1086,8 @@ namespace Sintering
             mg_matrix_free,
             mg_constraints,
             transfer,
-            params.preconditioners_data.block_preconditioner_2_data);
+            params.preconditioners_data.block_preconditioner_2_data,
+            params.print_time_loop);
       else if (params.preconditioners_data.outer_preconditioner ==
                "BlockPreconditioner2")
         {
@@ -1108,7 +1111,8 @@ namespace Sintering
                 nonlinear_operator.get_zero_constraints_indices(),
                 params.material_data.mechanics_data.E,
                 params.material_data.mechanics_data.nu,
-                plane_type);
+                plane_type,
+                params.print_time_loop);
           else
             preconditioner =
               std::make_unique<BlockPreconditioner2<dim,
@@ -1120,7 +1124,8 @@ namespace Sintering
                 matrix_free,
                 constraints,
                 params.preconditioners_data.block_preconditioner_2_data,
-                advection_mechanism);
+                advection_mechanism,
+                params.print_time_loop);
         }
       else
         preconditioner = Preconditioners::create(
@@ -1292,7 +1297,8 @@ namespace Sintering
         pcout,
         std::move(nl_setup_custom_preconditioner),
         std::move(nl_setup_linearization_point),
-        std::move(nl_quantities_to_check));
+        std::move(nl_quantities_to_check),
+        params.print_time_loop);
 
       // set initial condition
 

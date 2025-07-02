@@ -435,6 +435,9 @@ namespace Sintering
       prm.add_parameter("TensorialMobilityGradientOnTheFly",
                         use_tensorial_mobility_gradient_on_the_fly,
                         "Run program matrix-based or matrix-free.");
+      prm.add_parameter("PrintTimeLoop",
+                        print_time_loop,
+                        "Generate output during time loop.");
 
       prm.enter_subsection("Approximation");
       prm.add_parameter("FEDegree",
