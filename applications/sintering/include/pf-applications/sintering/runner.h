@@ -62,23 +62,26 @@ namespace Sintering
                  char                 **argv,
                  const unsigned int     offset,
                  Sintering::Parameters &params,
-                 ConditionalOStream    &pcout)
+                 std::ostream          &out)
     {
-      if (static_cast<unsigned int>(argc) >= offset + 1)
-        {
-          pcout << "Input parameters file:" << std::endl;
-          pcout << std::ifstream(argv[offset]).rdbuf() << std::endl;
-
-          params.parse(std::string(argv[offset]));
-        }
+      ConditionalOStream pcout(
+        out, Utilities::MPI::this_mpi_process(MPI_COMM_WORLD) == 0);
 
       // Override params directly via command line
-      for (unsigned int i = offset + 1; i < static_cast<unsigned int>(argc);
-           ++i)
+      for (unsigned int i = offset; i < static_cast<unsigned int>(argc); ++i)
         {
           const std::string flag = std::string(argv[i]);
 
-          if (flag.substr(0, 2) == "--")
+          // The first entry can be a file with parameters
+          if (i == offset && flag.substr(0, 2) != "--")
+            {
+              pcout << "Input parameters file:" << std::endl;
+              pcout << std::ifstream(argv[offset]).rdbuf() << std::endl;
+
+              params.parse(std::string(argv[offset]));
+            }
+          // Parse custom options
+          else if (flag.substr(0, 2) == "--")
             {
               std::regex  rgx("--([(\\w*).]*)=\"?(.*)\"?");
               std::smatch matches;
@@ -100,7 +103,7 @@ namespace Sintering
       params.check();
 
       pcout << "Parameters in JSON format:" << std::endl;
-      params.print_input();
+      params.print_input(out);
       pcout << std::endl;
     }
   } // namespace internal
@@ -110,7 +113,10 @@ namespace Sintering
             template <typename VectorizedArrayType>
             typename FreeEnergy>
   void
-  runner(int argc, char **argv)
+  runner(int           argc,
+         char        **argv,
+         std::ostream &out            = std::cout,
+         std::ostream &out_statistics = std::cout)
   {
     using SinteringProblem = Sintering::Problem<SINTERING_DIM,
                                                 NonLinearOperator,
@@ -118,7 +124,7 @@ namespace Sintering
                                                 Number,
                                                 VectorizedArrayType>;
 
-    ConditionalOStream pcout(std::cout,
+    ConditionalOStream pcout(out,
                              Utilities::MPI::this_mpi_process(MPI_COMM_WORLD) ==
                                0);
 
@@ -153,7 +159,7 @@ namespace Sintering
         pcout << "Number of grains: " << n_grains << std::endl;
         pcout << std::endl;
 
-        internal::parse_params(argc, argv, 4, params, pcout);
+        internal::parse_params(argc, argv, 4, params, out);
 
         const InterfaceDirection interface_direction(
           to_interface_direction(params.geometry_data.interface_direction));
@@ -174,7 +180,7 @@ namespace Sintering
                       initial_solution->n_order_parameters(),
                       MAX_SINTERING_GRAINS));
 
-        SinteringProblem problem(params, initial_solution);
+        SinteringProblem problem(params, initial_solution, out, out_statistics);
       }
     else if (mode == "--hypercube")
       {
@@ -211,7 +217,7 @@ namespace Sintering
         pcout << " = " << n_total_grains << std::endl;
         pcout << std::endl;
 
-        internal::parse_params(argc, argv, 3 + SINTERING_DIM, params, pcout);
+        internal::parse_params(argc, argv, 3 + SINTERING_DIM, params, out);
 
         const InterfaceDirection interface_direction(
           to_interface_direction(params.geometry_data.interface_direction));
@@ -237,7 +243,7 @@ namespace Sintering
                       initial_solution->n_order_parameters(),
                       MAX_SINTERING_GRAINS));
 
-        SinteringProblem problem(params, initial_solution);
+        SinteringProblem problem(params, initial_solution, out, out_statistics);
       }
     else if (mode == "--cloud")
       {
@@ -262,7 +268,7 @@ namespace Sintering
         pcout << fstream.rdbuf();
         pcout << std::endl;
 
-        internal::parse_params(argc, argv, 3, params, pcout);
+        internal::parse_params(argc, argv, 3, params, out);
 
         const InterfaceDirection interface_direction(
           to_interface_direction(params.geometry_data.interface_direction));
@@ -284,7 +290,7 @@ namespace Sintering
                       initial_solution->n_order_parameters(),
                       MAX_SINTERING_GRAINS));
 
-        SinteringProblem problem(params, initial_solution);
+        SinteringProblem problem(params, initial_solution, out, out_statistics);
       }
     else if (mode == "--voronoi" || mode == "--imaging")
       {
@@ -302,7 +308,7 @@ namespace Sintering
             pcout << "Input file: " << input_file << std::endl;
             pcout << std::endl;
 
-            internal::parse_params(argc, argv, 3, params, pcout);
+            internal::parse_params(argc, argv, 3, params, out);
 
             const InterfaceDirection interface_direction(
               to_interface_direction(params.geometry_data.interface_direction));
@@ -339,7 +345,10 @@ namespace Sintering
                           initial_solution->n_order_parameters(),
                           MAX_SINTERING_GRAINS));
 
-            SinteringProblem problem(params, initial_solution);
+            SinteringProblem problem(params,
+                                     initial_solution,
+                                     out,
+                                     out_statistics);
           }
         else
           AssertThrow(SINTERING_DIM == 2,
@@ -356,21 +365,21 @@ namespace Sintering
         pcout << "Restart path: " << restart_path << std::endl;
         pcout << std::endl;
 
-        internal::parse_params(argc, argv, 3, params, pcout);
+        internal::parse_params(argc, argv, 3, params, out);
 
-        SinteringProblem problem(params, restart_path);
+        SinteringProblem problem(params, restart_path, out, out_statistics);
       }
     else if (mode == "--debug")
       {
         // Output case specific info
         pcout << "Mode: debug" << std::endl;
 
-        internal::parse_params(argc, argv, 2, params, pcout);
+        internal::parse_params(argc, argv, 2, params, out);
 
         const auto initial_solution =
           std::make_shared<Sintering::InitialValuesDebug<SINTERING_DIM>>();
 
-        SinteringProblem problem(params, initial_solution);
+        SinteringProblem problem(params, initial_solution, out, out_statistics);
       }
     else
       {

@@ -168,12 +168,14 @@ namespace Sintering
     std::map<std::string, unsigned int> counters;
 
     Problem(const Parameters                   &params,
-            std::shared_ptr<InitialValues<dim>> initial_solution)
+            std::shared_ptr<InitialValues<dim>> initial_solution,
+            std::ostream                       &out,
+            std::ostream                       &out_statistics)
       : params(params)
-      , pcout(std::cout,
+      , pcout(out,
               (Utilities::MPI::this_mpi_process(MPI_COMM_WORLD) == 0) &&
                 params.print_time_loop)
-      , pcout_statistics(std::cout,
+      , pcout_statistics(out_statistics,
                          Utilities::MPI::this_mpi_process(MPI_COMM_WORLD) == 0)
       , tria(MPI_COMM_WORLD)
       , mapping(1)
@@ -289,12 +291,15 @@ namespace Sintering
           initialize_grain_tracker);
     }
 
-    Problem(const Parameters &params, const std::string &restart_path)
+    Problem(const Parameters  &params,
+            const std::string &restart_path,
+            std::ostream      &out,
+            std::ostream      &out_statistics)
       : params(params)
-      , pcout(std::cout,
+      , pcout(out,
               (Utilities::MPI::this_mpi_process(MPI_COMM_WORLD) == 0) &&
                 params.print_time_loop)
-      , pcout_statistics(std::cout,
+      , pcout_statistics(out_statistics,
                          Utilities::MPI::this_mpi_process(MPI_COMM_WORLD) == 0)
       , tria(MPI_COMM_WORLD)
       , mapping(1)
