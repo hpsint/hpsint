@@ -97,6 +97,8 @@ class MyTimerOutput
 public:
   MyTimerOutput(const bool enabled = true);
 
+  MyTimerOutput(std::ostream &out, const bool enabled = true);
+
   ~MyTimerOutput();
 
 

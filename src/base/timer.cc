@@ -219,6 +219,14 @@ TimerCollection::print_all_wall_time_statistics(const bool force_output)
 }
 
 
+MyTimerOutput::MyTimerOutput(std::ostream &out, const bool enabled)
+  : pcout(out, Utilities::MPI::this_mpi_process(MPI_COMM_WORLD) == 0)
+  , timer(pcout, TimerOutput::never, TimerOutput::wall_times)
+  , enabled(enabled)
+{
+  if (enabled)
+    TimerCollection::attach(*this);
+}
 
 MyTimerOutput::MyTimerOutput(const bool enabled)
   : pcout(std::cout, Utilities::MPI::this_mpi_process(MPI_COMM_WORLD) == 0)

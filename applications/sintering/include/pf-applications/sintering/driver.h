@@ -1139,7 +1139,7 @@ namespace Sintering
               "A matrix-based mode has to be enabled to use the direct solver"));
         }
 
-      MyTimerOutput timer;
+      MyTimerOutput timer(pcout.get_stream());
       TimerCollection::configure(params.profiling_data.output_time_interval);
 
       // Define vector to store additional initializers for additional vectors
