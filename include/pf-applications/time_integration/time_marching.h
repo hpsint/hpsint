@@ -63,7 +63,8 @@ namespace TimeIntegration
       std::function<void(const VectorType &)>      setup_linearization_point,
       std::function<
         std::vector<std::tuple<std::string, unsigned int, unsigned int>>(void)>
-        quantities_to_check)
+                 quantities_to_check,
+      const bool print_stats = true)
     {
       // Create linear solver control
       if (true) // TODO: make parameter
@@ -129,7 +130,7 @@ namespace TimeIntegration
 
           if (nonlinear_params.fdm_jacobian_approximation)
             {
-              nonlinear_operator.initialize_system_matrix(false);
+              nonlinear_operator.initialize_system_matrix(false, print_stats);
               auto &system_matrix = nonlinear_operator.get_system_matrix();
 
               calc_numeric_tangent(dof_handler,
@@ -160,7 +161,8 @@ namespace TimeIntegration
             {
               if (nonlinear_params.fdm_precond_system_approximation)
                 {
-                  nonlinear_operator.initialize_system_matrix(false);
+                  nonlinear_operator.initialize_system_matrix(false,
+                                                              print_stats);
                   auto &system_matrix = nonlinear_operator.get_system_matrix();
 
                   calc_numeric_tangent(dof_handler,
@@ -171,7 +173,8 @@ namespace TimeIntegration
                 }
               else
                 {
-                  nonlinear_operator.initialize_system_matrix(true);
+                  nonlinear_operator.initialize_system_matrix(true,
+                                                              print_stats);
                 }
             }
 
