@@ -102,6 +102,30 @@ namespace TimeIntegration
       return order;
     }
 
+    /* Serialization */
+    template <class Archive>
+    void
+    save(Archive &ar, const unsigned int /*version*/) const
+    {
+      ar &order;
+      ar &boost::serialization::make_array(dt.data(), dt.size());
+    }
+
+    template <class Archive>
+    void
+    load(Archive &ar, const unsigned int /*version*/)
+    {
+      ar &order;
+      dt.resize(order);
+      weights.resize(order + 1);
+
+      ar &boost::serialization::make_array(dt.data(), dt.size());
+
+      update_weights();
+    }
+
+    BOOST_SERIALIZATION_SPLIT_MEMBER()
+
   private:
     unsigned int
     effective_order() const
