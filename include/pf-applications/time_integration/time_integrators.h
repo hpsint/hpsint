@@ -34,11 +34,38 @@ namespace TimeIntegration
   class TimeIntegratorData
   {
   public:
+    TimeIntegratorData()
+      : order(0)
+    {}
+
     TimeIntegratorData(unsigned int order)
       : order(order)
       , dt(order)
       , weights(order + 1)
     {}
+
+    TimeIntegratorData(unsigned int order, Number dt_init)
+      : TimeIntegratorData(order)
+    {
+      update_dt(dt_init);
+    }
+
+    TimeIntegratorData(const TimeIntegratorData &other, unsigned int order)
+      : TimeIntegratorData(order)
+    {
+      for (unsigned int i = 0; i < std::min(order, other.order); ++i)
+        dt[i] = other.dt[i];
+
+      update_weights();
+    }
+
+    void
+    replace_dt(Number dt_new)
+    {
+      dt[0] = dt_new;
+
+      update_weights();
+    }
 
     void
     update_dt(Number dt_new)
@@ -126,7 +153,6 @@ namespace TimeIntegration
 
     BOOST_SERIALIZATION_SPLIT_MEMBER()
 
-  private:
     unsigned int
     effective_order() const
     {
@@ -135,6 +161,7 @@ namespace TimeIntegration
       });
     }
 
+  private:
     void
     update_weights()
     {
