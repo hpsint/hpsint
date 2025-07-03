@@ -22,6 +22,7 @@
 namespace Sintering
 {
   using namespace dealii;
+  using namespace TimeIntegration;
 
   template <int dim, typename VectorizedArrayType>
   struct SinteringOperatorData
@@ -44,11 +45,11 @@ namespace Sintering
     SinteringOperatorData(const Number                      kappa_c,
                           const Number                      kappa_p,
                           std::shared_ptr<MobilityProvider> mobility_provider,
-                          const unsigned int                integration_order,
+                          TimeIntegratorData<Number>      &&time_data_in,
                           const unsigned int op_components_offset = 2)
       : kappa_c(kappa_c)
       , kappa_p(kappa_p)
-      , time_data(integration_order)
+      , time_data(std::move(time_data_in))
       , mobility(mobility_provider)
       , op_components_offset(op_components_offset)
       , t(0.0)
@@ -57,7 +58,7 @@ namespace Sintering
     const Number kappa_c;
     const Number kappa_p;
 
-    TimeIntegration::TimeIntegratorData<Number> time_data;
+    TimeIntegratorData<Number> time_data;
 
   public:
     const Table<3, VectorizedArrayType> &
