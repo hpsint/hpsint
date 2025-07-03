@@ -33,12 +33,10 @@
 #include <pf-applications/sintering/tools.h>
 
 #include <pf-applications/grain_tracker/tracker.h>
+#include <pf-applications/tests/macro.h>
 
 #include <filesystem>
 #include <iostream>
-
-#define STRING(x) #x
-#define XSTRING(x) STRING(x)
 
 namespace Test
 {

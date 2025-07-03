@@ -17,10 +17,8 @@
 
 #include <pf-applications/sintering/initial_values_microstructure_voronoi.h>
 
+#include <pf-applications/tests/macro.h>
 #include <pf-applications/tests/microstructure_tester.h>
-
-#define STRING(x) #x
-#define XSTRING(x) STRING(x)
 
 using namespace dealii;
 using namespace Sintering;
