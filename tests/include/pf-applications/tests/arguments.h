@@ -41,10 +41,10 @@ namespace Test
       my_argv.push_back(nullptr);
     }
 
-    MyArguments(const MyArguments &other) = delete;
+    MyArguments(const MyArguments &) = delete;
 
-    MyClass &
-    operator=(const MyClass &) = delete;
+    MyArguments &
+    operator=(const MyArguments &) = delete;
 
     char **
     argv()
