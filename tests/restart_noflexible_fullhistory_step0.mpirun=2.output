@@ -1,0 +1,11 @@
+Final statistics:
+  - n timesteps:               7
+  - n non-linear iterations:   26
+  - n residual evaluations:    33
+  - avg non-linear iterations: 3.71429
+  - max dt:                    0.020736
+
+  - n failed tries:                   0
+  - n failed non-linear iterations:   0
+  - n failed linear iterations:       0
+  - n failed residual evaluations:    0
