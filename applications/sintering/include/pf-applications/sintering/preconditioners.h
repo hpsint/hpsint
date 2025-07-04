@@ -976,8 +976,10 @@ namespace Sintering
       const MatrixFree<dim, Number, VectorizedArrayType>    &matrix_free,
       const AffineConstraints<Number>                       &constraints,
       const BlockPreconditioner2Data                        &data,
-      const AdvectionMechanism<dim, Number, VectorizedArrayType> &advection)
+      const AdvectionMechanism<dim, Number, VectorizedArrayType> &advection,
+      const bool print_stats = true)
       : data(data)
+      , print_stats(print_stats)
     {
       // create operators
       operator_0 = std::make_unique<OperatorCahnHilliard<dim,
@@ -1044,13 +1046,15 @@ namespace Sintering
       const double                        E  = 1.0,
       const double                        nu = 0.25,
       const Structural::MaterialPlaneType plane_type =
-        Structural::MaterialPlaneType::none)
+        Structural::MaterialPlaneType::none,
+      const bool print_stats = true)
       : BlockPreconditioner2(nonlinear_operator,
                              sintering_data,
                              matrix_free,
                              constraints,
                              data,
-                             advection)
+                             advection,
+                             print_stats)
     {
       operator_2 =
         std::make_unique<OperatorSolid<dim, Number, VectorizedArrayType>>(
@@ -1093,8 +1097,10 @@ namespace Sintering
       const MGLevelObject<AffineConstraints<Number>> &mg_constraints,
       const std::shared_ptr<MGTransferGlobalCoarsening<dim, VectorType>>
                                      &transfer,
-      const BlockPreconditioner2Data &data)
+      const BlockPreconditioner2Data &data,
+      const bool                      print_stats = true)
       : data(data)
+      , print_stats(print_stats)
     {
       AssertThrow(false, ExcNotImplemented());
 
@@ -1255,19 +1261,19 @@ namespace Sintering
       if (preconditioner_0)
         {
           MyScope scope(timer, "precon::update::precon_0");
-          operator_0->initialize_system_matrix(true);
+          operator_0->initialize_system_matrix(true, print_stats);
           preconditioner_0->do_update();
         }
       if (preconditioner_1)
         {
           MyScope scope(timer, "precon::update::precon_1");
-          operator_1->initialize_system_matrix(true);
+          operator_1->initialize_system_matrix(true, print_stats);
           preconditioner_1->do_update();
         }
       if (preconditioner_2)
         {
           MyScope scope(timer, "precon::update::precon_2");
-          operator_2->initialize_system_matrix(true);
+          operator_2->initialize_system_matrix(true, print_stats);
           preconditioner_2->do_update();
         }
     }
@@ -1328,6 +1334,8 @@ namespace Sintering
     mutable MyTimerOutput timer;
 
     const BlockPreconditioner2Data data;
+
+    const bool print_stats;
   };
 
 

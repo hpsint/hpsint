@@ -168,12 +168,14 @@ namespace Sintering
     std::map<std::string, unsigned int> counters;
 
     Problem(const Parameters                   &params,
-            std::shared_ptr<InitialValues<dim>> initial_solution)
+            std::shared_ptr<InitialValues<dim>> initial_solution,
+            std::ostream                       &out,
+            std::ostream                       &out_statistics)
       : params(params)
-      , pcout(std::cout,
+      , pcout(out,
               (Utilities::MPI::this_mpi_process(MPI_COMM_WORLD) == 0) &&
                 params.print_time_loop)
-      , pcout_statistics(std::cout,
+      , pcout_statistics(out_statistics,
                          Utilities::MPI::this_mpi_process(MPI_COMM_WORLD) == 0)
       , tria(MPI_COMM_WORLD)
       , mapping(1)
@@ -289,12 +291,15 @@ namespace Sintering
           initialize_grain_tracker);
     }
 
-    Problem(const Parameters &params, const std::string &restart_path)
+    Problem(const Parameters  &params,
+            const std::string &restart_path,
+            std::ostream      &out,
+            std::ostream      &out_statistics)
       : params(params)
-      , pcout(std::cout,
+      , pcout(out,
               (Utilities::MPI::this_mpi_process(MPI_COMM_WORLD) == 0) &&
                 params.print_time_loop)
-      , pcout_statistics(std::cout,
+      , pcout_statistics(out_statistics,
                          Utilities::MPI::this_mpi_process(MPI_COMM_WORLD) == 0)
       , tria(MPI_COMM_WORLD)
       , mapping(1)
@@ -557,7 +562,8 @@ namespace Sintering
             global_refine,
             params.geometry_data.max_prime,
             params.geometry_data.max_level0_divisions_per_interface,
-            params.approximation_data.n_subdivisions);
+            params.approximation_data.n_subdivisions,
+            params.print_time_loop);
         }
       else if (initial_mesh == InitialMesh::MaxRadius)
         {
@@ -571,7 +577,8 @@ namespace Sintering
             params.geometry_data.periodic,
             global_refine,
             params.geometry_data.max_prime,
-            params.approximation_data.n_subdivisions);
+            params.approximation_data.n_subdivisions,
+            params.print_time_loop);
         }
       else
         {
@@ -1079,7 +1086,8 @@ namespace Sintering
             mg_matrix_free,
             mg_constraints,
             transfer,
-            params.preconditioners_data.block_preconditioner_2_data);
+            params.preconditioners_data.block_preconditioner_2_data,
+            params.print_time_loop);
       else if (params.preconditioners_data.outer_preconditioner ==
                "BlockPreconditioner2")
         {
@@ -1103,7 +1111,8 @@ namespace Sintering
                 nonlinear_operator.get_zero_constraints_indices(),
                 params.material_data.mechanics_data.E,
                 params.material_data.mechanics_data.nu,
-                plane_type);
+                plane_type,
+                params.print_time_loop);
           else
             preconditioner =
               std::make_unique<BlockPreconditioner2<dim,
@@ -1115,7 +1124,8 @@ namespace Sintering
                 matrix_free,
                 constraints,
                 params.preconditioners_data.block_preconditioner_2_data,
-                advection_mechanism);
+                advection_mechanism,
+                params.print_time_loop);
         }
       else
         preconditioner = Preconditioners::create(
@@ -1134,7 +1144,7 @@ namespace Sintering
               "A matrix-based mode has to be enabled to use the direct solver"));
         }
 
-      MyTimerOutput timer;
+      MyTimerOutput timer(pcout.get_stream());
       TimerCollection::configure(params.profiling_data.output_time_interval);
 
       // Define vector to store additional initializers for additional vectors
@@ -1287,7 +1297,8 @@ namespace Sintering
         pcout,
         std::move(nl_setup_custom_preconditioner),
         std::move(nl_setup_linearization_point),
-        std::move(nl_quantities_to_check));
+        std::move(nl_quantities_to_check),
+        params.print_time_loop);
 
       // set initial condition
 

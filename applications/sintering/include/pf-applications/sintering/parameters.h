@@ -390,26 +390,33 @@ namespace Sintering
     }
 
     void
-    print_help()
+    print_help(std::ostream &out = std::cout)
     {
-      print(ParameterHandler::OutputStyle::Description |
-            ParameterHandler::OutputStyle::KeepDeclarationOrder);
+      print(out,
+            ParameterHandler::OutputStyle::Description |
+              ParameterHandler::OutputStyle::KeepDeclarationOrder);
     }
 
     void
-    print_input()
+    print_input(std::ostream &out = std::cout)
     {
-      print(ParameterHandler::OutputStyle::ShortJSON);
+      print(out, ParameterHandler::OutputStyle::ShortJSON);
     }
 
     void
     print(const ParameterHandler::OutputStyle style)
     {
+      print(std::cout, style);
+    }
+
+    void
+    print(std::ostream &out, const ParameterHandler::OutputStyle style)
+    {
       dealii::ParameterHandler prm;
       add_parameters(prm);
 
       ConditionalOStream pcout(
-        std::cout, Utilities::MPI::this_mpi_process(MPI_COMM_WORLD) == 0);
+        out, Utilities::MPI::this_mpi_process(MPI_COMM_WORLD) == 0);
 
       if (pcout.is_active())
         prm.print_parameters(pcout.get_stream(), style);
@@ -428,6 +435,9 @@ namespace Sintering
       prm.add_parameter("TensorialMobilityGradientOnTheFly",
                         use_tensorial_mobility_gradient_on_the_fly,
                         "Run program matrix-based or matrix-free.");
+      prm.add_parameter("PrintTimeLoop",
+                        print_time_loop,
+                        "Generate output during time loop.");
 
       prm.enter_subsection("Approximation");
       prm.add_parameter("FEDegree",
