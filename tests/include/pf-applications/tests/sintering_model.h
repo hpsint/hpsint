@@ -15,6 +15,8 @@
 #include <pf-applications/grain_tracker/tracker.h>
 #include <pf-applications/matrix_free/tools.h>
 #include <pf-applications/structural/material.h>
+#include <pf-applications/time_integration/solution_history.h>
+#include <pf-applications/time_integration/time_integrators.h>
 
 #include <iostream>
 
@@ -22,6 +24,7 @@ namespace Test
 {
   using namespace dealii;
   using namespace Sintering;
+  using namespace TimeIntegration;
 
   template <int dim,
             typename Number,
@@ -47,7 +50,8 @@ namespace Test
           /*kappa_c=*/0.1,
           /*kappa_p=*/0.1,
           std::make_shared<ProviderAbstract>(1e-1, 1e-8, 1e1, 1e0, 1e1),
-          time_integration_order)
+          TimeIntegratorData<Number>(time_integration_order,
+                                     /*dt=*/1e-5))
       , advection_mechanism(enable_rbm,
                             /*mt=*/1.0,
                             /*mr=*/1.0)
@@ -190,9 +194,6 @@ namespace Test
         }
 
       solution_history.set_recent_old_solution(solution);
-      std::vector<Number> dts(time_integration_order);
-      dts[0] = 1e-5;
-      sintering_data.time_data.set_all_dt(dts);
 
       const double k           = 25;
       const double cgb         = 0;
@@ -269,7 +270,7 @@ namespace Test
     QGauss<dim>                                          quad;
     DoFHandler<dim>                                      dof_handler;
     AffineConstraints<Number>                            constraints;
-    TimeIntegration::SolutionHistory<VectorType>         solution_history;
+    SolutionHistory<VectorType>                          solution_history;
     FreeEnergy                                           free_energy;
     SinteringOperatorData<dim, VectorizedArrayType>      sintering_data;
     MatrixFree<dim, Number, VectorizedArrayType>         matrix_free;

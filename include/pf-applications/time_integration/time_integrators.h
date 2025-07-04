@@ -34,11 +34,38 @@ namespace TimeIntegration
   class TimeIntegratorData
   {
   public:
+    TimeIntegratorData()
+      : order(0)
+    {}
+
     TimeIntegratorData(unsigned int order)
       : order(order)
       , dt(order)
       , weights(order + 1)
     {}
+
+    TimeIntegratorData(unsigned int order, Number dt_init)
+      : TimeIntegratorData(order)
+    {
+      update_dt(dt_init);
+    }
+
+    TimeIntegratorData(const TimeIntegratorData &other, unsigned int order)
+      : TimeIntegratorData(order)
+    {
+      for (unsigned int i = 0; i < std::min(order, other.order); ++i)
+        dt[i] = other.dt[i];
+
+      update_weights();
+    }
+
+    void
+    replace_dt(Number dt_new)
+    {
+      dt[0] = dt_new;
+
+      update_weights();
+    }
 
     void
     update_dt(Number dt_new)
@@ -102,7 +129,30 @@ namespace TimeIntegration
       return order;
     }
 
-  private:
+    /* Serialization */
+    template <class Archive>
+    void
+    save(Archive &ar, const unsigned int /*version*/) const
+    {
+      ar &order;
+      ar &boost::serialization::make_array(dt.data(), dt.size());
+    }
+
+    template <class Archive>
+    void
+    load(Archive &ar, const unsigned int /*version*/)
+    {
+      ar &order;
+      dt.resize(order);
+      weights.resize(order + 1);
+
+      ar &boost::serialization::make_array(dt.data(), dt.size());
+
+      update_weights();
+    }
+
+    BOOST_SERIALIZATION_SPLIT_MEMBER()
+
     unsigned int
     effective_order() const
     {
@@ -111,6 +161,7 @@ namespace TimeIntegration
       });
     }
 
+  private:
     void
     update_weights()
     {

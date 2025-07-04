@@ -58,6 +58,7 @@ static unsigned int likwid_counter = 0;
 
 using namespace dealii;
 using namespace Sintering;
+using namespace TimeIntegration;
 
 struct Parameters
 {
@@ -432,31 +433,30 @@ test(const Parameters &params, ConvergenceTable &table)
 
       HelmholtzQOperator q_point_operator_h;
 
-      const double        A                      = 16;
-      const double        B                      = 1;
-      const double        kappa_c                = 1;
-      const double        kappa_p                = 0.5;
-      const double        Mvol                   = 1e-2;
-      const double        Mvap                   = 1e-10;
-      const double        Msurf                  = 4;
-      const double        Mgb                    = 0.4;
-      const double        L                      = 1;
-      const double        time_integration_order = 1;
-      const double        t                      = 0.0;
-      const double        dt                     = 0.1;
-      std::vector<double> dts(time_integration_order, 0.0);
-      dts[0] = dt;
+      const double A                      = 16;
+      const double B                      = 1;
+      const double kappa_c                = 1;
+      const double kappa_p                = 0.5;
+      const double Mvol                   = 1e-2;
+      const double Mvap                   = 1e-10;
+      const double Msurf                  = 4;
+      const double Mgb                    = 0.4;
+      const double L                      = 1;
+      const double time_integration_order = 1;
+      const double t                      = 0.0;
+      const double dt                     = 0.1;
 
       const std::shared_ptr<MobilityProvider> mobility_provider =
         std::make_shared<ProviderAbstract>(Mvol, Mvap, Msurf, Mgb, L);
 
       FreeEnergy<VectorizedArrayType> free_energy(A, B);
 
+      TimeIntegratorData<Number> time_data(time_integration_order, dt);
+
       SinteringOperatorData<dim, VectorizedArrayType> sintering_data(
-        kappa_c, kappa_p, mobility_provider, time_integration_order);
+        kappa_c, kappa_p, mobility_provider, std::move(time_data));
 
       sintering_data.set_n_components(n_components);
-      sintering_data.time_data.set_all_dt(dts);
       sintering_data.set_time(t);
 
       AlignedVector<VectorizedArrayType> buffer;

@@ -21,6 +21,7 @@
 
 using namespace dealii;
 using namespace Sintering;
+using namespace TimeIntegration;
 
 int
 main(int argc, char **argv)
@@ -71,8 +72,10 @@ main(int argc, char **argv)
   const std::shared_ptr<MobilityProvider> mobility_provider =
     std::make_shared<ProviderAbstract>(Mvol, Mvap, Msurf, Mgb, L);
 
+  TimeIntegratorData<Number> time_data(time_integration_order);
+
   SinteringOperatorData<dim, VectorizedArrayType> sintering_data(
-    kappa_c, kappa_p, mobility_provider, time_integration_order);
+    kappa_c, kappa_p, mobility_provider, std::move(time_data));
 
   const unsigned int n_grains     = 3;
   const unsigned int n_components = n_grains + 2;
