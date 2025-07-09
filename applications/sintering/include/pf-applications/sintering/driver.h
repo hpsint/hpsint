@@ -163,8 +163,6 @@ namespace Sintering
     unsigned int restart_counter;
     double       t;
 
-    std::vector<Number> dts{0};
-
     std::map<std::string, unsigned int> counters;
 
     Problem(const Parameters                   &params,
@@ -214,8 +212,8 @@ namespace Sintering
         TimeIntegration::get_scheme_order(
           params.time_integration_data.interation_scheme);
 
-      dts.assign(time_integration_order, 0);
-      dts[0] = params.time_integration_data.time_step_init;
+      TimeIntegration::TimeIntegratorData<Number> time_data(
+        time_integration_order, params.time_integration_data.time_step_init);
 
       // Parse initial refinement options
       InitialRefine global_refine;
@@ -287,6 +285,7 @@ namespace Sintering
         };
 
       run(initial_solution->n_components(),
+          time_data,
           initialize_solution,
           initialize_grain_tracker);
     }
@@ -317,7 +316,6 @@ namespace Sintering
       unsigned int n_initial_components;
       unsigned int n_blocks_per_vector;
       unsigned int n_blocks_total;
-      unsigned int n_integration_order;
       bool         flexible_output;
       bool         full_history;
 
@@ -345,16 +343,6 @@ namespace Sintering
         TimeIntegration::get_scheme_order(
           params.time_integration_data.interation_scheme);
 
-      if (full_history)
-        {
-          fisb >> n_integration_order;
-          this->dts.resize(n_integration_order);
-        }
-      else
-        {
-          this->dts.resize(time_integration_order);
-        }
-
       // Read the rest
       fisb >> *this;
 
@@ -364,6 +352,12 @@ namespace Sintering
       std::vector<GrainTracker::Grain<dim>> grains;
       figt >> grains;
 
+      // Load time data
+      std::ifstream                   in_stream_time(restart_path + "_time");
+      boost::archive::binary_iarchive fitime(in_stream_time);
+      TimeIntegration::TimeIntegratorData<Number> time_data;
+      fitime >> time_data;
+
       // Check if the data structures are consistent
       if (full_history)
         {
@@ -371,16 +365,21 @@ namespace Sintering
           // time integration order + 1, however, we skipped the recent old
           // solution since it will get overwritten anyway, so we neither save
           // it not load during restarts.
-          AssertDimension(this->dts.size(),
+          AssertDimension(time_data.get_order(),
                           n_blocks_total / n_blocks_per_vector);
 
-          // We do resize anyways since the user might have changed the
-          // integration scheme
-          this->dts.resize(time_integration_order);
+          // We reinit time data anyways since the user might have changed the
+          // integration scheme beetwen runs
+          time_data =
+            TimeIntegration::TimeIntegratorData<Number>(time_data,
+                                                        time_integration_order);
         }
       else
         {
-          std::fill(std::next(this->dts.begin()), this->dts.end(), 0.);
+          // We reinit time data anyways since we do not contain enough history
+          // vectors and will start from the lowest order integration scheme
+          time_data = TimeIntegration::TimeIntegratorData<Number>(
+            time_integration_order, time_data.get_current_dt());
         }
 
       // Parse initial mesh otpions
@@ -470,7 +469,10 @@ namespace Sintering
         };
 
       // 6) run time loop
-      run(n_initial_components, initialize_solution, initialize_grain_tracker);
+      run(n_initial_components,
+          time_data,
+          initialize_solution,
+          initialize_grain_tracker);
     }
 
     template <class Archive>
@@ -501,7 +503,6 @@ namespace Sintering
       ar &restart_counter;
       ar &t;
       ar &counters;
-      ar &boost::serialization::make_array(dts.data(), dts.size());
     }
 
     unsigned int
@@ -844,6 +845,7 @@ namespace Sintering
 
     void
     run(const unsigned int                          n_initial_components,
+        TimeIntegration::TimeIntegratorData<Number> time_data,
         const std::function<void(std::vector<typename VectorType::BlockType *>,
                                  MyTimerOutput &)> &initialize_solution,
         const std::function<void(GrainTracker::Tracker<dim, Number> &,
@@ -855,8 +857,6 @@ namespace Sintering
                                          n_timestep :
                                          t,
                                        params.restart_data.interval);
-
-      const unsigned int time_integration_order = dts.size();
 
       // Compute energy and mobility parameters
       double                            A, B, kappa_c, kappa_p;
@@ -941,7 +941,7 @@ namespace Sintering
         kappa_c,
         kappa_p,
         mobility_provider,
-        time_integration_order,
+        std::move(time_data),
         FreeEnergyTpl<VectorizedArrayType>::op_components_offset);
 
       pcout << "Mobility type: "
@@ -951,11 +951,11 @@ namespace Sintering
 
       sintering_data.set_n_components(n_initial_components);
 
-      // Reference to the current timestep for convinience
-      auto &dt = dts[0];
+      // Get the current timestep size
+      auto dt = sintering_data.time_data.get_current_dt();
 
       TimeIntegration::SolutionHistory<VectorType> solution_history(
-        time_integration_order + 1);
+        sintering_data.time_data.get_order() + 1);
 
       MGLevelObject<SinteringOperatorData<dim, VectorizedArrayType>>
         mg_sintering_data(0,
@@ -1215,7 +1215,8 @@ namespace Sintering
             const unsigned int n_blocks  = current_u.n_blocks();
 
             for (unsigned int l = min_level; l <= max_level; ++l)
-              mg_sintering_data[l].time_data.set_all_dt(dts);
+              mg_sintering_data[l].time_data.set_all_dt(
+                sintering_data.time_data.get_all_dt());
 
             MGLevelObject<VectorType> mg_current_u(min_level, max_level);
 
@@ -1908,9 +1909,6 @@ namespace Sintering
                   impose_boundary_conditions(t);
               }
 
-            // Set timesteps in order to update weights
-            sintering_data.time_data.set_all_dt(dts);
-
             // Update material properties
             sintering_data.set_time(t);
 
@@ -1940,9 +1938,12 @@ namespace Sintering
                     extrap.sadd(-dt, solution);
                   }
                 else if (params.time_integration_data.predictor == "Linear" &&
-                         dts.size() > 1)
+                         sintering_data.time_data.effective_order() > 1)
                   {
-                    const double fac = dts[0] / dts[1];
+                    const auto dt0 = sintering_data.time_data.get_all_dt()[0];
+                    const auto dt1 = sintering_data.time_data.get_all_dt()[1];
+                    const auto fac = dt0 / dt1;
+
                     solution_history.extrapolate(extrap, fac);
                   }
                 else
@@ -2293,10 +2294,6 @@ namespace Sintering
                 n_residual_evaluations += statistics.n_residual_evaluations();
                 max_reached_dt = std::max(max_reached_dt, dt);
 
-                // Commit timesteps in accordance with history
-                for (int i = dts.size() - 2; i >= 0; --i)
-                  dts[i + 1] = dts[i];
-
                 if (!is_last_time_step)
                   {
                     // If solution has converged within a few iterations, we
@@ -2520,16 +2517,19 @@ namespace Sintering
                     fosb << solution.n_blocks();
                     fosb << static_cast<unsigned int>(solution_ptr.size());
 
-                    if (params.restart_data.full_history)
-                      fosb << static_cast<unsigned int>(dts.size());
-
                     fosb << *this;
 
+                    // Save grains
                     std::ofstream out_stream_gt(prefix + "_grains");
                     boost::archive::binary_oarchive       fogt(out_stream_gt);
                     std::vector<GrainTracker::Grain<dim>> grains;
                     grain_tracker.save_grains(std::back_inserter(grains));
                     fogt << grains;
+
+                    // Save time data
+                    std::ofstream out_stream_time(prefix + "_time");
+                    boost::archive::binary_oarchive fos_time(out_stream_time);
+                    fos_time << sintering_data.time_data;
                   }
 
                 /* If the mesh quality control is enabled we then perform one of
@@ -2601,6 +2601,14 @@ namespace Sintering
                       }
                     pcout << std::endl;
                   }
+
+                // Update and advance time step size
+                sintering_data.time_data.update_dt(dt);
+              }
+            else
+              {
+                // Replace the current time step size
+                sintering_data.time_data.replace_dt(dt);
               }
 
             TimerCollection::print_all_wall_time_statistics();
