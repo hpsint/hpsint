@@ -625,7 +625,7 @@ namespace Sintering
       , free_energy(free_energy)
       , data(data)
       , history(history)
-      , time_integrator(data.time_data, history)
+      , time_integrator(data.time_data)
     {}
 
     ~GreenquistGrandPotentialOperator()
