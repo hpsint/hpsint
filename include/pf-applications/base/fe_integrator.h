@@ -32,4 +32,9 @@ namespace dealii
   using FECellIntegrator =
     FEEvaluation<dim, -1, 0, n_comp, Number, VectorizedArrayType>;
 #endif
+
+  template <int dim, int n_comp, typename Number, typename VectorizedArrayType>
+  using FECellIntegratorValue =
+    typename FECellIntegrator<dim, n_comp, Number, VectorizedArrayType>::
+      value_type;
 } // namespace dealii
