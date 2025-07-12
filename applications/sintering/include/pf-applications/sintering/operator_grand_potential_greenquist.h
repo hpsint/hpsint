@@ -625,7 +625,6 @@ namespace Sintering
       , free_energy(free_energy)
       , data(data)
       , history(history)
-      , time_integrator(data.time_data)
     {}
 
     ~GreenquistGrandPotentialOperator()
@@ -866,7 +865,10 @@ namespace Sintering
 
       const auto old_solutions = this->history.get_old_solutions();
 
-      auto time_eval = this->time_integrator.create_cell_intergator(phi);
+      TimeIntegration::TimeCellIntegrator time_eval(
+        phi,
+        this->data.time_data.get_weights().begin(),
+        this->data.time_data.get_weights().end());
 
       for (unsigned int i = 0; i < order; ++i)
         {
@@ -906,10 +908,10 @@ namespace Sintering
           // Evaluate some time derivatives
           VectorizedArrayType dphi_dt, dmu_dt;
 
-          this->time_integrator.compute_time_derivative(
+          TimeIntegration::compute_time_derivative(
             dphi_dt, lin_phi_value, time_eval, 0, q);
 
-          this->time_integrator.compute_time_derivative(
+          TimeIntegration::compute_time_derivative(
             dmu_dt, lin_mu_value, time_eval, 1, q);
 
           // Evaluate phi row
@@ -1271,7 +1273,10 @@ namespace Sintering
       FECellIntegrator<dim, n_comp, Number, VectorizedArrayType> eval(
         matrix_free, this->dof_index);
 
-      auto time_eval = this->time_integrator.create_cell_intergator(eval);
+      TimeIntegration::TimeCellIntegrator time_eval(
+        eval,
+        this->data.time_data.get_weights().begin(),
+        this->data.time_data.get_weights().end());
 
       const auto &mobility = this->data.get_mobility();
       const auto &order    = this->data.time_data.get_order();
@@ -1333,7 +1338,7 @@ namespace Sintering
               // Evaluate time derivatives of all quantities
               if (with_time_derivative)
                 for (unsigned int ic = 0; ic < n_comp; ++ic)
-                  this->time_integrator.compute_time_derivative(
+                  TimeIntegration::compute_time_derivative(
                     value_result[ic], val, time_eval, ic, q);
 
               // Copy dphi_dt for later use
@@ -1402,7 +1407,5 @@ namespace Sintering
     const GreenquistFreeEnergy<VectorizedArrayType>          free_energy;
     const SinteringOperatorData<dim, VectorizedArrayType>   &data;
     const TimeIntegration::SolutionHistory<BlockVectorType> &history;
-    const TimeIntegration::BDFIntegrator<dim, Number, VectorizedArrayType>
-      time_integrator;
   };
 } // namespace Sintering

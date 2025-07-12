@@ -199,71 +199,80 @@ namespace TimeIntegration
     std::vector<Number> weights;
   };
 
-  template <int dim, typename Number, typename VectorizedArrayType>
-  class BDFIntegrator
+  template <int dim, int n_comp, typename Number, typename VectorizedArrayType>
+  struct TimeCellIntegrator
   {
-  public:
-    using BlockVectorType =
-      LinearAlgebra::distributed::DynamicBlockVector<Number>;
-
-    template <int n_comp>
     using CellIntegrator =
       FECellIntegrator<dim, n_comp, Number, VectorizedArrayType>;
 
-    template <int n_comp>
-    using CellIntegratorValue =
-      typename FECellIntegrator<dim, n_comp, Number, VectorizedArrayType>::
-        value_type;
-
-    template <int n_comp>
-    using TimeCellIntegrator =
-      std::vector<FECellIntegrator<dim, n_comp, Number, VectorizedArrayType>>;
-
-    BDFIntegrator(const TimeIntegratorData<Number> &time_data)
-      : time_data(time_data)
+    template <typename Iterator>
+    TimeCellIntegrator(const CellIntegrator &cell_integrator,
+                       Iterator              begin,
+                       Iterator              end)
+      : weights(begin, end)
+      , evals(std::distance(begin, end), cell_integrator)
     {}
 
-    template <int n_comp>
-    void
-    compute_time_derivative(VectorizedArrayType               &value_result,
-                            const CellIntegratorValue<n_comp> &val,
-                            const TimeCellIntegrator<n_comp>  &time_phi,
-                            const unsigned int                 index,
-                            const unsigned int                 q) const
+    unsigned int
+    get_order() const
     {
-      compute_time_derivative(value_result, val[index], time_phi, index, q);
+      return weights.size();
     }
 
-    template <int n_comp>
-    void
-    compute_time_derivative(VectorizedArrayType              &value_result,
-                            const VectorizedArrayType        &val,
-                            const TimeCellIntegrator<n_comp> &time_phi,
-                            const unsigned int                index,
-                            const unsigned int                q) const
+    const std::vector<Number> &
+    get_weights() const
     {
-      AssertThrow(time_data.get_order() == time_phi.size(),
-                  ExcMessage("Inconsistent data structures provided!"));
-
-      const auto &weights = time_data.get_weights();
-
-      value_result += val * weights[0];
-      for (unsigned int i = 0; i < time_data.get_order(); ++i)
-        {
-          const auto val_old = time_phi[i].get_value(q);
-
-          value_result += val_old[index] * weights[i + 1];
-        }
+      return weights;
     }
 
-    template <int n_comp>
-    TimeCellIntegrator<n_comp>
-    create_cell_intergator(const CellIntegrator<n_comp> &cell_integrator) const
+    CellIntegrator &
+    operator[](unsigned int i)
     {
-      return TimeCellIntegrator<n_comp>(time_data.get_order(), cell_integrator);
+      return evals[i];
+    }
+
+    const CellIntegrator &
+    operator[](unsigned int i) const
+    {
+      return evals[i];
     }
 
   private:
-    const TimeIntegratorData<Number> &time_data;
+    std::vector<Number>         weights;
+    std::vector<CellIntegrator> evals;
   };
+
+  template <int dim, int n_comp, typename Number, typename VectorizedArrayType>
+  void
+  compute_time_derivative(
+    VectorizedArrayType       &value_result,
+    const VectorizedArrayType &val,
+    const TimeCellIntegrator<dim, n_comp, Number, VectorizedArrayType>
+                      &time_phi,
+    const unsigned int index,
+    const unsigned int q)
+  {
+    const auto &weights = time_phi.get_weights();
+
+    value_result += val * weights[0];
+    for (unsigned int i = 0; i < time_phi.get_order(); ++i)
+      {
+        const auto val_old = time_phi[i].get_value(q);
+
+        value_result += val_old[index] * weights[i + 1];
+      }
+  }
+
+  template <int dim, int n_comp, typename Number, typename VectorizedArrayType>
+  void
+  compute_time_derivative(
+    VectorizedArrayType &value_result,
+    const FECellIntegratorValue<dim, n_comp, Number, VectorizedArrayType> &val,
+    const TimeCellIntegrator<dim, n_comp, Number, VectorizedArrayType>
+                      &time_phi,
+    const unsigned int index,
+    const unsigned int q)
+  {
+    compute_time_derivative(value_result, val[index], time_phi, index, q);
+  }
 } // namespace TimeIntegration

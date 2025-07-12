@@ -292,7 +292,6 @@ namespace Sintering
       , free_energy(free_energy)
       , data(data)
       , history(history)
-      , time_integrator(data.time_data)
     {}
 
     ~GrainGrowthOperator()
@@ -806,7 +805,10 @@ namespace Sintering
       FECellIntegrator<dim, n_comp, Number, VectorizedArrayType> phi(
         matrix_free, this->dof_index);
 
-      auto time_phi = this->time_integrator.create_cell_intergator(phi);
+      TimeIntegration::TimeCellIntegrator time_phi(
+        phi,
+        this->data.time_data.get_weights().begin(),
+        this->data.time_data.get_weights().end());
 
       const auto &mobility = this->data.get_mobility();
       const auto &kappa_p  = this->data.kappa_p;
@@ -855,7 +857,7 @@ namespace Sintering
                   value_result[ig] = L * free_energy_eval.df_detai(etas[ig]);
 
                   if (with_time_derivative)
-                    this->time_integrator.compute_time_derivative(
+                    TimeIntegration::compute_time_derivative(
                       value_result[ig], etas, time_phi, ig, q);
 
                   gradient_result[ig] = L * kappa_p * etas_grad[ig];
@@ -874,7 +876,5 @@ namespace Sintering
     const GrainGrowthFreeEnergy<VectorizedArrayType>         free_energy;
     const SinteringOperatorData<dim, VectorizedArrayType>   &data;
     const TimeIntegration::SolutionHistory<BlockVectorType> &history;
-    const TimeIntegration::BDFIntegrator<dim, Number, VectorizedArrayType>
-      time_integrator;
   };
 } // namespace Sintering
