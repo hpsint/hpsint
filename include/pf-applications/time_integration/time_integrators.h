@@ -205,18 +205,20 @@ namespace TimeIntegration
     using CellIntegrator =
       FECellIntegrator<dim, n_comp, Number, VectorizedArrayType>;
 
+    /* Here it is implied that weights.size() = order + 1 */
     template <typename Iterator>
     TimeCellIntegrator(const CellIntegrator &cell_integrator,
                        Iterator              begin,
                        Iterator              end)
-      : weights(begin, end)
-      , evals(std::distance(begin, end), cell_integrator)
+      : order(std::distance(begin, end) - 1)
+      , weights(begin, end)
+      , evals(order, cell_integrator)
     {}
 
     unsigned int
     get_order() const
     {
-      return weights.size();
+      return order;
     }
 
     const std::vector<Number> &
@@ -238,6 +240,7 @@ namespace TimeIntegration
     }
 
   private:
+    unsigned int                order;
     std::vector<Number>         weights;
     std::vector<CellIntegrator> evals;
   };
