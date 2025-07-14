@@ -54,7 +54,6 @@ namespace Sintering
       , free_energy(free_energy)
       , data(data)
       , history(history)
-      , time_integrator(data.time_data, history)
     {}
 
     ~SinteringOperatorBase()
@@ -563,7 +562,5 @@ namespace Sintering
     const FreeEnergy<VectorizedArrayType>                    free_energy;
     const SinteringOperatorData<dim, VectorizedArrayType>   &data;
     const TimeIntegration::SolutionHistory<BlockVectorType> &history;
-    const TimeIntegration::BDFIntegrator<dim, Number, VectorizedArrayType>
-      time_integrator;
   };
 } // namespace Sintering
