@@ -17,6 +17,7 @@
 #include <pf-applications/structural/material.h>
 #include <pf-applications/time_integration/solution_history.h>
 #include <pf-applications/time_integration/time_integrators.h>
+#include <pf-applications/time_integration/time_schemes.h>
 
 #include <iostream>
 
@@ -37,21 +38,20 @@ namespace Test
   public:
     SinteringModel(const bool enable_rbm)
       : fe_degree(1)
-      , time_integration_order(1)
       , tria(MPI_COMM_WORLD)
       , fe(fe_degree)
       , mapping(1)
       , quad(fe_degree + 1)
       , dof_handler(tria)
-      , solution_history(time_integration_order + 1)
       , free_energy(/*A=*/1.,
                     /*B=*/1.)
       , sintering_data(
           /*kappa_c=*/0.1,
           /*kappa_p=*/0.1,
           std::make_shared<ProviderAbstract>(1e-1, 1e-8, 1e1, 1e0, 1e1),
-          TimeIntegratorData<Number>(time_integration_order,
+          TimeIntegratorData<Number>(std::make_unique<BDF1Scheme<Number>>(),
                                      /*dt=*/1e-5))
+      , solution_history(sintering_data.time_data.get_order() + 1)
       , advection_mechanism(enable_rbm,
                             /*mt=*/1.0,
                             /*mr=*/1.0)
@@ -262,7 +262,6 @@ namespace Test
 
   private:
     const unsigned int fe_degree;
-    const unsigned int time_integration_order;
 
     parallel::distributed::Triangulation<dim>            tria;
     FE_Q<dim>                                            fe;
@@ -270,9 +269,9 @@ namespace Test
     QGauss<dim>                                          quad;
     DoFHandler<dim>                                      dof_handler;
     AffineConstraints<Number>                            constraints;
-    SolutionHistory<VectorType>                          solution_history;
     FreeEnergy                                           free_energy;
     SinteringOperatorData<dim, VectorizedArrayType>      sintering_data;
+    SolutionHistory<VectorType>                          solution_history;
     MatrixFree<dim, Number, VectorizedArrayType>         matrix_free;
     AdvectionMechanism<dim, Number, VectorizedArrayType> advection_mechanism;
 
