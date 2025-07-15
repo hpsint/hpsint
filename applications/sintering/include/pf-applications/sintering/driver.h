@@ -90,6 +90,7 @@
 #include <pf-applications/grid/constraint_helper.h>
 #include <pf-applications/matrix_free/output.h>
 #include <pf-applications/time_integration/time_marching.h>
+#include <pf-applications/time_integration/time_schemes.h>
 
 namespace Sintering
 {
@@ -208,12 +209,12 @@ namespace Sintering
       t = params.time_integration_data.time_start;
 
       // Initialize timestepping
-      const unsigned int time_integration_order =
-        TimeIntegration::get_scheme_order(
-          params.time_integration_data.interation_scheme);
+      auto scheme_variant = TimeIntegration::create_time_scheme<Number>(
+        params.time_integration_data.integration_scheme);
 
       TimeIntegration::TimeIntegratorData<Number> time_data(
-        time_integration_order, params.time_integration_data.time_step_init);
+        scheme_variant.template try_take<ImplicitScheme<Number>>(),
+        params.time_integration_data.time_step_init);
 
       // Parse initial refinement options
       InitialRefine global_refine;
@@ -339,9 +340,8 @@ namespace Sintering
       fisb >> n_blocks_per_vector;
       fisb >> n_blocks_total;
 
-      const unsigned int time_integration_order =
-        TimeIntegration::get_scheme_order(
-          params.time_integration_data.interation_scheme);
+      auto scheme_variant = TimeIntegration::create_time_scheme<Number>(
+        params.time_integration_data.integration_scheme);
 
       // Read the rest
       fisb >> *this;
@@ -370,16 +370,17 @@ namespace Sintering
 
           // We reinit time data anyways since the user might have changed the
           // integration scheme beetwen runs
-          time_data =
-            TimeIntegration::TimeIntegratorData<Number>(time_data,
-                                                        time_integration_order);
+          time_data = TimeIntegration::TimeIntegratorData<Number>(
+            time_data,
+            scheme_variant.template try_take<ImplicitScheme<Number>>());
         }
       else
         {
           // We reinit time data anyways since we do not contain enough history
           // vectors and will start from the lowest order integration scheme
           time_data = TimeIntegration::TimeIntegratorData<Number>(
-            time_integration_order, time_data.get_current_dt());
+            scheme_variant.template try_take<ImplicitScheme<Number>>(),
+            time_data.get_current_dt());
         }
 
       // Parse initial mesh otpions

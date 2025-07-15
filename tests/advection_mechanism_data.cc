@@ -19,6 +19,8 @@
 
 #include <pf-applications/sintering/advection.h>
 
+#include <pf-applications/time_integration/time_schemes.h>
+
 using namespace dealii;
 using namespace Sintering;
 using namespace TimeIntegration;
@@ -58,21 +60,20 @@ main(int argc, char **argv)
     mapping, dof_handler, constraints, quadrature, additional_data);
 
   // Material properties
-  const double kappa_c                = 1;
-  const double kappa_p                = 0.5;
-  const double Mvol                   = 1e-2;
-  const double Mvap                   = 1e-10;
-  const double Msurf                  = 4;
-  const double Mgb                    = 0.4;
-  const double L                      = 1;
-  const double time_integration_order = 1;
-  const double mt                     = 1.0;
-  const double mr                     = 1.0;
+  const double kappa_c = 1;
+  const double kappa_p = 0.5;
+  const double Mvol    = 1e-2;
+  const double Mvap    = 1e-10;
+  const double Msurf   = 4;
+  const double Mgb     = 0.4;
+  const double L       = 1;
+  const double mt      = 1.0;
+  const double mr      = 1.0;
 
   const std::shared_ptr<MobilityProvider> mobility_provider =
     std::make_shared<ProviderAbstract>(Mvol, Mvap, Msurf, Mgb, L);
 
-  TimeIntegratorData<Number> time_data(time_integration_order);
+  TimeIntegration::TimeIntegratorData<Number> time_data;
 
   SinteringOperatorData<dim, VectorizedArrayType> sintering_data(
     kappa_c, kappa_p, mobility_provider, std::move(time_data));

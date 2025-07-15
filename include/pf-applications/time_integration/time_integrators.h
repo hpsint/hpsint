@@ -20,6 +20,7 @@
 #include <pf-applications/lac/dynamic_block_vector.h>
 
 #include <pf-applications/time_integration/solution_history.h>
+#include <pf-applications/time_integration/time_schemes.h>
 
 #include <array>
 
@@ -27,36 +28,61 @@ namespace TimeIntegration
 {
   using namespace dealii;
 
-  unsigned int
-  get_scheme_order(std::string scheme);
-
   template <typename Number>
   class TimeIntegratorData
   {
   public:
+    // No implicit time scheme has been supplied
     TimeIntegratorData()
-      : order(0)
+      : scheme(nullptr)
+      , order(0)
+      , weights{1}
+      , stationary_weight(0)
     {}
 
-    TimeIntegratorData(unsigned int order)
-      : order(order)
+    TimeIntegratorData(std::unique_ptr<ImplicitScheme<Number>> scheme_in)
+      : scheme(std::move(scheme_in))
+      , order(scheme ? scheme->get_order() : 0)
       , dt(order)
       , weights(order + 1)
+      , stationary_weight(scheme ? 1 : 0)
     {}
 
-    TimeIntegratorData(unsigned int order, Number dt_init)
-      : TimeIntegratorData(order)
+    TimeIntegratorData(std::unique_ptr<ImplicitScheme<Number>> scheme_in,
+                       Number                                  dt_init)
+      : TimeIntegratorData(std::move(scheme_in))
     {
       update_dt(dt_init);
     }
 
-    TimeIntegratorData(const TimeIntegratorData &other, unsigned int order)
-      : TimeIntegratorData(order)
+    TimeIntegratorData(const TimeIntegratorData               &other,
+                       std::unique_ptr<ImplicitScheme<Number>> scheme_in)
+      : TimeIntegratorData(std::move(scheme_in))
     {
       for (unsigned int i = 0; i < std::min(order, other.order); ++i)
         dt[i] = other.dt[i];
 
       update_weights();
+    }
+
+    TimeIntegratorData &
+    operator=(const TimeIntegratorData &other)
+    {
+      if (this != &other)
+        {
+          scheme = other.scheme ? other.scheme->clone() : nullptr;
+
+          order             = other.order;
+          dt                = other.dt;
+          weights           = other.weights;
+          stationary_weight = other.stationary_weight;
+        }
+      return *this;
+    }
+
+    TimeIntegratorData(const TimeIntegratorData &other)
+    {
+      *this = other;
     }
 
     void
@@ -108,12 +134,12 @@ namespace TimeIntegration
       return weights[0];
     }
 
-    // Weight for the algebraic equations which can be used in the DAE system
-    // being solved along with the time dependent PDEs
+    // Weight for the algebraic equations which can be used in the DAE
+    // system being solved along with the time dependent PDEs
     Number
     get_algebraic_weight() const
     {
-      return 1.0;
+      return stationary_weight;
     }
 
     // All weights of the integration scheme
@@ -165,38 +191,17 @@ namespace TimeIntegration
     void
     update_weights()
     {
-      std::fill(weights.begin(), weights.end(), 0);
-
-      if (effective_order() == 3)
-        {
-          weights[1] = -(dt[0] + dt[1]) * (dt[0] + dt[1] + dt[2]) /
-                       (dt[0] * dt[1] * (dt[1] + dt[2]));
-          weights[2] =
-            dt[0] * (dt[0] + dt[1] + dt[2]) / (dt[1] * dt[2] * (dt[0] + dt[1]));
-          weights[3] = -dt[0] * (dt[0] + dt[1]) /
-                       (dt[2] * (dt[1] + dt[2]) * (dt[0] + dt[1] + dt[2]));
-          weights[0] = -(weights[1] + weights[2] + weights[3]);
-        }
-      else if (effective_order() == 2)
-        {
-          weights[0] = (2 * dt[0] + dt[1]) / (dt[0] * (dt[0] + dt[1]));
-          weights[1] = -(dt[0] + dt[1]) / (dt[0] * dt[1]);
-          weights[2] = dt[0] / (dt[1] * (dt[0] + dt[1]));
-        }
-      else if (effective_order() == 1)
-        {
-          weights[0] = 1.0 / dt[0];
-          weights[1] = -1.0 / dt[0];
-        }
-      else
-        {
-          AssertThrow(effective_order() <= 3, ExcMessage("Not implemented"));
-        }
+      if (scheme)
+        weights = scheme->compute_weights(dt);
     }
+
+    std::unique_ptr<ImplicitScheme<Number>> scheme;
 
     unsigned int        order;
     std::vector<Number> dt;
     std::vector<Number> weights;
+
+    Number stationary_weight; // Weight for the algebraic equations
   };
 
   template <int dim, int n_comp, typename Number, typename VectorizedArrayType>

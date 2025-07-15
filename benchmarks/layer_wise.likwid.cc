@@ -433,25 +433,25 @@ test(const Parameters &params, ConvergenceTable &table)
 
       HelmholtzQOperator q_point_operator_h;
 
-      const double A                      = 16;
-      const double B                      = 1;
-      const double kappa_c                = 1;
-      const double kappa_p                = 0.5;
-      const double Mvol                   = 1e-2;
-      const double Mvap                   = 1e-10;
-      const double Msurf                  = 4;
-      const double Mgb                    = 0.4;
-      const double L                      = 1;
-      const double time_integration_order = 1;
-      const double t                      = 0.0;
-      const double dt                     = 0.1;
+      const double A       = 16;
+      const double B       = 1;
+      const double kappa_c = 1;
+      const double kappa_p = 0.5;
+      const double Mvol    = 1e-2;
+      const double Mvap    = 1e-10;
+      const double Msurf   = 4;
+      const double Mgb     = 0.4;
+      const double L       = 1;
+      const double t       = 0.0;
+      const double dt      = 0.1;
 
       const std::shared_ptr<MobilityProvider> mobility_provider =
         std::make_shared<ProviderAbstract>(Mvol, Mvap, Msurf, Mgb, L);
 
       FreeEnergy<VectorizedArrayType> free_energy(A, B);
 
-      TimeIntegratorData<Number> time_data(time_integration_order, dt);
+      TimeIntegratorData<Number> time_data(
+        std::make_unique<BDF1Scheme<Number>>(), dt);
 
       SinteringOperatorData<dim, VectorizedArrayType> sintering_data(
         kappa_c, kappa_p, mobility_provider, std::move(time_data));
