@@ -253,11 +253,11 @@ namespace KKS
     const auto Awp_val = Zwp(A, phi, j);
 
     // Add pinning free contribution
-    const VectorizedArrayType zeroes(0.0), ones(1.0);
-    const auto                w_fix_val =
-      compare_and_apply_mask<SIMDComparison::equal>(w_val, zeroes, ones, w_val);
-    auto w_div_val = compare_and_apply_mask<SIMDComparison::equal>(
-      w_val, zeroes, ones, w_val + div_eps);
+    const VectorizedArrayType zeroes(0.0), ones(1.0), threshold(1e-12);
+    const auto w_fix_val = compare_and_apply_mask<SIMDComparison::less_than>(
+      w_val, threshold, ones, w_val);
+    auto w_div_val = compare_and_apply_mask<SIMDComparison::less_than>(
+      w_val, threshold, ones, w_val + div_eps);
     w_div_val = 1. / (w_div_val * w_div_val);
 
     const auto q_val = 0.5 * w_fix_val + 1. / 12. +
