@@ -288,15 +288,6 @@ namespace KKS
                         return sum + val * val;
                       });
 
-    // Evaluate psi's
-    const auto ca_0 = calc_ca2<Number, k, c_0>(c, phi, 0);
-    const auto ca_1 = calc_ca2<Number, k, c_0>(c, phi, 1);
-    const auto mu   = calc_mu(ca_0, k[0], c_0[0]);
-
-    std::array<VectorizedArrayType, 2> psi{
-      {(calc_ga(ca_0, k[0], c_0[0]) - mu * ca_0),
-       (calc_ga(ca_1, k[1], c_0[1]) - mu * ca_1)}};
-
     VectorizedArrayType res_val(0.0);
 
     // Preevaluate
@@ -313,6 +304,15 @@ namespace KKS
     // Term 4 - seems verified
     if constexpr (do_couple_phi_c)
       {
+        // Evaluate psi's
+        const auto ca_0 = calc_ca2<Number, k, c_0>(c, phi, 0);
+        const auto ca_1 = calc_ca2<Number, k, c_0>(c, phi, 1);
+        const auto mu   = calc_mu(ca_0, k[0], c_0[0]);
+
+        std::array<VectorizedArrayType, 2> psi{
+          {(calc_ga(ca_0, k[0], c_0[0]) - mu * ca_0),
+           (calc_ga(ca_1, k[1], c_0[1]) - mu * ca_1)}};
+
         for (unsigned int i = 0; i < n_phi; ++i)
           res_val +=
             (-2. * phi[j] * phi[i] * phi[i] / (phi_sq_sum * phi_sq_sum)) *
