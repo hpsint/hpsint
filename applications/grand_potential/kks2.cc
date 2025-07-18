@@ -91,14 +91,14 @@ template <int dim>
 class InitialValues1D : public InitialValues<dim>
 {
 public:
-  InitialValues1D(double                noise_in,
-                  bool                  smooth_in,
+  InitialValues1D(bool                  smooth_in,
+                  double                noise_in,
                   double                size,
                   double                W_in,
                   std::array<double, 2> c_0_in)
     : InitialValues<dim>()
-    , noise(noise_in)
     , smooth(smooth_in)
+    , noise(noise_in)
     , length(size)
     , W(W_in)
     , c_0(c_0_in)
@@ -129,8 +129,8 @@ public:
   }
 
 private:
-  const double noise;
   const bool   smooth;
+  const double noise;
   const double length = 1;
   const double W;
 
