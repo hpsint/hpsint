@@ -35,7 +35,7 @@ namespace KKS
   classidx(const unsigned int a)
   {
     return a != 0;
-  };
+  }
 
   template <typename Number>
   using Matrix2x2 = std::array<std::array<Number, 2>, 2>;
@@ -64,7 +64,7 @@ namespace KKS
   linf(const unsigned int a)
   {
     return a == 0 ? 1 : -1;
-  };
+  }
 
   template <long unsigned int n_phi, typename VectorizedArrayType>
   VectorizedArrayType
@@ -78,7 +78,7 @@ namespace KKS
                                           });
 
     return phi[0] * phi[0] / phisqsum;
-  };
+  }
 
   template <typename Number,
             std::array<Number, 2> k,
@@ -105,7 +105,7 @@ namespace KKS
     const auto denom = k[0] * phi[1] + k[1] * phi[0];
 
     return nom / denom;
-  };
+  }
 
   template <typename Number,
             std::array<Number, 2> k,
@@ -150,7 +150,7 @@ namespace KKS
     const auto denom_grad = (k[1] - k[0]) * phi_grad;
 
     return (nom_grad * denom - nom * denom_grad) / (denom * denom);
-  };
+  }
 
   template <long unsigned int n_phi,
             typename Number,
@@ -166,7 +166,7 @@ namespace KKS
         res += Z(i, j) * std::pow(phi[i], 2.) * std::pow(phi[j], 2.);
 
     return res;
-  };
+  }
 
   template <long unsigned int n_phi,
             typename Number,
@@ -185,7 +185,7 @@ namespace KKS
     res *= 2. * phi[j];
 
     return res;
-  };
+  }
 
   template <long unsigned int n_phi, typename VectorizedArrayType>
   VectorizedArrayType
@@ -198,7 +198,7 @@ namespace KKS
         res += std::pow(phi[i], 2.) * std::pow(phi[j], 2.);
 
     return res;
-  };
+  }
 
   template <long unsigned int n_phi, typename VectorizedArrayType>
   VectorizedArrayType
@@ -213,21 +213,21 @@ namespace KKS
     res *= 2. * phi[j];
 
     return res;
-  };
+  }
 
   template <typename Number, typename VectorizedArrayType>
   VectorizedArrayType
   calc_ga(const VectorizedArrayType &ca, const Number ki, const Number c_0i)
   {
     return 0.5 * ki * std::pow(ca - c_0i, 2.);
-  };
+  }
 
   template <typename Number, typename VectorizedArrayType>
   VectorizedArrayType
   calc_mu(const VectorizedArrayType &ca, const Number ki, const Number c_0i)
   {
     return ki * (ca - c_0i);
-  };
+  }
 
   template <typename Number,
             std::array<Number, 2> k,
@@ -280,14 +280,6 @@ namespace KKS
                         return sum + val.norm_square();
                       });
 
-    const auto phi_sq_sum =
-      std::accumulate(phi.begin(),
-                      phi.end(),
-                      VectorizedArrayType(0),
-                      [](const auto &sum, const auto &val) {
-                        return sum + val * val;
-                      });
-
     VectorizedArrayType res_val(0.0);
 
     // Preevaluate
@@ -304,6 +296,14 @@ namespace KKS
     // Term 4 - seems verified
     if constexpr (do_couple_phi_c)
       {
+        const auto phi_sq_sum =
+          std::accumulate(phi.begin(),
+                          phi.end(),
+                          VectorizedArrayType(0),
+                          [](const auto &sum, const auto &val) {
+                            return sum + val * val;
+                          });
+
         // Evaluate psi's
         const auto ca_0 = calc_ca2<Number, k, c_0>(c, phi, 0);
         const auto ca_1 = calc_ca2<Number, k, c_0>(c, phi, 1);
@@ -325,6 +325,6 @@ namespace KKS
     Tensor<1, dim, VectorizedArrayType> res_grad = -A_val * phi_grad[j];
 
     return std::make_pair(std::move(res_val), std::move(res_grad));
-  };
+  }
 
 } // namespace KKS

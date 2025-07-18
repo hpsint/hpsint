@@ -837,13 +837,9 @@ public:
                     phi_grad[i] = gradient[i];
                   }
 
-                VectorizedArrayType                 c(0.0);
-                Tensor<1, dim, VectorizedArrayType> c_grad;
+                VectorizedArrayType c(0.0);
                 if (do_couple_phi_c)
-                  {
-                    c      = value[n_phi];
-                    c_grad = gradient[n_phi];
-                  }
+                  c = value[n_phi];
 
                 VectorizedArrayType is_bulk(0.0);
                 VectorizedArrayType nzs(0.0);
@@ -868,15 +864,6 @@ public:
                 for (unsigned int i = 0; i < n_phi; ++i)
                   dFdphi_arr[i] = dFdphi<Number, k, c_0, do_couple_phi_c>(
                     A, B, phi, phi_grad, c, i);
-
-                // Evaluate hphi0
-                const auto hphi0 = hfunc2_0(phi);
-
-                // Some auxiliary variables
-                const auto grad_ca_0 =
-                  calc_grad_ca2<Number, k, c_0>(c, c_grad, phi, phi_grad, 0);
-                const auto grad_ca_1 =
-                  calc_grad_ca2<Number, k, c_0>(c, c_grad, phi, phi_grad, 1);
 
                 Tensor<1, n_comp, VectorizedArrayType> value_result;
                 Tensor<1, n_comp, Tensor<1, dim, VectorizedArrayType>>
@@ -965,8 +952,21 @@ public:
                   }
 
                 if constexpr (do_couple_phi_c)
-                  gradient_result[n_phi] =
-                    -D * (hphi0 * grad_ca_0 + (1. - hphi0) * grad_ca_1);
+                  {
+                    const auto &c_grad = gradient[n_phi];
+
+                    // Evaluate hphi0
+                    const auto hphi0 = hfunc2_0(phi);
+
+                    // Some auxiliary variables
+                    const auto grad_ca_0 = calc_grad_ca2<Number, k, c_0>(
+                      c, c_grad, phi, phi_grad, 0);
+                    const auto grad_ca_1 = calc_grad_ca2<Number, k, c_0>(
+                      c, c_grad, phi, phi_grad, 1);
+
+                    gradient_result[n_phi] =
+                      -D * (hphi0 * grad_ca_0 + (1. - hphi0) * grad_ca_1);
+                  }
                 /*
                                   std::cout << "q = " << q << std::endl;
                                   std::cout << "value_result = " <<
@@ -983,22 +983,26 @@ public:
           }
       };
 
-      auto face_evaluator =
-        [&](const auto &, auto &dst, const auto &src, auto cells) {
-          // TODO: DG evaluation
-        };
-
-      auto boundary_evaluator =
-        [&](const auto &, auto &dst, const auto &src, auto cells) {};
-
       if constexpr (is_dg)
-        matrix_free.template loop<VectorType, VectorType>(
-          cell_evaluator, face_evaluator, boundary_evaluator, rhs, y, true);
+        {
+          // TODO: Interface evaluator for DG
+          auto face_evaluator =
+            [&](const auto &, auto &dst, const auto &src, auto cells) {};
+
+          // Boundary evaluator is not needed for DG
+          auto boundary_evaluator =
+            [&](const auto &, auto &dst, const auto &src, auto cells) {};
+
+          matrix_free.template loop<VectorType, VectorType>(
+            cell_evaluator, face_evaluator, boundary_evaluator, rhs, y, true);
+        }
       else
-        matrix_free.template cell_loop<VectorType, VectorType>(cell_evaluator,
-                                                               rhs,
-                                                               y,
-                                                               true);
+        {
+          matrix_free.template cell_loop<VectorType, VectorType>(cell_evaluator,
+                                                                 rhs,
+                                                                 y,
+                                                                 true);
+        }
 
       // rhs.block(0).print(std::cout);
       // output_result(rhs, 1.0, 1);
