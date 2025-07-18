@@ -91,8 +91,14 @@ template <int dim>
 class InitialValues1D : public InitialValues<dim>
 {
 public:
-  InitialValues1D(double size, double W_in, std::array<double, 2> c_0_in)
+  InitialValues1D(double                noise_in,
+                  bool                  smooth_in,
+                  double                size,
+                  double                W_in,
+                  std::array<double, 2> c_0_in)
     : InitialValues<dim>()
+    , noise(noise_in)
+    , smooth(smooth_in)
     , length(size)
     , W(W_in)
     , c_0(c_0_in)
@@ -123,9 +129,10 @@ public:
   }
 
 private:
+  const double noise;
+  const bool   smooth;
   const double length = 1;
   const double W;
-  const double noise = 0.1;
 
   std::array<double, 2> c_0;
 
@@ -136,13 +143,25 @@ private:
 
     if (component == 0)
       {
-        const auto val = phifunc((p[0] - length / 2.) / W, factor);
-        return val;
+        if (smooth)
+          {
+            return phifunc((p[0] - length / 2.) / W, factor);
+          }
+        else
+          {
+            return p[0] >= length / 2. ? factor : 0.0;
+          }
       }
     else if (component == 1)
       {
-        const auto val = factor - phifunc((p[0] - length / 2.) / W, factor);
-        return val;
+        if (smooth)
+          {
+            return factor - phifunc((p[0] - length / 2.) / W, factor);
+          }
+        else
+          {
+            return p[0] < length / 2. ? factor : 0.0;
+          }
       }
     else if (component == 2)
       {
@@ -161,8 +180,12 @@ template <int dim>
 class InitialValuesCircle : public InitialValues<dim>
 {
 public:
-  InitialValuesCircle(bool smooth_in, double W_in, std::array<double, 2> c_0_in)
+  InitialValuesCircle(double                r_in,
+                      bool                  smooth_in,
+                      double                W_in,
+                      std::array<double, 2> c_0_in)
     : InitialValues<dim>()
+    , radius(r_in)
     , smooth_interface(smooth_in)
     , W(W_in)
     , c_0(c_0_in)
@@ -193,6 +216,7 @@ public:
 private:
   Point<dim> center{0.5, 0.5};
 
+  const double radius;
   const bool   smooth_interface;
   const double W;
 
@@ -202,7 +226,7 @@ private:
   do_phi(const Point<dim> &p, const unsigned int component) const
   {
     const auto dist = center.distance(p);
-    const auto ksi  = (0.25 - dist) / W;
+    const auto ksi  = (radius - dist) / W;
 
     if (component == 0)
       {
@@ -211,6 +235,61 @@ private:
     else if (component == 1)
       {
         return 1. - phifunc(ksi);
+      }
+    else
+      {
+        AssertThrow(false, ExcMessage("Invalid component index"));
+        return 0.0; // to avoid compiler warning
+      }
+  }
+};
+
+template <int dim>
+class InitialValuesSquare : public InitialValues<dim>
+{
+public:
+  InitialValuesSquare()
+    : InitialValues<dim>()
+  {}
+
+  double
+  value(const Point<dim> &p, const unsigned int) const override
+  {
+    return do_phi(p, this->current_component);
+  }
+
+  unsigned int
+  n_components() const override
+  {
+    return 3; // phi0, phi1, phi2
+  }
+
+private:
+  Point<dim> center{0.5, 0.5};
+
+  double
+  do_phi(const Point<dim> &p, const unsigned int component) const
+  {
+    if (component == 0)
+      {
+        if (p[1] > center[1])
+          return 1.;
+        else
+          return 0;
+      }
+    else if (component == 1)
+      {
+        if (p[0] <= center[0] && p[1] <= center[1])
+          return 1.;
+        else
+          return 0;
+      }
+    else if (component == 2)
+      {
+        if (p[0] > center[0] && p[1] <= center[1])
+          return 1.;
+        else
+          return 0;
       }
     else
       {
@@ -335,7 +414,7 @@ public:
   void
   run(const TimeStepping::runge_kutta_method method,
       const int                              n_refinements_additional,
-      const unsigned int                     n_time_steps,
+      const unsigned int                     n_time_steps_custom,
       const unsigned int                     n_time_steps_output)
   {
     ConditionalOStream pcout(std::cout,
@@ -344,22 +423,40 @@ public:
 
     // Debug output
     constexpr bool print = true;
+    constexpr bool is_dg = false;
 
     // Simulation cases
-    const std::string      case_name = "1d";
-    constexpr unsigned int n_comp    = 4;
+    // const std::string      case_name       = "1d";
+    // constexpr unsigned int n_comp          = 4;
+    // constexpr bool         do_couple_phi_c = true;
 
     // const std::string      case_name = "circle";
     // constexpr unsigned int n_comp    = 3;
+    // constexpr bool do_couple_phi_c   = true;
+
+    const std::string      case_name       = "gg2d";
+    constexpr unsigned int n_comp          = 2;
+    constexpr bool         do_couple_phi_c = false;
+
+    // const std::string      case_name       = "gg1d";
+    // const std::string      case_name       = "gs1d";
+    // constexpr unsigned int n_comp          = 2;
+    // constexpr bool         do_couple_phi_c = false;
+
+    // const std::string      case_name       = "tp";
+    // constexpr unsigned int n_comp          = 3;
+    // constexpr bool         do_couple_phi_c = false;
 
     // Dimensionality
-    constexpr unsigned int n_phi = n_comp - 1;
+    constexpr unsigned int n_phi =
+      n_comp - static_cast<unsigned int>(do_couple_phi_c);
 
     // Labels
     std::unordered_map<unsigned int, std::string> labels;
     for (unsigned int i = 0; i < n_phi; ++i)
       labels[i] = "phi" + std::to_string(i);
-    labels[n_phi] = "c";
+    if (do_couple_phi_c)
+      labels[n_phi] = "c";
 
     const auto getW_if = [](const Number Wfac, const Number dx) {
       return Wfac * dx / std::log(99.0);
@@ -378,7 +475,35 @@ public:
     // Initial values
     std::unique_ptr<InitialValues<dim>> initial_values;
 
+    // Number of timesteps to run
+    unsigned int n_time_steps_default = 0;
+
     if (case_name == "1d")
+      {
+        n_refinements = 0 + n_refinements_additional;
+
+        const unsigned int nx   = 128;
+        const Number       size = 1.0;
+
+        dx = size / nx;
+
+        const Number dx_w = size / 64;
+
+        dtfac = 0.5; // 0.98;
+        W     = getW_if(6, dx_w);
+
+        subdivisions = {nx, 1};
+        p2[0]        = size;
+        p2[1]        = dx;
+
+        const double noise = 0.1; // noise in initial values
+
+        initial_values =
+          std::make_unique<InitialValues1D<dim>>(true, noise, size, W, c_0);
+
+        n_time_steps_default = 1000;
+      }
+    else if (case_name == "gg1d")
       {
         n_refinements = 0 + n_refinements_additional;
 
@@ -388,14 +513,71 @@ public:
 
         dx = size / nx;
 
-        dtfac = 0.5; // 0.98;
-        W     = getW_if(6, dx);
+        const Number dx_w = size / 64;
 
-        subdivisions = {nx_ratio * nx, nx_ratio * 1};
+        dtfac = 0.5;
+        W     = getW_if(6, dx_w);
+
+        subdivisions = {nx_ratio * nx, 1};
         p2[0]        = size;
         p2[1]        = dx;
 
-        initial_values = make_unique<InitialValues1D<dim>>(size, W, c_0);
+        const double noise = 0.0;
+
+        initial_values =
+          std::make_unique<InitialValues1D<dim>>(true, noise, size, W, c_0);
+
+        n_time_steps_default = 100;
+      }
+    else if (case_name == "gs1d")
+      {
+        n_refinements = 0 + n_refinements_additional;
+
+        const unsigned int nx       = 64;
+        const Number       size     = 1.0;
+        const unsigned int nx_ratio = 1;
+
+        dx = size / nx;
+
+        const Number dx_w = size / 64;
+
+        dtfac = 0.5;
+        W     = getW_if(6, dx_w);
+
+        subdivisions = {nx_ratio * nx, 1};
+        p2[0]        = size;
+        p2[1]        = dx;
+
+        const double noise = 0.0;
+
+        initial_values =
+          std::make_unique<InitialValues1D<dim>>(false, noise, size, W, c_0);
+
+        n_time_steps_default = 100;
+      }
+    else if (case_name == "gg2d")
+      {
+        n_refinements = 6 + n_refinements_additional;
+
+        const Number size = 1.0;
+
+        dx = size / std::pow(2, n_refinements); // grid spacing
+
+        const unsigned int nx = 1;
+
+        const bool smooth_interface = true;
+
+        dtfac = 0.5;
+        W     = 1.2 * 0.0250346565398582;
+
+        subdivisions = {nx, nx};
+        p2[0]        = size;
+        p2[1]        = size;
+
+        initial_values = std::make_unique<InitialValuesCircle<dim>>(
+          0.35, smooth_interface, W, c_0);
+
+        n_time_steps_default = 100;
       }
     else if (case_name == "circle")
       {
@@ -415,16 +597,39 @@ public:
         p2[0]        = size;
         p2[1]        = size;
 
-        initial_values =
-          make_unique<InitialValuesCircle<dim>>(smooth_interface, W, c_0);
+        initial_values = std::make_unique<InitialValuesCircle<dim>>(
+          0.25, smooth_interface, W, c_0);
+
+        n_time_steps_default = 100;
+      }
+    else if (case_name == "tp")
+      {
+        n_refinements = 6 + n_refinements_additional;
+
+        const Number size = 1.0;
+
+        dx = size / std::pow(2, n_refinements); // grid spacing
+
+        const unsigned int nx = 1;
+
+        dtfac = 0.5;
+        W     = 1.2 * 0.0250346565398582;
+
+        subdivisions = {nx, nx};
+        p2[0]        = size;
+        p2[1]        = size;
+
+        initial_values = std::make_unique<InitialValuesSquare<dim>>();
+
+        n_time_steps_default = 1000;
       }
     else
       {
         AssertThrow(false, ExcMessage("Unknown case name"));
       }
 
-    constexpr bool do_couple_phi_c = true;
-    constexpr bool do_calc_c       = true;
+    const unsigned int n_time_steps =
+      n_time_steps_custom ? n_time_steps_custom : n_time_steps_default;
 
     // Material properties
     const Number gsv = 1;
@@ -445,13 +650,8 @@ public:
       tria.refine_global(n_refinements);
 
     const auto create_fe = [&]() {
-      if constexpr (fe_degree == 0)
-        {
-          pcout << "Warning: a zero-order DG approximation is chosen."
-                << " This is intended only for debug purposes." << std::endl;
-
-          return FE_DGQ<dim>(fe_degree);
-        }
+      if constexpr (is_dg)
+        return FE_DGQ<dim>(fe_degree);
       else
         return FE_Q<dim>(fe_degree);
     };
@@ -462,7 +662,7 @@ public:
 
     MappingQ<dim> mapping(1);
 
-    QGauss<1> quad(n_points_1D);
+    QGaussLobatto<1> quad(n_points_1D); // QGauss
 
     AffineConstraints<Number> constraint;
 
@@ -535,7 +735,8 @@ public:
             dx2);
 
     const Number dt_c = dx2 / (2 * 4 * D * (1 + std::abs(c_0[0] - c_0[1])));
-    const Number dt   = dtfac * (do_calc_c ? std::min(dt_c, dt_phi) : dt_phi);
+    const Number dt =
+      dtfac * (do_couple_phi_c ? std::min(dt_c, dt_phi) : dt_phi);
 
     // Params
     pcout << "dx = " << dx << std::endl;
@@ -609,178 +810,199 @@ public:
       const VectorizedArrayType zeroes(0.0), ones(1.0);
       const VectorizedArrayType bulk_threshold(1e-10);
       const VectorizedArrayType zero_threshold(1e-18);
-      const VectorizedArrayType phase_threshold = ones - zero_threshold;
+      const VectorizedArrayType phase_threshold = ones - bulk_threshold;
 
-      matrix_free.template cell_loop<VectorType, VectorType>(
-        [&](const auto &, auto &dst, const auto &src, auto cells) {
-          for (unsigned int cell = cells.first; cell < cells.second; ++cell)
-            {
-              eval.reinit(cell);
-              eval.gather_evaluate(src,
-                                   EvaluationFlags::values |
-                                     EvaluationFlags::gradients);
+      auto cell_evaluator = [&](const auto &,
+                                auto       &dst,
+                                const auto &src,
+                                auto        cells) {
+        for (unsigned int cell = cells.first; cell < cells.second; ++cell)
+          {
+            eval.reinit(cell);
+            eval.gather_evaluate(src,
+                                 EvaluationFlags::values |
+                                   EvaluationFlags::gradients);
 
-              for (unsigned int q = 0; q < eval.n_q_points; ++q)
-                {
-                  const auto value    = eval.get_value(q);
-                  const auto gradient = eval.get_gradient(q);
+            for (unsigned int q = 0; q < eval.n_q_points; ++q)
+              {
+                const auto value    = eval.get_value(q);
+                const auto gradient = eval.get_gradient(q);
 
-                  // Phase-field values and gradients
-                  std::array<VectorizedArrayType, n_phi> phi;
-                  std::array<Tensor<1, dim, VectorizedArrayType>, n_phi>
-                    phi_grad;
-                  for (unsigned int i = 0; i < n_phi; ++i)
-                    {
-                      phi[i]      = value[i];
-                      phi_grad[i] = gradient[i];
-                    }
-                  const auto c      = value[n_phi];
-                  const auto c_grad = gradient[n_phi];
+                // Phase-field values and gradients
+                std::array<VectorizedArrayType, n_phi>                 phi;
+                std::array<Tensor<1, dim, VectorizedArrayType>, n_phi> phi_grad;
+                for (unsigned int i = 0; i < n_phi; ++i)
+                  {
+                    phi[i]      = value[i];
+                    phi_grad[i] = gradient[i];
+                  }
 
-                  VectorizedArrayType is_bulk(0.0);
-                  VectorizedArrayType nzs(0.0);
-                  for (unsigned int i = 0; i < n_phi; ++i)
-                    {
-                      is_bulk =
-                        compare_and_apply_mask<SIMDComparison::less_than>(
-                          std::abs(ones - phi[i]),
-                          bulk_threshold,
-                          ones,
-                          is_bulk);
-                      nzs +=
-                        compare_and_apply_mask<SIMDComparison::greater_than>(
-                          phi[i], zero_threshold, ones, zeroes);
-                    }
-                  const auto   invnzs = 1. / nzs;
-                  const Number ifac   = 1. / (n_phi - 1.);
+                VectorizedArrayType                 c(0.0);
+                Tensor<1, dim, VectorizedArrayType> c_grad;
+                if (do_couple_phi_c)
+                  {
+                    c      = value[n_phi];
+                    c_grad = gradient[n_phi];
+                  }
 
-                  // Precomputed partial derivatives
-                  std::array<std::pair<VectorizedArrayType,
-                                       Tensor<1, dim, VectorizedArrayType>>,
-                             n_phi>
-                    dFdphi_arr;
-                  for (unsigned int i = 0; i < n_phi; ++i)
-                    dFdphi_arr[i] = dFdphi<Number, k, c_0, do_couple_phi_c>(
-                      A, B, phi, phi_grad, c, i);
+                VectorizedArrayType is_bulk(0.0);
+                VectorizedArrayType nzs(0.0);
+                for (unsigned int i = 0; i < n_phi; ++i)
+                  {
+                    is_bulk = compare_and_apply_mask<SIMDComparison::less_than>(
+                      std::abs(ones - phi[i]), bulk_threshold, ones, is_bulk);
+                    nzs += compare_and_apply_mask<SIMDComparison::greater_than>(
+                      phi[i], zero_threshold, ones, zeroes);
+                  }
+                // DEBUG
+                // is_bulk = 0;
 
-                  // Evaluate hphi0
-                  const auto hphi0 = hfunc2_0(phi);
+                const auto   invnzs = 1. / nzs;
+                const Number ifac   = 1. / (n_phi - 1.);
 
-                  // Some auxiliary variables
-                  const auto grad_ca_0 =
-                    calc_grad_ca2<Number, k, c_0>(c, c_grad, phi, phi_grad, 0);
-                  const auto grad_ca_1 =
-                    calc_grad_ca2<Number, k, c_0>(c, c_grad, phi, phi_grad, 1);
+                // Precomputed partial derivatives
+                std::array<std::pair<VectorizedArrayType,
+                                     Tensor<1, dim, VectorizedArrayType>>,
+                           n_phi>
+                  dFdphi_arr;
+                for (unsigned int i = 0; i < n_phi; ++i)
+                  dFdphi_arr[i] = dFdphi<Number, k, c_0, do_couple_phi_c>(
+                    A, B, phi, phi_grad, c, i);
 
-                  Tensor<1, n_comp, VectorizedArrayType> value_result;
-                  Tensor<1, n_comp, Tensor<1, dim, VectorizedArrayType>>
-                    gradient_result;
+                // Evaluate hphi0
+                const auto hphi0 = hfunc2_0(phi);
 
-                  // constexpr unsigned int n_off = n_phi * (n_phi - 1) / 2;
+                // Some auxiliary variables
+                const auto grad_ca_0 =
+                  calc_grad_ca2<Number, k, c_0>(c, c_grad, phi, phi_grad, 0);
+                const auto grad_ca_1 =
+                  calc_grad_ca2<Number, k, c_0>(c, c_grad, phi, phi_grad, 1);
 
-                  auto prefacs_dia =
-                    create_array<n_phi>(VectorizedArrayType(0.0));
-                  /*
-                auto prefacs_off =
-                  create_array<n_off>(VectorizedArrayType(0.0));
-                  */
+                Tensor<1, n_comp, VectorizedArrayType> value_result;
+                Tensor<1, n_comp, Tensor<1, dim, VectorizedArrayType>>
+                  gradient_result;
 
-                  auto prefacs_off = create_array<n_phi>(prefacs_dia);
+                // constexpr unsigned int n_off = n_phi * (n_phi - 1) / 2;
 
-                  // unsigned int upper_tri_offset = 0;
-                  for (unsigned int i = 0; i < n_phi; ++i)
-                    {
-                      VectorizedArrayType pre_i =
-                        std::abs(phi[i] / (1. - phi[i]));
+                auto prefacs_dia =
+                  create_array<n_phi>(VectorizedArrayType(0.0));
+                /*
+              auto prefacs_off =
+                create_array<n_off>(VectorizedArrayType(0.0));
+                */
 
-                      pre_i =
-                        compare_and_apply_mask<SIMDComparison::greater_than>(
-                          phi[i], phase_threshold, ones, pre_i);
+                auto prefacs_off = create_array<n_phi>(prefacs_dia);
 
-                      for (unsigned int j = i + 1; j < n_phi; ++j)
+                // unsigned int upper_tri_offset = 0;
+                for (unsigned int i = 0; i < n_phi; ++i)
+                  {
+                    VectorizedArrayType pre_i =
+                      std::abs(phi[i] / (1. - phi[i]));
+
+                    pre_i =
+                      compare_and_apply_mask<SIMDComparison::greater_than>(
+                        phi[i], phase_threshold, ones, pre_i);
+
+                    for (unsigned int j = i + 1; j < n_phi; ++j)
+                      {
+                        VectorizedArrayType pre_j =
+                          std::abs(phi[j] / (1. - phi[j]));
+
+                        pre_j =
+                          compare_and_apply_mask<SIMDComparison::greater_than>(
+                            phi[j], phase_threshold, ones, pre_j);
+
+                        const auto val = pre_i * pre_j;
+
+                        prefacs_dia[i] += val;
+                        prefacs_dia[j] += val;
+
+                        // prefacs_off[upper_tri_offset + j - i - 1] = val;
+                        prefacs_off[i][j] = val;
+                        prefacs_off[j][i] = val;
+                      }
+
+                    // upper_tri_offset += n_phi - i - 1;
+                  }
+                /*
+                                  const auto prefac_outer =
+                                    compare_and_apply_mask<SIMDComparison::greater_than>(
+                                      is_bulk, zeroes, invnzs, ones);
+                */
+                const auto prefac_outer = (ones - is_bulk) + is_bulk * invnzs;
+
+                // upper_tri_offset = 0;
+                for (unsigned int i = 0; i < n_phi; ++i)
+                  {
+                    const auto prefac_inner_left =
+                      (ones - is_bulk) * prefacs_dia[i] + is_bulk;
+
+                    for (unsigned int j = 0; j < n_phi; ++j)
+                      if (i != j)
                         {
-                          VectorizedArrayType pre_j =
-                            std::abs(phi[j] / (1. - phi[j]));
+                          // prefacs_off[upper_tri_offset + j - i - 1]
+                          const auto prefac_inner_right =
+                            (ones - is_bulk) * prefacs_off[i][j] + is_bulk;
 
-                          pre_j = compare_and_apply_mask<
-                            SIMDComparison::greater_than>(phi[j],
-                                                          phase_threshold,
-                                                          ones,
-                                                          pre_j);
-
-                          const auto val = pre_i * pre_j;
-
-                          prefacs_dia[i] += val;
-                          prefacs_dia[j] += val;
-
-                          // prefacs_off[upper_tri_offset + j - i - 1] = val;
-                          prefacs_off[i][j] = val;
-                          prefacs_off[j][i] = val;
+                          value_result[i] +=
+                            -L(i, j) *
+                            (ifac * prefac_inner_left * dFdphi_arr[i].first -
+                             prefac_inner_right * dFdphi_arr[j].first);
+                          gradient_result[i] +=
+                            -L(i, j) *
+                            (ifac * prefac_inner_left * dFdphi_arr[i].second -
+                             prefac_inner_right * dFdphi_arr[j].second);
                         }
 
-                      // upper_tri_offset += n_phi - i - 1;
-                    }
-                  /*
-                                    const auto prefac_outer =
-                                      compare_and_apply_mask<SIMDComparison::greater_than>(
-                                        is_bulk, zeroes, invnzs, ones);
-                  */
-                  const auto prefac_outer = (ones - is_bulk) + is_bulk * invnzs;
+                    // DEBUG individual terms
+                    // value_result[i] = prefacs_off[i];
+                    // gradient_result[i] = dFdphi_arr[i].second;
 
-                  // upper_tri_offset = 0;
-                  for (unsigned int i = 0; i < n_phi; ++i)
-                    {
-                      const auto prefac_inner_left =
-                        (ones - is_bulk) * prefacs_dia[i] + is_bulk;
+                    value_result[i] *= prefac_outer;
+                    gradient_result[i] *= prefac_outer;
 
-                      for (unsigned int j = 0; j < n_phi; ++j)
-                        if (i != j)
-                          {
-                            // prefacs_off[upper_tri_offset + j - i - 1]
-                            const auto prefac_inner_right =
-                              (ones - is_bulk) * prefacs_off[i][j] + is_bulk;
+                    // upper_tri_offset += n_phi - i - 1;
+                  }
 
-                            value_result[i] +=
-                              -L(i, j) *
-                              (ifac * prefac_inner_left * dFdphi_arr[i].first -
-                               prefac_inner_right * dFdphi_arr[j].first);
-                            gradient_result[i] +=
-                              -L(i, j) *
-                              (ifac * prefac_inner_left * dFdphi_arr[i].second -
-                               prefac_inner_right * dFdphi_arr[j].second);
-                          }
-
-                      // DEBUG individual terms
-                      // value_result[i] = prefacs_off[i];
-                      // gradient_result[i] = dFdphi_arr[i].second;
-
-                      value_result[i] *= prefac_outer;
-                      gradient_result[i] *= prefac_outer;
-
-                      // upper_tri_offset += n_phi - i - 1;
-                    }
-
+                if constexpr (do_couple_phi_c)
                   gradient_result[n_phi] =
                     -D * (hphi0 * grad_ca_0 + (1. - hphi0) * grad_ca_1);
+                /*
+                                  std::cout << "q = " << q << std::endl;
+                                  std::cout << "value_result = " <<
+                   value_result << std::endl; std::cout << "gradient_result =
+                                               " << gradient_result
+                                            << std::endl;
+                */
+                eval.submit_value(value_result, q);
+                eval.submit_gradient(gradient_result, q);
+              }
+            eval.integrate_scatter(EvaluationFlags::values |
+                                     EvaluationFlags::gradients,
+                                   dst);
+          }
+      };
 
-                  /*
-                                    std::cout << "q = " << q << std::endl;
-                                    std::cout << "value_result = " <<
-                     value_result << std::endl; std::cout << "gradient_result =
-                     " << gradient_result
-                                              << std::endl;
-                  */
-                  eval.submit_value(value_result, q);
-                  eval.submit_gradient(gradient_result, q);
-                }
-              eval.integrate_scatter(EvaluationFlags::values |
-                                       EvaluationFlags::gradients,
-                                     dst);
-            }
-        },
-        rhs,
-        y,
-        true);
+      auto face_evaluator =
+        [&](const auto &, auto &dst, const auto &src, auto cells) {
+          // TODO: DG evaluation
+        };
+
+      auto boundary_evaluator =
+        [&](const auto &, auto &dst, const auto &src, auto cells) {};
+
+      if constexpr (is_dg)
+        matrix_free.template loop<VectorType, VectorType>(
+          cell_evaluator, face_evaluator, boundary_evaluator, rhs, y, true);
+      else
+        matrix_free.template cell_loop<VectorType, VectorType>(cell_evaluator,
+                                                               rhs,
+                                                               y,
+                                                               true);
+
+      // rhs.block(0).print(std::cout);
+      // output_result(rhs, 1.0, 1);
+      // throw std::runtime_error("STOP");
 
       {
         ReductionControl     reduction_control;
@@ -933,7 +1155,7 @@ main(int argc, char **argv)
   // Number of steps
   char              *n_steps_char = get_cmd_option(argv, argv + argc, "-s");
   const unsigned int n_steps =
-    n_steps_char ? std::stoi(n_steps_char) : 1000; // default to 1000 steps
+    n_steps_char ? std::stoi(n_steps_char) : 0; // default to 0 steps
 
   // Number of steps to generate output
   char              *n_output_char = get_cmd_option(argv, argv + argc, "-o");
