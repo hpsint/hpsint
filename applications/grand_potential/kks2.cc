@@ -401,9 +401,10 @@ private:
 
 
 
-template <int dim,
-          int fe_degree,
-          int n_points_1D              = fe_degree + 1,
+template <int  dim,
+          int  fe_degree,
+          bool is_dg                   = false,
+          int  n_points_1D             = fe_degree + 1,
           typename Number              = double,
           typename VectorizedArrayType = VectorizedArray<Number>>
 class Test
@@ -423,7 +424,6 @@ public:
 
     // Debug output
     constexpr bool print = true;
-    constexpr bool is_dg = false;
 
     // Simulation cases
     // const std::string      case_name       = "1d";
@@ -656,13 +656,20 @@ public:
         return FE_Q<dim>(fe_degree);
     };
 
-    auto            fe = create_fe();
+    const auto create_quad = [&]() {
+      if constexpr (n_points_1D > 1)
+        return QGaussLobatto<1>(n_points_1D);
+      else
+        return QGauss<1>(n_points_1D);
+    };
+
+    auto fe   = create_fe();
+    auto quad = create_quad();
+
     DoFHandler<dim> dof_handler(tria);
     dof_handler.distribute_dofs(fe);
 
     MappingQ<dim> mapping(1);
-
-    QGaussLobatto<1> quad(n_points_1D); // QGauss
 
     AffineConstraints<Number> constraint;
 
@@ -1089,8 +1096,8 @@ main(int argc, char **argv)
 {
   Utilities::MPI::MPI_InitFinalize mpi_init(argc, argv, 1);
 
-  Test<2, 1> runner;
-  // Test<2, 0> runner;
+  // Test<2, 1, false> runner;
+  Test<2, 0, true> runner;
 
   ConditionalOStream pcout(std::cout,
                            Utilities::MPI::this_mpi_process(MPI_COMM_WORLD) ==
