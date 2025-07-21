@@ -252,8 +252,7 @@ namespace KKS
     const auto Aw_val  = Zw(A, phi);
     const auto Awp_val = Zwp(A, phi, j);
 
-    // Add pinning free contribution
-    const VectorizedArrayType zeroes(0.0), ones(1.0), threshold(1e-12);
+    const VectorizedArrayType zeroes(0.0), ones(1.0), threshold(1e-18);
     const auto w_fix_val = compare_and_apply_mask<SIMDComparison::less_than>(
       w_val, threshold, ones, w_val);
     auto w_div_val = compare_and_apply_mask<SIMDComparison::less_than>(
