@@ -1006,6 +1006,7 @@ public:
                 // TODO: Precomputed divergences in FDM like manner (if needed)
                 auto div_A_grad_phi =
                   create_array<n_phi>(VectorizedArrayType(0.0));
+                (void)div_A_grad_phi; // disable warning
 
                 Tensor<1, n_comp, VectorizedArrayType> value_result;
                 Tensor<1, n_comp, Tensor<1, dim, VectorizedArrayType>>
