@@ -175,6 +175,29 @@ private:
   }
 };
 
+// Debug 1D DG0 as FDM
+template <int dim>
+class Debug1D : public InitialValues<dim>
+{
+public:
+  Debug1D()
+    : InitialValues<dim>()
+  {}
+
+  double
+  value(const Point<dim> &p, const unsigned int) const override
+  {
+    const auto val = std::floor(p[0]);
+    return this->current_component ? (4. - val) : val;
+  }
+
+  unsigned int
+  n_components() const override
+  {
+    return 2;
+  }
+};
+
 // Initial values square with a circle
 template <int dim>
 class InitialValuesCircle : public InitialValues<dim>
@@ -267,6 +290,8 @@ public:
 private:
   Point<dim> center{0.5, 0.5};
 
+  // Has to be redefined as does not produce driving force with Gauss-Lobatto
+  // integration rules
   double
   do_phi(const Point<dim> &p, const unsigned int component) const
   {
@@ -406,7 +431,7 @@ template <int  dim,
           bool is_dg                   = false,
           int  n_points_1D             = fe_degree + 1,
           typename Number              = double,
-          typename VectorizedArrayType = VectorizedArray<Number>>
+          typename VectorizedArrayType = VectorizedArray<Number, 1>>
 class Test
 {
 public:
@@ -426,20 +451,24 @@ public:
     constexpr bool print = true;
 
     // Simulation cases
-    // const std::string      case_name       = "1d";
-    // constexpr unsigned int n_comp          = 4;
-    // constexpr bool         do_couple_phi_c = true;
+
+    // OK
+    const std::string      case_name       = "1d";
+    constexpr unsigned int n_comp          = 4;
+    constexpr bool         do_couple_phi_c = true;
 
     // const std::string      case_name = "circle";
     // constexpr unsigned int n_comp    = 3;
     // constexpr bool do_couple_phi_c   = true;
 
-    const std::string      case_name       = "gg2d";
-    constexpr unsigned int n_comp          = 2;
-    constexpr bool         do_couple_phi_c = false;
+    // OK
+    // const std::string      case_name       = "gg2d";
+    // constexpr unsigned int n_comp          = 2;
+    // constexpr bool         do_couple_phi_c = false;
 
-    // const std::string      case_name       = "gg1d";
     // const std::string      case_name       = "gs1d";
+    // const std::string case_name = "gg1d";
+    // const std::string      case_name       = "debug1d";
     // constexpr unsigned int n_comp          = 2;
     // constexpr bool         do_couple_phi_c = false;
 
@@ -478,16 +507,39 @@ public:
     // Number of timesteps to run
     unsigned int n_time_steps_default = 0;
 
-    if (case_name == "1d")
+    if (case_name == "debug1d")
+      {
+        n_refinements = 0;
+
+        const unsigned int nx   = 4;
+        const Number       size = 4.0;
+
+        dx = size / nx;
+
+        dtfac = 0.5; // 0.98;
+        W     = getW_if(6, dx);
+
+        subdivisions = {nx, 1};
+        p2[0]        = size;
+        p2[1]        = dx;
+
+        initial_values = std::make_unique<Debug1D<dim>>();
+
+        n_time_steps_default = 1;
+      }
+    else if (case_name == "1d")
       {
         n_refinements = 0 + n_refinements_additional;
 
-        const unsigned int nx   = 128;
+        const unsigned int nx   = 64;
         const Number       size = 1.0;
 
         dx = size / nx;
 
         const Number dx_w = size / 64;
+
+        /* The noise phase pinns at the end with nx = 64, whereas disappears
+         * completely if nx = 128 */
 
         dtfac = 0.5; // 0.98;
         W     = getW_if(6, dx_w);
@@ -513,10 +565,9 @@ public:
 
         dx = size / nx;
 
-        const Number dx_w = size / 64;
-
         dtfac = 0.5;
-        W     = getW_if(6, dx_w);
+        W     = 1.2 * 0.0250346565398582;
+        // The larger W, the larger the interface width
 
         subdivisions = {nx_ratio * nx, 1};
         p2[0]        = size;
@@ -577,7 +628,7 @@ public:
         initial_values = std::make_unique<InitialValuesCircle<dim>>(
           0.35, smooth_interface, W, c_0);
 
-        n_time_steps_default = 100;
+        n_time_steps_default = 1000;
       }
     else if (case_name == "circle")
       {
@@ -675,9 +726,20 @@ public:
 
     typename MatrixFree<dim, Number, VectorizedArrayType>::AdditionalData
       additional_data;
-    additional_data.mapping_update_flags = update_values | update_gradients;
+    additional_data.mapping_update_flags = update_values | update_gradients |
+                                           update_JxW_values |
+                                           update_quadrature_points;
+    additional_data.mapping_update_flags_inner_faces =
+      update_values | update_gradients | update_JxW_values |
+      update_quadrature_points;
 
     MatrixFree<dim, Number, VectorizedArrayType> matrix_free;
+
+    if constexpr (is_dg)
+      {
+        MatrixFreeTools::categorize_by_boundary_ids(
+          dof_handler.get_triangulation(), additional_data);
+      }
     matrix_free.reinit(mapping, dof_handler, constraint, quad, additional_data);
 
     VectorType solution(n_comp), rhs(n_comp);
@@ -729,6 +791,22 @@ public:
                  Number,
                  VectorizedArrayType>
       eval(matrix_free);
+
+    FEFaceEvaluation<dim,
+                     fe_degree,
+                     n_points_1D,
+                     n_comp,
+                     Number,
+                     VectorizedArrayType>
+      eval_m(matrix_free, true);
+
+    FEFaceEvaluation<dim,
+                     fe_degree,
+                     n_points_1D,
+                     n_comp,
+                     Number,
+                     VectorizedArrayType>
+      eval_p(matrix_free, false);
 
     MassMatrix<dim, fe_degree, n_points_1D, n_comp, Number, VectorizedArrayType>
       mass_matrix(matrix_free);
@@ -797,15 +875,6 @@ public:
     // Count linear iterations
     unsigned int n_linear_iterations = 0;
 
-    /*
-        const auto q = [&](const std::array<VectorizedArrayType, n_phi>
-       &phi, unsigned int                                  j) { const auto
-       wval = w(phi);
-
-          return (Zwp(Z, phi, j) * wval - Zw(Z, phi) * wp(phi, j)) / (wval
-       * wval);
-        };
-    */
     // RHS evaluation for the time-stepping
     const auto evaluate_rhs = [&](const double t, const VectorType &y) {
       (void)t;
@@ -844,6 +913,68 @@ public:
                     phi_grad[i] = gradient[i];
                   }
 
+                // Kind of FDM
+                if constexpr (is_dg && n_points_1D == 1)
+                  {
+                    Tensor<1, dim, unsigned int> num_faces;
+                    for (unsigned int face = 0;
+                         face < GeometryInfo<dim>::faces_per_cell;
+                         ++face)
+                      {
+                        const auto boundary_ids =
+                          matrix_free.get_faces_by_cells_boundary_id(cell,
+                                                                     face);
+
+                        Assert(std::equal(
+                                 boundary_ids.begin(),
+                                 boundary_ids.begin() +
+                                   matrix_free.n_active_entries_per_cell_batch(
+                                     cell),
+                                 boundary_ids.begin()),
+                               ExcMessage("Boundary IDs of lanes differ."));
+
+                        const auto boundary_id = boundary_ids[0];
+
+                        if (boundary_id == numbers::internal_face_boundary_id)
+                          {
+                            eval_p.reinit(cell, face);
+                            eval_p.gather_evaluate(src,
+                                                   EvaluationFlags::values);
+
+                            const auto value_p = eval_p.get_value(0);
+
+                            const auto normal_vector = eval_p.normal_vector(q);
+
+                            for (unsigned int i = 0; i < n_phi; ++i)
+                              {
+                                const auto &phi_p = value_p[i];
+
+                                const auto numerical_flux =
+                                  central_flux<dim>(phi[i],
+                                                    phi_p,
+                                                    normal_vector);
+                                const auto numerical_grad = numerical_flux / dx;
+
+                                phi_grad[i] += numerical_grad;
+                              }
+
+                            num_faces[face / 2] += 1;
+                          }
+                      }
+
+                    // Prevent division by zero
+                    for (unsigned int d = 0; d < dim; ++d)
+                      if (num_faces[d] == 0)
+                        num_faces[d] = 1;
+
+                    for (unsigned int i = 0; i < n_phi; ++i)
+                      {
+                        // average gradient
+                        for (unsigned int d = 0; d < dim; ++d)
+                          phi_grad[i][d] /= num_faces[d];
+                      }
+                  }
+
                 VectorizedArrayType c(0.0);
                 if (do_couple_phi_c)
                   c = value[n_phi];
@@ -871,6 +1002,10 @@ public:
                 for (unsigned int i = 0; i < n_phi; ++i)
                   dFdphi_arr[i] = dFdphi<Number, k, c_0, do_couple_phi_c>(
                     A, B, phi, phi_grad, c, i);
+
+                // TODO: Precomputed divergences in FDM like manner (if needed)
+                auto div_A_grad_phi =
+                  create_array<n_phi>(VectorizedArrayType(0.0));
 
                 Tensor<1, n_comp, VectorizedArrayType> value_result;
                 Tensor<1, n_comp, Tensor<1, dim, VectorizedArrayType>>
@@ -942,14 +1077,28 @@ public:
                             -L(i, j) *
                             (ifac * prefac_inner_left * dFdphi_arr[i].first -
                              prefac_inner_right * dFdphi_arr[j].first);
-                          gradient_result[i] +=
-                            -L(i, j) *
-                            (ifac * prefac_inner_left * dFdphi_arr[i].second -
-                             prefac_inner_right * dFdphi_arr[j].second);
+
+                          if constexpr (is_dg)
+                            {
+                              // Sign differs from the true FEM case
+                              value_result[i] +=
+                                L(i, j) *
+                                (ifac * prefac_inner_left * div_A_grad_phi[i] -
+                                 prefac_inner_right * div_A_grad_phi[j]);
+                            }
+                          else
+                            {
+                              gradient_result[i] +=
+                                -L(i, j) *
+                                (ifac * prefac_inner_left *
+                                   dFdphi_arr[i].second -
+                                 prefac_inner_right * dFdphi_arr[j].second);
+                            }
                         }
 
                     // DEBUG individual terms
-                    // value_result[i] = prefacs_off[i];
+                    // value_result[i] = div_A_grad_phi[i];
+                    // value_result[i]    = dFdphi_arr[i].first;
                     // gradient_result[i] = dFdphi_arr[i].second;
 
                     value_result[i] *= prefac_outer;
@@ -974,13 +1123,7 @@ public:
                     gradient_result[n_phi] =
                       -D * (hphi0 * grad_ca_0 + (1. - hphi0) * grad_ca_1);
                   }
-                /*
-                                  std::cout << "q = " << q << std::endl;
-                                  std::cout << "value_result = " <<
-                   value_result << std::endl; std::cout << "gradient_result =
-                                               " << gradient_result
-                                            << std::endl;
-                */
+
                 eval.submit_value(value_result, q);
                 eval.submit_gradient(gradient_result, q);
               }
@@ -993,15 +1136,58 @@ public:
       if constexpr (is_dg)
         {
           // TODO: Interface evaluator for DG
-          auto face_evaluator =
-            [&](const auto &, auto &dst, const auto &src, auto cells) {};
+          auto face_evaluator = [&](const auto &,
+                                    auto       &dst,
+                                    const auto &src,
+                                    auto        face_range) {
+            for (unsigned int face = face_range.first; face < face_range.second;
+                 ++face)
+              {
+                eval_p.reinit(face);
+                eval_p.gather_evaluate(src, EvaluationFlags::values);
 
-          // Boundary evaluator is not needed for DG
-          auto boundary_evaluator =
-            [&](const auto &, auto &dst, const auto &src, auto cells) {};
+                eval_m.reinit(face);
+                eval_m.gather_evaluate(src, EvaluationFlags::values);
 
-          matrix_free.template loop<VectorType, VectorType>(
-            cell_evaluator, face_evaluator, boundary_evaluator, rhs, y, true);
+                for (const unsigned int q : eval_m.quadrature_point_indices())
+                  {
+                    const auto value_p = eval_p.get_value(q);
+                    const auto value_m = eval_m.get_value(q);
+
+                    const auto normal_vector = eval_m.normal_vector(q);
+
+                    std::array<VectorizedArrayType, n_phi> phi_p;
+                    std::array<VectorizedArrayType, n_phi> phi_m;
+                    std::array<Tensor<1, dim, VectorizedArrayType>, n_phi>
+                      phi_grad;
+                    for (unsigned int i = 0; i < n_phi; ++i)
+                      {
+                        phi_p[i] = value_p[i];
+                        phi_m[i] = value_m[i];
+
+                        const auto numerical_flux =
+                          central_flux<dim>(phi_p[i], phi_m[i], normal_vector);
+                        const auto numerical_grad = numerical_flux / dx;
+
+                        std::cout << "face = " << face << " -> ";
+                        std::cout << "q = " << q << " -> ";
+                        // std::cout << " phi_p[" << i << "] = " << phi_p[i];
+                        // std::cout << " phi_m[" << i << "] = " << phi_m[i];
+                        std::cout << " numerical_grad[" << i
+                                  << "] = " << numerical_grad << std::endl;
+
+                        phi_grad[i] = numerical_grad;
+                      }
+
+                    // eval_m.submit_value(-numerical_flux, q);
+                    // eval_p.submit_value(numerical_flux, q);
+                  }
+              }
+          };
+          (void)face_evaluator;
+
+          matrix_free.template loop_cell_centric<VectorType, VectorType>(
+            cell_evaluator, rhs, y, true);
         }
       else
         {
@@ -1096,8 +1282,17 @@ main(int argc, char **argv)
 {
   Utilities::MPI::MPI_InitFinalize mpi_init(argc, argv, 1);
 
-  // Test<2, 1, false> runner;
-  Test<2, 0, true> runner;
+  /* Use DG
+    This is an experimental approach, since it is a very much simplified DG
+    implementation that mainly mimics FDM, i.e. it is supposed to work with DG0
+    only. Furthermore, not all terms are yet properly evaluated for this case.
+    Though the gradients are somewhat evaluated for phases only, the
+    corresponding divergence terms are not yet evaluated correctly.
+  */
+  Test<2, 1, false> runner;
+
+  // Use CG
+  // Test<2, 0, true> runner;
 
   ConditionalOStream pcout(std::cout,
                            Utilities::MPI::this_mpi_process(MPI_COMM_WORLD) ==

@@ -326,4 +326,14 @@ namespace KKS
     return std::make_pair(std::move(res_val), std::move(res_grad));
   }
 
+  template <int dim, typename VectorizedArrayType>
+  Tensor<1, dim, VectorizedArrayType>
+  central_flux(const VectorizedArrayType                 &u_m,
+               const VectorizedArrayType                 &u_p,
+               const Tensor<1, dim, VectorizedArrayType> &normal)
+  {
+    const auto flux = (u_p - u_m) * normal;
+    return flux;
+  }
+
 } // namespace KKS
