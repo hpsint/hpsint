@@ -324,6 +324,112 @@ private:
   }
 };
 
+template <int dim>
+class InitialValuesPore : public InitialValues<dim>
+{
+public:
+  InitialValuesPore(double                size_x_in,
+                    double                size_y_in,
+                    double                radius_in,
+                    double                W_in,
+                    bool                  is_sharp_in,
+                    std::array<double, 2> c_0_in)
+    : InitialValues<dim>()
+    , size_x(size_x_in)
+    , size_y(size_y_in)
+    , radius(radius_in)
+    , W(W_in)
+    , is_sharp(is_sharp_in)
+    , center(0.5 * size_x, 0.5 * size_y)
+    , c_0(c_0_in)
+  {}
+
+  double
+  value(const Point<dim> &p, const unsigned int) const override
+  {
+    if (this->current_component < n_components() - 1)
+      return do_phi(p, this->current_component);
+    else
+      {
+        const auto phis  = do_all_phis(p);
+        const auto hphi0 = hfunc2_0(phis);
+
+        return hphi0 * c_0[0] + (1. - hphi0) * c_0[1];
+      }
+  }
+
+  unsigned int
+  n_components() const override
+  {
+    return 4; // phi0, phi1, phi2, c
+  }
+
+private:
+  double     size_x;
+  double     size_y;
+  double     radius;
+  double     W;
+  bool       is_sharp;
+  Point<dim> center;
+
+  std::array<double, 2> c_0;
+
+  std::array<double, 3>
+  do_all_phis(const Point<dim> &p) const
+  {
+    const double eps = 1e-4;
+
+    const auto ksi0 = (radius - center.distance(p)) / W;
+    const auto ksi1 = (p[1] - center[1]) / W;
+
+    std::array<double, 3> phis;
+    phis[0] = phifunc(ksi0);
+    phis[1] = std::max(phifunc(ksi1) - phifunc(ksi0), 0.);
+    phis[2] = std::max(1. - phifunc(ksi1) - phifunc(ksi0), 0.);
+
+    auto phi_sum =
+      std::accumulate(phis.begin(), phis.end(), 0.0, std::plus<double>());
+    if (phi_sum == 0.)
+      phi_sum = 1.;
+
+    /*
+  const auto delta = 1. - phi_sum;
+  if (delta > eps)
+    {
+      if (p[1] > center[1])
+        phis[1] += delta;
+      else if (p[1] < center[1])
+        phis[2] += delta;
+      else
+        {
+          phis[1] += delta / 2.;
+          phis[2] += delta / 2.;
+        }
+    }
+        */
+
+    // Marco's normalization
+    std::transform(phis.begin(),
+                   phis.end(),
+                   phis.begin(),
+                   [phi_sum](double &val) { return val / phi_sum; });
+
+    return phis;
+  }
+
+  double
+  do_phi(const Point<dim> &p, const unsigned int component) const
+  {
+    if (component > 2)
+      {
+        AssertThrow(false, ExcMessage("Invalid component index"));
+        return 0.0; // to avoid compiler warning
+      }
+
+    return do_all_phis(p)[component];
+  }
+};
+
 template <int dim,
           int degree,
           int n_points_1D,
@@ -671,6 +777,32 @@ public:
         p2[1]        = size;
 
         initial_values = std::make_unique<InitialValuesSquare<dim>>();
+
+        n_time_steps_default = 1000;
+      }
+    else if (case_name == "tp-ggpore")
+      {
+        n_refinements = 0 + n_refinements_additional;
+
+        const Number       size_x = 0.1;
+        const unsigned int nx     = 100;
+        const unsigned int ny     = 80;
+        const Number       size_y = 0.8 * size_x;
+
+        dx = size_x / nx;
+
+        dtfac = 0.5;
+        W     = getW_if(6, dx);
+
+        subdivisions = {nx, ny};
+        p2[0]        = size_x;
+        p2[1]        = size_y;
+
+        const bool   is_sharp = false;
+        const Number radius   = 0.35 * size_x / 2.0;
+
+        initial_values = std::make_unique<InitialValuesPore<dim>>(
+          size_x, size_y, radius, W, is_sharp, c_0);
 
         n_time_steps_default = 1000;
       }
