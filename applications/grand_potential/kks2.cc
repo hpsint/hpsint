@@ -956,10 +956,12 @@ public:
       dtfac * (do_couple_phi_c ? std::min(dt_c, dt_phi) : dt_phi);
 
     // Params
-    pcout << "dx = " << dx << std::endl;
-    pcout << "W  = " << W << std::endl;
-    pcout << "D  = " << D << std::endl;
-    pcout << "dt = " << dt << std::endl;
+    pcout << "dx     = " << dx << std::endl;
+    pcout << "W      = " << W << std::endl;
+    pcout << "D      = " << D << std::endl;
+    pcout << "dt_phi = " << dt_phi << std::endl;
+    pcout << "dt_c   = " << dt_c << std::endl;
+    pcout << "dt     = " << dt << std::endl;
     pcout << std::endl;
 
     // Some postprocessing of scalar quantities
@@ -1340,8 +1342,10 @@ public:
         solver.solve(mass_matrix, incr, rhs, preconditioner);
 
         if constexpr (print)
-          pcout << "# of linear iterations at t = " << t << ": "
-                << reduction_control.last_step() << std::endl;
+          pcout << "t = " << t << ": "
+                << "incr.l2_norm() = " << incr.l2_norm() << " | "
+                << "n_linear_iter = " << reduction_control.last_step()
+                << std::endl;
 
         n_linear_iterations += reduction_control.last_step();
       }
