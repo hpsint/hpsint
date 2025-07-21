@@ -282,11 +282,9 @@ namespace KKS
 
     VectorizedArrayType res_val(0.0);
 
-    // Preevaluate
-    const auto A_val = (Awp_val * w_fix_val - Aw_val * wp_val) * w_div_val;
-
     // Term 1 - verified
-    res_val += 0.5 * A_val * phi_grad_sq_sum;
+    const auto Ap_val = (Awp_val * w_fix_val - Aw_val * wp_val) * w_div_val;
+    res_val += 0.5 * Ap_val * phi_grad_sq_sum;
 
     // Terms 2 and 3 - verified
     res_val += ((Bwp_val * w_fix_val - Bw_val * wp_val) * q_val +
@@ -321,8 +319,10 @@ namespace KKS
         res_val += (2. * phi[j] / phi_sq_sum) * psi[classidx(j)];
       }
 
-    // Divergence term - seems verified
-    Tensor<1, dim, VectorizedArrayType> res_grad = -A_val * phi_grad[j];
+    // Divergence term - verified
+    const auto A_val = Aw_val / w_fix_val;
+
+    Tensor<1, dim, VectorizedArrayType> res_grad = A_val * phi_grad[j];
 
     return std::make_pair(std::move(res_val), std::move(res_grad));
   }
