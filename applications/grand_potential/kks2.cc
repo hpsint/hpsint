@@ -65,6 +65,18 @@ phifunc(Number x_ref, Number factor = 1.0)
   return factor * 0.5 * (1.0 + std::tanh(x_ref));
 }
 
+template <typename Number>
+Number
+phifunc_lin(Number x, Number center, Number width)
+{
+  if (x <= center - width / 2.)
+    return 0.;
+  else if (x >= center + width / 2.)
+    return 1.;
+  else
+    return (x - center + width / 2.) / width;
+}
+
 template <int dim>
 class InitialValues : public Function<dim>
 {
@@ -271,8 +283,9 @@ template <int dim>
 class InitialValuesSquare : public InitialValues<dim>
 {
 public:
-  InitialValuesSquare()
+  InitialValuesSquare(double width_in)
     : InitialValues<dim>()
+    , width(width_in)
   {}
 
   double
@@ -288,38 +301,56 @@ public:
   }
 
 private:
+  double     width;
   Point<dim> center{0.5, 0.5};
+
+  std::array<double, 3>
+  do_all_phis(const Point<dim> &p) const
+  {
+    std::array<double, 3> phis;
+    phis[0] = phifunc_lin(p[1], center[1], width);
+    phis[1] = std::max(1. - phifunc_lin(p[0], center[0], width) -
+                         phifunc_lin(p[1], center[1], width),
+                       0.);
+    phis[2] = std::max(phifunc_lin(p[0], center[0], width) -
+                         phifunc_lin(p[1], center[1], width),
+                       0.);
+
+    auto phi_sum =
+      std::accumulate(phis.begin(), phis.end(), 0.0, std::plus<double>());
+    if (phi_sum == 0.)
+      phi_sum = 1.;
+
+    // Marco's normalization
+    std::transform(phis.begin(),
+                   phis.end(),
+                   phis.begin(),
+                   [phi_sum](double &val) { return val / phi_sum; });
+
+    return phis;
+  }
 
   // Has to be redefined as does not produce driving force with Gauss-Lobatto
   // integration rules
   double
   do_phi(const Point<dim> &p, const unsigned int component) const
   {
-    if (component == 0)
-      {
-        if (p[1] > center[1])
-          return 1.;
-        else
-          return 0;
-      }
-    else if (component == 1)
-      {
-        if (p[0] <= center[0] && p[1] <= center[1])
-          return 1.;
-        else
-          return 0;
-      }
-    else if (component == 2)
-      {
-        if (p[0] > center[0] && p[1] <= center[1])
-          return 1.;
-        else
-          return 0;
-      }
-    else
+    if (component > 2)
       {
         AssertThrow(false, ExcMessage("Invalid component index"));
         return 0.0; // to avoid compiler warning
+      }
+
+    if (p == center)
+      {
+        if (component == 0)
+          return 0.5;
+        else
+          return 0.25;
+      }
+    else
+      {
+        return do_all_phis(p)[component];
       }
   }
 };
@@ -377,8 +408,6 @@ private:
   std::array<double, 3>
   do_all_phis(const Point<dim> &p) const
   {
-    const double eps = 1e-4;
-
     const auto ksi0 = (radius - center.distance(p)) / W;
     const auto ksi1 = (p[1] - center[1]) / W;
 
@@ -394,6 +423,7 @@ private:
 
     /*
   const auto delta = 1. - phi_sum;
+  const double eps = 1e-4;
   if (delta > eps)
     {
       if (p[1] > center[1])
@@ -776,7 +806,9 @@ public:
         p2[0]        = size;
         p2[1]        = size;
 
-        initial_values = std::make_unique<InitialValuesSquare<dim>>();
+        const Number width = dx;
+
+        initial_values = std::make_unique<InitialValuesSquare<dim>>(width);
 
         n_time_steps_default = 1000;
       }
