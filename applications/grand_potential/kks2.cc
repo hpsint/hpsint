@@ -1408,6 +1408,12 @@ public:
           time.get_next_step_size(),
           solution);
 
+        // Temporary sanitizing - DISABLE
+        if constexpr (false)
+          for (unsigned int b = 0; b < solution.n_blocks(); ++b)
+            for (auto &v : solution.block(b))
+              v = std::min(std::max(v, 0.), 1.);
+
         time.advance_time();
 
         if (time.get_step_number() % n_time_steps_output == 0 ||
@@ -1451,17 +1457,17 @@ main(int argc, char **argv)
 {
   Utilities::MPI::MPI_InitFinalize mpi_init(argc, argv, 1);
 
-  /* Use DG
+  /* Use DG0
     This is an experimental approach, since it is a very much simplified DG
     implementation that mainly mimics FDM, i.e. it is supposed to work with DG0
     only. Furthermore, not all terms are yet properly evaluated for this case.
     Though the gradients are somewhat evaluated for phases only, the
     corresponding divergence terms are not yet evaluated correctly.
   */
-  Test<2, 1, false> runner;
+  // Test<2, 0, true> runner;
 
   // Use CG
-  // Test<2, 0, true> runner;
+  Test<2, 1, false> runner;
 
   ConditionalOStream pcout(std::cout,
                            Utilities::MPI::this_mpi_process(MPI_COMM_WORLD) ==
