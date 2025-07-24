@@ -243,7 +243,8 @@ namespace KKS
          const std::array<Tensor<1, dim, VectorizedArrayType>, n_phi> &phi_grad,
          const VectorizedArrayType                                    &c,
          const unsigned int                                            j,
-         const Number div_eps = 1e-18)
+         const Number div_eps   = 1e-18,
+         const Number threshold = 1e-18)
   {
     const auto w_val   = w(phi);
     const auto wp_val  = wp(phi, j);
@@ -252,11 +253,11 @@ namespace KKS
     const auto Aw_val  = Zw(A, phi);
     const auto Awp_val = Zwp(A, phi, j);
 
-    const VectorizedArrayType zeroes(0.0), ones(1.0), threshold(1e-18);
+    const VectorizedArrayType zeroes(0.0), ones(1.0), w_threshold(threshold);
     const auto w_fix_val = compare_and_apply_mask<SIMDComparison::less_than>(
-      w_val, threshold, ones, w_val);
+      w_val, w_threshold, ones, w_val);
     auto w_div_val = compare_and_apply_mask<SIMDComparison::less_than>(
-      w_val, threshold, ones, w_val + div_eps);
+      w_val, w_threshold, ones, w_val + div_eps);
     w_div_val = 1. / (w_div_val * w_div_val);
 
     const auto q_val = 0.5 * w_fix_val + 1. / 12. +
