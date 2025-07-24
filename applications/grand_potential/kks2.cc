@@ -923,30 +923,30 @@ public:
                                  solution.block(c));
       }
 
-    const auto output_result =
-      [&](const VectorType &vec, const double t, const unsigned int step) {
-        DataOutBase::VtkFlags flags;
-        flags.write_higher_order_cells = true;
+    const auto output_result = [&](const VectorType  &vec,
+                                   const double       t,
+                                   const unsigned int step,
+                                   std::string        label = "solution") {
+      DataOutBase::VtkFlags flags;
+      flags.write_higher_order_cells = true;
 
-        DataOut<dim> data_out;
-        data_out.set_flags(flags);
-        data_out.attach_dof_handler(dof_handler);
+      DataOut<dim> data_out;
+      data_out.set_flags(flags);
+      data_out.attach_dof_handler(dof_handler);
 
-        for (unsigned int c = 0; c < n_comp; ++c)
-          data_out.add_data_vector(vec.block(c),
-                                   labels.at(c),
-                                   DataOut_DoFData<dim, dim>::type_dof_data);
+      for (unsigned int c = 0; c < n_comp; ++c)
+        data_out.add_data_vector(vec.block(c),
+                                 labels.at(c),
+                                 DataOut_DoFData<dim, dim>::type_dof_data);
 
-        vec.update_ghost_values();
-        data_out.build_patches(mapping, fe_degree);
+      vec.update_ghost_values();
+      data_out.build_patches(mapping, fe_degree);
 
-        static unsigned int counter = 0;
+      pcout << "outputing at step = " << step << ", t = " << t << std::endl;
 
-        pcout << "outputing at step = " << step << ", t = " << t << std::endl;
-
-        std::string output = "solution." + std::to_string(counter++) + ".vtu";
-        data_out.write_vtu_in_parallel(output, MPI_COMM_WORLD);
-      };
+      std::string output = label + "." + std::to_string(step) + ".vtu";
+      data_out.write_vtu_in_parallel(output, MPI_COMM_WORLD);
+    };
 
     FEEvaluation<dim,
                  fe_degree,
