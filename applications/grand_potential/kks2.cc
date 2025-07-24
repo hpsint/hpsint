@@ -899,7 +899,7 @@ public:
 
     MatrixFree<dim, Number, VectorizedArrayType> matrix_free;
 
-    if constexpr (is_dg)
+    if constexpr (is_dg && n_points_1D == 1)
       {
         MatrixFreeTools::categorize_by_boundary_ids(
           dof_handler.get_triangulation(), additional_data);
@@ -1245,7 +1245,7 @@ public:
                             (ifac * prefac_inner_left * dFdphi_arr[i].first -
                              prefac_inner_right * dFdphi_arr[j].first);
 
-                          if constexpr (is_dg)
+                          if constexpr (is_dg && n_points_1D == 1)
                             {
                               // Sign differs from the true FEM case
                               value_result[i] +=
@@ -1300,7 +1300,7 @@ public:
           }
       };
 
-      if constexpr (is_dg)
+      if constexpr (is_dg && n_points_1D == 1)
         {
           // TODO: Interface evaluator for DG
           auto face_evaluator = [&](const auto &,
