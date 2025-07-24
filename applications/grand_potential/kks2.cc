@@ -1145,17 +1145,28 @@ public:
                 if (do_couple_phi_c)
                   c = value[n_phi];
 
-                VectorizedArrayType is_bulk(0.0);
-                VectorizedArrayType nzs(0.0);
+                VectorizedArrayType                    is_bulk(0.0);
+                VectorizedArrayType                    nzs(0.0);
+                std::array<VectorizedArrayType, n_phi> ok;
                 for (unsigned int i = 0; i < n_phi; ++i)
                   {
                     is_bulk = compare_and_apply_mask<SIMDComparison::less_than>(
                       std::abs(ones - phi[i]), bulk_threshold, ones, is_bulk);
-                    nzs += compare_and_apply_mask<SIMDComparison::greater_than>(
-                      phi[i], zero_threshold, ones, zeroes);
+
+                    // Check value itself
+                    ok[i] =
+                      compare_and_apply_mask<SIMDComparison::greater_than>(
+                        phi[i], zero_threshold, ones, zeroes);
+
+                    // Check gradients
+                    ok[i] =
+                      compare_and_apply_mask<SIMDComparison::greater_than>(
+                        phi_grad[i].norm(), zero_threshold, ones, ok[i]);
+
+                    nzs += ok[i];
                   }
                 // DEBUG
-                // is_bulk = 0;
+                // is_bulk = ones;
 
                 const auto   invnzs = 1. / nzs;
                 const Number ifac   = 1. / (n_phi - 1.);
@@ -1178,16 +1189,8 @@ public:
                 Tensor<1, n_comp, Tensor<1, dim, VectorizedArrayType>>
                   gradient_result;
 
-                // constexpr unsigned int n_off = n_phi * (n_phi - 1) / 2;
-
-                auto prefacs_dia =
-                  create_array<n_phi>(VectorizedArrayType(0.0));
-                /*
-              auto prefacs_off =
-                create_array<n_off>(VectorizedArrayType(0.0));
-                */
-
-                auto prefacs_off = create_array<n_phi>(prefacs_dia);
+                auto prefacs = create_array<n_phi>(
+                  create_array<n_phi>(VectorizedArrayType(0.0)));
 
                 // unsigned int upper_tri_offset = 0;
                 for (unsigned int i = 0; i < n_phi; ++i)
@@ -1210,39 +1213,38 @@ public:
 
                         const auto val = pre_i * pre_j;
 
-                        prefacs_dia[i] += val;
-                        prefacs_dia[j] += val;
+                        prefacs[i][i] += val;
+                        prefacs[j][j] += val;
 
-                        // prefacs_off[upper_tri_offset + j - i - 1] = val;
-                        prefacs_off[i][j] = val;
-                        prefacs_off[j][i] = val;
+                        prefacs[i][j] = val;
+                        prefacs[j][i] = val;
                       }
-
-                    // upper_tri_offset += n_phi - i - 1;
                   }
                 /*
                                   const auto prefac_outer =
                                     compare_and_apply_mask<SIMDComparison::greater_than>(
                                       is_bulk, zeroes, invnzs, ones);
                 */
-                const auto prefac_outer = (ones - is_bulk) + is_bulk * invnzs;
 
                 // upper_tri_offset = 0;
                 for (unsigned int i = 0; i < n_phi; ++i)
                   {
-                    const auto prefac_inner_left =
-                      (ones - is_bulk) * prefacs_dia[i] + is_bulk;
+                    const auto prefac_outer =
+                      (ones - is_bulk) + is_bulk * invnzs * ok[i];
 
                     for (unsigned int j = 0; j < n_phi; ++j)
                       if (i != j)
                         {
-                          // prefacs_off[upper_tri_offset + j - i - 1]
+                          const auto prefac_inner_left =
+                            (ones - is_bulk) * ifac * prefacs[i][i] +
+                            is_bulk * ok[i] * ok[j];
+
                           const auto prefac_inner_right =
-                            (ones - is_bulk) * prefacs_off[i][j] + is_bulk;
+                            (ones - is_bulk) * prefacs[i][j] + is_bulk * ok[j];
 
                           value_result[i] +=
                             -L(i, j) *
-                            (ifac * prefac_inner_left * dFdphi_arr[i].first -
+                            (prefac_inner_left * dFdphi_arr[i].first -
                              prefac_inner_right * dFdphi_arr[j].first);
 
                           if constexpr (is_dg && n_points_1D == 1)
@@ -1250,15 +1252,14 @@ public:
                               // Sign differs from the true FEM case
                               value_result[i] +=
                                 L(i, j) *
-                                (ifac * prefac_inner_left * div_A_grad_phi[i] -
+                                (prefac_inner_left * div_A_grad_phi[i] -
                                  prefac_inner_right * div_A_grad_phi[j]);
                             }
                           else
                             {
                               gradient_result[i] +=
                                 -L(i, j) *
-                                (ifac * prefac_inner_left *
-                                   dFdphi_arr[i].second -
+                                (prefac_inner_left * dFdphi_arr[i].second -
                                  prefac_inner_right * dFdphi_arr[j].second);
                             }
                         }
