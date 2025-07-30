@@ -1939,13 +1939,17 @@ namespace Sintering
                     extrap.sadd(-dt, solution);
                   }
                 else if (params.time_integration_data.predictor == "Linear" &&
-                         sintering_data.time_data.effective_order() > 1)
+                         sintering_data.time_data.get_order() > 1)
                   {
                     const auto dt0 = sintering_data.time_data.get_all_dt()[0];
                     const auto dt1 = sintering_data.time_data.get_all_dt()[1];
-                    const auto fac = dt0 / dt1;
 
-                    solution_history.extrapolate(extrap, fac);
+                    if (dt0 > 0 && dt1 > 0)
+                      {
+                        const auto fac = dt0 / dt1;
+
+                        solution_history.extrapolate(extrap, fac);
+                      }
                   }
                 else
                   {

@@ -179,14 +179,6 @@ namespace TimeIntegration
 
     BOOST_SERIALIZATION_SPLIT_MEMBER()
 
-    unsigned int
-    effective_order() const
-    {
-      return std::count_if(dt.begin(), dt.end(), [](const auto &v) {
-        return v > 0;
-      });
-    }
-
   private:
     void
     update_weights()
