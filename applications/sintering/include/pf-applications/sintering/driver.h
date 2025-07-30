@@ -1216,8 +1216,8 @@ namespace Sintering
             const unsigned int n_blocks  = current_u.n_blocks();
 
             for (unsigned int l = min_level; l <= max_level; ++l)
-              mg_sintering_data[l].time_data.set_all_dt(
-                sintering_data.time_data.get_all_dt());
+              mg_sintering_data[l].time_data.copy_all_dt(
+                sintering_data.time_data);
 
             MGLevelObject<VectorType> mg_current_u(min_level, max_level);
 

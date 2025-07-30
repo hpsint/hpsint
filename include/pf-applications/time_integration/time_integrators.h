@@ -107,10 +107,10 @@ namespace TimeIntegration
     }
 
     void
-    set_all_dt(const std::vector<Number> &dt_new)
+    copy_all_dt(const TimeIntegratorData<Number> &other)
     {
-      AssertDimension(dt.size(), dt_new.size());
-      dt = dt_new;
+      AssertDimension(dt.size(), other.dt.size());
+      dt = other.dt;
 
       update_weights();
     }
