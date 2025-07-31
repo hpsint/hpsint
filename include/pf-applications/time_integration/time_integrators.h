@@ -107,10 +107,10 @@ namespace TimeIntegration
     }
 
     void
-    set_all_dt(const std::vector<Number> &dt_new)
+    copy_all_dt(const TimeIntegratorData<Number> &other)
     {
-      AssertDimension(dt.size(), dt_new.size());
-      dt = dt_new;
+      AssertDimension(dt.size(), other.dt.size());
+      dt = other.dt;
 
       update_weights();
     }
@@ -178,14 +178,6 @@ namespace TimeIntegration
     }
 
     BOOST_SERIALIZATION_SPLIT_MEMBER()
-
-    unsigned int
-    effective_order() const
-    {
-      return std::count_if(dt.begin(), dt.end(), [](const auto &v) {
-        return v > 0;
-      });
-    }
 
   private:
     void
