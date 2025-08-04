@@ -945,7 +945,8 @@ public:
       vec.update_ghost_values();
       data_out.build_patches(mapping, fe_degree);
 
-      pcout << "outputing at step = " << step << ", t = " << t << std::endl;
+      pcout << "outputing " << label << " at step = " << step << ", t = " << t
+            << std::endl;
 
       std::string output = label + "." + std::to_string(step) + ".vtu";
       data_out.write_vtu_in_parallel(output, MPI_COMM_WORLD);
@@ -1372,6 +1373,11 @@ public:
       // output_result(rhs, 1.0, 1);
       // throw std::runtime_error("STOP");
 
+      static unsigned int local_step_counter = 0;
+
+      if constexpr (print_debug)
+        output_result(rhs, t, local_step_counter, "rhs");
+
       {
         ReductionControl     reduction_control;
         SolverCG<VectorType> solver(reduction_control);
@@ -1385,6 +1391,12 @@ public:
 
         n_linear_iterations += reduction_control.last_step();
       }
+
+      if constexpr (print_debug)
+        {
+          output_result(incr, t, local_step_counter, "incr");
+        }
+      local_step_counter++;
 
       return incr;
     };
