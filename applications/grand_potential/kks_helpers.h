@@ -93,16 +93,16 @@ namespace KKS
     const auto   idx    = static_cast<unsigned>(a == 0);
     const Number prefac = linf(a);
 
-    const auto phiv = hfunc2_0(phio);
+    const auto hv = hfunc2_0(phio);
 
-    const std::array<VectorizedArrayType, 2> phi{{phiv, 1. - phiv}};
+    const std::array<VectorizedArrayType, 2> h{{hv, 1. - hv}};
 
-    const auto nom =
-      c * k[idx] +
-      prefac * (c_0[KKS::vidx] * k[KKS::vidx] - c_0[KKS::sidx] * k[KKS::sidx]) *
-        phi[idx];
+    const auto chi =
+      c_0[KKS::vidx] * k[KKS::vidx] - c_0[KKS::sidx] * k[KKS::sidx];
 
-    const auto denom = k[0] * phi[1] + k[1] * phi[0];
+    const auto nom = c * k[idx] + prefac * chi * h[idx];
+
+    const auto denom = k[0] * h[1] + k[1] * h[0];
 
     return nom / denom;
   }
@@ -124,9 +124,9 @@ namespace KKS
     const auto   idx    = static_cast<unsigned>(a == 0);
     const Number prefac = linf(a);
 
-    const auto phiv = hfunc2_0(phio);
+    const auto hv = hfunc2_0(phio);
 
-    const std::array<VectorizedArrayType, 2> phi{{phiv, 1. - phiv}};
+    const std::array<VectorizedArrayType, 2> h{{hv, 1. - hv}};
 
     VectorizedArrayType                 phisqsum(0.0);
     Tensor<1, dim, VectorizedArrayType> phisqsum_grad;
@@ -136,18 +136,17 @@ namespace KKS
         phisqsum_grad += phio[i] * phio_grad[i];
       }
 
-    const Tensor<1, dim, VectorizedArrayType> phi_grad =
+    const Tensor<1, dim, VectorizedArrayType> hv_grad =
       2. * phio[0] / (phisqsum * phisqsum) *
       (phio_grad[0] * phisqsum - phio[0] * phisqsum_grad);
 
-    const auto coeff =
-      prefac * (c_0[KKS::vidx] * k[KKS::vidx] - c_0[KKS::sidx] * k[KKS::sidx]);
+    const auto chi =
+      c_0[KKS::vidx] * k[KKS::vidx] - c_0[KKS::sidx] * k[KKS::sidx];
 
-    const auto nom = c * k[idx] + coeff * phi[idx];
-    const auto nom_grad =
-      c_grad * k[idx] + coeff * (idx == 0 ? 1. : -1.) * phi_grad;
-    const auto denom      = k[0] * phi[1] + k[1] * phi[0];
-    const auto denom_grad = (k[1] - k[0]) * phi_grad;
+    const auto nom        = c * k[idx] + prefac * chi * h[idx];
+    const auto nom_grad   = c_grad * k[idx] - chi * hv_grad;
+    const auto denom      = k[0] * h[1] + k[1] * h[0];
+    const auto denom_grad = (k[1] - k[0]) * hv_grad;
 
     return (nom_grad * denom - nom * denom_grad) / (denom * denom);
   }
