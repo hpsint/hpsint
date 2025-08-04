@@ -584,7 +584,8 @@ public:
                                0);
 
     // Debug output
-    constexpr bool print = true;
+    constexpr bool print       = true;
+    constexpr bool print_debug = false;
 
     // Simulation cases
 
@@ -670,7 +671,7 @@ public:
         const unsigned int nx   = 64;
         const Number       size = 1.0;
 
-        dx = size / nx;
+        dx = size / nx / std::pow(2, n_refinements);
 
         const Number dx_w = size / 64;
 
@@ -821,10 +822,12 @@ public:
         const unsigned int ny     = 80;
         const Number       size_y = 0.8 * size_x;
 
-        dx = size_x / nx;
+        dx = size_x / nx / std::pow(2, n_refinements);
+
+        const Number dx_w = size_x / nx;
 
         dtfac = 0.5;
-        W     = getW_if(6, dx);
+        W     = getW_if(6, dx_w);
 
         subdivisions = {nx, ny};
         p2[0]        = size_x;
