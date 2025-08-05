@@ -1069,6 +1069,20 @@ public:
                                  EvaluationFlags::values |
                                    EvaluationFlags::gradients);
 
+            auto phi_avg = create_array<n_phi>(VectorizedArrayType(0.0));
+
+            for (unsigned int q = 0; q < eval.n_q_points; ++q)
+              {
+                const auto value = eval.get_value(q);
+
+                // Phase-field values and gradients
+                for (unsigned int i = 0; i < n_phi; ++i)
+                  phi_avg[i] += value[i];
+              }
+
+            for (unsigned int i = 0; i < n_phi; ++i)
+              phi_avg[i] *= 1. / eval.n_q_points;
+
             for (unsigned int q = 0; q < eval.n_q_points; ++q)
               {
                 const auto value    = eval.get_value(q);
@@ -1086,7 +1100,11 @@ public:
                 // Kind of FDM
                 if constexpr (is_dg && n_points_1D == 1)
                   {
+                    for (unsigned int i = 0; i < n_phi; ++i)
+                      phi_avg[i] = phi[i];
+
                     Tensor<1, dim, unsigned int> num_faces;
+                    unsigned int                 num_vals_to_avg = 1;
                     for (unsigned int face = 0;
                          face < GeometryInfo<dim>::faces_per_cell;
                          ++face)
@@ -1126,9 +1144,13 @@ public:
                                 const auto numerical_grad = numerical_flux / dx;
 
                                 phi_grad[i] += numerical_grad;
+
+                                phi_avg[i] += phi_p;
                               }
 
                             num_faces[face / 2] += 1;
+
+                            ++num_vals_to_avg;
                           }
                       }
 
@@ -1142,6 +1164,9 @@ public:
                         // average gradient
                         for (unsigned int d = 0; d < dim; ++d)
                           phi_grad[i][d] /= num_faces[d];
+
+                        // average phi values
+                        phi_avg[i] /= num_vals_to_avg;
                       }
                   }
 
@@ -1197,23 +1222,28 @@ public:
                   create_array<n_phi>(VectorizedArrayType(0.0)));
 
                 // unsigned int upper_tri_offset = 0;
+
+                // TEST - use averaged phi values
+                const auto &phi_eval = phi;
+                // const auto &phi_eval = phi_avg;
+
                 for (unsigned int i = 0; i < n_phi; ++i)
                   {
                     VectorizedArrayType pre_i =
-                      std::abs(phi[i] / (1. - phi[i]));
+                      std::abs(phi_eval[i] / (1. - phi_eval[i]));
 
                     pre_i =
                       compare_and_apply_mask<SIMDComparison::greater_than>(
-                        phi[i], phase_threshold, ones, pre_i);
+                        phi_eval[i], phase_threshold, ones, pre_i);
 
                     for (unsigned int j = i + 1; j < n_phi; ++j)
                       {
                         VectorizedArrayType pre_j =
-                          std::abs(phi[j] / (1. - phi[j]));
+                          std::abs(phi_eval[j] / (1. - phi_eval[j]));
 
                         pre_j =
                           compare_and_apply_mask<SIMDComparison::greater_than>(
-                            phi[j], phase_threshold, ones, pre_j);
+                            phi_eval[j], phase_threshold, ones, pre_j);
 
                         const auto val = pre_i * pre_j;
 
