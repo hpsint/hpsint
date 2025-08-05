@@ -1467,10 +1467,24 @@ public:
           solution);
 
         // Temporary sanitizing - DISABLE
-        if constexpr (false)
-          for (unsigned int b = 0; b < solution.n_blocks(); ++b)
-            for (auto &v : solution.block(b))
-              v = std::min(std::max(v, 0.), 1.);
+        if constexpr (true)
+          {
+            for (unsigned int b = 0; b < solution.n_blocks(); ++b)
+              for (auto &v : solution.block(b))
+                v = std::min(std::max(v, 0.), 1.);
+
+            for (unsigned int i = 0; i < solution.block(0).size(); ++i)
+              {
+                auto phi_sum = 0;
+                for (unsigned int b = 0; b < solution.n_blocks(); ++b)
+                  phi_sum += solution.block(b)[i];
+
+                if (phi_sum == 0.)
+                  phi_sum = 1.;
+                for (unsigned int b = 0; b < solution.n_blocks(); ++b)
+                  solution.block(b)[i] *= 1. / phi_sum;
+              }
+          }
 
         time.advance_time();
 
