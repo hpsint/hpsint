@@ -1097,6 +1097,11 @@ public:
                     phi_grad[i] = gradient[i];
                   }
 
+                // Precomputed divergences in FDM like manner (if needed)
+                auto div_A_grad_phi =
+                  create_array<n_phi>(VectorizedArrayType(0.0));
+                (void)div_A_grad_phi; // disable warning
+
                 // Kind of FDM
                 if constexpr (is_dg && n_points_1D == 1)
                   {
@@ -1133,6 +1138,8 @@ public:
 
                             const auto normal_vector = eval_p.normal_vector(q);
 
+                            std::array<VectorizedArrayType, n_phi> nphi;
+
                             for (unsigned int i = 0; i < n_phi; ++i)
                               {
                                 const auto &phi_p = value_p[i];
@@ -1145,14 +1152,24 @@ public:
 
                                 phi_grad[i] += numerical_grad;
 
+                                nphi[i] = 0.5 * (phi[i] + phi_p);
+
                                 phi_avg[i] += phi_p;
                               }
+
+                            const auto Av = calcA(A, nphi);
+                            for (unsigned int i = 0; i < n_phi; ++i)
+                              div_A_grad_phi[i] += Av * (value_p[i] - phi[i]);
 
                             num_faces[face / 2] += 1;
 
                             ++num_vals_to_avg;
                           }
                       }
+
+                    // Second order derivative and also swap the sign
+                    for (unsigned int i = 0; i < n_phi; ++i)
+                      div_A_grad_phi[i] *= -1. / (dx * dx);
 
                     // Prevent division by zero
                     for (unsigned int d = 0; d < dim; ++d)
@@ -1208,11 +1225,6 @@ public:
                 for (unsigned int i = 0; i < n_phi; ++i)
                   dFdphi_arr[i] = dFdphi<Number, k, c_0, do_couple_phi_c>(
                     A, B, phi, phi_grad, c, i);
-
-                // TODO: Precomputed divergences in FDM like manner (if needed)
-                auto div_A_grad_phi =
-                  create_array<n_phi>(VectorizedArrayType(0.0));
-                (void)div_A_grad_phi; // disable warning
 
                 Tensor<1, n_comp, VectorizedArrayType> value_result;
                 Tensor<1, n_comp, Tensor<1, dim, VectorizedArrayType>>
