@@ -254,9 +254,9 @@ namespace KKS
 
     const VectorizedArrayType zeroes(0.0), ones(1.0), w_threshold(threshold);
     const auto w_fix_val = compare_and_apply_mask<SIMDComparison::less_than>(
-      w_val, w_threshold, ones, w_val);
+      std::abs(w_val), w_threshold, ones, w_val);
     auto w_div_val = compare_and_apply_mask<SIMDComparison::less_than>(
-      w_val, w_threshold, ones, w_val + div_eps);
+      std::abs(w_val), w_threshold, ones, std::abs(w_val) + div_eps);
     w_div_val = 1. / (w_div_val * w_div_val);
 
     const auto q_val = 0.5 * w_fix_val + 1. / 12. +

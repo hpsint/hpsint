@@ -1202,7 +1202,7 @@ public:
                     // Check value itself
                     ok[i] =
                       compare_and_apply_mask<SIMDComparison::greater_than>(
-                        phi[i], zero_threshold, ones, zeroes);
+                        std::abs(phi[i]), zero_threshold, ones, zeroes);
 
                     // Check gradients
                     ok[i] =
@@ -1286,7 +1286,8 @@ public:
                             is_bulk * ok[i] * ok[j];
 
                           const auto prefac_inner_right =
-                            (ones - is_bulk) * prefacs[i][j] + is_bulk * ok[j];
+                            (ones - is_bulk) * prefacs[i][j] +
+                            is_bulk * ok[i] * ok[j];
 
                           value_result[i] +=
                             -L(i, j) *
@@ -1467,7 +1468,7 @@ public:
           solution);
 
         // Temporary sanitizing - DISABLE
-        if constexpr (true)
+        if constexpr (false)
           {
             for (unsigned int b = 0; b < solution.n_blocks(); ++b)
               for (auto &v : solution.block(b))
