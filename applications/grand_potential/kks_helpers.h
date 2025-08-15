@@ -326,6 +326,29 @@ namespace KKS
     return std::make_pair(std::move(res_val), std::move(res_grad));
   }
 
+  template <typename Number,
+            long unsigned int n_phi,
+            typename VectorizedArrayType>
+  VectorizedArrayType
+  calcA(const PropMatrix<Number>                     &A,
+        const std::array<VectorizedArrayType, n_phi> &phi,
+        const Number                                  div_eps = 1e-10)
+  {
+    const auto w_val  = w(phi);
+    const auto Aw_val = Zw(A, phi);
+
+    const VectorizedArrayType ones(1.0), threshold(1e-18);
+    const auto w_fix_val = compare_and_apply_mask<SIMDComparison::less_than>(
+      w_val, threshold, ones, w_val);
+    auto w_div_val = compare_and_apply_mask<SIMDComparison::less_than>(
+      w_val, threshold, ones, w_val + div_eps);
+    w_div_val = 1. / (w_div_val * w_div_val);
+
+    const auto A_val = Aw_val / w_fix_val;
+
+    return A_val;
+  }
+
   template <int dim, typename VectorizedArrayType>
   Tensor<1, dim, VectorizedArrayType>
   central_flux(const VectorizedArrayType                 &u_m,

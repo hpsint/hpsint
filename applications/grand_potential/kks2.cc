@@ -591,8 +591,8 @@ public:
 
     // OK
     const std::string      case_name       = "1d";
-    constexpr unsigned int n_comp          = 4;
     constexpr bool         do_couple_phi_c = true;
+    constexpr unsigned int n_comp          = 3 + do_couple_phi_c;
 
     // const std::string      case_name = "circle";
     // constexpr unsigned int n_comp    = 3;
@@ -612,6 +612,10 @@ public:
     // const std::string      case_name       = "tp";
     // constexpr unsigned int n_comp          = 3;
     // constexpr bool         do_couple_phi_c = false;
+
+    // const std::string      case_name       = "tp-ggpore";
+    // constexpr unsigned int n_comp          = 4;
+    // constexpr bool         do_couple_phi_c = true;
 
     // Dimensionality
     constexpr unsigned int n_phi =
@@ -877,6 +881,7 @@ public:
     const auto create_quad = [&]() {
       if constexpr (n_points_1D > 1)
         return QGaussLobatto<1>(n_points_1D);
+      // return QGauss<1>(n_points_1D);
       else
         return QGauss<1>(n_points_1D);
     };
@@ -1097,16 +1102,31 @@ public:
                     phi_grad[i] = gradient[i];
                   }
 
+                VectorizedArrayType c(0.0);
+                if (do_couple_phi_c)
+                  c = value[n_phi];
+
                 // Precomputed divergences in FDM like manner (if needed)
                 auto div_A_grad_phi =
                   create_array<n_phi>(VectorizedArrayType(0.0));
                 (void)div_A_grad_phi; // disable warning
+
+                VectorizedArrayType ca_cv(0.0), ca_cs(0.0), div_grad_c(0.0);
+                (void)ca_cv;
+                (void)ca_cs;
+                (void)div_grad_c;
 
                 // Kind of FDM
                 if constexpr (is_dg && n_points_1D == 1)
                   {
                     for (unsigned int i = 0; i < n_phi; ++i)
                       phi_avg[i] = phi[i];
+
+                    if (do_couple_phi_c)
+                      {
+                        ca_cv = calc_ca2<Number, k, c_0>(c, phi, 0);
+                        ca_cs = calc_ca2<Number, k, c_0>(c, phi, 1);
+                      }
 
                     Tensor<1, dim, unsigned int> num_faces;
                     unsigned int                 num_vals_to_avg = 1;
@@ -1140,26 +1160,46 @@ public:
 
                             std::array<VectorizedArrayType, n_phi> nphi;
 
+                            std::array<VectorizedArrayType, n_phi> phi_p;
+                            for (unsigned int i = 0; i < n_phi; ++i)
+                              phi_p[i] = value_p[i];
+
                             for (unsigned int i = 0; i < n_phi; ++i)
                               {
-                                const auto &phi_p = value_p[i];
-
                                 const auto numerical_flux =
                                   central_flux<dim>(phi[i],
-                                                    phi_p,
+                                                    phi_p[i],
                                                     normal_vector);
                                 const auto numerical_grad = numerical_flux / dx;
 
                                 phi_grad[i] += numerical_grad;
 
-                                nphi[i] = 0.5 * (phi[i] + phi_p);
+                                nphi[i] = 0.5 * (phi[i] + phi_p[i]);
 
-                                phi_avg[i] += phi_p;
+                                phi_avg[i] += phi_p[i];
                               }
 
                             const auto Av = calcA(A, nphi);
                             for (unsigned int i = 0; i < n_phi; ++i)
                               div_A_grad_phi[i] += Av * (value_p[i] - phi[i]);
+
+                            // Quantities for the c field
+                            if (do_couple_phi_c)
+                              {
+                                VectorizedArrayType(0.0);
+                                const auto c_p = value_p[n_phi];
+
+                                const auto ca_cv_p =
+                                  calc_ca2<Number, k, c_0>(c_p, phi_p, 0);
+                                const auto ca_cs_p =
+                                  calc_ca2<Number, k, c_0>(c_p, phi_p, 1);
+
+                                const auto hphi0_p = hfunc2_0(phi_p);
+
+                                div_grad_c +=
+                                  D * (hphi0_p * (ca_cv_p - ca_cv) +
+                                       (1. - hphi0_p) * (ca_cs_p - ca_cs));
+                              }
 
                             num_faces[face / 2] += 1;
 
@@ -1167,9 +1207,12 @@ public:
                           }
                       }
 
-                    // Second order derivative and also swap the sign
+                    // Second order derivative
                     for (unsigned int i = 0; i < n_phi; ++i)
-                      div_A_grad_phi[i] *= -1. / (dx * dx);
+                      div_A_grad_phi[i] *= 1. / (dx * dx);
+
+                    if constexpr (do_couple_phi_c)
+                      div_grad_c *= 1. / (dx * dx);
 
                     // Prevent division by zero
                     for (unsigned int d = 0; d < dim; ++d)
@@ -1186,10 +1229,6 @@ public:
                         phi_avg[i] /= num_vals_to_avg;
                       }
                   }
-
-                VectorizedArrayType c(0.0);
-                if (do_couple_phi_c)
-                  c = value[n_phi];
 
                 VectorizedArrayType                    is_bulk(0.0);
                 VectorizedArrayType                    nzs(0.0);
@@ -1324,19 +1363,28 @@ public:
 
                 if constexpr (do_couple_phi_c)
                   {
-                    const auto &c_grad = gradient[n_phi];
+                    if constexpr (is_dg && n_points_1D == 1)
+                      {
+                        value_result[n_phi] = div_grad_c;
+                      }
+                    else
+                      {
+                        const auto &c_grad = gradient[n_phi];
 
-                    // Evaluate hphi0
-                    const auto hphi0 = hfunc2_0(phi);
+                        // Evaluate hphi0
+                        const auto hphi0 = hfunc2_0(phi);
 
-                    // Some auxiliary variables
-                    const auto grad_ca_0 = calc_grad_ca2<Number, k, c_0>(
-                      c, c_grad, phi, phi_grad, 0);
-                    const auto grad_ca_1 = calc_grad_ca2<Number, k, c_0>(
-                      c, c_grad, phi, phi_grad, 1);
+                        // Some auxiliary variables
+                        const auto grad_ca_0 = calc_grad_ca2<Number, k, c_0>(
+                          c, c_grad, phi, phi_grad, 0);
+                        const auto grad_ca_1 = calc_grad_ca2<Number, k, c_0>(
+                          c, c_grad, phi, phi_grad, 1);
 
-                    gradient_result[n_phi] =
-                      -D * (hphi0 * grad_ca_0 + (1. - hphi0) * grad_ca_1);
+                        gradient_result[n_phi] =
+                          -D * (hphi0 * grad_ca_0 + (1. - hphi0) * grad_ca_1);
+                      }
+
+                    value_result_first[n_phi] = is_bulk;
                   }
 
                 eval.submit_value(value_result, q);
