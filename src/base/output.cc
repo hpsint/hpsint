@@ -1,6 +1,6 @@
 // ---------------------------------------------------------------------
 //
-// Copyright (C) 2023 by the hpsint authors
+// Copyright (C) 2025 by the hpsint authors
 //
 // This file is part of the hpsint library.
 //
@@ -13,22 +13,15 @@
 //
 // ---------------------------------------------------------------------
 
-#pragma once
+#include <pf-applications/base/output.h>
 
-namespace Sintering
+std::string
+hpsint::concatenate_strings(const int argc, char **argv)
 {
-  struct EnergyCoefficients
-  {
-    double A;
-    double B;
-    double kappa_c;
-    double kappa_p;
-  };
+  std::string result = std::string(argv[0]);
 
-  EnergyCoefficients
-  compute_energy_params(const double surface_energy,
-                        const double gb_energy,
-                        const double interface_width,
-                        const double length_scale,
-                        const double energy_scale);
-} // namespace Sintering
+  for (int i = 1; i < argc; ++i)
+    result = result + " " + std::string(argv[i]);
+
+  return result;
+}

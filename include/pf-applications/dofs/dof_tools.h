@@ -15,6 +15,7 @@
 
 #pragma once
 
+#include <deal.II/grid/grid_generator.h>
 
 namespace dealii
 {

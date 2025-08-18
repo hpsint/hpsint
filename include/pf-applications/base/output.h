@@ -58,4 +58,7 @@ namespace hpsint
     internal::Dumper<Stream>::print(object, stream);
   }
 
+  std::string
+  concatenate_strings(const int argc, char **argv);
+
 } // namespace hpsint
