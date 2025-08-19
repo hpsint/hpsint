@@ -19,6 +19,8 @@
 
 #include <deal.II/distributed/tria.h>
 
+#include <pf-applications/base/tensor.h>
+
 #include <pf-applications/sintering/operator_sintering_data.h>
 #include <pf-applications/sintering/tools.h>
 

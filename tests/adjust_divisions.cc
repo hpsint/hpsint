@@ -15,7 +15,9 @@
 
 #include <pf-applications/base/debug.h>
 
-#include <pf-applications/sintering/tools.h>
+#include <pf-applications/grid/grid_tools.h>
+
+using namespace hpsint;
 
 void
 run_test(std::vector<unsigned int> subdivisions, const unsigned int max_prime)
@@ -25,7 +27,7 @@ run_test(std::vector<unsigned int> subdivisions, const unsigned int max_prime)
             << std::endl;
 
   const unsigned int n_refinements_base =
-    Sintering::internal::adjust_divisions_to_primes(max_prime, subdivisions);
+    hpsint::internal::adjust_divisions_to_primes(max_prime, subdivisions);
 
   std::cout << "subdivisions reduced: " << debug::to_string(subdivisions)
             << std::endl;

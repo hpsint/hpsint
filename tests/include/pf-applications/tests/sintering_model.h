@@ -13,6 +13,7 @@
 #include <pf-applications/sintering/tools.h>
 
 #include <pf-applications/grain_tracker/tracker.h>
+#include <pf-applications/grid/grid_tools.h>
 #include <pf-applications/matrix_free/tools.h>
 #include <pf-applications/structural/material.h>
 #include <pf-applications/time_integration/solution_history.h>
@@ -24,6 +25,7 @@
 namespace Test
 {
   using namespace dealii;
+  using namespace hpsint;
   using namespace Sintering;
   using namespace TimeIntegration;
 

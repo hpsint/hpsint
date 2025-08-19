@@ -15,6 +15,8 @@
 
 #pragma once
 
+#include <deal.II/base/conditional_ostream.h>
+
 #include <pf-applications/sintering/mobility.h>
 
 #include <pf-applications/time_integration/time_integrators.h>

@@ -36,11 +36,11 @@
 
 #include <pf-applications/sintering/initial_values.h>
 #include <pf-applications/sintering/postprocessors.h>
-#include <pf-applications/sintering/tools.h>
 
 #include <pf-applications/grain_tracker/distributed_stitching.h>
 #include <pf-applications/grain_tracker/ellipsoid.h>
 #include <pf-applications/grain_tracker/tracker.h>
+#include <pf-applications/grid/grid_tools.h>
 
 #include <filesystem>
 #include <iostream>
@@ -48,6 +48,7 @@
 namespace Test
 {
   using namespace dealii;
+  using namespace hpsint;
   using namespace GrainTracker;
   using namespace Sintering;
 
@@ -100,13 +101,13 @@ namespace Test
     const double       interface_val_max        = 0.95;
     const unsigned int op_offset                = 2;
 
-    Sintering::create_mesh_from_divisions(tria,
-                                          boundaries.first,
-                                          boundaries.second,
-                                          subdivisions,
-                                          periodic,
-                                          n_refines_global,
-                                          print_stats);
+    create_mesh_from_divisions(tria,
+                               boundaries.first,
+                               boundaries.second,
+                               subdivisions,
+                               periodic,
+                               n_refines_global,
+                               print_stats);
 
     const unsigned int n_global_levels_0 =
       tria.n_global_levels() + n_refines_local;

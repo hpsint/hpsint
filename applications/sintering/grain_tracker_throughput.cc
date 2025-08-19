@@ -27,8 +27,10 @@
 #include <pf-applications/sintering/tools.h>
 
 #include <pf-applications/grain_tracker/tracker.h>
+#include <pf-applications/grid/grid_tools.h>
 
 using namespace dealii;
+using namespace hpsint;
 using namespace Sintering;
 
 using Number          = double;
