@@ -1,6 +1,6 @@
 // ---------------------------------------------------------------------
 //
-// Copyright (C) 2023 by the hpsint authors
+// Copyright (C) 2023 - 2025 by the hpsint authors
 //
 // This file is part of the hpsint library.
 //
@@ -30,9 +30,9 @@
 #include <deal.II/numerics/vector_tools.h>
 
 #include <pf-applications/sintering/initial_values_cloud.h>
-#include <pf-applications/sintering/tools.h>
 
 #include <pf-applications/grain_tracker/tracker.h>
+#include <pf-applications/grid/grid_tools.h>
 #include <pf-applications/tests/macro.h>
 
 #include <filesystem>
@@ -41,6 +41,7 @@
 namespace Test
 {
   using namespace dealii;
+  using namespace hpsint;
   using namespace Sintering;
 
   using Number     = double;

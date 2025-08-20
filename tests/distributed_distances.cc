@@ -32,14 +32,13 @@
 
 #include <pf-applications/lac/dynamic_block_vector.h>
 
-#include <pf-applications/sintering/tools.h>
-
 #include <pf-applications/grain_tracker/distributed_stitching.h>
 #include <pf-applications/grain_tracker/ellipsoid.h>
+#include <pf-applications/grid/grid_tools.h>
 
 using namespace dealii;
 using namespace GrainTracker;
-using namespace Sintering;
+using namespace hpsint;
 
 template <int dim>
 class Solution : public Function<dim>

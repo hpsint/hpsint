@@ -42,6 +42,8 @@ namespace Sintering
 {
   namespace Postprocessors
   {
+    using namespace hpsint;
+
     template <int dim, typename Number>
     struct StateData
     {

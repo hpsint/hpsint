@@ -20,7 +20,7 @@
 #include <pf-applications/tests/mesh_tester.h>
 
 using namespace dealii;
-using namespace Sintering;
+using namespace hpsint;
 
 int
 main(int argc, char **argv)

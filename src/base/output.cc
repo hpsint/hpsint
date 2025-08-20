@@ -1,6 +1,6 @@
 // ---------------------------------------------------------------------
 //
-// Copyright (C) 2023 by the hpsint authors
+// Copyright (C) 2025 by the hpsint authors
 //
 // This file is part of the hpsint library.
 //
@@ -13,19 +13,15 @@
 //
 // ---------------------------------------------------------------------
 
-#include <deal.II/base/mpi.h>
+#include <pf-applications/base/output.h>
 
-#include <pf-applications/sintering/tools.h>
-
-#include <pf-applications/tests/mesh_tester.h>
-
-using namespace dealii;
-using namespace hpsint;
-
-int
-main(int argc, char **argv)
+std::string
+hpsint::concatenate_strings(const int argc, char **argv)
 {
-  Utilities::MPI::MPI_InitFinalize mpi_init(argc, argv, 1);
+  std::string result = std::string(argv[0]);
 
-  Test::mesh_cloud("212particles.cloud", InitialMesh::Interface);
+  for (int i = 1; i < argc; ++i)
+    result = result + " " + std::string(argv[i]);
+
+  return result;
 }

@@ -99,6 +99,8 @@ namespace Sintering
 {
   namespace Postprocessors
   {
+    using namespace hpsint;
+
     template <int dim, int spacedim>
     using SurfaceDataOut =
 #ifdef DISABLE_MPI_IO_SURFACE_OUTPUT

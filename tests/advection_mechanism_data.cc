@@ -17,6 +17,8 @@
 
 #include <deal.II/fe/fe_q.h>
 
+#include <deal.II/grid/grid_generator.h>
+
 #include <pf-applications/sintering/advection.h>
 
 #include <pf-applications/time_integration/time_schemes.h>

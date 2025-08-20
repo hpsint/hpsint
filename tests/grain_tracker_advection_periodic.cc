@@ -30,13 +30,14 @@
 #include <deal.II/numerics/vector_tools.h>
 
 #include <pf-applications/sintering/initial_values_cloud.h>
-#include <pf-applications/sintering/tools.h>
 
 #include <pf-applications/grain_tracker/tracker.h>
+#include <pf-applications/grid/grid_tools.h>
 
 #include <iostream>
 
 using namespace dealii;
+using namespace hpsint;
 
 using Number     = double;
 using VectorType = LinearAlgebra::distributed::DynamicBlockVector<Number>;
@@ -125,7 +126,7 @@ main(int argc, char **argv)
   const bool         periodic        = true;
   const unsigned int n_refinements   = 3;
 
-  Sintering::create_mesh_from_divisions(
+  create_mesh_from_divisions(
     tria, bottom_left, top_right, subdivisions, periodic, n_refinements);
 
   // setup DoFHandlers
