@@ -49,6 +49,8 @@
 
 #include <pf-applications/lac/dynamic_block_vector.h>
 
+#include <pf-applications/grid/grid_tools.h>
+
 #include <chrono>
 #include <fstream>
 #include <unordered_map>
@@ -57,6 +59,7 @@
 
 using namespace dealii;
 using namespace KKS;
+using namespace hpsint;
 
 template <typename Number>
 Number
@@ -567,7 +570,7 @@ template <int  dim,
           bool is_dg                   = false,
           int  n_points_1D             = fe_degree + 1,
           typename Number              = double,
-          typename VectorizedArrayType = VectorizedArray<Number, 1>>
+          typename VectorizedArrayType = VectorizedArray<Number>>
 class Test
 {
 public:
@@ -577,7 +580,8 @@ public:
   run(const TimeStepping::runge_kutta_method method,
       const int                              n_refinements_additional,
       const unsigned int                     n_time_steps_custom,
-      const unsigned int                     n_time_steps_output)
+      const unsigned int                     n_time_steps_output,
+      const bool                             do_amr)
   {
     ConditionalOStream pcout(std::cout,
                              Utilities::MPI::this_mpi_process(MPI_COMM_WORLD) ==
@@ -670,9 +674,9 @@ public:
       }
     else if (case_name == "1d")
       {
-        n_refinements = 0 + n_refinements_additional;
+        n_refinements = 6 + n_refinements_additional;
 
-        const unsigned int nx   = 64;
+        const unsigned int nx   = 1;
         const Number       size = 1.0;
 
         dx = size / nx / std::pow(2, n_refinements);
@@ -819,16 +823,17 @@ public:
       }
     else if (case_name == "tp-ggpore")
       {
-        n_refinements = 0 + n_refinements_additional;
+        n_refinements = 4 + n_refinements_additional;
 
         const Number       size_x = 0.1;
-        const unsigned int nx     = 100;
-        const unsigned int ny     = 80;
-        const Number       size_y = 0.8 * size_x;
+        const unsigned int nx     = 6;
+        const unsigned int ny     = 5;
+        const Number       size_y =
+          (static_cast<Number>(ny) / static_cast<Number>(nx)) * size_x;
 
         dx = size_x / nx / std::pow(2, n_refinements);
 
-        const Number dx_w = size_x / nx;
+        const Number dx_w = size_x / 96; // the reference case
 
         dtfac = 0.5;
         W     = getW_if(6, dx_w);
@@ -868,8 +873,6 @@ public:
 
     parallel::distributed::Triangulation<dim> tria(MPI_COMM_WORLD);
     GridGenerator::subdivided_hyper_rectangle(tria, subdivisions, p1, p2);
-    if (n_refinements)
-      tria.refine_global(n_refinements);
 
     const auto create_fe = [&]() {
       if constexpr (is_dg)
@@ -890,7 +893,6 @@ public:
     auto quad = create_quad();
 
     DoFHandler<dim> dof_handler(tria);
-    dof_handler.distribute_dofs(fe);
 
     MappingQ<dim> mapping(1);
 
@@ -907,28 +909,100 @@ public:
 
     MatrixFree<dim, Number, VectorizedArrayType> matrix_free;
 
-    if constexpr (is_dg && n_points_1D == 1)
-      {
-        MatrixFreeTools::categorize_by_boundary_ids(
-          dof_handler.get_triangulation(), additional_data);
-      }
-    matrix_free.reinit(mapping, dof_handler, constraint, quad, additional_data);
-
     VectorType solution(n_comp), rhs(n_comp);
 
-    for (unsigned int c = 0; c < n_comp; ++c)
-      {
-        matrix_free.initialize_dof_vector(solution.block(c));
-        matrix_free.initialize_dof_vector(rhs.block(c));
-      }
+    const auto initialize = [&]() {
+      dof_handler.distribute_dofs(fe);
 
-    for (unsigned int c = 0; c < n_comp; ++c)
+      constraint.clear();
+      constraint.reinit(DoFTools::extract_locally_relevant_dofs(dof_handler));
+      DoFTools::make_hanging_node_constraints(dof_handler, constraint);
+
+      constraint.close();
+
+      if constexpr (is_dg && n_points_1D == 1)
+        {
+          MatrixFreeTools::categorize_by_boundary_ids(
+            dof_handler.get_triangulation(), additional_data);
+        }
+      matrix_free.reinit(
+        mapping, dof_handler, constraint, quad, additional_data);
+
+      for (unsigned int c = 0; c < n_comp; ++c)
+        {
+          matrix_free.initialize_dof_vector(solution.block(c));
+          matrix_free.initialize_dof_vector(rhs.block(c));
+        }
+    };
+
+    const auto execute_coarsening_and_refinement = [&]() {
+      // and limit the number of levels
+      const unsigned int max_allowed_level = n_refinements;
+      const unsigned int min_allowed_level = 0;
+
+      std::function<void(VectorType &)> after_amr = [&](VectorType &) {
+        initialize();
+      };
+
+      const unsigned int block_estimate_start = 0;
+      const unsigned int block_estimate_end   = n_phi;
+
+      const Number interface_threshold = 0.01;
+      const Number interface_val_min   = 0.0 + interface_threshold;
+      const Number interface_val_max   = 1.0 - interface_threshold;
+
+      const double top_fraction_of_cells    = 0.3;
+      const double bottom_fraction_of_cells = 0.1;
+
+      coarsen_and_refine_mesh(solution,
+                              tria,
+                              dof_handler,
+                              constraint,
+                              Quadrature<dim - 1>(quad),
+                              top_fraction_of_cells,
+                              bottom_fraction_of_cells,
+                              min_allowed_level,
+                              max_allowed_level,
+                              after_amr,
+                              interface_val_min,
+                              interface_val_max,
+                              block_estimate_start,
+                              block_estimate_end);
+    };
+
+    auto initialize_solution = [&]() {
+      for (unsigned int c = 0; c < n_comp; ++c)
+        {
+          initial_values->set_component(c);
+          VectorTools::interpolate(mapping,
+                                   dof_handler,
+                                   *initial_values,
+                                   solution.block(c));
+          constraint.distribute(solution.block(c));
+          solution.block(c).zero_out_ghost_values();
+        }
+    };
+
+    pcout << "Number of total refinements: " << n_refinements << std::endl;
+
+    if (do_amr)
       {
-        initial_values->set_component(c);
-        VectorTools::interpolate(mapping,
-                                 dof_handler,
-                                 *initial_values,
-                                 solution.block(c));
+        initialize();
+        initialize_solution();
+
+        for (unsigned int i = 0; i < n_refinements; ++i)
+          {
+            execute_coarsening_and_refinement();
+            initialize_solution();
+          }
+      }
+    else
+      {
+        if (n_refinements)
+          tria.refine_global(n_refinements);
+
+        initialize();
+        initialize_solution();
       }
 
     const auto output_result = [&](const VectorType  &vec,
@@ -1383,8 +1457,6 @@ public:
                         gradient_result[n_phi] =
                           -D * (hphi0 * grad_ca_0 + (1. - hphi0) * grad_ca_1);
                       }
-
-                    value_result_first[n_phi] = is_bulk;
                   }
 
                 eval.submit_value(value_result, q);
@@ -1473,6 +1545,9 @@ public:
         ReductionControl     reduction_control;
         SolverCG<VectorType> solver(reduction_control);
         solver.solve(mass_matrix, incr, rhs, preconditioner);
+
+        for (unsigned int c = 0; c < n_comp; ++c)
+          constraint.distribute(incr.block(c));
 
         if constexpr (print)
           pcout << "t = " << t << ": "
@@ -1664,13 +1739,17 @@ main(int argc, char **argv)
   const unsigned int n_steps_output =
     n_output_char ? std::stoi(n_output_char) : 100; // default to 100 steps
 
+  // Whether to perform AMR
+  const bool do_amr =
+    cmd_option_exists(argv, argv + argc, "-amr"); // default to false
+
   pcout << std::endl;
-  pcout << "Number of refinements: " << n_refs << std::endl;
-  pcout << "Number of steps:       " << n_steps << std::endl;
-  pcout << "Output at every:       " << n_steps_output << std::endl;
+  pcout << "Number of additional refinements: " << n_refs << std::endl;
+  pcout << "Number of steps:                  " << n_steps << std::endl;
+  pcout << "Output at every:                  " << n_steps_output << std::endl;
   pcout << std::endl;
 
-  runner.run(method, n_refs, n_steps, n_steps_output);
+  runner.run(method, n_refs, n_steps, n_steps_output, do_amr);
 
   return 0;
 }
