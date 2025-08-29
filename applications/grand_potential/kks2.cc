@@ -366,14 +366,14 @@ public:
                     double                size_y_in,
                     double                radius_in,
                     double                W_in,
-                    bool                  is_sharp_in,
+                    bool                  is_smooth_in,
                     std::array<double, 2> c_0_in)
     : InitialValues<dim>()
     , size_x(size_x_in)
     , size_y(size_y_in)
     , radius(radius_in)
     , W(W_in)
-    , is_sharp(is_sharp_in)
+    , is_smooth(is_smooth_in)
     , center(0.5 * size_x, 0.5 * size_y)
     , c_0(c_0_in)
   {}
@@ -403,21 +403,72 @@ private:
   double     size_y;
   double     radius;
   double     W;
-  bool       is_sharp;
+  bool       is_smooth;
   Point<dim> center;
 
   std::array<double, 2> c_0;
+
+  double
+  get_phase_field_value(const Point<dim> &p) const
+  {
+    const double x = p[0] - center[0]; // Centering X
+    const double y = p[1] - center[1]; // Centering Y
+
+    // Interface definition
+    const double r         = radius;
+    bool         in_top    = y > 0;
+    bool         in_circle = (x * x + y * y <= r * r);
+    bool         indicator = in_top && !in_circle;
+
+    double phi;
+    if (indicator)
+      {
+        double dist_plane  = y;
+        double dist_circle = std::sqrt(x * x + y * y) - r;
+        phi                = std::min(dist_plane, dist_circle);
+      }
+    else
+      {
+        if (y <= 0)
+          {
+            if (x < -r || x > r)
+              phi = y;
+            else
+              phi = -std::sqrt(std::pow(std::abs(x) - r, 2) + y * y);
+          }
+        else
+          {
+            phi = -(r - std::sqrt(x * x + y * y));
+          }
+      }
+
+    return phifunc(phi / W);
+  }
 
   std::array<double, 3>
   do_all_phis(const Point<dim> &p) const
   {
     const auto ksi0 = (radius - center.distance(p)) / W;
-    const auto ksi1 = (p[1] - center[1]) / W;
 
     std::array<double, 3> phis;
     phis[0] = phifunc(ksi0);
-    phis[1] = std::max(phifunc(ksi1) - phifunc(ksi0), 0.);
-    phis[2] = std::max(1. - phifunc(ksi1) - phifunc(ksi0), 0.);
+
+    if (is_smooth)
+      {
+        phis[1] = get_phase_field_value(p);
+
+        Point<dim> inverted;
+        inverted[0] = p[0];
+        inverted[1] = size_y - p[1];
+        phis[2]     = get_phase_field_value(inverted);
+      }
+    else
+      {
+        const auto ksi1 = (p[1] - center[1]) / W;
+
+        phis[1] = std::max(phifunc(ksi1) - phifunc(ksi0), 0.);
+        phis[2] = std::max(1. - phifunc(ksi1) - phifunc(ksi0), 0.);
+      }
 
     auto phi_sum =
       std::accumulate(phis.begin(), phis.end(), 0.0, std::plus<double>());
@@ -842,11 +893,11 @@ public:
         p2[0]        = size_x;
         p2[1]        = size_y;
 
-        const bool   is_sharp = false;
-        const Number radius   = 0.35 * size_x / 2.0;
+        const bool   is_smooth = false;
+        const Number radius    = 0.35 * size_x / 2.0;
 
         initial_values = std::make_unique<InitialValuesPore<dim>>(
-          size_x, size_y, radius, W, is_sharp, c_0);
+          size_x, size_y, radius, W, is_smooth, c_0);
 
         n_time_steps_default = 1000;
       }
