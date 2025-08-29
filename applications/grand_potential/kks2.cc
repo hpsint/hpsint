@@ -725,9 +725,9 @@ public:
       }
     else if (case_name == "1d")
       {
-        n_refinements = 6 + n_refinements_additional;
+        n_refinements = 0 + n_refinements_additional;
 
-        const unsigned int nx   = 1;
+        const unsigned int nx   = 64;
         const Number       size = 1.0;
 
         dx = size / nx / std::pow(2, n_refinements);
@@ -743,6 +743,15 @@ public:
         subdivisions = {nx, 1};
         p2[0]        = size;
         p2[1]        = dx;
+
+        // DEBUG to coincide fully with native FDM
+        /*
+        dx = 1.0 / 64;
+        p1[0] += 0.5 * dx;
+        p2[0] -= 0.5 * dx;
+        n_refinements = 0;
+        subdivisions  = {63, 1};
+        */
 
         const double noise = 0.1; // noise in initial values
 
