@@ -1209,18 +1209,51 @@ public:
                                    EvaluationFlags::gradients);
 
             auto phi_avg = create_array<n_phi>(VectorizedArrayType(0.0));
+            auto phi_grad_avg =
+              create_array<n_phi>(Tensor<1, dim, VectorizedArrayType>());
+
+            VectorizedArrayType                    is_bulk_cell(0.0);
+            VectorizedArrayType                    nzs_cell(0.0);
+            std::array<VectorizedArrayType, n_phi> ok_cell =
+              create_array<n_phi>(VectorizedArrayType(0.0));
 
             for (unsigned int q = 0; q < eval.n_q_points; ++q)
               {
-                const auto value = eval.get_value(q);
+                const auto value    = eval.get_value(q);
+                const auto gradient = eval.get_gradient(q);
 
                 // Phase-field values and gradients
                 for (unsigned int i = 0; i < n_phi; ++i)
-                  phi_avg[i] += value[i];
+                  {
+                    phi_avg[i] += value[i];
+                    phi_grad_avg[i] += gradient[i];
+
+                    is_bulk_cell =
+                      compare_and_apply_mask<SIMDComparison::less_than>(
+                        std::abs(ones - value[i]),
+                        bulk_threshold,
+                        ones,
+                        is_bulk_cell);
+
+                    // Check value itself
+                    ok_cell[i] =
+                      compare_and_apply_mask<SIMDComparison::greater_than>(
+                        std::abs(value[i]), zero_threshold, ones, ok_cell[i]);
+
+                    // Check gradients
+                    ok_cell[i] =
+                      compare_and_apply_mask<SIMDComparison::greater_than>(
+                        gradient[i].norm(), zero_threshold, ones, ok_cell[i]);
+                  }
               }
 
             for (unsigned int i = 0; i < n_phi; ++i)
-              phi_avg[i] *= 1. / eval.n_q_points;
+              {
+                phi_avg[i] *= 1. / eval.n_q_points;
+                phi_grad_avg[i] *= 1. / eval.n_q_points;
+
+                nzs_cell += ok_cell[i];
+              }
 
             for (unsigned int q = 0; q < eval.n_q_points; ++q)
               {
@@ -1387,7 +1420,12 @@ public:
                 // DEBUG
                 // is_bulk = ones;
 
-                const auto   invnzs = 1. / nzs;
+
+                const auto &nzs_eval     = nzs_cell;
+                const auto &ok_eval      = ok_cell;
+                const auto &is_bulk_eval = is_bulk_cell;
+
+                const auto   invnzs = 1. / nzs_eval;
                 const Number ifac   = 1. / (n_phi - 1.);
 
                 // Precomputed partial derivatives
@@ -1449,18 +1487,19 @@ public:
                 for (unsigned int i = 0; i < n_phi; ++i)
                   {
                     const auto prefac_outer =
-                      (ones - is_bulk) + is_bulk * invnzs * ok[i];
+                      (ones - is_bulk_eval) +
+                      is_bulk_eval * invnzs * ok_eval[i];
 
                     for (unsigned int j = 0; j < n_phi; ++j)
                       if (i != j)
                         {
                           const auto prefac_inner_left =
-                            (ones - is_bulk) * ifac * prefacs[i][i] +
-                            is_bulk * ok[i] * ok[j];
+                            (ones - is_bulk_eval) * ifac * prefacs[i][i] +
+                            is_bulk_eval * ok_eval[i] * ok_eval[j];
 
                           const auto prefac_inner_right =
                             (ones - is_bulk) * prefacs[i][j] +
-                            is_bulk * ok[i] * ok[j];
+                            is_bulk * ok_eval[i] * ok_eval[j];
 
                           value_result[i] +=
                             -L(i, j) *
