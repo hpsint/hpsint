@@ -1444,11 +1444,16 @@ public:
                 auto prefacs = create_array<n_phi>(
                   create_array<n_phi>(VectorizedArrayType(0.0)));
 
+                auto prefacs_grad = create_array<n_phi>(
+                  create_array<n_phi>(Tensor<1, dim, VectorizedArrayType>()));
+
                 // unsigned int upper_tri_offset = 0;
 
                 // TEST - use averaged phi values
-                const auto &phi_eval = phi;
-                // const auto &phi_eval = phi_avg;
+                // auto phi_eval      = phi;
+                // auto phi_grad_eval = phi_grad;
+                auto &phi_eval      = phi_avg;
+                auto &phi_grad_eval = phi_grad_avg;
 
                 for (unsigned int i = 0; i < n_phi; ++i)
                   {
@@ -1475,6 +1480,54 @@ public:
 
                         prefacs[i][j] = val;
                         prefacs[j][i] = val;
+
+                        const auto prod = phi_eval[i] / (1. - phi_eval[i]) *
+                                          phi_eval[j] / (1. - phi_eval[j]);
+
+                        VectorizedArrayType sgn(1.0);
+                        sgn =
+                          compare_and_apply_mask<SIMDComparison::greater_than>(
+                            prod, zeroes, sgn, -sgn);
+
+                        // Gradient terms
+                        Tensor<1, dim, VectorizedArrayType> pre_grad_ij0 =
+                          phi_eval[j] * phi_grad_eval[i] /
+                            (std::pow(ones - phi_eval[i], 2.) *
+                             (ones - phi_eval[j])) +
+                          phi_eval[i] * phi_grad_eval[j] /
+                            (std::pow(ones - phi_eval[j], 2.) *
+                             (ones - phi_eval[i]));
+                        (void)pre_grad_ij0;
+
+                        Tensor<1, dim, VectorizedArrayType> pre_grad_ij =
+                          sgn *
+                          (phi_eval[j] * (ones - phi_eval[j]) *
+                             phi_grad_eval[i] +
+                           phi_eval[i] * (ones - phi_eval[i]) *
+                             phi_grad_eval[j]) /
+                          (std::pow(ones - phi_eval[i], 2.) *
+                           std::pow(ones - phi_eval[j], 2.));
+
+                        for (unsigned int d = 0; d < dim; ++d)
+                          {
+                            pre_grad_ij[d] = compare_and_apply_mask<
+                              SIMDComparison::greater_than>(phi_eval[i],
+                                                            phase_threshold,
+                                                            zeroes,
+                                                            pre_grad_ij[d]);
+
+                            pre_grad_ij[d] = compare_and_apply_mask<
+                              SIMDComparison::greater_than>(phi_eval[j],
+                                                            phase_threshold,
+                                                            zeroes,
+                                                            pre_grad_ij[d]);
+                          }
+
+                        prefacs_grad[i][i] += pre_grad_ij;
+                        prefacs_grad[j][j] += pre_grad_ij;
+
+                        prefacs_grad[i][j] = pre_grad_ij;
+                        prefacs_grad[j][i] = pre_grad_ij;
                       }
                   }
                 /*
@@ -1516,6 +1569,20 @@ public:
                             }
                           else
                             {
+                              // Additional term since P_ab is nonlinear
+                              const auto prefac_inner_left_grad =
+                                (ones - is_bulk_eval) * ifac *
+                                prefacs_grad[i][i];
+
+                              const auto prefac_inner_right_grad =
+                                (ones - is_bulk_eval) * prefacs_grad[i][j];
+
+                              value_result[i] +=
+                                -L(i, j) *
+                                (prefac_inner_left_grad * dFdphi_arr[i].second -
+                                 prefac_inner_right_grad *
+                                   dFdphi_arr[j].second);
+
                               gradient_result[i] +=
                                 -L(i, j) *
                                 (prefac_inner_left * dFdphi_arr[i].second -
