@@ -642,6 +642,7 @@ public:
     constexpr bool print        = true;
     constexpr bool print_debug  = false;
     constexpr bool use_gl_rules = false;
+    constexpr bool sanitize_phi = true;
 
     // Simulation cases
 
@@ -1459,6 +1460,14 @@ public:
                 // auto phi_grad_eval = phi_grad;
                 auto &phi_eval      = phi_avg;
                 auto &phi_grad_eval = phi_grad_avg;
+
+                // Sanitize phi values - test feautre, seems to have a positive
+                // effect is the grad P_ab is ignored for FEM
+                if constexpr (sanitize_phi)
+                  for (unsigned int i = 0; i < n_phi; ++i)
+                    phi_eval[i] =
+                      compare_and_apply_mask<SIMDComparison::greater_than>(
+                        phi_eval[i], zeroes, phi_eval[i], zeroes);
 
                 for (unsigned int i = 0; i < n_phi; ++i)
                   {
