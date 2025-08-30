@@ -639,8 +639,9 @@ public:
                                0);
 
     // Debug output
-    constexpr bool print       = true;
-    constexpr bool print_debug = false;
+    constexpr bool print        = true;
+    constexpr bool print_debug  = false;
+    constexpr bool use_gl_rules = false;
 
     // Simulation cases
 
@@ -943,8 +944,10 @@ public:
 
     const auto create_quad = [&]() {
       if constexpr (n_points_1D > 1)
-        return QGaussLobatto<1>(n_points_1D);
-      // return QGauss<1>(n_points_1D);
+        if constexpr (use_gl_rules)
+          return QGaussLobatto<1>(n_points_1D);
+        else
+          return QGauss<1>(n_points_1D);
       else
         return QGauss<1>(n_points_1D);
     };
@@ -1044,6 +1047,8 @@ public:
     };
 
     pcout << "Number of total refinements: " << n_refinements << std::endl;
+    pcout << "Integration rules ised:      "
+          << (use_gl_rules ? "Gauss-Lobatto" : "Gauss") << std::endl;
 
     if (do_amr)
       {
