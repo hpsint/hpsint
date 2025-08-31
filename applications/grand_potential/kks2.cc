@@ -1199,8 +1199,8 @@ public:
         matrix_free.initialize_dof_vector(incr.block(c));
 
       const VectorizedArrayType zeroes(0.0), ones(1.0);
-      const VectorizedArrayType bulk_threshold(1e-10);
-      const VectorizedArrayType zero_threshold(1e-18);
+      const VectorizedArrayType bulk_threshold(1e-10); // 1e-5
+      const VectorizedArrayType zero_threshold(1e-18); // 1e-8
       const VectorizedArrayType phase_threshold = ones - bulk_threshold;
 
       auto cell_evaluator = [&](const auto &,
@@ -1441,7 +1441,7 @@ public:
                   dFdphi_arr;
                 for (unsigned int i = 0; i < n_phi; ++i)
                   dFdphi_arr[i] = dFdphi<Number, k, c_0, do_couple_phi_c>(
-                    A, B, phi, phi_grad, c, i);
+                    A, B, phi, phi_grad, c, i); //, 1e-5, 1e-5);
 
                 Tensor<1, n_comp, VectorizedArrayType> value_result;
                 Tensor<1, n_comp, Tensor<1, dim, VectorizedArrayType>>
@@ -1725,6 +1725,9 @@ public:
         ReductionControl     reduction_control;
         SolverCG<VectorType> solver(reduction_control);
         solver.solve(mass_matrix, incr, rhs, preconditioner);
+
+        // Use direct-like solution
+        // preconditioner.vmult(incr, rhs);
 
         for (unsigned int c = 0; c < n_comp; ++c)
           constraint.distribute(incr.block(c));
