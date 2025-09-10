@@ -10,6 +10,7 @@ FOREACH ( source_file ${SOURCE_FILES} )
     STRING( REPLACE ".cc" "" exec ${file_name} )
     ADD_EXECUTABLE( ${exec} ${source_file})
     DEAL_II_SETUP_TARGET(${exec})
+    target_include_directories(${exec} PUBLIC "include/")
     TARGET_LINK_LIBRARIES(${exec} "pf-applications")
   ENDIF()
 

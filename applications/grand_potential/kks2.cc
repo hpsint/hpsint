@@ -49,13 +49,12 @@
 
 #include <pf-applications/lac/dynamic_block_vector.h>
 
+#include <pf-applications/grand_potential/kks_helpers.h>
 #include <pf-applications/grid/grid_tools.h>
 
 #include <chrono>
 #include <fstream>
 #include <unordered_map>
-
-#include "kks_helpers.h"
 
 using namespace dealii;
 using namespace KKS;
