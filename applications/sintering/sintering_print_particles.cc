@@ -1,3 +1,18 @@
+// ---------------------------------------------------------------------
+//
+// Copyright (C) 2025 by the hpsint authors
+//
+// This file is part of the hpsint library.
+//
+// The hpsint library is free software; you can use it, redistribute
+// it, and/or modify it under the terms of the GNU Lesser General
+// Public License as published by the Free Software Foundation; either
+// version 3.0 of the License, or (at your option) any later version.
+// The full text of the license can be found in the file LICENSE.MD at
+// the top level directory of hpsint.
+//
+// ---------------------------------------------------------------------
+
 #include <deal.II/fe/mapping_q1.h>
 
 #include <deal.II/grid/grid_generator.h>
@@ -51,7 +66,7 @@ main(int argc, char **argv)
 
       std::vector<unsigned int> particle_to_order_parameter(particles.size());
 
-      for (const auto i : order_parameter_to_grains)
+      for (const auto &i : order_parameter_to_grains)
         for (const auto j : i.second)
           particle_to_order_parameter[j] = i.first;
 
