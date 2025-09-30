@@ -1,6 +1,6 @@
 // ---------------------------------------------------------------------
 //
-// Copyright (C) 2023 by the hpsint authors
+// Copyright (C) 2023 - 2025 by the hpsint authors
 //
 // This file is part of the hpsint library.
 //
@@ -255,8 +255,8 @@ namespace Sintering
     DEAL_II_ALWAYS_INLINE inline std::tuple<T1, T2>
     operator()(const unsigned int q, const T1 &value, const T2 &gradient) const
     {
-      T1 value_result;
-      T2 gradient_result;
+      T1 value_result{};
+      T2 gradient_result{};
 
       if constexpr (!std::is_same<T1, VectorizedArrayType>::value)
         if constexpr (T1::dimension >= 2)

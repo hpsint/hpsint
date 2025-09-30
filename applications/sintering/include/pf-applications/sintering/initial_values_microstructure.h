@@ -1,6 +1,6 @@
 // ---------------------------------------------------------------------
 //
-// Copyright (C) 2024 by the hpsint authors
+// Copyright (C) 2024 - 2025 by the hpsint authors
 //
 // This file is part of the hpsint library.
 //
@@ -317,7 +317,7 @@ namespace Sintering
 
       for (const auto &grain : grains)
         {
-          const auto &bp = grain.bounding_box().get_boundary_points();
+          const auto bp = grain.bounding_box().get_boundary_points();
 
           x_min = std::min(x_min, bp.first[0]);
           y_min = std::min(y_min, bp.first[1]);
