@@ -170,7 +170,8 @@ namespace GrainTracker
     data_out.set_flags(flags);
 
     Vector<double> ranks(dof_handler.get_triangulation().n_active_cells());
-    ranks = Utilities::MPI::this_mpi_process(dof_handler.get_communicator());
+    ranks =
+      Utilities::MPI::this_mpi_process(dof_handler.get_mpi_communicator());
 
     data_out.attach_triangulation(dof_handler.get_triangulation());
 
@@ -187,7 +188,8 @@ namespace GrainTracker
         data_out.build_patches();
       }
 
-    data_out.write_vtu_in_parallel(filename, dof_handler.get_communicator());
+    data_out.write_vtu_in_parallel(filename,
+                                   dof_handler.get_mpi_communicator());
   }
 
   // Output clouds as spherical particles
@@ -210,7 +212,7 @@ namespace GrainTracker
       dof_handler.get_triangulation(), mapping, n_properties);
     particles_handler.reserve(grains.size());
 
-    MPI_Comm comm = dof_handler.get_communicator();
+    MPI_Comm comm = dof_handler.get_mpi_communicator();
 
     const auto local_boxes = GridTools::compute_mesh_predicate_bounding_box(
       dof_handler.get_triangulation(), IteratorFilters::LocallyOwnedCell());

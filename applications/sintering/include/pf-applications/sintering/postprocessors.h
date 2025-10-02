@@ -139,7 +139,7 @@ namespace Sintering
         auto background_dof_handler_to_be_used = &background_dof_handler;
 
         parallel::distributed::Triangulation<dim> tria_copy(
-          background_dof_handler.get_communicator());
+          background_dof_handler.get_mpi_communicator());
         DoFHandler<dim> dof_handler_copy;
         VectorType      vector_coarsened;
 
@@ -557,7 +557,7 @@ namespace Sintering
       (void)mapping;
 
 
-      const auto comm = background_dof_handler.get_communicator();
+      const auto comm = background_dof_handler.get_mpi_communicator();
 
       const bool has_ghost_elements = vector.has_ghost_elements();
 
@@ -663,7 +663,7 @@ namespace Sintering
       auto background_dof_handler_to_be_used = &background_dof_handler;
 
       parallel::distributed::Triangulation<dim> tria_copy(
-        background_dof_handler.get_communicator());
+        background_dof_handler.get_mpi_communicator());
       DoFHandler<dim> dof_handler_copy;
       VectorType      solution_dealii;
 
@@ -717,7 +717,7 @@ namespace Sintering
         n_grains,
         cell_data_extractor,
         opt_grain_mapper,
-        background_dof_handler.get_communicator(),
+        background_dof_handler.get_mpi_communicator(),
         n_subdivisions,
         tolerance);
 
@@ -763,8 +763,8 @@ namespace Sintering
       data_out.attach_triangulation(tria);
 
       data_out.build_patches();
-      data_out.write_vtu_in_parallel(filename,
-                                     background_dof_handler.get_communicator());
+      data_out.write_vtu_in_parallel(
+        filename, background_dof_handler.get_mpi_communicator());
     }
 
     template <int dim, typename VectorType>
@@ -789,7 +789,7 @@ namespace Sintering
       auto background_dof_handler_to_be_used = &background_dof_handler;
 
       parallel::distributed::Triangulation<dim> tria_copy(
-        background_dof_handler.get_communicator());
+        background_dof_handler.get_mpi_communicator());
       DoFHandler<dim> dof_handler_copy;
       VectorType      solution_dealii;
 
@@ -850,7 +850,7 @@ namespace Sintering
 
       Vector<float> vector_rank(tria.n_active_cells());
       vector_rank = Utilities::MPI::this_mpi_process(
-        background_dof_handler.get_communicator());
+        background_dof_handler.get_mpi_communicator());
 
       // step 2) output mesh
       SurfaceDataOut<dim - 1, dim> data_out;
@@ -858,8 +858,8 @@ namespace Sintering
       data_out.add_data_vector(vector_rank, "subdomain");
 
       data_out.build_patches();
-      data_out.write_vtu_in_parallel(filename,
-                                     background_dof_handler.get_communicator());
+      data_out.write_vtu_in_parallel(
+        filename, background_dof_handler.get_mpi_communicator());
 
       if (has_ghost_elements == false)
         vector.zero_out_ghost_values();
@@ -909,7 +909,7 @@ namespace Sintering
         }
       surf_area =
         Utilities::MPI::sum(surf_area,
-                            background_dof_handler.get_communicator());
+                            background_dof_handler.get_mpi_communicator());
 
       if (has_ghost_elements == false)
         concentration.zero_out_ghost_values();
@@ -957,7 +957,8 @@ namespace Sintering
             gb_area += cell->measure();
 
       gb_area =
-        Utilities::MPI::sum(gb_area, background_dof_handler.get_communicator());
+        Utilities::MPI::sum(gb_area,
+                            background_dof_handler.get_mpi_communicator());
       gb_area *= 0.5;
 
       return gb_area;
@@ -973,7 +974,7 @@ namespace Sintering
     {
       using Number = typename VectorType::value_type;
 
-      const auto comm = background_dof_handler.get_communicator();
+      const auto comm = background_dof_handler.get_mpi_communicator();
 
       const std::int64_t n_active_cells_0 =
         background_dof_handler.get_triangulation().n_global_active_cells();
@@ -1237,7 +1238,7 @@ namespace Sintering
         const double           threshold_upper                   = 0.8,
         std::shared_ptr<const BoundingBoxFilter<dim>> box_filter = nullptr)
       {
-        const auto comm = dof_handler.get_communicator();
+        const auto comm = dof_handler.get_mpi_communicator();
 
         LinearAlgebra::distributed::Vector<double> particle_ids(
           dof_handler.get_triangulation()
@@ -1374,7 +1375,8 @@ namespace Sintering
       data_out.attach_triangulation(dof_handler.get_triangulation());
       data_out.add_data_vector(cell_to_id, "ids");
       data_out.build_patches(mapping);
-      data_out.write_vtu_in_parallel(output, dof_handler.get_communicator());
+      data_out.write_vtu_in_parallel(output,
+                                     dof_handler.get_mpi_communicator());
     }
 
     /* The function outputs the contours of the pores, i.e. the void regions
@@ -1397,7 +1399,7 @@ namespace Sintering
       const bool                                    smooth         = true,
       const double                                  tolerance      = 1e-10)
     {
-      const auto comm = dof_handler.get_communicator();
+      const auto comm = dof_handler.get_mpi_communicator();
 
       const double invalid_pore_id = -1.0;
 
@@ -1476,7 +1478,7 @@ namespace Sintering
       const auto partitioner = std::make_shared<Utilities::MPI::Partitioner>(
         dof_handler.locally_owned_dofs(),
         DoFTools::extract_locally_relevant_dofs(dof_handler),
-        dof_handler.get_communicator());
+        dof_handler.get_mpi_communicator());
 
       pores_data.block(0).reinit(partitioner);
 
@@ -1552,7 +1554,7 @@ namespace Sintering
     {
       const double invalid_particle_id = -1.0; // TODO
 
-      const auto comm = dof_handler.get_communicator();
+      const auto comm = dof_handler.get_mpi_communicator();
 
       // Detect pores and assign ids
       auto [particle_ids, local_to_global_particle_ids, offset] =
@@ -1623,7 +1625,8 @@ namespace Sintering
       DataOut<dim> data_out;
       data_out.attach_triangulation(tria);
       data_out.build_patches(mapping);
-      data_out.write_vtu_in_parallel(output, dof_handler.get_communicator());
+      data_out.write_vtu_in_parallel(output,
+                                     dof_handler.get_mpi_communicator());
     }
 
     template <int dim, typename VectorType>
@@ -1800,10 +1803,10 @@ namespace Sintering
         solution.zero_out_ghost_values();
 
       Utilities::MPI::min(min_values,
-                          dof_handler.get_communicator(),
+                          dof_handler.get_mpi_communicator(),
                           min_values);
       Utilities::MPI::max(max_values,
-                          dof_handler.get_communicator(),
+                          dof_handler.get_mpi_communicator(),
                           max_values);
 
       Point<dim> left_bb, right_bb;
@@ -1940,7 +1943,8 @@ namespace Sintering
         data_out.attach_triangulation(dof_handler.get_triangulation());
         data_out.add_data_vector(quality, "quality");
         data_out.build_patches(mapping);
-        data_out.write_vtu_in_parallel(output, dof_handler.get_communicator());
+        data_out.write_vtu_in_parallel(output,
+                                       dof_handler.get_mpi_communicator());
       }
     } // namespace internal
 
@@ -1976,7 +1980,8 @@ namespace Sintering
       const auto min_quality =
         *std::min_element(quality.begin(), quality.end());
 
-      return Utilities::MPI::min(min_quality, dof_handler.get_communicator());
+      return Utilities::MPI::min(min_quality,
+                                 dof_handler.get_mpi_communicator());
     }
 
     /* Estimate min mesh quality: 0 - low, 1 - high */
@@ -1996,7 +2001,8 @@ namespace Sintering
 
       internal::do_estimate_mesh_quality<dim>(dof_handler, solution, callback);
 
-      quality = Utilities::MPI::min(quality, dof_handler.get_communicator());
+      quality =
+        Utilities::MPI::min(quality, dof_handler.get_mpi_communicator());
 
       return quality;
     }
@@ -2017,7 +2023,7 @@ namespace Sintering
       const VectorType &solution,
       const std::string output)
     {
-      const auto comm = dof_handler.get_communicator();
+      const auto comm = dof_handler.get_mpi_communicator();
 
       const bool has_ghost_elements = solution.has_ghost_elements();
 
@@ -2322,7 +2328,7 @@ namespace Sintering
         }
 
       auto all_neighbors =
-        Utilities::MPI::all_gather(dof_handler.get_communicator(),
+        Utilities::MPI::all_gather(dof_handler.get_mpi_communicator(),
                                    neighbors_flatten);
 
       for (const auto &local_neighbors : all_neighbors)

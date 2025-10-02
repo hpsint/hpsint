@@ -427,7 +427,7 @@ namespace Preconditioners
 
       locally_active_dofs.subtract_set(locally_owned_dofs);
 
-      const auto comm = dof_handler.get_communicator();
+      const auto comm = dof_handler.get_mpi_communicator();
 
       const auto [dummy, requesters] =
         Utilities::MPI::compute_index_owner_and_requesters(locally_owned_dofs,

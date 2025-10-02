@@ -206,7 +206,7 @@ namespace Sintering
 
       status = static_cast<bool>(Utilities::MPI::min(
         static_cast<unsigned int>(status),
-        this->matrix_free.get_dof_handler().get_communicator()));
+        this->matrix_free.get_dof_handler().get_mpi_communicator()));
 
       return status;
     }
