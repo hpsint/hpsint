@@ -628,8 +628,9 @@ namespace Sintering
         {
           MyScope("Problem::initialize::constraints");
           constraints.clear();
-          constraints.reinit(
-            DoFTools::extract_locally_relevant_dofs(dof_handler));
+          constraints.reinit(dof_handler.locally_owned_dofs(),
+                             DoFTools::extract_locally_relevant_dofs(
+                               dof_handler));
           DoFTools::make_hanging_node_constraints(dof_handler, constraints);
 
           if (params.geometry_data.periodic)
@@ -715,8 +716,9 @@ namespace Sintering
               dof_handler.distribute_dofs(*fe);
 
               constraints.clear();
-              constraints.reinit(
-                DoFTools::extract_locally_relevant_dofs(dof_handler));
+              constraints.reinit(dof_handler.locally_owned_dofs(),
+                                 DoFTools::extract_locally_relevant_dofs(
+                                   dof_handler));
               DoFTools::make_hanging_node_constraints(dof_handler, constraints);
               Assert(params.geometry_data.periodic == false,
                      ExcNotImplemented());

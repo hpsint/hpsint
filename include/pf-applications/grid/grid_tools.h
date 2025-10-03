@@ -201,7 +201,8 @@ namespace hpsint
       DoFTools::extract_locally_relevant_dofs(background_dof_handler);
 
     constraints.clear();
-    constraints.reinit(relevant_dofs);
+    constraints.reinit(background_dof_handler.locally_owned_dofs(),
+                       relevant_dofs);
     DoFTools::make_hanging_node_constraints(background_dof_handler,
                                             constraints);
     constraints.close();

@@ -445,8 +445,9 @@ namespace Sintering
                           this->n_components()));
 
           constraints_for_matrix.clear();
-          constraints_for_matrix.reinit(
-            DoFTools::extract_locally_relevant_dofs(dof_handler));
+          constraints_for_matrix.reinit(dof_handler.locally_owned_dofs(),
+                                        DoFTools::extract_locally_relevant_dofs(
+                                          dof_handler));
           DoFTools::make_hanging_node_constraints(dof_handler,
                                                   constraints_for_matrix);
           add_matrix_constraints(dof_handler, constraints_for_matrix);
