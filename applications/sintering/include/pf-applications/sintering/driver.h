@@ -53,6 +53,7 @@
 #include <deal.II/multigrid/mg_transfer_global_coarsening.h>
 #include <deal.II/multigrid/multigrid.h>
 
+#include <deal.II/numerics/solution_transfer.h>
 #include <deal.II/numerics/vector_tools.h>
 
 #include <deal.II/trilinos/nox.h>
@@ -427,9 +428,8 @@ namespace Sintering
 
           if (flexible_output)
             {
-              parallel::distributed::
-                SolutionTransfer<dim, typename VectorType::BlockType>
-                  solution_transfer(dof_handler);
+              SolutionTransfer<dim, typename VectorType::BlockType>
+                solution_transfer(dof_handler);
 
               // In order to perform deserialization, we need to add dummy
               // vectors which will get deleted at the end
@@ -2492,9 +2492,8 @@ namespace Sintering
                         if (!solution.has_ghost_elements())
                           solution.update_ghost_values();
 
-                        parallel::distributed::
-                          SolutionTransfer<dim, typename VectorType::BlockType>
-                            solution_transfer(dof_handler);
+                        SolutionTransfer<dim, typename VectorType::BlockType>
+                          solution_transfer(dof_handler);
 
                         solution_transfer.prepare_for_serialization(
                           solution_ptr);
