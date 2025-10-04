@@ -28,6 +28,7 @@
 #include <deal.II/matrix_free/matrix_free.h>
 
 #include <deal.II/numerics/data_out.h>
+#include <deal.II/numerics/solution_transfer.h>
 
 #include <pf-applications/base/data.h>
 
@@ -1086,9 +1087,8 @@ namespace Sintering
               // 3) perform interpolation and initialize data structures
               tria_copy.prepare_coarsening_and_refinement();
 
-              parallel::distributed::
-                SolutionTransfer<dim, typename VectorType::BlockType>
-                  solution_trans(dof_handler_copy);
+              SolutionTransfer<dim, typename VectorType::BlockType>
+                solution_trans(dof_handler_copy);
 
               std::vector<const typename VectorType::BlockType *>
                 solution_dealii_ptr(solution_dealii.n_blocks());

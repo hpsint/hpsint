@@ -422,8 +422,8 @@ namespace Preconditioners
 
       const auto locally_owned_dofs = dof_handler.locally_owned_dofs();
 
-      IndexSet locally_active_dofs;
-      DoFTools::extract_locally_active_dofs(dof_handler, locally_active_dofs);
+      auto locally_active_dofs =
+        DoFTools::extract_locally_active_dofs(dof_handler);
 
       locally_active_dofs.subtract_set(locally_owned_dofs);
 

@@ -53,6 +53,7 @@
 #include <deal.II/multigrid/mg_transfer_global_coarsening.h>
 #include <deal.II/multigrid/multigrid.h>
 
+#include <deal.II/numerics/solution_transfer.h>
 #include <deal.II/numerics/vector_tools.h>
 
 #include <deal.II/trilinos/nox.h>
@@ -427,9 +428,8 @@ namespace Sintering
 
           if (flexible_output)
             {
-              parallel::distributed::
-                SolutionTransfer<dim, typename VectorType::BlockType>
-                  solution_transfer(dof_handler);
+              SolutionTransfer<dim, typename VectorType::BlockType>
+                solution_transfer(dof_handler);
 
               // In order to perform deserialization, we need to add dummy
               // vectors which will get deleted at the end
@@ -628,8 +628,9 @@ namespace Sintering
         {
           MyScope("Problem::initialize::constraints");
           constraints.clear();
-          constraints.reinit(
-            DoFTools::extract_locally_relevant_dofs(dof_handler));
+          constraints.reinit(dof_handler.locally_owned_dofs(),
+                             DoFTools::extract_locally_relevant_dofs(
+                               dof_handler));
           DoFTools::make_hanging_node_constraints(dof_handler, constraints);
 
           if (params.geometry_data.periodic)
@@ -715,8 +716,9 @@ namespace Sintering
               dof_handler.distribute_dofs(*fe);
 
               constraints.clear();
-              constraints.reinit(
-                DoFTools::extract_locally_relevant_dofs(dof_handler));
+              constraints.reinit(dof_handler.locally_owned_dofs(),
+                                 DoFTools::extract_locally_relevant_dofs(
+                                   dof_handler));
               DoFTools::make_hanging_node_constraints(dof_handler, constraints);
               Assert(params.geometry_data.periodic == false,
                      ExcNotImplemented());
@@ -2490,9 +2492,8 @@ namespace Sintering
                         if (!solution.has_ghost_elements())
                           solution.update_ghost_values();
 
-                        parallel::distributed::
-                          SolutionTransfer<dim, typename VectorType::BlockType>
-                            solution_transfer(dof_handler);
+                        SolutionTransfer<dim, typename VectorType::BlockType>
+                          solution_transfer(dof_handler);
 
                         solution_transfer.prepare_for_serialization(
                           solution_ptr);

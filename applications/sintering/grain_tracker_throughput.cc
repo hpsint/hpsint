@@ -306,7 +306,7 @@ private:
       DoFTools::extract_locally_relevant_dofs(dof_handler);
 
     constraints.clear();
-    constraints.reinit(relevant_dofs);
+    constraints.reinit(dof_handler.locally_owned_dofs(), relevant_dofs);
     DoFTools::make_hanging_node_constraints(dof_handler, constraints);
     constraints.close();
 
