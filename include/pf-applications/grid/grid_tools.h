@@ -187,11 +187,11 @@ namespace hpsint
     const auto partitioner_full = std::make_shared<Utilities::MPI::Partitioner>(
       background_dof_handler.locally_owned_dofs(),
       DoFTools::extract_locally_relevant_dofs(background_dof_handler),
-      background_dof_handler.get_communicator());
+      background_dof_handler.get_mpi_communicator());
 
     auto partitioner_reduced = std::make_shared<Utilities::MPI::Partitioner>(
       background_dof_handler.locally_owned_dofs(),
-      background_dof_handler.get_communicator());
+      background_dof_handler.get_mpi_communicator());
 
     using Number = typename VectorType::value_type;
 
@@ -945,7 +945,7 @@ namespace hpsint
     const auto partitioner = std::make_shared<Utilities::MPI::Partitioner>(
       dof_handler.locally_owned_dofs(),
       DoFTools::extract_locally_relevant_dofs(dof_handler),
-      dof_handler.get_communicator());
+      dof_handler.get_mpi_communicator());
 
     // Copy solution so that it has the right ghosting
     VectorType solution_copy(solution.n_blocks());

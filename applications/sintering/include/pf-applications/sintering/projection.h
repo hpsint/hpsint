@@ -112,7 +112,7 @@ namespace Sintering
       auto background_dof_handler_to_be_used = &background_dof_handler;
 
       parallel::distributed::Triangulation<dim> tria_copy(
-        background_dof_handler.get_communicator());
+        background_dof_handler.get_mpi_communicator());
       DoFHandler<dim> dof_handler_copy;
       VectorType      solution_dealii;
 

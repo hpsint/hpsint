@@ -585,7 +585,7 @@ namespace Sintering
           dsp.reinit(dof_handler.locally_owned_dofs(),
                      dof_handler.locally_owned_dofs(),
                      DoFTools::extract_locally_relevant_dofs(dof_handler),
-                     dof_handler.get_communicator());
+                     dof_handler.get_mpi_communicator());
 
           DoFTools::make_sparsity_pattern(dof_handler,
                                           dsp,

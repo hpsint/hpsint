@@ -38,7 +38,7 @@ namespace GrainTracker
     const VectorIds       &particle_ids,
     const double           invalid_particle_id = -1.0)
   {
-    const auto comm = dof_handler.get_communicator();
+    const auto comm = dof_handler.get_mpi_communicator();
 
     const unsigned int n_particles = representations.size();
 

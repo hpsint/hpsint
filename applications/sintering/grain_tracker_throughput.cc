@@ -313,7 +313,7 @@ private:
     const auto partitioner = std::make_shared<Utilities::MPI::Partitioner>(
       dof_handler.locally_owned_dofs(),
       relevant_dofs,
-      dof_handler.get_communicator());
+      dof_handler.get_mpi_communicator());
 
     for (unsigned int b = 0; b < solution.n_blocks(); ++b)
       solution.block(b).reinit(partitioner);

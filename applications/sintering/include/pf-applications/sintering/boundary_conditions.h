@@ -41,7 +41,7 @@ namespace Sintering
       const Mapping<dim>                                 &mapping,
       const Point<dim>                                   &origin_in)
     {
-      const auto   comm = matrix_free.get_dof_handler().get_communicator();
+      const auto   comm = matrix_free.get_dof_handler().get_mpi_communicator();
       const double tol  = 1e-10;
 
       // Find closest vertex, the corresponding vertex index and containing cell
@@ -155,7 +155,7 @@ namespace Sintering
       if (directions_mask[d])
         directions.push_back(d);
 
-    const auto comm = matrix_free.get_dof_handler().get_communicator();
+    const auto comm = matrix_free.get_dof_handler().get_mpi_communicator();
 
     const auto [containing_cell,
                 origin_global,
@@ -263,7 +263,7 @@ namespace Sintering
 
     const auto &partitioner = matrix_free.get_vector_partitioner();
 
-    const auto comm = matrix_free.get_dof_handler().get_communicator();
+    const auto comm = matrix_free.get_dof_handler().get_mpi_communicator();
 
     const auto [containing_cell,
                 origin_global,

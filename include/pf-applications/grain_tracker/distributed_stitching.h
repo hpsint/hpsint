@@ -219,7 +219,7 @@ namespace GrainTracker
     const double                     invalid_particle_id       = -1.0,
     const std::vector<double>       &local_particle_max_values = {})
   {
-    const auto comm = dof_handler.get_communicator();
+    const auto comm = dof_handler.get_mpi_communicator();
 
     const unsigned int n_particles =
       number_of_stitched_particles(local_to_global_particle_ids, comm);
@@ -265,7 +265,7 @@ namespace GrainTracker
                          const unsigned int     n_particles,
                          const double           invalid_particle_id = -1.0)
   {
-    const auto comm = dof_handler.get_communicator();
+    const auto comm = dof_handler.get_mpi_communicator();
 
     const unsigned int  n_features = 1 + dim;
     std::vector<double> particle_info(n_particles * n_features);
@@ -324,7 +324,7 @@ namespace GrainTracker
                           const bool   evaluate_remotes    = false,
                           const double invalid_particle_id = -1.0)
   {
-    const auto comm = dof_handler.get_communicator();
+    const auto comm = dof_handler.get_mpi_communicator();
 
     const unsigned int n_particles = particle_centers.size();
 
@@ -398,7 +398,7 @@ namespace GrainTracker
                             const std::vector<Point<dim>> &particle_centers,
                             const double invalid_particle_id = -1.0)
   {
-    const auto comm = dof_handler.get_communicator();
+    const auto comm = dof_handler.get_mpi_communicator();
 
     const unsigned int n_particles = particle_centers.size();
 
@@ -445,7 +445,7 @@ namespace GrainTracker
                                const double   invalid_particle_id  = -1.0,
                                MyTimerOutput *timer                = nullptr)
   {
-    const MPI_Comm comm = dof_handler.get_communicator();
+    const MPI_Comm comm = dof_handler.get_mpi_communicator();
 
     // step 1) run flooding and determine local particles and give them
     // local ids
@@ -643,7 +643,7 @@ namespace GrainTracker
     VectorIds particle_distances(particle_ids);
     VectorIds particle_markers(particle_ids);
 
-    const MPI_Comm comm = dof_handler.get_communicator();
+    const MPI_Comm comm = dof_handler.get_mpi_communicator();
 
     const unsigned int n_global_levels =
       dof_handler.get_triangulation().n_global_levels();
@@ -1122,7 +1122,7 @@ namespace GrainTracker
       }
 
     const auto neighbors_global =
-      Utilities::MPI::all_gather(dof_handler.get_communicator(),
+      Utilities::MPI::all_gather(dof_handler.get_mpi_communicator(),
                                  neighbors_flatten);
 
     // Gather results from the communication

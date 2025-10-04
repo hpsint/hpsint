@@ -32,7 +32,7 @@ namespace Test
     auto &dof_handler        = sintering_model.get_dof_handler();
     auto &solution           = sintering_model.get_solution();
 
-    const auto comm = dof_handler.get_communicator();
+    const auto comm = dof_handler.get_mpi_communicator();
 
     const bool is_zero_rank = Utilities::MPI::this_mpi_process(comm) == 0;
     ConditionalOStream pcout(std::cout, is_zero_rank);

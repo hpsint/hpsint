@@ -29,7 +29,7 @@ namespace dealii
         using size_type  = types::global_dof_index;
 
         SolutionSerialization(const DoFHandler<dim, spacedim> &dof_handler)
-          : comm(dof_handler.get_communicator())
+          : comm(dof_handler.get_mpi_communicator())
           , n_locally_owned_dofs(dof_handler.n_locally_owned_dofs())
           , unique_dof_map(create_unique_dof_map(dof_handler))
         {}
