@@ -927,7 +927,7 @@ namespace Sintering
           Utilities::MPI::sum<Number>(q_values[i],
                                       this->matrix_free
                                         .get_dof_handler(this->dof_index)
-                                        .get_communicator());
+                                        .get_mpi_communicator());
 
       return q_values;
     }

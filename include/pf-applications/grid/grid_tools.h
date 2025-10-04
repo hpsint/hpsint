@@ -63,7 +63,7 @@ namespace hpsint
     const auto partitioner = std::make_shared<Utilities::MPI::Partitioner>(
       background_dof_handler_coarsened.locally_owned_dofs(),
       DoFTools::extract_locally_relevant_dofs(background_dof_handler_coarsened),
-      background_dof_handler_coarsened.get_communicator());
+      background_dof_handler_coarsened.get_mpi_communicator());
 
     vector_coarsened.reinit(vector.n_blocks());
 
@@ -107,7 +107,7 @@ namespace hpsint
           background_dof_handler_coarsened.locally_owned_dofs(),
           DoFTools::extract_locally_relevant_dofs(
             background_dof_handler_coarsened),
-          background_dof_handler_coarsened.get_communicator());
+          background_dof_handler_coarsened.get_mpi_communicator());
 
         for (unsigned int b = 0; b < vector_coarsened.n_blocks(); ++b)
           vector_coarsened.block(b).reinit(partitioner);
