@@ -127,7 +127,8 @@ namespace Test
       dof_handler.distribute_dofs(fe);
 
       constraints.clear();
-      constraints.reinit(DoFTools::extract_locally_relevant_dofs(dof_handler));
+      constraints.reinit(dof_handler.locally_owned_dofs(),
+                         DoFTools::extract_locally_relevant_dofs(dof_handler));
       DoFTools::make_hanging_node_constraints(dof_handler, constraints);
 
       // Add periodicity

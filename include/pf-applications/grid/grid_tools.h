@@ -20,7 +20,6 @@
 #include <deal.II/base/point.h>
 
 #include <deal.II/distributed/grid_refinement.h>
-#include <deal.II/distributed/solution_transfer.h>
 #include <deal.II/distributed/tria.h>
 
 #include <deal.II/dofs/dof_handler.h>
@@ -30,6 +29,7 @@
 #include <deal.II/grid/grid_tools.h>
 
 #include <deal.II/numerics/error_estimator.h>
+#include <deal.II/numerics/solution_transfer.h>
 
 #include <pf-applications/base/tensor.h>
 
@@ -63,7 +63,7 @@ namespace hpsint
     const auto partitioner = std::make_shared<Utilities::MPI::Partitioner>(
       background_dof_handler_coarsened.locally_owned_dofs(),
       DoFTools::extract_locally_relevant_dofs(background_dof_handler_coarsened),
-      background_dof_handler_coarsened.get_communicator());
+      background_dof_handler_coarsened.get_mpi_communicator());
 
     vector_coarsened.reinit(vector.n_blocks());
 
@@ -87,9 +87,8 @@ namespace hpsint
         // 3) perform interpolation and initialize data structures
         tria_copy.prepare_coarsening_and_refinement();
 
-        parallel::distributed::SolutionTransfer<dim,
-                                                typename VectorType::BlockType>
-          solution_trans(background_dof_handler_coarsened);
+        SolutionTransfer<dim, typename VectorType::BlockType> solution_trans(
+          background_dof_handler_coarsened);
 
         std::vector<const typename VectorType::BlockType *>
           vector_coarsened_ptr(vector_coarsened.n_blocks());
@@ -108,7 +107,7 @@ namespace hpsint
           background_dof_handler_coarsened.locally_owned_dofs(),
           DoFTools::extract_locally_relevant_dofs(
             background_dof_handler_coarsened),
-          background_dof_handler_coarsened.get_communicator());
+          background_dof_handler_coarsened.get_mpi_communicator());
 
         for (unsigned int b = 0; b < vector_coarsened.n_blocks(); ++b)
           vector_coarsened.block(b).reinit(partitioner);
@@ -201,7 +200,8 @@ namespace hpsint
       DoFTools::extract_locally_relevant_dofs(background_dof_handler);
 
     constraints.clear();
-    constraints.reinit(relevant_dofs);
+    constraints.reinit(background_dof_handler.locally_owned_dofs(),
+                       relevant_dofs);
     DoFTools::make_hanging_node_constraints(background_dof_handler,
                                             constraints);
     constraints.close();
@@ -991,8 +991,8 @@ namespace hpsint
       }
 
     // Prepare solution transfer
-    parallel::distributed::SolutionTransfer<dim, typename VectorType::BlockType>
-      solution_trans(dof_handler);
+    SolutionTransfer<dim, typename VectorType::BlockType> solution_trans(
+      dof_handler);
 
     solution_trans.prepare_for_coarsening_and_refinement(solution_copy_ptr);
 
