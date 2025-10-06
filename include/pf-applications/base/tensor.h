@@ -18,6 +18,8 @@
 #include <deal.II/base/tensor.h>
 #include <deal.II/base/vectorization.h>
 
+#include <type_traits>
+
 namespace hpsint
 {
   using namespace dealii;
@@ -180,6 +182,41 @@ namespace hpsint
     tensor *= fac;
 
     return tensor;
+  }
+
+  template <typename T>
+  concept TensorRank1 = requires {
+    typename std::remove_cvref_t<T>;
+  } && []<int dim, typename Number>(Tensor<1, dim, Number> *) {
+    return std::derived_from<std::remove_cvref_t<T>, Tensor<1, dim, Number>>;
+  }((std::remove_cvref_t<T> *)nullptr);
+
+  template <TensorRank1 T>
+  auto
+  begin(T &&t)
+  {
+    return &t[0];
+  }
+
+  template <TensorRank1 T>
+  auto
+  end(T &&t)
+  {
+    return &t[0] + std::remove_reference_t<T>::dimension;
+  }
+
+  template <class C>
+  constexpr auto
+  cbegin(const C &c) noexcept(noexcept(begin(c)))
+  {
+    return begin(c);
+  }
+
+  template <class C>
+  constexpr auto
+  cend(const C &c) noexcept(noexcept(end(c)))
+  {
+    return end(c);
   }
 
   template <int dim, typename Number>
