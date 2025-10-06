@@ -2814,8 +2814,8 @@ namespace Sintering
             auto_box_size[d] -= 2 * geometry_r_max;
 
           const auto has_negative_dim =
-            std::any_of(auto_box_size.begin_raw(),
-                        auto_box_size.end_raw(),
+            std::any_of(hpsint::cbegin(auto_box_size),
+                        hpsint::cend(auto_box_size),
                         [](const auto &val) { return val <= 0; });
 
           if (!has_negative_dim)
@@ -2853,8 +2853,8 @@ namespace Sintering
           const auto box_size = top_right - bottom_left;
 
           const auto has_negative_dim =
-            std::any_of(box_size.begin_raw(),
-                        box_size.end_raw(),
+            std::any_of(hpsint::cbegin(box_size),
+                        hpsint::cend(box_size),
                         [](const auto &val) { return val <= 0; });
 
           if (!has_negative_dim)

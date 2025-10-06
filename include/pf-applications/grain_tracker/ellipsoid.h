@@ -22,6 +22,8 @@
 
 #include <deal.II/physics/transformations.h>
 
+#include <pf-applications/base/tensor.h>
+
 #include <pf-applications/grain_tracker/motion.h>
 
 #include <utility>
@@ -168,7 +170,7 @@ namespace GrainTracker
 
       std::transform(vecC.begin(),
                      vecC.end(),
-                     center.begin_raw(),
+                     hpsint::begin(center),
                      [](Number v) { return -v; });
     }
 

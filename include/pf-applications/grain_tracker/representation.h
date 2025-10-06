@@ -148,8 +148,8 @@ namespace GrainTracker
       // Output representation type
       output.push_back(1);
 
-      std::copy(center.begin_raw(),
-                center.end_raw(),
+      std::copy(hpsint::cbegin(center),
+                hpsint::cend(center),
                 std::back_inserter(output));
 
       output.push_back(radius);
@@ -248,10 +248,10 @@ namespace GrainTracker
 
       auto inserter = std::back_inserter(output);
 
-      std::copy(center.begin_raw(), center.end_raw(), inserter);
+      std::copy(hpsint::cbegin(center), hpsint::cend(center), inserter);
 
       for (unsigned int d = 0; d < dim; ++d)
-        std::copy(axes[d].begin_raw(), axes[d].end_raw(), inserter);
+        std::copy(hpsint::cbegin(axes[d]), hpsint::cend(axes[d]), inserter);
 
       std::copy(radii.cbegin(), radii.cend(), inserter);
     }
@@ -353,8 +353,8 @@ namespace GrainTracker
       // Output representation type
       output.push_back(3);
 
-      std::copy(center.begin_raw(),
-                center.end_raw(),
+      std::copy(hpsint::cbegin(center),
+                hpsint::cend(center),
                 std::back_inserter(output));
 
       double dist_min = std::numeric_limits<double>::max();

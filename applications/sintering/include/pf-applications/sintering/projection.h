@@ -280,11 +280,11 @@ namespace Sintering
           const auto bb_local = GridTools::compute_bounding_box(
             background_dof_handler.get_triangulation());
 
-          std::copy(bb_local.get_boundary_points().first.begin_raw(),
-                    bb_local.get_boundary_points().first.end_raw(),
+          std::copy(hpsint::cbegin(bb_local.get_boundary_points().first),
+                    hpsint::cend(bb_local.get_boundary_points().first),
                     bb_min.begin());
-          std::copy(bb_local.get_boundary_points().second.begin_raw(),
-                    bb_local.get_boundary_points().second.end_raw(),
+          std::copy(hpsint::cbegin(bb_local.get_boundary_points().second),
+                    hpsint::cend(bb_local.get_boundary_points().second),
                     bb_max.begin());
         }
 
@@ -316,8 +316,8 @@ namespace Sintering
             const auto circle_center =
               segment.get_center() + dist * plane_normal;
 
-            std::copy(circle_center.begin_raw(),
-                      circle_center.end_raw(),
+            std::copy(hpsint::cbegin(circle_center),
+                      hpsint::cend(circle_center),
                       std::back_inserter(parameters));
 
             const auto circle_radius =
