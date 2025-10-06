@@ -24,6 +24,7 @@
 #include <deal.II/numerics/data_out.h>
 
 #include <pf-applications/base/scoped_name.h>
+#include <pf-applications/base/tensor.h>
 #include <pf-applications/base/timer.h>
 
 #include <boost/config.hpp>
@@ -380,7 +381,7 @@ namespace GrainTracker
 
         // Perform global communication
         MPI_Allreduce(MPI_IN_PLACE,
-                      particle_remotes.begin()->begin_raw(),
+                      hpsint::begin(*particle_remotes.begin()),
                       particle_remotes.size() * dim,
                       MPI_DOUBLE,
                       MPI_SUM,

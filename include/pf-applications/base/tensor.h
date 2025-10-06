@@ -226,7 +226,7 @@ namespace hpsint
     std::array<Point<dim, Number>, dim> arr;
 
     for (unsigned int d = 0; d < dim; ++d)
-      tens[d].unroll(arr[d].begin_raw(), arr[d].end_raw());
+      tens[d].unroll(begin(arr[d]), end(arr[d]));
 
     return arr;
   }
