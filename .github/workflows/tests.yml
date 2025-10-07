@@ -27,7 +27,7 @@ jobs:
         dealii_version: ["master"]
     
     container:
-      image: dealii/dealii:${{ matrix.dealii_version }}-focal
+      image: dealii/dealii:${{ matrix.dealii_version }}-noble
       options: --user root
 
     steps:
