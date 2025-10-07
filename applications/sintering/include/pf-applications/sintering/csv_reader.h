@@ -31,33 +31,13 @@ namespace Sintering
     {
     public:
       std::string_view
-      operator[](std::size_t index) const
-      {
-        return std::string_view(&line[data[index] + 1],
-                                data[index + 1] - (data[index] + 1));
-      }
-      std::size_t
-      size() const
-      {
-        return data.size() - 1;
-      }
-      void
-      read_next_row(std::istream &str)
-      {
-        std::getline(str, line);
+      operator[](std::size_t index) const;
 
-        data.clear();
-        data.emplace_back(-1);
-        std::string::size_type pos = 0;
-        while ((pos = line.find(',', pos)) != std::string::npos)
-          {
-            data.emplace_back(pos);
-            ++pos;
-          }
-        // This checks for a trailing comma with no data after it.
-        pos = line.size();
-        data.emplace_back(pos);
-      }
+      std::size_t
+      size() const;
+
+      void
+      read_next_row(std::istream &str);
 
     private:
       std::string      line;
@@ -65,11 +45,7 @@ namespace Sintering
     };
 
     std::istream &
-    operator>>(std::istream &str, CSVRow &data)
-    {
-      data.read_next_row(str);
-      return str;
-    }
+    operator>>(std::istream &str, CSVRow &data);
 
     class CSVIterator
     {
@@ -80,57 +56,29 @@ namespace Sintering
       using pointer           = CSVRow *;
       using reference         = CSVRow &;
 
-      CSVIterator(std::istream &str)
-        : str(str.good() ? &str : NULL)
-      {
-        ++(*this);
-      }
-      CSVIterator()
-        : str(NULL)
-      {}
+      CSVIterator(std::istream &str);
+
+      CSVIterator();
 
       // Pre Increment
       CSVIterator &
-      operator++()
-      {
-        if (str)
-          {
-            if (!((*str) >> row))
-              {
-                str = NULL;
-              }
-          }
-        return *this;
-      }
+      operator++();
+
       // Post increment
       CSVIterator
-      operator++(int)
-      {
-        CSVIterator tmp(*this);
-        ++(*this);
-        return tmp;
-      }
+      operator++(int);
+
       const CSVRow &
-      operator*() const
-      {
-        return row;
-      }
+      operator*() const;
+
       const CSVRow *
-      operator->() const
-      {
-        return &row;
-      }
+      operator->() const;
 
       bool
-      operator==(const CSVIterator &rhs)
-      {
-        return ((this == &rhs) || ((this->str == NULL) && (rhs.str == NULL)));
-      }
+      operator==(const CSVIterator &rhs);
+
       bool
-      operator!=(const CSVIterator &rhs)
-      {
-        return !((*this) == rhs);
-      }
+      operator!=(const CSVIterator &rhs);
 
     private:
       std::istream *str;
