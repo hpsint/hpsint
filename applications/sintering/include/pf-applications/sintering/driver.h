@@ -82,6 +82,7 @@
 #include <pf-applications/sintering/output.h>
 #include <pf-applications/sintering/parameters.h>
 #include <pf-applications/sintering/postprocessors.h>
+#include <pf-applications/sintering/postprocessors_stats.h>
 #include <pf-applications/sintering/preconditioners.h>
 #include <pf-applications/sintering/projection.h>
 #include <pf-applications/sintering/residual_wrapper.h>

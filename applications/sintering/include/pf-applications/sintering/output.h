@@ -17,6 +17,7 @@
 
 #include <pf-applications/sintering/parameters.h>
 #include <pf-applications/sintering/postprocessors.h>
+#include <pf-applications/sintering/postprocessors_stats.h>
 #include <pf-applications/sintering/projection.h>
 
 #include <pf-applications/grid/bounding_box_filter.h>
