@@ -18,6 +18,8 @@
 #include <deal.II/base/tensor.h>
 #include <deal.II/base/utilities.h>
 
+#include <pf-applications/base/tensor.h>
+
 #include <array>
 #include <numeric>
 #include <vector>
@@ -61,7 +63,7 @@ namespace hpsint
       T initial = 0.0;
 
       return std::accumulate(
-        etas.begin_raw(), etas.end_raw(), initial, [](auto a, auto b) {
+        hpsint::cbegin(etas), hpsint::cend(etas), initial, [](auto a, auto b) {
           return std::move(a) + Utilities::fixed_power<p>(b);
         });
     }
