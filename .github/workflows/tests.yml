@@ -39,7 +39,8 @@ jobs:
           mkdir build
           cd build
           cmake \
-            -D CMAKE_CXX_FLAGS="-Wno-error" \
+            -D CMAKE_CXX_FLAGS="-fuse-ld=bfd -Wno-error" \
+            -D REMOVE_MOLD=ON \
             -D CMAKE_BUILD_TYPE=${{ matrix.build_type }} \
             .. 
           make -j${{ env.COMPILE_JOBS }}
