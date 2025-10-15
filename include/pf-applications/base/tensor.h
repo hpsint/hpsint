@@ -1,6 +1,6 @@
 // ---------------------------------------------------------------------
 //
-// Copyright (C) 2023 by the hpsint authors
+// Copyright (C) 2023 - 2025 by the hpsint authors
 //
 // This file is part of the hpsint library.
 //
@@ -15,6 +15,7 @@
 
 #pragma once
 
+#include <deal.II/base/array_view.h>
 #include <deal.II/base/tensor.h>
 #include <deal.II/base/vectorization.h>
 
