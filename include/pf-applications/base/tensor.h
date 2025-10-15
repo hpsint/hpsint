@@ -1,6 +1,6 @@
 // ---------------------------------------------------------------------
 //
-// Copyright (C) 2023 by the hpsint authors
+// Copyright (C) 2023 - 2025 by the hpsint authors
 //
 // This file is part of the hpsint library.
 //
@@ -15,8 +15,11 @@
 
 #pragma once
 
+#include <deal.II/base/array_view.h>
 #include <deal.II/base/tensor.h>
 #include <deal.II/base/vectorization.h>
+
+#include <type_traits>
 
 namespace hpsint
 {
@@ -182,6 +185,41 @@ namespace hpsint
     return tensor;
   }
 
+  template <typename T>
+  concept TensorRank1 = requires {
+    typename std::remove_cvref_t<T>;
+  } && []<int dim, typename Number>(Tensor<1, dim, Number> *) {
+    return std::derived_from<std::remove_cvref_t<T>, Tensor<1, dim, Number>>;
+  }((std::remove_cvref_t<T> *)nullptr);
+
+  template <TensorRank1 T>
+  auto
+  begin(T &&t)
+  {
+    return &t[0];
+  }
+
+  template <TensorRank1 T>
+  auto
+  end(T &&t)
+  {
+    return &t[0] + std::remove_reference_t<T>::dimension;
+  }
+
+  template <class C>
+  constexpr auto
+  cbegin(const C &c) noexcept(noexcept(begin(c)))
+  {
+    return begin(c);
+  }
+
+  template <class C>
+  constexpr auto
+  cend(const C &c) noexcept(noexcept(end(c)))
+  {
+    return end(c);
+  }
+
   template <int dim, typename Number>
   DEAL_II_ALWAYS_INLINE inline std::array<Point<dim, Number>, dim>
   tensor_to_point_array(const Tensor<2, dim, Number> &tens)
@@ -189,7 +227,7 @@ namespace hpsint
     std::array<Point<dim, Number>, dim> arr;
 
     for (unsigned int d = 0; d < dim; ++d)
-      tens[d].unroll(arr[d].begin_raw(), arr[d].end_raw());
+      tens[d].unroll(begin(arr[d]), end(arr[d]));
 
     return arr;
   }

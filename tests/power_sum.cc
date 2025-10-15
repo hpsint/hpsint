@@ -50,7 +50,7 @@ main()
   const Tensor<1, n_grains, double> ten(
     ArrayView<double>(arr.data(), n_grains));
   std::cout << "Tensor = ";
-  dump(ten.begin_raw(), ten.end_raw());
+  dump(hpsint::cbegin(ten), hpsint::cend(ten));
   std::cout << "p=1: " << PowerHelper<n_grains, 1>::power_sum(ten) << std::endl;
   std::cout << "p=2: " << PowerHelper<n_grains, 2>::power_sum(ten) << std::endl;
   std::cout << "p=3: " << PowerHelper<n_grains, 3>::power_sum(ten) << std::endl;
@@ -85,7 +85,7 @@ main()
 
   const Tensor<1, 2, double> ten_small(ArrayView<double>(arr_small.data(), 2));
   std::cout << "Tensor = ";
-  dump(ten_small.begin_raw(), ten_small.end_raw());
+  dump(hpsint::cbegin(ten_small), hpsint::cend(ten_small));
   std::cout << "p=2: " << PowerHelper<2, 2>::power_sum(ten_small) << std::endl;
   std::cout << "p=3: " << PowerHelper<2, 3>::power_sum(ten_small) << std::endl;
 
