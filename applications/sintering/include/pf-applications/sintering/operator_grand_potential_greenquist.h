@@ -738,7 +738,7 @@ namespace Sintering
                   VectorizedArrayType etaijSum = 0.0;
                   for (unsigned int i = 0; i < n_grains; ++i)
                     for (unsigned int j = 0; j < i; ++j)
-                      etaijSum += etas[i + 2] * etas[j + 2];
+                      etaijSum += etas[i] * etas[j];
 
                   temp[counter++] = etaijSum;
                 }
