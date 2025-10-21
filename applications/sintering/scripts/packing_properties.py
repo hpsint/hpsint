@@ -13,9 +13,6 @@ from contacts import ends_gap
 def to_degs(rads):
     return rads * 180. / np.pi
 
-def to_dia_mkm(val):
-    return val * 2 * 1e6
-
 def cap_volume(r, b):
 
     inside_sqrt = r*r - b*b
@@ -135,10 +132,15 @@ def distribute_in_segments(particles, lims, divs, direction):
 parser = ArgumentParser(description='Evaluate packing properties')
 parser.add_argument("-f", "--file", dest="filename", required=True, help="Filename with extension")
 parser.add_argument("-d", "--divisions", dest="divisions", required=False,  help="Number of divisions", default=10, type=int)
+parser.add_argument("-b", "--bins", dest="bins", required=False,  help="Number of bins", default=18, type=int)
 parser.add_argument("-s", "--save", dest="save", required=False,  help="Save plots", action='store_true', default=False)
 parser.add_argument("-k", "--skip-plot", action='store_true', help="Skip plots", required=False, default=False)
+parser.add_argument("-c", "--factor", dest="factor", required=False,  help="Unit factor", default=1e6, type=float)
 
 args = parser.parse_args()
+
+def to_dia_factor(val):
+    return val * 2 * args.factor
 
 # Read nodes data first
 pdata = np.genfromtxt(args.filename, dtype=None, delimiter=',', names=True)
@@ -278,21 +280,20 @@ print("z dim:                       {} .. {}".format(z_min, z_max))
 mu, std = norm.fit(radii)
 
 # Plot the histogram.
-n_bins = 18
-counts, bins = np.histogram(radii, bins=n_bins)
-bins = to_dia_mkm(bins)
+counts, bins = np.histogram(radii, bins=args.bins)
+bins = to_dia_factor(bins)
 
 if args.save:
     counts_save = np.append(counts, 0)
     counts_save = counts_save/n_particles*100
     np.savetxt(fname_without_ext + "_size_distribution_hist.csv", np.column_stack((bins, counts_save)))
 
-#ax1.hist(radii, bins=n_bins, weights=counts, density=True, alpha=0.6, color='g')
+#ax1.hist(radii, bins=args.bins, weights=counts, density=True, alpha=0.6, color='g')
 ax1.hist(bins[:-1], bins, weights=counts, density=True, alpha=0.6, color='g')
 
 r_arr = np.linspace(r_min, r_max, 100)
-r_arr = to_dia_mkm(r_arr)
-p_arr = norm.pdf(r_arr, to_dia_mkm(mu), to_dia_mkm(std))
+r_arr = to_dia_factor(r_arr)
+p_arr = norm.pdf(r_arr, to_dia_factor(mu), to_dia_factor(std))
 ax1.plot(r_arr, p_arr, 'k', linewidth=2)
 
 #p_arr = p_arr/n_particles*100

@@ -13,12 +13,15 @@ parser.add_argument("-p", "--mask-particles", type=str, required=False, help="Pa
 parser.add_argument("-g", "--mask-grid", type=str, required=False, help="Grid mask regexp", default="my_grid_(.*)")
 parser.add_argument("-w", "--width", type=int, required=False, help="Image width", default=2000)
 parser.add_argument("-t", "--height", type=int, required=False, help="Image height", default=2000)
+parser.add_argument("-x", "--x-rotation", type=int, required=False, help="Rotation about x-axis", default=0)
 parser.add_argument("-y", "--y-rotation", type=int, required=False, help="Rotation about y-axis", default=35)
+parser.add_argument("-z", "--z-rotation", type=int, required=False, help="Rotation about z-axis", default=0)
 parser.add_argument("-r", "--resolution", type=int, required=False, help="Spheres resolution", default=32)
 parser.add_argument("-s", "--scale-factor", type=int, required=False, help="Glyph scale factor", default=2)
 parser.add_argument("-d", "--scale-field", type=str, required=False, help="Glyph scale field", default="radius")
 parser.add_argument("-e", "--edge-width", type=int, required=False, help="Bounding box edge width", default=10)
 parser.add_argument("-a", "--opacity", type=float, required=False, help="Bounding box opacity", default=0.3)
+parser.add_argument("-v", "--advanced", action='store_true', help="Advanced rendering", required=False, default=False)
 
 args = parser.parse_args()
 
@@ -77,6 +80,27 @@ scenes_list = {}
 # Create a render view
 renderView = CreateView('RenderView')
 
+def rotate_camera_around_x(position, focal_point, angle_degrees):
+    """Rotate camera position around the X-axis relative to focal point."""
+    angle_rad = math.radians(angle_degrees)
+    
+    # Translate position to origin-centered coordinates
+    dx = position[0] - focal_point[0]
+    dy = position[1] - focal_point[1]
+    dz = position[2] - focal_point[2]
+
+    # Apply Y-axis rotation
+    new_dy = dy * math.cos(angle_rad) + dz * math.sin(angle_rad)
+    new_dz = -dy * math.sin(angle_rad) + dz * math.cos(angle_rad)
+
+    # Translate back
+    new_position = [
+        position[0],  # X stays the same
+        focal_point[1] + new_dy,
+        focal_point[2] + new_dz
+    ]
+    return new_position
+
 def rotate_camera_around_y(position, focal_point, angle_degrees):
     """Rotate camera position around the Y-axis relative to focal point."""
     angle_rad = math.radians(angle_degrees)
@@ -95,6 +119,27 @@ def rotate_camera_around_y(position, focal_point, angle_degrees):
         focal_point[0] + new_dx,
         position[1],  # Y stays the same
         focal_point[2] + new_dz
+    ]
+    return new_position
+
+def rotate_camera_around_z(position, focal_point, angle_degrees):
+    """Rotate camera position around the Z-axis relative to focal point."""
+    angle_rad = math.radians(angle_degrees)
+    
+    # Translate position to origin-centered coordinates
+    dx = position[0] - focal_point[0]
+    dy = position[1] - focal_point[1]
+    dz = position[2] - focal_point[2]
+
+    # Apply Y-axis rotation
+    new_dx = dx * math.cos(angle_rad) + dy * math.sin(angle_rad)
+    new_dy = -dx * math.sin(angle_rad) + dy * math.cos(angle_rad)
+
+    # Translate back
+    new_position = [
+        focal_point[0] + new_dx,
+        focal_point[1] + new_dy,
+        position[2],  # Z stays the same
     ]
     return new_position
 
@@ -175,11 +220,27 @@ renderView.ResetCamera()
 # Optional: tighten zoom (lower view angle = more zoomed out)
 renderView.CameraViewAngle = 30  # default is ~30–45
 
-# Rotate around Y axis by the given degrees, for example
+# Rotate around Y axis by the given degrees
+rotated_position = rotate_camera_around_x(
+    renderView.CameraPosition,
+    renderView.CameraFocalPoint,
+    args.x_rotation
+)
+renderView.CameraPosition = rotated_position
+
+# Rotate around Y axis by the given degrees
 rotated_position = rotate_camera_around_y(
     renderView.CameraPosition,
     renderView.CameraFocalPoint,
     args.y_rotation
+)
+renderView.CameraPosition = rotated_position
+
+# Rotate around Z axis by the given degrees
+rotated_position = rotate_camera_around_z(
+    renderView.CameraPosition,
+    renderView.CameraFocalPoint,
+    args.z_rotation
 )
 renderView.CameraPosition = rotated_position
 
@@ -190,10 +251,11 @@ camera_view_up = renderView.CameraViewUp
 
 # Enable ray tracing and ambient occlusion
 renderView.BackEnd = 'OSPRay raycaster'
-renderView.EnableRayTracing = 1
-renderView.Shadows = 0  # Optional: turn off shadows if not needed
-renderView.UseAmbientOcclusion = 1
-#renderView.AmbientSamples = 10  # Typical range: 5–20
+if args.advanced:
+    renderView.EnableRayTracing = 1
+    renderView.Shadows = 0  # Optional: turn off shadows if not needed
+    renderView.UseAmbientOcclusion = 1
+    #renderView.AmbientSamples = 10  # Typical range: 5–20
 
 # Enable tone mapping
 renderView.UseToneMapping = 1

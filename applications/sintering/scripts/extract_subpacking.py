@@ -53,7 +53,7 @@ if __name__ == '__main__':
     parser.add_argument("-y", "--limits-y", dest='limits_y', nargs=2, required=False, help="Limits in y-direction", type=float)
     parser.add_argument("-z", "--limits-z", dest='limits_z', nargs=2, required=False, help="Limits in z-direction", type=float)
     parser.add_argument("-u", "--suffix", dest='suffix', required=False, help="Suffix to append to the save file", default="particles.cloud", type=str)
-    parser.add_argument("-p", "--path", dest='suffix', required=False, help="Save path", default=None, type=str)
+    parser.add_argument("-p", "--path", dest='path', required=False, help="Save path", default=None, type=str)
 
     args = parser.parse_args()
 
