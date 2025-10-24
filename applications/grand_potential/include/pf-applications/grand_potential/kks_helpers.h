@@ -186,6 +186,33 @@ namespace KKS
     return res;
   }
 
+  template <long unsigned int n_phi,
+            typename Number,
+            typename VectorizedArrayType>
+  VectorizedArrayType
+  Zwpq(const PropMatrix<Number>                     &Z,
+       const std::array<VectorizedArrayType, n_phi> &phi,
+       const unsigned int                            j,
+       const unsigned int                            k)
+  {
+    VectorizedArrayType res(0.);
+
+    if (j == k)
+      {
+        for (unsigned int i = 0; i < n_phi; ++i)
+          if (i != j)
+            res += Z(j, i) * std::pow(phi[i], 2.);
+
+        res *= 2.;
+      }
+    else
+      {
+        res = 4. * Z(j, k) * phi[j] * phi[k];
+      }
+
+    return res;
+  }
+
   template <long unsigned int n_phi, typename VectorizedArrayType>
   VectorizedArrayType
   w(const std::array<VectorizedArrayType, n_phi> &phi)
@@ -210,6 +237,30 @@ namespace KKS
         res += std::pow(phi[i], 2.);
 
     res *= 2. * phi[j];
+
+    return res;
+  }
+
+  template <long unsigned int n_phi, typename VectorizedArrayType>
+  VectorizedArrayType
+  wpq(const std::array<VectorizedArrayType, n_phi> &phi,
+      const unsigned int                            j,
+      const unsigned int                            k)
+  {
+    VectorizedArrayType res(0.);
+
+    if (j == k)
+      {
+        for (unsigned int i = 0; i < n_phi; ++i)
+          if (i != j)
+            res += std::pow(phi[i], 2.);
+
+        res *= 2.;
+      }
+    else
+      {
+        res = 4. * phi[j] * phi[k];
+      }
 
     return res;
   }
