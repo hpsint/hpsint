@@ -179,7 +179,7 @@ namespace KKS
 
     for (unsigned int i = 0; i < n_phi; ++i)
       if (i != j)
-        res += Z(i, j) * std::pow(phi[i], 2.);
+        res += Z(j, i) * std::pow(phi[i], 2.);
 
     res *= 2. * phi[j];
 
@@ -305,10 +305,13 @@ namespace KKS
 
     const VectorizedArrayType zeroes(0.0), ones(1.0), w_threshold(threshold);
     const auto w_fix_val = compare_and_apply_mask<SIMDComparison::less_than>(
-      std::abs(w_val), w_threshold, ones, w_val);
-    auto w_div_val = compare_and_apply_mask<SIMDComparison::less_than>(
-      std::abs(w_val), w_threshold, ones, std::abs(w_val) + div_eps);
-    w_div_val = 1. / (w_div_val * w_div_val);
+      w_val, w_threshold, w_val, w_val + div_eps);
+
+    const auto w_div_val = compare_and_apply_mask<SIMDComparison::less_than>(
+      w_val, w_threshold, ones, w_val + div_eps);
+
+    const auto w_div_val_1 = 1. / w_div_val;
+    const auto w_div_val_2 = 1. / (w_div_val * w_div_val);
 
     const auto q_val = 0.5 * w_fix_val + 1. / 12. +
                        std::accumulate(phi.begin(),
@@ -333,13 +336,18 @@ namespace KKS
     VectorizedArrayType res_val(0.0);
 
     // Term 1 - verified
-    const auto Ap_val = (Awp_val * w_fix_val - Aw_val * wp_val) * w_div_val;
+    const auto Ap_val = (Awp_val * w_fix_val - Aw_val * wp_val) * w_div_val_2;
     res_val += 0.5 * Ap_val * phi_grad_sq_sum;
 
     // Terms 2 and 3 - verified
+    /* This is also a working version
     res_val += ((Bwp_val * w_fix_val - Bw_val * wp_val) * q_val +
                 (Bw_val / w_fix_val) * qp_val * std::pow(w_fix_val, 2.)) *
-               w_div_val;
+               w_div_val_2;
+    */
+
+    res_val += (Bwp_val * w_fix_val - Bw_val * wp_val) * w_div_val_2 * q_val +
+               Bw_val * w_div_val_1 * qp_val;
 
     // Term 4 - seems verified
     if constexpr (do_couple_phi_c)
@@ -370,7 +378,7 @@ namespace KKS
       }
 
     // Divergence term - verified
-    const auto A_val = Aw_val / w_fix_val;
+    const auto A_val = Aw_val * w_div_val_1;
 
     Tensor<1, dim, VectorizedArrayType> res_grad = A_val * phi_grad[j];
 
@@ -383,19 +391,18 @@ namespace KKS
   VectorizedArrayType
   calcA(const PropMatrix<Number>                     &A,
         const std::array<VectorizedArrayType, n_phi> &phi,
-        const Number                                  div_eps = 1e-10)
+        const Number                                  div_eps   = 1e-18,
+        const Number                                  threshold = 1e-18)
   {
     const auto w_val  = w(phi);
     const auto Aw_val = Zw(A, phi);
 
-    const VectorizedArrayType ones(1.0), threshold(1e-18);
-    const auto w_fix_val = compare_and_apply_mask<SIMDComparison::less_than>(
-      w_val, threshold, ones, w_val);
-    auto w_div_val = compare_and_apply_mask<SIMDComparison::less_than>(
-      w_val, threshold, ones, w_val + div_eps);
-    w_div_val = 1. / (w_div_val * w_div_val);
+    const VectorizedArrayType ones(1.0), w_threshold(threshold);
+    const auto w_div_val = compare_and_apply_mask<SIMDComparison::less_than>(
+      w_val, w_threshold, ones, w_val + div_eps);
+    const auto w_div_val_1 = 1. / w_div_val;
 
-    const auto A_val = Aw_val / w_fix_val;
+    const auto A_val = Aw_val * w_div_val_1;
 
     return A_val;
   }
