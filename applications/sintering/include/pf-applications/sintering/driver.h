@@ -1064,6 +1064,11 @@ namespace Sintering
 
 
 
+      // Save also gradients if advection is enabled or requested by the free
+      // energy
+      const bool save_op_gradients =
+        FreeEnergyTpl<VectorizedArrayType>::save_gradients ||
+        params.advection_data.enable;
       // Save all blocks at quadrature points if the advection mechanism is
       // enabled
       const bool save_all_blocks = params.advection_data.enable;
@@ -1203,11 +1208,10 @@ namespace Sintering
 
       // Lambda to set up linearization point, not const as I move it later
       auto nl_setup_linearization_point = [&](const VectorType &current_u) {
-        sintering_data.fill_quadrature_point_values(
-          matrix_free,
-          current_u,
-          params.advection_data.enable,
-          save_all_blocks);
+        sintering_data.fill_quadrature_point_values(matrix_free,
+                                                    current_u,
+                                                    save_op_gradients,
+                                                    save_all_blocks);
       };
 
       // Lambda to update preconditioner, not const as I move it later
@@ -1251,7 +1255,7 @@ namespace Sintering
                 mg_sintering_data[l].fill_quadrature_point_values(
                   mg_matrix_free[l],
                   mg_current_u[l],
-                  params.advection_data.enable,
+                  save_op_gradients,
                   save_all_blocks);
               }
           }
@@ -1988,7 +1992,7 @@ namespace Sintering
                     sintering_data.fill_quadrature_point_values(
                       matrix_free,
                       solution,
-                      params.advection_data.enable,
+                      save_op_gradients,
                       save_all_blocks);
 
                     VectorType dst, src;
