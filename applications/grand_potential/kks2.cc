@@ -1094,6 +1094,8 @@ public:
 
       std::string output = label + "." + std::to_string(step) + ".vtu";
       data_out.write_vtu_in_parallel(output, MPI_COMM_WORLD);
+
+      vec.zero_out_ghost_values();
     };
 
     FEEvaluation<dim,
@@ -1564,8 +1566,8 @@ public:
                             is_bulk_eval * ok_eval[i] * ok_eval[j];
 
                           const auto prefac_inner_right =
-                            (ones - is_bulk) * prefacs[i][j] +
-                            is_bulk * ok_eval[i] * ok_eval[j];
+                            (ones - is_bulk_eval) * prefacs[i][j] +
+                            is_bulk_eval * ok_eval[i] * ok_eval[j];
 
                           value_result[i] +=
                             -L(i, j) *
@@ -1718,7 +1720,14 @@ public:
       static unsigned int local_step_counter = 0;
 
       if constexpr (print_debug)
-        output_result(rhs, t, local_step_counter, "rhs");
+        {
+          output_result(rhs, t, local_step_counter, "rhs");
+
+          pcout << "rhs.l2_norm() = " << rhs.l2_norm() << ": ";
+          for (unsigned int c = 0; c < n_comp; ++c)
+            pcout << rhs.block(c).l2_norm() << " ";
+          pcout << std::endl;
+        }
 
       {
         ReductionControl     reduction_control;
@@ -1846,6 +1855,9 @@ main(int argc, char **argv)
 
   // Use CG
   Test<2, 1, false> runner;
+
+  // True DG
+  // Test<2, 1, true, 2> runner;
 
   ConditionalOStream pcout(std::cout,
                            Utilities::MPI::this_mpi_process(MPI_COMM_WORLD) ==
