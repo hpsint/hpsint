@@ -1428,9 +1428,12 @@ public:
                 // is_bulk = ones;
 
 
-                const auto &nzs_eval     = nzs_cell;
-                const auto &ok_eval      = ok_cell;
-                const auto &is_bulk_eval = is_bulk_cell;
+                // const auto &nzs_eval     = nzs_cell;
+                // const auto &ok_eval      = ok_cell;
+                // const auto &is_bulk_eval = is_bulk_cell;
+                const auto &nzs_eval     = nzs;
+                const auto &ok_eval      = ok;
+                const auto &is_bulk_eval = is_bulk;
 
                 const auto   invnzs = 1. / nzs_eval;
                 const Number ifac   = 1. / (n_phi - 1.);
@@ -1457,10 +1460,10 @@ public:
                 // unsigned int upper_tri_offset = 0;
 
                 // TEST - use averaged phi values
-                // auto phi_eval      = phi;
-                // auto phi_grad_eval = phi_grad;
-                auto &phi_eval      = phi_avg;
-                auto &phi_grad_eval = phi_grad_avg;
+                auto phi_eval      = phi;
+                auto phi_grad_eval = phi_grad;
+                // auto &phi_eval      = phi_avg;
+                // auto &phi_grad_eval = phi_grad_avg;
 
                 // Sanitize phi values - test feautre, seems to have a positive
                 // effect is the grad P_ab is ignored for FEM
