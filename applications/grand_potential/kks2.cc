@@ -643,6 +643,7 @@ public:
     constexpr bool use_gl_rules = false;
     constexpr bool sanitize_phi = true;
     constexpr bool enable_gradp = false;
+    constexpr bool average_vals = false;
 
     // Simulation cases
 
@@ -1428,13 +1429,34 @@ public:
                 // DEBUG
                 // is_bulk = ones;
 
+                // Override cell averaged values for the FDM-like case
+                if constexpr (is_dg && n_points_1D == 1)
+                  {
+                    nzs_cell     = nzs;
+                    ok_cell      = ok;
+                    is_bulk_cell = is_bulk;
+                  }
 
-                // const auto &nzs_eval     = nzs_cell;
-                // const auto &ok_eval      = ok_cell;
-                // const auto &is_bulk_eval = is_bulk_cell;
-                const auto &nzs_eval     = nzs;
-                const auto &ok_eval      = ok;
-                const auto &is_bulk_eval = is_bulk;
+                const decltype(nzs)     *ptr_nzs;
+                const decltype(ok)      *ptr_ok;
+                const decltype(is_bulk) *ptr_is_bulk;
+
+                if constexpr (average_vals)
+                  {
+                    ptr_nzs     = &nzs_cell;
+                    ptr_ok      = &ok_cell;
+                    ptr_is_bulk = &is_bulk_cell;
+                  }
+                else
+                  {
+                    ptr_nzs     = &nzs;
+                    ptr_ok      = &ok;
+                    ptr_is_bulk = &is_bulk;
+                  }
+
+                const auto &nzs_eval     = *ptr_nzs;
+                const auto &ok_eval      = *ptr_ok;
+                const auto &is_bulk_eval = *ptr_is_bulk;
 
                 const auto   invnzs = 1. / nzs_eval;
                 const Number ifac   = 1. / (n_phi - 1.);
@@ -1461,10 +1483,22 @@ public:
                 // unsigned int upper_tri_offset = 0;
 
                 // TEST - use averaged phi values
-                auto phi_eval      = phi;
-                auto phi_grad_eval = phi_grad;
-                // auto &phi_eval      = phi_avg;
-                // auto &phi_grad_eval = phi_grad_avg;
+                decltype(phi_avg)      *ptr_phi;
+                decltype(phi_grad_avg) *ptr_phi_grad;
+
+                if constexpr (average_vals)
+                  {
+                    ptr_phi      = &phi_avg;
+                    ptr_phi_grad = &phi_grad_avg;
+                  }
+                else
+                  {
+                    ptr_phi      = &phi;
+                    ptr_phi_grad = &phi_grad;
+                  }
+
+                auto &phi_eval      = *ptr_phi;
+                auto &phi_grad_eval = *ptr_phi_grad;
 
                 // Sanitize phi values - test feautre, seems to have a positive
                 // effect is the grad P_ab is ignored for FEM
