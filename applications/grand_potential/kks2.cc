@@ -642,6 +642,7 @@ public:
     constexpr bool print_debug  = false;
     constexpr bool use_gl_rules = false;
     constexpr bool sanitize_phi = true;
+    constexpr bool enable_gradp = false;
 
     // Simulation cases
 
@@ -1588,18 +1589,21 @@ public:
                           else
                             {
                               // Additional term since P_ab is nonlinear
-                              const auto prefac_inner_left_grad =
-                                (ones - is_bulk_eval) * ifac *
-                                prefacs_grad[i][i];
+                              if constexpr (enable_gradp)
+                                {
+                                  const auto prefac_inner_left_grad =
+                                    (ones - is_bulk_eval) * ifac *
+                                    prefacs_grad[i][i];
 
-                              const auto prefac_inner_right_grad =
-                                (ones - is_bulk_eval) * prefacs_grad[i][j];
+                                  const auto prefac_inner_right_grad =
+                                    (ones - is_bulk_eval) * prefacs_grad[i][j];
 
-                              value_result[i] +=
-                                -L(i, j) *
-                                (prefac_inner_left_grad * dFdphi_arr[i].second -
-                                 prefac_inner_right_grad *
-                                   dFdphi_arr[j].second);
+                                  value_result[i] +=
+                                    -L(i, j) * (prefac_inner_left_grad *
+                                                  dFdphi_arr[i].second -
+                                                prefac_inner_right_grad *
+                                                  dFdphi_arr[j].second);
+                                }
 
                               gradient_result[i] +=
                                 -L(i, j) *
