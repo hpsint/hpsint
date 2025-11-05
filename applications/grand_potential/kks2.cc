@@ -1425,6 +1425,9 @@ public:
                         phi_grad[i].norm(), zero_threshold, ones, ok[i]);
 
                     nzs += ok[i];
+
+                    // DEBUG - test2
+                    // ok[i] = ones;
                   }
                 // DEBUG
                 // is_bulk = ones;
@@ -1479,8 +1482,6 @@ public:
 
                 auto prefacs_grad = create_array<n_phi>(
                   create_array<n_phi>(Tensor<1, dim, VectorizedArrayType>()));
-
-                // unsigned int upper_tri_offset = 0;
 
                 // TEST - use averaged phi values
                 decltype(phi_avg)      *ptr_phi;
@@ -1583,13 +1584,7 @@ public:
                         prefacs_grad[j][i] = pre_grad_ij;
                       }
                   }
-                /*
-                                  const auto prefac_outer =
-                                    compare_and_apply_mask<SIMDComparison::greater_than>(
-                                      is_bulk, zeroes, invnzs, ones);
-                */
 
-                // upper_tri_offset = 0;
                 for (unsigned int i = 0; i < n_phi; ++i)
                   {
                     const auto prefac_outer =
@@ -1653,8 +1648,6 @@ public:
 
                     value_result[i] *= prefac_outer;
                     gradient_result[i] *= prefac_outer;
-
-                    // upper_tri_offset += n_phi - i - 1;
                   }
 
                 if constexpr (do_couple_phi_c)
