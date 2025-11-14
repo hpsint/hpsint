@@ -191,6 +191,7 @@ namespace Sintering
   public:
     static const unsigned int op_components_offset  = 0;
     static const bool         concentration_as_void = false;
+    static const bool         save_gradients        = false;
 
     GrainGrowthFreeEnergy(double A, double B)
       : A(A)

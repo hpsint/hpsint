@@ -216,10 +216,12 @@ namespace Test
 
       grain_tracker->initial_setup(solution, sintering_data.n_grains());
 
-      const bool save_all_blocks = true;
+      const bool save_op_gradients = enable_rbm || FreeEnergy::save_gradients;
+      const bool save_all_blocks   = true;
+
       sintering_data.fill_quadrature_point_values(matrix_free,
                                                   solution,
-                                                  enable_rbm,
+                                                  save_op_gradients,
                                                   save_all_blocks);
     }
 
