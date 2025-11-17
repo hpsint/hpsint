@@ -531,6 +531,7 @@ namespace Sintering
   public:
     static const unsigned int op_components_offset  = 2;
     static const bool         concentration_as_void = true;
+    static const bool         save_gradients        = false;
 
     GreenquistFreeEnergy(double A, double B)
     {
