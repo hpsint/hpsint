@@ -356,22 +356,24 @@ namespace TimeIntegration
           Teuchos::RCP<Teuchos::ParameterList> non_linear_parameters =
             Teuchos::rcp(new Teuchos::ParameterList);
 
-          non_linear_parameters->set("Nonlinear Solver", "Line Search Based");
+          non_linear_parameters->set(
+            "Nonlinear Solver", nonlinear_params.nox_data.nonlinear_solver);
 
-          auto &printParams = non_linear_parameters->sublist("Printing");
-          printParams.set("Output Information",
-                          nonlinear_params.nox_data.output_information);
+          auto &print_params = non_linear_parameters->sublist("Printing");
+          print_params.set("Output Information",
+                           nonlinear_params.nox_data.output_information);
 
           auto &dir_parameters = non_linear_parameters->sublist("Direction");
           dir_parameters.set("Method",
                              nonlinear_params.nox_data.direction_method);
 
+          auto &newton_params = dir_parameters.sublist("Newton");
+
           /* Disable the recovery feature of NOX such that it behaves similarly
            * to our damped solver in the case of linear solver failure. It has
            * been observed that recovery steps are not efficient for our
            * problem, so no need to waste time on them. */
-          dir_parameters.sublist("Newton").set("Rescue Bad Newton Solve",
-                                               false);
+          newton_params.set("Rescue Bad Newton Solve", false);
 
           auto &search_parameters =
             non_linear_parameters->sublist("Line Search");
