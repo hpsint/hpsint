@@ -1032,6 +1032,12 @@ namespace Sintering
                         nonlinear_data.nox_data.line_search_interpolation_type,
                         "Polynomial line search interpolation type",
                         Patterns::Selection("Quadratic|Quadratic3|Cubic"));
+      prm.add_parameter(
+        "NonlinearSolver",
+        nonlinear_data.nox_data.nonlinear_solver,
+        "Nonlinear solver type",
+        Patterns::Selection(
+          "Newton|Line Search Based|Trust Region Based|Inexact Trust Region Based|Tensor Based"));
       prm.leave_subsection();
 
       prm.enter_subsection("SNESData");

@@ -27,6 +27,7 @@ namespace NonLinearSolvers
     std::string direction_method               = "Newton";
     std::string line_search_method             = "Full Step";
     std::string line_search_interpolation_type = "Cubic";
+    std::string nonlinear_solver               = "Line Search Based";
   };
 
   struct SNESData
