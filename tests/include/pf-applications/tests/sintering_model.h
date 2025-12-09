@@ -1,3 +1,18 @@
+// ---------------------------------------------------------------------
+//
+// Copyright (C) 2024 - 2025 by the hpsint authors
+//
+// This file is part of the hpsint library.
+//
+// The hpsint library is free software; you can use it, redistribute
+// it, and/or modify it under the terms of the GNU Lesser General
+// Public License as published by the Free Software Foundation; either
+// version 3.0 of the License, or (at your option) any later version.
+// The full text of the license can be found in the file LICENSE.MD at
+// the top level directory of hpsint.
+//
+// ---------------------------------------------------------------------
+
 #include <deal.II/distributed/tria.h>
 
 #include <deal.II/dofs/dof_handler.h>
@@ -8,7 +23,7 @@
 #include <deal.II/numerics/vector_tools.h>
 
 #include <pf-applications/sintering/advection.h>
-#include <pf-applications/sintering/initial_values_debug.h>
+#include <pf-applications/sintering/initial_values.h>
 #include <pf-applications/sintering/operator_advection.h>
 #include <pf-applications/sintering/tools.h>
 
@@ -38,7 +53,8 @@ namespace Test
   struct SinteringModel
   {
   public:
-    SinteringModel(const bool enable_rbm)
+    SinteringModel(const bool                          enable_rbm,
+                   std::unique_ptr<InitialValues<dim>> initial_solution)
       : fe_degree(1)
       , tria(MPI_COMM_WORLD)
       , fe(fe_degree)
@@ -52,7 +68,8 @@ namespace Test
           /*kappa_p=*/0.1,
           std::make_shared<ProviderAbstract>(1e-1, 1e-8, 1e1, 1e0, 1e1),
           TimeIntegratorData<Number>(std::make_unique<BDF1Scheme<Number>>(),
-                                     /*dt=*/1e-5))
+                                     /*dt=*/1e-5),
+          FreeEnergy::op_components_offset)
       , solution_history(sintering_data.time_data.get_order() + 1)
       , advection_mechanism(enable_rbm,
                             /*mt=*/1.0,
@@ -84,7 +101,7 @@ namespace Test
       dof_handler.distribute_dofs(fe);
       constraints.close();
 
-      const unsigned int n_sinter_components = 4;
+      const unsigned int n_sinter_components = initial_solution->n_components();
 
       sintering_data.set_n_components(n_sinter_components);
 
@@ -99,15 +116,15 @@ namespace Test
         mapping, dof_handler, constraints, quad, additional_data);
 
       // Grain tracker settings
-      const double       threshold_lower          = 1e-15;
-      const double       threshold_upper          = 1.01;
-      const double       buffer_distance_ratio    = 0.05;
-      const double       buffer_distance_fixed    = 0.0;
-      const bool         allow_new_grains         = false;
-      const bool         greedy_init              = false;
-      const bool         fast_reassignment        = false;
-      const unsigned int op_offset                = 2;
-      const unsigned int max_order_parameters_num = 2;
+      const double       threshold_lower       = 1e-15;
+      const double       threshold_upper       = 1.01;
+      const double       buffer_distance_ratio = 0.05;
+      const double       buffer_distance_fixed = 0.0;
+      const bool         allow_new_grains      = false;
+      const bool         greedy_init           = false;
+      const bool         fast_reassignment     = false;
+      const unsigned int max_order_parameters_num =
+        initial_solution->n_components();
 
       GrainTracker::GrainRepresentation grain_representation =
         GrainTracker::GrainRepresentation::spherical;
@@ -124,10 +141,7 @@ namespace Test
         threshold_upper,
         buffer_distance_ratio,
         buffer_distance_fixed,
-        op_offset);
-
-      // set initial condition
-      InitialValuesDebug<dim> initial_solution;
+        FreeEnergy::op_components_offset);
 
       // External loading - not used at the moment
       auto body_force = [](const Point<dim, VectorizedArrayType> &p) {
@@ -183,13 +197,13 @@ namespace Test
 
       VectorType &solution = solution_history.get_current_solution();
 
-      for (unsigned int c = 0; c < initial_solution.n_components(); ++c)
+      for (unsigned int c = 0; c < initial_solution->n_components(); ++c)
         {
-          initial_solution.set_component(c);
+          initial_solution->set_component(c);
 
           VectorTools::interpolate(mapping,
                                    dof_handler,
-                                   initial_solution,
+                                   *initial_solution,
                                    solution.block(c));
 
           constraints.distribute(solution.block(c));

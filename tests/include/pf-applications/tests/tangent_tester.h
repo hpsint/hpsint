@@ -1,6 +1,6 @@
 // ---------------------------------------------------------------------
 //
-// Copyright (C) 2024 by the hpsint authors
+// Copyright (C) 2024 - 2025 by the hpsint authors
 //
 // This file is part of the hpsint library.
 //
@@ -16,6 +16,8 @@
 #include <deal.II/base/conditional_ostream.h>
 
 #include <pf-applications/lac/evaluation.h>
+
+#include <pf-applications/sintering/initial_values_debug.h>
 
 #include <pf-applications/tests/sintering_model.h>
 
@@ -33,10 +35,12 @@ namespace Test
             typename NonLinearOperator,
             typename FreeEnergy>
   void
-  check_tangent(const bool        enable_rbm,
-                const std::string prefix,
-                const double      tol_abs = 1e-3,
-                const double      tol_rel = 1e-6)
+  check_tangent(const bool                          enable_rbm,
+                const std::string                   prefix,
+                const double                        tol_abs = 1e-3,
+                const double                        tol_rel = 1e-6,
+                std::unique_ptr<InitialValues<dim>> initial_solution =
+                  std::make_unique<InitialValuesDebug<dim>>())
   {
     using VectorType = LinearAlgebra::distributed::DynamicBlockVector<Number>;
 
@@ -46,7 +50,7 @@ namespace Test
                    VectorizedArrayType,
                    NonLinearOperator,
                    FreeEnergy>
-      sintering_model(enable_rbm);
+      sintering_model(enable_rbm, std::move(initial_solution));
 
     auto &nonlinear_operator = sintering_model.get_nonlinear_operator();
     auto &advection_operator = sintering_model.get_advection_operator();
