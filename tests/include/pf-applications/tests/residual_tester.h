@@ -1,4 +1,21 @@
+// ---------------------------------------------------------------------
+//
+// Copyright (C) 2024 - 2025 by the hpsint authors
+//
+// This file is part of the hpsint library.
+//
+// The hpsint library is free software; you can use it, redistribute
+// it, and/or modify it under the terms of the GNU Lesser General
+// Public License as published by the Free Software Foundation; either
+// version 3.0 of the License, or (at your option) any later version.
+// The full text of the license can be found in the file LICENSE.MD at
+// the top level directory of hpsint.
+//
+// ---------------------------------------------------------------------
+
 #include <deal.II/base/conditional_ostream.h>
+
+#include <pf-applications/sintering/initial_values_debug.h>
 
 #include <pf-applications/tests/sintering_model.h>
 
@@ -15,7 +32,9 @@ namespace Test
             typename NonLinearOperator,
             typename FreeEnergy>
   void
-  calc_residual(const bool enable_rbm)
+  calc_residual(const bool                          enable_rbm,
+                std::unique_ptr<InitialValues<dim>> initial_solution =
+                  std::make_unique<InitialValuesDebug<dim>>())
   {
     using VectorType = LinearAlgebra::distributed::DynamicBlockVector<Number>;
 
@@ -25,7 +44,7 @@ namespace Test
                    VectorizedArrayType,
                    NonLinearOperator,
                    FreeEnergy>
-      sintering_model(enable_rbm);
+      sintering_model(enable_rbm, std::move(initial_solution));
 
     auto &nonlinear_operator = sintering_model.get_nonlinear_operator();
     auto &advection_operator = sintering_model.get_advection_operator();
