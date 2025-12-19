@@ -35,7 +35,7 @@ static_assert(false, "No grains number has been given!");
 // #define WITH_TIMING_OUTPUT
 // #define DISABLE_MPI_IO_SURFACE_OUTPUT
 
-
+#include <pf-applications/base/input.h>
 
 #include <pf-applications/sintering/driver.h>
 #include <pf-applications/sintering/initial_values_circle.h>
@@ -55,59 +55,6 @@ using VectorizedArrayType = VectorizedArray<Number>;
 
 namespace Sintering
 {
-  namespace internal
-  {
-    void
-    parse_params(const int              argc,
-                 char                 **argv,
-                 const unsigned int     offset,
-                 Sintering::Parameters &params,
-                 std::ostream          &out)
-    {
-      ConditionalOStream pcout(
-        out, Utilities::MPI::this_mpi_process(MPI_COMM_WORLD) == 0);
-
-      // Override params directly via command line
-      for (unsigned int i = offset; i < static_cast<unsigned int>(argc); ++i)
-        {
-          const std::string flag = std::string(argv[i]);
-
-          // The first entry can be a file with parameters
-          if (i == offset && flag.substr(0, 2) != "--")
-            {
-              pcout << "Input parameters file:" << std::endl;
-              pcout << std::ifstream(argv[offset]).rdbuf() << std::endl;
-
-              params.parse(std::string(argv[offset]));
-            }
-          // Parse custom options
-          else if (flag.substr(0, 2) == "--")
-            {
-              std::regex  rgx("--([(\\w*).]*)=\"?(.*)\"?");
-              std::smatch matches;
-
-              AssertThrow(std::regex_search(flag, matches, rgx),
-                          ExcMessage("Incorrect parameter string specified: " +
-                                     flag + "\nThe correct format is:\n" +
-                                     "--Path.To.Option=\"value\"\nor\n" +
-                                     "--Path.To.Option=value\n" +
-                                     "if 'value' does not contain spaces"));
-
-              const std::string param_name  = matches[1].str();
-              const std::string param_value = matches[2].str();
-
-              params.set(param_name, param_value);
-            }
-        }
-
-      params.check();
-
-      pcout << "Parameters in JSON format:" << std::endl;
-      params.print_input(out);
-      pcout << std::endl;
-    }
-  } // namespace internal
-
   template <template <int dim, typename Number, typename VectorizedArrayType>
             typename NonLinearOperator,
             template <typename VectorizedArrayType>
@@ -159,7 +106,7 @@ namespace Sintering
         pcout << "Number of grains: " << n_grains << std::endl;
         pcout << std::endl;
 
-        internal::parse_params(argc, argv, 4, params, out);
+        hpsint::parse_params(argc, argv, 4, params, out);
 
         const InterfaceDirection interface_direction(
           to_interface_direction(params.geometry_data.interface_direction));
@@ -217,7 +164,7 @@ namespace Sintering
         pcout << " = " << n_total_grains << std::endl;
         pcout << std::endl;
 
-        internal::parse_params(argc, argv, 3 + SINTERING_DIM, params, out);
+        hpsint::parse_params(argc, argv, 3 + SINTERING_DIM, params, out);
 
         const InterfaceDirection interface_direction(
           to_interface_direction(params.geometry_data.interface_direction));
@@ -268,7 +215,7 @@ namespace Sintering
         pcout << fstream.rdbuf();
         pcout << std::endl;
 
-        internal::parse_params(argc, argv, 3, params, out);
+        hpsint::parse_params(argc, argv, 3, params, out);
 
         const InterfaceDirection interface_direction(
           to_interface_direction(params.geometry_data.interface_direction));
@@ -308,7 +255,7 @@ namespace Sintering
             pcout << "Input file: " << input_file << std::endl;
             pcout << std::endl;
 
-            internal::parse_params(argc, argv, 3, params, out);
+            hpsint::parse_params(argc, argv, 3, params, out);
 
             const InterfaceDirection interface_direction(
               to_interface_direction(params.geometry_data.interface_direction));
@@ -365,7 +312,7 @@ namespace Sintering
         pcout << "Restart path: " << restart_path << std::endl;
         pcout << std::endl;
 
-        internal::parse_params(argc, argv, 3, params, out);
+        hpsint::parse_params(argc, argv, 3, params, out);
 
         SinteringProblem problem(params, restart_path, out, out_statistics);
       }
@@ -374,7 +321,7 @@ namespace Sintering
         // Output case specific info
         pcout << "Mode: debug" << std::endl;
 
-        internal::parse_params(argc, argv, 2, params, out);
+        hpsint::parse_params(argc, argv, 2, params, out);
 
         const auto initial_solution =
           std::make_shared<Sintering::InitialValuesDebug<SINTERING_DIM>>();
