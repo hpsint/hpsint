@@ -1,6 +1,6 @@
 // ---------------------------------------------------------------------
 //
-// Copyright (C) 2023 by the hpsint authors
+// Copyright (C) 2023 - 2025 by the hpsint authors
 //
 // This file is part of the hpsint library.
 //
@@ -31,16 +31,7 @@
 #include <deal.II/fe/fe_system.h>
 #include <deal.II/fe/mapping_q.h>
 
-#include <deal.II/grid/grid_generator.h>
-
-#include <deal.II/lac/diagonal_matrix.h>
-#include <deal.II/lac/la_parallel_block_vector.h>
-#include <deal.II/lac/precondition.h>
-#include <deal.II/lac/solver_cg.h>
 #include <deal.II/lac/solver_control.h>
-#include <deal.II/lac/solver_gmres.h>
-#include <deal.II/lac/trilinos_precondition.h>
-#include <deal.II/lac/trilinos_sparse_matrix.h>
 
 #include <deal.II/matrix_free/fe_evaluation.h>
 #include <deal.II/matrix_free/matrix_free.h>
@@ -64,7 +55,6 @@
 #include <pf-applications/base/solution_serialization.h>
 #include <pf-applications/base/timer.h>
 
-#include <pf-applications/lac/evaluation.h>
 #include <pf-applications/lac/solvers_linear.h>
 #include <pf-applications/lac/solvers_nonlinear.h>
 
