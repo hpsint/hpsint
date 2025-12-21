@@ -989,7 +989,100 @@ namespace Preconditioners
     mutable MyTimerOutput timer;
   };
 
+  template <typename Operator>
+  class IC : public PreconditionerBase<typename Operator::value_type>
+  {
+  public:
+    using VectorType      = typename Operator::VectorType;
+    using BlockVectorType = typename PreconditionerBase<
+      typename Operator::value_type>::BlockVectorType;
 
+    IC(const Operator &op)
+      : op(op)
+    {
+      additional_data.ic_fill = 2;
+      additional_data.ic_atol = 0.0;
+      additional_data.ic_rtol = 1.0;
+      additional_data.overlap = 0;
+    }
+
+    IC(const Operator                                         &op,
+       const TrilinosWrappers::PreconditionIC::AdditionalData &additional_data)
+      : op(op)
+      , additional_data(additional_data)
+    {}
+
+    virtual void
+    clear() override
+    {
+      precondition_ic.clear();
+      src_.reinit(0);
+      dst_.reinit(0);
+    }
+
+    void
+    vmult(VectorType &dst, const VectorType &src) const override
+    {
+      MyScope scope(timer, "ic::vmult");
+
+      precondition_ic.vmult(dst, src);
+    }
+
+    void
+    vmult(BlockVectorType &dst, const BlockVectorType &src) const override
+    {
+      MyScope scope(timer, "ic::vmult");
+
+      if (src_.size() == 0 || dst_.size() == 0)
+        {
+          const auto partitioner = op.get_system_partitioner();
+
+          src_.reinit(partitioner);
+          dst_.reinit(partitioner);
+        }
+
+      VectorTools::merge_components_fast(src, src_); // TODO
+      precondition_ic.vmult(dst_, src_);
+      VectorTools::split_up_components_fast(dst_, dst); // TODO
+    }
+
+    void
+    do_update() override
+    {
+      MyScope scope(timer, "ic::setup");
+      precondition_ic.initialize(op.get_system_matrix(), additional_data);
+    }
+
+    UnderlyingEntity
+    underlying_entity() const override
+    {
+      return UnderlyingEntity::System;
+    }
+
+    virtual std::size_t
+    memory_consumption() const override
+    {
+      std::size_t result = 0;
+
+      // TODO: not implemented in deal.II
+      // result += MyMemoryConsumption::memory_consumption(precondition_ic);
+
+      result += src_.memory_consumption();
+      result += dst_.memory_consumption();
+
+      return result;
+    }
+
+  private:
+    const Operator &op;
+
+    TrilinosWrappers::PreconditionIC::AdditionalData additional_data;
+    TrilinosWrappers::PreconditionIC                 precondition_ic;
+
+    mutable MyTimerOutput timer;
+
+    mutable VectorType src_, dst_;
+  };
 
   template <typename Operator>
   class GMG : public PreconditionerBase<typename Operator::value_type>
@@ -1285,6 +1378,8 @@ namespace Preconditioners
       return std::make_unique<ILU<T>>(op);
     else if (label == "BlockILU")
       return std::make_unique<BlockILU<T>>(op);
+    else if (label == "IC")
+      return std::make_unique<IC<T>>(op);
     else if (label == "Identity")
       return std::make_unique<Identity<T>>();
 

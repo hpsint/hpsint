@@ -17,6 +17,7 @@
 
 #include <deal.II/lac/precondition.h>
 #include <deal.II/lac/solver_bicgstab.h>
+#include <deal.II/lac/solver_cg.h>
 #include <deal.II/lac/solver_control.h>
 #include <deal.II/lac/solver_gmres.h>
 #include <deal.II/lac/solver_idr.h>
@@ -116,6 +117,54 @@ namespace LinearSolvers
   };
 
 
+  template <typename Operator, typename Preconditioner>
+  class SolverCGWrapper : public LinearSolverBase<typename Operator::value_type>
+  {
+  public:
+    using VectorType      = typename Operator::vector_type;
+    using BlockVectorType = typename Operator::BlockVectorType;
+
+    SolverCGWrapper(const Operator       &op,
+                    const Preconditioner &preconditioner,
+                    SolverControl        &solver_control)
+      : op(op)
+      , preconditioner(preconditioner)
+      , solver_control(solver_control)
+    {}
+
+    unsigned int
+    solve(VectorType &dst, const VectorType &src) override
+    {
+      return solve_internal(dst, src);
+    }
+
+    unsigned int
+    solve(BlockVectorType &dst, const BlockVectorType &src) override
+    {
+      return solve_internal(dst, src);
+    }
+
+  private:
+    template <typename T>
+    unsigned int
+    solve_internal(T &dst, const T &src)
+    {
+      MyScope scope(timer, "cg::solve");
+
+      typename SolverCG<T>::AdditionalData additional_data;
+
+      SolverCG<T> solver(solver_control, additional_data);
+      solver.solve(op, dst, src, preconditioner);
+
+      return solver_control.last_step();
+    }
+
+    const Operator       &op;
+    const Preconditioner &preconditioner;
+    SolverControl        &solver_control;
+
+    mutable MyTimerOutput timer;
+  };
 
   template <typename Operator, typename Preconditioner>
   class SolverRelaxation
