@@ -1,6 +1,6 @@
 // ---------------------------------------------------------------------
 //
-// Copyright (C) 2023 by the hpsint authors
+// Copyright (C) 2023 - 2025 by the hpsint authors
 //
 // This file is part of the hpsint library.
 //
@@ -147,6 +147,10 @@ namespace TimeIntegration
     set_recent_old_solution(const VectorType &src) const
     {
       Assert(src.has_ghost_elements() == false, ExcInternalError());
+      Assert(
+        solutions.size() > 1,
+        ExcMessage(
+          "History should have at least 2 solutions to store a recent old solution."));
 
       *solutions[1] = src;
       solutions[1]->update_ghost_values();
@@ -155,6 +159,11 @@ namespace TimeIntegration
     const VectorType &
     get_recent_old_solution() const
     {
+      Assert(
+        solutions.size() > 1,
+        ExcMessage(
+          "History should have at least 2 solutions to get a recent old solution."));
+
       solutions[1]->zero_out_ghost_values();
       return *solutions[1];
     }
@@ -195,6 +204,11 @@ namespace TimeIntegration
     void
     extrapolate(VectorType &dst, const double factor) const
     {
+      Assert(
+        solutions.size() > 1,
+        ExcMessage(
+          "History should have at least 2 solutions to perform extrapolation."));
+
       dst = *solutions[0];
       dst.add(-1.0, *solutions[1]);
       dst.sadd(factor, *solutions[0]);
