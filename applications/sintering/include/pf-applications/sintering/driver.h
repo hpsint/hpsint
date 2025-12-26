@@ -2300,7 +2300,8 @@ namespace Sintering
                   {
                     // If solution has converged within a few iterations, we
                     // can increase the timestep
-                    if (good_iterations)
+                    if (good_iterations &&
+                        params.time_integration_data.growth_factor > 1.0)
                       {
                         dt *= params.time_integration_data.growth_factor;
                         pcout << "\033[32mIncreasing timestep, dt = " << dt
