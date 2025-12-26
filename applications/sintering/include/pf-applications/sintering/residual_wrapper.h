@@ -1,6 +1,6 @@
 // ---------------------------------------------------------------------
 //
-// Copyright (C) 2023 by the hpsint authors
+// Copyright (C) 2023 - 2025 by the hpsint authors
 //
 // This file is part of the hpsint library.
 //
@@ -26,7 +26,9 @@ namespace Sintering
   using namespace dealii;
   using namespace NonLinearSolvers;
 
-  template <typename Number, typename OperatorType>
+  template <typename Number,
+            typename OperatorType,
+            bool with_time_derivative = true>
   class ResidualWrapperGeneric
     : public ResidualWrapperBase<Number, OperatorType>
   {
@@ -54,10 +56,9 @@ namespace Sintering
       const std::function<void(const unsigned int, const unsigned int)>
         post_operation = {}) const override
     {
-      this->template do_evaluate_nonlinear_residual<2>(dst,
-                                                       src,
-                                                       pre_operation,
-                                                       post_operation);
+      this
+        ->template do_evaluate_nonlinear_residual<with_time_derivative ? 2 : 0>(
+          dst, src, pre_operation, post_operation);
     }
 
     void
@@ -69,17 +70,16 @@ namespace Sintering
       const std::function<void(const unsigned int, const unsigned int)>
         post_operation = {}) const override
     {
-      this->template do_evaluate_nonlinear_residual<1>(dst,
-                                                       src,
-                                                       pre_operation,
-                                                       post_operation);
+      this->template do_evaluate_nonlinear_residual<with_time_derivative>(
+        dst, src, pre_operation, post_operation);
     }
   };
 
   template <int dim,
             typename Number,
             typename VectorizedArrayType,
-            typename OperatorType>
+            typename OperatorType,
+            bool with_time_derivative = true>
   class ResidualWrapperAdvection
     : public ResidualWrapperBase<Number, OperatorType>
   {
@@ -112,10 +112,9 @@ namespace Sintering
         post_operation = {}) const override
     {
       advection_operator.evaluate_forces(src, pre_operation, post_operation);
-      this->template do_evaluate_nonlinear_residual<2>(dst,
-                                                       src,
-                                                       pre_operation,
-                                                       post_operation);
+      this
+        ->template do_evaluate_nonlinear_residual<with_time_derivative ? 2 : 0>(
+          dst, src, pre_operation, post_operation);
     }
 
     void
@@ -128,10 +127,8 @@ namespace Sintering
         post_operation = {}) const override
     {
       advection_operator.evaluate_forces(src, pre_operation, post_operation);
-      this->template do_evaluate_nonlinear_residual<1>(dst,
-                                                       src,
-                                                       pre_operation,
-                                                       post_operation);
+      this->template do_evaluate_nonlinear_residual<with_time_derivative>(
+        dst, src, pre_operation, post_operation);
     }
 
   private:
