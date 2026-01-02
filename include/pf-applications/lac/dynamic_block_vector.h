@@ -1,6 +1,6 @@
 // ---------------------------------------------------------------------
 //
-// Copyright (C) 2023 by the hpsint authors
+// Copyright (C) 2023 - 2026 by the hpsint authors
 //
 // This file is part of the hpsint library.
 //
@@ -256,6 +256,34 @@ namespace dealii
               blocks[i] = blocks[i + 1];
 
           blocks[to] = tmp;
+        }
+
+        void
+        insert_block(std::shared_ptr<BlockType> block, const unsigned int to)
+        {
+          AssertIndexRange(to, n_blocks() + 1);
+
+          blocks.resize(n_blocks() + 1);
+
+          for (unsigned int i = n_blocks() - 1; i > to; --i)
+            blocks[i] = blocks[i - 1];
+
+          blocks[to] = block;
+        }
+
+        std::shared_ptr<BlockType>
+        remove_block(const unsigned int from)
+        {
+          AssertIndexRange(from, n_blocks());
+
+          auto block = blocks[from];
+
+          for (unsigned int i = from; i < n_blocks() - 1; ++i)
+            blocks[i] = blocks[i + 1];
+
+          blocks.resize(n_blocks() - 1);
+
+          return block;
         }
 
         /**
