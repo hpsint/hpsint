@@ -357,7 +357,7 @@ namespace Sintering
           // time integration order + 1, however, we skipped the recent old
           // solution since it will get overwritten anyway, so we neither save
           // it not load during restarts.
-          AssertDimension(time_data.get_order(),
+          AssertDimension(std::max(time_data.get_order(), 1U),
                           n_blocks_total / n_blocks_per_vector);
 
           // We reinit time data anyways since the user might have changed the
@@ -948,8 +948,9 @@ namespace Sintering
       // Get the current timestep size
       auto dt = sintering_data.time_data.get_current_dt();
 
+      // We store minimum 2 vectors in the solution history
       TimeIntegration::SolutionHistory<VectorType> solution_history(
-        sintering_data.time_data.get_order() + 1);
+        std::max(sintering_data.time_data.get_order() + 1, 2U));
 
       MGLevelObject<SinteringOperatorData<dim, VectorizedArrayType>>
         mg_sintering_data(0,
@@ -1040,17 +1041,36 @@ namespace Sintering
       // Create residual wrapper depending on whether we have advection or not
       std::unique_ptr<ResidualWrapper<Number>> residual_wrapper;
 
-      if (params.advection_data.enable == false)
-        residual_wrapper =
-          std::make_unique<ResidualWrapperGeneric<Number, NonLinearOperator>>(
-            nonlinear_operator);
+      if (sintering_data.time_data.is_implicit())
+        {
+          if (params.advection_data.enable == false)
+            residual_wrapper = std::make_unique<
+              ResidualWrapperGeneric<Number, NonLinearOperator, true>>(
+              nonlinear_operator);
+          else
+            residual_wrapper =
+              std::make_unique<ResidualWrapperAdvection<dim,
+                                                        Number,
+                                                        VectorizedArrayType,
+                                                        NonLinearOperator,
+                                                        true>>(
+                advection_operator, nonlinear_operator);
+        }
       else
-        residual_wrapper =
-          std::make_unique<ResidualWrapperAdvection<dim,
-                                                    Number,
-                                                    VectorizedArrayType,
-                                                    NonLinearOperator>>(
-            advection_operator, nonlinear_operator);
+        {
+          if (params.advection_data.enable == false)
+            residual_wrapper = std::make_unique<
+              ResidualWrapperGeneric<Number, NonLinearOperator, false>>(
+              nonlinear_operator);
+          else
+            residual_wrapper =
+              std::make_unique<ResidualWrapperAdvection<dim,
+                                                        Number,
+                                                        VectorizedArrayType,
+                                                        NonLinearOperator,
+                                                        false>>(
+                advection_operator, nonlinear_operator);
+        }
 
 
 
@@ -1279,25 +1299,49 @@ namespace Sintering
 
       std::unique_ptr<TimeIntegration::TimeMarching<VectorType>> time_marching;
 
-      // So far a single time marching option here, but later more will be added
-      time_marching = std::make_unique<
-        TimeIntegration::TimeMarchingImplicit<dim,
-                                              VectorType,
-                                              NonLinearOperator,
-                                              ConditionalOStream>>(
-        nonlinear_operator,
-        *preconditioner,
-        *residual_wrapper,
-        dof_handler,
-        constraints,
-        params.nonlinear_data,
-        statistics,
-        timer,
-        pcout,
-        std::move(nl_setup_custom_preconditioner),
-        std::move(nl_setup_linearization_point),
-        std::move(nl_quantities_to_check),
-        params.print_time_loop);
+      if (sintering_data.time_data.is_implicit())
+        {
+          time_marching = std::make_unique<
+            TimeIntegration::TimeMarchingImplicit<dim,
+                                                  VectorType,
+                                                  NonLinearOperator,
+                                                  ConditionalOStream>>(
+            nonlinear_operator,
+            *preconditioner,
+            *residual_wrapper,
+            dof_handler,
+            constraints,
+            params.nonlinear_data,
+            statistics,
+            timer,
+            pcout,
+            std::move(nl_setup_custom_preconditioner),
+            std::move(nl_setup_linearization_point),
+            std::move(nl_quantities_to_check),
+            params.print_time_loop);
+        }
+      else
+        {
+          auto scheme_variant = TimeIntegration::create_time_scheme<Number>(
+            params.time_integration_data.integration_scheme);
+
+          time_marching =
+            std::make_unique<TimeIntegration::TimeMarchingExplicit<
+              dim,
+              VectorType,
+              NonLinearOperator,
+              MassMatrix<dim, Number, VectorizedArrayType>,
+              ConditionalOStream>>(
+              nonlinear_operator,
+              mass_operator,
+              *residual_wrapper,
+              constraints,
+              scheme_variant.template try_take<ExplicitScheme>(),
+              params.nonlinear_data,
+              statistics,
+              timer,
+              pcout);
+        }
 
       // set initial condition
 

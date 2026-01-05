@@ -16,6 +16,7 @@
 #pragma once
 
 #include <pf-applications/lac/evaluation.h>
+#include <pf-applications/lac/preconditioners.h>
 #include <pf-applications/lac/solvers_linear.h>
 #include <pf-applications/lac/solvers_linear_parameters.h>
 #include <pf-applications/lac/solvers_nonlinear.h>
@@ -518,6 +519,230 @@ namespace TimeIntegration
     std::unique_ptr<JacobianBase<Number>> jacobian_operator;
 
     std::unique_ptr<NewtonSolver<VectorType>> non_linear_solver_executor;
+  };
+
+  template <int dim,
+            typename VectorType,
+            typename NonLinearOperator,
+            typename MassOperator,
+            typename StreamType>
+  class TimeMarchingExplicit : public TimeMarching<VectorType>
+  {
+  public:
+    using Number = typename NonLinearOperator::value_type;
+
+    TimeMarchingExplicit(const NonLinearOperator         &nonlinear_operator,
+                         MassOperator                    &mass_operator,
+                         const ResidualWrapper<Number>   &residual_wrapper,
+                         const AffineConstraints<Number> &constraints,
+                         std::unique_ptr<ExplicitScheme>  integration_scheme,
+                         const NonLinearData             &nonlinear_params,
+                         NewtonSolverSolverControl       &statistics,
+                         MyTimerOutput                   &timer,
+                         StreamType                      &stream)
+      : nonlinear_operator(nonlinear_operator)
+      , mass_operator(mass_operator)
+      , residual_wrapper(residual_wrapper)
+      , constraints(constraints)
+      , integration_scheme(std::move(integration_scheme))
+      , statistics(statistics)
+      , timer(timer)
+      , stream(stream)
+    {
+      // Check that operator knows what kind of equations it contains
+      // Check if there are any stationary equations in the operator
+      for (unsigned int c = 0; c < nonlinear_operator.n_components(); ++c)
+        {
+          AssertThrow(nonlinear_operator.equation_type(c) !=
+                        EquationType::Undefined,
+                      ExcMessage("Equation type is not set for component " +
+                                 std::to_string(c)));
+
+          has_stationary_equations =
+            has_stationary_equations ||
+            nonlinear_operator.equation_type(c) == EquationType::Stationary;
+        }
+
+      solver_control_l =
+        std::make_unique<ReductionControl>(nonlinear_params.l_max_iter,
+                                           nonlinear_params.l_abs_tol,
+                                           nonlinear_params.l_rel_tol);
+
+      // Identity, InverseDiagonalMatrix, IC
+      preconditioner = Preconditioners::create(mass_operator, "IC");
+
+      linear_solver = std::make_unique<LinearSolvers::SolverCGWrapper<
+        MassOperator,
+        Preconditioners::PreconditionerBase<Number>>>(mass_operator,
+                                                      *preconditioner,
+                                                      *solver_control_l);
+    }
+
+    void
+    make_step(VectorType &current_solution) override
+    {
+      // We check only one vector since we reset them together
+      if (increment.n_blocks() == 0)
+        {
+          nonlinear_operator.initialize_dof_vector(vec_k);
+          nonlinear_operator.initialize_dof_vector(vec_p);
+          nonlinear_operator.initialize_dof_vector(vec_k_minv);
+          nonlinear_operator.initialize_dof_vector(increment);
+
+          if (static_cast<bool>(preconditioner->underlying_entity() &
+                                Preconditioners::UnderlyingEntity::System))
+            mass_operator.initialize_system_matrix(true);
+          else if (static_cast<bool>(
+                     preconditioner->underlying_entity() &
+                     Preconditioners::UnderlyingEntity::BlockSystem))
+            mass_operator.initialize_block_system_matrix(true);
+
+          preconditioner->do_update();
+        }
+
+      const auto dt = nonlinear_operator.get_data().time_data.get_current_dt();
+
+      const auto &stages = integration_scheme->get_stages();
+
+      // Copy initially if number of stages is more than 1
+      if (stages.size() > 1)
+        vec_p = current_solution;
+
+      // If we have a single stage, we can work directly with the solution
+      auto &vec_work = (stages.size() > 1) ? vec_p : current_solution;
+
+      // Nullify incremet
+      increment = 0;
+
+      // Iterate over stages
+      for (const auto &stage : stages)
+        {
+          const double stage_dt     = stage.first;
+          const double stage_weight = stage.second;
+          // Compute residual
+          {
+            ScopedName sc("residual");
+            MyScope    scope(timer, sc);
+
+            residual_wrapper.evaluate_nonlinear_residual(vec_k, vec_work);
+
+            statistics.increment_residual_evaluations(1);
+          }
+
+          for (unsigned int b = 0; b < current_solution.n_blocks(); ++b)
+            {
+              const bool is_time_pde = nonlinear_operator.equation_type(b) ==
+                                       EquationType::TimeDependent;
+
+              const auto view_lhs = is_time_pde ?
+                                      vec_k_minv.create_view(b, b + 1) :
+                                      vec_work.create_view(b, b + 1);
+              const auto view_rhs = vec_k.create_view(b, b + 1);
+
+              *view_lhs = 0;
+
+              constraints.set_zero(view_rhs->block(0));
+              const auto n_iterations =
+                linear_solver->solve(*view_lhs, *view_rhs);
+              constraints.distribute(view_lhs->block(0));
+
+              statistics.increment_linear_iterations(n_iterations);
+
+              // Sign has to be inverted here, since operators are written (and
+              // this is our convention) such that we solve by default equations
+              // of form du/dt + f(u) = 0 or u + f(u) = 0, but in the explicit
+              // time marching scheme we want to solve u = u + dt * (-f(u)) or u
+              // = -f(u) instead.
+              if (is_time_pde)
+                {
+                  vec_k_minv.block(b) *= -1.0 * stage_dt * dt;
+                  increment.block(b) += vec_k_minv.block(b);
+
+                  // Eventually it means we have n_stages > 1
+                  if (stage_weight)
+                    {
+                      vec_k_minv.block(b) *= 1.0 / stage_dt * stage_weight;
+                      vec_work.block(b) = current_solution.block(b);
+                      vec_work.block(b) += vec_k_minv.block(b);
+                    }
+                }
+              else
+                {
+                  vec_work.block(b) *= -1.0;
+                }
+            }
+        }
+
+      // TODO: a better update should be implemented
+      current_solution += increment;
+
+      // Separately update algebraic equations if any
+      if (has_stationary_equations && stages.size() > 1)
+        for (unsigned int b = 0; b < current_solution.n_blocks(); ++b)
+          {
+            {
+              ScopedName sc("residual");
+              MyScope    scope(timer, sc);
+
+              residual_wrapper.evaluate_nonlinear_residual(vec_k,
+                                                           current_solution);
+
+              statistics.increment_residual_evaluations(1);
+            }
+
+            if (nonlinear_operator.equation_type(b) == EquationType::Stationary)
+              {
+                const auto view_lhs = current_solution.create_view(b, b + 1);
+                const auto view_rhs = vec_k.create_view(b, b + 1);
+
+                *view_lhs = 0;
+
+                constraints.set_zero(view_rhs->block(0));
+                const auto n_iterations =
+                  linear_solver->solve(*view_lhs, *view_rhs);
+                constraints.distribute(view_lhs->block(0));
+
+                statistics.increment_linear_iterations(n_iterations);
+
+                current_solution.block(b) *= -1.0;
+              }
+          }
+    }
+
+    void
+    clear() override
+    {
+      // Clear the vectors
+      vec_k.reinit(0);
+      vec_k_minv.reinit(0);
+      vec_p.reinit(0);
+      increment.reinit(0);
+
+      preconditioner->clear();
+    }
+
+  private:
+    const NonLinearOperator         &nonlinear_operator;
+    MassOperator                    &mass_operator;
+    const ResidualWrapper<Number>   &residual_wrapper;
+    const AffineConstraints<Number> &constraints;
+
+    const std::unique_ptr<ExplicitScheme> integration_scheme;
+
+    NewtonSolverSolverControl &statistics;
+    MyTimerOutput             &timer;
+    StreamType                &stream;
+
+    std::unique_ptr<ReductionControl> solver_control_l;
+    std::unique_ptr<Preconditioners::PreconditionerBase<Number>> preconditioner;
+    std::unique_ptr<LinearSolvers::LinearSolverBase<Number>>     linear_solver;
+
+    VectorType vec_k;
+    VectorType vec_k_minv;
+    VectorType vec_p;
+    VectorType increment;
+
+    bool has_stationary_equations;
   };
 
 } // namespace TimeIntegration
