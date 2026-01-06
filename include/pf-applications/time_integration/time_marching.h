@@ -678,35 +678,38 @@ namespace TimeIntegration
 
       // Separately update algebraic equations if any
       if (has_stationary_equations && stages.size() > 1)
-        for (unsigned int b = 0; b < current_solution.n_blocks(); ++b)
+        {
           {
-            {
-              ScopedName sc("residual");
-              MyScope    scope(timer, sc);
+            ScopedName sc("residual");
+            MyScope    scope(timer, sc);
 
-              residual_wrapper.evaluate_nonlinear_residual(vec_k,
-                                                           current_solution);
+            residual_wrapper.evaluate_nonlinear_residual(vec_k,
+                                                         current_solution);
 
-              statistics.increment_residual_evaluations(1);
-            }
-
-            if (nonlinear_operator.equation_type(b) == EquationType::Stationary)
-              {
-                const auto view_lhs = current_solution.create_view(b, b + 1);
-                const auto view_rhs = vec_k.create_view(b, b + 1);
-
-                *view_lhs = 0;
-
-                constraints.set_zero(view_rhs->block(0));
-                const auto n_iterations =
-                  linear_solver->solve(*view_lhs, *view_rhs);
-                constraints.distribute(view_lhs->block(0));
-
-                statistics.increment_linear_iterations(n_iterations);
-
-                current_solution.block(b) *= -1.0;
-              }
+            statistics.increment_residual_evaluations(1);
           }
+
+          for (unsigned int b = 0; b < current_solution.n_blocks(); ++b)
+            {
+              if (nonlinear_operator.equation_type(b) ==
+                  EquationType::Stationary)
+                {
+                  const auto view_lhs = current_solution.create_view(b, b + 1);
+                  const auto view_rhs = vec_k.create_view(b, b + 1);
+
+                  *view_lhs = 0;
+
+                  constraints.set_zero(view_rhs->block(0));
+                  const auto n_iterations =
+                    linear_solver->solve(*view_lhs, *view_rhs);
+                  constraints.distribute(view_lhs->block(0));
+
+                  statistics.increment_linear_iterations(n_iterations);
+
+                  current_solution.block(b) *= -1.0;
+                }
+            }
+        }
     }
 
     void
