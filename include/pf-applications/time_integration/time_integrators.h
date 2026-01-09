@@ -36,14 +36,15 @@ namespace TimeIntegration
     TimeIntegratorData()
       : scheme(nullptr)
       , order(0)
-      , weights{1}
+      , dt(1)      // length = 1, value = 0
+      , weights{1} // length = 1, value = 1
       , stationary_weight(0)
     {}
 
     TimeIntegratorData(std::unique_ptr<ImplicitScheme<Number>> scheme_in)
       : scheme(std::move(scheme_in))
       , order(scheme ? scheme->get_order() : 0)
-      , dt(order)
+      , dt(std::max(order, 1U)) // At least one time step should be present
       , weights(order + 1)
       , stationary_weight(scheme ? 1 : 0)
     {}
@@ -59,7 +60,8 @@ namespace TimeIntegration
                        std::unique_ptr<ImplicitScheme<Number>> scheme_in)
       : TimeIntegratorData(std::move(scheme_in))
     {
-      for (unsigned int i = 0; i < std::min(order, other.order); ++i)
+      dt[0] = other.dt[0];
+      for (unsigned int i = 1; i < std::min(order, other.order); ++i)
         dt[i] = other.dt[i];
 
       update_weights();
@@ -153,6 +155,14 @@ namespace TimeIntegration
     get_order() const
     {
       return order;
+    }
+
+    // We work implicitly only if a scheme is provided
+    // This is used to distinguish between implicit and explicit schemes
+    bool
+    is_implicit() const
+    {
+      return scheme != nullptr;
     }
 
     /* Serialization */

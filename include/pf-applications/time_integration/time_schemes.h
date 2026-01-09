@@ -165,6 +165,27 @@ namespace TimeIntegration
     get_stages() const = 0;
   };
 
+  struct ForwardEulerScheme : public ExplicitScheme
+  {
+    std::vector<std::pair<double, double>>
+    get_stages() const override
+    {
+      return {{1., 0.}};
+    }
+  };
+
+  struct RungeKutta4Scheme : public ExplicitScheme
+  {
+    std::vector<std::pair<double, double>>
+    get_stages() const override
+    {
+      return {{1. / 6., 1. / 2.},
+              {1. / 3., 1. / 2.},
+              {1. / 3., 1.},
+              {1. / 6., 0.}};
+    }
+  };
+
   template <typename Number>
   struct IntegrationSchemeVariant
   {
@@ -198,7 +219,9 @@ namespace TimeIntegration
       factory = {
         {"BDF1", []() { return std::make_unique<BDF1Scheme<Number>>(); }},
         {"BDF2", []() { return std::make_unique<BDF2Scheme<Number>>(); }},
-        {"BDF3", []() { return std::make_unique<BDF3Scheme<Number>>(); }}};
+        {"BDF3", []() { return std::make_unique<BDF3Scheme<Number>>(); }},
+        {"FE", []() { return std::make_unique<ForwardEulerScheme>(); }},
+        {"RK4", []() { return std::make_unique<RungeKutta4Scheme>(); }}};
 
     return factory.at(name)();
   }

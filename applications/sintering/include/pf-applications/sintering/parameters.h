@@ -772,7 +772,7 @@ namespace Sintering
       prm.add_parameter("IntegrationScheme",
                         time_integration_data.integration_scheme,
                         "Integration scheme.",
-                        Patterns::Selection("BDF1|BDF2|BDF3"));
+                        Patterns::Selection("BDF1|BDF2|BDF3|FE|RK4"));
       prm.add_parameter("Predictor",
                         time_integration_data.predictor,
                         "Predictor for initial guess extrapolation.",
@@ -1068,7 +1068,7 @@ namespace Sintering
 
       prm.enter_subsection("Preconditioners");
       const std::string preconditioner_types =
-        "AMG|BlockAMG|BlockILU|InverseBlockDiagonalMatrix|InverseDiagonalMatrix|ILU|InverseComponentBlockDiagonalMatrix|BlockGMG|GMG|Identity";
+        "AMG|BlockAMG|BlockILU|InverseBlockDiagonalMatrix|InverseDiagonalMatrix|ILU|InverseComponentBlockDiagonalMatrix|BlockGMG|GMG|Identity|IC";
       prm.add_parameter("OuterPreconditioner",
                         preconditioners_data.outer_preconditioner,
                         "Preconditioner to be used for the outer system.",
