@@ -15,6 +15,8 @@
 
 #pragma once
 
+#include <pf-applications/base/scoped_name.h>
+
 #include <pf-applications/lac/evaluation.h>
 #include <pf-applications/lac/preconditioners.h>
 #include <pf-applications/lac/solvers_linear.h>

@@ -19,7 +19,6 @@
 
 #include <pf-applications/lac/dynamic_block_vector.h>
 
-#include <pf-applications/time_integration/solution_history.h>
 #include <pf-applications/time_integration/time_schemes.h>
 
 #include <array>
