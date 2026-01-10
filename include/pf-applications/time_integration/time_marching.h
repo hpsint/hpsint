@@ -1,6 +1,6 @@
 // ---------------------------------------------------------------------
 //
-// Copyright (C) 2025 by the hpsint authors
+// Copyright (C) 2025 - 2026 by the hpsint authors
 //
 // This file is part of the hpsint library.
 //
@@ -21,6 +21,8 @@
 #include <pf-applications/lac/solvers_linear_parameters.h>
 #include <pf-applications/lac/solvers_nonlinear.h>
 #include <pf-applications/lac/solvers_nonlinear_parameters.h>
+
+#include <pf-applications/pde/equation_type.h>
 
 namespace TimeIntegration
 {
