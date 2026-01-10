@@ -1,6 +1,6 @@
 // ---------------------------------------------------------------------
 //
-// Copyright (C) 2025 by the hpsint authors
+// Copyright (C) 2025 - 2026 by the hpsint authors
 //
 // This file is part of the hpsint library.
 //
@@ -16,6 +16,7 @@
 #pragma once
 
 #include <pf-applications/lac/dynamic_block_vector.h>
+#include <pf-applications/lac/residual_traits.h>
 
 #include <functional>
 
