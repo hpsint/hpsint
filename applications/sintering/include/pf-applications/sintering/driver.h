@@ -1329,7 +1329,6 @@ namespace Sintering
 
           time_marching =
             std::make_unique<TimeIntegration::TimeMarchingExplicit<
-              dim,
               VectorType,
               NonLinearOperator,
               MassMatrix<dim, Number, VectorizedArrayType>,

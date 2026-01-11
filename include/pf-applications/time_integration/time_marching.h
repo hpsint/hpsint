@@ -525,8 +525,7 @@ namespace TimeIntegration
     std::unique_ptr<NewtonSolver<VectorType>> non_linear_solver_executor;
   };
 
-  template <int dim,
-            typename VectorType,
+  template <typename VectorType,
             typename NonLinearOperator,
             typename MassOperator,
             typename StreamType>
