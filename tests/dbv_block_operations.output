@@ -1,0 +1,46 @@
+Number of blocks initially: 4
+
+Check block insertion
+Number of blocks after insert: 5
+Is block 0 correct: true
+Is block 1 correct: true
+Is block 2 correct: true
+Is block 3 correct: true
+Is block 4 correct: true
+
+Check block removal
+Is removed block correct: true
+Number of blocks after remove: 4
+Is block 0 correct: true
+Is block 1 correct: true
+Is block 2 correct: true
+Is block 3 correct: true
+
+Check block move downwards
+Number of blocks after move down: 4
+Is block 0 correct: true
+Is block 1 correct: true
+Is block 2 correct: true
+Is block 3 correct: true
+
+Check block move upwards
+Number of blocks after move up: 4
+Is block 0 correct: true
+Is block 1 correct: true
+Is block 2 correct: true
+Is block 3 correct: true
+
+Check blocks addition when resizes to grow
+Number of blocks after reinit: 6
+Is block 0 correct: true
+Is block 1 correct: true
+Is block 2 correct: true
+Is block 3 correct: true
+Is block 4 correct: true
+Is block 5 correct: true
+
+Check blocks removal when resizes to shrink
+Number of blocks after reinit: 3
+Is block 0 correct: true
+Is block 1 correct: true
+Is block 2 correct: true
