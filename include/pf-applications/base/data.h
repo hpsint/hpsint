@@ -16,6 +16,7 @@
 #pragma once
 
 #include <array>
+#include <memory>
 #include <utility>
 
 namespace internal
@@ -50,4 +51,12 @@ create_array(const T &value)
    * namely std::integer_sequence<std::size_t, 0, 1, ..., N> - via the variadic
    * templates mechanism and this is then send to another function. */
   return ::internal::create_array(value, std::make_index_sequence<N>());
+}
+
+template <typename T>
+std::unique_ptr<std::decay_t<T>>
+make_unique_from(T &&obj)
+{
+  using U = std::decay_t<T>;
+  return std::make_unique<U>(std::forward<T>(obj));
 }
