@@ -1,6 +1,6 @@
 // ---------------------------------------------------------------------
 //
-// Copyright (C) 2023 - 2025 by the hpsint authors
+// Copyright (C) 2023 - 2026 by the hpsint authors
 //
 // This file is part of the hpsint library.
 //
@@ -1045,7 +1045,8 @@ namespace Sintering
         {
           if (params.advection_data.enable == false)
             residual_wrapper = std::make_unique<
-              ResidualWrapperGeneric<Number, NonLinearOperator, true>>(
+              NonLinearSolvers::
+                ResidualWrapperGeneric<Number, NonLinearOperator, true>>(
               nonlinear_operator);
           else
             residual_wrapper =
@@ -1060,7 +1061,8 @@ namespace Sintering
         {
           if (params.advection_data.enable == false)
             residual_wrapper = std::make_unique<
-              ResidualWrapperGeneric<Number, NonLinearOperator, false>>(
+              NonLinearSolvers::
+                ResidualWrapperGeneric<Number, NonLinearOperator, false>>(
               nonlinear_operator);
           else
             residual_wrapper =
@@ -1327,7 +1329,6 @@ namespace Sintering
 
           time_marching =
             std::make_unique<TimeIntegration::TimeMarchingExplicit<
-              dim,
               VectorType,
               NonLinearOperator,
               MassMatrix<dim, Number, VectorizedArrayType>,

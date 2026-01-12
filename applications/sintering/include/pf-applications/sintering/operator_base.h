@@ -1,6 +1,6 @@
 // ---------------------------------------------------------------------
 //
-// Copyright (C) 2023 - 2024 by the hpsint authors
+// Copyright (C) 2023 - 2026 by the hpsint authors
 //
 // This file is part of the hpsint library.
 //
@@ -29,19 +29,14 @@
 
 #include <pf-applications/dofs/dof_tools.h>
 #include <pf-applications/matrix_free/tools.h>
+#include <pf-applications/pde/equation_type.h>
 
 #include <fstream>
 
 namespace Sintering
 {
   using namespace dealii;
-
-  enum class EquationType
-  {
-    Undefined,
-    TimeDependent,
-    Stationary
-  };
+  using namespace hpsint;
 
   template <int dim, typename Number, typename VectorizedArrayType, typename T>
   class OperatorBase : public Subscriptor

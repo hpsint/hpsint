@@ -1,6 +1,6 @@
 // ---------------------------------------------------------------------
 //
-// Copyright (C) 2025 by the hpsint authors
+// Copyright (C) 2025 - 2026 by the hpsint authors
 //
 // This file is part of the hpsint library.
 //
@@ -18,6 +18,7 @@
 #include <pf-applications/base/timer.h>
 
 #include <pf-applications/lac/dynamic_block_vector.h>
+#include <pf-applications/lac/residual_traits.h>
 
 #include <functional>
 #include <string>
@@ -91,27 +92,6 @@ namespace NonLinearSolvers
   private:
     const OperatorType &op;
   };
-
-
-
-  template <typename T, typename VectorType>
-  using evaluate_nonlinear_residual_with_pre_post_t =
-    decltype(std::declval<const T>().evaluate_nonlinear_residual(
-      std::declval<VectorType &>(),
-      std::declval<const VectorType &>(),
-      std::declval<
-        const std::function<void(const unsigned int, const unsigned int)>>(),
-      std::declval<
-        const std::function<void(const unsigned int, const unsigned int)>>()));
-
-  template <typename T, typename VectorType>
-  constexpr bool has_evaluate_nonlinear_residual_with_pre_post =
-    dealii::internal::is_supported_operation<
-      evaluate_nonlinear_residual_with_pre_post_t,
-      T,
-      VectorType>;
-
-
 
   template <typename Number, typename OperatorType>
   class JacobianFree : public JacobianBase<Number>

@@ -1,6 +1,6 @@
 // ---------------------------------------------------------------------
 //
-// Copyright (C) 2023 - 2025 by the hpsint authors
+// Copyright (C) 2023 - 2026 by the hpsint authors
 //
 // This file is part of the hpsint library.
 //
@@ -25,55 +25,6 @@ namespace Sintering
 {
   using namespace dealii;
   using namespace NonLinearSolvers;
-
-  template <typename Number,
-            typename OperatorType,
-            bool with_time_derivative = true>
-  class ResidualWrapperGeneric
-    : public ResidualWrapperBase<Number, OperatorType>
-  {
-  public:
-    using value_type =
-      typename ResidualWrapperBase<Number, OperatorType>::value_type;
-    using vector_type =
-      typename ResidualWrapperBase<Number, OperatorType>::vector_type;
-    using VectorType =
-      typename ResidualWrapperBase<Number, OperatorType>::VectorType;
-    using BlockVectorType =
-      typename ResidualWrapperBase<Number, OperatorType>::BlockVectorType;
-
-    ResidualWrapperGeneric(const OperatorType &nonlinear_operator)
-      : ResidualWrapperBase<Number, OperatorType>(nonlinear_operator)
-    {}
-
-  private:
-    void
-    evaluate_for_residual(
-      BlockVectorType       &dst,
-      const BlockVectorType &src,
-      const std::function<void(const unsigned int, const unsigned int)>
-        pre_operation = {},
-      const std::function<void(const unsigned int, const unsigned int)>
-        post_operation = {}) const override
-    {
-      this
-        ->template do_evaluate_nonlinear_residual<with_time_derivative ? 2 : 0>(
-          dst, src, pre_operation, post_operation);
-    }
-
-    void
-    evaluate_for_jacobian(
-      BlockVectorType       &dst,
-      const BlockVectorType &src,
-      const std::function<void(const unsigned int, const unsigned int)>
-        pre_operation = {},
-      const std::function<void(const unsigned int, const unsigned int)>
-        post_operation = {}) const override
-    {
-      this->template do_evaluate_nonlinear_residual<with_time_derivative>(
-        dst, src, pre_operation, post_operation);
-    }
-  };
 
   template <int dim,
             typename Number,

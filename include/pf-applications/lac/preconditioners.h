@@ -1,6 +1,6 @@
 // ---------------------------------------------------------------------
 //
-// Copyright (C) 2023 - 2025 by the hpsint authors
+// Copyright (C) 2023 - 2026 by the hpsint authors
 //
 // This file is part of the hpsint library.
 //
@@ -16,6 +16,8 @@
 #pragma once
 
 #include <deal.II/base/mpi_consensus_algorithms.h>
+
+#include <deal.II/dofs/dof_tools.h>
 
 #include <deal.II/lac/diagonal_matrix.h>
 #include <deal.II/lac/precondition.h>
