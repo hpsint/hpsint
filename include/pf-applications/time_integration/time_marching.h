@@ -15,12 +15,14 @@
 
 #pragma once
 
+#include <pf-applications/base/data.h>
 #include <pf-applications/base/scoped_name.h>
 
 #include <pf-applications/lac/evaluation.h>
 #include <pf-applications/lac/preconditioners.h>
 #include <pf-applications/lac/solvers_linear.h>
 #include <pf-applications/lac/solvers_linear_parameters.h>
+#include <pf-applications/lac/solvers_linear_tools.h>
 #include <pf-applications/lac/solvers_nonlinear.h>
 #include <pf-applications/lac/solvers_nonlinear_parameters.h>
 
@@ -527,30 +529,33 @@ namespace TimeIntegration
 
   template <typename VectorType,
             typename NonLinearOperator,
-            typename MassOperator,
             typename StreamType>
   class TimeMarchingExplicit : public TimeMarching<VectorType>
   {
   public:
     using Number = typename NonLinearOperator::value_type;
 
+  private:
+    template <typename Operator>
+    using LinearSolverCG = LinearSolvers::
+      SolverCGWrapper<Operator, Preconditioners::PreconditionerBase<Number>>;
+
+  public:
     TimeMarchingExplicit(const NonLinearOperator         &nonlinear_operator,
-                         MassOperator                    &mass_operator,
                          const ResidualWrapper<Number>   &residual_wrapper,
                          const AffineConstraints<Number> &constraints,
                          std::unique_ptr<ExplicitScheme>  integration_scheme,
-                         const NonLinearData             &nonlinear_params,
                          NewtonSolverSolverControl       &statistics,
                          MyTimerOutput                   &timer,
                          StreamType                      &stream)
       : nonlinear_operator(nonlinear_operator)
-      , mass_operator(mass_operator)
       , residual_wrapper(residual_wrapper)
       , constraints(constraints)
       , integration_scheme(std::move(integration_scheme))
       , statistics(statistics)
       , timer(timer)
       , stream(stream)
+      , linear_solver_wrapper(nullptr)
     {
       // Check that operator knows what kind of equations it contains
       // Check if there are any stationary equations in the operator
@@ -565,20 +570,47 @@ namespace TimeIntegration
             has_stationary_equations ||
             nonlinear_operator.equation_type(c) == EquationType::Stationary;
         }
+    }
 
-      solver_control_l =
-        std::make_unique<ReductionControl>(nonlinear_params.l_max_iter,
-                                           nonlinear_params.l_abs_tol,
-                                           nonlinear_params.l_rel_tol);
+    template <typename MassOperator>
+    TimeMarchingExplicit(const NonLinearOperator         &nonlinear_operator,
+                         MassOperator                    &mass_operator,
+                         const ResidualWrapper<Number>   &residual_wrapper,
+                         const AffineConstraints<Number> &constraints,
+                         std::unique_ptr<ExplicitScheme>  integration_scheme,
+                         const NonLinearData             &nonlinear_params,
+                         NewtonSolverSolverControl       &statistics,
+                         MyTimerOutput                   &timer,
+                         StreamType                      &stream)
+      : TimeMarchingExplicit(nonlinear_operator,
+                             residual_wrapper,
+                             constraints,
+                             std::move(integration_scheme),
+                             statistics,
+                             timer,
+                             stream)
+    {
+      linear_solver_wrapper = make_unique_from(
+        LinearSolvers::wrap_solver_with_preconditioner<MassOperator,
+                                                       Preconditioners::IC,
+                                                       LinearSolverCG>(
+          mass_operator, nonlinear_params));
 
-      // Identity, InverseDiagonalMatrix, IC
-      preconditioner = Preconditioners::create(mass_operator, "IC");
+      setup_preconditioner = [this, &mass_operator]() {
+        this->linear_solver_wrapper->preconditioner->clear();
 
-      linear_solver = std::make_unique<LinearSolvers::SolverCGWrapper<
-        MassOperator,
-        Preconditioners::PreconditionerBase<Number>>>(mass_operator,
-                                                      *preconditioner,
-                                                      *solver_control_l);
+        if (static_cast<bool>(
+              this->linear_solver_wrapper->preconditioner->underlying_entity() &
+              Preconditioners::UnderlyingEntity::System))
+          mass_operator.initialize_system_matrix(true);
+        else if (static_cast<bool>(
+                   this->linear_solver_wrapper->preconditioner
+                     ->underlying_entity() &
+                   Preconditioners::UnderlyingEntity::BlockSystem))
+          mass_operator.initialize_block_system_matrix(true);
+
+        this->linear_solver_wrapper->preconditioner->do_update();
+      };
     }
 
     void
@@ -592,15 +624,8 @@ namespace TimeIntegration
           nonlinear_operator.initialize_dof_vector(vec_k_minv);
           nonlinear_operator.initialize_dof_vector(increment);
 
-          if (static_cast<bool>(preconditioner->underlying_entity() &
-                                Preconditioners::UnderlyingEntity::System))
-            mass_operator.initialize_system_matrix(true);
-          else if (static_cast<bool>(
-                     preconditioner->underlying_entity() &
-                     Preconditioners::UnderlyingEntity::BlockSystem))
-            mass_operator.initialize_block_system_matrix(true);
-
-          preconditioner->do_update();
+          if (setup_preconditioner)
+            setup_preconditioner();
         }
 
       const auto dt = nonlinear_operator.get_data().time_data.get_current_dt();
@@ -637,19 +662,33 @@ namespace TimeIntegration
               const bool is_time_pde = nonlinear_operator.equation_type(b) ==
                                        EquationType::TimeDependent;
 
-              const auto view_lhs = is_time_pde ?
-                                      vec_k_minv.create_view(b, b + 1) :
-                                      vec_work.create_view(b, b + 1);
-              const auto view_rhs = vec_k.create_view(b, b + 1);
+              if (linear_solver_wrapper)
+                {
+                  const auto view_lhs = is_time_pde ?
+                                          vec_k_minv.create_view(b, b + 1) :
+                                          vec_work.create_view(b, b + 1);
+                  const auto view_rhs = vec_k.create_view(b, b + 1);
 
-              *view_lhs = 0;
+                  *view_lhs = 0;
 
-              constraints.set_zero(view_rhs->block(0));
-              const auto n_iterations =
-                linear_solver->solve(*view_lhs, *view_rhs);
-              constraints.distribute(view_lhs->block(0));
+                  constraints.set_zero(view_rhs->block(0));
+                  const auto n_iterations =
+                    linear_solver_wrapper->linear_solver->solve(*view_lhs,
+                                                                *view_rhs);
+                  constraints.distribute(view_lhs->block(0));
 
-              statistics.increment_linear_iterations(n_iterations);
+                  statistics.increment_linear_iterations(n_iterations);
+                }
+              else
+                {
+                  // No mass matrix provided, assume identity
+                  constraints.distribute(vec_k.block(b));
+
+                  if (is_time_pde)
+                    vec_k_minv.block(b) = vec_k.block(b);
+                  else
+                    vec_work.block(b) = vec_k.block(b);
+                }
 
               // Sign has to be inverted here, since operators are written (and
               // this is our convention) such that we solve by default equations
@@ -697,17 +736,28 @@ namespace TimeIntegration
               if (nonlinear_operator.equation_type(b) ==
                   EquationType::Stationary)
                 {
-                  const auto view_lhs = current_solution.create_view(b, b + 1);
-                  const auto view_rhs = vec_k.create_view(b, b + 1);
+                  if (linear_solver_wrapper)
+                    {
+                      const auto view_lhs =
+                        current_solution.create_view(b, b + 1);
+                      const auto view_rhs = vec_k.create_view(b, b + 1);
 
-                  *view_lhs = 0;
+                      *view_lhs = 0;
 
-                  constraints.set_zero(view_rhs->block(0));
-                  const auto n_iterations =
-                    linear_solver->solve(*view_lhs, *view_rhs);
-                  constraints.distribute(view_lhs->block(0));
+                      constraints.set_zero(view_rhs->block(0));
+                      const auto n_iterations =
+                        linear_solver_wrapper->linear_solver->solve(*view_lhs,
+                                                                    *view_rhs);
+                      constraints.distribute(view_lhs->block(0));
 
-                  statistics.increment_linear_iterations(n_iterations);
+                      statistics.increment_linear_iterations(n_iterations);
+                    }
+                  else
+                    {
+                      // No mass matrix provided, assume identity
+                      current_solution.block(b) = vec_k.block(b);
+                      constraints.distribute(current_solution.block(b));
+                    }
 
                   current_solution.block(b) *= -1.0;
                 }
@@ -723,13 +773,10 @@ namespace TimeIntegration
       vec_k_minv.reinit(0);
       vec_p.reinit(0);
       increment.reinit(0);
-
-      preconditioner->clear();
     }
 
   private:
     const NonLinearOperator         &nonlinear_operator;
-    MassOperator                    &mass_operator;
     const ResidualWrapper<Number>   &residual_wrapper;
     const AffineConstraints<Number> &constraints;
 
@@ -739,9 +786,10 @@ namespace TimeIntegration
     MyTimerOutput             &timer;
     StreamType                &stream;
 
-    std::unique_ptr<ReductionControl> solver_control_l;
-    std::unique_ptr<Preconditioners::PreconditionerBase<Number>> preconditioner;
-    std::unique_ptr<LinearSolvers::LinearSolverBase<Number>>     linear_solver;
+    std::unique_ptr<LinearSolvers::LinearSolverWrapper<Number>>
+      linear_solver_wrapper;
+
+    std::function<void()> setup_preconditioner = {};
 
     VectorType vec_k;
     VectorType vec_k_minv;

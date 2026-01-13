@@ -1327,21 +1327,19 @@ namespace Sintering
           auto scheme_variant = TimeIntegration::create_time_scheme<Number>(
             params.time_integration_data.integration_scheme);
 
-          time_marching =
-            std::make_unique<TimeIntegration::TimeMarchingExplicit<
-              VectorType,
-              NonLinearOperator,
-              MassMatrix<dim, Number, VectorizedArrayType>,
-              ConditionalOStream>>(
-              nonlinear_operator,
-              mass_operator,
-              *residual_wrapper,
-              constraints,
-              scheme_variant.template try_take<ExplicitScheme>(),
-              params.nonlinear_data,
-              statistics,
-              timer,
-              pcout);
+          time_marching = std::make_unique<
+            TimeIntegration::TimeMarchingExplicit<VectorType,
+                                                  NonLinearOperator,
+                                                  ConditionalOStream>>(
+            nonlinear_operator,
+            mass_operator,
+            *residual_wrapper,
+            constraints,
+            scheme_variant.template try_take<ExplicitScheme>(),
+            params.nonlinear_data,
+            statistics,
+            timer,
+            pcout);
         }
 
       // set initial condition
