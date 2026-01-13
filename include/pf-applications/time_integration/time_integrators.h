@@ -38,6 +38,7 @@ namespace TimeIntegration
       , dt(1)      // length = 1, value = 0
       , weights{1} // length = 1, value = 1
       , stationary_weight(0)
+      , time(0)
     {}
 
     TimeIntegratorData(std::unique_ptr<ImplicitScheme<Number>> scheme_in)
@@ -46,6 +47,7 @@ namespace TimeIntegration
       , dt(std::max(order, 1U)) // At least one time step should be present
       , weights(order + 1)
       , stationary_weight(scheme ? 1 : 0)
+      , time(0)
     {}
 
     TimeIntegratorData(std::unique_ptr<ImplicitScheme<Number>> scheme_in,
@@ -77,6 +79,7 @@ namespace TimeIntegration
           dt                = other.dt;
           weights           = other.weights;
           stationary_weight = other.stationary_weight;
+          time              = other.time;
         }
       return *this;
     }
@@ -105,6 +108,24 @@ namespace TimeIntegration
       dt[0] = dt_new;
 
       update_weights();
+    }
+
+    Number
+    get_current_time() const
+    {
+      return time;
+    }
+
+    void
+    set_current_time(const Number new_time) const
+    {
+      time = new_time;
+    }
+
+    void
+    update_current_time(const Number dt) const
+    {
+      time += dt;
     }
 
     void
@@ -203,6 +224,8 @@ namespace TimeIntegration
     std::vector<Number> weights;
 
     Number stationary_weight; // Weight for the algebraic equations
+
+    mutable Number time;
   };
 
   template <int dim, int n_comp, typename Number, typename VectorizedArrayType>
