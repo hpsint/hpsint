@@ -73,6 +73,53 @@ namespace NonLinearSolvers
         post_operation = {}) const = 0;
   };
 
+  template <typename Number,
+            typename OperatorType,
+            bool with_time_derivative = true>
+  class ResidualWrapperDirect : public ResidualWrapper<Number>
+  {
+  public:
+    using value_type      = typename ResidualWrapper<Number>::value_type;
+    using vector_type     = typename ResidualWrapper<Number>::vector_type;
+    using VectorType      = typename ResidualWrapper<Number>::VectorType;
+    using BlockVectorType = typename ResidualWrapper<Number>::BlockVectorType;
+
+    ResidualWrapperDirect(const OperatorType &nonlinear_operator)
+      : nonlinear_operator(nonlinear_operator)
+    {}
+
+  private:
+    const OperatorType &nonlinear_operator;
+
+    void
+    evaluate_for_residual(
+      BlockVectorType       &dst,
+      const BlockVectorType &src,
+      const std::function<void(const unsigned int, const unsigned int)>
+        pre_operation = {},
+      const std::function<void(const unsigned int, const unsigned int)>
+        post_operation = {}) const override
+    {
+      nonlinear_operator
+        .template evaluate_nonlinear_residual<with_time_derivative ? 2 : 0>(
+          dst, src, pre_operation, post_operation);
+    }
+
+    virtual void
+    evaluate_for_jacobian(
+      BlockVectorType       &dst,
+      const BlockVectorType &src,
+      const std::function<void(const unsigned int, const unsigned int)>
+        pre_operation = {},
+      const std::function<void(const unsigned int, const unsigned int)>
+        post_operation = {}) const override
+    {
+      nonlinear_operator
+        .template evaluate_nonlinear_residual<with_time_derivative>(
+          dst, src, pre_operation, post_operation);
+    }
+  };
+
   template <typename Number, typename OperatorType>
   class ResidualWrapperBase : public ResidualWrapper<Number>
   {
