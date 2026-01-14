@@ -1,6 +1,6 @@
 // ---------------------------------------------------------------------
 //
-// Copyright (C) 2023 - 2024 by the hpsint authors
+// Copyright (C) 2023 - 2026 by the hpsint authors
 //
 // This file is part of the hpsint library.
 //
@@ -17,9 +17,13 @@
 
 #include <deal.II/base/conditional_ostream.h>
 
+#include <pf-applications/base/fe_integrator.h>
+
+#include <pf-applications/lac/dynamic_block_vector.h>
+
 #include <pf-applications/sintering/mobility.h>
 
-#include <pf-applications/time_integration/time_integrators.h>
+#include <pf-applications/time_integration/time_integrator_data.h>
 
 namespace Sintering
 {

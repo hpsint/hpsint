@@ -1,6 +1,6 @@
 // ---------------------------------------------------------------------
 //
-// Copyright (C) 2024 by the hpsint authors
+// Copyright (C) 2024 - 2026 by the hpsint authors
 //
 // This file is part of the hpsint library.
 //
@@ -30,6 +30,7 @@
 #include <pf-applications/sintering/operator_sintering_data.h>
 
 #include <pf-applications/time_integration/solution_history.h>
+#include <pf-applications/time_integration/time_integrators.h>
 
 namespace Sintering
 {

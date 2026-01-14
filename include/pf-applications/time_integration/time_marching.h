@@ -628,7 +628,9 @@ namespace TimeIntegration
             setup_preconditioner();
         }
 
+      // Get current timestep and time instance
       const auto dt = nonlinear_operator.get_data().time_data.get_current_dt();
+      const auto t = nonlinear_operator.get_data().time_data.get_current_time();
 
       const auto &stages = integration_scheme->get_stages();
 
@@ -713,10 +715,17 @@ namespace TimeIntegration
                   vec_work.block(b) *= -1.0;
                 }
             }
+
+          // Set time for the next stage
+          nonlinear_operator.get_data().time_data.set_current_time(
+            t + stage_weight * dt);
         }
 
       // TODO: a better update should be implemented
       current_solution += increment;
+
+      // We update the time step before updating the algebraic part
+      nonlinear_operator.get_data().time_data.update_current_time(dt);
 
       // Separately update algebraic equations if any
       if (has_stationary_equations && stages.size() > 1)

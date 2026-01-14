@@ -32,7 +32,7 @@
 #include <pf-applications/matrix_free/tools.h>
 #include <pf-applications/structural/material.h>
 #include <pf-applications/time_integration/solution_history.h>
-#include <pf-applications/time_integration/time_integrators.h>
+#include <pf-applications/time_integration/time_integrator_data.h>
 #include <pf-applications/time_integration/time_schemes.h>
 
 #include <iostream>
