@@ -1,6 +1,6 @@
 // ---------------------------------------------------------------------
 //
-// Copyright (C) 2023 by the hpsint authors
+// Copyright (C) 2023 - 2026 by the hpsint authors
 //
 // This file is part of the hpsint library.
 //
@@ -14,6 +14,8 @@
 // ---------------------------------------------------------------------
 
 #pragma once
+
+#include <deal.II/matrix_free/matrix_free.h>
 
 namespace dealii
 {

@@ -564,7 +564,6 @@ namespace dealii
 
         static constexpr unsigned int communication_block_size = 0;
 
-      private:
         void
         collect_sizes()
         {
