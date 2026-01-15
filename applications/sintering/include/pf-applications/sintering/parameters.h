@@ -20,9 +20,11 @@
 #include <pf-applications/lac/solvers_linear_parameters.h>
 #include <pf-applications/lac/solvers_nonlinear_parameters.h>
 
-#include <pf-applications/sintering/preconditioners.h>
+#include <pf-applications/sintering/preconditioner_parameters.h>
 
 #include <boost/algorithm/string.hpp>
+
+#include <pf-applications/time_integration/time_integrator_parameters.h>
 
 namespace Sintering
 {
@@ -200,23 +202,6 @@ namespace Sintering
     bool use_barycenter = false;
   };
 
-  struct TimeIntegrationData
-  {
-    std::string integration_scheme = "BDF2";
-    std::string predictor          = "None";
-
-    double       time_start                  = 0;
-    double       time_end                    = 1e3;
-    double       time_step_init              = 1e-3;
-    double       time_step_min               = 1e-5;
-    double       time_step_max               = 1e2;
-    double       growth_factor               = 1.2;
-    unsigned int desirable_newton_iterations = 5;
-    unsigned int desirable_linear_iterations = 100;
-    bool         sanity_check_predictor      = false;
-    bool         sanity_check_solution       = false;
-  };
-
   struct OutputData
   {
     bool                  regular                = true;
@@ -306,18 +291,18 @@ namespace Sintering
 
   struct Parameters
   {
-    ApproximationData      approximation_data;
-    GeometryData           geometry_data;
-    AdaptivityData         adaptivity_data;
-    GrainTrackerData       grain_tracker_data;
-    MaterialData           material_data;
-    AdvectionData          advection_data;
-    BoundaryConditionsData boundary_conditions;
-    TimeIntegrationData    time_integration_data;
-    OutputData             output_data;
-    RestartData            restart_data;
-    PreconditionersData    preconditioners_data;
-    ProfilingData          profiling_data;
+    ApproximationData                    approximation_data;
+    GeometryData                         geometry_data;
+    AdaptivityData                       adaptivity_data;
+    GrainTrackerData                     grain_tracker_data;
+    MaterialData                         material_data;
+    AdvectionData                        advection_data;
+    BoundaryConditionsData               boundary_conditions;
+    TimeIntegration::TimeIntegrationData time_integration_data;
+    OutputData                           output_data;
+    RestartData                          restart_data;
+    PreconditionersData                  preconditioners_data;
+    ProfilingData                        profiling_data;
 
     NonLinearSolvers::NonLinearData nonlinear_data;
 
