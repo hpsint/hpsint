@@ -269,6 +269,8 @@ namespace dealii
             blocks[i] = blocks[i - 1];
 
           blocks[to] = block;
+
+          collect_sizes();
         }
 
         std::shared_ptr<BlockType>
@@ -282,6 +284,8 @@ namespace dealii
             blocks[i] = blocks[i + 1];
 
           blocks.resize(n_blocks() - 1);
+
+          collect_sizes();
 
           return block;
         }
