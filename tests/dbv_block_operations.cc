@@ -31,8 +31,12 @@ main()
   using DBV = LinearAlgebra::distributed::DynamicBlockVector<double>;
 
   DBV vec(n_blocks);
+  for (unsigned int b = 0; b < vec.n_blocks(); ++b)
+    vec.block(b).reinit(b + 1);
+  vec.collect_sizes();
 
   std::cout << "Number of blocks initially: " << vec.n_blocks() << '\n';
+  std::cout << "Total size: " << vec.size() << '\n';
 
   // Number blocks according to their pointers to check their positions later
   std::vector<std::shared_ptr<DBV::BlockType>> blocks;
@@ -45,12 +49,13 @@ main()
   std::cout << "\nCheck block insertion\n";
   const unsigned int insert_position = 1;
 
-  auto new_block = std::make_shared<DBV::BlockType>();
+  auto new_block = std::make_shared<DBV::BlockType>(5);
   vec.insert_block(new_block, insert_position);
 
   std::cout << std::boolalpha;
 
   std::cout << "Number of blocks after insert: " << vec.n_blocks() << '\n';
+  std::cout << "Total size: " << vec.size() << '\n';
 
   // Check positions of the blocks, blocks order: 0, new, 1, 2, 3
   std::cout << "Is block 0 correct: " << (vec.block_ptr(0) == blocks[0])
@@ -73,6 +78,7 @@ main()
   std::cout << "Is removed block correct: " << (old_block == blocks[2]) << '\n';
 
   std::cout << "Number of blocks after remove: " << vec.n_blocks() << '\n';
+  std::cout << "Total size: " << vec.size() << '\n';
 
   // Check positions of the blocks, blocks order: 0, new, 1, 3
   std::cout << "Is block 0 correct: " << (vec.block_ptr(0) == blocks[0])
@@ -92,6 +98,7 @@ main()
   vec.move_block(move_down_from, move_down_to);
 
   std::cout << "Number of blocks after move down: " << vec.n_blocks() << '\n';
+  std::cout << "Total size: " << vec.size() << '\n';
 
   // Check positions of the blocks, blocks order: new, 1, 0, 3
   std::cout << "Is block 0 correct: " << (vec.block_ptr(0) == new_block)
@@ -111,6 +118,7 @@ main()
   vec.move_block(move_up_from, move_up_to);
 
   std::cout << "Number of blocks after move up: " << vec.n_blocks() << '\n';
+  std::cout << "Total size: " << vec.size() << '\n';
 
   // Check positions of the blocks, blocks order: new, 3, 1, 0
   std::cout << "Is block 0 correct: " << (vec.block_ptr(0) == new_block)
@@ -129,6 +137,7 @@ main()
   vec.reinit(vec.n_blocks() + n_add);
 
   std::cout << "Number of blocks after reinit: " << vec.n_blocks() << '\n';
+  std::cout << "Total size: " << vec.size() << '\n';
   std::cout << "Is block 0 correct: " << (vec.block_ptr(0) == new_block)
             << '\n';
   std::cout << "Is block 1 correct: " << (vec.block_ptr(1) == blocks[3])
@@ -147,6 +156,7 @@ main()
   vec.reinit(vec.n_blocks() - n_remove);
 
   std::cout << "Number of blocks after reinit: " << vec.n_blocks() << '\n';
+  std::cout << "Total size: " << vec.size() << '\n';
   std::cout << "Is block 0 correct: " << (vec.block_ptr(0) == new_block)
             << '\n';
   std::cout << "Is block 1 correct: " << (vec.block_ptr(1) == blocks[3])
