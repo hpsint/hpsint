@@ -1,6 +1,6 @@
 // ---------------------------------------------------------------------
 //
-// Copyright (C) 2023 - 2024 by the hpsint authors
+// Copyright (C) 2023 - 2026 by the hpsint authors
 //
 // This file is part of the hpsint library.
 //
@@ -19,6 +19,7 @@
 #include <pf-applications/lac/preconditioners.h>
 
 #include <pf-applications/sintering/operator_sintering_data.h>
+#include <pf-applications/sintering/preconditioner_parameters.h>
 
 #include <pf-applications/structural/stvenantkirchhoff.h>
 
@@ -932,25 +933,6 @@ namespace Sintering
         }
     }
   };
-
-  struct AMGData
-  {
-    unsigned int smoother_sweeps = 4;
-    unsigned int n_cycles        = 5;
-  };
-
-  struct BlockPreconditioner2Data
-  {
-    std::string block_0_preconditioner = "ILU";
-    std::string block_1_preconditioner = "InverseDiagonalMatrix";
-    std::string block_2_preconditioner = "AMG";
-
-    std::string block_1_approximation = "all";
-
-    AMGData block_2_amg_data;
-  };
-
-
 
   template <int dim,
             typename Number,
