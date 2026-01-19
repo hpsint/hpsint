@@ -46,7 +46,7 @@ namespace dealii
           reinit(n);
         }
 
-        explicit DynamicBlockVector(const DynamicBlockVector<T> &V)
+        DynamicBlockVector(const DynamicBlockVector<T> &V)
         {
           *this = V;
         }
