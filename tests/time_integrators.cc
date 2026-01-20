@@ -129,6 +129,12 @@ private:
   TrilinosWrappers::SparseMatrix system_matrix;
 };
 
+template <typename VectorType>
+using TimeMarchingFactory =
+  std::function<std::unique_ptr<TimeMarching<VectorType>>(
+    NonLinearSolvers::NewtonSolverSolverControl &,
+    MyTimerOutput &)>;
+
 struct MarchingSet
 {
   std::string     label;
@@ -139,27 +145,18 @@ struct MarchingSet
   std::shared_ptr<NonLinearSolvers::NewtonSolverSolverControl> statistics;
   std::unique_ptr<TimeMarching<BlockVectorType>>               marching;
 
-  template <typename... Args>
   MarchingSet(const std::string                     &label_in,
               const BlockVectorType                 &solution_in,
               const NonLinearSolvers::NonLinearData &nonlinear_data,
               MyTimerOutput                         &timer,
-              std::unique_ptr<ExplicitScheme>        scheme,
-              Args &&...args)
+              TimeMarchingFactory<BlockVectorType>   factory)
     : label(label_in)
     , solution(solution_in)
     , statistics(std::make_shared<NonLinearSolvers::NewtonSolverSolverControl>(
         nonlinear_data.nl_max_iter,
         nonlinear_data.nl_abs_tol,
         nonlinear_data.nl_rel_tol))
-    , marching(
-        std::make_unique<
-          TimeMarchingExplicit<BlockVectorType, SinOperator, std::ostream>>(
-          std::forward<Args>(args)...,
-          std::move(scheme),
-          *statistics,
-          timer,
-          std::cout))
+    , marching(factory(*statistics, timer))
   {}
 };
 
@@ -176,7 +173,8 @@ main(int argc, char **argv)
   SinOperator::OpData data;
 
   // Set time settings
-  const Number dt = 1e-3;
+  const Number       dt      = 1e-3;
+  const unsigned int n_steps = 4;
   data.time_data.update_dt(dt);
 
   SinOperator nonlinear_operator(data);
@@ -209,22 +207,34 @@ main(int argc, char **argv)
   table.set_scientific("Exact x", true);
   table.set_scientific("Exact y", true);
 
+  auto add_zero_entry = [&table](const std::string &label) {
+    table.add_value(label + " x", 0);
+    table.add_value(label + " y", 0);
+    table.set_scientific(label + " x", true);
+    table.set_scientific(label + " y", true);
+    table.add_value(label + " n_evals", 0);
+  };
+
   for (auto &[label, scheme] : schemes)
     {
-      time_marchings.emplace_back(label,
-                                  solution,
-                                  nonlinear_data,
-                                  timer,
-                                  std::move(scheme),
-                                  nonlinear_operator,
-                                  residual_wrapper,
-                                  constraints);
+      auto explicit_factory =
+        [&](NonLinearSolvers::NewtonSolverSolverControl &stats,
+            MyTimerOutput                               &timer) {
+          return std::make_unique<
+            TimeMarchingExplicit<BlockVectorType, SinOperator, std::ostream>>(
+            nonlinear_operator,
+            residual_wrapper,
+            constraints,
+            std::move(scheme),
+            stats,
+            timer,
+            std::cout);
+        };
 
-      table.add_value(label + " x", 0);
-      table.add_value(label + " y", 0);
-      table.set_scientific(label + " x", true);
-      table.set_scientific(label + " y", true);
-      table.add_value(label + " n_evals", 0);
+      time_marchings.emplace_back(
+        label, solution, nonlinear_data, timer, explicit_factory);
+
+      add_zero_entry(label);
     }
 
   auto exact_solution = [](Number t) {
@@ -232,8 +242,7 @@ main(int argc, char **argv)
                        std::sin(t)};
   };
 
-  const unsigned int n_steps = 4;
-  Number             tc      = 0;
+  Number tc = 0;
   for (unsigned int step = 1; step <= n_steps; ++step, tc += dt)
     {
       const auto tn = tc + dt;
