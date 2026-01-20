@@ -190,7 +190,7 @@ main(int argc, char **argv)
 
   // Time schemes to test
   std::map<std::string, std::unique_ptr<ExplicitScheme>> schemes;
-  schemes.emplace("Forward Euler", std::make_unique<ForwardEulerScheme>());
+  schemes.emplace("FE", std::make_unique<ForwardEulerScheme>());
   schemes.emplace("RK4", std::make_unique<RungeKutta4Scheme>());
 
   // Create time marching for each scheme with the corresponding state vector
@@ -224,7 +224,7 @@ main(int argc, char **argv)
       table.add_value(label + " y", 0);
       table.set_scientific(label + " x", true);
       table.set_scientific(label + " y", true);
-      table.add_value(label + " n_res_evals", 0);
+      table.add_value(label + " n_evals", 0);
     }
 
   auto exact_solution = [](Number t) {
@@ -255,7 +255,7 @@ main(int argc, char **argv)
 
           table.add_value(marching_set.label + " x", marching_set.solution[0]);
           table.add_value(marching_set.label + " y", marching_set.solution[1]);
-          table.add_value(marching_set.label + " n_res_evals",
+          table.add_value(marching_set.label + " n_evals",
                           marching_set.statistics->n_residual_evaluations());
         }
     }

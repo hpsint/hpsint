@@ -728,7 +728,7 @@ namespace TimeIntegration
       nonlinear_operator.get_data().time_data.update_current_time(dt);
 
       // Separately update algebraic equations if any
-      if (has_stationary_equations && stages.size() > 1)
+      if (has_stationary_equations)
         {
           {
             ScopedName sc("residual");
