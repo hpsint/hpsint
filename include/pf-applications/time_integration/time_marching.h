@@ -27,6 +27,7 @@
 #include <pf-applications/lac/solvers_nonlinear_parameters.h>
 
 #include <pf-applications/pde/equation_type.h>
+#include <pf-applications/time_integration/time_schemes.h>
 
 namespace TimeIntegration
 {
