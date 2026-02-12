@@ -949,7 +949,7 @@ namespace TimeIntegration
         if (time_integration_params.growth_factor <= 1.0)
           {
             // Enforce fixed step size
-            status = ARKodeSetFixedStep(
+            status = ARKStepSetFixedStep(
               arkode_mem,
               this->nonlinear_operator.get_data().time_data.get_current_dt());
             AssertARKode(status);
