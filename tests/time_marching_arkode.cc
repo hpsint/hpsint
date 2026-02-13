@@ -76,7 +76,7 @@ main(int argc, char **argv)
                               arkode_factory);
   */
 
-  tester.test(time_marchings);
+  tester.test(time_marchings, false);
 
   return 0;
 }
