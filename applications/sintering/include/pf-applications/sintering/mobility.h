@@ -822,6 +822,7 @@ namespace Sintering
       const auto  etas_value        = value + 2;
       const auto &c_gradient        = gradient[0];
       const auto &mu_gradient       = gradient[1];
+      const auto  etas_gradient     = gradient + 2;
 
       Tensor<1, dim, VectorizedArrayType> out, out_gb;
 
@@ -888,7 +889,7 @@ namespace Sintering
       if (n_grains <= 1)
         return out;
 
-      // 4) for M (gb part) and for dM_detai
+      // 4) for M (gb part) and for dM_detai and dM_dgrad_etai
       {
         // warning: nested loop over grains; optimization: exploit symmetry
         // and only loop over lower-triangular matrix
@@ -909,6 +910,15 @@ namespace Sintering
                  (filter * eta_grad_diff) * (eta_grad_diff * lin_mu_gradient)) *
                 (lin_etas_value[j] * etas_value[i] +
                  lin_etas_value[i] * etas_value[j]);
+
+              const auto etai_etaj_grads = etas_gradient[i] + etas_gradient[j];
+              const auto temp =
+                etai_etaj_grads -
+                (filter * eta_grad_diff) * (eta_grad_diff * etai_etaj_grads);
+
+              out_gb += (-(lin_etas_value[i] * lin_etas_value[j])) * filter *
+                        ((eta_grad_diff * lin_mu_gradient) * temp +
+                         eta_grad_diff * (lin_mu_gradient * temp));
             }
       }
 
