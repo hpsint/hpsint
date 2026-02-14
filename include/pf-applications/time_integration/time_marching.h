@@ -15,6 +15,8 @@
 
 #pragma once
 
+#include <deal.II/sundials/arkode.h>
+
 #include <pf-applications/base/data.h>
 #include <pf-applications/base/scoped_name.h>
 
@@ -26,8 +28,15 @@
 #include <pf-applications/lac/solvers_nonlinear.h>
 #include <pf-applications/lac/solvers_nonlinear_parameters.h>
 
+#ifdef DEAL_II_WITH_SUNDIALS
+#  include <arkode/arkode_arkstep.h>
+#endif
+
 #include <pf-applications/pde/equation_type.h>
+#include <pf-applications/time_integration/time_integrator_parameters.h>
 #include <pf-applications/time_integration/time_schemes.h>
+
+#include <ranges>
 
 namespace TimeIntegration
 {
@@ -809,4 +818,341 @@ namespace TimeIntegration
     bool has_stationary_equations;
   };
 
+#ifdef DEAL_II_WITH_SUNDIALS
+
+  template <typename VectorType, typename NonLinearOperator>
+  class TimeMarchingArkode : public TimeMarching<VectorType>
+  {
+  public:
+    using Number = typename NonLinearOperator::value_type;
+
+  private:
+    template <typename Operator>
+    using LinearSolverCG = LinearSolvers::
+      SolverCGWrapper<Operator, Preconditioners::PreconditionerBase<Number>>;
+
+  public:
+    TimeMarchingArkode(
+      const NonLinearOperator                    &nonlinear_operator,
+      const ResidualWrapper<Number>              &residual_wrapper,
+      const AffineConstraints<Number>            &constraints,
+      const TimeIntegration::TimeIntegrationData &time_integration_params,
+      NewtonSolverSolverControl                  &statistics,
+      MyTimerOutput                              &timer)
+      : nonlinear_operator(nonlinear_operator)
+      , residual_wrapper(residual_wrapper)
+      , constraints(constraints)
+      , statistics(statistics)
+      , timer(timer)
+      , linear_solver_wrapper(nullptr)
+      , solver_ready(false)
+    {
+      // Check that operator knows what kind of equations it contains
+      // Check if there are any stationary equations in the operator
+      for (unsigned int c = 0; c < nonlinear_operator.n_components(); ++c)
+        {
+          AssertThrow(nonlinear_operator.equation_type(c) !=
+                        EquationType::Undefined,
+                      ExcMessage("Equation type is not set for component " +
+                                 std::to_string(c)));
+
+          if (nonlinear_operator.equation_type(c) == EquationType::Stationary)
+            stationary_indices.push_back(c);
+        }
+
+      // Define settings
+      const double initial_time = time_integration_params.time_start;
+      const double final_time   = time_integration_params.time_end;
+
+      // Needs to be re-adjustable via the deal.II wrapper
+      const double initial_step_size =
+        nonlinear_operator.get_data().time_data.get_current_dt();
+
+      // Dummy for now
+      const double output_period = 1e-1;
+
+      // Not used by the wrapper at the moment
+      const double minimum_step_size = time_integration_params.time_step_min;
+
+      // Maximum order
+      const double maximum_order =
+        time_integration_params.arkode_data.maximum_order;
+
+      // Error parameters
+      const double absolute_tolerance = 1e-6;
+      const double relative_tolerance = 1e-5;
+
+      const typename SUNDIALS::ARKode<VectorType>::AdditionalData arkode_data(
+        initial_time,
+        final_time,
+        initial_step_size,
+        output_period,
+        minimum_step_size,
+        maximum_order,
+        absolute_tolerance,
+        relative_tolerance);
+
+      arkode = std::make_unique<SUNDIALS::ARKode<VectorType>>(arkode_data);
+
+      arkode->explicit_function =
+        [this](const double t, const VectorType &y, VectorType &ydot) {
+          ScopedName sc("residual");
+          MyScope    scope(this->timer, sc);
+
+          this->nonlinear_operator.get_data().time_data.set_current_time(t);
+
+          VectorType &y_nc = const_cast<VectorType &>(y);
+
+          for (unsigned int i = 0; i < this->stationary_indices.size(); ++i)
+            {
+              const auto index = this->stationary_indices[i];
+              y_nc.insert_block(this->stationary_blocks[i], index);
+              ydot.insert_block(this->residual.block_ptr(index), index);
+            }
+
+          this->residual_wrapper.evaluate_nonlinear_residual(ydot, y);
+
+          for (const auto index : std::views::reverse(this->stationary_indices))
+            {
+              y_nc.remove_block(index);
+              ydot.remove_block(index);
+            }
+
+          for (unsigned int b = 0; b < ydot.n_blocks(); ++b)
+            ydot.block(b) *= -1.0;
+
+          this->statistics.increment_residual_evaluations(1);
+        };
+
+      // Perform additional setup steps, we intentionally copy
+      // time_integration_params since it could be modified from ouside
+      arkode->custom_setup = [time_integration_params, this](void *arkode_mem) {
+        int status;
+
+        // Choose the integration methods
+        if (!time_integration_params.arkode_data.explicit_method_name.empty() ||
+            !time_integration_params.arkode_data.implicit_method_name.empty())
+          {
+            AssertThrow(!time_integration_params.arkode_data
+                            .explicit_method_name.empty() &&
+                          !time_integration_params.arkode_data
+                             .implicit_method_name.empty(),
+                        ExcMessage("Both method names must be provided."));
+
+            status = ARKStepSetTableName(
+              arkode_mem,
+              time_integration_params.arkode_data.implicit_method_name.c_str(),
+              time_integration_params.arkode_data.explicit_method_name.c_str());
+            AssertARKode(status);
+          }
+
+        if (time_integration_params.growth_factor <= 1.0)
+          {
+            // Enforce fixed step size
+            status = ARKStepSetFixedStep(
+              arkode_mem,
+              this->nonlinear_operator.get_data().time_data.get_current_dt());
+            AssertARKode(status);
+          }
+
+        // We need to add later
+        // ARKodeSetPostprocessStageFn(void* arkode_mem, ARKPostProcessFn
+        // ProcessStage)
+      };
+    }
+
+    template <typename MassOperator>
+    TimeMarchingArkode(
+      const NonLinearOperator                    &nonlinear_operator,
+      MassOperator                               &mass_operator,
+      const ResidualWrapper<Number>              &residual_wrapper,
+      const AffineConstraints<Number>            &constraints,
+      const TimeIntegration::TimeIntegrationData &time_integration_params,
+      const NonLinearData                        &nonlinear_params,
+      NewtonSolverSolverControl                  &statistics,
+      MyTimerOutput                              &timer)
+      : TimeMarchingArkode(nonlinear_operator,
+                           residual_wrapper,
+                           constraints,
+                           time_integration_params,
+                           statistics,
+                           timer)
+    {
+      linear_solver_wrapper = make_unique_from(
+        LinearSolvers::wrap_solver_with_preconditioner<MassOperator,
+                                                       Preconditioners::IC,
+                                                       LinearSolverCG>(
+          mass_operator, nonlinear_params));
+
+      setup_preconditioner = [this, &mass_operator]() {
+        this->linear_solver_wrapper->preconditioner->clear();
+
+        if (static_cast<bool>(
+              this->linear_solver_wrapper->preconditioner->underlying_entity() &
+              Preconditioners::UnderlyingEntity::System))
+          mass_operator.initialize_system_matrix(true);
+        else if (static_cast<bool>(
+                   this->linear_solver_wrapper->preconditioner
+                     ->underlying_entity() &
+                   Preconditioners::UnderlyingEntity::BlockSystem))
+          mass_operator.initialize_block_system_matrix(true);
+
+        this->linear_solver_wrapper->preconditioner->do_update();
+      };
+
+      arkode->mass_times_vector = [this, &mass_operator](const double      t,
+                                                         const VectorType &v,
+                                                         VectorType       &Mv) {
+        (void)t;
+        for (unsigned int i = 0; i < v.n_blocks(); ++i)
+          mass_operator.vmult(Mv.block(i), v.block(i));
+      };
+
+      arkode->solve_mass =
+        [this](SUNDIALS::SundialsOperator<VectorType>       &op,
+               SUNDIALS::SundialsPreconditioner<VectorType> &prec,
+               VectorType                                   &x,
+               const VectorType                             &b,
+               double                                        tol) {
+          (void)op;
+          (void)prec;
+          (void)tol;
+
+          VectorType &b_nc = const_cast<VectorType &>(b);
+
+          for (unsigned int ib = 0; ib < b.n_blocks(); ++ib)
+            {
+              const auto view_lhs = x.create_view(ib, ib + 1);
+              const auto view_rhs = b_nc.create_view(ib, ib + 1);
+
+              *view_lhs = 0;
+
+              this->constraints.set_zero(view_rhs->block(0));
+              const auto n_iterations =
+                this->linear_solver_wrapper->linear_solver->solve(*view_lhs,
+                                                                  *view_rhs);
+              this->constraints.distribute(view_lhs->block(0));
+
+              this->statistics.increment_linear_iterations(n_iterations);
+            }
+        };
+    }
+
+    void
+    make_step(VectorType &current_solution) override
+    {
+      // TODO: Arkode interface if better fitted for situations when it makes
+      // multiple steps at once, we will specify it later
+      const unsigned int n_steps = 1;
+      const auto dt = nonlinear_operator.get_data().time_data.get_current_dt();
+      const auto time_start =
+        this->nonlinear_operator.get_data().time_data.get_current_time();
+      const auto time_end = time_start + dt * n_steps;
+
+      const bool need_reinit = !solver_ready;
+
+      if (need_reinit)
+        {
+          if (setup_preconditioner)
+            setup_preconditioner();
+
+          if (!stationary_indices.empty())
+            nonlinear_operator.initialize_dof_vector(residual);
+        }
+
+      // Remove stationary blocks
+      stationary_blocks.resize(stationary_indices.size());
+      for (int i = stationary_indices.size() - 1; i >= 0; --i)
+        stationary_blocks[i] =
+          current_solution.remove_block(stationary_indices[i]);
+
+      arkode->solve_ode_incrementally(current_solution, time_end, need_reinit);
+
+      solver_ready = true;
+
+      nonlinear_operator.get_data().time_data.set_current_time(time_end);
+
+      // Since we have not yet added the required functionality to deal.II, we
+      // can only make a single step
+
+      // Evaluate stationary quantities
+      if (!stationary_indices.empty())
+        {
+          {
+            ScopedName sc("residual");
+            MyScope    scope(timer, sc);
+
+            for (unsigned int i = 0; i < stationary_indices.size(); ++i)
+              current_solution.insert_block(stationary_blocks[i],
+                                            stationary_indices[i]);
+
+            residual_wrapper.evaluate_nonlinear_residual(residual,
+                                                         current_solution);
+
+            statistics.increment_residual_evaluations(1);
+          }
+
+          for (const auto b : stationary_indices)
+            {
+              if (linear_solver_wrapper)
+                {
+                  const auto view_lhs = current_solution.create_view(b, b + 1);
+                  const auto view_rhs = residual.create_view(b, b + 1);
+
+                  *view_lhs = 0;
+
+                  constraints.set_zero(view_rhs->block(0));
+                  const auto n_iterations =
+                    linear_solver_wrapper->linear_solver->solve(*view_lhs,
+                                                                *view_rhs);
+                  constraints.distribute(view_lhs->block(0));
+
+                  statistics.increment_linear_iterations(n_iterations);
+                }
+              else
+                {
+                  // No mass matrix provided, assume identity
+                  current_solution.block(b) = residual.block(b);
+                  constraints.distribute(current_solution.block(b));
+                }
+
+              current_solution.block(b) *= -1.0;
+            }
+        }
+    }
+
+    void
+    clear() override
+    {
+      if (!stationary_indices.empty())
+        residual.reinit(0);
+
+      solver_ready = false;
+    }
+
+  private:
+    const NonLinearOperator         &nonlinear_operator;
+    const ResidualWrapper<Number>   &residual_wrapper;
+    const AffineConstraints<Number> &constraints;
+
+    std::unique_ptr<SUNDIALS::ARKode<VectorType>> arkode;
+
+    NewtonSolverSolverControl &statistics;
+    MyTimerOutput             &timer;
+
+    std::unique_ptr<LinearSolvers::LinearSolverWrapper<Number>>
+      linear_solver_wrapper;
+
+    std::function<void()> setup_preconditioner = {};
+
+    VectorType residual;
+
+    std::vector<unsigned int> stationary_indices;
+    std::vector<std::shared_ptr<typename VectorType::BlockType>>
+      stationary_blocks;
+
+    bool solver_ready;
+  };
+
+#endif
 } // namespace TimeIntegration

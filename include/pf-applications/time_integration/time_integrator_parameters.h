@@ -15,6 +15,8 @@
 
 #pragma once
 
+#include <pf-applications/time_integration/arkode_parameters.h>
+
 #include <string>
 
 namespace TimeIntegration
@@ -34,5 +36,7 @@ namespace TimeIntegration
     unsigned int desirable_linear_iterations = 100;
     bool         sanity_check_predictor      = false;
     bool         sanity_check_solution       = false;
+
+    ArkodeData arkode_data;
   };
 } // namespace TimeIntegration

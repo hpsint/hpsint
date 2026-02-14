@@ -177,7 +177,8 @@ namespace Test
     }
 
     void
-    test(std::vector<MarchingSet> &time_marchings) const
+    test(std::vector<MarchingSet> &time_marchings,
+         bool                      add_n_evals = true) const
     {
       // Output
       TableHandler table;
@@ -188,12 +189,13 @@ namespace Test
       table.set_scientific("Exact x", true);
       table.set_scientific("Exact y", true);
 
-      auto add_zero_entry = [&table](const std::string &label) {
+      auto add_zero_entry = [&table, &add_n_evals](const std::string &label) {
         table.add_value(label + " x", 0);
         table.add_value(label + " y", 0);
         table.set_scientific(label + " x", true);
         table.set_scientific(label + " y", true);
-        table.add_value(label + " n_evals", 0);
+        if (add_n_evals)
+          table.add_value(label + " n_evals", 0);
       };
 
       for (auto &marching_set : time_marchings)
@@ -229,9 +231,11 @@ namespace Test
                               marching_set.solution[0]);
               table.add_value(marching_set.label + " y",
                               marching_set.solution[1]);
-              table.add_value(
-                marching_set.label + " n_evals",
-                marching_set.statistics->n_residual_evaluations());
+
+              if (add_n_evals)
+                table.add_value(
+                  marching_set.label + " n_evals",
+                  marching_set.statistics->n_residual_evaluations());
             }
         }
 
