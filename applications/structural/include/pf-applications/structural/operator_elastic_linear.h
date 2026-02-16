@@ -94,7 +94,7 @@ namespace Structural
     }
 
     void
-    do_update()
+    do_update() override
     {
       if (this->matrix_based)
         this->initialize_system_matrix(); // assemble matrix

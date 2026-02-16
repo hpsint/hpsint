@@ -212,7 +212,7 @@ namespace Sintering
     }
 
     void
-    do_update()
+    do_update() override
     {
       if (this->matrix_based)
         this->get_system_matrix(); // assemble matrix
