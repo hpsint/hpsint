@@ -2958,8 +2958,7 @@ namespace Sintering
             table.set_scientific("dt", true);
 
           table.add_value("n_dofs", dof_handler.n_dofs());
-          table.add_value("n_op",
-                          sintering_operator.get_data().n_components() - 2);
+          table.add_value("n_op", sintering_operator.get_data().n_grains());
           table.add_value("n_grains", grain_tracker.get_grains().size());
 
           table.add_value("n_newton_iter", statistics.n_newton_iterations());
