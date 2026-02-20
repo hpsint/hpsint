@@ -687,7 +687,7 @@ namespace Sintering
       return do_calc_domain_quantities(quantities, vec, predicate, eval_flags);
     }
 
-    void
+    virtual void
     do_update()
     {
       if (this->matrix_based)
