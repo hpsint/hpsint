@@ -69,6 +69,7 @@
 #include <pf-applications/sintering/operator_advection.h>
 #include <pf-applications/sintering/operator_postproc.h>
 #include <pf-applications/sintering/operator_sintering_coupled_base.h>
+#include <pf-applications/sintering/operator_sintering_coupled_monolithic.h>
 #include <pf-applications/sintering/output.h>
 #include <pf-applications/sintering/parameters.h>
 #include <pf-applications/sintering/postprocessors.h>
@@ -1112,12 +1113,12 @@ namespace Sintering
       else if (params.preconditioners_data.outer_preconditioner ==
                "BlockPreconditioner2")
         {
-          if constexpr (std::is_base_of_v<
-                          SinteringOperatorCoupledBase<dim,
-                                                       Number,
-                                                       VectorizedArrayType,
-                                                       NonLinearOperator>,
-                          NonLinearOperator>)
+          if constexpr (std::is_base_of_v<SinteringOperatorCoupledMonolithic<
+                                            dim,
+                                            Number,
+                                            VectorizedArrayType,
+                                            NonLinearOperator>,
+                                          NonLinearOperator>)
             preconditioner =
               std::make_unique<BlockPreconditioner2<dim,
                                                     Number,
