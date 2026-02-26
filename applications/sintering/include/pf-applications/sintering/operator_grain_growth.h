@@ -610,6 +610,7 @@ namespace Sintering
     template <typename FECellIntegratorType>
     void
     precondition_advection_ch(
+      const unsigned int cell,
       const unsigned int q,
       const AdvectionVelocityData<dim, Number, VectorizedArrayType>
                                                              &advection_data,
@@ -618,6 +619,7 @@ namespace Sintering
       typename FECellIntegratorType::value_type              &value_result,
       typename FECellIntegratorType::gradient_type &gradient_result) const
     {
+      (void)cell;
       (void)q;
       (void)advection_data;
       (void)nonlinear_data;
@@ -629,6 +631,7 @@ namespace Sintering
     template <typename FECellIntegratorType>
     void
     precondition_advection_ac(
+      const unsigned int cell,
       const unsigned int q,
       const AdvectionVelocityData<dim, Number, VectorizedArrayType>
                                                              &advection_data,
@@ -637,6 +640,7 @@ namespace Sintering
       typename FECellIntegratorType::value_type              &value_result,
       typename FECellIntegratorType::gradient_type &gradient_result) const
     {
+      (void)cell;
       (void)q;
       (void)advection_data;
       (void)nonlinear_data;
@@ -648,6 +652,7 @@ namespace Sintering
     template <typename FECellIntegratorType>
     void
     precondition_advection_ac(
+      const unsigned int cell,
       const unsigned int q,
       const unsigned int igrain,
       const AdvectionVelocityData<dim, Number, VectorizedArrayType>
@@ -657,6 +662,7 @@ namespace Sintering
       typename FECellIntegratorType::value_type              &value_result,
       typename FECellIntegratorType::gradient_type &gradient_result) const
     {
+      (void)cell;
       (void)q;
       (void)igrain;
       (void)advection_data;
