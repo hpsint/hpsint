@@ -155,7 +155,8 @@ namespace Sintering
 #endif
 
           if (this->advection.enabled())
-            nonlinear_operator.precondition_advection_ch(q,
+            nonlinear_operator.precondition_advection_ch(cell,
+                                                         q,
                                                          advection_data,
                                                          nonlinear_data,
                                                          phi,
@@ -393,7 +394,8 @@ namespace Sintering
                 }
 
               if (this->advection.enabled())
-                nonlinear_operator.precondition_advection_ac(q,
+                nonlinear_operator.precondition_advection_ac(cell,
+                                                             q,
                                                              advection_data,
                                                              nonlinear_data,
                                                              phi,
@@ -545,7 +547,8 @@ namespace Sintering
                 }
 
               if (this->advection.enabled())
-                nonlinear_operator.precondition_advection_ac(q,
+                nonlinear_operator.precondition_advection_ac(cell,
+                                                             q,
                                                              advection_data,
                                                              nonlinear_data,
                                                              phi,
@@ -797,6 +800,7 @@ namespace Sintering
                         if (free_energy_approximation == 0 &&
                             this->advection.enabled())
                           nonlinear_operator.precondition_advection_ac(
+                            cell,
                             q,
                             b,
                             advection_data,
