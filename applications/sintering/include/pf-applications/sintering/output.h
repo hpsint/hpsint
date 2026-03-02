@@ -37,6 +37,7 @@ namespace Sintering
       const MappingQ<dim>                               &mapping,
       const DoFHandler<dim>                             &dof_handler,
       const VectorType                                  &solution,
+      const unsigned int                                 offset_op,
       const unsigned int                                 n_op,
       const OutputData                                  &params,
       const GrainTracker::Tracker<dim, Number>          &grain_tracker,
@@ -55,6 +56,18 @@ namespace Sintering
       ScopedName sc("advanced_output");
       MyScope    scope(timer, sc);
 
+      // Extract concentration
+      std::unique_ptr<const VectorType> solution_concentration = nullptr;
+      std::unique_ptr<const VectorType> solution_order_params  = nullptr;
+
+      if (offset_op > 0)
+        solution_concentration = solution.create_view(0, 1);
+
+      // Extract order parameters
+      if (n_op > 0)
+        solution_order_params =
+          solution.create_view(offset_op, offset_op + n_op);
+
       // Some settings
       const double iso_value = 0.5;
 
@@ -62,13 +75,21 @@ namespace Sintering
         {
           for (unsigned int i = 0; i < box_filters.size(); ++i)
             {
-              if (params.iso_surf_area)
+              if (box_filters[i])
+                {
+                  const auto box_volume =
+                    box_filters[i]->get_bounding_box().volume();
+
+                  table.add_value(generate_name("control_box", i), box_volume);
+                }
+
+              if (params.iso_surf_area && offset_op > 0)
                 {
                   const auto surface_area =
                     Postprocessors::compute_surface_area(
                       mapping,
                       dof_handler,
-                      solution,
+                      *solution_concentration,
                       iso_value,
                       box_filters[i],
                       params.n_mca_subdivisions);
@@ -77,15 +98,14 @@ namespace Sintering
                                   surface_area);
                 }
 
-              if (params.iso_gb_area)
+              if (params.iso_gb_area && solution_order_params)
                 {
                   const auto gb_area =
                     Postprocessors::compute_grain_boundaries_area(
                       mapping,
                       dof_handler,
-                      solution,
+                      *solution_order_params,
                       iso_value,
-                      n_op,
                       params.gb_threshold,
                       box_filters[i],
                       params.n_mca_subdivisions);
@@ -109,7 +129,7 @@ namespace Sintering
         {
           const std::string label_box = generate_name(label, i);
 
-          if (params.contours)
+          if (params.contours && solution_order_params)
             {
               const std::string output = params.vtk_path + "/contour_" +
                                          label_box + "." +
@@ -121,45 +141,49 @@ namespace Sintering
               Postprocessors::output_grain_contours_vtu(
                 mapping,
                 dof_handler,
-                solution,
+                *solution_order_params,
                 iso_value,
                 output,
-                n_op,
                 grain_tracker,
                 params.n_coarsening_steps,
                 box_filters[i],
                 params.n_mca_subdivisions);
 
               if constexpr (dim == 3)
-                for (unsigned int i = 0; i < sections.size(); ++i)
-                  {
-                    std::stringstream ss;
-                    ss << params.vtk_path << "/contour_section_"
-                       << params.sections[i].first << "="
-                       << params.sections[i].second << "_" << label << "."
-                       << counter << ".vtu";
+                if (solution_order_params)
+                  for (unsigned int i = 0; i < sections.size(); ++i)
+                    {
+                      std::stringstream ss;
+                      ss << params.vtk_path << "/contour_section_"
+                         << params.sections[i].first << "="
+                         << params.sections[i].second << "_" << label << "."
+                         << counter << ".vtu";
 
-                    const std::string output = ss.str();
+                      const std::string output = ss.str();
 
-                    pcout << "Outputing data at t = " << t << " (" << output
-                          << ")" << std::endl;
+                      pcout << "Outputing data at t = " << t << " (" << output
+                            << ")" << std::endl;
 
-                    Postprocessors::output_grain_contours_projected_vtu(
-                      sections[i].state->mapping,
-                      sections[i].state->dof_handler,
                       Postprocessors::BlockVectorWrapper<
-                        std::vector<Vector<Number>>>(
-                        sections[i].state->solution),
-                      iso_value,
-                      output,
-                      n_op,
-                      grain_tracker,
-                      MPI_COMM_WORLD,
-                      params.n_mca_subdivisions);
-                  }
+                        std::vector<Vector<Number>>>
+                        solution_order_params_proj(
+                          sections[i].state->solution.begin() + offset_op,
+                          sections[i].state->solution.begin() + offset_op +
+                            n_op);
+
+                      Postprocessors::output_grain_contours_projected_vtu(
+                        sections[i].state->mapping,
+                        sections[i].state->dof_handler,
+                        solution_order_params_proj,
+                        iso_value,
+                        output,
+                        grain_tracker,
+                        MPI_COMM_WORLD,
+                        params.n_mca_subdivisions);
+                    }
             }
 
-          if (params.concentration_contour)
+          if (params.concentration_contour && solution_concentration)
             {
               const std::string output = params.vtk_path + "/surface_" +
                                          label_box + "." +
@@ -168,12 +192,10 @@ namespace Sintering
               pcout << "Outputing data at t = " << t << " (" << output << ")"
                     << std::endl;
 
-              const auto only_concentration = solution.create_view(0, 1);
-
               Postprocessors::output_concentration_contour_vtu(
                 mapping,
                 dof_handler,
-                *only_concentration,
+                *solution_concentration,
                 iso_value,
                 output,
                 params.n_coarsening_steps,
@@ -181,7 +203,7 @@ namespace Sintering
                 params.n_mca_subdivisions);
             }
 
-          if (params.grain_boundaries)
+          if (params.grain_boundaries && solution_order_params)
             {
               const std::string output = params.vtk_path + "/gb_" + label_box +
                                          "." + std::to_string(counter) + ".vtu";
@@ -192,10 +214,9 @@ namespace Sintering
               Postprocessors::output_grain_boundaries_vtu(
                 mapping,
                 dof_handler,
-                solution,
+                *solution_order_params,
                 iso_value,
                 output,
-                n_op,
                 params.gb_threshold,
                 params.n_coarsening_steps,
                 box_filters[i],
@@ -213,7 +234,9 @@ namespace Sintering
 
               Postprocessors::output_porosity(mapping,
                                               dof_handler,
-                                              solution,
+                                              solution_concentration ?
+                                                *solution_concentration :
+                                                *solution_order_params,
                                               output,
                                               params.porosity_max_value,
                                               box_filters[i]);
@@ -229,7 +252,9 @@ namespace Sintering
                     << std::endl;
 
               Postprocessors::output_porosity_stats(dof_handler,
-                                                    solution,
+                                                    solution_concentration ?
+                                                      *solution_concentration :
+                                                      *solution_order_params,
                                                     output,
                                                     params.porosity_max_value,
                                                     box_filters[i]);
@@ -249,7 +274,8 @@ namespace Sintering
               Postprocessors::output_porosity_contours_vtu(
                 mapping,
                 dof_handler,
-                *only_concentration,
+                solution_concentration ? *solution_concentration :
+                                         *solution_order_params,
                 iso_value,
                 output,
                 params.n_coarsening_steps,
@@ -259,7 +285,8 @@ namespace Sintering
             }
         }
 
-      if (params.contours_tex && !grain_tracker.empty())
+      if (params.contours_tex && !grain_tracker.empty() &&
+          solution_order_params)
         {
           const std::string output = params.vtk_path + "/contour_" + label +
                                      "." + std::to_string(counter) + ".txt";
@@ -269,10 +296,9 @@ namespace Sintering
 
           Postprocessors::output_grain_contours(mapping,
                                                 dof_handler,
-                                                solution,
+                                                *solution_order_params,
                                                 iso_value,
                                                 output,
-                                                n_op,
                                                 grain_tracker);
 
           // Output sections for 3D case
@@ -290,14 +316,17 @@ namespace Sintering
                 pcout << "Outputing data at t = " << t << " (" << output << ")"
                       << std::endl;
 
+                Postprocessors::BlockVectorWrapper<std::vector<Vector<Number>>>
+                  solution_order_params_proj(
+                    sections[i].state->solution.begin() + offset_op,
+                    sections[i].state->solution.begin() + offset_op + n_op);
+
                 Postprocessors::output_grain_contours_projected(
                   sections[i].state->mapping,
                   sections[i].state->dof_handler,
-                  Postprocessors::BlockVectorWrapper<
-                    std::vector<Vector<Number>>>(sections[i].state->solution),
+                  solution_order_params_proj,
                   iso_value,
                   output,
-                  n_op,
                   grain_tracker,
                   sections[i].origin,
                   sections[i].normal,

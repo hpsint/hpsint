@@ -3130,21 +3130,23 @@ namespace Sintering
 
       // Advanced output for contours
       if constexpr (dim >= 2)
-        Postprocessors::advanced_output(mapping,
-                                        dof_handler,
-                                        solution,
-                                        sintering_operator.n_grains(),
-                                        params.output_data,
-                                        grain_tracker,
-                                        sections,
-                                        box_filters,
-                                        table,
-                                        t,
-                                        timer,
-                                        generate_name,
-                                        counters[label],
-                                        label,
-                                        pcout);
+        Postprocessors::advanced_output(
+          mapping,
+          dof_handler,
+          solution,
+          sintering_operator.get_data().n_non_grains(),
+          sintering_operator.n_grains(),
+          params.output_data,
+          grain_tracker,
+          sections,
+          box_filters,
+          table,
+          t,
+          timer,
+          generate_name,
+          counters[label],
+          label,
+          pcout);
 
       if (params.output_data.table)
         {
