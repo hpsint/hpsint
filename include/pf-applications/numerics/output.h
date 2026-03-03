@@ -46,7 +46,7 @@ namespace Sintering
       BlockVectorWrapper(Iterator begin, Iterator end)
       {
         std::transform(begin, end, data.begin(), [](const auto &item) {
-          return &(*item);
+          return &item;
         });
       }
 
@@ -59,7 +59,7 @@ namespace Sintering
       typename std::vector<T>::size_type
       n_blocks() const
       {
-        return data->size();
+        return data.size();
       }
 
     private:
