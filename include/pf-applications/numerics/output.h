@@ -33,6 +33,8 @@ namespace Sintering
     template <typename T>
     struct BlockVectorWrapper<std::vector<T>>
     {
+      using BlockType = T;
+
       BlockVectorWrapper(const std::vector<T> &v)
       {
         std::transform(v.begin(), v.end(), data.begin(), [](const auto &item) {
@@ -62,8 +64,6 @@ namespace Sintering
 
     private:
       std::vector<const T *> data;
-
-      using BlockType = T;
     };
 
     template <int dim, typename VectorType>
