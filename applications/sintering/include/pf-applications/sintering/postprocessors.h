@@ -119,7 +119,6 @@ namespace Sintering
         const DoFHandler<dim>                        &background_dof_handler,
         const VectorType                             &vector,
         const double                                  iso_level,
-        const unsigned int                            n_grains,
         const double                                  gb_lim             = 0.14,
         const unsigned int                            n_coarsening_steps = 0,
         std::shared_ptr<const BoundingBoxFilter<dim>> box_filter     = nullptr,
@@ -129,6 +128,8 @@ namespace Sintering
         using Number = typename VectorType::value_type;
 
         const bool has_ghost_elements = vector.has_ghost_elements();
+
+        const auto n_grains = vector.n_blocks();
 
         if (has_ghost_elements == false)
           vector.update_ghost_values();
@@ -166,11 +167,8 @@ namespace Sintering
                 vector_to_be_used = &vector_coarsened;
               }
 
-            auto only_order_params =
-              vector_coarsened.create_view(2, 2 + n_grains);
-
             filter_mesh_withing_bounding_box(*background_dof_handler_to_be_used,
-                                             *only_order_params,
+                                             vector_coarsened,
                                              iso_level,
                                              box_filter);
           }
@@ -203,8 +201,7 @@ namespace Sintering
             {
               for (unsigned int i = 0; i < n_grains; ++i)
                 {
-                  cell->get_dof_values(vector_to_be_used->block(2 + i),
-                                       values_i);
+                  cell->get_dof_values(vector_to_be_used->block(i), values_i);
 
                   bool i_upper = false;
                   bool i_lower = false;
@@ -226,7 +223,7 @@ namespace Sintering
                           if (i == j)
                             continue;
 
-                          cell->get_dof_values(vector_to_be_used->block(2 + j),
+                          cell->get_dof_values(vector_to_be_used->block(j),
                                                values_j);
 
                           gb += values_j;
@@ -262,7 +259,7 @@ namespace Sintering
                           std::vector<CellData<dim - 1>> local_cells;
 
                           mc.process_cell(cell,
-                                          vector_to_be_used->block(2 + i),
+                                          vector_to_be_used->block(i),
                                           iso_level,
                                           vertices,
                                           local_cells);
@@ -438,7 +435,6 @@ namespace Sintering
         const VectorType      &vector,
         const double           iso_level,
         const std::string      filename,
-        const unsigned int     n_op,
         std::function<unsigned int(const CellAccessor<dim, dim> &)>
           cell_data_extractor,
         std::optional<std::reference_wrapper<const GrainTracker::Mapper>>
@@ -460,7 +456,7 @@ namespace Sintering
                    n_subdivisions,
                    tolerance);
 
-            for (unsigned int b = 0; b < n_op; ++b)
+            for (unsigned int b = 0; b < vector.n_blocks(); ++b)
               {
                 for (const auto &cell :
                      background_dof_handler.active_cell_iterators())
@@ -469,7 +465,7 @@ namespace Sintering
                       const unsigned int old_size = cells.size();
 
                       mc.process_cell(
-                        cell, vector.block(b + 2), iso_level, vertices, cells);
+                        cell, vector.block(b), iso_level, vertices, cells);
 
                       for (unsigned int i = old_size; i < cells.size(); ++i)
                         {
@@ -549,7 +545,6 @@ namespace Sintering
       const VectorType                         &vector,
       const double                              iso_level,
       const std::string                         filename,
-      const unsigned int                        n_op,
       const GrainTracker::Tracker<dim, Number> &grain_tracker,
       const unsigned int                        n_subdivisions = 1,
       const double                              tolerance      = 1e-10)
@@ -596,7 +591,7 @@ namespace Sintering
                                              typename VectorType::BlockType>
         mc(mapping, background_dof_handler.get_fe(), n_subdivisions, tolerance);
 
-      for (unsigned int b = 0; b < n_op; ++b)
+      for (unsigned int b = 0; b < vector.n_blocks(); ++b)
         {
           for (const auto &cell :
                background_dof_handler.active_cell_iterators())
@@ -617,7 +612,7 @@ namespace Sintering
 
                 mc.process_cell(
                   cell,
-                  vector.block(b + 2),
+                  vector.block(b),
                   iso_level,
                   points_local[grain_id_to_index.at(grain_and_segment_ids)]);
               }
@@ -627,7 +622,7 @@ namespace Sintering
         vector.zero_out_ghost_values();
 
       internal::write_grain_contours_tex(g_counter,
-                                         n_op,
+                                         vector.n_blocks(),
                                          grains_data,
                                          bb,
                                          parameters,
@@ -644,7 +639,6 @@ namespace Sintering
       const VectorType                             &vector,
       const double                                  iso_level,
       const std::string                             filename,
-      const unsigned int                            n_grains,
       const GrainTracker::Mapper                   &grain_mapper,
       const unsigned int                            n_coarsening_steps = 0,
       std::shared_ptr<const BoundingBoxFilter<dim>> box_filter     = nullptr,
@@ -690,10 +684,8 @@ namespace Sintering
               vector_to_be_used = &solution_dealii;
             }
 
-          auto only_order_params = solution_dealii.create_view(2, 2 + n_grains);
-
           filter_mesh_withing_bounding_box(*background_dof_handler_to_be_used,
-                                           *only_order_params,
+                                           solution_dealii,
                                            iso_level,
                                            box_filter);
         }
@@ -714,7 +706,6 @@ namespace Sintering
         *vector_to_be_used,
         iso_level,
         filename,
-        n_grains,
         cell_data_extractor,
         opt_grain_mapper,
         background_dof_handler.get_mpi_communicator(),
@@ -733,7 +724,6 @@ namespace Sintering
       const VectorType                             &vector,
       const double                                  iso_level,
       const std::string                             filename,
-      const unsigned int                            n_grains,
       const double                                  gb_lim             = 0.14,
       const unsigned int                            n_coarsening_steps = 0,
       std::shared_ptr<const BoundingBoxFilter<dim>> box_filter     = nullptr,
@@ -748,7 +738,6 @@ namespace Sintering
                                               background_dof_handler,
                                               vector,
                                               iso_level,
-                                              n_grains,
                                               gb_lim,
                                               n_coarsening_steps,
                                               box_filter,
@@ -924,7 +913,6 @@ namespace Sintering
       const DoFHandler<dim>                        &background_dof_handler,
       const VectorType                             &vector,
       const double                                  iso_level,
-      const unsigned int                            n_grains,
       const double                                  gb_lim         = 0.14,
       std::shared_ptr<const BoundingBoxFilter<dim>> box_filter     = nullptr,
       const unsigned int                            n_subdivisions = 1,
@@ -941,7 +929,6 @@ namespace Sintering
                                               background_dof_handler,
                                               vector,
                                               iso_level,
-                                              n_grains,
                                               gb_lim,
                                               n_coarsening_steps,
                                               box_filter_mesh,
@@ -1191,19 +1178,9 @@ namespace Sintering
 
         Vector<double> values(cell->get_fe().n_dofs_per_cell());
 
-        if (false /* TODO */)
+        for (unsigned int b = 0; b < solution.n_blocks(); ++b)
           {
-            for (unsigned int b = 2; b < solution.n_blocks(); ++b)
-              {
-                cell->get_dof_values(solution.block(b), values);
-
-                if (values.linfty_norm() >= threshold_upper)
-                  return 0;
-              }
-          }
-        else
-          {
-            cell->get_dof_values(solution.block(0), values);
+            cell->get_dof_values(solution.block(b), values);
 
             if (values.linfty_norm() >= threshold_upper)
               return 0;
@@ -1483,8 +1460,12 @@ namespace Sintering
 
       if (smooth)
         {
-          // Use quantity (1-c)
+          // Use quantity (1-c) or evaluate it from the order params
           pores_data.block(0).copy_locally_owned_data_from(solution.block(0));
+
+          for (unsigned int b = 1; b < solution.n_blocks(); ++b)
+            pores_data.block(0) += solution.block(b);
+
           pores_data.block(0) *= -1.0;
           for (auto &v : pores_data.block(0))
             v += 1.0;
