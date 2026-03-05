@@ -68,6 +68,22 @@ namespace GrainTracker
     std::map<unsigned int, unsigned int> new_grains_to_old;
     std::map<unsigned int, unsigned int> old_grains_to_new;
 
+    // Checker to resolve mapping conflicts
+    auto override_mapping = [&new_grains,
+                             &old_grains](const unsigned int old_grain_id,
+                                          const unsigned int id_candidate,
+                                          const unsigned int id_existing) {
+      const auto distance_to_candidate =
+        old_grains.at(old_grain_id)
+          .distance_centers(new_grains.at(id_candidate));
+
+      const auto distance_to_existing =
+        old_grains.at(old_grain_id)
+          .distance_centers(new_grains.at(id_existing));
+
+      return distance_to_candidate < distance_to_existing;
+    };
+
     for (unsigned int op = 0; op < n_order_params; ++op)
       {
         ContainerType boxes;
@@ -93,124 +109,134 @@ namespace GrainTracker
         const auto tree = pack_rtree_of_indices(boxes);
 
         for (const unsigned int grain_id : new_grains_per_op[op])
-          for (const auto &new_segment : new_grains.at(grain_id).get_segments())
-            {
-              const auto box =
-                create_bounding_box_around_point(new_segment.get_center(),
-                                                 new_segment.get_radius());
+          {
+            unsigned int old_grain_id = numbers::invalid_unsigned_int;
+            double       min_dist     = std::numeric_limits<double>::max();
 
-              std::vector<typename ContainerType::size_type> result;
-              tree.query(bgi::intersects(box), std::back_inserter(result));
+            for (const auto &new_segment :
+                 new_grains.at(grain_id).get_segments())
+              {
+                const auto box =
+                  create_bounding_box_around_point(new_segment.get_center(),
+                                                   new_segment.get_radius());
 
-              // If any of the grain was identified, then there is no need to
-              // check for the others, so we break the iteration
-              if (!result.empty())
-                {
-                  /* Perform manual sorting among the candidates, since
-                   * bgi::nearest() outputs the closest to the face of the box,
-                   * not the box having the closest center. */
+                std::vector<typename ContainerType::size_type> result;
+                tree.query(bgi::intersects(box), std::back_inserter(result));
 
-                  unsigned int old_grain_id = 0;
+                // If any of the grain was identified, then there is no need to
+                // check for the others, so we break the iteration
+                if (!result.empty())
+                  {
+                    // Perform manual sorting among the candidates, since
+                    // bgi::nearest() outputs the closest to the face of the
+                    // box, not the box having the closest center. Note that we
+                    // also compute distances if old_grain_id has been set -
+                    // this may happen for the situation when a new grain has
+                    // multiple segments.
+                    if (result.size() > 1 ||
+                        old_grain_id != numbers::invalid_unsigned_int)
+                      {
+                        for (const auto &id : result)
+                          {
+                            const unsigned int candidate_grain_id =
+                              old_segments_to_grains[id];
 
-                  if (result.size() > 1)
-                    {
-                      double min_dist = std::numeric_limits<double>::max();
+                            // Compute the segment id
+                            unsigned int work_id = id;
+                            for (; work_id > 0 &&
+                                   old_segments_to_grains[work_id - 1] ==
+                                     old_segments_to_grains[work_id];
+                                 --work_id)
+                              ;
+                            const unsigned int segment_id = id - work_id;
 
-                      for (const auto &id : result)
-                        {
-                          const unsigned int candidate_grain_id =
-                            old_segments_to_grains[id];
+                            const auto &candidate_segment =
+                              old_grains.at(candidate_grain_id)
+                                .get_segments()[segment_id];
 
-                          // Compute the segment id
-                          unsigned int work_id = id;
-                          for (; work_id > 0 &&
-                                 old_segments_to_grains[work_id - 1] ==
-                                   old_segments_to_grains[work_id];
-                               --work_id)
-                            ;
-                          const unsigned int segment_id = id - work_id;
+                            const auto curent_dist =
+                              candidate_segment.get_center().distance(
+                                new_segment.get_center());
 
-                          const auto &candidate_segment =
-                            old_grains.at(candidate_grain_id)
-                              .get_segments()[segment_id];
+                            if (curent_dist < min_dist)
+                              {
+                                old_grain_id = candidate_grain_id;
+                                min_dist     = curent_dist;
+                              }
+                          }
+                      }
+                    else
+                      {
+                        old_grain_id = old_segments_to_grains[result[0]];
+                      }
+                  }
+              }
 
-                          const auto curent_dist =
-                            candidate_segment.get_center().distance(
-                              new_segment.get_center());
+            if (old_grain_id != numbers::invalid_unsigned_int)
+              {
+                // Check if mapping already exists
+                const auto it_old_to_new = old_grains_to_new.find(old_grain_id);
 
-                          if (curent_dist < min_dist)
-                            {
-                              old_grain_id = candidate_grain_id;
-                              min_dist     = curent_dist;
-                            }
-                        }
-                    }
-                  else
-                    {
-                      old_grain_id = old_segments_to_grains[result[0]];
-                    }
+                // Log the mapping conflicts resolution
+                if (logger && it_old_to_new != old_grains_to_new.end() &&
+                    it_old_to_new->second != grain_id)
+                  {
+                    auto &ss = logger->get();
 
-                  // Check if mapping already exists
-                  const auto it_old_to_new =
-                    old_grains_to_new.find(old_grain_id);
+                    ss << "Mapping conflict \"old -> new\" has been detected"
+                       << std::endl;
+                    ss << "  existing mapping: " << old_grain_id << " -> "
+                       << it_old_to_new->second << std::endl;
+                    ss << " candidate mapping: " << old_grain_id << " -> "
+                       << grain_id << std::endl;
+                    ss << "old grain:" << std::endl;
+                    print_grain(old_grains.at(old_grain_id), ss);
 
-                  // Log the mapping conflicts resolution
-                  if (logger && it_old_to_new != old_grains_to_new.end())
-                    {
-                      auto &ss = logger->get();
+                    ss << "new grain already mapped:" << std::endl;
+                    print_grain(new_grains.at(it_old_to_new->second), ss);
 
-                      ss << "Mapping conflict \"old -> new\" has been detected"
-                         << std::endl;
-                      ss << "  existing mapping: " << old_grain_id << " -> "
-                         << it_old_to_new->second << std::endl;
-                      ss << " candidate mapping: " << old_grain_id << " -> "
-                         << grain_id << std::endl;
-                      ss << "old grain:" << std::endl;
-                      print_grain(old_grains.at(old_grain_id), ss);
+                    ss << "new grain candidate for mapping:" << std::endl;
+                    print_grain(new_grains.at(grain_id), ss);
 
-                      ss << "new grain already mapped:" << std::endl;
-                      print_grain(new_grains.at(it_old_to_new->second), ss);
+                    // This check appears below too, it was decided to
+                    // separate loggin logic to the independent block for
+                    // the code clarity
+                    if (override_mapping(old_grain_id,
+                                         grain_id,
+                                         it_old_to_new->second))
+                      ss
+                        << "The existing mapping was overwritten with the candidate."
+                        << std::endl;
+                    else
+                      ss
+                        << "The existing mapping was kept and the candidate was omitted."
+                        << std::endl;
+                  }
 
-                      ss << "new grain candidate for mapping:" << std::endl;
-                      print_grain(new_grains.at(grain_id), ss);
-
-                      // This check appears below too, it was decided to
-                      // separate loggin logic to the independent block for the
-                      // code clarity
-                      if (new_grains.at(grain_id).get_max_value() >
-                          new_grains.at(it_old_to_new->second).get_max_value())
-                        ss
-                          << "The existing mapping was overwritten with the candidate."
-                          << std::endl;
-                      else
-                        ss
-                          << "The existing mapping was kept and the candidate was omitted."
-                          << std::endl;
-                    }
-
-                  // Create "new -> old" and "old -> new" mappings. The latter
-                  // is always checked to ensure that the mapping "new -> old"
-                  // is unambiguous, i.e. an old grain can be mapped only to one
-                  // new grain.
-                  if (it_old_to_new == old_grains_to_new.end())
-                    {
-                      // Add new mapping if it does not exist yet
-                      new_grains_to_old.at(grain_id) = old_grain_id;
-                      old_grains_to_new.try_emplace(old_grain_id, grain_id);
-                    }
-                  else if (new_grains.at(grain_id).get_max_value() >
-                           new_grains.at(it_old_to_new->second).get_max_value())
-                    {
-                      // Overwrite the existing mapping if a newly detected
-                      // candidate grain has a larger max_value than the one
-                      // mapped previously
-                      new_grains_to_old.at(it_old_to_new->second) =
-                        numbers::invalid_unsigned_int;
-                      new_grains_to_old.at(grain_id)     = old_grain_id;
-                      old_grains_to_new.at(old_grain_id) = grain_id;
-                    }
-                }
-            }
+                // Create "new -> old" and "old -> new" mappings. The latter
+                // is always checked to ensure that the mapping "new -> old"
+                // is unambiguous, i.e. an old grain can be mapped only to
+                // one new grain.
+                if (it_old_to_new == old_grains_to_new.end())
+                  {
+                    // Add new mapping if it does not exist yet
+                    new_grains_to_old.at(grain_id) = old_grain_id;
+                    old_grains_to_new.try_emplace(old_grain_id, grain_id);
+                  }
+                else if (override_mapping(old_grain_id,
+                                          grain_id,
+                                          it_old_to_new->second))
+                  {
+                    // Overwrite the existing mapping if a newly detected
+                    // candidate grain has a larger max_value than the one
+                    // mapped previously
+                    new_grains_to_old.at(it_old_to_new->second) =
+                      numbers::invalid_unsigned_int;
+                    new_grains_to_old.at(grain_id)     = old_grain_id;
+                    old_grains_to_new.at(old_grain_id) = grain_id;
+                  }
+              }
+          }
       }
 
     return new_grains_to_old;
