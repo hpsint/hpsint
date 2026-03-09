@@ -80,6 +80,26 @@ namespace GrainTracker
       return min_distance;
     }
 
+    /* This function computes the distances between the segment centers of the
+     * two grains and takes the minimum value among them.
+     */
+    double
+    distance_centers(const Grain<dim> &other) const
+    {
+      double min_distance = std::numeric_limits<double>::max();
+
+      for (const auto &this_segment : segments)
+        for (const auto &other_segment : other.get_segments())
+          {
+            const auto current_distance =
+              this_segment.get_center().distance(other_segment.get_center());
+
+            min_distance = std::min(current_distance, min_distance);
+          }
+
+      return min_distance;
+    }
+
     /* This function computes the minimum distance between the segments of the
      * two grains treating them as spheres.
      */
