@@ -3016,31 +3016,6 @@ namespace Sintering
                     table.add_value(generate_name(q_labels[j], i), q_values[j]);
                 }
             }
-
-          for (unsigned int i = 0; i < box_filters.size(); ++i)
-            {
-              if (box_filters[i])
-                {
-                  const auto box_volume =
-                    box_filters[i]->get_bounding_box().volume();
-
-                  table.add_value(generate_name("control_box", i), box_volume);
-                }
-
-              if (params.output_data.coordination_number &&
-                  !grain_tracker.empty())
-                {
-                  const auto avg_coord_num =
-                    Postprocessors::compute_average_coordination_number(
-                      dof_handler,
-                      sintering_operator.n_grains(),
-                      grain_tracker,
-                      box_filters[i]);
-
-                  table.add_value(generate_name("avg_coord_num", i),
-                                  avg_coord_num);
-                }
-            }
         }
 
       if (params.output_data.shrinkage)
@@ -3130,21 +3105,23 @@ namespace Sintering
 
       // Advanced output for contours
       if constexpr (dim >= 2)
-        Postprocessors::advanced_output(mapping,
-                                        dof_handler,
-                                        solution,
-                                        sintering_operator.n_grains(),
-                                        params.output_data,
-                                        grain_tracker,
-                                        sections,
-                                        box_filters,
-                                        table,
-                                        t,
-                                        timer,
-                                        generate_name,
-                                        counters[label],
-                                        label,
-                                        pcout);
+        Postprocessors::advanced_output(
+          mapping,
+          dof_handler,
+          solution,
+          sintering_operator.get_data().n_non_grains(),
+          sintering_operator.n_grains(),
+          params.output_data,
+          grain_tracker,
+          sections,
+          box_filters,
+          table,
+          t,
+          timer,
+          generate_name,
+          counters[label],
+          label,
+          pcout);
 
       if (params.output_data.table)
         {

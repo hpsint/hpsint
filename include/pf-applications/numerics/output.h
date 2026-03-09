@@ -33,14 +33,27 @@ namespace Sintering
     template <typename T>
     struct BlockVectorWrapper<std::vector<T>>
     {
+      using BlockType = T;
+
       BlockVectorWrapper(const std::vector<T> &v)
-        : data(v)
-      {}
+      {
+        std::transform(v.begin(), v.end(), data.begin(), [](const auto &item) {
+          return &item;
+        });
+      }
+
+      template <typename Iterator>
+      BlockVectorWrapper(Iterator begin, Iterator end)
+      {
+        std::transform(begin, end, data.begin(), [](const auto &item) {
+          return &item;
+        });
+      }
 
       const typename std::vector<T>::value_type &
       block(typename std::vector<T>::size_type i) const
       {
-        return data[i];
+        return *data[i];
       }
 
       typename std::vector<T>::size_type
@@ -49,9 +62,8 @@ namespace Sintering
         return data.size();
       }
 
-      const std::vector<T> &data;
-
-      using BlockType = T;
+    private:
+      std::vector<const T *> data;
     };
 
     template <int dim, typename VectorType>

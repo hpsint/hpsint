@@ -294,12 +294,14 @@ namespace Test
       const std::string tex_filename =
         base_name + "_" + label_representation + ".txt";
 
+      const auto solution_order_params =
+        solution_remap.create_view(op_offset, op_offset + n_op);
+
       Postprocessors::output_grain_contours(mapping,
                                             dof_handler,
-                                            solution_remap,
+                                            *solution_order_params,
                                             0.5,
                                             tex_filename,
-                                            n_op,
                                             grain_tracker);
     };
 

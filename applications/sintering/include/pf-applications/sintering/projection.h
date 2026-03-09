@@ -258,7 +258,6 @@ namespace Sintering
       const VectorType                             &vector,
       const double                                  iso_level,
       const std::string                             filename,
-      const unsigned int                            n_op,
       const GrainTracker::Tracker<dim + 1, Number> &grain_tracker,
       const Point<dim + 1>                         &plane_origin,
       const Point<dim + 1>                         &plane_normal,
@@ -346,7 +345,7 @@ namespace Sintering
                n_subdivisions,
                tolerance);
 
-          for (unsigned int b = 0; b < n_op; ++b)
+          for (unsigned int b = 0; b < vector.n_blocks(); ++b)
             {
               for (const auto &cell :
                    background_dof_handler.active_cell_iterators())
@@ -366,7 +365,7 @@ namespace Sintering
                       continue;
 
                     mc.process_cell(cell,
-                                    vector.block(b + 2),
+                                    vector.block(b),
                                     iso_level,
                                     points_local[grain_id_to_index.at(
                                       grain_and_segment_ids)]);
@@ -375,7 +374,7 @@ namespace Sintering
         }
 
       internal::write_grain_contours_tex(g_counter,
-                                         n_op,
+                                         vector.n_blocks(),
                                          grains_data,
                                          bb,
                                          parameters,
@@ -392,7 +391,6 @@ namespace Sintering
       const VectorType           &vector,
       const double                iso_level,
       const std::string           filename,
-      const unsigned int          n_op,
       const GrainTracker::Mapper &grain_mapper,
       const MPI_Comm             &comm           = MPI_COMM_WORLD,
       const unsigned int          n_subdivisions = 1,
@@ -409,7 +407,6 @@ namespace Sintering
                                                vector,
                                                iso_level,
                                                filename,
-                                               n_op,
                                                cell_data_extractor,
                                                grain_mapper,
                                                comm,
