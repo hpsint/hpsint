@@ -81,7 +81,7 @@ namespace GrainTracker
     }
 
     /* This function computes the distances between the segment centers of the
-     * two grains and takes the minimum value amongg them.
+     * two grains and takes the minimum value among them.
      */
     double
     distance_centers(const Grain<dim> &other) const
