@@ -64,7 +64,7 @@ namespace Sintering
             mixed_sum    = 0;
             for (unsigned int i = 0; i < n_grains; ++i)
               for (unsigned int j = i + 1; j < n_grains; ++j)
-                mixed_sum += state[i] * state[j];
+                mixed_sum += state[i] * state[i] * state[j] * state[j];
           }
       }
 
@@ -88,7 +88,7 @@ namespace Sintering
             mixed_sum    = 0;
             for (unsigned int i = 0; i < n_grains; ++i)
               for (unsigned int j = i + 1; j < n_grains; ++j)
-                mixed_sum += etas[i] * etas[j];
+                mixed_sum += etas[i] * etas[i] * etas[j] * etas[j];
           }
       }
 
@@ -114,7 +114,7 @@ namespace Sintering
             mixed_sum    = 0;
             for (unsigned int i = 0; i < n_grains; ++i)
               for (unsigned int j = i + 1; j < n_grains; ++j)
-                mixed_sum += etas[i] * etas[j];
+                mixed_sum += etas[i] * etas[i] * etas[j] * etas[j];
           }
       }
 
@@ -132,7 +132,7 @@ namespace Sintering
             mixed_sum    = 0;
             for (unsigned int i = 0; i < n_grains; ++i)
               for (unsigned int j = i + 1; j < n_grains; ++j)
-                mixed_sum += state[i] * state[j];
+                mixed_sum += state[i] * state[i] * state[j] * state[j];
           }
       }
 
