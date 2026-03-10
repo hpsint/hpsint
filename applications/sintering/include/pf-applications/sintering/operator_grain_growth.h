@@ -143,7 +143,8 @@ namespace Sintering
                ExcMessage("The evaluator was initialized without "
                           " parameter with_power_4 enabled"));
 
-        return -A / 2. * etaPower2Sum + B / 4. * etaPower4Sum + mixed_sum;
+        return -A / 2. * etaPower2Sum + B / 4. * etaPower4Sum + mixed_sum +
+               1. / 4.;
       }
 
       DEAL_II_ALWAYS_INLINE VectorizedArrayType
