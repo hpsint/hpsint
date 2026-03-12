@@ -1952,7 +1952,9 @@ namespace Sintering
               }
 
             // Update material properties
-            sintering_data.set_time(t);
+            const auto actual_time =
+              sintering_data.time_data.is_implicit() ? (t + dt) : t;
+            sintering_data.set_time(actual_time);
 
             // Try to extrapolate initial guess
             if (params.time_integration_data.predictor != "None" && t > 0)
