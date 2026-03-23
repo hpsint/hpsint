@@ -65,6 +65,7 @@
 
 #include <pf-applications/sintering/advection.h>
 #include <pf-applications/sintering/boundary_conditions.h>
+#include <pf-applications/sintering/cfl_checker.h>
 #include <pf-applications/sintering/initial_values.h>
 #include <pf-applications/sintering/operator_advection.h>
 #include <pf-applications/sintering/operator_postproc.h>
@@ -1012,6 +1013,8 @@ namespace Sintering
         grain_tracker,
         advection_mechanism);
 
+      CFLChecker cfl_checker(matrix_free, sintering_data, advection_mechanism);
+
       // Mechanics material data - plane type relevant for 2D
       Structural::MaterialPlaneType plane_type;
       if (params.material_data.mechanics_data.plane_type == "None")
@@ -1438,7 +1441,7 @@ namespace Sintering
 
           if (params.advection_data.enable &&
               params.advection_data.check_courant)
-            advection_operator.precompute_cell_diameters();
+            cfl_checker.precompute_cell_diameters();
 
           output_result(solution,
                         nonlinear_operator,
@@ -1828,14 +1831,14 @@ namespace Sintering
             }
 
           if (n_init_refinements == 0)
-            advection_operator.precompute_cell_diameters();
+            cfl_checker.precompute_cell_diameters();
         }
       else if (params.advection_data.enable &&
                params.advection_data.check_courant)
         {
           // Precompute this here since it is only called inside
           // execute_coarsening_and_refinement() which has been missed
-          advection_operator.precompute_cell_diameters();
+          cfl_checker.precompute_cell_diameters();
         }
 
       // Grain tracker - first run after we have initial configuration defined
@@ -2179,7 +2182,7 @@ namespace Sintering
                   {
                     advection_operator.evaluate_forces(solution);
 
-                    AssertThrow(advection_operator.check_courant(dt),
+                    AssertThrow(cfl_checker.check_courant(dt),
                                 ExcCourantConditionViolated());
                   }
 
