@@ -29,6 +29,7 @@ namespace Sintering
   template <int dim,
             typename Number,
             typename VectorizedArrayType,
+            typename AdvectionType,
             typename OperatorType,
             bool with_time_derivative = true>
   class ResidualWrapperAdvection
@@ -44,10 +45,8 @@ namespace Sintering
     using BlockVectorType =
       typename ResidualWrapperBase<Number, OperatorType>::BlockVectorType;
 
-    ResidualWrapperAdvection(
-      const AdvectionOperator<dim, Number, VectorizedArrayType>
-                         &advection_operator,
-      const OperatorType &nonlinear_operator)
+    ResidualWrapperAdvection(const AdvectionType &advection_operator,
+                             const OperatorType  &nonlinear_operator)
       : ResidualWrapperBase<Number, OperatorType>(nonlinear_operator)
       , advection_operator(advection_operator)
     {}
@@ -83,7 +82,6 @@ namespace Sintering
     }
 
   private:
-    const AdvectionOperator<dim, Number, VectorizedArrayType>
-      &advection_operator;
+    const AdvectionType &advection_operator;
   };
 } // namespace Sintering
