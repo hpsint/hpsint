@@ -1057,9 +1057,7 @@ namespace Sintering
               nonlinear_operator);
           else
             residual_wrapper =
-              std::make_unique<ResidualWrapperAdvection<dim,
-                                                        Number,
-                                                        VectorizedArrayType,
+              std::make_unique<ResidualWrapperAdvection<Number,
                                                         AdvectionOperatorType,
                                                         NonLinearOperator,
                                                         true>>(
@@ -1074,9 +1072,7 @@ namespace Sintering
               nonlinear_operator);
           else
             residual_wrapper =
-              std::make_unique<ResidualWrapperAdvection<dim,
-                                                        Number,
-                                                        VectorizedArrayType,
+              std::make_unique<ResidualWrapperAdvection<Number,
                                                         AdvectionOperatorType,
                                                         NonLinearOperator,
                                                         false>>(

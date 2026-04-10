@@ -26,9 +26,7 @@ namespace Sintering
   using namespace dealii;
   using namespace NonLinearSolvers;
 
-  template <int dim,
-            typename Number,
-            typename VectorizedArrayType,
+  template <typename Number,
             typename AdvectionType,
             typename OperatorType,
             bool with_time_derivative = true>
