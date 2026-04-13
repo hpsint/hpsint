@@ -216,17 +216,17 @@ namespace Test
       const double ceq         = 1.0;
       const double smoothening = 0;
 
-      advection_operator =
-        std::make_unique<AdvectionOperator<dim, Number, VectorizedArrayType>>(
-          k,
-          cgb,
-          ceq,
-          smoothening,
-          matrix_free,
-          constraints,
-          sintering_data,
-          *grain_tracker,
-          advection_mechanism);
+      advection_operator = std::make_unique<
+        AdvectionOperatorGeneric<dim, Number, VectorizedArrayType>>(
+        k,
+        cgb,
+        ceq,
+        smoothening,
+        matrix_free,
+        constraints,
+        sintering_data,
+        *grain_tracker,
+        advection_mechanism);
 
       grain_tracker->initial_setup(solution, sintering_data.n_grains());
 
@@ -294,8 +294,7 @@ namespace Test
     AdvectionMechanism<dim, Number, VectorizedArrayType> advection_mechanism;
 
     std::unique_ptr<GrainTracker::Tracker<dim, Number>> grain_tracker;
-    std::unique_ptr<AdvectionOperator<dim, Number, VectorizedArrayType>>
-      advection_operator;
+    std::unique_ptr<AdvectionOperator<Number>>          advection_operator;
 
     // This is to avoid default initialization
     union

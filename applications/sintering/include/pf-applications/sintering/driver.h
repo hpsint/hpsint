@@ -1002,19 +1002,17 @@ namespace Sintering
         params.advection_data.mr);
 
       // Advection operator
-      using AdvectionOperatorType =
-        AdvectionOperator<dim, Number, VectorizedArrayType>;
-
-      AdvectionOperatorType advection_operator(
-        params.advection_data.k,
-        params.advection_data.cgb,
-        params.advection_data.ceq,
-        params.advection_data.smoothening,
-        matrix_free,
-        constraints,
-        sintering_data,
-        grain_tracker,
-        advection_mechanism);
+      std::shared_ptr<AdvectionOperator<Number>> advection_operator =
+        std::make_shared<
+          AdvectionOperatorGeneric<dim, Number, VectorizedArrayType>>(
+          params.advection_data.k,
+          params.advection_data.cgb,
+          params.advection_data.ceq,
+          params.advection_data.smoothening,
+          matrix_free,
+          sintering_data,
+          grain_tracker,
+          advection_mechanism);
 
       CFLChecker cfl_checker(matrix_free, sintering_data, advection_mechanism);
 
@@ -1056,12 +1054,9 @@ namespace Sintering
                 ResidualWrapperGeneric<Number, NonLinearOperator, true>>(
               nonlinear_operator);
           else
-            residual_wrapper =
-              std::make_unique<ResidualWrapperAdvection<Number,
-                                                        AdvectionOperatorType,
-                                                        NonLinearOperator,
-                                                        true>>(
-                advection_operator, nonlinear_operator);
+            residual_wrapper = std::make_unique<
+              ResidualWrapperAdvection<Number, NonLinearOperator, true>>(
+              *advection_operator, nonlinear_operator);
         }
       else
         {
@@ -1071,12 +1066,9 @@ namespace Sintering
                 ResidualWrapperGeneric<Number, NonLinearOperator, false>>(
               nonlinear_operator);
           else
-            residual_wrapper =
-              std::make_unique<ResidualWrapperAdvection<Number,
-                                                        AdvectionOperatorType,
-                                                        NonLinearOperator,
-                                                        false>>(
-                advection_operator, nonlinear_operator);
+            residual_wrapper = std::make_unique<
+              ResidualWrapperAdvection<Number, NonLinearOperator, false>>(
+              *advection_operator, nonlinear_operator);
         }
 
 
@@ -1870,7 +1862,7 @@ namespace Sintering
           params.output_data.output_time_interval > 0.0)
         {
           if (params.advection_data.enable)
-            advection_operator.evaluate_forces(solution);
+            advection_operator->evaluate_forces(solution);
 
           output_result(solution,
                         nonlinear_operator,
@@ -2183,7 +2175,7 @@ namespace Sintering
                 if (params.advection_data.enable &&
                     params.advection_data.check_courant)
                   {
-                    advection_operator.evaluate_forces(solution);
+                    advection_operator->evaluate_forces(solution);
 
                     AssertThrow(cfl_checker.check_courant(dt),
                                 ExcCourantConditionViolated());
