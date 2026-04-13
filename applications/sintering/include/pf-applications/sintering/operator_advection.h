@@ -1,6 +1,6 @@
 // ---------------------------------------------------------------------
 //
-// Copyright (C) 2023 by the hpsint authors
+// Copyright (C) 2023 - 2026 by the hpsint authors
 //
 // This file is part of the hpsint library.
 //
@@ -18,9 +18,11 @@
 #include <pf-applications/lac/dynamic_block_vector.h>
 
 #include <pf-applications/sintering/advection.h>
+#include <pf-applications/sintering/instantiation.h>
 #include <pf-applications/sintering/operator_sintering_data.h>
 
 #include <pf-applications/grain_tracker/tracker.h>
+#include <pf-applications/matrix_free/tools.h>
 
 namespace Sintering
 {

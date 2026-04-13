@@ -1,6 +1,6 @@
 // ---------------------------------------------------------------------
 //
-// Copyright (C) 2024 - 2025 by the hpsint authors
+// Copyright (C) 2024 - 2026 by the hpsint authors
 //
 // This file is part of the hpsint library.
 //
@@ -223,7 +223,6 @@ namespace Test
         ceq,
         smoothening,
         matrix_free,
-        constraints,
         sintering_data,
         *grain_tracker,
         advection_mechanism);
