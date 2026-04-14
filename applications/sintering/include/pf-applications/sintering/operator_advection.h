@@ -1,6 +1,6 @@
 // ---------------------------------------------------------------------
 //
-// Copyright (C) 2023 by the hpsint authors
+// Copyright (C) 2023 - 2026 by the hpsint authors
 //
 // This file is part of the hpsint library.
 //
@@ -15,54 +15,63 @@
 
 #pragma once
 
-#include <pf-applications/sintering/operator_base.h>
+#include <pf-applications/lac/dynamic_block_vector.h>
+
+#include <pf-applications/sintering/advection.h>
+#include <pf-applications/sintering/instantiation.h>
 #include <pf-applications/sintering/operator_sintering_data.h>
 
 #include <pf-applications/grain_tracker/tracker.h>
+#include <pf-applications/matrix_free/tools.h>
 
 namespace Sintering
 {
   using namespace dealii;
 
-  template <int dim, typename Number, typename VectorizedArrayType>
+  template <typename Number>
   class AdvectionOperator
-    : public OperatorBase<dim,
-                          Number,
-                          VectorizedArrayType,
-                          AdvectionOperator<dim, Number, VectorizedArrayType>>
   {
   public:
-    using T = AdvectionOperator<dim, Number, VectorizedArrayType>;
-
-    using VectorType = LinearAlgebra::distributed::Vector<Number>;
     using BlockVectorType =
       LinearAlgebra::distributed::DynamicBlockVector<Number>;
 
-    using value_type  = Number;
-    using vector_type = VectorType;
+    virtual ~AdvectionOperator() = default;
+
+    virtual void
+    evaluate_forces(
+      const BlockVectorType &src,
+      const std::function<void(const unsigned int, const unsigned int)>
+        pre_operation = {},
+      const std::function<void(const unsigned int, const unsigned int)>
+        post_operation = {}) const = 0;
+  };
+
+  template <int dim, typename Number, typename VectorizedArrayType>
+  class AdvectionOperatorGeneric : public AdvectionOperator<Number>
+  {
+  public:
+    using BlockVectorType =
+      LinearAlgebra::distributed::DynamicBlockVector<Number>;
+
+    using value_type = Number;
+
+    using T = AdvectionOperatorGeneric<dim, Number, VectorizedArrayType>;
 
     // Force, torque and grain volume
     static constexpr unsigned int n_comp_total = (dim == 3 ? 6 : 3);
 
-    AdvectionOperator(
+    AdvectionOperatorGeneric(
       const double                                           k,
       const double                                           cgb,
       const double                                           ceq,
       const double                                           smoothening,
       const MatrixFree<dim, Number, VectorizedArrayType>    &matrix_free,
-      const AffineConstraints<Number>                       &constraints,
       const SinteringOperatorData<dim, VectorizedArrayType> &data,
       const GrainTracker::Tracker<dim, Number>              &grain_tracker,
       AdvectionMechanism<dim, Number, VectorizedArrayType> &advection_mechanism)
-      : OperatorBase<dim,
-                     Number,
-                     VectorizedArrayType,
-                     AdvectionOperator<dim, Number, VectorizedArrayType>>(
-          matrix_free,
-          constraints,
-          0,
-          "advection_op",
-          false)
+      : matrix_free(matrix_free)
+      , timer(true)
+      , do_timing(true)
       , k(k)
       , cgb(cgb)
       , ceq(ceq)
@@ -72,7 +81,7 @@ namespace Sintering
       , advection_mechanism(advection_mechanism)
     {}
 
-    ~AdvectionOperator()
+    ~AdvectionOperatorGeneric() override
     {}
 
     void
@@ -81,25 +90,23 @@ namespace Sintering
       const std::function<void(const unsigned int, const unsigned int)>
         pre_operation = {},
       const std::function<void(const unsigned int, const unsigned int)>
-        post_operation = {}) const
+        post_operation = {}) const override
     {
-      MyScope scope(this->timer,
-                    "advection_op::evaluate_forces",
-                    this->do_timing);
+      MyScope scope(timer, "advection_op::evaluate_forces", do_timing);
 
       advection_mechanism.nullify_data(grain_tracker.n_segments());
 
       // We do not have an output vector
       BlockVectorType dummy(1);
 
-#define OPERATION(c, d)                           \
-  MyMatrixFreeTools::cell_loop_wrapper(           \
-    this->matrix_free,                            \
-    &AdvectionOperator::do_evaluate_forces<c, d>, \
-    this,                                         \
-    dummy,                                        \
-    src,                                          \
-    pre_operation,                                \
+#define OPERATION(c, d)                                  \
+  MyMatrixFreeTools::cell_loop_wrapper(                  \
+    matrix_free,                                         \
+    &AdvectionOperatorGeneric::do_evaluate_forces<c, d>, \
+    this,                                                \
+    dummy,                                               \
+    src,                                                 \
+    pre_operation,                                       \
     post_operation);
       EXPAND_OPERATIONS(OPERATION);
 #undef OPERATION
@@ -111,19 +118,6 @@ namespace Sintering
                     Utilities::MPI::mpi_type_id_for_type<Number>,
                     MPI_SUM,
                     MPI_COMM_WORLD);
-    }
-
-    void
-    do_update() override
-    {
-      if (this->matrix_based)
-        this->get_system_matrix(); // assemble matrix
-    }
-
-    unsigned int
-    n_components() const override
-    {
-      return n_comp_total;
     }
 
     unsigned int
@@ -139,13 +133,6 @@ namespace Sintering
       return n_comp_total;
     }
 
-    template <int n_comp, int n_grains, typename FECellIntegratorType>
-    void
-    do_vmult_kernel(FECellIntegratorType &) const
-    {
-      AssertThrow(false, ExcNotImplemented());
-    }
-
   private:
     template <int n_comp, int n_grains>
     void
@@ -158,14 +145,14 @@ namespace Sintering
       (void)dummy;
 
       FECellIntegrator<dim, 2 + n_grains, Number, VectorizedArrayType> phi_sint(
-        matrix_free, this->dof_index);
+        matrix_free);
 
       FECellIntegrator<dim,
                        AdvectionMechanism<dim, Number, VectorizedArrayType>::
                          n_comp_volume_force_torque,
                        Number,
                        VectorizedArrayType>
-        phi_ft(matrix_free, this->dof_index);
+        phi_ft(matrix_free);
 
       VectorizedArrayType cgb_lim(cgb);
       VectorizedArrayType zeros(0.0);
@@ -187,7 +174,7 @@ namespace Sintering
           phi_ft.reinit(cell);
 
           const auto grain_to_relevant_grain =
-            this->data.get_grain_to_relevant_grain(cell);
+            data.get_grain_to_relevant_grain(cell);
 
           for (unsigned int ig = 0; ig < n_grains; ++ig)
             {
@@ -383,6 +370,11 @@ namespace Sintering
           index_ptr.push_back(index_values.size());
         }
     }
+
+    const MatrixFree<dim, Number, VectorizedArrayType> &matrix_free;
+
+    mutable MyTimerOutput timer;
+    mutable bool          do_timing;
 
     const double k;
     const double cgb;

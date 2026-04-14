@@ -26,9 +26,7 @@ namespace Sintering
   using namespace dealii;
   using namespace NonLinearSolvers;
 
-  template <int dim,
-            typename Number,
-            typename VectorizedArrayType,
+  template <typename Number,
             typename OperatorType,
             bool with_time_derivative = true>
   class ResidualWrapperAdvection
@@ -45,9 +43,8 @@ namespace Sintering
       typename ResidualWrapperBase<Number, OperatorType>::BlockVectorType;
 
     ResidualWrapperAdvection(
-      const AdvectionOperator<dim, Number, VectorizedArrayType>
-                         &advection_operator,
-      const OperatorType &nonlinear_operator)
+      const AdvectionOperator<Number> &advection_operator,
+      const OperatorType              &nonlinear_operator)
       : ResidualWrapperBase<Number, OperatorType>(nonlinear_operator)
       , advection_operator(advection_operator)
     {}
@@ -83,7 +80,6 @@ namespace Sintering
     }
 
   private:
-    const AdvectionOperator<dim, Number, VectorizedArrayType>
-      &advection_operator;
+    const AdvectionOperator<Number> &advection_operator;
   };
 } // namespace Sintering

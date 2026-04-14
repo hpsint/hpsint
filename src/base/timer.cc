@@ -1,6 +1,6 @@
 // ---------------------------------------------------------------------
 //
-// Copyright (C) 2025 by the hpsint authors
+// Copyright (C) 2025 - 2026 by the hpsint authors
 //
 // This file is part of the hpsint library.
 //
@@ -14,6 +14,8 @@
 // ---------------------------------------------------------------------
 
 #include <pf-applications/base/timer.h>
+
+#include <iostream>
 
 using namespace dealii;
 
