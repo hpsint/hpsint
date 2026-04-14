@@ -1,6 +1,6 @@
 // ---------------------------------------------------------------------
 //
-// Copyright (C) 2025 by the hpsint authors
+// Copyright (C) 2025 - 2026 by the hpsint authors
 //
 // This file is part of the hpsint library.
 //
@@ -74,16 +74,23 @@ namespace Sintering
 
       TableHandler table;
 
+      const unsigned int precision = 10;
+
       std::vector<std::string> labels{"x", "y", "z"};
 
       for (unsigned int i = 0; i < n_pores; ++i)
         {
           table.add_value("id", i);
           table.add_value("measure", pores_measures[i]);
+          table.set_precision("measure", precision);
           table.add_value("radius", pores_radii[i]);
+          table.set_precision("radius", precision);
 
           for (unsigned int d = 0; d < dim; ++d)
-            table.add_value(labels[d], pores_centers[i][d]);
+            {
+              table.add_value(labels[d], pores_centers[i][d]);
+              table.set_precision(labels[d], precision);
+            }
         }
 
       // Output to file
@@ -220,19 +227,27 @@ namespace Sintering
         create_array<1 + dim + moment_s<dim, VectorizedArrayType>>(
           std::numeric_limits<double>::quiet_NaN());
 
+      const unsigned int precision = 10;
+
       for (const auto &[grain_id, grain] : grain_tracker.get_grains())
         {
           table.add_value("id", grain_id);
           table.add_value("measure", grain.get_measure());
+          table.set_precision("measure", precision);
           table.add_value("radius", grain.get_max_radius());
+          table.set_precision("radius", precision);
           table.add_value("max_value", grain.get_max_value());
+          table.set_precision("max_value", precision);
           table.add_value("order_parameter_id", grain.get_order_parameter_id());
 
           for (unsigned int d = 0; d < dim; ++d)
-            table.add_value(labels_coords[d],
-                            grain.n_segments() == 1 ?
-                              grain.get_segments()[0].get_center()[d] :
-                              std::numeric_limits<double>::quiet_NaN());
+            {
+              table.add_value(labels_coords[d],
+                              grain.n_segments() == 1 ?
+                                grain.get_segments()[0].get_center()[d] :
+                                std::numeric_limits<double>::quiet_NaN());
+              table.set_precision(labels_coords[d], precision);
+            }
 
           if (advection_mechanism.enabled())
             {
@@ -245,21 +260,31 @@ namespace Sintering
 
               // Output volume should be less than measure
               table.add_value("volume", *data++);
+              table.set_precision("volume", precision);
 
               // Output forces
               for (unsigned int d = 0; d < dim; ++d)
-                table.add_value(labels_forces[d], *data++);
+                {
+                  table.add_value(labels_forces[d], *data++);
+                  table.set_precision(labels_forces[d], precision);
+                }
 
               // Output torques
               for (unsigned int d = 0; d < moment_s<dim, VectorizedArrayType>;
                    ++d)
-                table.add_value(labels_torques[d], *data++);
+                {
+                  table.add_value(labels_torques[d], *data++);
+                  table.set_precision(labels_torques[d], precision);
+                }
 
               // Output translation velocities
               const auto vt = get_velocity(grain_id);
 
               for (unsigned int d = 0; d < dim; ++d)
-                table.add_value(labels_velocities[d], vt[d]);
+                {
+                  table.add_value(labels_velocities[d], vt[d]);
+                  table.set_precision(labels_velocities[d], precision);
+                }
             }
         }
 
