@@ -1,6 +1,6 @@
 // ---------------------------------------------------------------------
 //
-// Copyright (C) 2023 by the hpsint authors
+// Copyright (C) 2023 - 2026 by the hpsint authors
 //
 // This file is part of the hpsint library.
 //
@@ -191,6 +191,8 @@ namespace Sintering
     double smoothening = 0.;
 
     bool check_courant = true;
+
+    bool weighted_forces = false;
   };
 
   struct BoundaryConditionsData
@@ -728,6 +730,9 @@ namespace Sintering
       prm.add_parameter("CheckCourant",
                         advection_data.check_courant,
                         "Check Courant condition at the end of the timestep");
+      prm.add_parameter("WeightedForces",
+                        advection_data.weighted_forces,
+                        "Use weighted advection forces.");
       prm.leave_subsection();
 
 

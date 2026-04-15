@@ -1002,8 +1002,20 @@ namespace Sintering
         params.advection_data.mr);
 
       // Advection operator
-      std::shared_ptr<AdvectionOperator<Number>> advection_operator =
-        std::make_shared<
+      std::shared_ptr<AdvectionOperator<Number>> advection_operator;
+      if (params.advection_data.weighted_forces)
+        advection_operator = std::make_shared<
+          AdvectionOperatorWeighted<dim, Number, VectorizedArrayType>>(
+          params.advection_data.k,
+          params.advection_data.cgb,
+          params.advection_data.ceq,
+          params.advection_data.smoothening,
+          matrix_free,
+          sintering_data,
+          grain_tracker,
+          advection_mechanism);
+      else
+        advection_operator = std::make_shared<
           AdvectionOperatorGeneric<dim, Number, VectorizedArrayType>>(
           params.advection_data.k,
           params.advection_data.cgb,
