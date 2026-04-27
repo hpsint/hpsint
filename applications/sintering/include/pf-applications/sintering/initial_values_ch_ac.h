@@ -59,10 +59,7 @@ namespace Sintering
             {
               ret_val = std::accumulate(all_op_values.begin(),
                                         all_op_values.end(),
-                                        0,
-                                        [](auto a, auto b) {
-                                          return std::move(a) + b;
-                                        });
+                                        0.0);
               ret_val = std::min(1.0, ret_val);
             }
           else
