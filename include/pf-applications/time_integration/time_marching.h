@@ -15,7 +15,10 @@
 
 #pragma once
 
-#include <deal.II/sundials/arkode.h>
+#ifdef DEAL_II_WITH_SUNDIALS
+#  include <deal.II/sundials/arkode.h>
+#  include <deal.II/sundials/arkode_exception.h>
+#endif
 
 #include <pf-applications/base/data.h>
 #include <pf-applications/base/scoped_name.h>
