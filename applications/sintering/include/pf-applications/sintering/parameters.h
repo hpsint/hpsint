@@ -66,6 +66,7 @@ namespace Sintering
     unsigned int    max_prime                          = 20;
     std::string     global_refinement                  = "None";
     std::string     initial_mesh                       = "Interface";
+    bool            accumulative                       = false;
     double          max_level0_divisions_per_interface = 1.0 - 1e-9;
     BoundingBoxData bounding_box_data;
     DivisionsData   divisions_data;
@@ -482,6 +483,9 @@ namespace Sintering
       prm.add_parameter("MaxLevel0DivisionsPerInterface",
                         geometry_data.max_level0_divisions_per_interface,
                         "Maximum initial number of divisions per interface.");
+      prm.add_parameter("Accumulative",
+                        geometry_data.accumulative,
+                        "Is initial concentration accumulative at the GBs.");
 
       prm.enter_subsection("BoundingBox");
       prm.add_parameter("Xmin",

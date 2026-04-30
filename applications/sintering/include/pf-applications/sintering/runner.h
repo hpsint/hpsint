@@ -119,7 +119,8 @@ namespace Sintering
             params.geometry_data.minimize_order_parameters,
             interface_direction,
             op_components_offset,
-            concentration_as_void);
+            concentration_as_void,
+            params.geometry_data.accumulative);
 
         AssertThrow(initial_solution->n_order_parameters() <=
                       MAX_SINTERING_GRAINS,
@@ -182,7 +183,8 @@ namespace Sintering
             n_order_params_to_use,
             interface_direction,
             op_components_offset,
-            concentration_as_void);
+            concentration_as_void,
+            params.geometry_data.accumulative);
 
         AssertThrow(initial_solution->n_order_parameters() <=
                       MAX_SINTERING_GRAINS,
@@ -229,7 +231,8 @@ namespace Sintering
             params.geometry_data.radius_buffer_ratio,
             interface_direction,
             op_components_offset,
-            concentration_as_void);
+            concentration_as_void,
+            params.geometry_data.accumulative);
 
         AssertThrow(initial_solution->n_order_parameters() <=
                       MAX_SINTERING_GRAINS,
@@ -269,7 +272,8 @@ namespace Sintering
                   params.geometry_data.interface_width,
                   interface_direction,
                   op_components_offset,
-                  concentration_as_void);
+                  concentration_as_void,
+                  params.geometry_data.accumulative);
             else if (mode == "--imaging")
               initial_solution =
                 std::make_shared<Sintering::InitialValuesMicrostructureImaging>(
@@ -277,7 +281,8 @@ namespace Sintering
                   params.geometry_data.interface_width,
                   interface_direction,
                   op_components_offset,
-                  concentration_as_void);
+                  concentration_as_void,
+                  params.geometry_data.accumulative);
             else
               AssertThrow(false, ExcNotImplemented());
 
