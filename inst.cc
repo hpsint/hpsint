@@ -4,6 +4,8 @@
 #ifdef DEAL_II_WITH_SUNDIALS
 #  include <deal.II/sundials/arkode.h>
 #  include <deal.II/sundials/arkode.templates.h>
+#  include <deal.II/sundials/arkode_stepper.h>
+#  include <deal.II/sundials/arkode_stepper.templates.h>
 #  include <deal.II/sundials/n_vector.h>
 #  include <deal.II/sundials/n_vector.templates.h>
 #  include <deal.II/sundials/sunlinsol_wrapper.h>
@@ -48,6 +50,9 @@ template struct SUNDIALS::SundialsPreconditioner<
   LinearAlgebra::distributed::DynamicBlockVector<double>>;
 
 template class SUNDIALS::internal::LinearSolverWrapper<
+  LinearAlgebra::distributed::DynamicBlockVector<double>>;
+
+template class SUNDIALS::ARKStepper<
   LinearAlgebra::distributed::DynamicBlockVector<double>>;
 
 template class SUNDIALS::ARKode<
