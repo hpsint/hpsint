@@ -1479,6 +1479,38 @@ namespace Sintering
         grain_tracker_required_for_output ||
         params.grain_tracker_data.check_inconsistency;
 
+      if (grain_tracker_enabled)
+        {
+          pcout << "Grain tracker enabled due to:";
+          if (params.grain_tracker_data.grain_tracker_frequency > 0)
+            pcout << " [frequency="
+                  << params.grain_tracker_data.grain_tracker_frequency << "]";
+          if (params.adaptivity_data.quality_control &&
+              params.grain_tracker_data.track_with_quality)
+            pcout << " [quality_control+track_with_quality]";
+          if (params.advection_data.enable)
+            pcout << " [advection]";
+          if (grain_tracker_required_for_ebc)
+            pcout << " [boundary_conditions=" << params.boundary_conditions.type
+                  << "]";
+          if (grain_tracker_required_for_output)
+            {
+              pcout << " [output:";
+              if (params.output_data.contours)
+                pcout << " contours";
+              if (params.output_data.contours_tex)
+                pcout << " contours_tex";
+              if (params.output_data.grains_stats)
+                pcout << " grains_stats";
+              if (params.output_data.coordination_number)
+                pcout << " coordination_number";
+              pcout << "]";
+            }
+          if (params.grain_tracker_data.check_inconsistency)
+            pcout << " [check_inconsistency]";
+          pcout << std::endl;
+        }
+
       const auto run_grain_tracker = [&](const double t,
                                          const bool   do_initialize = false) {
         ScopedName sc("run_grain_tracker");
