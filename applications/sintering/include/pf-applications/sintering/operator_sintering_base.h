@@ -39,6 +39,9 @@ namespace Sintering
     using value_type  = Number;
     using vector_type = VectorType;
 
+    static constexpr unsigned int op_components_offset  = 2;
+    static constexpr bool         concentration_as_void = false;
+
     SinteringOperatorBase(
       const MatrixFree<dim, Number, VectorizedArrayType>      &matrix_free,
       const AffineConstraints<Number>                         &constraints,

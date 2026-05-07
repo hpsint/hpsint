@@ -182,9 +182,7 @@ namespace Sintering
                                       EnergyEvaluation::first>>;
 
   public:
-    static constexpr unsigned int op_components_offset  = 2;
-    static constexpr bool         concentration_as_void = false;
-    static constexpr bool         save_gradients        = false;
+    static constexpr bool save_gradients = false;
 
     FreeEnergy(double A, double B)
       : A(A)
