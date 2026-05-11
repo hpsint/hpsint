@@ -586,13 +586,13 @@ namespace Sintering
           if constexpr (dim >= 3)
             subdivisions[2] = params.geometry_data.divisions_data.nz;
 
-          n_refinements_remaining =
-            create_mesh_from_divisions(tria,
-                                       boundaries.first,
-                                       boundaries.second,
-                                       subdivisions,
-                                       params.geometry_data.periodic,
-                                       0);
+          n_refinements_remaining = create_mesh_from_divisions(
+            tria,
+            boundaries.first,
+            boundaries.second,
+            subdivisions,
+            params.geometry_data.periodic,
+            params.geometry_data.divisions_data.n_refinements);
         }
 
       helper = std::make_unique<dealii::parallel::Helper<dim>>(tria);
