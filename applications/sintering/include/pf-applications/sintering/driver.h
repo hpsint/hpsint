@@ -1158,8 +1158,56 @@ namespace Sintering
                 params.print_time_loop);
         }
       else
-        preconditioner = Preconditioners::create(
-          nonlinear_operator, params.preconditioners_data.outer_preconditioner);
+        {
+          const auto &outer =
+            params.preconditioners_data.outer_preconditioner;
+
+          if (outer == "AMG" || outer == "BlockAMG")
+            {
+              TrilinosWrappers::PreconditionAMG::AdditionalData
+                additional_data;
+              additional_data.smoother_sweeps =
+                params.preconditioners_data.amg_data.smoother_sweeps;
+              additional_data.n_cycles =
+                params.preconditioners_data.amg_data.n_cycles;
+              preconditioner = Preconditioners::create(
+                nonlinear_operator, outer, additional_data);
+            }
+          else if (outer == "ILU" || outer == "BlockILU")
+            {
+              TrilinosWrappers::PreconditionILU::AdditionalData
+                additional_data;
+              additional_data.ilu_fill =
+                params.preconditioners_data.ilu_data.ilu_fill;
+              additional_data.ilu_atol =
+                params.preconditioners_data.ilu_data.ilu_atol;
+              additional_data.ilu_rtol =
+                params.preconditioners_data.ilu_data.ilu_rtol;
+              additional_data.overlap =
+                params.preconditioners_data.ilu_data.overlap;
+              preconditioner = Preconditioners::create(
+                nonlinear_operator, outer, additional_data);
+            }
+          else if (outer == "IC")
+            {
+              TrilinosWrappers::PreconditionIC::AdditionalData additional_data;
+              additional_data.ic_fill =
+                params.preconditioners_data.ic_data.ic_fill;
+              additional_data.ic_atol =
+                params.preconditioners_data.ic_data.ic_atol;
+              additional_data.ic_rtol =
+                params.preconditioners_data.ic_data.ic_rtol;
+              additional_data.overlap =
+                params.preconditioners_data.ic_data.overlap;
+              preconditioner = Preconditioners::create(
+                nonlinear_operator, outer, additional_data);
+            }
+          else
+            {
+              preconditioner =
+                Preconditioners::create(nonlinear_operator, outer);
+            }
+        }
 
       // A check for validity of the FDM approximation and direct linear solver
       if (params.nonlinear_data.fdm_jacobian_approximation)

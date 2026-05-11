@@ -282,6 +282,10 @@ namespace Sintering
     std::string outer_preconditioner = "BlockPreconditioner2";
     // std::string outer_preconditioner = "ILU";
 
+    AMGData amg_data;
+    ILUData ilu_data;
+    ICData  ic_data;
+
     BlockPreconditioner2Data block_preconditioner_2_data;
   };
 
@@ -1068,6 +1072,45 @@ namespace Sintering
                         "Preconditioner to be used for the outer system.",
                         Patterns::Selection(preconditioner_types +
                                             "|BlockPreconditioner2"));
+
+      prm.enter_subsection("AMG");
+      prm.add_parameter("SmootherSweeps",
+                        preconditioners_data.amg_data.smoother_sweeps,
+                        "Smoother sweeps");
+      prm.add_parameter("NCycles",
+                        preconditioners_data.amg_data.n_cycles,
+                        "Number of cycles");
+      prm.leave_subsection();
+
+      prm.enter_subsection("ILU");
+      prm.add_parameter("ILUFill",
+                        preconditioners_data.ilu_data.ilu_fill,
+                        "ILU fill level");
+      prm.add_parameter("ILUAtol",
+                        preconditioners_data.ilu_data.ilu_atol,
+                        "ILU absolute tolerance");
+      prm.add_parameter("ILURtol",
+                        preconditioners_data.ilu_data.ilu_rtol,
+                        "ILU relative tolerance");
+      prm.add_parameter("Overlap",
+                        preconditioners_data.ilu_data.overlap,
+                        "Overlap");
+      prm.leave_subsection();
+
+      prm.enter_subsection("IC");
+      prm.add_parameter("ICFill",
+                        preconditioners_data.ic_data.ic_fill,
+                        "IC fill level");
+      prm.add_parameter("ICAtol",
+                        preconditioners_data.ic_data.ic_atol,
+                        "IC absolute tolerance");
+      prm.add_parameter("ICRtol",
+                        preconditioners_data.ic_data.ic_rtol,
+                        "IC relative tolerance");
+      prm.add_parameter("Overlap",
+                        preconditioners_data.ic_data.overlap,
+                        "Overlap");
+      prm.leave_subsection();
 
       prm.enter_subsection("BlockPreconditioner2");
       prm.add_parameter(
