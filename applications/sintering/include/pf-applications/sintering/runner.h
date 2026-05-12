@@ -24,10 +24,13 @@ static_assert(false, "No grains number has been given!");
 // #define USE_FE_Q_iso_Q1
 
 #ifdef USE_FE_Q_iso_Q1
+#  undef FE_DEGREE
 #  define FE_DEGREE 2
 #  define N_Q_POINTS_1D FE_DEGREE * 2
 #else
-#  define FE_DEGREE 1
+#  ifndef FE_DEGREE
+#    define FE_DEGREE 1
+#  endif
 #  define N_Q_POINTS_1D FE_DEGREE + 1
 #endif
 
