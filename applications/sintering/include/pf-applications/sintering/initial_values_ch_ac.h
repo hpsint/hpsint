@@ -1,6 +1,6 @@
 // ---------------------------------------------------------------------
 //
-// Copyright (C) 2024 by the hpsint authors
+// Copyright (C) 2024 - 2026 by the hpsint authors
 //
 // This file is part of the hpsint library.
 //
@@ -47,8 +47,14 @@ namespace Sintering
     {
       double ret_val = 0;
 
-      // Concentration of the CH equation
-      if (component == (this->op_components_offset - 2))
+      // Concentration field
+      // For op_components_offset == 1:
+      // component 0 is concentration (no chemical potential DoF).
+      // For op_components_offset == 2:
+      // component 0 is concentration, component 1 is chemical potential.
+      if ((this->op_components_offset >= 2 &&
+           component == (this->op_components_offset - 2)) ||
+          (this->op_components_offset == 1 && component == 0))
         {
           std::vector<double> all_op_values(this->n_order_parameters());
 
@@ -71,8 +77,9 @@ namespace Sintering
           if (concentration_as_void)
             ret_val = 1.0 - ret_val;
         }
-      // Chemical potential of the CH equation
-      else if (component == (this->op_components_offset - 1))
+      // Chemical potential (only for op_components_offset >= 2)
+      else if (this->op_components_offset >= 2 &&
+               component == (this->op_components_offset - 1))
         {
           ret_val = 0;
         }
