@@ -50,6 +50,8 @@ namespace Sintering
     unsigned int nx = 0;
     unsigned int ny = 0;
     unsigned int nz = 0;
+
+    unsigned int n_refinements = 0;
   };
 
   struct GeometryData
@@ -512,6 +514,9 @@ namespace Sintering
       prm.add_parameter("Nx", geometry_data.divisions_data.nx, "nx.");
       prm.add_parameter("Ny", geometry_data.divisions_data.ny, "ny.");
       prm.add_parameter("Nz", geometry_data.divisions_data.nz, "nz.");
+      prm.add_parameter("Refinements",
+                        geometry_data.divisions_data.n_refinements,
+                        "Number of refinements.");
       prm.leave_subsection();
 
       prm.add_parameter("HangingNodeWeight",
