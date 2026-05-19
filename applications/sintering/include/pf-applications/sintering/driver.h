@@ -933,12 +933,17 @@ namespace Sintering
           pcout << std::endl;
         }
 
+      // Offset of the order parameters
+      const unsigned int order_parameters_offset =
+        NonLinearOperatorTpl<dim, Number, VectorizedArrayType>::
+          op_components_offset;
+
       SinteringOperatorData<dim, VectorizedArrayType> sintering_data(
         kappa_c,
         kappa_p,
         mobility_provider,
         std::move(time_data),
-        FreeEnergyTpl<VectorizedArrayType>::op_components_offset);
+        order_parameters_offset);
 
       pcout << "Mobility type: "
             << (sintering_data.use_tensorial_mobility ? "tensorial" : "scalar")
@@ -961,8 +966,6 @@ namespace Sintering
                           sintering_data);
 
       // New grains can not appear in current sintering simulations
-      const unsigned int order_parameters_offset =
-        FreeEnergyTpl<VectorizedArrayType>::op_components_offset;
       const bool allow_new_grains = false;
       const bool do_timing        = true;
       const bool do_logging       = params.grain_tracker_data.verbosity >= 1;

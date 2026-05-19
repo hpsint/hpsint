@@ -191,9 +191,7 @@ namespace Sintering
       Evaluation<any_energy_eval_of_v<Mask, EnergyEvaluation::zero>>;
 
   public:
-    static constexpr unsigned int op_components_offset  = 0;
-    static constexpr bool         concentration_as_void = false;
-    static constexpr bool         save_gradients        = false;
+    static constexpr bool save_gradients = false;
 
     GrainGrowthFreeEnergy(double A, double B)
       : A(A)
@@ -279,6 +277,9 @@ namespace Sintering
 
     using value_type  = Number;
     using vector_type = VectorType;
+
+    static constexpr unsigned int op_components_offset  = 0;
+    static constexpr bool         concentration_as_void = false;
 
     GrainGrowthOperator(
       const MatrixFree<dim, Number, VectorizedArrayType>      &matrix_free,

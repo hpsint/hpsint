@@ -69,7 +69,7 @@ namespace Test
           std::make_shared<ProviderAbstract>(1e-1, 1e-8, 1e1, 1e0, 1e1),
           TimeIntegratorData<Number>(std::make_unique<BDF1Scheme<Number>>(),
                                      /*dt=*/1e-5),
-          FreeEnergy::op_components_offset)
+          NonLinearOperator::op_components_offset)
       , solution_history(sintering_data.time_data.get_order() + 1)
       , advection_mechanism(enable_rbm,
                             /*mt=*/1.0,
@@ -141,7 +141,7 @@ namespace Test
         threshold_upper,
         buffer_distance_ratio,
         buffer_distance_fixed,
-        FreeEnergy::op_components_offset);
+        NonLinearOperator::op_components_offset);
 
       // External loading - not used at the moment
       auto body_force = [](const Point<dim, VectorizedArrayType> &p) {
