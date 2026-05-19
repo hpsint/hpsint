@@ -18,6 +18,7 @@
 #ifdef DEAL_II_WITH_SUNDIALS
 #  include <deal.II/sundials/arkode.h>
 #  include <deal.II/sundials/arkode_exception.h>
+#  include <deal.II/sundials/arkode_stepper.h>
 #endif
 
 #include <pf-applications/base/data.h>
@@ -840,6 +841,7 @@ namespace TimeIntegration
       const ResidualWrapper<Number>              &residual_wrapper,
       const AffineConstraints<Number>            &constraints,
       const TimeIntegration::TimeIntegrationData &time_integration_params,
+      const NonLinearData                        &nonlinear_params,
       NewtonSolverSolverControl                  &statistics,
       MyTimerOutput                              &timer)
       : nonlinear_operator(nonlinear_operator)
@@ -877,13 +879,25 @@ namespace TimeIntegration
       // Not used by the wrapper at the moment
       const double minimum_step_size = time_integration_params.time_step_min;
 
-      // Maximum order
-      const double maximum_order =
-        time_integration_params.arkode_data.maximum_order;
+      // Some settings
+      const bool implicit_function_is_linear           = false;
+      const bool implicit_function_is_time_independent = false;
+      const bool mass_is_time_independent              = false;
+      const int  anderson_acceleration_subspace        = 3;
 
-      // Error parameters
-      const double absolute_tolerance = 1e-6;
-      const double relative_tolerance = 1e-5;
+      // Initialize stepper
+      const typename SUNDIALS::ARKStepper<VectorType>::AdditionalData
+        stepper_data(time_integration_params.arkode_data.maximum_order,
+                     nonlinear_params.nl_max_iter,
+                     implicit_function_is_linear,
+                     implicit_function_is_time_independent,
+                     mass_is_time_independent,
+                     anderson_acceleration_subspace,
+                     time_integration_params.arkode_data.implicit_method_name,
+                     time_integration_params.arkode_data.explicit_method_name);
+
+      stepper =
+        std::make_unique<SUNDIALS::ARKStepper<VectorType>>(stepper_data);
 
       const typename SUNDIALS::ARKode<VectorType>::AdditionalData arkode_data(
         initial_time,
@@ -891,13 +905,13 @@ namespace TimeIntegration
         initial_step_size,
         output_period,
         minimum_step_size,
-        maximum_order,
-        absolute_tolerance,
-        relative_tolerance);
+        time_integration_params.arkode_data.absolute_tolerance,
+        time_integration_params.arkode_data.relative_tolerance);
 
-      arkode = std::make_unique<SUNDIALS::ARKode<VectorType>>(arkode_data);
+      arkode =
+        std::make_unique<SUNDIALS::ARKode<VectorType>>(*stepper, arkode_data);
 
-      arkode->explicit_function =
+      stepper->explicit_function =
         [this](const double t, const VectorType &y, VectorType &ydot) {
           ScopedName sc("residual");
           MyScope    scope(this->timer, sc);
@@ -929,30 +943,14 @@ namespace TimeIntegration
 
       // Perform additional setup steps, we intentionally copy
       // time_integration_params since it could be modified from ouside
-      arkode->custom_setup = [time_integration_params, this](void *arkode_mem) {
+      stepper->custom_setup = [time_integration_params,
+                               this](void *arkode_mem) {
         int status;
-
-        // Choose the integration methods
-        if (!time_integration_params.arkode_data.explicit_method_name.empty() ||
-            !time_integration_params.arkode_data.implicit_method_name.empty())
-          {
-            AssertThrow(!time_integration_params.arkode_data
-                            .explicit_method_name.empty() &&
-                          !time_integration_params.arkode_data
-                             .implicit_method_name.empty(),
-                        ExcMessage("Both method names must be provided."));
-
-            status = ARKStepSetTableName(
-              arkode_mem,
-              time_integration_params.arkode_data.implicit_method_name.c_str(),
-              time_integration_params.arkode_data.explicit_method_name.c_str());
-            AssertARKode(status);
-          }
 
         if (time_integration_params.growth_factor <= 1.0)
           {
             // Enforce fixed step size
-            status = ARKStepSetFixedStep(
+            status = ARKodeSetFixedStep(
               arkode_mem,
               this->nonlinear_operator.get_data().time_data.get_current_dt());
             AssertARKode(status);
@@ -978,6 +976,7 @@ namespace TimeIntegration
                            residual_wrapper,
                            constraints,
                            time_integration_params,
+                           nonlinear_params,
                            statistics,
                            timer)
     {
@@ -1003,15 +1002,15 @@ namespace TimeIntegration
         this->linear_solver_wrapper->preconditioner->do_update();
       };
 
-      arkode->mass_times_vector = [this, &mass_operator](const double      t,
-                                                         const VectorType &v,
-                                                         VectorType       &Mv) {
+      stepper->mass_times_vector = [this, &mass_operator](const double      t,
+                                                          const VectorType &v,
+                                                          VectorType &Mv) {
         (void)t;
         for (unsigned int i = 0; i < v.n_blocks(); ++i)
           mass_operator.vmult(Mv.block(i), v.block(i));
       };
 
-      arkode->solve_mass =
+      stepper->solve_mass =
         [this](SUNDIALS::SundialsOperator<VectorType>       &op,
                SUNDIALS::SundialsPreconditioner<VectorType> &prec,
                VectorType                                   &x,
@@ -1138,7 +1137,8 @@ namespace TimeIntegration
     const ResidualWrapper<Number>   &residual_wrapper;
     const AffineConstraints<Number> &constraints;
 
-    std::unique_ptr<SUNDIALS::ARKode<VectorType>> arkode;
+    std::unique_ptr<SUNDIALS::ARKode<VectorType>>     arkode;
+    std::unique_ptr<SUNDIALS::ARKStepper<VectorType>> stepper;
 
     NewtonSolverSolverControl &statistics;
     MyTimerOutput             &timer;

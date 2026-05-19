@@ -19,12 +19,13 @@
 
 namespace TimeIntegration
 {
-  // The default values correspond to the default ARKODE settings
   struct ArkodeData
   {
-    unsigned int maximum_order           = 4;
+    unsigned int maximum_order           = 0;
     std::string  explicit_method_name    = "";
     std::string  implicit_method_name    = "";
     bool         time_step_size_adaptive = true;
+    double       absolute_tolerance      = 1e-6;
+    double       relative_tolerance      = 1e-5;
   };
 } // namespace TimeIntegration
