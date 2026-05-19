@@ -938,6 +938,43 @@ namespace Sintering
     }
   };
 
+  template <typename T>
+  std::unique_ptr<Preconditioners::PreconditionerBase<typename T::value_type>>
+  create_preconditioner(const T &op, const PreconditionerData &config)
+  {
+    const auto &type = config.type;
+
+    if (type == "AMG" || type == "BlockAMG")
+      {
+        TrilinosWrappers::PreconditionAMG::AdditionalData ad;
+        ad.smoother_sweeps = config.amg_data.smoother_sweeps;
+        ad.n_cycles        = config.amg_data.n_cycles;
+        return Preconditioners::create(op, type, ad);
+      }
+    else if (type == "ILU" || type == "BlockILU")
+      {
+        TrilinosWrappers::PreconditionILU::AdditionalData ad;
+        ad.ilu_fill = config.ilu_data.ilu_fill;
+        ad.ilu_atol = config.ilu_data.ilu_atol;
+        ad.ilu_rtol = config.ilu_data.ilu_rtol;
+        ad.overlap  = config.ilu_data.overlap;
+        return Preconditioners::create(op, type, ad);
+      }
+    else if (type == "IC")
+      {
+        TrilinosWrappers::PreconditionIC::AdditionalData ad;
+        ad.ic_fill = config.ic_data.ic_fill;
+        ad.ic_atol = config.ic_data.ic_atol;
+        ad.ic_rtol = config.ic_data.ic_rtol;
+        ad.overlap = config.ic_data.overlap;
+        return Preconditioners::create(op, type, ad);
+      }
+    else
+      {
+        return Preconditioners::create(op, type);
+      }
+  }
+
   template <int dim,
             typename Number,
             typename VectorizedArrayType,
@@ -998,21 +1035,22 @@ namespace Sintering
 
       // create preconditioners
       preconditioner_0 =
-        Preconditioners::create(*operator_0, data.block_0_preconditioner);
+        create_preconditioner(*operator_0, data.block_0);
 
-      AssertThrow((data.block_1_preconditioner != "GMG") &&
-                    (data.block_1_preconditioner != "BlockGMG"),
+      AssertThrow((data.block_1.type != "GMG") &&
+                    (data.block_1.type != "BlockGMG"),
                   ExcMessage("Use the other constructor!"));
 
-      if (data.block_1_preconditioner == "AMG" ||
-          data.block_1_preconditioner == "ILU" ||
-          data.block_1_preconditioner == "InverseDiagonalMatrix")
+      if (data.block_1.type == "AMG" ||
+          data.block_1.type == "ILU" ||
+          data.block_1.type == "IC" ||
+          data.block_1.type == "InverseDiagonalMatrix")
         preconditioner_1 =
-          Preconditioners::create(*operator_1, data.block_1_preconditioner);
-      else if (data.block_1_preconditioner == "BlockAMG" ||
-               data.block_1_preconditioner == "BlockILU")
-        preconditioner_1 = Preconditioners::create(*operator_1_blocked,
-                                                   data.block_1_preconditioner);
+          create_preconditioner(*operator_1, data.block_1);
+      else if (data.block_1.type == "BlockAMG" ||
+               data.block_1.type == "BlockILU")
+        preconditioner_1 =
+          create_preconditioner(*operator_1_blocked, data.block_1);
       else
         {
           AssertThrow(false, ExcNotImplemented());
@@ -1052,22 +1090,8 @@ namespace Sintering
           nu,
           plane_type);
 
-      if (data.block_2_preconditioner == "AMG")
-        {
-          TrilinosWrappers::PreconditionAMG::AdditionalData additional_data;
-          additional_data.smoother_sweeps =
-            data.block_2_amg_data.smoother_sweeps;
-          additional_data.n_cycles = data.block_2_amg_data.n_cycles;
-          preconditioner_2 =
-            Preconditioners::create(*operator_2,
-                                    data.block_2_preconditioner,
-                                    additional_data);
-        }
-      else
-        {
-          preconditioner_2 =
-            Preconditioners::create(*operator_2, data.block_2_preconditioner);
-        }
+      preconditioner_2 =
+        create_preconditioner(*operator_2, data.block_2);
     }
 
     BlockPreconditioner2(
@@ -1111,7 +1135,7 @@ namespace Sintering
         sintering_data,
         advection);
 
-      if (data.block_1_preconditioner == "GMG")
+      if (data.block_1.type == "GMG")
         {
           mg_operator_1.resize(min_level, max_level);
           for (unsigned int l = min_level; l <= max_level; ++l)
@@ -1149,16 +1173,16 @@ namespace Sintering
 
       // create preconditioners
       preconditioner_0 =
-        Preconditioners::create(*operator_0, data.block_0_preconditioner);
+        create_preconditioner(*operator_0, data.block_0);
 
-      if (data.block_1_preconditioner == "GMG")
+      if (data.block_1.type == "GMG")
         preconditioner_1 = Preconditioners::create(mg_operator_1,
                                                    transfer,
-                                                   data.block_1_preconditioner);
+                                                   data.block_1.type);
       else
         preconditioner_1 = Preconditioners::create(mg_operator_blocked_1,
                                                    transfer,
-                                                   data.block_1_preconditioner);
+                                                   data.block_1.type);
     }
 
     virtual void

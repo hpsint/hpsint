@@ -94,7 +94,9 @@
         "VtkPath": "."
     },
     "Preconditioners": {
-        "OuterPreconditioner": "ILU"
+        "Outer": {
+            "Type": "ILU"
+        }
     },
     "Restart": {
         "Type": "simulation_time",

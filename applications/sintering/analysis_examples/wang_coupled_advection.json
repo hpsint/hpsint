@@ -28,7 +28,9 @@
         "DesirableLinearIterations": "500"
     },
     "Preconditioners": {
-        "OuterPreconditioner": "ILU"
+        "Outer": {
+            "Type": "ILU"
+        }
     },
     "NonLinearData": {
         "GMRESData": {

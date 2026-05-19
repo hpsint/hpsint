@@ -79,11 +79,17 @@
         "MeshOverheadEstimate": false
     },
     "Preconditioners": {
-        "OuterPreconditioner": "BlockPreconditioner2",
+        "Outer": {
+            "Type": "BlockPreconditioner2"
+        },
         "BlockPreconditioner2": {
-            "Block0Preconditioner": "ILU",
+            "Block0": {
+                "Type": "ILU"
+            },
             "Block1Approximation": "avg",
-            "Block1Preconditioner": "BlockILU"
+            "Block1": {
+                "Type": "BlockILU"
+            }
         }
     },
     "Profiling": {

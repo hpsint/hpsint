@@ -668,14 +668,14 @@ namespace Sintering
             mapping, dof_handler, constraints, quad, additional_data);
         }
 
-      if ((params.preconditioners_data.outer_preconditioner == "GMG") ||
-          (params.preconditioners_data.outer_preconditioner == "BlockGMG") ||
-          ((params.preconditioners_data.outer_preconditioner ==
+      if ((params.preconditioners_data.outer.type == "GMG") ||
+          (params.preconditioners_data.outer.type == "BlockGMG") ||
+          ((params.preconditioners_data.outer.type ==
             "BlockPreconditioner2") &&
            ((params.preconditioners_data.block_preconditioner_2_data
-               .block_1_preconditioner == "GMG") ||
+               .block_1.type == "GMG") ||
             (params.preconditioners_data.block_preconditioner_2_data
-               .block_1_preconditioner == "BlockGMG"))))
+               .block_1.type == "BlockGMG"))))
         {
           MyScope("Problem::initialize::multigrid");
 
@@ -1118,7 +1118,7 @@ namespace Sintering
             transfer,
             params.preconditioners_data.block_preconditioner_2_data,
             params.print_time_loop);
-      else if (params.preconditioners_data.outer_preconditioner ==
+      else if (params.preconditioners_data.outer.type ==
                "BlockPreconditioner2")
         {
           if constexpr (std::is_base_of_v<SinteringOperatorCoupledMonolithic<
@@ -1158,56 +1158,8 @@ namespace Sintering
                 params.print_time_loop);
         }
       else
-        {
-          const auto &outer =
-            params.preconditioners_data.outer_preconditioner;
-
-          if (outer == "AMG" || outer == "BlockAMG")
-            {
-              TrilinosWrappers::PreconditionAMG::AdditionalData
-                additional_data;
-              additional_data.smoother_sweeps =
-                params.preconditioners_data.amg_data.smoother_sweeps;
-              additional_data.n_cycles =
-                params.preconditioners_data.amg_data.n_cycles;
-              preconditioner = Preconditioners::create(
-                nonlinear_operator, outer, additional_data);
-            }
-          else if (outer == "ILU" || outer == "BlockILU")
-            {
-              TrilinosWrappers::PreconditionILU::AdditionalData
-                additional_data;
-              additional_data.ilu_fill =
-                params.preconditioners_data.ilu_data.ilu_fill;
-              additional_data.ilu_atol =
-                params.preconditioners_data.ilu_data.ilu_atol;
-              additional_data.ilu_rtol =
-                params.preconditioners_data.ilu_data.ilu_rtol;
-              additional_data.overlap =
-                params.preconditioners_data.ilu_data.overlap;
-              preconditioner = Preconditioners::create(
-                nonlinear_operator, outer, additional_data);
-            }
-          else if (outer == "IC")
-            {
-              TrilinosWrappers::PreconditionIC::AdditionalData additional_data;
-              additional_data.ic_fill =
-                params.preconditioners_data.ic_data.ic_fill;
-              additional_data.ic_atol =
-                params.preconditioners_data.ic_data.ic_atol;
-              additional_data.ic_rtol =
-                params.preconditioners_data.ic_data.ic_rtol;
-              additional_data.overlap =
-                params.preconditioners_data.ic_data.overlap;
-              preconditioner = Preconditioners::create(
-                nonlinear_operator, outer, additional_data);
-            }
-          else
-            {
-              preconditioner =
-                Preconditioners::create(nonlinear_operator, outer);
-            }
-        }
+        preconditioner = create_preconditioner(
+          nonlinear_operator, params.preconditioners_data.outer);
 
       // A check for validity of the FDM approximation and direct linear solver
       if (params.nonlinear_data.fdm_jacobian_approximation)

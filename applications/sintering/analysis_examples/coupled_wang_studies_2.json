@@ -73,15 +73,23 @@
         "VtkPath": "."
     },
     "Preconditioners": {
-        "OuterPreconditioner": "BlockPreconditioner2",
+        "Outer": {
+            "Type": "BlockPreconditioner2"
+        },
         "BlockPreconditioner2": {
-            "Block0Preconditioner": "ILU",
+            "Block0": {
+                "Type": "ILU"
+            },
             "Block1Approximation": "avg",
-            "Block1Preconditioner": "BlockILU",
-            "Block2Preconditioner": "AMG",
-            "Block2AMG": {
-                "SmootherSweeps": 4,
-                "NCycles": 5
+            "Block1": {
+                "Type": "BlockILU"
+            },
+            "Block2": {
+                "Type": "AMG",
+                "AMG": {
+                    "SmootherSweeps": 4,
+                    "NCycles": 5
+                }
             }
         }
     },
