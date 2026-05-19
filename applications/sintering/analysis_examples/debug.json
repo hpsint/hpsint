@@ -72,7 +72,9 @@
         "VtkPath": "."
     },
     "Preconditioners": {
-        "OuterPreconditioner": "ILU"
+        "Outer": {
+            "Type": "ILU"
+        }
     },
     "TimeIntegration": {
         "IntegrationScheme": "BDF1",

@@ -25,14 +25,36 @@ namespace Sintering
     unsigned int n_cycles        = 5;
   };
 
+  struct ILUData
+  {
+    unsigned int ilu_fill = 0;
+    double       ilu_atol = 0.0;
+    double       ilu_rtol = 1.0;
+    unsigned int overlap  = 0;
+  };
+
+  struct ICData
+  {
+    unsigned int ic_fill = 0;
+    double       ic_atol = 0.0;
+    double       ic_rtol = 1.0;
+    unsigned int overlap = 0;
+  };
+
+  struct PreconditionerData
+  {
+    std::string type = "ILU";
+    AMGData     amg_data;
+    ILUData     ilu_data;
+    ICData      ic_data;
+  };
+
   struct BlockPreconditioner2Data
   {
-    std::string block_0_preconditioner = "ILU";
-    std::string block_1_preconditioner = "InverseDiagonalMatrix";
-    std::string block_2_preconditioner = "AMG";
+    PreconditionerData block_0 = {"ILU"};
+    PreconditionerData block_1 = {"InverseDiagonalMatrix"};
+    PreconditionerData block_2 = {"AMG"};
 
     std::string block_1_approximation = "all";
-
-    AMGData block_2_amg_data;
   };
 } // namespace Sintering

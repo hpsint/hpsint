@@ -1433,6 +1433,24 @@ namespace Preconditioners
 
   template <typename T>
   std::unique_ptr<PreconditionerBase<typename T::value_type>>
+  create(const T                                          &op,
+         const std::string                                &label,
+         TrilinosWrappers::PreconditionIC::AdditionalData &additional_data)
+  {
+    if (label == "IC")
+      return std::make_unique<IC<T>>(op, additional_data);
+
+    AssertThrow(
+      false,
+      ExcMessage(
+        "Preconditioner << " + label +
+        " >> not known or cannot be initialized with IC additional data!"));
+
+    return {};
+  }
+
+  template <typename T>
+  std::unique_ptr<PreconditionerBase<typename T::value_type>>
   create(const MGLevelObject<std::shared_ptr<T>> &op,
          const std::shared_ptr<
            MGTransferGlobalCoarsening<T::dimension, typename T::VectorType>>

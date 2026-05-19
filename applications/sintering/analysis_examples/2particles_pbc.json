@@ -62,11 +62,17 @@
         "VtkPath": "."
     },
     "Preconditioners": {
-        "OuterPreconditioner": "BlockPreconditioner2",
+        "Outer": {
+            "Type": "BlockPreconditioner2"
+        },
         "BlockPreconditioner2": {
-            "Block0Preconditioner": "ILU",
+            "Block0": {
+                "Type": "ILU"
+            },
             "Block1Approximation": "all",
-            "Block1Preconditioner": "InverseDiagonalMatrix"
+            "Block1": {
+                "Type": "InverseDiagonalMatrix"
+            }
         }
     },
     "Profiling": {

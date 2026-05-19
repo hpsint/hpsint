@@ -281,8 +281,7 @@ namespace Sintering
 
   struct PreconditionersData
   {
-    std::string outer_preconditioner = "BlockPreconditioner2";
-    // std::string outer_preconditioner = "ILU";
+    PreconditionerData outer = {"BlockPreconditioner2"};
 
     BlockPreconditioner2Data block_preconditioner_2_data;
   };
@@ -1068,43 +1067,75 @@ namespace Sintering
       prm.enter_subsection("Preconditioners");
       const std::string preconditioner_types =
         "AMG|BlockAMG|BlockILU|InverseBlockDiagonalMatrix|InverseDiagonalMatrix|ILU|InverseComponentBlockDiagonalMatrix|BlockGMG|GMG|Identity|IC";
-      prm.add_parameter("OuterPreconditioner",
-                        preconditioners_data.outer_preconditioner,
-                        "Preconditioner to be used for the outer system.",
-                        Patterns::Selection(preconditioner_types +
-                                            "|BlockPreconditioner2"));
+
+      auto add_preconditioner_data = [&](PreconditionerData &data,
+                                         const std::string  &type_selection) {
+        prm.add_parameter("Type",
+                          data.type,
+                          "Preconditioner type.",
+                          Patterns::Selection(type_selection));
+
+        prm.enter_subsection("AMG");
+        prm.add_parameter("SmootherSweeps",
+                          data.amg_data.smoother_sweeps,
+                          "Smoother sweeps.");
+        prm.add_parameter("NCycles",
+                          data.amg_data.n_cycles,
+                          "Number of cycles.");
+        prm.leave_subsection();
+
+        prm.enter_subsection("ILU");
+        prm.add_parameter("ILUFill", data.ilu_data.ilu_fill, "ILU fill level.");
+        prm.add_parameter("ILUAtol",
+                          data.ilu_data.ilu_atol,
+                          "ILU absolute tolerance.");
+        prm.add_parameter("ILURtol",
+                          data.ilu_data.ilu_rtol,
+                          "ILU relative tolerance.");
+        prm.add_parameter("Overlap", data.ilu_data.overlap, "Overlap.");
+        prm.leave_subsection();
+
+        prm.enter_subsection("IC");
+        prm.add_parameter("ICFill", data.ic_data.ic_fill, "IC fill level.");
+        prm.add_parameter("ICAtol",
+                          data.ic_data.ic_atol,
+                          "IC absolute tolerance.");
+        prm.add_parameter("ICRtol",
+                          data.ic_data.ic_rtol,
+                          "IC relative tolerance.");
+        prm.add_parameter("Overlap", data.ic_data.overlap, "Overlap.");
+        prm.leave_subsection();
+      };
+
+      prm.enter_subsection("Outer");
+      add_preconditioner_data(preconditioners_data.outer,
+                              preconditioner_types + "|BlockPreconditioner2");
+      prm.leave_subsection();
 
       prm.enter_subsection("BlockPreconditioner2");
-      prm.add_parameter(
-        "Block0Preconditioner",
-        preconditioners_data.block_preconditioner_2_data.block_0_preconditioner,
-        "Preconditioner to be used for the first block.",
-        Patterns::Selection(preconditioner_types));
-      prm.add_parameter(
-        "Block1Preconditioner",
-        preconditioners_data.block_preconditioner_2_data.block_1_preconditioner,
-        "Preconditioner to be used for the second block.",
-        Patterns::Selection(preconditioner_types));
+
+      prm.enter_subsection("Block0");
+      add_preconditioner_data(
+        preconditioners_data.block_preconditioner_2_data.block_0,
+        preconditioner_types);
+      prm.leave_subsection();
+
+      prm.enter_subsection("Block1");
+      add_preconditioner_data(
+        preconditioners_data.block_preconditioner_2_data.block_1,
+        preconditioner_types);
+      prm.leave_subsection();
+
       prm.add_parameter(
         "Block1Approximation",
         preconditioners_data.block_preconditioner_2_data.block_1_approximation,
         "Approximation of the second block (Allen Cahn).",
         Patterns::Selection("all|const|max|avg"));
-      prm.add_parameter(
-        "Block2Preconditioner",
-        preconditioners_data.block_preconditioner_2_data.block_2_preconditioner,
-        "Preconditioner to be used for the first block.",
-        Patterns::Selection(preconditioner_types));
 
-      prm.enter_subsection("Block2AMG");
-      prm.add_parameter("SmootherSweeps",
-                        preconditioners_data.block_preconditioner_2_data
-                          .block_2_amg_data.smoother_sweeps,
-                        "Smoother sweeps");
-      prm.add_parameter("NCycles",
-                        preconditioners_data.block_preconditioner_2_data
-                          .block_2_amg_data.n_cycles,
-                        "Number of cycles");
+      prm.enter_subsection("Block2");
+      add_preconditioner_data(
+        preconditioners_data.block_preconditioner_2_data.block_2,
+        preconditioner_types);
       prm.leave_subsection();
 
       prm.leave_subsection();

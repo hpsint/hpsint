@@ -668,14 +668,13 @@ namespace Sintering
             mapping, dof_handler, constraints, quad, additional_data);
         }
 
-      if ((params.preconditioners_data.outer_preconditioner == "GMG") ||
-          (params.preconditioners_data.outer_preconditioner == "BlockGMG") ||
-          ((params.preconditioners_data.outer_preconditioner ==
-            "BlockPreconditioner2") &&
-           ((params.preconditioners_data.block_preconditioner_2_data
-               .block_1_preconditioner == "GMG") ||
-            (params.preconditioners_data.block_preconditioner_2_data
-               .block_1_preconditioner == "BlockGMG"))))
+      if ((params.preconditioners_data.outer.type == "GMG") ||
+          (params.preconditioners_data.outer.type == "BlockGMG") ||
+          ((params.preconditioners_data.outer.type == "BlockPreconditioner2") &&
+           ((params.preconditioners_data.block_preconditioner_2_data.block_1
+               .type == "GMG") ||
+            (params.preconditioners_data.block_preconditioner_2_data.block_1
+               .type == "BlockGMG"))))
         {
           MyScope("Problem::initialize::multigrid");
 
@@ -1121,8 +1120,7 @@ namespace Sintering
             transfer,
             params.preconditioners_data.block_preconditioner_2_data,
             params.print_time_loop);
-      else if (params.preconditioners_data.outer_preconditioner ==
-               "BlockPreconditioner2")
+      else if (params.preconditioners_data.outer.type == "BlockPreconditioner2")
         {
           if constexpr (std::is_base_of_v<SinteringOperatorCoupledMonolithic<
                                             dim,
@@ -1161,8 +1159,9 @@ namespace Sintering
                 params.print_time_loop);
         }
       else
-        preconditioner = Preconditioners::create(
-          nonlinear_operator, params.preconditioners_data.outer_preconditioner);
+        preconditioner =
+          create_preconditioner(nonlinear_operator,
+                                params.preconditioners_data.outer);
 
       // A check for validity of the FDM approximation and direct linear solver
       if (params.nonlinear_data.fdm_jacobian_approximation)
