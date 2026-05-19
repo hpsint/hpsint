@@ -1034,19 +1034,16 @@ namespace Sintering
           data.block_1_approximation);
 
       // create preconditioners
-      preconditioner_0 =
-        create_preconditioner(*operator_0, data.block_0);
+      preconditioner_0 = create_preconditioner(*operator_0, data.block_0);
 
       AssertThrow((data.block_1.type != "GMG") &&
                     (data.block_1.type != "BlockGMG"),
                   ExcMessage("Use the other constructor!"));
 
-      if (data.block_1.type == "AMG" ||
-          data.block_1.type == "ILU" ||
+      if (data.block_1.type == "AMG" || data.block_1.type == "ILU" ||
           data.block_1.type == "IC" ||
           data.block_1.type == "InverseDiagonalMatrix")
-        preconditioner_1 =
-          create_preconditioner(*operator_1, data.block_1);
+        preconditioner_1 = create_preconditioner(*operator_1, data.block_1);
       else if (data.block_1.type == "BlockAMG" ||
                data.block_1.type == "BlockILU")
         preconditioner_1 =
@@ -1090,8 +1087,7 @@ namespace Sintering
           nu,
           plane_type);
 
-      preconditioner_2 =
-        create_preconditioner(*operator_2, data.block_2);
+      preconditioner_2 = create_preconditioner(*operator_2, data.block_2);
     }
 
     BlockPreconditioner2(
@@ -1172,13 +1168,11 @@ namespace Sintering
         }
 
       // create preconditioners
-      preconditioner_0 =
-        create_preconditioner(*operator_0, data.block_0);
+      preconditioner_0 = create_preconditioner(*operator_0, data.block_0);
 
       if (data.block_1.type == "GMG")
-        preconditioner_1 = Preconditioners::create(mg_operator_1,
-                                                   transfer,
-                                                   data.block_1.type);
+        preconditioner_1 =
+          Preconditioners::create(mg_operator_1, transfer, data.block_1.type);
       else
         preconditioner_1 = Preconditioners::create(mg_operator_blocked_1,
                                                    transfer,

@@ -670,12 +670,11 @@ namespace Sintering
 
       if ((params.preconditioners_data.outer.type == "GMG") ||
           (params.preconditioners_data.outer.type == "BlockGMG") ||
-          ((params.preconditioners_data.outer.type ==
-            "BlockPreconditioner2") &&
-           ((params.preconditioners_data.block_preconditioner_2_data
-               .block_1.type == "GMG") ||
-            (params.preconditioners_data.block_preconditioner_2_data
-               .block_1.type == "BlockGMG"))))
+          ((params.preconditioners_data.outer.type == "BlockPreconditioner2") &&
+           ((params.preconditioners_data.block_preconditioner_2_data.block_1
+               .type == "GMG") ||
+            (params.preconditioners_data.block_preconditioner_2_data.block_1
+               .type == "BlockGMG"))))
         {
           MyScope("Problem::initialize::multigrid");
 
@@ -1118,8 +1117,7 @@ namespace Sintering
             transfer,
             params.preconditioners_data.block_preconditioner_2_data,
             params.print_time_loop);
-      else if (params.preconditioners_data.outer.type ==
-               "BlockPreconditioner2")
+      else if (params.preconditioners_data.outer.type == "BlockPreconditioner2")
         {
           if constexpr (std::is_base_of_v<SinteringOperatorCoupledMonolithic<
                                             dim,
@@ -1158,8 +1156,9 @@ namespace Sintering
                 params.print_time_loop);
         }
       else
-        preconditioner = create_preconditioner(
-          nonlinear_operator, params.preconditioners_data.outer);
+        preconditioner =
+          create_preconditioner(nonlinear_operator,
+                                params.preconditioners_data.outer);
 
       // A check for validity of the FDM approximation and direct linear solver
       if (params.nonlinear_data.fdm_jacobian_approximation)
