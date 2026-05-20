@@ -949,10 +949,15 @@ namespace TimeIntegration
 
         if (time_integration_params.growth_factor <= 1.0)
           {
+            const auto dt =
+              this->nonlinear_operator.get_data().time_data.get_current_dt();
+
             // Enforce fixed step size
-            status = ARKodeSetFixedStep(
-              arkode_mem,
-              this->nonlinear_operator.get_data().time_data.get_current_dt());
+#  if DEAL_II_SUNDIALS_VERSION_GTE(7, 0, 0)
+            status = ARKodeSetFixedStep(arkode_mem, dt);
+#  else
+            status = ARKStepSetFixedStep(arkode_mem, dt);
+#  endif
             AssertARKode(status);
           }
 
