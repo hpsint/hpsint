@@ -803,6 +803,31 @@ namespace Sintering
       prm.add_parameter("SanityCheckSolution",
                         time_integration_data.sanity_check_solution,
                         "Whether to perform PF sanity check after solution.");
+
+      prm.enter_subsection("ARKode");
+      prm.add_parameter("MaximumOrder",
+                        time_integration_data.arkode_data.maximum_order,
+                        "Maximum order of the ARKode method.");
+      prm.add_parameter(
+        "ExplicitMethodName",
+        time_integration_data.arkode_data.explicit_method_name,
+        "Name of the explicit Butcher table (empty = default).");
+      prm.add_parameter(
+        "ImplicitMethodName",
+        time_integration_data.arkode_data.implicit_method_name,
+        "Name of the implicit Butcher table (empty = default).");
+      prm.add_parameter(
+        "TimeStepSizeAdaptive",
+        time_integration_data.arkode_data.time_step_size_adaptive,
+        "Whether ARKode uses adaptive time stepping.");
+      prm.add_parameter("AbsoluteTolerance",
+                        time_integration_data.arkode_data.absolute_tolerance,
+                        "Absolute tolerance for the ARKode error control.");
+      prm.add_parameter("RelativeTolerance",
+                        time_integration_data.arkode_data.relative_tolerance,
+                        "Relative tolerance for the ARKode error control.");
+      prm.leave_subsection();
+
       prm.leave_subsection();
 
       prm.enter_subsection("Output");

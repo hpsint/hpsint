@@ -15,12 +15,15 @@
 
 #include <deal.II/base/mpi.h>
 
+#include <pf-applications/lac/solvers_nonlinear_parameters.h>
+
 #include <pf-applications/tests/time_marching_tester.h>
 #include <pf-applications/time_integration/time_integrator_data.h>
 #include <pf-applications/time_integration/time_marching.h>
 
 using namespace dealii;
 using namespace TimeIntegration;
+using namespace NonLinearSolvers;
 
 int
 main(int argc, char **argv)
@@ -41,14 +44,17 @@ main(int argc, char **argv)
   time_integration_data.time_end      = dt * tester.n_steps;
   time_integration_data.time_step_min = dt;
 
-  auto arkode_factory = [&](NonLinearSolvers::NewtonSolverSolverControl &stats,
-                            MyTimerOutput &timer) {
+  NonLinearData nonlinear_data;
+
+  auto arkode_factory = [&](NewtonSolverSolverControl &stats,
+                            MyTimerOutput             &timer) {
     return std::make_unique<
       TimeMarchingArkode<Test::BlockVectorType, Test::SinOperator>>(
       tester.nonlinear_operator,
       tester.residual_wrapper,
       tester.constraints,
       time_integration_data,
+      nonlinear_data,
       stats,
       timer);
   };
