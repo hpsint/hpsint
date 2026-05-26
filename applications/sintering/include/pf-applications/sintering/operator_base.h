@@ -907,11 +907,15 @@ namespace Sintering
                 }
             }
 
+          const unsigned int n_active_lanes =
+            this->matrix_free.n_active_entries_per_cell_batch(cell);
+
           for (unsigned int i = 0; i < quantities.size(); ++i)
             {
               const auto vals = fe_eval[i].integrate_value();
-              q_values[i] +=
-                std::accumulate(vals.begin(), vals.end(), Number(0));
+              q_values[i] += std::accumulate(vals.begin(),
+                                             vals.begin() + n_active_lanes,
+                                             Number(0.));
             }
         }
 
