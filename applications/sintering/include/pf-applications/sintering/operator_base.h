@@ -913,8 +913,9 @@ namespace Sintering
           for (unsigned int i = 0; i < quantities.size(); ++i)
             {
               const auto vals = fe_eval[i].integrate_value();
-              for (unsigned int lane = 0; lane < n_active_lanes; ++lane)
-                q_values[i] += vals[lane];
+              q_values[i] += std::accumulate(vals.begin(),
+                                             vals.begin() + n_active_lanes,
+                                             Number(0.));
             }
         }
 
