@@ -37,6 +37,7 @@ namespace Sintering
 
       BlockVectorWrapper(const std::vector<T> &v)
       {
+        data.reserve(v.size());
         std::transform(v.begin(), v.end(), data.begin(), [](const auto &item) {
           return &item;
         });
@@ -45,6 +46,7 @@ namespace Sintering
       template <typename Iterator>
       BlockVectorWrapper(Iterator begin, Iterator end)
       {
+        data.reserve(std::distance(begin, end));
         std::transform(begin, end, data.begin(), [](const auto &item) {
           return &item;
         });
