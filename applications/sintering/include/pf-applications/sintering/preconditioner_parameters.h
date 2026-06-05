@@ -43,6 +43,11 @@ namespace Sintering
 
   struct PreconditionerData
   {
+    PreconditionerData() = default;
+    PreconditionerData(const std::string &type)
+      : type(type)
+    {}
+
     std::string type = "ILU";
     AMGData     amg_data;
     ILUData     ilu_data;
