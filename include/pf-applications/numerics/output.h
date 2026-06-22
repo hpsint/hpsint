@@ -1,6 +1,6 @@
 // ---------------------------------------------------------------------
 //
-// Copyright (C) 2024 by the hpsint authors
+// Copyright (C) 2024 - 2026 by the hpsint authors
 //
 // This file is part of the hpsint library.
 //
@@ -16,6 +16,11 @@
 #pragma once
 
 #include <deal.II/dofs/dof_handler.h>
+
+#include <deal.II/lac/precondition.h>
+#include <deal.II/lac/solver_cg.h>
+
+#include <deal.II/matrix_free/fe_evaluation.h>
 
 #include <deal.II/numerics/data_out.h>
 
@@ -104,6 +109,92 @@ namespace Sintering
         }
 
       return data_out;
+    }
+
+    // Consistent-mass L2 projection helpers (for derived output quantities).
+    // Derived quantities are nonlinear, generally discontinuous functions of
+    // the FE solution. Writing them for visualization requires projecting them
+    // onto the continuous FE_Q space.
+    //
+    // Matrix-free consistent scalar FE_Q mass operator: dst = M * src
+    // (quadrature index 0, single scalar component at dof_index).
+    template <int dim,
+              typename Number,
+              typename VectorType,
+              typename VectorizedArrayType>
+    struct ScalarMassOperator
+    {
+      const MatrixFree<dim, Number, VectorizedArrayType> &mf;
+      unsigned int                                        dof_index;
+
+      void
+      vmult(VectorType &dst, const VectorType &src) const
+      {
+        const unsigned int di = dof_index;
+
+        const std::function<
+          void(const MatrixFree<dim, Number, VectorizedArrayType> &,
+               VectorType &,
+               const VectorType &,
+               const std::pair<unsigned int, unsigned int> &)>
+          cell_op =
+            [di](const MatrixFree<dim, Number, VectorizedArrayType> &data,
+                 VectorType                                         &dst,
+                 const VectorType                                   &src,
+                 const std::pair<unsigned int, unsigned int>        &range) {
+              FEEvaluation<dim, -1, 0, 1, Number, VectorizedArrayType> eval(
+                data, di);
+
+              for (auto cell = range.first; cell < range.second; ++cell)
+                {
+                  eval.reinit(cell);
+                  eval.read_dof_values(src);
+                  eval.evaluate(EvaluationFlags::values);
+                  for (unsigned int q = 0; q < eval.n_q_points; ++q)
+                    eval.submit_value(eval.get_value(q), q);
+                  eval.integrate(EvaluationFlags::values);
+                  eval.distribute_local_to_global(dst);
+                }
+            };
+
+        mf.cell_loop(cell_op, dst, src, /*zero_dst_before_use=*/true);
+      }
+    };
+
+    // Solve the consistent-mass L2 projection M x = b in place for each entry.
+    // On entry each vector holds the assembled load vector b_i = (phi_i, q);
+    // on exit it holds the projected field x with hanging-node constraints
+    // distributed.
+    template <int dim,
+              typename Number,
+              typename VectorType,
+              typename VectorizedArrayType>
+    void
+    solve_l2_projection(
+      const MatrixFree<dim, Number, VectorizedArrayType> &matrix_free,
+      const AffineConstraints<Number>                    &constraints,
+      const unsigned int                                  dof_index,
+      std::vector<VectorType>                            &vectors)
+    {
+      ScalarMassOperator<dim, Number, VectorizedArrayType> mass{matrix_free,
+                                                                dof_index};
+
+      VectorType solution;
+      matrix_free.initialize_dof_vector(solution, dof_index);
+
+      for (auto &rhs : vectors)
+        {
+          rhs.compress(VectorOperation::add);
+
+          ReductionControl     control(1000, 1e-20, 1e-8);
+          SolverCG<VectorType> cg(control);
+
+          solution = 0.0;
+          cg.solve(mass, solution, rhs, PreconditionIdentity());
+          constraints.distribute(solution);
+
+          rhs = solution;
+        }
     }
   } // namespace Postprocessors
 } // namespace Sintering
