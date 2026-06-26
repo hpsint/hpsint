@@ -1660,35 +1660,36 @@ namespace GrainTracker
               MyScope    scope(timer, sc, timer.is_enabled());
 
               /* Since this strategy may fail, the new order parameters are not
-               * assigned directly to the grains but only gathered in a map. */
-              std::map<unsigned int, unsigned int>
-                new_order_parameters_for_grains;
+               * assigned directly to the grains but kept in a mutable
+               * provisional color array indexed by the sparsity row id. The
+               * array is initialized with the current order parameters of all
+               * grains and is updated immediately whenever a candidate gets
+               * recolored, so that subsequent candidates inspect the most
+               * recent provisional neighbor colors instead of the stale ones
+               * stored in the grains map. */
+              std::vector<unsigned int> provisional_colors(n_grains);
+              for (const auto &[gid, gr] : grains)
+                provisional_colors[grains_to_sparsity.at(gid)] =
+                  gr.get_order_parameter_id();
 
-              /* We also need to inverse the grains_to_sparsity map */
-              std::map<unsigned int, unsigned int> sparsity_to_grains;
+              /* Order the candidates by descending degree (number of
+               * neighbors in the collision graph). Coloring the most
+               * constrained grains first generally improves the greedy
+               * result. */
+              std::vector<unsigned int> ordered_candidates(
+                remap_candidates.begin(), remap_candidates.end());
+              std::sort(ordered_candidates.begin(),
+                        ordered_candidates.end(),
+                        [&sp](const unsigned int a, const unsigned int b) {
+                          return sp.row_length(a) > sp.row_length(b);
+                        });
 
-              std::transform(grains_to_sparsity.begin(),
-                             grains_to_sparsity.end(),
-                             std::inserter(sparsity_to_grains,
-                                           sparsity_to_grains.end()),
-                             [](const auto &a) {
-                               return std::make_pair(a.second, a.first);
-                             });
-
-              for (const auto &row_id : remap_candidates)
+              for (const auto row_id : ordered_candidates)
                 {
-                  const auto grain_id = sparsity_to_grains.at(row_id);
-
                   auto available_colors = active_order_parameters;
 
                   for (auto it = sp.begin(row_id); it != sp.end(row_id); ++it)
-                    {
-                      const auto neighbor_id =
-                        sparsity_to_grains.at(it->column());
-                      const auto neighbor_order_parameter =
-                        grains.at(neighbor_id).get_order_parameter_id();
-                      available_colors.erase(neighbor_order_parameter);
-                    }
+                    available_colors.erase(provisional_colors[it->column()]);
 
                   unsigned int new_order_parameter;
                   if (!available_colors.empty())
@@ -1720,21 +1721,33 @@ namespace GrainTracker
                         }
                     }
 
-                  if (grains.at(grain_id).get_order_parameter_id() !=
-                      new_order_parameter)
-                    new_order_parameters_for_grains[grain_id] =
-                      new_order_parameter;
+                  // Record the provisional color immediately so that the
+                  // subsequent candidates see the updated neighbor colors.
+                  provisional_colors[row_id] = new_order_parameter;
                 }
 
-              if (!perform_coloring && !new_order_parameters_for_grains.empty())
-                {
-                  for (const auto &[grain_id, new_order_parameter] :
-                       new_order_parameters_for_grains)
-                    grains.at(grain_id).set_order_parameter_id(
-                      new_order_parameter);
+              /* Validate every edge of the collision graph after the
+               * heuristic pass. If any edge still connects two grains sharing
+               * the same order parameter, the fast strategy did not produce a
+               * valid coloring and we fall back to the complete graph
+               * coloring. */
+              if (!perform_coloring)
+                perform_coloring =
+                  std::any_of(sp.begin(), sp.end(), [&](const auto &entry) {
+                    return provisional_colors[entry.row()] ==
+                           provisional_colors[entry.column()];
+                  });
 
-                  grains_reassigned = true;
-                }
+              if (!perform_coloring)
+                for (const auto &[gid, sparsity_id] : grains_to_sparsity)
+                  if (grains.at(gid).get_order_parameter_id() !=
+                      provisional_colors[sparsity_id])
+                    {
+                      grains.at(gid).set_order_parameter_id(
+                        provisional_colors[sparsity_id]);
+
+                      grains_reassigned = true;
+                    }
             }
 
           if (perform_coloring)
