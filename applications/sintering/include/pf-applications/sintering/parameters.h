@@ -899,26 +899,16 @@ namespace Sintering
       prm.add_parameter("VtkPath",
                         output_data.vtk_path,
                         "Path to write VTK files.");
-      const std::string output_fields_options =
-        "CH|AC|displ|bnds|gb|d2f|M|dM|kappa|L|energy|flux|subdomain|mf_indices|vel|trans|strain_lin";
-      prm.add_parameter("Fields",
-                        output_data.fields,
-                        "Fields to output.",
-                        Patterns::List(
-                          Patterns::MultipleSelection(output_fields_options)));
+      prm.add_parameter("Fields", output_data.fields, "Fields to output.");
       prm.add_parameter("MeshOverheadEstimate",
                         output_data.mesh_overhead_estimate,
                         "Print mesh overhead estimate.");
       prm.add_parameter("OnlyControlBoxes",
                         output_data.only_control_boxes,
                         "Output only for control boxes.");
-      const std::string domain_integrals_options =
-        "gb_area|solid_vol|surf_area|avg_grain_size|surf_area_nrm|free_energy|bulk_energy|interface_energy|order_params|control_vol";
       prm.add_parameter("DomainIntegrals",
                         output_data.domain_integrals,
-                        "Domain integral quantities.",
-                        Patterns::List(Patterns::MultipleSelection(
-                          domain_integrals_options)));
+                        "Domain integral quantities.");
 
       std::vector<std::unique_ptr<Patterns::PatternBase>> ps;
       ps.template emplace_back(
