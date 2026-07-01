@@ -17,6 +17,7 @@
 
 #include <deal.II/base/convergence_table.h>
 #include <deal.II/base/mpi.h>
+#include <deal.II/base/quadrature_lib.h>
 #include <deal.II/base/revision.h>
 
 #include <deal.II/fe/fe_q.h>
