@@ -176,8 +176,8 @@ namespace Sintering
       const unsigned int                                  dof_index,
       std::vector<VectorType>                            &vectors)
     {
-      ScalarMassOperator<dim, Number, VectorizedArrayType> mass{matrix_free,
-                                                                dof_index};
+      ScalarMassOperator<dim, Number, VectorType, VectorizedArrayType> mass{
+        matrix_free, dof_index};
 
       VectorType solution;
       matrix_free.initialize_dof_vector(solution, dof_index);
