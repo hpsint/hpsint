@@ -3056,8 +3056,15 @@ namespace Sintering
                     }
 
 
+                  // Set scientific view for customized quantities, since they
+                  // can be very small
                   for (unsigned int j = 0; j < q_evaluators.size(); ++j)
-                    table.add_value(generate_name(q_labels[j], i), q_values[j]);
+                    {
+                      const std::string q_label = generate_name(q_labels[j], i);
+                      table.add_value(q_label, q_values[j]);
+                      table.set_scientific(q_label, true);
+                      table.set_precision(q_label, 6);
+                    }
                 }
             }
         }
