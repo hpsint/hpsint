@@ -2516,8 +2516,8 @@ namespace Sintering
 
                 // Output results
                 if ((params.output_data.output_time_interval > 0.0) &&
-                    (t > params.output_data.output_time_interval +
-                           time_last_output ||
+                    (t >= params.output_data.output_time_interval +
+                            time_last_output ||
                      is_last_time_step))
                   {
                     time_last_output = t;
