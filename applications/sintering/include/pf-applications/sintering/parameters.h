@@ -196,6 +196,13 @@ namespace Sintering
     bool check_courant = true;
 
     bool weighted_forces = false;
+
+    // Arrhenius activation energy for K. If 0 (default), K is treated as a
+    // constant. If set to a non-zero value and Material.Type == Realistic,
+    // K is recomputed at runtime via the Arrhenius relation, reusing K as
+    // the prefactor and this value as the activation energy. Has no effect
+    // if Material.Type == Abstract.
+    double Qk = 0.;
   };
 
   struct BoundaryConditionsData
@@ -741,6 +748,13 @@ namespace Sintering
       prm.add_parameter("WeightedForces",
                         advection_data.weighted_forces,
                         "Use weighted advection forces.");
+      prm.add_parameter(
+        "Qk",
+        advection_data.Qk,
+        "Arrhenius activation energy for K. If 0 (default), K is treated as "
+        "a constant. If set to a non-zero value, K is recomputed at runtime "
+        "via the Arrhenius relation, using K as the prefactor. Only "
+        "effective if Material.Type == Realistic.");
       prm.leave_subsection();
 
 

@@ -24,6 +24,8 @@
 #include <pf-applications/grain_tracker/tracker.h>
 #include <pf-applications/matrix_free/tools.h>
 
+#include <functional>
+
 namespace Sintering
 {
   using namespace dealii;
@@ -81,6 +83,30 @@ namespace Sintering
       , advection_mechanism(advection_mechanism)
     {}
 
+    // Same as above, but k is recomputed once per evaluate_forces() call by
+    // invoking k_eval(current_time) (e.g. to apply the Arrhenius relation).
+    AdvectionOperatorGeneric(
+      std::function<double(const double)>                    k_eval,
+      const double                                           cgb,
+      const double                                           ceq,
+      const double                                           smoothening,
+      const MatrixFree<dim, Number, VectorizedArrayType>    &matrix_free,
+      const SinteringOperatorData<dim, VectorizedArrayType> &data,
+      const GrainTracker::Tracker<dim, Number>              &grain_tracker,
+      AdvectionMechanism<dim, Number, VectorizedArrayType> &advection_mechanism)
+      : matrix_free(matrix_free)
+      , timer(true)
+      , do_timing(true)
+      , k(0.)
+      , cgb(cgb)
+      , ceq(ceq)
+      , smoothening(smoothening)
+      , k_eval(std::move(k_eval))
+      , data(data)
+      , grain_tracker(grain_tracker)
+      , advection_mechanism(advection_mechanism)
+    {}
+
     ~AdvectionOperatorGeneric() override
     {}
 
@@ -93,6 +119,9 @@ namespace Sintering
         post_operation = {}) const override
     {
       MyScope scope(timer, "advection_op_gen::evaluate_forces", do_timing);
+
+      if (k_eval)
+        k = k_eval(data.get_time());
 
       advection_mechanism.nullify_data(grain_tracker.n_segments());
 
@@ -376,10 +405,15 @@ namespace Sintering
     mutable MyTimerOutput timer;
     mutable bool          do_timing;
 
-    const double k;
-    const double cgb;
-    const double ceq;
-    const double smoothening;
+    mutable double k;
+    const double   cgb;
+    const double   ceq;
+    const double   smoothening;
+
+    // Optional hook to recompute k once per evaluate_forces() call (e.g. via
+    // the Arrhenius relation). Left empty by default, in which case k stays
+    // constant.
+    std::function<double(const double)> k_eval;
 
     const SinteringOperatorData<dim, VectorizedArrayType> &data;
     const GrainTracker::Tracker<dim, Number>              &grain_tracker;
@@ -424,6 +458,30 @@ namespace Sintering
       , advection_mechanism(advection_mechanism)
     {}
 
+    // Same as above, but k is recomputed once per evaluate_forces() call by
+    // invoking k_eval(current_time) (e.g. to apply the Arrhenius relation).
+    AdvectionOperatorWeighted(
+      std::function<double(const double)>                    k_eval,
+      const double                                           cgb,
+      const double                                           ceq,
+      const double                                           smoothening,
+      const MatrixFree<dim, Number, VectorizedArrayType>    &matrix_free,
+      const SinteringOperatorData<dim, VectorizedArrayType> &data,
+      const GrainTracker::Tracker<dim, Number>              &grain_tracker,
+      AdvectionMechanism<dim, Number, VectorizedArrayType> &advection_mechanism)
+      : matrix_free(matrix_free)
+      , timer(true)
+      , do_timing(true)
+      , k(0.)
+      , cgb(cgb)
+      , ceq(ceq)
+      , smoothening(smoothening)
+      , k_eval(std::move(k_eval))
+      , data(data)
+      , grain_tracker(grain_tracker)
+      , advection_mechanism(advection_mechanism)
+    {}
+
     ~AdvectionOperatorWeighted() override
     {}
 
@@ -436,6 +494,9 @@ namespace Sintering
         post_operation = {}) const override
     {
       MyScope scope(timer, "advection_op_wgt::evaluate_forces", do_timing);
+
+      if (k_eval)
+        k = k_eval(data.get_time());
 
       const auto n_segments = grain_tracker.n_segments();
 
@@ -781,10 +842,15 @@ namespace Sintering
     mutable MyTimerOutput timer;
     mutable bool          do_timing;
 
-    const double k;
-    const double cgb;
-    const double ceq;
-    const double smoothening;
+    mutable double k;
+    const double   cgb;
+    const double   ceq;
+    const double   smoothening;
+
+    // Optional hook to recompute k once per evaluate_forces() call (e.g. via
+    // the Arrhenius relation). Left empty by default, in which case k stays
+    // constant.
+    std::function<double(const double)> k_eval;
 
     const SinteringOperatorData<dim, VectorizedArrayType> &data;
     const GrainTracker::Tracker<dim, Number>              &grain_tracker;
