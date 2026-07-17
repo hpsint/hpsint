@@ -877,9 +877,9 @@ namespace Sintering
             params.material_data.mobility_abstract_data.Mgb,
             params.material_data.mobility_abstract_data.L);
 
-          if (params.advection_data.arrhenius)
+          if (params.advection_data.Qk != 0.)
             pcout
-              << "Note: Advection.Arrhenius has no effect since Material.Type == Abstract"
+              << "Note: Advection.Qk has no effect since Material.Type == Abstract"
               << std::endl
               << std::endl;
         }
@@ -924,11 +924,11 @@ namespace Sintering
             params.material_data.energy_scale,
             temperature_function);
 
-          if (params.advection_data.arrhenius)
+          if (params.advection_data.Qk != 0.)
             {
               const ArrheniusEvaluator arrhenius_evaluator(
                 params.advection_data.k,
-                params.material_data.mobility_realistic_data.Q_gb,
+                params.advection_data.Qk,
                 temperature_function);
 
               advection_k_function = [arrhenius_evaluator](const double time) {
