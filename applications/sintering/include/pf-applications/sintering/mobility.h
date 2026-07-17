@@ -1,6 +1,6 @@
 // ---------------------------------------------------------------------
 //
-// Copyright (C) 2023 by the hpsint authors
+// Copyright (C) 2023 - 2026 by the hpsint authors
 //
 // This file is part of the hpsint library.
 //
@@ -19,6 +19,7 @@
 
 #include <pf-applications/numerics/functions.h>
 
+#include <pf-applications/sintering/arrhenius.h>
 #include <pf-applications/sintering/tools.h>
 
 namespace Sintering
@@ -78,12 +79,6 @@ namespace Sintering
   class ProviderRealistic : public MobilityProvider
   {
   public:
-    enum class ArrheniusUnit
-    {
-      Boltzmann,
-      Gas
-    };
-
     ProviderRealistic(
       const double                        omega,
       const double                        D_vol0,
