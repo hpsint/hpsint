@@ -263,6 +263,7 @@ namespace Sintering
     double                gb_threshold     = 0.14;
     bool                  auto_control_box = false;
     double                box_rel_padding  = 0.05;
+    unsigned int          table_precision  = 6;
 
     std::vector<std::pair<Point<3>, Point<3>>> control_boxes;
 
@@ -958,6 +959,9 @@ namespace Sintering
         "BoxRelativePadding",
         output_data.box_rel_padding,
         "Auto control box padding relative to the packing size.");
+      prm.add_parameter("TablePrecision",
+                        output_data.table_precision,
+                        "Precision of table output.");
 
       prm.leave_subsection();
 
