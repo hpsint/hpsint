@@ -64,6 +64,7 @@
 #include <pf-applications/numerics/vector_tools.h>
 
 #include <pf-applications/sintering/advection.h>
+#include <pf-applications/sintering/arrhenius.h>
 #include <pf-applications/sintering/boundary_conditions.h>
 #include <pf-applications/sintering/cfl_checker.h>
 #include <pf-applications/sintering/initial_values.h>
@@ -856,6 +857,12 @@ namespace Sintering
       // Compute energy and mobility parameters
       double                            A, B, kappa_c, kappa_p;
       std::shared_ptr<MobilityProvider> mobility_provider;
+
+      // Optional hook to recompute the advection stiffness k at runtime via
+      // the Arrhenius relation (only available for the Realistic material
+      // model). Left empty otherwise, in which case k stays constant.
+      std::function<double(const double)> advection_k_function;
+
       if (params.material_data.type == "Abstract")
         {
           A       = params.material_data.energy_abstract_data.A;
@@ -869,6 +876,12 @@ namespace Sintering
             params.material_data.mobility_abstract_data.Msurf,
             params.material_data.mobility_abstract_data.Mgb,
             params.material_data.mobility_abstract_data.L);
+
+          if (params.advection_data.Qk != 0.)
+            pcout
+              << "Note: Advection.Qk has no effect since Material.Type == Abstract"
+              << std::endl
+              << std::endl;
         }
       else
         {
@@ -911,6 +924,18 @@ namespace Sintering
             params.material_data.energy_scale,
             temperature_function);
 
+          if (params.advection_data.Qk != 0.)
+            {
+              const ArrheniusEvaluator arrhenius_evaluator(
+                params.advection_data.k,
+                params.advection_data.Qk,
+                temperature_function);
+
+              advection_k_function = [arrhenius_evaluator](const double time) {
+                return arrhenius_evaluator.eval(time);
+              };
+            }
+
           const auto mobility_reference = mobility_provider->calculate(0.0);
 
           // Output material data
@@ -928,6 +953,10 @@ namespace Sintering
           pcout << "  Msurf   = " << mobility_reference.Msurf << std::endl;
           pcout << "  Mgb     = " << mobility_reference.Mgb << std::endl;
           pcout << "  L       = " << mobility_reference.L << std::endl;
+
+          if (advection_k_function)
+            pcout << "  K (advection, t=0) = " << advection_k_function(0.0)
+                  << std::endl;
 
           pcout << std::endl;
         }
@@ -1006,27 +1035,55 @@ namespace Sintering
       // Advection operator
       std::shared_ptr<AdvectionOperator<Number>> advection_operator;
       if (params.advection_data.weighted_forces)
-        advection_operator = std::make_shared<
-          AdvectionOperatorWeighted<dim, Number, VectorizedArrayType>>(
-          params.advection_data.k,
-          params.advection_data.cgb,
-          params.advection_data.ceq,
-          params.advection_data.smoothening,
-          matrix_free,
-          sintering_data,
-          grain_tracker,
-          advection_mechanism);
+        {
+          if (advection_k_function)
+            advection_operator = std::make_shared<
+              AdvectionOperatorWeighted<dim, Number, VectorizedArrayType>>(
+              advection_k_function,
+              params.advection_data.cgb,
+              params.advection_data.ceq,
+              params.advection_data.smoothening,
+              matrix_free,
+              sintering_data,
+              grain_tracker,
+              advection_mechanism);
+          else
+            advection_operator = std::make_shared<
+              AdvectionOperatorWeighted<dim, Number, VectorizedArrayType>>(
+              params.advection_data.k,
+              params.advection_data.cgb,
+              params.advection_data.ceq,
+              params.advection_data.smoothening,
+              matrix_free,
+              sintering_data,
+              grain_tracker,
+              advection_mechanism);
+        }
       else
-        advection_operator = std::make_shared<
-          AdvectionOperatorGeneric<dim, Number, VectorizedArrayType>>(
-          params.advection_data.k,
-          params.advection_data.cgb,
-          params.advection_data.ceq,
-          params.advection_data.smoothening,
-          matrix_free,
-          sintering_data,
-          grain_tracker,
-          advection_mechanism);
+        {
+          if (advection_k_function)
+            advection_operator = std::make_shared<
+              AdvectionOperatorGeneric<dim, Number, VectorizedArrayType>>(
+              advection_k_function,
+              params.advection_data.cgb,
+              params.advection_data.ceq,
+              params.advection_data.smoothening,
+              matrix_free,
+              sintering_data,
+              grain_tracker,
+              advection_mechanism);
+          else
+            advection_operator = std::make_shared<
+              AdvectionOperatorGeneric<dim, Number, VectorizedArrayType>>(
+              params.advection_data.k,
+              params.advection_data.cgb,
+              params.advection_data.ceq,
+              params.advection_data.smoothening,
+              matrix_free,
+              sintering_data,
+              grain_tracker,
+              advection_mechanism);
+        }
 
       CFLChecker cfl_checker(matrix_free, sintering_data, advection_mechanism);
 
