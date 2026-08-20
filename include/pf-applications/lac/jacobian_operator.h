@@ -15,6 +15,8 @@
 
 #pragma once
 
+#include <deal.II/base/observer_pointer.h>
+
 #include <pf-applications/base/timer.h>
 
 #include <pf-applications/lac/dynamic_block_vector.h>
@@ -28,7 +30,7 @@ namespace NonLinearSolvers
   using namespace dealii;
 
   template <typename Number>
-  class JacobianBase : public Subscriptor
+  class JacobianBase : public EnableObserverPointer
   {
   public:
     using value_type  = Number;

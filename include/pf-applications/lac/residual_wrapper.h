@@ -15,6 +15,8 @@
 
 #pragma once
 
+#include <deal.II/base/observer_pointer.h>
+
 #include <pf-applications/lac/dynamic_block_vector.h>
 #include <pf-applications/lac/residual_traits.h>
 
@@ -25,7 +27,7 @@ namespace NonLinearSolvers
   using namespace dealii;
 
   template <typename Number>
-  class ResidualWrapper : public Subscriptor
+  class ResidualWrapper : public EnableObserverPointer
   {
   public:
     using value_type  = Number;

@@ -1,6 +1,6 @@
 // ---------------------------------------------------------------------
 //
-// Copyright (C) 2024 by the hpsint authors
+// Copyright (C) 2024 - 2026 by the hpsint authors
 //
 // This file is part of the hpsint library.
 //
@@ -15,13 +15,13 @@
 
 #pragma once
 
-#include <deal.II/base/subscriptor.h>
+#include <deal.II/base/observer_pointer.h>
 
 namespace GrainTracker
 {
   using namespace dealii;
 
-  class Mapper : public Subscriptor
+  class Mapper : public EnableObserverPointer
   {
   public:
     virtual unsigned int
