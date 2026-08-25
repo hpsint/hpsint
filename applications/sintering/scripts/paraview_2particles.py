@@ -60,6 +60,31 @@ def measure_over_line(pline, quantity, threshold, length):
 
     return magnitude
 
+# Measure certain value along the line as the distance between the first and
+# the last points exceeding the given threshold
+def measure_over_line_ends(pline, quantity, threshold, length):
+    nbp = pline.GetDataInformation().GetNumberOfPoints()
+
+    fullData = servermanager.Fetch(pline)
+    vals = fullData.GetPointData().GetScalars(quantity)
+
+    first_point = None
+    last_point = None
+
+    for jpoint in range(0, nbp):
+        q_val = vals.GetValue(jpoint)
+        if (q_val > threshold):
+            if first_point is None:
+                first_point = fullData.GetPoint(jpoint)
+            last_point = fullData.GetPoint(jpoint)
+
+    if first_point is None or last_point is None:
+        return 0
+
+    magnitude = np.sqrt(sum((a - b) ** 2 for a, b in zip(first_point, last_point)))
+
+    return magnitude
+
 # Script arguments
 parser = argparse.ArgumentParser(description='Extract neck and packing size for the 2 particle case from Paraview')
 parser.add_argument("-m", "--mask", type=str, help="File mask", required=False, default="solution.*.vtu")
@@ -73,8 +98,15 @@ parser.add_argument("-a", "--alignment", type=str, help="Axis along which the as
 parser.add_argument("-d", "--direction", type=str, help="Axis along which the neck is measured", required=False, default="y")
 parser.add_argument("-e", "--extend-to", dest='extend_to', required=False, help="Extend labels when shortening to", type=str, default=None)
 parser.add_argument("-u", "--suffix", dest='suffix', required=False, help="Suffix to append to the save file", type=str, default="_vtk_postproc")
+parser.add_argument("--time-start", dest='time_start', required=False, help="Start of the time range to parse", type=float, default=None)
+parser.add_argument("--time-end", dest='time_end', required=False, help="End of the time range to parse", type=float, default=None)
+parser.add_argument("--first-last-only", dest='first_last_only', required=False, help="Parse only the first and the last files within the time range", action='store_true')
+parser.add_argument("--endpoints", dest='endpoints', required=False, help="Measure the distance between the first and the last points above the threshold instead of the integral length", action='store_true')
 
 args = parser.parse_args()
+
+# Select the measurement function to be used
+measure_func = measure_over_line_ends if args.endpoints else measure_over_line
 
 # Deal with path names
 if args.path is not None:
@@ -132,26 +164,42 @@ for file_solution, files_list in zip(list_solution_files, list_vtks):
     # Total number of vtk files
     n_rows = len(files_list)
 
-    csv_data = np.zeros(shape=(n_rows, n_cols))
+    # Restrict the files to be parsed to the requested time range. Indices
+    # beyond the data available in the solution file are dropped as they
+    # cannot be matched against a time value.
+    selected_indices = [idx for idx in range(min(n_rows, fdata.shape[0]))
+                         if (args.time_start is None or fdata["time"][idx] >= args.time_start)
+                         and (args.time_end is None or fdata["time"][idx] <= args.time_end)]
 
-    # Get initial assembly length and particle diameter
-    reader = XMLUnstructuredGridReader(FileName=files_list[0])
+    if not selected_indices:
+        print("No files match the specified time range, skipping")
+        print("")
+        continue
+
+    # Keep only the first and the last files of the selected range if requested
+    if args.first_last_only and len(selected_indices) > 2:
+        selected_indices = [selected_indices[0], selected_indices[-1]]
+
+    n_selected = len(selected_indices)
+
+    csv_data = np.zeros(shape=(n_selected, n_cols))
+
+    # Get initial assembly length and particle diameter from the first file of the selected range
+    reader = XMLUnstructuredGridReader(FileName=files_list[selected_indices[0]])
     reader.UpdatePipeline()
 
     [line_length, domain_length] = build_line(reader, args.alignment)
-    length0 = measure_over_line(line_length, args.quantity, args.threshold, domain_length)
+    length0 = measure_func(line_length, args.quantity, args.threshold, domain_length)
 
     diameter0 = length0 / 2
 
-    for idx, vtk_file in enumerate(files_list):
+    for pos, idx in enumerate(selected_indices):
 
-        prefix = "├" if idx + 1 < n_rows else "└"
+        vtk_file = files_list[idx]
 
-        if idx >= fdata.shape[0]:
-            print("{}─ Skipping file {} ({}/{}) due to data inconsistency".format(prefix, vtk_file, idx + 1, n_rows))
-            continue
-        else:
-            print("{}─ Parsing file {} ({}/{})".format(prefix, vtk_file, idx + 1, n_rows))
+        prefix = "|--" if pos + 1 < n_selected else "`--"
+
+        print("{} Parsing file {} ({}/{})".format(prefix, vtk_file, pos + 1, n_selected))
 
         reader = XMLUnstructuredGridReader(FileName=vtk_file)
         reader.UpdatePipeline()
@@ -160,18 +208,18 @@ for file_solution, files_list in zip(list_solution_files, list_vtks):
         [line_length, domain_length] = build_line(reader, args.alignment)
         [line_neck, domain_width] = build_line(reader, args.direction)
 
-        neck_diameter = measure_over_line(line_neck, args.quantity, args.threshold, domain_width)
+        neck_diameter = measure_func(line_neck, args.quantity, args.threshold, domain_width)
         neck_growth = neck_diameter / diameter0
 
-        length = measure_over_line(line_length, args.quantity, args.threshold, domain_length)
+        length = measure_func(line_length, args.quantity, args.threshold, domain_length)
         shrinkage = (length0 - length) / length0
 
-        csv_data[idx, 0] = fdata["time"][idx]
-        csv_data[idx, 1] = fdata["dt"][idx]
-        csv_data[idx, 2] = neck_diameter
-        csv_data[idx, 3] = neck_growth
-        csv_data[idx, 4] = length
-        csv_data[idx, 5] = shrinkage
+        csv_data[pos, 0] = fdata["time"][idx]
+        csv_data[pos, 1] = fdata["dt"][idx]
+        csv_data[pos, 2] = neck_diameter
+        csv_data[pos, 3] = neck_growth
+        csv_data[pos, 4] = length
+        csv_data[pos, 5] = shrinkage
         
 
     file_path = csv_names.pop(0)
