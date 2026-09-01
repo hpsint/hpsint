@@ -15,6 +15,8 @@
 
 #pragma once
 
+#include <deal.II/base/observer_pointer.h>
+
 #include <deal.II/fe/fe_system.h>
 
 #include <deal.II/lac/trilinos_sparsity_pattern.h>
@@ -39,7 +41,7 @@ namespace Sintering
   using namespace hpsint;
 
   template <int dim, typename Number, typename VectorizedArrayType, typename T>
-  class OperatorBase : public Subscriptor
+  class OperatorBase : public EnableObserverPointer
   {
   public:
     using VectorType = LinearAlgebra::distributed::Vector<Number>;
