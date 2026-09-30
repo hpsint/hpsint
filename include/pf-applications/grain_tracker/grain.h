@@ -45,6 +45,14 @@ namespace GrainTracker
       Growing   = 1
     };
 
+    /* Grain identifier for normal and abnormal grains. To
+       be used for anisotropic grain growth modeling.*/
+    enum GrainType
+    {
+      Normal,
+      Abnormal
+    };
+
     Grain() = default;
 
     Grain(const unsigned int grain_id, const unsigned int order_parameter_id)
@@ -332,6 +340,20 @@ namespace GrainTracker
       dynamics = new_dynamics;
     }
 
+    /* Get grain type. This property indicates whether the grain is normal or abnormal. */
+    GrainType
+    get_grain_type() const
+    {
+      return grain_type;
+    }
+
+    /* Set grain type. The type is analyzed by the user. */
+    void
+    set_grain_type(const GrainType new_grain_type)
+    {
+      grain_type = new_grain_type;
+    }
+
     /* Grain serialization */
     template <class Archive>
     void
@@ -346,6 +368,7 @@ namespace GrainTracker
       ar &dynamics;
       ar &max_value;
       ar &sum_measure;
+      ar &grain_type;
     }
 
   private:
@@ -366,5 +389,7 @@ namespace GrainTracker
     double max_value{std::numeric_limits<double>::lowest()};
 
     double sum_measure{0.0};
+
+    GrainType grain_type{GrainType::Normal};
   };
 } // namespace GrainTracker

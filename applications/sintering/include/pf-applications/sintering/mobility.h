@@ -74,6 +74,9 @@ namespace Sintering
     double Msurf;
     double Mgb;
     double L;
+    double Lnormal_normal; // Mobility coefficient for normal-normal grain boundary
+    double Labnormal_abnormal; // Mobility coefficient for abnormal-abnormal grain boundary
+    double Lnormal_abnormal; // Mobility coefficient for normal-abnormal grain boundary
   };
 
   class ProviderRealistic : public MobilityProvider
