@@ -340,7 +340,8 @@ namespace GrainTracker
       dynamics = new_dynamics;
     }
 
-    /* Get grain type. This property indicates whether the grain is normal or abnormal. */
+    /* Get grain type. This property indicates whether the grain is normal or
+     * abnormal. */
     GrainType
     get_grain_type() const
     {
