@@ -74,6 +74,9 @@ namespace Sintering
     double Msurf;
     double Mgb;
     double L;
+    double Lnormal_normal;
+    double Labnormal_abnormal;
+    double Lnormal_abnormal;
   };
 
   class ProviderRealistic : public MobilityProvider
