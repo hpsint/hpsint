@@ -34,6 +34,9 @@ namespace Sintering
     double Msurf;
     double Mgb;
     double L;
+    double Lnormal_normal;
+    double Labnormal_abnormal;
+    double Lnormal_abnormal;
   };
 
   class MobilityProvider
@@ -58,12 +61,37 @@ namespace Sintering
       , L(L)
     {}
 
+    ProviderAbstract(const double Mvol,
+                     const double Mvap,
+                     const double Msurf,
+                     const double Mgb,
+                     const double L,
+                     const double Lnormal_normal,
+                     const double Labnormal_abnormal,
+                     const double Lnormal_abnormal)
+      : Mvol(Mvol)
+      , Mvap(Mvap)
+      , Msurf(Msurf)
+      , Mgb(Mgb)
+      , L(L)
+      , Lnormal_normal(Lnormal_normal)
+      , Labnormal_abnormal(Labnormal_abnormal)
+      , Lnormal_abnormal(Lnormal_abnormal)
+    {}
+
     MobilityCoefficients
     calculate(const double t) const override
     {
       (void)t;
 
-      MobilityCoefficients mobilities{Mvol, Mvap, Msurf, Mgb, L};
+      MobilityCoefficients mobilities{Mvol,
+                                      Mvap,
+                                      Msurf,
+                                      Mgb,
+                                      L,
+                                      Lnormal_normal,
+                                      Labnormal_abnormal,
+                                      Lnormal_abnormal};
 
       return mobilities;
     }
@@ -135,6 +163,9 @@ namespace Sintering
       mobilities.Msurf = calc_diffusion_coefficient(D_surf0, Q_surf, T);
       mobilities.Mgb   = calc_diffusion_coefficient(D_gb0, Q_gb, T);
       mobilities.L     = calc_gb_mobility_coefficient(D_gb_mob0, Q_gb_mob, T);
+      mobilities.Lnormal_normal     = mobilities.L;
+      mobilities.Labnormal_abnormal = mobilities.L;
+      mobilities.Lnormal_abnormal   = mobilities.L;
 
       return mobilities;
     }
@@ -224,11 +255,14 @@ namespace Sintering
     {
       const auto mobilities = provider->calculate(time);
 
-      Mvol  = mobilities.Mvol;
-      Mvap  = mobilities.Mvap;
-      Msurf = mobilities.Msurf;
-      Mgb   = mobilities.Mgb;
-      L     = mobilities.L;
+      Mvol               = mobilities.Mvol;
+      Mvap               = mobilities.Mvap;
+      Msurf              = mobilities.Msurf;
+      Mgb                = mobilities.Mgb;
+      L                  = mobilities.L;
+      Lnormal_normal     = mobilities.Lnormal_normal;
+      Labnormal_abnormal = mobilities.Labnormal_abnormal;
+      Lnormal_abnormal   = mobilities.Lnormal_abnormal;
     }
 
   protected:
@@ -239,6 +273,9 @@ namespace Sintering
     double Msurf;
     double Mgb;
     double L;
+    double Lnormal_normal;
+    double Labnormal_abnormal;
+    double Lnormal_abnormal;
   };
 
   template <int dim, typename VectorizedArrayType>
@@ -562,6 +599,24 @@ namespace Sintering
     Lgb() const
     {
       return L;
+    }
+
+    double
+    Lnormal_normal() const
+    {
+      return Lnormal_normal;
+    }
+
+    double
+    Labnormal_abnormal() const
+    {
+      return Labnormal_abnormal;
+    }
+
+    double
+    Lnormal_abnormal() const
+    {
+      return Lnormal_abnormal;
     }
   };
 
@@ -952,6 +1007,24 @@ namespace Sintering
     Lgb() const
     {
       return L;
+    }
+
+    double
+    Lnormal_normal() const
+    {
+      return Lnormal_normal;
+    }
+
+    double
+    Labnormal_abnormal() const
+    {
+      return Labnormal_abnormal;
+    }
+
+    double
+    Lnormal_abnormal() const
+    {
+      return Lnormal_abnormal;
     }
 
   private:
