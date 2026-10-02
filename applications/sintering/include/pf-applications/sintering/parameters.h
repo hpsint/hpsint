@@ -183,8 +183,6 @@ namespace Sintering
     MobilityRealisticData mobility_realistic_data;
 
     MechanicsData mechanics_data;
-
-    std::string anisotropy = "Isotropic";
   };
 
   struct AdvectionData
@@ -632,9 +630,6 @@ namespace Sintering
       prm.add_parameter("Temperature",
                         material_data.temperature,
                         "Temperature profile.");
-      prm.add_parameter("Anisotropy",
-                        material_data.anisotropy,
-                        "Anisotropy of the material.");
 
       prm.enter_subsection("EnergyAbstract");
       prm.add_parameter("A",
@@ -668,15 +663,15 @@ namespace Sintering
                         material_data.mobility_abstract_data.L,
                         "Grain boundary motion mobility.");
       prm.add_parameter(
-        "LnormalNormal",
+        "Lgb_normal_normal",
         material_data.mobility_abstract_data.Lnormal_normal,
         "Grain boundary motion mobility for normal-normal boundaries.");
       prm.add_parameter(
-        "LabnormalAbnormal",
+        "Lgb_abnormal_abnormal",
         material_data.mobility_abstract_data.Labnormal_abnormal,
         "Grain boundary motion mobility for abnormal-abnormal boundaries.");
       prm.add_parameter(
-        "LnormalAbnormal",
+        "Lgb_normal_abnormal",
         material_data.mobility_abstract_data.Lnormal_abnormal,
         "Grain boundary motion mobility for normal-abnormal boundaries.");
       prm.leave_subsection();

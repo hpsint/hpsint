@@ -602,19 +602,19 @@ namespace Sintering
     }
 
     double
-    Lnormal_normal() const
+    Lgb_normal_normal() const
     {
       return Lnormal_normal;
     }
 
     double
-    Labnormal_abnormal() const
+    Lgb_abnormal_abnormal() const
     {
       return Labnormal_abnormal;
     }
 
     double
-    Lnormal_abnormal() const
+    Lgb_normal_abnormal() const
     {
       return Lnormal_abnormal;
     }
@@ -1010,19 +1010,19 @@ namespace Sintering
     }
 
     double
-    Lnormal_normal() const
+    Lgb_normal_normal() const
     {
       return Lnormal_normal;
     }
 
     double
-    Labnormal_abnormal() const
+    Lgb_abnormal_abnormal() const
     {
       return Labnormal_abnormal;
     }
 
     double
-    Lnormal_abnormal() const
+    Lgb_normal_abnormal() const
     {
       return Lnormal_abnormal;
     }
