@@ -1505,6 +1505,16 @@ namespace Sintering
             const auto L_ij = L_nn + (L_na - L_nn) * (ti + tj) +
                               (L_aa - 2. * L_na + L_nn) * ti * tj;
 
+            /**
+             * We use a weight based computation of L_ij based on eta values to
+             * account for the contribution of each grain pair to the overall
+             * mobility at a quadrature point. This has to be done as the
+             * residual requires the mobility of a single grain which in the
+             * current case has to be computed based on the contributions of all
+             * grain pairs. The weight based computation ensures only the
+             * relevant contributions are considered.
+             */
+
             const auto w = eta[i] * eta[i] * eta[j] * eta[j];
 
             num += L_ij * w;
@@ -1565,6 +1575,8 @@ namespace Sintering
               const auto etas      = phi.get_value(q);
               const auto etas_grad = phi.get_gradient(q);
 
+              // L is computed based on contribution of each grain pair at the
+              // quadrature pointbased on L_nn, L_na, and L_aa
               const auto L = compute_L<n_grains>(cell, etas, L_nn, L_na, L_aa);
 
               const auto free_energy_eval =
