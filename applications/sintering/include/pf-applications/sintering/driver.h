@@ -91,6 +91,15 @@ namespace Sintering
 {
   using namespace dealii;
 
+  template <typename Op, typename = void>
+  struct UsesGrainTypes : std::false_type
+  {}; // default: "no"
+
+  template <typename Op>
+  struct UsesGrainTypes<Op, std::void_t<decltype(Op::use_grain_types)>>
+    : std::bool_constant<Op::use_grain_types>
+  {}; // if Op has the member: use its value
+
   template <int dim,
             template <int, typename, typename>
             typename NonLinearOperatorTpl,
@@ -863,6 +872,8 @@ namespace Sintering
       // model). Left empty otherwise, in which case k stays constant.
       std::function<double(const double)> advection_k_function;
 
+      constexpr bool use_grain_types = UsesGrainTypes<NonLinearOperator>::value;
+
       if (params.material_data.type == "Abstract")
         {
           A       = params.material_data.energy_abstract_data.A;
@@ -870,21 +881,7 @@ namespace Sintering
           kappa_c = params.material_data.energy_abstract_data.kappa_c;
           kappa_p = params.material_data.energy_abstract_data.kappa_p;
 
-          const bool gb_isotropic =
-            params.material_data.mobility_abstract_data.Lnormal_normal ==
-              params.material_data.mobility_abstract_data.L &&
-            params.material_data.mobility_abstract_data.Lnormal_normal ==
-              params.material_data.mobility_abstract_data.Labnormal_abnormal &&
-            params.material_data.mobility_abstract_data.Lnormal_normal ==
-              params.material_data.mobility_abstract_data.Lnormal_abnormal;
-          if (gb_isotropic)
-            mobility_provider = std::make_shared<ProviderAbstract>(
-              params.material_data.mobility_abstract_data.Mvol,
-              params.material_data.mobility_abstract_data.Mvap,
-              params.material_data.mobility_abstract_data.Msurf,
-              params.material_data.mobility_abstract_data.Mgb,
-              params.material_data.mobility_abstract_data.L);
-          else
+          if constexpr (use_grain_types)
             mobility_provider = std::make_shared<ProviderAbstract>(
               params.material_data.mobility_abstract_data.Mvol,
               params.material_data.mobility_abstract_data.Mvap,
@@ -894,6 +891,14 @@ namespace Sintering
               params.material_data.mobility_abstract_data.Lnormal_normal,
               params.material_data.mobility_abstract_data.Labnormal_abnormal,
               params.material_data.mobility_abstract_data.Lnormal_abnormal);
+
+          else
+            mobility_provider = std::make_shared<ProviderAbstract>(
+              params.material_data.mobility_abstract_data.Mvol,
+              params.material_data.mobility_abstract_data.Mvap,
+              params.material_data.mobility_abstract_data.Msurf,
+              params.material_data.mobility_abstract_data.Mgb,
+              params.material_data.mobility_abstract_data.L);
 
           if (params.advection_data.Qk != 0.)
             pcout
@@ -1779,7 +1784,8 @@ namespace Sintering
 
             // We need to call track again if advection mechanism is used
             // in order to keep op_particle_ids in sync
-            if (params.advection_data.enable || grain_tracker_required_for_ebc)
+            if (params.advection_data.enable ||
+                grain_tracker_required_for_ebc || use_grain_types)
               {
                 ScopedName sc("track_fast");
                 MyScope    scope(timer, sc);
@@ -1801,6 +1807,11 @@ namespace Sintering
           }
 
         pcout << std::endl;
+
+        if constexpr (use_grain_types)
+          {
+            nonlinear_operator.update_grain_types(grain_tracker);
+          }
 
         solution.zero_out_ghost_values();
         old_old_solutions.update_ghost_values();

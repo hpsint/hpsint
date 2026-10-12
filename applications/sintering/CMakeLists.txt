@@ -21,6 +21,10 @@ if(TARGET_GRAIN_GROWTH)
   define_sintering_apps("grain_growth.cc" "grain-growth" generated_executables)
 ENDIF()
 
+if(TARGET_GRAIN_GROWTH_ANISOTROPIC)
+  define_sintering_apps("grain_growth_anisotropic.cc" "grain-growth-anisotropic" generated_executables)
+ENDIF()
+
 option(BENCHMARK_THROUGHPUT "Build throughput benchmarks" ON)
 option(BENCHMARK_GT "Build grain tracker benchmarks" ON)
 option(PRINT_PARTICLES "Build print particles executable" ON)
