@@ -1173,7 +1173,7 @@ namespace Sintering
       // energy
       const bool save_op_gradients =
         FreeEnergyTpl<VectorizedArrayType>::save_gradients ||
-        params.advection_data.enable;
+        params.advection_data.enable || use_grain_types;
       // Save all blocks at quadrature points if the advection mechanism is
       // enabled
       const bool save_all_blocks = params.advection_data.enable;
@@ -1639,7 +1639,7 @@ namespace Sintering
             gt_status =
               grain_tracker.initial_setup(solution, sintering_data.n_grains());
 
-            if (use_grain_types)
+            if constexpr (use_grain_types)
               {
                 std::vector<unsigned int> aniosotropicIDs(
                   sintering_data.n_grains() + 1);
@@ -1656,6 +1656,7 @@ namespace Sintering
                   pcout << id << " ";
                 pcout << std::endl;
                 grain_tracker.set_grainAnisotropy(aniosotropicIDs);
+                nonlinear_operator.update_grain_types(grain_tracker);
               }
           }
         else
@@ -1831,6 +1832,7 @@ namespace Sintering
 
         if constexpr (use_grain_types)
           {
+            grain_tracker.set_grainAnisotropy();
             nonlinear_operator.update_grain_types(grain_tracker);
           }
 
@@ -2407,7 +2409,8 @@ namespace Sintering
                     // tracker.
                     if (params.advection_data.enable ||
                         grain_tracker_required_for_ebc ||
-                        params.grain_tracker_data.check_inconsistency)
+                        params.grain_tracker_data.check_inconsistency ||
+                        use_grain_types)
                       do_grain_tracker = true;
                     // If mesh quality control is enabled and grain tracker is
                     // asked to run at the same time, then execute it
@@ -2462,7 +2465,7 @@ namespace Sintering
                           params.advection_data.enable ||
                           (do_mesh_refinement &&
                            grain_tracker_required_for_output) ||
-                          grain_tracker_required_for_ebc ||
+                          grain_tracker_required_for_ebc || use_grain_types ||
                           (params.grain_tracker_data.grain_tracker_frequency >
                              0 &&
                            (n_timestep_new - n_timestep_last_gt) %
