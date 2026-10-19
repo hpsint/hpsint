@@ -1017,10 +1017,11 @@ namespace Sintering
         FieldGb,
         FieldF,
         FieldDf,
-        FieldD2f
+        FieldD2f,
+        FieldL
       };
 
-      constexpr unsigned int n_data_variants = 5;
+      constexpr unsigned int n_data_variants = 6;
 
       const std::array<std::tuple<std::string, OutputFields, unsigned int>,
                        n_data_variants>
@@ -1028,7 +1029,8 @@ namespace Sintering
                              {"gb", FieldGb, 1},
                              {"energy", FieldF, 1},
                              {"df", FieldD2f, n_grains},
-                             {"d2f", FieldD2f, n_grains * (n_grains - 1) / 2}}};
+                             {"d2f", FieldD2f, n_grains * (n_grains - 1) / 2},
+                             {"L", FieldL, 1}}};
 
       // Get active entries to output
       const auto [entries_mask, n_entries] =
@@ -1102,6 +1104,27 @@ namespace Sintering
                     temp[counter++] =
                       free_energy_eval.d2f_detaidetaj(etas[ig], etas[jg]);
 
+              if (entries_mask[FieldL])
+                {
+                  const auto         &mobility = this->data.get_mobility();
+                  const double        L_nn     = mobility.Lgb_normal_normal();
+                  const double        L_na     = mobility.Lgb_normal_abnormal();
+                  const double        L_aa = mobility.Lgb_abnormal_abnormal();
+                  VectorizedArrayType L;
+                  std::array<VectorizedArrayType, n_grains> dL_unused;
+                  compute_L_and_dL<n_grains>(
+                    cell, etas, L_nn, L_na, L_aa, L, dL_unused);
+                  temp[counter++] = L;
+                  for (unsigned int v = 0; v < VectorizedArrayType::size(); ++v)
+                    if (temp[counter - 1][v] < 0.0)
+                      {
+                        std::cout
+                          << "Negative L found: " << temp[counter - 1][v]
+                          << std::endl;
+                        exit(0);
+                      }
+                }
+
               for (unsigned int c = 0; c < n_entries; ++c)
                 buffer[c * fe_eval.n_q_points + q] = temp[c];
             }
@@ -1148,6 +1171,9 @@ namespace Sintering
               names.push_back("d2f_deta" + std::to_string(ig) + "deta" +
                               std::to_string(jg));
           }
+
+      if (entries_mask[FieldL])
+        names.push_back("L");
 
       // Add data to output
       for (unsigned int c = 0; c < n_entries; ++c)
@@ -1235,7 +1261,8 @@ namespace Sintering
 
       const unsigned int cell = phi.get_current_cell_index();
 
-      const auto &nonlinear_values = this->data.get_nonlinear_values();
+      const auto &nonlinear_values    = this->data.get_nonlinear_values();
+      const auto &nonlinear_gradients = this->data.get_nonlinear_gradients();
 
       const auto &free_energy = this->free_energy;
       const auto &mobility    = this->data.get_mobility();
@@ -1251,12 +1278,15 @@ namespace Sintering
           typename FECellIntegratorType::value_type    value_result;
           typename FECellIntegratorType::gradient_type gradient_result;
 
-          const auto  value     = phi.get_value(q);
-          const auto  gradient  = phi.get_gradient(q);
-          const auto &lin_value = nonlinear_values[cell][q];
+          const auto  value        = phi.get_value(q);
+          const auto  gradient     = phi.get_gradient(q);
+          const auto &lin_value    = nonlinear_values[cell][q];
+          const auto &lin_gradient = nonlinear_gradients[cell][q];
 
-          // L is frozen at the linearization point, no dL/deta terms
-          const auto L = compute_L<n_grains>(cell, lin_value, L_nn, L_na, L_aa);
+          VectorizedArrayType                       L;
+          std::array<VectorizedArrayType, n_grains> dL_unused;
+          compute_L_and_dL<n_grains>(
+            cell, lin_value, L_nn, L_na, L_aa, L, dL_unused);
 
           const auto free_energy_eval =
             free_energy.template eval<EnergySecond, n_grains>(lin_value);
@@ -1266,9 +1296,14 @@ namespace Sintering
             {
               value_result[ig] +=
                 value[ig] * weight +
-                L * free_energy_eval.d2f_detai2(lin_value[ig]) * value[ig];
+                L * free_energy_eval.d2f_detai2(lin_value[ig]) * value[ig] +
+                dL_unused[ig] * free_energy_eval.df_detai(lin_value[ig]) *
+                  value[ig];
 
-              gradient_result[ig] = L * kappa_p * gradient[ig];
+              gradient_result[ig] =
+                L * kappa_p * gradient[ig] +
+                dL_unused[ig] * kappa_p * lin_gradient[ig] * value[ig];
+
 
               for (unsigned int jg = 0; jg < ig; ++jg)
                 {
@@ -1276,8 +1311,18 @@ namespace Sintering
                     free_energy_eval.d2f_detaidetaj(lin_value[ig],
                                                     lin_value[jg]);
 
-                  value_result[ig] += L * d2f_detaidetaj * value[jg];
-                  value_result[jg] += L * d2f_detaidetaj * value[ig];
+                  value_result[ig] +=
+                    L * d2f_detaidetaj * value[jg] +
+                    dL_unused[jg] * free_energy_eval.df_detai(lin_value[ig]) *
+                      value[jg];
+                  gradient_result[ig] +=
+                    dL_unused[jg] * kappa_p * lin_gradient[ig] * value[jg];
+                  value_result[jg] +=
+                    L * d2f_detaidetaj * value[ig] +
+                    dL_unused[ig] * free_energy_eval.df_detai(lin_value[jg]) *
+                      value[ig];
+                  gradient_result[jg] +=
+                    dL_unused[ig] * kappa_p * lin_gradient[jg] * value[ig];
                 }
             }
 
@@ -1479,21 +1524,27 @@ namespace Sintering
     }
 
   private:
-    /* Boundary mobility L = sum_{i<j} L_ij eta_i^2 eta_j^2 / sum_{i<j}
-     * eta_i^2 eta_j^2, falling back to L_nn inside a single grain. */
+    // Regularization of the weight denominator, tune between 1e-4 and 1e-2
+    static constexpr double L_regularization = 1e-3;
+
     template <int n_grains, typename EtaType>
-    DEAL_II_ALWAYS_INLINE VectorizedArrayType
-    compute_L(const unsigned int cell,
-              const EtaType     &eta,
-              const double       L_nn,
-              const double       L_na,
-              const double       L_aa) const
+    DEAL_II_ALWAYS_INLINE void
+    compute_L_and_dL(const unsigned int                         cell,
+                     const EtaType                             &eta,
+                     const double                               L_nn,
+                     const double                               L_na,
+                     const double                               L_aa,
+                     VectorizedArrayType                       &L,
+                     std::array<VectorizedArrayType, n_grains> &dL) const
     {
       Assert(grain_types.size(0) == this->matrix_free.n_cell_batches() &&
                grain_types.size(1) == n_grains,
              ExcMessage("Grain types are outdated, call update_grain_types()"));
 
-      VectorizedArrayType num = 0., den = 0.;
+      VectorizedArrayType                       N = 0., D = 0.;
+      std::array<VectorizedArrayType, n_grains> dN, dD;
+      dN.fill(VectorizedArrayType(0.));
+      dD.fill(VectorizedArrayType(0.));
 
       for (unsigned int i = 0; i < n_grains; ++i)
         for (unsigned int j = i + 1; j < n_grains; ++j)
@@ -1501,30 +1552,29 @@ namespace Sintering
             const auto &ti = grain_types[cell][i];
             const auto &tj = grain_types[cell][j];
 
-            // t = 0 (normal) or 1 (abnormal) selects L_nn, L_na or L_aa
             const auto L_ij = L_nn + (L_na - L_nn) * (ti + tj) +
                               (L_aa - 2. * L_na + L_nn) * ti * tj;
 
-            /**
-             * We use a weight based computation of L_ij based on eta values to
-             * account for the contribution of each grain pair to the overall
-             * mobility at a quadrature point. This has to be done as the
-             * residual requires the mobility of a single grain which in the
-             * current case has to be computed based on the contributions of all
-             * grain pairs. The weight based computation ensures only the
-             * relevant contributions are considered.
-             */
+            const auto ei2 = eta[i] * eta[i];
+            const auto ej2 = eta[j] * eta[j];
+            const auto w   = ei2 * ej2;
 
-            const auto w = eta[i] * eta[i] * eta[j] * eta[j];
+            N += L_ij * w;
+            D += w;
 
-            num += L_ij * w;
-            den += w;
+            dN[i] += 2. * eta[i] * ej2 * L_ij;
+            dN[j] += 2. * eta[j] * ei2 * L_ij;
+            dD[i] += 2. * eta[i] * ej2;
+            dD[j] += 2. * eta[j] * ei2;
           }
 
-      const VectorizedArrayType eps(1e-12);
+      const VectorizedArrayType inv = 1. / (D + L_regularization);
 
-      return compare_and_apply_mask<SIMDComparison::greater_than>(
-        den, eps, num / std::max(den, eps), VectorizedArrayType(L_nn));
+      L = (N + L_nn * L_regularization) * inv;
+      // L = N * inv;
+
+      for (unsigned int k = 0; k < n_grains; ++k)
+        dL[k] = (dN[k] - L * dD[k]) * inv;
     }
 
     template <int n_comp, int n_grains, int with_time_derivative>
@@ -1577,7 +1627,10 @@ namespace Sintering
 
               // L is computed based on contribution of each grain pair at the
               // quadrature pointbased on L_nn, L_na, and L_aa
-              const auto L = compute_L<n_grains>(cell, etas, L_nn, L_na, L_aa);
+              VectorizedArrayType                       L;
+              std::array<VectorizedArrayType, n_grains> dL_unused;
+              compute_L_and_dL<n_grains>(
+                cell, etas, L_nn, L_na, L_aa, L, dL_unused);
 
               const auto free_energy_eval =
                 free_energy.template eval<EnergyFirst, n_grains>(etas);
