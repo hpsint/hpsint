@@ -1655,7 +1655,7 @@ namespace Sintering
                 for (const auto id : aniosotropicIDs)
                   pcout << id << " ";
                 pcout << std::endl;
-                grain_tracker.set_grainAnisotropy(aniosotropicIDs);
+                grain_tracker.set_grain_anisotropy(aniosotropicIDs);
                 nonlinear_operator.update_grain_types(grain_tracker);
               }
           }
@@ -1832,7 +1832,7 @@ namespace Sintering
 
         if constexpr (use_grain_types)
           {
-            grain_tracker.set_grainAnisotropy();
+            grain_tracker.set_grain_anisotropy();
             nonlinear_operator.update_grain_types(grain_tracker);
           }
 

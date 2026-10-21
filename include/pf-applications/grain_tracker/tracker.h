@@ -1174,17 +1174,17 @@ namespace GrainTracker
     }
 
     void
-    set_grainAnisotropy(const std::vector<unsigned int> &ids = {})
+    set_grain_anisotropy(const std::vector<unsigned int> &ids = {})
     {
-      if (anisotropicIDs.empty())
+      if (anisotropic_ids.empty())
         {
-          anisotropicIDs.resize(ids.size());
-          anisotropicIDs = ids;
+          anisotropic_ids.resize(ids.size());
+          anisotropic_ids = ids;
         }
       for (auto &[gid, grain] : grains)
         {
-          if (std::find(anisotropicIDs.begin(), anisotropicIDs.end(), gid) !=
-              anisotropicIDs.end())
+          if (std::find(anisotropic_ids.begin(), anisotropic_ids.end(), gid) !=
+              anisotropic_ids.end())
             grain.set_grain_type(Grain<dim>::GrainType::Abnormal);
         }
     }
@@ -1973,6 +1973,6 @@ namespace GrainTracker
 
     mutable MyTimerOutput timer;
 
-    std::vector<unsigned int> anisotropicIDs = {};
+    std::vector<unsigned int> anisotropic_ids = {};
   };
 } // namespace GrainTracker
