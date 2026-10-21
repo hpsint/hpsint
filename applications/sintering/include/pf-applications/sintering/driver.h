@@ -1641,8 +1641,8 @@ namespace Sintering
 
             if constexpr (use_grain_types)
               {
-                std::vector<unsigned int> aniosotropicIDs(
-                  sintering_data.n_grains() + 1);
+                const auto ngrains = grain_tracker.get_grains().size();
+                std::vector<unsigned int> aniosotropicIDs(ngrains);
                 std::iota(aniosotropicIDs.begin(), aniosotropicIDs.end(), 0);
 
                 std::mt19937 generator(42);
