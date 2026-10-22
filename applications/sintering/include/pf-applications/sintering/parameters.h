@@ -166,6 +166,12 @@ namespace Sintering
     double c_min = 0.1;
   };
 
+  struct AnisotropyData
+  {
+    unsigned int n_anisotropic_grains     = 5;
+    std::string  grain_selection_strategy = "random";
+  };
+
   struct MaterialData
   {
     std::string type = "Abstract";
@@ -182,7 +188,8 @@ namespace Sintering
     MobilityAbstractData  mobility_abstract_data;
     MobilityRealisticData mobility_realistic_data;
 
-    MechanicsData mechanics_data;
+    MechanicsData  mechanics_data;
+    AnisotropyData anisotropy_data;
   };
 
   struct AdvectionData
@@ -674,6 +681,16 @@ namespace Sintering
         "Lgb_normal_abnormal",
         material_data.mobility_abstract_data.Lnormal_abnormal,
         "Grain boundary motion mobility for normal-abnormal boundaries.");
+      prm.leave_subsection();
+
+      prm.enter_subsection("Anisotropy Parameters");
+      prm.add_parameter("Number of Anisotropic Grains",
+                        material_data.anisotropy_data.n_anisotropic_grains,
+                        "Number of grains with anisotropic properties.");
+      prm.add_parameter("Grain Selection Strategy",
+                        material_data.anisotropy_data.grain_selection_strategy,
+                        "Strategy for selecting anisotropic grains.",
+                        Patterns::Selection("random|maxRadii|minRadii"));
       prm.leave_subsection();
 
       prm.enter_subsection("EnergyRealistic");
