@@ -1173,6 +1173,22 @@ namespace GrainTracker
       active_order_parameters = extract_active_order_parameter_ids(grains);
     }
 
+    void
+    set_grain_anisotropy(const std::vector<unsigned int> &ids = {})
+    {
+      if (anisotropic_ids.empty())
+        {
+          anisotropic_ids.resize(ids.size());
+          anisotropic_ids = ids;
+        }
+      for (auto &[gid, grain] : grains)
+        {
+          if (std::find(anisotropic_ids.begin(), anisotropic_ids.end(), gid) !=
+              anisotropic_ids.end())
+            grain.set_grain_type(Grain<dim>::GrainType::Abnormal);
+        }
+    }
+
   private:
     std::map<unsigned int, Grain<dim>>
     detect_grains(const BlockVectorType &solution,
@@ -1956,5 +1972,7 @@ namespace GrainTracker
     const double invalid_particle_id = -1.0;
 
     mutable MyTimerOutput timer;
+
+    std::vector<unsigned int> anisotropic_ids = {};
   };
 } // namespace GrainTracker
