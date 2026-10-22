@@ -1641,21 +1641,52 @@ namespace Sintering
 
             if constexpr (use_grain_types)
               {
+                const auto n_anisotropic_grains =
+                  params.material_data.anisotropy_data.n_anisotropic_grains;
                 const auto ngrains = grain_tracker.get_grains().size();
-                std::vector<unsigned int> aniosotropicIDs(ngrains);
-                std::iota(aniosotropicIDs.begin(), aniosotropicIDs.end(), 0);
+                std::vector<unsigned int> anisotropic_ids(ngrains);
+                std::vector<double>       grain_radii(ngrains);
+                for (auto &[gid, grain] : grain_tracker.get_grains())
+                  {
+                    grain_radii[gid] = grain.get_max_radius();
+                  }
+                std::iota(anisotropic_ids.begin(), anisotropic_ids.end(), 0);
 
-                std::mt19937 generator(42);
-                std::shuffle(aniosotropicIDs.begin(),
-                             aniosotropicIDs.end(),
-                             generator);
+                if (params.material_data.anisotropy_data
+                      .grain_selection_strategy == "random")
+                  {
+                    std::mt19937 generator(42);
+                    std::shuffle(anisotropic_ids.begin(),
+                                 anisotropic_ids.end(),
+                                 generator);
+                  }
+                else if (params.material_data.anisotropy_data
+                           .grain_selection_strategy == "maxRadii")
+                  {
+                    std::sort(anisotropic_ids.begin(),
+                              anisotropic_ids.end(),
+                              [&](const unsigned int a, const unsigned int b) {
+                                return grain_radii[a] > grain_radii[b];
+                              });
+                  }
+                else if (params.material_data.anisotropy_data
+                           .grain_selection_strategy == "minRadii")
+                  {
+                    std::sort(anisotropic_ids.begin(),
+                              anisotropic_ids.end(),
+                              [&](const unsigned int a, const unsigned int b) {
+                                return grain_radii[a] < grain_radii[b];
+                              });
+                  }
 
-                aniosotropicIDs.resize(5);
+                anisotropic_ids.resize(n_anisotropic_grains);
+                pcout << "Number of anisotropic grains: "
+                      << n_anisotropic_grains << std::endl;
                 pcout << "Selected grain IDs for anisotropy: ";
-                for (const auto id : aniosotropicIDs)
+                for (const auto id : anisotropic_ids)
                   pcout << id << " ";
                 pcout << std::endl;
-                grain_tracker.set_grain_anisotropy(aniosotropicIDs);
+                grain_tracker.set_grain_anisotropy(anisotropic_ids);
                 nonlinear_operator.update_grain_types(grain_tracker);
               }
           }
