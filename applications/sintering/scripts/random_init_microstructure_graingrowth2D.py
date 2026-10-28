@@ -13,7 +13,11 @@ N_GRAINS = 50
 
 DOMAIN_SIZE = 100.0
 
+INIT_STRATEGY = "random"
+
 SEED = 42
+
+MIN_DISTANCE = 5.0
 
 OUTPUT_FILE = str(N_GRAINS) + "grains.periodic"
 
@@ -131,11 +135,71 @@ def voronoi_finite_polygons_2d(vor, radius=None):
 
 rng = np.random.default_rng(SEED)
 
-seeds = rng.uniform(
-    0.0,
-    DOMAIN_SIZE,
-    size=(N_GRAINS, 2)
-)
+# Seed generation for min distance criteria of grain centers
+
+def generate_periodic_seeds(
+        n_grains,
+        L,
+        min_distance,
+        rng,
+        max_attempts=100000):
+
+    seeds = []
+
+    attempts = 0
+
+    while len(seeds) < n_grains:
+
+        attempts += 1
+
+        if attempts > max_attempts:
+            raise RuntimeError(
+                f"Could not place {n_grains} grains. "
+                f"Try reducing min_distance."
+            )
+
+        candidate = rng.uniform(
+            0.0,
+            L,
+            size=2
+        )
+
+        accept = True
+
+        for s in seeds:
+
+            dx = abs(candidate[0] - s[0])
+            dy = abs(candidate[1] - s[1])
+
+            # periodic distance
+            dx = min(dx, L - dx)
+            dy = min(dy, L - dy)
+
+            d = np.sqrt(dx*dx + dy*dy)
+
+            if d < min_distance:
+                accept = False
+                break
+
+        if accept:
+            seeds.append(candidate)
+
+    return np.array(seeds)
+
+if INIT_STRATEGY == "min_distance":
+    seeds = generate_periodic_seeds(
+        N_GRAINS,
+        DOMAIN_SIZE,
+        MIN_DISTANCE,
+        rng
+    )
+
+elif INIT_STRATEGY == "random":
+    seeds = rng.uniform(
+        0.0,
+        DOMAIN_SIZE,
+        size=(N_GRAINS, 2)
+    )
 
 # Periodic tiling (3 x 3) for periodic boundary conditions
 
