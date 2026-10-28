@@ -1666,7 +1666,12 @@ namespace Sintering
                     std::sort(anisotropic_ids.begin(),
                               anisotropic_ids.end(),
                               [&](const unsigned int a, const unsigned int b) {
-                                return grain_radii[a] > grain_radii[b];
+                                return grain_tracker.get_grains()
+                                         .at(a)
+                                         .get_max_radius() >
+                                       grain_tracker.get_grains()
+                                         .at(b)
+                                         .get_max_radius();
                               });
                   }
                 else if (params.material_data.anisotropy_data
@@ -1675,7 +1680,12 @@ namespace Sintering
                     std::sort(anisotropic_ids.begin(),
                               anisotropic_ids.end(),
                               [&](const unsigned int a, const unsigned int b) {
-                                return grain_radii[a] < grain_radii[b];
+                                return grain_tracker.get_grains()
+                                         .at(a)
+                                         .get_max_radius() <
+                                       grain_tracker.get_grains()
+                                         .at(b)
+                                         .get_max_radius();
                               });
                   }
 
