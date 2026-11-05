@@ -249,7 +249,7 @@ namespace Sintering
       }
     else if (mode == "--voronoi" || mode == "--imaging")
       {
-        if constexpr (SINTERING_DIM == 2)
+         #if (SINTERING_DIM == 2)
           {
             AssertThrow(argc >= 3,
                         ExcMessage("Argument file_name has to be provided!"));
@@ -307,9 +307,10 @@ namespace Sintering
                                      out,
                                      out_statistics);
           }
-        else
+        #else
           AssertThrow(SINTERING_DIM == 2,
                       ExcMessage("Only 2D case is currently supported"));
+        #endif
       }
     else if (mode == "--restart")
       {
