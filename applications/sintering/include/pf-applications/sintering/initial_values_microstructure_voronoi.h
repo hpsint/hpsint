@@ -35,7 +35,7 @@ namespace Sintering
   public:
     InitialValuesMicrostructureVoronoi(
       std::istream            &stream,
-      const double             interface_width     = 0.,
+      const double             interface_width     = 0.5,
       const InterfaceDirection interface_direction = InterfaceDirection::middle,
       const unsigned int       op_components_offset  = 2,
       const bool               concentration_as_void = false,
@@ -140,6 +140,23 @@ namespace Sintering
                 dsp.add(new_id_i, new_id_j);
                 dsp.add(new_id_j, new_id_i);
               }
+
+      for (unsigned int i = 0; i < n_grains; i++)
+        for (unsigned int j = i + 1; j < n_grains; j++)
+          {
+            const auto &grain_i        = grains[i];
+            const auto &grain_j        = grains[j];
+            const auto  box_i          = grain_i.bounding_box();
+            const auto  box_j          = grain_j.bounding_box();
+            const auto  box_i_extended = box_i.create_extended(interface_width);
+            if (box_i_extended.get_neighbor_type(box_j, 0.0) !=
+                NeighborType::not_neighbors)
+              {
+                dsp.add(i, j);
+                dsp.add(j, i);
+              }
+          }
+
 
       SparsityPattern sp;
       sp.copy_from(dsp);
