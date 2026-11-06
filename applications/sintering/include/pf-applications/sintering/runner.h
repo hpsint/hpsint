@@ -249,67 +249,68 @@ namespace Sintering
       }
     else if (mode == "--voronoi" || mode == "--imaging")
       {
-        if constexpr (SINTERING_DIM == 2)
-          {
-            AssertThrow(argc >= 3,
-                        ExcMessage("Argument file_name has to be provided!"));
+#if (SINTERING_DIM == 2)
+        {
+          AssertThrow(argc >= 3,
+                      ExcMessage("Argument file_name has to be provided!"));
 
-            std::string   input_file = std::string(argv[2]);
-            std::ifstream fstream(input_file);
-            AssertThrow(fstream.is_open(), ExcMessage("File not found!"));
+          std::string   input_file = std::string(argv[2]);
+          std::ifstream fstream(input_file);
+          AssertThrow(fstream.is_open(), ExcMessage("File not found!"));
 
-            // Output case specific info
-            pcout << "Mode:       " << mode.substr(2) << std::endl;
-            pcout << "Input file: " << input_file << std::endl;
-            pcout << std::endl;
+          // Output case specific info
+          pcout << "Mode:       " << mode.substr(2) << std::endl;
+          pcout << "Input file: " << input_file << std::endl;
+          pcout << std::endl;
 
-            hpsint::parse_params(argc, argv, 3, params, out);
+          hpsint::parse_params(argc, argv, 3, params, out);
 
-            const InterfaceDirection interface_direction(
-              to_interface_direction(params.geometry_data.interface_direction));
+          const InterfaceDirection interface_direction(
+            to_interface_direction(params.geometry_data.interface_direction));
 
-            std::shared_ptr<InitialValues<SINTERING_DIM>> initial_solution;
+          std::shared_ptr<InitialValues<SINTERING_DIM>> initial_solution;
 
-            if (mode == "--voronoi")
-              initial_solution =
-                std::make_shared<Sintering::InitialValuesMicrostructureVoronoi>(
-                  fstream,
-                  params.geometry_data.interface_width,
-                  interface_direction,
-                  op_components_offset,
-                  concentration_as_void,
-                  params.geometry_data.accumulative);
-            else if (mode == "--imaging")
-              initial_solution =
-                std::make_shared<Sintering::InitialValuesMicrostructureImaging>(
-                  fstream,
-                  params.geometry_data.interface_width,
-                  interface_direction,
-                  op_components_offset,
-                  concentration_as_void,
-                  params.geometry_data.accumulative);
-            else
-              AssertThrow(false, ExcNotImplemented());
+          if (mode == "--voronoi")
+            initial_solution =
+              std::make_shared<Sintering::InitialValuesMicrostructureVoronoi>(
+                fstream,
+                params.geometry_data.interface_width,
+                interface_direction,
+                op_components_offset,
+                concentration_as_void,
+                params.geometry_data.accumulative);
+          else if (mode == "--imaging")
+            initial_solution =
+              std::make_shared<Sintering::InitialValuesMicrostructureImaging>(
+                fstream,
+                params.geometry_data.interface_width,
+                interface_direction,
+                op_components_offset,
+                concentration_as_void,
+                params.geometry_data.accumulative);
+          else
+            AssertThrow(false, ExcNotImplemented());
 
-            pcout << "initial_n_particles  = "
-                  << initial_solution->n_particles() << std::endl;
-            pcout << "initial_n_components = "
-                  << initial_solution->n_components() << std::endl;
+          pcout << "initial_n_particles  = " << initial_solution->n_particles()
+                << std::endl;
+          pcout << "initial_n_components = " << initial_solution->n_components()
+                << std::endl;
 
-            AssertThrow(initial_solution->n_order_parameters() <=
-                          MAX_SINTERING_GRAINS,
-                        Sintering::ExcMaxGrainsExceeded(
-                          initial_solution->n_order_parameters(),
-                          MAX_SINTERING_GRAINS));
+          AssertThrow(initial_solution->n_order_parameters() <=
+                        MAX_SINTERING_GRAINS,
+                      Sintering::ExcMaxGrainsExceeded(
+                        initial_solution->n_order_parameters(),
+                        MAX_SINTERING_GRAINS));
 
-            SinteringProblem problem(params,
-                                     initial_solution,
-                                     out,
-                                     out_statistics);
-          }
-        else
-          AssertThrow(SINTERING_DIM == 2,
-                      ExcMessage("Only 2D case is currently supported"));
+          SinteringProblem problem(params,
+                                   initial_solution,
+                                   out,
+                                   out_statistics);
+        }
+#else
+        AssertThrow(SINTERING_DIM == 2,
+                    ExcMessage("Only 2D case is currently supported"));
+#endif
       }
     else if (mode == "--restart")
       {
