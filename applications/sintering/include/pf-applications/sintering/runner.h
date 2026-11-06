@@ -275,6 +275,7 @@ namespace Sintering
               std::make_shared<Sintering::InitialValuesMicrostructureVoronoi>(
                 fstream,
                 params.geometry_data.interface_width,
+                params.geometry_data.interface_buffer_ratio,
                 interface_direction,
                 op_components_offset,
                 concentration_as_void,
