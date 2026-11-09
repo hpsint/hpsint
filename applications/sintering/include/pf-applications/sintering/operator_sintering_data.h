@@ -166,7 +166,7 @@ namespace Sintering
       table_lanes.reinit({n_cells, VectorizedArrayType::size()});
 
       for (unsigned int i = 0; i < n_cells; ++i)
-        for (unsigned int j = 0; j < n_grains(); ++j)
+        for (unsigned int j = 0; j < VectorizedArrayType::size(); ++j)
           table_lanes[i][j] = numbers::invalid_unsigned_int;
 
       component_table.reinit({n_cells, n_grains()});
