@@ -129,11 +129,11 @@ namespace GrainTracker
                   {
                     // Perform manual sorting among the candidates, since
                     // bgi::nearest() outputs the closest to the face of the
-                    // box, not the box having the closest center. Note that we
-                    // also compute distances if old_grain_id has been set -
-                    // this may happen for the situation when a new grain has
-                    // multiple segments.
+                    // box, not the box having the closest center. Distances
+                    // are computed for all multi-segment new grains, so the
+                    // closest candidate wins across segments.
                     if (result.size() > 1 ||
+                        new_grains.at(grain_id).get_segments().size() > 1 ||
                         old_grain_id != numbers::invalid_unsigned_int)
                       {
                         for (const auto &id : result)
