@@ -247,7 +247,7 @@ namespace dealii
                                                   constraints_in,
                                                   constraints_for_matrix);
 
-      double dummy;
+      double dummy = 0.0;
 
       matrix_free.template cell_loop<double, double>(
         [&](const auto &, auto &, const auto &, const auto range) {
