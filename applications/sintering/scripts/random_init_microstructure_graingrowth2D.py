@@ -69,7 +69,7 @@ def sample_target_areas(domain_area, rng, quantity, distribution, mean, std, n_g
         if distribution == "random":
             if mean is None:
                 raise ValueError("mean is required for random distribution")
-            return rng.random(n) * mean
+            return 2 * rng.random(n) *mean
         raise ValueError(f"Unknown distribution '{distribution}'")
 
     # Sample areas based on the specified distribution and quantity
