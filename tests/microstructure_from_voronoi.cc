@@ -40,14 +40,12 @@ main(int argc, char **argv)
   // Extract filename only without extension
   const std::filesystem::path file_name(microstructure);
 
-  constexpr double             interface_width        = 0.3;
-  constexpr double             interface_buffer_ratio = 0.1;
+  constexpr double             interface_width     = 0.3;
   constexpr InterfaceDirection interface_direction = InterfaceDirection::inside;
 
   // Initial values settings
   InitialValuesMicrostructureVoronoi initial_values(fstream,
                                                     interface_width,
-                                                    interface_buffer_ratio,
                                                     interface_direction);
 
   // Settings
