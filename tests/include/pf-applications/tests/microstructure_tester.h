@@ -212,7 +212,7 @@ namespace Test
     const double       buffer_distance_fixed    = 0.0;
     const bool         allow_new_grains         = false;
     const bool         fast_reassignment        = false;
-    const bool         greedy_init              = false;
+    const bool         greedy_init              = true;
     const unsigned int max_order_parameters_num = 80;
 
     // Lambda to remap vectors

@@ -142,10 +142,21 @@ namespace Sintering
                 dsp.add(new_id_j, new_id_i);
               }
 
-      // Checking closeness of grains using bounding boxes
+      // Checking closeness of grains: bounding boxes as a broad phase,
+      // polygon distance as a narrow phase
 
       const double buffer =
         interface_width + interface_width * interface_buffer_ratio;
+
+      // Interface extension outside of the polygon, same as in MicroSegment
+      const double margin =
+        interface_direction == InterfaceDirection::outside ?
+          interface_width :
+          (interface_direction == InterfaceDirection::middle ?
+             interface_width / 2. :
+             0.);
+
+      const double max_distance = buffer + 2. * margin;
 
       for (unsigned int i = 0; i < n_grains; i++)
         for (unsigned int j = i + 1; j < n_grains; j++)
@@ -156,7 +167,8 @@ namespace Sintering
             const auto  box_j          = grain_j.bounding_box();
             const auto  box_i_extended = box_i.create_extended(buffer);
             if (box_i_extended.get_neighbor_type(box_j, 0.0) !=
-                NeighborType::not_neighbors)
+                  NeighborType::not_neighbors &&
+                grain_i.distance(grain_j) <= max_distance)
               {
                 dsp.add(i, j);
                 dsp.add(j, i);
