@@ -123,6 +123,22 @@ namespace Sintering
         return dist_min;
       }
 
+      // Distance between two non-overlapping convex polygons: it is attained
+      // between a vertex of one polygon and an edge of the other.
+      double
+      distance(const MicroSegment &other) const
+      {
+        double dist_min = std::numeric_limits<double>::max();
+
+        for (const auto &v : other.vertices)
+          dist_min = std::min(dist_min, distance(v));
+
+        for (const auto &v : vertices)
+          dist_min = std::min(dist_min, other.distance(v));
+
+        return dist_min;
+      }
+
       const BoundingBox<2> &
       bounding_box() const
       {
@@ -184,6 +200,18 @@ namespace Sintering
 
         const auto dist_min =
           *std::min_element(distances.begin(), distances.end());
+
+        return dist_min;
+      }
+
+      double
+      distance(const MicroGrain &other) const
+      {
+        double dist_min = std::numeric_limits<double>::max();
+
+        for (const auto &segment : segments)
+          for (const auto &segment_other : other.segments)
+            dist_min = std::min(dist_min, segment.distance(segment_other));
 
         return dist_min;
       }
