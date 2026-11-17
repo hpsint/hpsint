@@ -1,0 +1,61 @@
+Collision across the periodic boundary: 13 and 91
+  n_lost   = 1
+  n_merged = 1
+  new grain 100 overlaps old grains 13 91
+
+Grains sharing an order parameter have most probably collided and merged since the previous configuration, so that the grain ids can not be tracked reliably.
+
+The following old grains have a maximum value above 0.5 but no successor:
+op_index_current = 1 | op_index_old = 1 | segments = 1 | grain_index = 91
+    segment: center = 97.185 9.056 | radius = 2.978 | max_value = 0.908
+
+The following new grain overlaps 2 old grains of the same order parameter:
+op_index_current = 1 | op_index_old = 1 | segments = 2 | grain_index = 100
+    segment: center = 4.362 11.829 | radius = 5.889 | max_value = 0.998
+    segment: center = 97.162 9.069 | radius = 3.058 | max_value = 0.896
+which are:
+op_index_current = 1 | op_index_old = 1 | segments = 1 | grain_index = 13
+    segment: center = 4.341 11.82 | radius = 5.87 | max_value = 0.999
+op_index_current = 1 | op_index_old = 1 | segments = 1 | grain_index = 91
+    segment: center = 97.185 9.056 | radius = 2.978 | max_value = 0.908
+
+Collision across the periodic boundary: 511 and 553
+  n_lost   = 1
+  n_merged = 1
+  new grain 7 overlaps old grains 511 553
+
+Collision inside the domain: 181 and 182
+  n_lost   = 1
+  n_merged = 1
+  new grain 3 overlaps old grains 181 182
+
+Collision inside the domain: 638 and 349
+  n_lost   = 1
+  n_merged = 1
+  new grain 3 overlaps old grains 349 638
+
+Collision inside the domain: 79 and 71
+  n_lost   = 1
+  n_merged = 1
+  new grain 3 overlaps old grains 71 79
+
+A small grain vanishes
+  n_lost   = 0
+  n_merged = 0
+
+A small grain is consumed
+  n_lost   = 0
+  n_merged = 0
+
+A grain crosses the periodic boundary
+  n_lost   = 0
+  n_merged = 0
+
+A periodic grain
+  n_lost   = 0
+  n_merged = 0
+
+No old grains
+  n_lost   = 0
+  n_merged = 0
+
