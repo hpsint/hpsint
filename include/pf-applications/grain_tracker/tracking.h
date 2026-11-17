@@ -19,9 +19,14 @@
 
 #include <pf-applications/base/geometry.h>
 
+#include <algorithm>
 #include <functional>
+#include <map>
 #include <optional>
 #include <set>
+#include <sstream>
+#include <string>
+#include <vector>
 
 #include "grain.h"
 #include "output.h"
@@ -240,6 +245,126 @@ namespace GrainTracker
       }
 
     return new_grains_to_old;
+  }
+
+  /* Result of the consistency check performed after the old grains have been
+   * matched with the new ones.
+   */
+  struct LostOrMergedGrains
+  {
+    // Old grains of a large max value that have no successor
+    std::vector<unsigned int> lost;
+
+    // Ids (in the container of new grains) of the new grains that overlap
+    // several old grains, together with the ids of the latter
+    std::vector<std::pair<unsigned int, std::set<unsigned int>>> merged;
+
+    bool
+    empty() const
+    {
+      return lost.empty() && merged.empty();
+    }
+  };
+
+  /* Grains sharing an order parameter must be kept apart from each other. If
+   * they get in touch, their fields merge and the tracker sees a single grain
+   * instead of two. This function detects the two symptoms of that:
+   *
+   * - an old grain having a large maximum value has no successor, since
+   *   genuinely vanishing grains shrink to small values first;
+   *
+   * - a new grain overlaps several old grains of the same order parameter, i.e.
+   *   the center of an old grain having a large maximum value lies within the
+   *   radius of a segment of the new grain.
+   */
+  template <int dim>
+  LostOrMergedGrains
+  find_lost_or_merged_grains(
+    const std::map<unsigned int, Grain<dim>>   &new_grains,
+    const std::map<unsigned int, Grain<dim>>   &old_grains,
+    const std::map<unsigned int, unsigned int> &new_grains_to_old,
+    const double                                threshold_large_grains)
+  {
+    LostOrMergedGrains result;
+
+    std::set<unsigned int> successors;
+    for (const auto &[new_id, old_id] : new_grains_to_old)
+      if (old_id != numbers::invalid_unsigned_int)
+        successors.insert(old_id);
+
+    std::map<unsigned int, std::vector<unsigned int>> large_old_grains_per_op;
+    for (const auto &[old_id, old_grain] : old_grains)
+      if (old_grain.get_max_value() > threshold_large_grains)
+        {
+          large_old_grains_per_op[old_grain.get_order_parameter_id()].push_back(
+            old_id);
+
+          if (successors.find(old_id) == successors.end())
+            result.lost.push_back(old_id);
+        }
+
+    for (const auto &[new_id, new_grain] : new_grains)
+      {
+        const auto it_op =
+          large_old_grains_per_op.find(new_grain.get_order_parameter_id());
+
+        if (it_op == large_old_grains_per_op.end())
+          continue;
+
+        std::set<unsigned int> overlapped;
+        for (const auto &new_segment : new_grain.get_segments())
+          for (const unsigned int old_id : it_op->second)
+            for (const auto &old_segment : old_grains.at(old_id).get_segments())
+              if (new_segment.get_center().distance(old_segment.get_center()) <
+                  new_segment.get_radius())
+                overlapped.insert(old_id);
+
+        if (overlapped.size() > 1)
+          result.merged.emplace_back(new_id, std::move(overlapped));
+      }
+
+    return result;
+  }
+
+  // Human readable description of what find_lost_or_merged_grains() found
+  template <int dim>
+  std::string
+  describe_lost_or_merged_grains(
+    const LostOrMergedGrains                 &problems,
+    const std::map<unsigned int, Grain<dim>> &new_grains,
+    const std::map<unsigned int, Grain<dim>> &old_grains,
+    const double                              threshold_large_grains)
+  {
+    std::ostringstream ss;
+
+    ss << "Grains sharing an order parameter have most probably collided and "
+       << "merged since the previous configuration, so that the grain ids "
+       << "can not be tracked reliably." << std::endl;
+
+    if (!problems.lost.empty())
+      {
+        ss << std::endl
+           << "The following old grains have a maximum value above "
+           << threshold_large_grains << " but no successor:" << std::endl;
+
+        for (const unsigned int old_id : problems.lost)
+          print_grain(old_grains.at(old_id), ss);
+      }
+
+    for (const auto &[new_id, old_ids] : problems.merged)
+      {
+        ss << std::endl
+           << "The following new grain overlaps " << old_ids.size()
+           << " old grains of the same order parameter:" << std::endl;
+
+        print_grain(new_grains.at(new_id), ss);
+
+        ss << "which are:" << std::endl;
+        for (const unsigned int old_id : old_ids)
+          print_grain(old_grains.at(old_id), ss);
+      }
+
+    return ss.str();
   }
 
   // Build a set of active order parameters from the map of grains
