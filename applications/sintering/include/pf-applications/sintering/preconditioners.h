@@ -1270,8 +1270,13 @@ namespace Sintering
         }
       if (preconditioner_1)
         {
-          MyScope scope(timer, "precon::update::precon_1");
-          operator_1->initialize_system_matrix(true, print_stats);
+          MyScope scope(
+            timer,
+            "precon::update::precon_1"); // Blocked variants assemble their own
+                                         // matrix via operator_1_blocked
+          if (data.block_1.type != "BlockAMG" &&
+              data.block_1.type != "BlockILU")
+            operator_1->initialize_system_matrix(true, print_stats);
           preconditioner_1->do_update();
         }
       if (preconditioner_2)
