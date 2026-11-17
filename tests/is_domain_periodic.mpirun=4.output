@@ -1,0 +1,8 @@
+dim = 2, requested: false false, detected: false false
+dim = 2, requested: true false, detected: true false
+dim = 2, requested: false true, detected: false true
+dim = 2, requested: true true, detected: true true
+dim = 3, requested: false false false, detected: false false false
+dim = 3, requested: false false true, detected: false false true
+dim = 3, requested: true false true, detected: true false true
+dim = 3, requested: true true true, detected: true true true
