@@ -1,6 +1,6 @@
 // ---------------------------------------------------------------------
 //
-// Copyright (C) 2024 by the hpsint authors
+// Copyright (C) 2024 - 2026 by the hpsint authors
 //
 // This file is part of the hpsint library.
 //
@@ -35,6 +35,7 @@
 
 #include <pf-applications/grid/bounding_box_filter.h>
 
+#include <array>
 #include <memory>
 #include <vector>
 
@@ -628,6 +629,32 @@ namespace hpsint
       return {n_global, n_delayed};
     }
   } // namespace internal
+
+  /* This function tells for each axis if the domain is periodic along it, i.e.
+   * if there are cell faces perpendicular to that axis having a periodic
+   * neighbor. The function is collective: the result is the same on all
+   * ranks even if the periodic faces are owned only by some of them. */
+  template <int dim, int spacedim>
+  std::array<bool, dim>
+  is_domain_periodic(const Triangulation<dim, spacedim> &tria)
+  {
+    std::array<int, dim> periodic;
+    periodic.fill(0);
+
+    for (const auto &cell : tria.active_cell_iterators())
+      if (cell->is_locally_owned())
+        for (unsigned int d = 0; d < dim; ++d)
+          for (unsigned int side = 0; side < 2; ++side)
+            if (cell->has_periodic_neighbor(2 * d + side))
+              periodic[d] = 1;
+
+    std::array<bool, dim> result;
+    for (unsigned int d = 0; d < dim; ++d)
+      result[d] =
+        Utilities::MPI::max(periodic[d], tria.get_mpi_communicator()) != 0;
+
+    return result;
+  }
 
   /* This function creates a grid departing from the desirable cell size at
   diffuse interfaces. Based on this information, at first, the maximum numbers
