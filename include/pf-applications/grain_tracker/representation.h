@@ -58,6 +58,10 @@ namespace GrainTracker
     virtual std::unique_ptr<Representation>
     clone() const = 0;
 
+    // Copy of the representation translated by the vector of dim components
+    virtual std::unique_ptr<Representation>
+    clone_shifted(const std::vector<double> &shift) const = 0;
+
     // It would be nice to be able to provide here custom iterators, but that
     // would require significatn refactoring to make representation a part of
     // class Grain and Tracker.
@@ -131,6 +135,18 @@ namespace GrainTracker
     clone() const override
     {
       return std::make_unique<RepresentationSpherical>(center, radius);
+    }
+
+    std::unique_ptr<Representation>
+    clone_shifted(const std::vector<double> &shift) const override
+    {
+      Assert(shift.size() == dim, ExcDimensionMismatch(shift.size(), dim));
+
+      Point<dim> shifted_center = center;
+      for (unsigned int d = 0; d < dim; ++d)
+        shifted_center[d] += shift[d];
+
+      return std::make_unique<RepresentationSpherical>(shifted_center, radius);
     }
 
     template <class Archive>
@@ -226,6 +242,20 @@ namespace GrainTracker
     clone() const override
     {
       return std::make_unique<RepresentationElliptical>(ellipsoid);
+    }
+
+    std::unique_ptr<Representation>
+    clone_shifted(const std::vector<double> &shift) const override
+    {
+      Assert(shift.size() == dim, ExcDimensionMismatch(shift.size(), dim));
+
+      Point<dim> shifted_center = ellipsoid.get_center();
+      for (unsigned int d = 0; d < dim; ++d)
+        shifted_center[d] += shift[d];
+
+      return std::make_unique<RepresentationElliptical>(shifted_center,
+                                                        ellipsoid.get_radii(),
+                                                        ellipsoid.get_axes());
     }
 
     template <class Archive>
@@ -335,6 +365,13 @@ namespace GrainTracker
                                                        op_and_index.second,
                                                        center,
                                                        distances);
+    }
+
+    // The distances are precomputed and do not depend on the location
+    std::unique_ptr<Representation>
+    clone_shifted(const std::vector<double> & /*shift*/) const override
+    {
+      return clone();
     }
 
     template <class Archive>
