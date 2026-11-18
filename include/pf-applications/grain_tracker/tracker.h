@@ -1,6 +1,6 @@
 // ---------------------------------------------------------------------
 //
-// Copyright (C) 2023 by the hpsint authors
+// Copyright (C) 2023 - 2026 by the hpsint authors
 //
 // This file is part of the hpsint library.
 //
@@ -37,6 +37,8 @@
 #include <pf-applications/base/timer.h>
 
 #include <pf-applications/lac/dynamic_block_vector.h>
+
+#include <pf-applications/grid/grid_tools.h>
 
 #include <functional>
 #include <iterator>
@@ -88,7 +90,8 @@ namespace GrainTracker
             const unsigned int order_parameters_offset = 2,
             const bool         do_timing               = true,
             const bool         do_logging              = false,
-            const bool         use_old_remap           = false)
+            const bool         use_old_remap           = false,
+            const double       threshold_large_grains  = 0.5)
       : dof_handler(dof_handler)
       , tria(tria)
       , greedy_init(greedy_init)
@@ -103,6 +106,8 @@ namespace GrainTracker
       , order_parameters_offset(order_parameters_offset)
       , do_logging(do_logging)
       , use_old_remap(use_old_remap)
+      , threshold_large_grains(threshold_large_grains)
+      , domain_periods(compute_domain_periods(tria))
       , pcout(std::cout, Utilities::MPI::this_mpi_process(MPI_COMM_WORLD) == 0)
       , timer(do_timing)
     {}
@@ -127,7 +132,8 @@ namespace GrainTracker
                                                order_parameters_offset,
                                                timer.is_enabled(),
                                                do_logging,
-                                               use_old_remap);
+                                               use_old_remap,
+                                               threshold_large_grains);
 
       new_tracker->op_particle_ids           = this->op_particle_ids;
       new_tracker->particle_ids_to_grain_ids = this->particle_ids_to_grain_ids;
@@ -195,6 +201,21 @@ namespace GrainTracker
           new_grains_to_old =
             transfer_grain_ids(new_grains, old_grains, n_order_params);
         }
+
+      /* Colliding grains merge into a single one, so that one of the old ids
+       * is silently lost. Fail right away instead of crashing much later. */
+      {
+        const auto problems = find_lost_or_merged_grains(
+          new_grains, old_grains, new_grains_to_old, threshold_large_grains);
+
+        if (!problems.empty())
+          {
+            const auto message = describe_lost_or_merged_grains(
+              problems, new_grains, old_grains, threshold_large_grains);
+
+            AssertThrow(false, ExcGrainsInconsistency(message));
+          }
+      }
 
       // Create segments and transfer grain_ids for them. We also keep track of
       // the omitted grains to check at the end if we have forgotten anything.
@@ -1619,7 +1640,8 @@ namespace GrainTracker
                 {
                   if (gr_base.overlaps(gr_other,
                                        buffer_distance_ratio,
-                                       buffer_distance_fixed))
+                                       buffer_distance_fixed,
+                                       domain_periods))
                     {
                       dsp.add(grains_to_sparsity.at(g_base_id),
                               grains_to_sparsity.at(g_other_id));
@@ -1816,7 +1838,7 @@ namespace GrainTracker
                    gr_base.get_old_order_parameter_id() ==
                      gr_other.get_old_order_parameter_id()))
                 {
-                  gr_base.add_neighbor(gr_other);
+                  gr_base.add_neighbor(gr_other, domain_periods);
                 }
             }
         }
@@ -1866,6 +1888,21 @@ namespace GrainTracker
         print_log(log);
 
       return std::make_tuple(n_collisions, grains_reassigned);
+    }
+
+    // Extent of the domain along the periodic directions, zero otherwise
+    static Tensor<1, dim>
+    compute_domain_periods(const Triangulation<dim> &tria)
+    {
+      const auto periodic     = hpsint::is_domain_periodic(tria);
+      const auto bounding_box = GridTools::compute_bounding_box(tria);
+
+      Tensor<1, dim> periods;
+      for (unsigned int d = 0; d < dim; ++d)
+        if (periodic[d])
+          periods[d] = bounding_box.side_length(d);
+
+      return periods;
     }
 
     // Build inverse mapping for later use when forces and computed
@@ -1963,9 +2000,15 @@ namespace GrainTracker
     // Use old remapping algo
     const bool use_old_remap;
 
+    // Max value above which a disappearing or merging grain is an error
+    const double threshold_large_grains;
+
     std::map<unsigned int, Grain<dim>> grains;
     std::map<unsigned int, Grain<dim>> old_grains;
     std::set<unsigned int>             active_order_parameters;
+
+    // Domain extent along the periodic directions, zero otherwise
+    const Tensor<1, dim> domain_periods;
 
     ConditionalOStream pcout;
 
