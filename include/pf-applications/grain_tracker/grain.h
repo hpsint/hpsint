@@ -1,6 +1,6 @@
 // ---------------------------------------------------------------------
 //
-// Copyright (C) 2023 by the hpsint authors
+// Copyright (C) 2023 - 2026 by the hpsint authors
 //
 // This file is part of the hpsint library.
 //
@@ -15,11 +15,14 @@
 
 #pragma once
 
+#include <pf-applications/base/geometry.h>
+
 #include "segment.h"
 
 namespace GrainTracker
 {
   using namespace dealii;
+  using namespace hpsint;
 
   /* This class represents a physical grain as a part of the domain. A single
    * grain normally consists of a single segment unless periodic boundary
@@ -70,17 +73,24 @@ namespace GrainTracker
     {}
 
     /* This function computes the minimum distance between the segments of the
-     * two grains using their representations.
+     * two grains using their representations. If the periods are provided, then
+     * the closest periodic image of the other grain is used.
      */
     double
-    distance(const Grain<dim> &other) const
+    distance(const Grain<dim>     &other,
+             const Tensor<1, dim> &periods = Tensor<1, dim>()) const
     {
       double min_distance = std::numeric_limits<double>::max();
       for (const auto &this_segment : segments)
         {
           for (const auto &other_segment : other.get_segments())
             {
-              double current_distance = this_segment.distance(other_segment);
+              const auto shift = minimum_image_shift(this_segment.get_center(),
+                                                     other_segment.get_center(),
+                                                     periods);
+
+              double current_distance =
+                this_segment.distance(other_segment, shift);
               min_distance = std::min(current_distance, min_distance);
             }
         }
@@ -109,20 +119,28 @@ namespace GrainTracker
     }
 
     /* This function computes the minimum distance between the segments of the
-     * two grains treating them as spheres.
+     * two grains treating them as spheres. If the periods are provided, then
+     * the closest periodic image of the other grain is used.
      */
     double
-    distance_lower_bound(const Grain<dim> &other) const
+    distance_lower_bound(const Grain<dim>     &other,
+                         const Tensor<1, dim> &periods = Tensor<1, dim>()) const
     {
       double min_distance_lower_bound = std::numeric_limits<double>::max();
 
       for (const auto &this_segment : segments)
         for (const auto &other_segment : other.get_segments())
           {
+            const Point<dim> other_center =
+              other_segment.get_center() +
+              minimum_image_shift(this_segment.get_center(),
+                                  other_segment.get_center(),
+                                  periods);
+
             const auto current_lower_bound =
               distance_between_spheres(this_segment.get_center(),
                                        this_segment.get_radius(),
-                                       other_segment.get_center(),
+                                       other_center,
                                        other_segment.get_radius());
 
             min_distance_lower_bound =
@@ -246,7 +264,8 @@ namespace GrainTracker
      * we only need to know the distance to the nearest one.
      */
     void
-    add_neighbor(const Grain<dim> &neighbor)
+    add_neighbor(const Grain<dim>     &neighbor,
+                 const Tensor<1, dim> &periods = Tensor<1, dim>())
     {
       AssertThrow(this != &neighbor,
                   ExcMessage("Grain can not be added as a neighbor to itself"));
@@ -257,16 +276,20 @@ namespace GrainTracker
           "Neighbors should have the same order parameter (current or old)."));
 
       distance_to_nearest_neighbor =
-        std::min(distance_to_nearest_neighbor, distance_lower_bound(neighbor));
+        std::min(distance_to_nearest_neighbor,
+                 distance_lower_bound(neighbor, periods));
     }
 
     /* Check if the grain overlaps with the other. If two grains sharing the
      * same order parameter are too close to each other, then try to change the
-     * order parameter of the secondary grain. */
+     * order parameter of the secondary grain. If the periods are provided, then
+     * the closest periodic image of the other grain is considered.
+     */
     bool
-    overlaps(const Grain<dim> &gr_other,
-             const double      buffer_distance_ratio = 0.1,
-             const double      buffer_distance_fixed = 0) const
+    overlaps(const Grain<dim>     &gr_other,
+             const double          buffer_distance_ratio = 0.1,
+             const double          buffer_distance_fixed = 0,
+             const Tensor<1, dim> &periods = Tensor<1, dim>()) const
     {
       /* Buffer safety zone around the two grains. If an overlap
        * is detected, then the old order parameter values of all
@@ -281,7 +304,8 @@ namespace GrainTracker
       /* At first we treat segments as spherical. If there is no overlap, then
        * there is no need to perform a more accurate evaluations, which can be
        * more expensive. */
-      const double min_distance_lower_bound = distance_lower_bound(gr_other);
+      const double min_distance_lower_bound =
+        distance_lower_bound(gr_other, periods);
 
       // If lower bound is already large enough, then there is surely no overlap
       if (min_distance_lower_bound >
@@ -305,9 +329,9 @@ namespace GrainTracker
           if (has_non_trivial_segments(segments) ||
               has_non_trivial_segments(gr_other.get_segments()))
             // Minimum distance between the two grains
-            return (distance(gr_other) < buffer_distance_base +
-                                           buffer_distance_other +
-                                           buffer_distance_fixed);
+            return (distance(gr_other, periods) < buffer_distance_base +
+                                                    buffer_distance_other +
+                                                    buffer_distance_fixed);
           else
             // If the representation is trivial, then distance() returns the
             // same result as we obtained above and there is no need to call it.
