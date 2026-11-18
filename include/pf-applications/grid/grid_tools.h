@@ -649,7 +649,11 @@ namespace hpsint
             if (cell->has_periodic_neighbor(2 * d + side))
               periodic[d] = 1;
 
-    Utilities::MPI::max(periodic, tria.get_mpi_communicator(), periodic);
+    // The ArrayView overload is explicitly instantiated for int in deal.II
+    const ArrayView<int> periodic_view(periodic.data(), dim);
+    Utilities::MPI::max<int>(periodic_view,
+                             tria.get_mpi_communicator(),
+                             periodic_view);
 
     std::array<bool, dim> result;
     std::transform(periodic.cbegin(),
