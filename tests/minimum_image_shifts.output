@@ -1,0 +1,8 @@
+Minimum image shift
+  right image = (-10.0000, 0.0000)
+  left image = (10.0000, 0.0000)
+  same cell = (0.0000, 0.0000)
+  several periods = (-30.0000, 0.0000)
+  periodic in x and y = (-10.0000, -20.0000)
+  non-periodic = (0.0000, 0.0000)
+  3D = (-10.0000, -20.0000, 0.0000)

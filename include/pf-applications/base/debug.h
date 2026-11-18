@@ -1,6 +1,6 @@
 // ---------------------------------------------------------------------
 //
-// Copyright (C) 2023 by the hpsint authors
+// Copyright (C) 2023 - 2026 by the hpsint authors
 //
 // This file is part of the hpsint library.
 //
@@ -45,6 +45,42 @@ namespace debug
       }
 
     stream << '\n';
+  }
+
+  namespace internal
+  {
+    // Number of components of tensors and points
+    template <typename Vector>
+    constexpr auto
+    n_components(const Vector &, int) -> decltype(Vector::dimension)
+    {
+      return Vector::dimension;
+    }
+
+    // Number of components of containers
+    template <typename Vector>
+    auto
+    n_components(const Vector &vec, long) -> decltype(vec.size())
+    {
+      return vec.size();
+    }
+  } // namespace internal
+
+  /* Print components of a small vector (a tensor, a point or a container) in
+   * a single line. Is not named print_vector since it would have the same
+   * signature as the function above.
+   */
+  template <typename Vector, typename Stream>
+  void
+  print_components(const Vector &vec, const std::string &label, Stream &stream)
+  {
+    const unsigned int n_len = internal::n_components(vec, 0);
+
+    stream << label << " = (";
+    for (unsigned int i = 0; i < n_len; ++i)
+      // Adding zero avoids printing negative zeros
+      stream << (i > 0 ? ", " : "") << vec[i] + 0.;
+    stream << ")" << '\n';
   }
 
   template <typename Vector>
