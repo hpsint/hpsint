@@ -35,6 +35,7 @@
 
 #include <pf-applications/grid/bounding_box_filter.h>
 
+#include <algorithm>
 #include <array>
 #include <memory>
 #include <vector>
@@ -648,10 +649,13 @@ namespace hpsint
             if (cell->has_periodic_neighbor(2 * d + side))
               periodic[d] = 1;
 
+    Utilities::MPI::max(periodic, tria.get_mpi_communicator(), periodic);
+
     std::array<bool, dim> result;
-    for (unsigned int d = 0; d < dim; ++d)
-      result[d] =
-        Utilities::MPI::max(periodic[d], tria.get_mpi_communicator()) != 0;
+    std::transform(periodic.cbegin(),
+                   periodic.cend(),
+                   result.begin(),
+                   [](const int p) { return p != 0; });
 
     return result;
   }
