@@ -1,0 +1,14 @@
+Clone shifted representations
+  spherical: shifted center = (11.0000, -3.0000)
+  spherical: shifted radius = 3.0000
+  spherical: original center = (1.0000, 2.0000)
+  elliptical: shifted center = (11.0000, -3.0000)
+  elliptical: shifted radii = (3.0000, 1.0000)
+  elliptical: shifted axis 0 = (0.0000, 1.0000)
+  elliptical: shifted axis 1 = (-1.0000, 0.0000)
+  elliptical: original center = (1.0000, 2.0000)
+  wavefront: center = (1.0000, 2.0000)
+  wavefront: op and index = (0, 1)
+  wavefront: number of distances = 2
+  wavefront: distance = 4.5000
+  wavefront: shifted distance = 4.5000
