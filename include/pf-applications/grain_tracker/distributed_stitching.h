@@ -423,6 +423,19 @@ namespace GrainTracker
             r_local,
             cell->measure(),
             &(particle_inertia[num_inertias<dim> * unique_id]));
+
+          // Own inertia of the cell around its center, so that a cluster that
+          // is one cell wide does not degenerate to a zero-width ellipsoid
+          for (unsigned int d = 0; d < dim; ++d)
+            {
+              Point<dim> r_cell;
+              r_cell[d] = cell->extent_in_direction(d) / std::sqrt(12.);
+
+              evaluate_inertia_properties(
+                r_cell,
+                cell->measure(),
+                &(particle_inertia[num_inertias<dim> * unique_id]));
+            }
         }
 
     // Reduce information - particles info
