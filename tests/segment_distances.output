@@ -1,0 +1,16 @@
+Distance between shifted segments
+  spheres, no shift = 88.0000
+  spheres, zero shift = 88.0000
+  spheres, shift -100 = 2.0000
+  spheres, reversed, shift 100 = 2.0000
+  spheres, shift 100 = 188.0000
+  spheres, center after = (95.0000, 50.0000)
+  spheres 3D, no shift = 96.5000
+  spheres 3D, shift -100 along z = 0.5000
+  ellipses, no shift = 87.0000
+  ellipses, shift -100 = 1.0000
+  wavefront, no shift = 4.5000
+  wavefront, shift -100 = 4.5000
+  uninitialized other, shifted: true
+  uninitialized other, zero shift: true
+  uninitialized this, shifted: true

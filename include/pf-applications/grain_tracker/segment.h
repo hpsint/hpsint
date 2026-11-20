@@ -1,6 +1,6 @@
 // ---------------------------------------------------------------------
 //
-// Copyright (C) 2023 by the hpsint authors
+// Copyright (C) 2023 - 2026 by the hpsint authors
 //
 // This file is part of the hpsint library.
 //
@@ -97,11 +97,34 @@ namespace GrainTracker
     distance(const Segment<dim> &other) const
     {
       AssertThrow(
-        representation,
+        representation && other.representation,
         ExcMessage(
           "Representation should be initialized to compute the distance to a neighbor"));
 
       return representation->distance(*other.representation);
+    }
+
+    /* Distance to the other segment translated by the given vector, e.g. to
+     * account for a periodic image.
+     */
+    double
+    distance(const Segment<dim> &other, const Tensor<1, dim> &shift) const
+    {
+      if (shift.norm_square() == 0.)
+        return distance(other);
+
+      AssertThrow(
+        representation && other.representation,
+        ExcMessage(
+          "Representation should be initialized to compute the distance to a neighbor"));
+
+      std::vector<double> shift_data(dim);
+      for (unsigned int d = 0; d < dim; ++d)
+        shift_data[d] = shift[d];
+
+      const auto shifted = other.representation->clone_shifted(shift_data);
+
+      return representation->distance(*shifted);
     }
 
     template <typename Stream>
