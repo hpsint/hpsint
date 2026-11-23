@@ -1,6 +1,6 @@
 // ---------------------------------------------------------------------
 //
-// Copyright (C) 2024 by the hpsint authors
+// Copyright (C) 2024 - 2026 by the hpsint authors
 //
 // This file is part of the hpsint library.
 //
@@ -20,7 +20,9 @@
 #include <pf-applications/base/debug.h>
 
 #include <boost/serialization/export.hpp>
+#include <boost/serialization/map.hpp>
 #include <boost/serialization/serialization.hpp>
+#include <boost/serialization/utility.hpp>
 
 #include <pf-applications/grain_tracker/ellipsoid.h>
 
