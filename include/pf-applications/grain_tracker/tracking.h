@@ -275,7 +275,9 @@ namespace GrainTracker
    *
    * - a new grain overlaps several old grains of the same order parameter, i.e.
    *   the center of an old grain having a large maximum value lies within the
-   *   radius of a segment of the new grain.
+   *   radius of a segment of the new grain. This is checked only for segments
+   *   represented by a sphere, since for the other representations the radius
+   *   is just a bound and adjacent grains can legitimately lie within it.
    */
   template <int dim>
   LostOrMergedGrains
@@ -313,11 +315,18 @@ namespace GrainTracker
 
         std::set<unsigned int> overlapped;
         for (const auto &new_segment : new_grain.get_segments())
-          for (const unsigned int old_id : it_op->second)
-            for (const auto &old_segment : old_grains.at(old_id).get_segments())
-              if (new_segment.get_center().distance(old_segment.get_center()) <
-                  new_segment.get_radius())
-                overlapped.insert(old_id);
+          {
+            // The radius bounds the segment but does not describe its shape
+            if (!new_segment.trivial())
+              continue;
+
+            for (const unsigned int old_id : it_op->second)
+              for (const auto &old_segment :
+                   old_grains.at(old_id).get_segments())
+                if (new_segment.get_center().distance(
+                      old_segment.get_center()) < new_segment.get_radius())
+                  overlapped.insert(old_id);
+          }
 
         if (overlapped.size() > 1)
           result.merged.emplace_back(new_id, std::move(overlapped));
