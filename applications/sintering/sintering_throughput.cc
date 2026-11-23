@@ -93,10 +93,10 @@ main(int argc, char **argv)
 
   const unsigned int dim                  = SINTERING_DIM;
   const unsigned int fe_degree            = 1;
-  unsigned int       n_global_refinements = 7;
+  unsigned int       n_subdivisions_total = 22;
   const unsigned int max_sintering_grains = std::min(12, MAX_SINTERING_GRAINS);
   const unsigned int max_sintering_grains_mb =
-    std::min(4u, max_sintering_grains);
+    std::min(3u, max_sintering_grains);
   using Number              = double;
   using VectorizedArrayType = VectorizedArray<Number>;
   using VectorType          = LinearAlgebra::distributed::Vector<Number>;
@@ -133,6 +133,13 @@ main(int argc, char **argv)
     "FE_Q";
 #endif
 
+  unsigned int n_global_refinements = n_subdivisions_total / dim;
+
+  std::vector<unsigned int> repetitions(dim, 1);
+
+  for (unsigned int i = 0; i < (n_global_refinements % dim); ++i)
+    repetitions[i] += 1;
+
   std::unique_ptr<FiniteElement<dim>> fe;
   std::unique_ptr<Quadrature<dim>>    quadrature;
   MappingQ1<dim>                      mapping;
@@ -161,7 +168,10 @@ main(int argc, char **argv)
     }
 
   parallel::distributed::Triangulation<dim> tria(MPI_COMM_WORLD);
-  GridGenerator::hyper_cube(tria);
+  GridGenerator::subdivided_hyper_rectangle(tria,
+                                            repetitions,
+                                            Point<dim>(),
+                                            Point<dim>(1.0, 1.0, 1.0));
   tria.refine_global(n_global_refinements);
 
   DoFHandler<dim> dof_handler(tria);
