@@ -1,0 +1,61 @@
+Collision across x: no periodicity
+  periods = (0.0000, 0.0000)
+  lower bound    = 84.0371 / 84.0371
+  distance       = 84.0371 / 84.0371
+  overlaps       = false / false
+Collision across x: periodic in x and y
+  periods = (100.0000, 100.0000)
+  lower bound    = -1.1768 / -1.1768
+  distance       = -1.1768 / -1.1768
+  overlaps       = true / true
+Collision across x: periodic in x
+  periods = (100.0000, 0.0000)
+  lower bound    = -1.1768 / -1.1768
+  distance       = -1.1768 / -1.1768
+  overlaps       = true / true
+Collision across x: periodic in y only
+  periods = (0.0000, 100.0000)
+  lower bound    = 84.0371 / 84.0371
+  distance       = 84.0371 / 84.0371
+  overlaps       = false / false
+Far grains: periodic in x and y
+  periods = (100.0000, 100.0000)
+  lower bound    = 30.0000 / 30.0000
+  distance       = 30.0000 / 30.0000
+  overlaps       = false / false
+Corner: periodic in x and y
+  periods = (100.0000, 100.0000)
+  lower bound    = 3.6569 / 3.6569
+  distance       = 3.6569 / 3.6569
+  overlaps       = false / false
+Corner: periodic in x only
+  periods = (100.0000, 0.0000)
+  lower bound    = 94.0833 / 94.0833
+  distance       = 94.0833 / 94.0833
+  overlaps       = false / false
+Multiple segments: periodic in x
+  periods = (100.0000, 0.0000)
+  lower bound    = 3.0000 / 3.0000
+  distance       = 3.0000 / 3.0000
+  overlaps       = false / false
+Transfer buffer, periods = (0.0000, 0.0000) : 42.0186
+Transfer buffer, periods = (100.0000, 100.0000) : 0.0000
+Ellipses: no periodicity
+  periods = (0.0000, 0.0000)
+  lower bound    = 87.0000 / 87.0000
+  distance       = 87.0000 / 87.0000
+  overlaps       = false / false
+Ellipses: periodic in x
+  periods = (100.0000, 0.0000)
+  lower bound    = 1.0000 / 1.0000
+  distance       = 1.0000 / 1.0000
+  overlaps       = false / false
+Grain distance in 3D
+  no periods = 18.0998
+  periodic in x and y = 2.8990
+  lower bound, periodic in x and y = 2.8990
+  corner, periodic in x, y and z = 1.4641
+  ellipsoids along x, no periods = 87.0000
+  ellipsoids along x, periodic in x = 1.0000
+  ellipsoids along y, no periods = 91.0000
+  ellipsoids along y, periodic in x = 5.0000
