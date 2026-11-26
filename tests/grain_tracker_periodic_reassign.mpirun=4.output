@@ -1,0 +1,18 @@
+periodic mesh              = true
+n_grains                   = 2
+n_collisions               = 1
+grains_reassigned          = true
+op_number_changed          = false
+n_order_parameters_in_use  = 2
+grain at x = 2.00, segments = 1
+grain at x = 8.00, segments = 1
+
+periodic mesh              = false
+n_grains                   = 2
+n_collisions               = 0
+grains_reassigned          = false
+op_number_changed          = true
+n_order_parameters_in_use  = 1
+grain at x = 2.00, segments = 1
+grain at x = 8.00, segments = 1
+

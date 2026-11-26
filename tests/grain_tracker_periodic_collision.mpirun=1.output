@@ -1,0 +1,51 @@
+Collision across the periodic boundary is prevented
+Before the growth:
+  n_grains                  = 2
+  n_collisions              = 1
+  grains_reassigned         = true
+  op_number_changed         = false
+  n_order_parameters_in_use = 2
+  grain ids are preserved   = true
+  grain with 1 segment(s)
+  grain with 1 segment(s)
+After the growth:
+  n_grains                  = 2
+  n_collisions              = 0
+  grains_reassigned         = false
+  op_number_changed         = false
+  n_order_parameters_in_use = 2
+  grain ids are preserved   = true
+  grain with 2 segment(s)
+  grain with 2 segment(s)
+
+Merge of two grains across the periodic boundary is detected
+Before the merge:
+  n_grains                  = 2
+  n_collisions              = 0
+  grains_reassigned         = false
+  op_number_changed         = true
+  n_order_parameters_in_use = 1
+  grain ids are preserved   = true
+  grain with 1 segment(s)
+  grain with 1 segment(s)
+After the merge:
+  exception is thrown = true
+  message is clear    = true
+
+A grain crosses the periodic boundary
+Before crossing:
+  n_grains                  = 1
+  n_collisions              = 0
+  grains_reassigned         = false
+  op_number_changed         = true
+  n_order_parameters_in_use = 1
+  grain ids are preserved   = true
+  grain with 1 segment(s)
+After crossing:
+  n_grains                  = 1
+  n_collisions              = 0
+  grains_reassigned         = false
+  op_number_changed         = true
+  n_order_parameters_in_use = 1
+  grain ids are preserved   = true
+  grain with 2 segment(s)
