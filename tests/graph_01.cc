@@ -35,7 +35,11 @@ main()
 
   const auto c = GrainTracker::connected_components(N, edges);
 
-  for (const auto i : c)
-    std::cout << i << " ";
+  std::copy(c.begin(), c.end(), std::ostream_iterator<double>(std::cout, " "));
   std::cout << std::endl;
+
+  // Graph without vertices, e.g. an order parameter without any particle
+  const auto c_empty = GrainTracker::connected_components(0, {});
+
+  std::cout << "empty graph: " << c_empty.size() << " vertices" << std::endl;
 }
