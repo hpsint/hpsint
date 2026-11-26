@@ -35,7 +35,7 @@ GrainTracker::connected_components(
     G,
     make_iterator_property_map(c.begin(),
                                boost::get(boost::vertex_index, G),
-                               c[0]));
+                               static_cast<unsigned int>(0)));
 
   (void)num;
 
