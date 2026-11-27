@@ -539,6 +539,23 @@ namespace GrainTracker
 
   namespace internal
   {
+    // Whether there is a neighbor across the face, a periodic one included
+    template <typename Cell>
+    bool
+    has_neighbor_across(const Cell &cell, const unsigned int face)
+    {
+      return !cell.at_boundary(face) || cell.has_periodic_neighbor(face);
+    }
+
+    // The neighbor across the face, the periodic one if the face is periodic
+    template <typename Cell>
+    auto
+    neighbor_across(const Cell &cell, const unsigned int face)
+    {
+      return cell.has_periodic_neighbor(face) ? cell.periodic_neighbor(face) :
+                                                cell.neighbor(face);
+    }
+
     /* This function searches for the top layer of cells constituting each of
      * the particle clique and add them to the agglomerations container. */
     template <int dim, typename VectorIds>
@@ -582,9 +599,9 @@ namespace GrainTracker
       particle_markers[cell->global_active_cell_index()] = particle_id;
 
       for (const auto face : cell->face_indices())
-        if (!cell->at_boundary(face))
+        if (has_neighbor_across(*cell, face))
           {
-            const auto neighbor = cell->neighbor(face);
+            const auto neighbor = neighbor_across(*cell, face);
 
             if (!neighbor->has_children())
               {
@@ -614,10 +631,10 @@ namespace GrainTracker
                     if (child_particle_id == invalid_particle_id)
                       {
                         for (const auto child_face : child->face_indices())
-                          if (!child->at_boundary(child_face))
+                          if (has_neighbor_across(*child, child_face))
                             {
                               const auto neighbor_of_child =
-                                child->neighbor(child_face);
+                                neighbor_across(*child, child_face);
 
                               if (neighbor_of_child->is_active() &&
                                   neighbor_of_child->is_locally_owned() &&
@@ -793,9 +810,9 @@ namespace GrainTracker
           CellsCache cache(*cell, {});
 
           for (const auto face : cell->face_indices())
-            if (!cell->at_boundary(face))
+            if (internal::has_neighbor_across(*cell, face))
               {
-                const auto neighbor = cell->neighbor(face);
+                const auto neighbor = internal::neighbor_across(*cell, face);
 
                 if (!neighbor->has_children())
                   {
@@ -821,10 +838,11 @@ namespace GrainTracker
                                                ->global_active_cell_index()] ==
                               invalid_particle_id)
                           for (const auto child_face : child->face_indices())
-                            if (!child->at_boundary(child_face))
+                            if (internal::has_neighbor_across(*child,
+                                                              child_face))
                               {
                                 const auto neighbor_of_child =
-                                  child->neighbor(child_face);
+                                  internal::neighbor_across(*child, child_face);
 
                                 if (neighbor_of_child->is_active() &&
                                     !neighbor_of_child->is_artificial() &&
@@ -938,9 +956,9 @@ namespace GrainTracker
         for (const auto &cell : agglomeration_at_level)
           {
             for (const auto face : cell.face_indices())
-              if (!cell.at_boundary(face))
+              if (internal::has_neighbor_across(cell, face))
                 {
-                  const auto neighbor = cell.neighbor(face);
+                  const auto neighbor = internal::neighbor_across(cell, face);
 
                   if (!neighbor->has_children())
                     {
@@ -952,10 +970,11 @@ namespace GrainTracker
                       for (const auto &child : neighbor->child_iterators())
                         if (child->is_active() && child->is_locally_owned())
                           for (const auto child_face : child->face_indices())
-                            if (!child->at_boundary(child_face))
+                            if (internal::has_neighbor_across(*child,
+                                                              child_face))
                               {
                                 const auto neighbor_of_child =
-                                  child->neighbor(child_face);
+                                  internal::neighbor_across(*child, child_face);
 
                                 if (neighbor_of_child->is_active() &&
                                     neighbor_of_child->is_locally_owned() &&
