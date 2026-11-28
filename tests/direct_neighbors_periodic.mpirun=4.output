@@ -1,0 +1,5 @@
+periodic mesh = true
+  (0, 0) -> (1, 0)
+  (1, 0) -> (0, 0)
+periodic mesh = false
+  no direct neighbors

@@ -1081,42 +1081,47 @@ namespace GrainTracker
                     }
 
                   for (const auto face : cell->face_indices())
-                    if (!cell->at_boundary(face))
-                      {
-                        const auto neighbor = cell->neighbor(face);
+                    {
+                      const bool is_periodic =
+                        cell->has_periodic_neighbor(face);
 
-                        if (!neighbor->has_children())
-                          {
-                            const auto neighbor_pid_j = particle_ids.block(
-                              j)[neighbor->global_active_cell_index()];
+                      if (cell->at_boundary(face) && !is_periodic)
+                        continue;
 
-                            if (neighbor_pid_j != invalid_particle_id)
+                      const auto neighbor = is_periodic ?
+                                              cell->periodic_neighbor(face) :
+                                              cell->neighbor(face);
+
+                      if (!neighbor->has_children())
+                        {
+                          const auto neighbor_pid_j = particle_ids.block(
+                            j)[neighbor->global_active_cell_index()];
+
+                          if (neighbor_pid_j != invalid_particle_id)
+                            {
+                              const auto pj = std::make_pair(j, neighbor_pid_j);
+
+                              add_neighbors(pi, pj);
+                            }
+                        }
+                      else
+                        {
+                          for (const auto &child : neighbor->child_iterators())
+                            if (child->is_active() && !child->is_artificial())
                               {
-                                const auto pj =
-                                  std::make_pair(j, neighbor_pid_j);
+                                const auto child_pid_j = particle_ids.block(
+                                  j)[child->global_active_cell_index()];
 
-                                add_neighbors(pi, pj);
+                                if (child_pid_j != invalid_particle_id)
+                                  {
+                                    const auto pj =
+                                      std::make_pair(j, child_pid_j);
+
+                                    add_neighbors(pi, pj);
+                                  }
                               }
-                          }
-                        else
-                          {
-                            for (const auto &child :
-                                 neighbor->child_iterators())
-                              if (child->is_active() && !child->is_artificial())
-                                {
-                                  const auto child_pid_j = particle_ids.block(
-                                    j)[child->global_active_cell_index()];
-
-                                  if (child_pid_j != invalid_particle_id)
-                                    {
-                                      const auto pj =
-                                        std::make_pair(j, child_pid_j);
-
-                                      add_neighbors(pi, pj);
-                                    }
-                                }
-                          }
-                      }
+                        }
+                    }
                 }
           }
 

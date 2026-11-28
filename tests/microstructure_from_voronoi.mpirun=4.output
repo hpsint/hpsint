@@ -161,31 +161,31 @@ new_op_number     = 6
 Number of order parameters: 6
 Number of grains: 25
 op_index_current = 1 | op_index_old = 1 | segments = 2
-    segment: center = 0.586094 19.2432 | neighbors = 6 | max_value = 1
-    segment: center = 28.3806 18.3133 | neighbors = 11 | max_value = 1
+    segment: center = 0.586094 19.2432 | neighbors = 8 | max_value = 1
+    segment: center = 28.3806 18.3133 | neighbors = 13 | max_value = 1
 op_index_current = 2 | op_index_old = 2 | segments = 2
-    segment: center = 1.47575 26.8846 | neighbors = 4 | max_value = 1
-    segment: center = 29.3375 24.497 | neighbors = 8 | max_value = 1
+    segment: center = 1.47575 26.8846 | neighbors = 6 | max_value = 1
+    segment: center = 29.3375 24.497 | neighbors = 10 | max_value = 1
 op_index_current = 0 | op_index_old = 0 | segments = 2
-    segment: center = 1.88753 16.2558 | neighbors = 7 | max_value = 1
-    segment: center = 31.2466 15.1301 | neighbors = 5 | max_value = 1
+    segment: center = 1.88753 16.2558 | neighbors = 9 | max_value = 1
+    segment: center = 31.2466 15.1301 | neighbors = 7 | max_value = 1
 op_index_current = 2 | op_index_old = 2 | segments = 2
-    segment: center = 1.90059 7.46401 | neighbors = 5 | max_value = 1
-    segment: center = 30.8551 7.23195 | neighbors = 5 | max_value = 1
+    segment: center = 1.90059 7.46401 | neighbors = 7 | max_value = 1
+    segment: center = 30.8551 7.23195 | neighbors = 7 | max_value = 1
 op_index_current = 4 | op_index_old = 4 | segments = 2
-    segment: center = 1.96899 12.0681 | neighbors = 9 | max_value = 1
-    segment: center = 30.9408 11.8633 | neighbors = 8 | max_value = 1
+    segment: center = 1.96899 12.0681 | neighbors = 11 | max_value = 1
+    segment: center = 30.9408 11.8633 | neighbors = 10 | max_value = 1
 op_index_current = 4 | op_index_old = 4 | segments = 4
-    segment: center = 2.8163 1.81931 | neighbors = 4 | max_value = 1
-    segment: center = 3.40102 30.3687 | neighbors = 6 | max_value = 1
-    segment: center = 29.6146 2.6126 | neighbors = 5 | max_value = 1
-    segment: center = 31.0377 31.125 | neighbors = 4 | max_value = 1
+    segment: center = 2.8163 1.81931 | neighbors = 6 | max_value = 1
+    segment: center = 3.40102 30.3687 | neighbors = 8 | max_value = 1
+    segment: center = 29.6146 2.6126 | neighbors = 7 | max_value = 1
+    segment: center = 31.0377 31.125 | neighbors = 6 | max_value = 1
 op_index_current = 5 | op_index_old = 5 | segments = 2
-    segment: center = 3.26762 23.2711 | neighbors = 6 | max_value = 1
-    segment: center = 31.7407 22.012 | neighbors = 3 | max_value = 1
+    segment: center = 3.26762 23.2711 | neighbors = 8 | max_value = 1
+    segment: center = 31.7407 22.012 | neighbors = 5 | max_value = 1
 op_index_current = 1 | op_index_old = 1 | segments = 2
-    segment: center = 3.49537 4.82474 | neighbors = 6 | max_value = 1
-    segment: center = 30.7855 5.29748 | neighbors = 5 | max_value = 1
+    segment: center = 3.49537 4.82474 | neighbors = 8 | max_value = 1
+    segment: center = 30.7855 5.29748 | neighbors = 7 | max_value = 1
 op_index_current = 3 | op_index_old = 3 | segments = 1
     segment: center = 4.96163 18.7392 | neighbors = 9 | max_value = 1
 op_index_current = 0 | op_index_old = 0 | segments = 1
@@ -195,8 +195,8 @@ op_index_current = 3 | op_index_old = 3 | segments = 1
 op_index_current = 2 | op_index_old = 2 | segments = 1
     segment: center = 7.63676 14.5227 | neighbors = 13 | max_value = 1
 op_index_current = 2 | op_index_old = 2 | segments = 2
-    segment: center = 8.31641 30.9115 | neighbors = 6 | max_value = 1
-    segment: center = 9.09781 3.4431 | neighbors = 8 | max_value = 1
+    segment: center = 8.31641 30.9115 | neighbors = 8 | max_value = 1
+    segment: center = 9.09781 3.4431 | neighbors = 10 | max_value = 1
 op_index_current = 0 | op_index_old = 0 | segments = 1
     segment: center = 9.15496 25.4626 | neighbors = 11 | max_value = 1
 op_index_current = 1 | op_index_old = 1 | segments = 1
@@ -206,8 +206,8 @@ op_index_current = 1 | op_index_old = 1 | segments = 1
 op_index_current = 0 | op_index_old = 0 | segments = 1
     segment: center = 13.5457 13.4339 | neighbors = 10 | max_value = 1
 op_index_current = 5 | op_index_old = 4 | segments = 2
-    segment: center = 13.959 30.2141 | neighbors = 9 | max_value = 1
-    segment: center = 16.0937 2.36379 | neighbors = 9 | max_value = 1
+    segment: center = 13.959 30.2141 | neighbors = 11 | max_value = 1
+    segment: center = 16.0937 2.36379 | neighbors = 11 | max_value = 1
 op_index_current = 3 | op_index_old = 3 | segments = 1
     segment: center = 16.4244 16.4247 | neighbors = 8 | max_value = 1
 op_index_current = 3 | op_index_old = 2 | segments = 1
@@ -217,10 +217,10 @@ op_index_current = 0 | op_index_old = 0 | segments = 1
 op_index_current = 2 | op_index_old = 2 | segments = 1
     segment: center = 20.3566 8.6984 | neighbors = 13 | max_value = 1
 op_index_current = 4 | op_index_old = 3 | segments = 2
-    segment: center = 20.7986 27.0535 | neighbors = 8 | max_value = 1
-    segment: center = 21.45 0.760707 | neighbors = 5 | max_value = 1
+    segment: center = 20.7986 27.0535 | neighbors = 10 | max_value = 1
+    segment: center = 21.45 0.760707 | neighbors = 7 | max_value = 1
 op_index_current = 0 | op_index_old = 0 | segments = 2
-    segment: center = 25.2928 1.2984 | neighbors = 8 | max_value = 1
-    segment: center = 26.8077 28.6328 | neighbors = 6 | max_value = 1
+    segment: center = 25.2928 1.2984 | neighbors = 10 | max_value = 1
+    segment: center = 26.8077 28.6328 | neighbors = 8 | max_value = 1
 op_index_current = 3 | op_index_old = 3 | segments = 1
     segment: center = 26.3268 9.77196 | neighbors = 12 | max_value = 1
